@@ -18,6 +18,7 @@ import {
   backendErrorFromResponse,
   backendRefusalDetail,
   failureDetail,
+  firstFailureDetail,
   isBackendRefusal,
   projectAdaptedRead,
   retryAdaptedRead,
@@ -266,6 +267,20 @@ describe('failureDetail', () => {
     ]) {
       expect(failureDetail(fault)).toBeUndefined();
     }
+  });
+});
+
+describe('firstFailureDetail', () => {
+  // A batch surface names why from the first refusal; the rows' own writes
+  // stay quiet, so its toast is the only report.
+  it("is the first refusal's detail", () => {
+    expect(
+      firstFailureDetail([
+        new AppError({ code: 'SANDBOX_BUSY', message: 'The sandbox is busy' }),
+        new Error('Team name is too long'),
+      ]),
+    ).toBe('The sandbox is busy');
+    expect(firstFailureDetail([])).toBeUndefined();
   });
 });
 

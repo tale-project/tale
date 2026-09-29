@@ -21,6 +21,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { MessageCircle, SquarePen } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -136,7 +137,11 @@ export function ProjectThreadsTab({
         }
       }
       console.error('setThreadSharedWithProject failed', error);
-      toast({ title: t('threads.shareError'), variant: 'destructive' });
+      toast({
+        title: t('threads.shareError'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 

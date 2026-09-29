@@ -860,7 +860,13 @@ export function useDocumentUpload(options: UploadOptions) {
 }
 
 export function useCreateFolder() {
-  return useBackendMutation('folders/mutations:createFolder');
+  return useBackendMutation('folders/mutations:createFolder', {
+    // Every caller reports a failed create itself — the create dialogs and
+    // the uploads panel in their own toast (a taken name by name), an upload
+    // batch in its summary — and the uploads panel adopts a folder that
+    // turns out to exist already, which is no failure at all.
+    errorToast: false,
+  });
 }
 
 export function useRenameFolder() {
@@ -877,12 +883,17 @@ export function useDeleteFolder() {
   });
 }
 
+// The row menu toasts a sync it could not stop, with the reason.
 export function useCancelOneDriveSync() {
-  return useBackendMutation('onedrive/mutations:cancelSyncConfig');
+  return useBackendMutation('onedrive/mutations:cancelSyncConfig', {
+    errorToast: false,
+  });
 }
 
 export function useCancelGoogleDriveSync() {
-  return useBackendMutation('google_drive/mutations:cancelSyncConfig');
+  return useBackendMutation('google_drive/mutations:cancelSyncConfig', {
+    errorToast: false,
+  });
 }
 
 export function useDeleteDocument() {
@@ -900,7 +911,10 @@ export function useUpdateDocument() {
 }
 
 export function useUpdateFolderTeams() {
-  return useBackendMutation('folders/mutations:updateFolderTeams');
+  return useBackendMutation('folders/mutations:updateFolderTeams', {
+    // The team-tags dialog shows its own error toast, with the reason.
+    errorToast: false,
+  });
 }
 
 // ---------------------------------------------------------------------------

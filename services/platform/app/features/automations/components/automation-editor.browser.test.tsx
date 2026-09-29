@@ -4,6 +4,7 @@ import {
   AdaptiveHeaderSlot,
 } from '@tale/ui/adaptive-header';
 import { DirtyBlockerProvider } from '@tale/ui/editor';
+import { viewportAtRest } from '@tale/ui/testing/flow';
 import {
   Outlet,
   RouterProvider,
@@ -618,14 +619,18 @@ describe('automation editor workbench in Chromium', () => {
           return rect.left >= frame.left - 1 && rect.right <= frame.right + 1;
         })
         .toBe(true);
+      // The pan leaves the box 24px inside the edge, so the box is in the
+      // frame before the 200ms pan ends: measure where the view comes to rest.
+      await viewportAtRest(canvas);
 
       // Closing hands the width back without moving the graph: focus returns
-      // to the box, which is already in sight. (Both reads wait out the
-      // 200ms pan.)
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      // to the box, which is already in sight.
       const settled = box.getBoundingClientRect();
       await userEvent.keyboard('{Escape}');
       await expect.poll(() => document.activeElement).toBe(box);
+      // A pan that must not come has no event to await: the pause gives one
+      // time to show. A runner too slow to draw it in time can only miss it,
+      // never fail a graph that holds still.
       await new Promise((resolve) => setTimeout(resolve, 400));
       const after = box.getBoundingClientRect();
       expect(after.left).toBeCloseTo(settled.left, 0);

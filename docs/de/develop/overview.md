@@ -12,6 +12,7 @@ Diese Anleitungen helfen dir, einen Client zu schreiben, ein externes System anz
 | Ein Skript schreiben, das eine Nachricht sendet und die Antwort liest | [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) |
 | Einen Client für Projekte, Aufgaben, Dateien oder andere Ressourcen bauen | [API-Referenz](/de/develop/api-reference) |
 | Einen MCP-Client verbinden | [MCP-Endpunkt](/de/develop/mcp-endpoint) |
+| KI-Hilfe im Editor mit dem Wissen oder den Modellen von Tale | [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor) |
 | Eine Automatisierung aus einem anderen System auslösen | [Webhooks](/de/develop/webhooks) |
 | Über einen Dateisystem-Client auf Dokumente zugreifen | [WebDAV-API](/de/develop/webdav-api) |
 | Einen Connector entwickeln | [Connector-Entwicklung](/de/develop/connectors) |

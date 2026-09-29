@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import { deploymentSpecSchema } from '../deployment/model';
+import { REPOSITORY_RUNTIME_SOURCE } from '../deployment/runtime-test-helper';
 import { parsePlatformConfiguration } from './platform-model';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -17,6 +18,24 @@ const CHECKED_CI_FILES = [
   '.github/workflows/build.yml',
   '.github/workflows/cleanup-pr-images.yml',
   '.github/actions/setup-cli/action.yml',
+];
+/**
+ * The files `compose/services/compose-parity.test.ts` holds the CLI's
+ * generators against, from the repo root: the runtime source, the images'
+ * entrypoints and Dockerfiles, and the workflows that build and release them.
+ */
+const PARITY_FILES = [
+  '.github/workflows/build.yml',
+  '.github/workflows/cli.yml',
+  '.github/workflows/release.yml',
+  'compose.yml',
+  'services/proxy/Caddyfile',
+  'services/proxy/docker-entrypoint.sh',
+  'services/platform/Dockerfile',
+  'services/platform/docker-entrypoint.sh',
+  'services/platform/env.sh',
+  'services/db/Dockerfile',
+  'services/sandbox-egress/Dockerfile',
 ];
 
 /** The slice of `turbo run --dry=json` this suite reads. */
@@ -80,8 +99,11 @@ describe('documented general platform configuration', () => {
  * without them as `test` inputs (`tools/cli/turbo.json`) a docs-only edit
  * replays this suite's cached verdict instead of parsing the new examples.
  * The CI files `scripts/deployment-ci.test.ts` checks sit outside it too: an
- * edit to a workflow or the setup action alone must re-run that suite as well. */
-test('turbo re-runs the suites when an install page or a checked CI file changes', () => {
+ * edit to a workflow or the setup action alone must re-run that suite as well.
+ * So do the files the compose parity suite reads and the release's own runtime
+ * source the runtime suites prepare: an edit to `compose.yml` alone must not
+ * replay a verdict that says this CLI accepts it. */
+test('turbo re-runs the suites when an install page or another outside file they read changes', () => {
   // `bun x`, not a `bunx` shim: the CLI workflow runs this suite on Windows.
   const run = Bun.spawnSync(
     [
@@ -121,7 +143,13 @@ test('turbo re-runs the suites when an install page or a checked CI file changes
   expect(inputs.has(self), `@tale/cli#test does not hash ${self}`).toBe(true);
   const unhashed = [
     ...LOCALES.map((locale) => installPage(locale)),
-    ...CHECKED_CI_FILES.map((path) => resolve(REPO_ROOT, path)),
+    ...[
+      ...new Set([
+        ...CHECKED_CI_FILES,
+        ...PARITY_FILES,
+        ...REPOSITORY_RUNTIME_SOURCE,
+      ]),
+    ].map((path) => resolve(REPO_ROOT, path)),
   ]
     .map((file) => relative(CLI_ROOT, file).split(sep).join('/'))
     .filter((file) => !inputs.has(file));

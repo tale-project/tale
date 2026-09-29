@@ -14,6 +14,7 @@ import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { assessMessageRefLiveness, assessRefLiveness } from './liveness.ts';
+import { queueRefRelease } from './release-queue.ts';
 import {
   reconcileDocumentScopeStamps,
   reconcileMailAttachmentStamps,
@@ -48,7 +49,8 @@ import {
  * call `releaseRefs` synchronously and keep their rows on failure. The
  * daily `knowledge.reconcile_corpus` sweep walks each org's corpus and
  * releases every ref both predicates declare dead — the backstop that also
- * heals historically stranded rows on existing deployments.
+ * heals historically stranded rows on existing deployments — and hands the
+ * job the bytes it fails to delete once their corpus rows are gone.
  */
 
 export interface ReleaseFailure {
@@ -325,12 +327,16 @@ async function reconcileRange(
     if (page.length === 0) break;
     scanned += page.length;
     cursor = page.at(-1) ?? null;
-    const outcome = warnReleaseFailures(
-      await releaseRefs(sql, {
-        organizationId: args.organizationId,
-        orgSlug: args.orgSlug,
-        refs: page,
-      }),
+    const outcome = await requeueBlobFailures(
+      sql,
+      args.organizationId,
+      warnReleaseFailures(
+        await releaseRefs(sql, {
+          organizationId: args.organizationId,
+          orgSlug: args.orgSlug,
+          refs: page,
+        }),
+      ),
     );
     released += outcome.released.length;
     failures += outcome.failures.length;
@@ -339,12 +345,66 @@ async function reconcileRange(
   return { scanned, released, failures };
 }
 
-/** Log each failure of a release the reconcile ran — the next run retries
- * what it still finds — and hand the outcome on. */
+/** Log each corpus-stage failure of a release the reconcile ran — the next
+ * run retries it, since its rows still list the ref — and hand the outcome
+ * on. A blob-stage failure is `requeueBlobFailures`' to log: whether the
+ * release job took it is half of what its line has to say. */
 function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
   for (const failure of outcome.failures) {
+    if (failure.stage !== 'corpus') continue;
     console.warn(
-      `[knowledge] reconcile release failed for ${failure.ref} (${failure.stage}): ${failure.message}`,
+      `[knowledge] reconcile release failed for ${failure.ref} (corpus): ${failure.message}`,
+    );
+  }
+  return outcome;
+}
+
+/**
+ * Queue the durable release job for every ref of a release the reconcile ran
+ * whose bytes it could not delete, and hand the outcome on. The corpus rows
+ * of such a ref are gone by then, so nothing the reconcile walks lists it
+ * again — the stamp pass reads stamped corpus rows, the blob walk corpus
+ * refs, and no sweep lists bucket objects — and its bytes would stay for
+ * good. The job re-decides liveness and reads the absent corpus rows as
+ * released, so pg-boss's retries redo the blob stage only. A corpus-stage
+ * failure is not queued: its rows still list the ref for the next night. The
+ * jobs are bounded as the mail lanes' are (`queueRefRelease`), and an
+ * enqueue that fails is logged, not thrown, so the next job is still queued
+ * and the organization's other passes still run.
+ *
+ * Each failed byte delete is logged with what became of it — re-queued, or
+ * not re-queued when its job could not be queued — so a failure the job
+ * retries never reads as final.
+ */
+async function requeueBlobFailures(
+  sql: Sql,
+  organizationId: string,
+  outcome: ReleaseOutcome,
+): Promise<ReleaseOutcome> {
+  const failures = outcome.failures.filter(
+    (failure) => failure.stage === 'blob',
+  );
+  const unqueued: { refs: string[]; error: unknown }[] = [];
+  await queueRefRelease(
+    sql,
+    organizationId,
+    failures.map((failure) => failure.ref),
+    {
+      onChunkError: (refs, error) => {
+        unqueued.push({ refs, error });
+      },
+    },
+  );
+  const stranded = new Set(unqueued.flatMap((job) => job.refs));
+  for (const failure of failures) {
+    console.warn(
+      `[knowledge] reconcile release failed for ${failure.ref} (blob): ${failure.message} — ${stranded.has(failure.ref) ? 'not re-queued' : 're-queued to knowledge.release_refs'}`,
+    );
+  }
+  for (const job of unqueued) {
+    console.warn(
+      `[knowledge] could not re-queue a byte release for org ${organizationId} (refs=${job.refs.length}), their bytes stay:`,
+      job.error,
     );
   }
   return outcome;
@@ -354,8 +414,10 @@ function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
  * Walk one org's corpus and release every ref that is dead by both
  * predicates — the lazy backfill for historically stranded rows (replaced
  * versions, rotated knowledge entries, swept temp files) and the backstop
- * for a release job that exhausted its retries. Bounded per run; the daily
- * schedule drains large backlogs incrementally.
+ * for a release job that exhausted its retries while the ref's corpus rows
+ * stood. A ref whose bytes the walk cannot delete goes to the release job
+ * (`requeueBlobFailures`). Bounded per run; the daily schedule drains large
+ * backlogs incrementally.
  *
  * Email bodies (`msg:` refs) get a walk of their own with its own budget, so
  * an inbox can never crowd the blob refs out (`listKnowledgeDocumentRefs`).
@@ -438,7 +500,8 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       // row. A second walk takes the stamp off every row no attachment backs
       // any more, or releases it when nothing keeps it — bytes and all when
       // nothing references them: the blob walk lists corpus refs only, so
-      // once that row is gone nothing would ever reach them again.
+      // once that row is gone nothing would ever reach them again, and a
+      // byte delete that fails there goes to the release job.
       const orgRef = { organizationId: org.id, orgSlug: org.slug };
       const mail = await reconcileMailAttachmentStamps(sql, {
         ...orgRef,
@@ -447,7 +510,11 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
             await releaseCorpusRefs(sql, { ...orgRef, refs }),
           ),
         releaseUnbacked: async (refs) =>
-          warnReleaseFailures(await releaseRefs(sql, { ...orgRef, refs })),
+          requeueBlobFailures(
+            sql,
+            org.id,
+            warnReleaseFailures(await releaseRefs(sql, { ...orgRef, refs })),
+          ),
       });
       if (mail.corrected > 0 || mail.released > 0 || mail.failures > 0) {
         console.info(
@@ -456,17 +523,22 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       }
       if (
         mail.cleared > 0 ||
+        mail.restamped > 0 ||
         mail.unbackedReleased > 0 ||
-        mail.unbackedFailures > 0
+        mail.unbackedFailures > 0 ||
+        mail.recheckReleased > 0 ||
+        mail.recheckFailures > 0
       ) {
-        // Not drift: no sync failed. These rows stopped being emailed
-        // attachments and kept a stamp — one that hid them from every
-        // document door while something still holds the ref, or one on a
-        // row nothing holds any more — so they are reported apart from the
+        // Not drift: no sync failed. Each of these rows carried a stamp no
+        // emailed attachment backed when the second walk read it: the stamp
+        // came off a row something else keeps, the row went when nothing
+        // did, or the ref was an attachment again by the time the clear
+        // landed — its stamp put back, and the attachment released when its
+        // conversation is gone or spam. They are reported apart from the
         // scope drift above, and apart from the attachments line, whose
         // counts are of attachment rows.
         console.info(
-          `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} released=${mail.unbackedReleased} failures=${mail.unbackedFailures} (of stamped=${mail.stampsScanned}) — rows no emailed attachment backs any more (filed into or held by a document, or a thread/chat file), not a failed sync`,
+          `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} restamped=${mail.restamped} released=${mail.unbackedReleased} failures=${mail.unbackedFailures} recheckReleased=${mail.recheckReleased} recheckFailures=${mail.recheckFailures} (of stamped=${mail.stampsScanned}) — rows no emailed attachment backed when the walk read them, not a failed sync`,
         );
       }
     } catch (error) {

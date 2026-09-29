@@ -9,8 +9,15 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({ projects: [], isLoading: false }),
 }));
 
+// Whether the viewer may author automations (the developer-settings gate).
+const viewer = vi.hoisted(() => ({ canAuthor: true }));
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true }),
+  useAbility: () => ({
+    can: (action: string, subject: string) =>
+      action === 'read' && subject === 'developerSettings'
+        ? viewer.canAuthor
+        : true,
+  }),
 }));
 
 vi.mock('@tale/ui/i18n/client', () => ({
@@ -64,6 +71,10 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 import { AutomationsList } from './automations-list';
+
+beforeEach(() => {
+  viewer.canAuthor = true;
+});
 
 describe('AutomationsList', () => {
   beforeEach(() => {
@@ -254,6 +265,46 @@ describe('AutomationsList create menu', () => {
     expect(screen.getByTestId('row-actions')).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText('automations.list.searchPlaceholder'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('AutomationsList for someone who cannot author automations', () => {
+  it('lists deployed automations only, without the create button', () => {
+    viewer.canAuthor = false;
+    automationsData = [
+      { name: 'ops/mail-sync', latest: 1, projectIds: [], deployedVersion: 1 },
+      { name: 'ops/digest', latest: 1, projectIds: [] },
+    ];
+    render(<AutomationsList organizationId="org-1" />);
+
+    expect(screen.getByText('ops/mail-sync')).toBeInTheDocument();
+    expect(screen.queryByText('ops/digest')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'automations.list.createButton' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('tells a reader what the empty list means', () => {
+    viewer.canAuthor = false;
+    automationsData = [{ name: 'ops/digest', latest: 1, projectIds: [] }];
+    render(<AutomationsList organizationId="org-1" />);
+
+    expect(
+      screen.getByText('automations.list.emptyReader.title'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('automations.list.emptyReader.description'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps every automation and the author empty state for an author', () => {
+    viewer.canAuthor = true;
+    automationsData = [];
+    render(<AutomationsList organizationId="org-1" />);
+
+    expect(
+      screen.getByText('automations.list.empty.title'),
     ).toBeInTheDocument();
   });
 });

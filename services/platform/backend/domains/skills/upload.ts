@@ -1,5 +1,5 @@
 import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '@tale/shared/schemas/skills';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing.ts';
@@ -17,14 +17,20 @@ import {
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { parseSkillBundleZip } from '../../core/skills/bundle_zip.ts';
-import { normalizedBundleFiles } from '../../core/skills/file_actions.ts';
+import {
+  describeBundleWrite,
+  prepareBundleWrite,
+} from '../../core/skills/file_actions.ts';
 import {
   createOrgSkillReader,
   listSkillBundleFileEntries,
+  readSkillBundleFiles,
+  SkillBundleError,
   writeSkillBundleFiles,
 } from '../../core/skills/file_utils.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
+import { auditSkillWrite, type SkillWriteAudit } from './audit.ts';
 import { withSkillWriterLock } from './writer-lock.ts';
 
 /**
@@ -49,8 +55,20 @@ export async function uploadSkillBundlePg(
     organizationId: string;
     orgSlug: string;
     viewer: UserSkillViewer;
+    /** Who the write's audit row names. */
+    actor: SkillWriteAudit['actor'];
     storageId: string;
     force?: boolean;
+    /** The audience rule for a team skill's `teams`, answered in the skill
+     * door's codes (`assertSkillTeamsAssignable`). */
+    assertTeamsAssignable: (
+      teamIds: string[],
+      tx: TransactionSql,
+    ) => Promise<void>;
+    /** Whether the uploader may give a skill the whole organization as its
+     * audience (`publish.ts`); a bundle shared with the organization is
+     * refused without it (`SKILL_PUBLISH_FORBIDDEN`). */
+    mayPublishOrgWide: boolean;
   },
 ): Promise<UploadOutcome> {
   // Single-use: the intent is consumed here, and the blob dies with this
@@ -129,7 +147,7 @@ export async function uploadSkillBundlePg(
       sql,
       args.organizationId,
       parsed.slug,
-      async () => {
+      async (tx) => {
         let existing: OrgSkill | null = null;
         let existingUnreadable = false;
         try {
@@ -164,10 +182,27 @@ export async function uploadSkillBundlePg(
           }
         }
 
-        // The owner and sharing rules the editor applies. An unreadable
-        // existing document counts as no bundle: there is nothing left to
-        // preserve.
-        const files = normalizedBundleFiles(parsed, args.viewer, existing);
+        // The owner, private, team-audience and organization-wide rules the
+        // editor applies. An unreadable existing document counts as no
+        // bundle: there is nothing left to preserve.
+        const files = await prepareBundleWrite({
+          parsed,
+          uploader: args.viewer,
+          existing,
+          assertTeamsAssignable: (teamIds) =>
+            args.assertTeamsAssignable(teamIds, tx),
+          mayPublishOrgWide: args.mayPublishOrgWide,
+        });
+        // What the write changes, read before it replaces the bundle.
+        const change = describeBundleWrite({
+          slug: parsed.slug,
+          existing,
+          stored:
+            existing === null
+              ? null
+              : await storedBundleForAudit(args.orgSlug, parsed.slug),
+          files,
+        });
         try {
           await writeSkillBundleFiles(args.orgSlug, parsed.slug, files);
         } catch (err) {
@@ -180,6 +215,13 @@ export async function uploadSkillBundlePg(
                 : 'Failed to write skill bundle',
           });
         }
+        await auditSkillWrite(tx, {
+          organizationId: args.organizationId,
+          slug: parsed.slug,
+          actor: args.actor,
+          via: 'upload',
+          ...change,
+        });
         return { ok: true, slug: parsed.slug };
       },
     );
@@ -188,4 +230,26 @@ export async function uploadSkillBundlePg(
   }
 
   return outcome;
+}
+
+/**
+ * The stored bundle's files, for the audit record's "did another file
+ * change". A bundle the file layer refuses to walk (a planted symlink, a
+ * file over the staging cap) is exactly what a replacing upload repairs, so
+ * it must not fail the upload: it reads as absent, and the write records
+ * its files as changed.
+ */
+async function storedBundleForAudit(
+  orgSlug: string,
+  slug: string,
+): Promise<Awaited<ReturnType<typeof readSkillBundleFiles>>> {
+  try {
+    return await readSkillBundleFiles(orgSlug, slug);
+  } catch (error) {
+    if (!(error instanceof SkillBundleError)) throw error;
+    console.warn(
+      `[skills] ${orgSlug}: the replaced bundle "${slug}" could not be read for its audit record — ${error.message}`,
+    );
+    return null;
+  }
 }

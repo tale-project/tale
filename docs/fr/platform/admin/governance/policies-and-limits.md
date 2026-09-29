@@ -1,9 +1,9 @@
 ---
 title: Politiques et limites
-description: Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat et le routage des conversations entrantes.
+description: Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat, le partage des skills avec tout le monde et le routage des conversations entrantes.
 ---
 
-En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Politiques et limites** pour contrôler les ressources et le traitement des données. Choisis la section adaptée au problème : dépenses, imports, rétention, fonctionnalités, avis affiché dans le chat ou destinataires des conversations entrantes.
+En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Politiques et limites** pour contrôler les ressources et le traitement des données. Choisis la section adaptée au problème : dépenses, imports, rétention, fonctionnalités, avis affiché dans le chat, partage des skills avec toute l’organisation ou destinataires des conversations entrantes.
 
 <Frame caption="Gouvernance > Politiques et limites — le tableau des règles de budget, au-dessus de la politique d’import et des contrôles de rétention.">
 
@@ -14,14 +14,14 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Polit
 ## Ajouter un budget
 
 1. Dans les règles de budget, choisis **Ajouter une règle**.
-2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé.
+2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé. La liste des clés API propose chaque clé active d’un membre de l’organisation, avec le nom de la personne qui la détient : tu peux ainsi plafonner le script ou l’outil de code d’une seule personne.
 3. Sélectionne une période quotidienne, hebdomadaire ou mensuelle. Renseigne au moins une limite positive de tokens, de coût ou de requêtes. Le coût est en USD ; un champ vide ne plafonne pas cette dimension par cette règle.
 4. Définis si besoin le seuil d’alerte entre 0 et 100 pour avertir avant d’atteindre le plafond.
 5. Choisis **Confirmer**, enregistre les changements de la page et vérifie la portée, la cible, la période et les limites enregistrées.
 
 Par exemple, une règle mensuelle de rôle peut donner aux rédacteurs un budget personnel de 50 USD, tandis qu’une règle d’organisation plafonne les dépenses cumulées à 500 USD. Ce sont des exemples, pas des valeurs recommandées.
 
-Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie vocale et les exécutions d’agents gérés. Tale vérifie chaque requête de chat avant son exécution — un message envoyé, une réponse régénérée ou modifiée, les deux côtés d’une comparaison de modèles, un message en attente d’une pièce jointe et un envoi par l’API REST — et la refuse dès qu’un plafond applicable est atteint, en indiquant ce plafond et le moment de sa réinitialisation. Les réponses en cours de rédaction réservent ce qu’elles peuvent dépenser, afin que des requêtes envoyées au même moment ne franchissent pas ensemble un plafond presque atteint. La génération d’images exige des limites de coût ou de requêtes, car elle n’est pas mesurée en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
+Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie vocale et les exécutions d’agents gérés. Tale vérifie chaque requête de chat avant son exécution — un message envoyé, une réponse régénérée ou modifiée, les deux côtés d’une comparaison de modèles, un message en attente d’une pièce jointe et un envoi par l’API REST — et la refuse dès qu’un plafond applicable est atteint, en indiquant ce plafond et le moment de sa réinitialisation. Les réponses en cours de rédaction réservent ce qu’elles peuvent dépenser, afin que des requêtes envoyées au même moment ne franchissent pas ensemble un plafond presque atteint. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
 
 ## Comprendre les plafonds applicables
 
@@ -79,6 +79,32 @@ Le commutateur par défaut des instructions personnalisées enregistre la valeur
 Chaque membre voit le texte de sa langue. Un onglet marqué **non traduit** n’a pas de texte propre : les membres qui lisent cette langue voient ton texte anglais, ou l’avis par défaut si l’anglais est vide lui aussi, et le champ vide présente ce texte en aperçu. Un point rouge signale une langue dont le texte est trop long ; l’enregistrement reste impossible tant que tu ne l’as pas raccourci. Désactiver l’avis conserve tes textes pour la prochaine activation.
 
 L’avis n’est qu’un rappel : il ne vérifie, ne bloque ni ne modifie les messages envoyés. Pour agir sur les contenus sensibles, configure les [Garde-fous](/fr/platform/admin/governance/guardrails).
+
+## Décider qui partage des skills avec tout le monde {#skill-sharing}
+
+Par défaut, chaque membre peut partager un skill avec toute l’organisation. **Partage des skills** permet de réserver ce droit à moins de personnes : choisis qui peut **Partager les skills avec l'organisation**, puis enregistre les modifications en attente de la page.
+
+- **Tous les membres** conserve le comportement par défaut.
+- **Éditeurs et au-delà** autorise les éditeurs, les développeurs, les admins et les propriétaires, c’est-à-dire les rôles qui équipent les agents.
+- **Propriétaires et admins uniquement** n’autorise que les propriétaires et les admins.
+
+<Frame caption="Gouvernance > Politiques et limites — le partage des skills décide qui peut partager un skill avec toute l’organisation.">
+
+![La section Partage des skills avec Partager les skills avec l'organisation réglé sur Tous les membres, et l’indication que les propriétaires et les admins le peuvent toujours et qu’un membre de plus peut recevoir Publier des skills pour l'organisation dans Compétences.](/images/platform/governance-skill-sharing.webp)
+
+</Frame>
+
+Les propriétaires et les admins peuvent toujours partager avec tout le monde. Pour l’autoriser à une personne de plus sans lui donner un rôle plus élevé, attribue-lui **Publier des skills pour l'organisation** dans [Compétences](/fr/platform/admin/governance/competences).
+
+Les autres membres peuvent toujours créer des skills et les partager avec leurs propres équipes. Ils ne peuvent ni créer un skill pour toute l’organisation, ni étendre l’un des leurs à **Organisation**, ni modifier sur place un skill partagé avec l’organisation. Ils peuvent restreindre un de leurs skills à leurs équipes, avec d’autres modifications dans le même enregistrement, ou le supprimer. La règle s’applique dans l’éditeur de skills, aux téléversements de zip et de dossier, aux paquets d’automatisation qui contiennent des skills et à l’API REST. Chaque refus apparaît dans les [journaux d’audit](/fr/platform/admin/governance/audit-logs) sous **Publication d'un skill refusée**.
+
+Un réglage plus strict ne restreint pas les skills déjà partagés avec l’organisation. Pour les passer en revue, ouvre **Paramètres > Skills**, choisis **Filtre > Visibilité > Organisation** et consulte la colonne **Créé par**. Restreins ou supprime ceux qui ne doivent plus être partagés avec tout le monde.
+
+<Note>
+
+Une release de configuration gérée installe ses skills au nom du membre qui la déploie. Avant de choisir un réglage plus strict, vérifie que ce membre peut toujours partager avec tout le monde, par son rôle ou par la compétence ; sinon, la prochaine release qui contient un skill partagé avec l’organisation est refusée.
+
+</Note>
 
 ## Routage des conversations
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { toast } from '@tale/ui/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
@@ -33,7 +32,6 @@ import { useTaskSubscription } from '../hooks/queries';
  */
 export function TaskWatchControl({ taskId }: { taskId: string }) {
   const { t } = useT('tasks');
-  const { t: tCommon } = useT('common');
   const { subscribed, muted } = useTaskSubscription(taskId);
   const subscribe = useSubscribeToTask();
   const setMuted = useSetTaskMuted();
@@ -56,8 +54,8 @@ export function TaskWatchControl({ taskId }: { taskId: string }) {
               ? setMuted.mutateAsync({ taskId, muted: true })
               : subscribe.mutateAsync({ taskId }));
           } catch (error) {
+            // The watch write's own toast reports the failure.
             console.error('[tasks] watch toggle failed', error);
-            toast({ title: tCommon('errors.generic'), variant: 'destructive' });
           }
         })()
       }

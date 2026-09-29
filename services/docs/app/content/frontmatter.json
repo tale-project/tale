@@ -129,6 +129,15 @@
       "description": "Lies den öffentlichen Status, überwache die JSON-Antwort und unterscheide Ausfälle von fehlgeschlagenen Aktionen."
     }
   },
+  "de:develop/use-tale-from-your-editor": {
+    "slug": "develop/use-tale-from-your-editor",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Tale aus deinem Editor oder einem Skript nutzen",
+      "description": "Nutze den REST-Chat aus Skripten, verbinde opencode oder Claude Code mit dem MCP-Endpoint von Tale oder lass einen Projektagenten deine Skripte mit den Modellen deiner Organisation bearbeiten.",
+      "i18nLintExclude": ""
+    }
+  },
   "de:develop/webdav-api": {
     "slug": "develop/webdav-api",
     "locale": "de",
@@ -321,7 +330,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Richtlinien und Limits",
-      "description": "Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat und die Zuordnung eingehender Konversationen fest."
+      "description": "Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat, das Teilen von Skills mit allen und die Zuordnung eingehender Konversationen fest."
     }
   },
   "de:platform/admin/governance/trash": {
@@ -1273,6 +1282,15 @@
       "description": "Read the public status page, monitor its JSON response and distinguish an outage from a failed operation."
     }
   },
+  "en:develop/use-tale-from-your-editor": {
+    "slug": "develop/use-tale-from-your-editor",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Use Tale from your editor or a script",
+      "description": "Script the REST chat, connect opencode or Claude Code to Tale's MCP endpoint, or let a project agent edit your scripts on your organization's models.",
+      "i18nLintExclude": ""
+    }
+  },
   "en:develop/webdav-api": {
     "slug": "develop/webdav-api",
     "locale": "en",
@@ -1465,7 +1483,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Policies and limits",
-      "description": "Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, and inbound-conversation routing."
+      "description": "Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, who may share skills with everyone, and inbound-conversation routing."
     }
   },
   "en:platform/admin/governance/trash": {
@@ -2417,6 +2435,15 @@
       "description": "Consulte le statut public, surveille sa réponse JSON et distingue une panne d’une opération en échec."
     }
   },
+  "fr:develop/use-tale-from-your-editor": {
+    "slug": "develop/use-tale-from-your-editor",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Utiliser Tale depuis ton éditeur ou un script",
+      "description": "Interroge le chat REST depuis un script, connecte opencode ou Claude Code à l’endpoint MCP de Tale, ou confie la modification de tes scripts à un agent de projet qui utilise les modèles de ton organisation.",
+      "i18nLintExclude": ""
+    }
+  },
   "fr:develop/webdav-api": {
     "slug": "develop/webdav-api",
     "locale": "fr",
@@ -2609,7 +2636,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politiques et limites",
-      "description": "Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat et le routage des conversations entrantes."
+      "description": "Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat, le partage des skills avec tout le monde et le routage des conversations entrantes."
     }
   },
   "fr:platform/admin/governance/trash": {

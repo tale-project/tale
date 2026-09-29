@@ -29,6 +29,7 @@ import {
   MAX_SKILL_TEAMS,
   SKILL_EDIT_VISIBILITIES,
   SKILL_SLUG_REGEX,
+  SKILL_ORIGINS,
   SKILL_VISIBILITIES,
 } from '@tale/shared/schemas/skills';
 // ── Small builders ───────────────────────────────────────────────────────────
@@ -972,7 +973,32 @@ const skillSummaryProperties: Json = {
     ...strArray,
     description: 'Team ids a `team` skill is shared with; absent otherwise',
   },
-  owner: { ...str, description: 'The member who owns the bundle (a user id)' },
+  owner: {
+    ...str,
+    description:
+      'The member who created the bundle, as a user id — absent when none is recorded. A skill created in the editor or uploaded belongs to the member who created it; a declared `owner` in an uploaded bundle is never honoured',
+  },
+  origin: {
+    type: 'string',
+    enum: [...SKILL_ORIGINS],
+    description:
+      'Where the skill came from: `release` — a managed configuration release installed it (its frontmatter carries `metadata.tale-release`); `builtin` — no owner is recorded, as on the catalog copies an organization starts with; `member` — the member named by `owner` created it',
+  },
+  ownerName: {
+    ...str,
+    description:
+      'The display name of `owner` (their email when they have none) while they are a member of the organization; absent once they have left, and whenever `owner` is',
+  },
+  updatedBy: {
+    ...str,
+    description:
+      'The user id of the member whose write through Tale produced the stored SKILL.md — present only when the newest recorded write of the skill is an edit whose resulting tag is the current `etag`. Absent on a skill nobody has edited since it was created, and on one changed outside Tale since its last edit',
+  },
+  updatedByName: {
+    ...str,
+    description:
+      'The display name of `updatedBy` while they are a member of the organization',
+  },
   icon: { ...str, description: 'An Iconify id shown on the skill’s card' },
   labels: { ...strArray, description: 'Display chips on the skill’s card' },
   disableModelInvocation: {
@@ -1210,7 +1236,11 @@ export function buildSpec(): Json {
         'than the role alone (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` ' +
         'and `DELETE /api/v1/browser-sessions/{id}` would pass their gate; ' +
         '`notificationExport` — whether `GET /api/v1/notifications/sync` would, ' +
-        'by role or through a `tale:notifications.export` grant). ' +
+        'by role or through a `tale:notifications.export` grant; ' +
+        '`skillPublish` — whether a `PUT /api/v1/skills/{slug}` that shares ' +
+        'a skill with the whole organization would, under the ' +
+        'organization’s skill sharing policy, by role or through a ' +
+        '`tale:skills.publish` grant). ' +
         '`key` names the API key that made the request — its `name` and ' +
         'its `expiresAt` (epoch ms, `null` for a key minted to never ' +
         'expire) — so an unattended caller can rotate before the 401. ' +
@@ -5649,7 +5679,7 @@ export function buildSpec(): Json {
       summary: 'Get skill',
       operationId: 'getSkill',
       description:
-        'One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. A malformed slug answers 404 like an unknown one.',
+        'One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. The tag covers the SKILL.md content only: `canEdit`, `ownerName`, `updatedBy` and `updatedByName` can change while it stands (a member leaves or is renamed, an edit changes only the sharing), so a 304 does not revalidate them — read without `If-None-Match` when you need them current. A malformed slug answers 404 like an unknown one.',
       security: sec,
       parameters: [
         skillSlugParam,
@@ -5711,7 +5741,21 @@ export function buildSpec(): Json {
         'still 412. Every skill carries `canEdit`: whether this key may edit ' +
         'the bundle; shipped skills are organization bundles an ' +
         'administrator may overwrite, so check it before a save that means ' +
-        'to replace one. The body may run to 4 MiB — this operation’s own ' +
+        'to replace one. A save that changes the document is recorded in ' +
+        'the organization’s audit log as the key’s user — `skill.created`, ' +
+        '`skill.updated`, and `skill.sharing_changed` when `visibility` or ' +
+        '`teams` moved — and an update makes that user the skill’s ' +
+        '`updatedBy`; a save that writes nothing records nothing. An ' +
+        'organization may reserve organization-wide skills (its ' +
+        '`skill_sharing` policy: Editors and above, or owners and ' +
+        'administrators, plus members granted `tale:skills.publish`): a key ' +
+        'holder outside that set gets 403 `SKILL_PUBLISH_FORBIDDEN` for a ' +
+        'save that would create a `visibility: org` skill, widen one to ' +
+        '`org`, or change an `org` skill in place, and the refusal is ' +
+        'audited as `skill.publish_denied`; narrowing to `team`, a ' +
+        'byte-identical save and deleting the skill stay open, and ' +
+        '`GET /api/v1/me` answers `capabilities.skillPublish`. The body ' +
+        'may run to 4 MiB — this operation’s own ' +
         'cap, so the worst JSON escaping of a full-size `body` still fits; ' +
         'past it the answer is 413 `BODY_TOO_LARGE`.',
       operationId: 'saveSkill',
@@ -5754,7 +5798,7 @@ export function buildSpec(): Json {
             type: 'string',
             enum: [...SKILL_EDIT_VISIBILITIES],
             description:
-              'Who sees the skill; omitted keeps the stored value (a new skill is `org`). `private` is retired: it cannot be set, only kept by omission on a bundle that already carries it',
+              'Who sees the skill; omitted keeps the stored value (a new skill is `org`, which an organization that reserves organization-wide skills refuses with 403 `SKILL_PUBLISH_FORBIDDEN` when the key holder may not publish — send `team` with `teams` instead). `private` is retired: it cannot be set, only kept by omission on a bundle that already carries it',
           },
           teams: {
             type: 'array',
@@ -5801,7 +5845,9 @@ export function buildSpec(): Json {
           'The skill this save created (the slug was free) — its `etag` names the version just written',
           ref('Skill'),
         ),
-        '403': errorResponse('Not editable with this key (`SKILL_FORBIDDEN`)'),
+        '403': errorResponse(
+          'Not editable with this key (`SKILL_FORBIDDEN`), a team this key holder is not in (`TEAM_ACCESS_DENIED`), or an organization-wide skill the organization reserves and this key holder may not publish (`SKILL_PUBLISH_FORBIDDEN` — see `capabilities.skillPublish` on `GET /api/v1/me`)',
+        ),
         '412': errorResponse(
           'A precondition failed and nothing was written: `If-Match` named no tag matching the stored SKILL.md, or `*` with nothing stored (`SKILL_STALE` — `data.etag` carries the current tag, `null` when nothing is stored); or `If-None-Match: *` was sent and the slug already has a bundle, or a tag list named its current tag (`SKILL_EXISTS`)',
         ),
@@ -7793,6 +7839,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'developer',
                 'notificationExport',
                 'actAs',
+                'skillPublish',
               ],
               additionalProperties: false,
               properties: {
@@ -7815,6 +7862,11 @@ curl -H "Authorization: Bearer <api-key>" \\
                   ...bool,
                   description:
                     'True when the key holder may export members’ notifications through `GET /api/v1/notifications/sync` — an organization owner or administrator by role, or any other member through a live `tale:notifications.export` capability an administrator granted in the competence register (organization-scoped, optionally expiring, revocable, revoked with the membership); false there answers 403 `ROLE_FORBIDDEN`',
+                },
+                skillPublish: {
+                  ...bool,
+                  description:
+                    'True when the key holder may share a skill with the whole organization through `PUT /api/v1/skills/{slug}` — create a `visibility: org` skill, widen one to `org`, or change an `org` skill in place. Every member may while the organization has no skill sharing policy; under one it is Editors and above or owners and administrators only, plus any member holding a live `tale:skills.publish` capability an administrator granted in the competence register. False there answers 403 `SKILL_PUBLISH_FORBIDDEN`; sharing with the key holder’s own teams is unaffected',
                 },
               },
             },
@@ -9298,6 +9350,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'slug',
             'description',
             'visibility',
+            'origin',
             'canEdit',
             'etag',
             'updatedAt',
@@ -9313,6 +9366,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'slug',
             'description',
             'visibility',
+            'origin',
             'canEdit',
             'etag',
             'updatedAt',

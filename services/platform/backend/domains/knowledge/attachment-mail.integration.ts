@@ -26,7 +26,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
@@ -422,9 +422,10 @@ export async function checkEmailedAttachments(
     );
     const unstamped = await doors();
     const unstampedFetch = await chatFetch(userId);
-    /** The nightly pass, wired as `runCorpusReconcile` wires it; `between`
-     * runs once a release has judged its refs, before the pass writes what
-     * that release decided. */
+    /** The nightly pass, handed the releases `runCorpusReconcile` hands it
+     * (without its logging, or its re-queue of a failed byte delete);
+     * `between` runs once a release has judged its refs, before the pass
+     * writes what that release decided. */
     const stampPass = (
       between?: (refs: string[]) => Promise<void>,
       atRecheck?: () => Promise<void>,
@@ -439,20 +440,35 @@ export async function checkEmailedAttachments(
       };
       // Keep the reads real; pause only at the backing recheck, after its
       // corpus clear has run, so another connection can try a clone then.
+      // The recheck reads on its clear's own app transaction (its statement
+      // timeout is local to it), and only that transaction's reads pause: a
+      // recheck on the pool never reaches the pause, and the lane says so.
+      const pausing = (atx: TransactionSql): TransactionSql =>
+        new Proxy(atx, {
+          apply(target, thisArg, args: unknown[]) {
+            const strings = args[0];
+            if (
+              atRecheck !== undefined &&
+              releaseJudged &&
+              !recheckProbed &&
+              Array.isArray(strings) &&
+              strings.join('').includes('FROM app.file_metadata fm')
+            ) {
+              recheckProbed = true;
+              return atRecheck().then(() =>
+                Reflect.apply(target, thisArg, args),
+              );
+            }
+            return Reflect.apply(target, thisArg, args);
+          },
+        });
       const appReads = new Proxy(sql, {
-        apply(target, thisArg, args: unknown[]) {
-          const strings = args[0];
-          if (
-            atRecheck !== undefined &&
-            releaseJudged &&
-            !recheckProbed &&
-            Array.isArray(strings) &&
-            strings.join('').includes('FROM app.file_metadata fm')
-          ) {
-            recheckProbed = true;
-            return atRecheck().then(() => Reflect.apply(target, thisArg, args));
+        get(target, property, receiver) {
+          if (property !== 'begin') {
+            return Reflect.get(target, property, receiver);
           }
-          return Reflect.apply(target, thisArg, args);
+          return (callback: (atx: TransactionSql) => Promise<unknown>) =>
+            sql.begin((atx) => callback(pausing(atx)));
         },
       });
       const orgRef = { organizationId: orgId, orgSlug };
@@ -655,9 +671,10 @@ export async function checkEmailedAttachments(
       heldStamp === conversationId &&
         racedAway &&
         raced.cleared === 0 &&
+        raced.restamped >= 1 &&
         raced.unbackedFailures === 0 &&
         racedRow?.conversationId === conversationId,
-      `stamped before=${heldStamp === conversationId} (want true) document deleted between release and clear=${racedAway} (want true) cleared=${raced.cleared} (want 0) failures=${raced.unbackedFailures} stamp after=${racedRow?.conversationId === conversationId} (want true)`,
+      `stamped before=${heldStamp === conversationId} (want true) document deleted between release and clear=${racedAway} (want true) cleared=${raced.cleared} (want 0) restamped=${raced.restamped} (want >= 1) failures=${raced.unbackedFailures} stamp after=${racedRow?.conversationId === conversationId} (want true)`,
     );
 
     // The same race with a spam conversation must release the corpus row,
@@ -742,8 +759,10 @@ export async function checkEmailedAttachments(
       deadRacedAway &&
         cloneProbedDuringClear &&
         deadRaced.cleared === 0 &&
-        deadRaced.unbackedReleased === 0 &&
-        deadRaced.unbackedFailures === 1 &&
+        deadRaced.restamped >= 1 &&
+        deadRaced.unbackedFailures === 0 &&
+        deadRaced.recheckReleased === 0 &&
+        deadRaced.recheckFailures === 1 &&
         deadRacedRow?.conversationId === conversationId &&
         deadRetried.released >= 1 &&
         deadRetried.failures === 0 &&
@@ -753,7 +772,7 @@ export async function checkEmailedAttachments(
         privateChunks.some((chunk) => chunk.content.includes(privateName)) &&
         publicChunks.some((chunk) => chunk.content.includes(publicName)) &&
         !donatedMailContext,
-      `document removed=${deadRacedAway}, clone during clear=${cloneProbedDuringClear}, cleared=${deadRaced.cleared}, release failures=${deadRaced.unbackedFailures}, stamp retained=${deadRacedRow?.conversationId === conversationId}, retry released=${deadRetried.released}, corpus gone on retry=${deadGoneOnRetry}, file kept=${retainedFile[0]?.count}, bytes kept=${retainedBytes !== null}, ordinary chunks=${publicChunks.length}, donated mail context=${donatedMailContext} (want false)`,
+      `document removed=${deadRacedAway}, clone during clear=${cloneProbedDuringClear}, cleared=${deadRaced.cleared}, restamped=${deadRaced.restamped}, recheck release failures=${deadRaced.recheckFailures}, stamp retained=${deadRacedRow?.conversationId === conversationId}, retry released=${deadRetried.released}, corpus gone on retry=${deadGoneOnRetry}, file kept=${retainedFile[0]?.count}, bytes kept=${retainedBytes !== null}, ordinary chunks=${publicChunks.length}, donated mail context=${donatedMailContext} (want false)`,
     );
     await releaseRefs(sql, {
       organizationId: orgId,

@@ -10,6 +10,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { TASK_LABEL_CHARS_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -86,7 +87,11 @@ export function LabelManageDialog({
         return;
       }
     }
-    toast({ title: fallback, variant: 'destructive' });
+    toast({
+      title: fallback,
+      description: failureDetail(error),
+      variant: 'destructive',
+    });
   };
 
   const onCreate = async () => {

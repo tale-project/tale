@@ -98,8 +98,8 @@ export function parseExpiryMs(raw: unknown): number | undefined {
  * Per-item outcome counts of running a mapping over a broker response — the
  * data behind the runtime pool (`usableTokens`) and the empty-pool diagnosis,
  * which explains WHY items were dropped instead of yielding a bare "no
- * tokens". The usable accounts carry secret tokens and optional identity;
- * callers must never log that runtime pool.
+ * tokens". The usable and held accounts carry secret tokens and optional
+ * identity; callers must never log that runtime pool.
  */
 export interface TokenMappingDiagnostics {
   /** Whether `tokensPath` resolved to an array at all. */
@@ -109,6 +109,16 @@ export interface TokenMappingDiagnostics {
   /** De-duplicated tokens that survived every filter, in response order. */
   usableTokens: string[];
   usableAccounts: BrokerPoolAccount[];
+  /**
+   * Accounts the broker holds back only for a coming token refresh
+   * (`hold: "refresh"` — Tale AI gateway's hand-out floor) that pass every
+   * other filter, de-duplicated with the usable ones, the one whose hold
+   * lifts last first. The broker judged that another account can take the
+   * work without knowing this platform's cooldowns or account-id rule, so
+   * these are the fallback when no usable account can be selected — never
+   * part of the usable pool.
+   */
+  heldAccounts: BrokerPoolAccount[];
   /** Items with no non-empty string at `tokenField` (or not objects). */
   missingTokenField: number;
   /** Items dropped by the `statusField`/`activeValue` filter. */
@@ -123,6 +133,10 @@ export interface TokenMappingDiagnostics {
   nextExpiryMs?: number;
 }
 
+/** How long an account that answered HTTP 429 is kept out of new
+ * selections, for its organization and credential. */
+export const BROKER_RATE_LIMIT_COOLDOWN_MS = 60_000;
+
 export interface BrokerPoolAccount {
   token: string;
   /** Stable identity inside this broker, distinct from the vendor account. */
@@ -134,6 +148,11 @@ export interface BrokerPoolAccount {
 export interface BrokerSelectionResult {
   hash: string | null;
   fellBack: boolean;
+  /** Set when the pick is an account the broker holds back for its coming
+   * token refresh: no account it counts as available could be selected. */
+  held?: boolean;
+  /** When the first cooling account comes back, when every candidate was
+   * cooling down. */
   retryAtMs?: number;
 }
 
@@ -153,7 +172,8 @@ function validOptionalIdentity(value: unknown): boolean {
  * the array at `tokensPath`, take `tokenField` off each item, drop items not
  * matching `activeValue` or expiring within `skewMs` of `nowMs` — counting
  * each drop reason. The single source of truth for the mapping walk — the
- * resolver reads `usableAccounts` off the result.
+ * resolver reads `usableAccounts`, and `heldAccounts` as their fallback, off
+ * the result.
  */
 export function diagnoseTokenMapping(
   json: unknown,
@@ -170,6 +190,7 @@ export function diagnoseTokenMapping(
       itemCount: 0,
       usableTokens: [],
       usableAccounts: [],
+      heldAccounts: [],
       missingTokenField: 0,
       inactiveCount: 0,
       expiredCount: 0,
@@ -180,6 +201,7 @@ export function diagnoseTokenMapping(
     };
   }
   const usableAccounts: BrokerPoolAccount[] = [];
+  const held: Array<{ account: BrokerPoolAccount; liftsAtMs?: number }> = [];
   const seenTokens = new Set<string>();
   const seenIds = new Set<string>();
   let missingTokenField = 0;
@@ -227,10 +249,12 @@ export function diagnoseTokenMapping(
       missingAccountIdCount += 1;
       continue;
     }
-    if (
+    const waiting =
       item.available === false &&
-      (availableAt === undefined || availableAt > nowMs)
-    ) {
+      (availableAt === undefined || availableAt > nowMs);
+    // Only a refresh hold is kept, as a fallback: a spent quota, or a hold
+    // this code does not know, is never used.
+    if (waiting && item.hold !== 'refresh') {
       unavailableCount += 1;
       continue;
     }
@@ -253,6 +277,7 @@ export function diagnoseTokenMapping(
         continue;
       }
       if (
+        !waiting &&
         expiryMs !== undefined &&
         (nextExpiryMs === undefined || expiryMs < nextExpiryMs)
       ) {
@@ -267,19 +292,38 @@ export function diagnoseTokenMapping(
       continue;
     seenTokens.add(token);
     if (id !== undefined) seenIds.add(id);
-    usableAccounts.push({
+    const account: BrokerPoolAccount = {
       token,
       ...(id !== undefined && { id }),
       ...(typeof item.account_id === 'string' && {
         accountId: item.account_id,
       }),
-    });
+    };
+    if (waiting) {
+      held.push({
+        account,
+        ...(availableAt !== undefined && { liftsAtMs: availableAt }),
+      });
+    } else {
+      usableAccounts.push(account);
+    }
   }
+  // A refresh hold lifts when the refresh lands, so the hold that lifts last
+  // — Tale AI gateway's `available_at` is then its `refresh_at` — is the
+  // token with the most life left: the one the gateway itself hands out
+  // when nothing else can serve. An unknown lift (a refresh already due)
+  // goes last; a stable sort keeps the broker's order among equals.
+  const liftsAt = (entry: (typeof held)[number]) =>
+    entry.liftsAtMs ?? Number.NEGATIVE_INFINITY;
+  held.sort((a, b) =>
+    liftsAt(a) === liftsAt(b) ? 0 : liftsAt(a) > liftsAt(b) ? -1 : 1,
+  );
   return {
     pathFound: true,
     itemCount: arr.length,
     usableTokens: usableAccounts.map((account) => account.token),
     usableAccounts,
+    heldAccounts: held.map((entry) => entry.account),
     missingTokenField,
     inactiveCount,
     expiredCount,
@@ -293,8 +337,8 @@ export function diagnoseTokenMapping(
 
 /**
  * Explain an empty pool in the caller's terms: name the mapping piece that
- * dropped everything and the way out. Only meaningful when
- * `diagnostics.usableTokens` is empty.
+ * dropped everything and the way out. Only meaningful when the diagnostics
+ * hold neither usable nor held accounts.
  */
 export function describeEmptyPool(
   diagnostics: TokenMappingDiagnostics,

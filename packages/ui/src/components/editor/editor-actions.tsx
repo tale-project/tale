@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
-import { readableErrorMessage } from '@tale/ui/error-message';
 import { useT } from '@tale/ui/i18n/client';
 import { toast } from '@tale/ui/use-toast';
 import {
@@ -13,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { toastSaveFailure } from './save-failure-toast';
 import {
   isEditorSaveCancelled,
   type EditorController,
@@ -113,14 +113,7 @@ export function EditorActions({
           variant: 'destructive',
         });
       } else if (!suppressServerErrorToast) {
-        // The controller's translated sentence, never a structured error's
-        // serialized payload (see `EditorController.save`).
-        toast({
-          title: t('actions.save'),
-          description:
-            readableErrorMessage(err) ?? t('errors.somethingWentWrong'),
-          variant: 'destructive',
-        });
+        toastSaveFailure(err, t);
       }
     }
   }, [controller, entityKind, onEvent, suppressServerErrorToast, t]);

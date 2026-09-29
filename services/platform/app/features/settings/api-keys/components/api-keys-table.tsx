@@ -9,6 +9,7 @@ import type { RowSelectionState } from '@tanstack/react-table';
 import { BookOpen, Key, Plus } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useRevokeApiKey } from '../hooks/use-api-keys';
@@ -124,6 +125,7 @@ export function ApiKeysTable({
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleClearSelection}
+            describeFailure={firstFailureDetail}
           />
         }
         {...list.tableProps}

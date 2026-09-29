@@ -15,6 +15,7 @@ import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useCreateTeamMember } from '../hooks/mutations';
 import { TeamMemberChecklist } from './team-member-checklist';
@@ -119,41 +120,56 @@ export function TeamCreateDialog({
         throw new TypeError('createTeam answered no team id');
       }
 
-      // Add selected members to the team
-      const memberIds = Array.from(selectedMemberIds);
+      // The selected members join the team; with none selected, the creator.
+      let memberIds = Array.from(selectedMemberIds);
       if (memberIds.length === 0) {
-        // If no members selected, add the current user as default
         const session = await authClient.getSession();
         const userId = session.data?.user?.id;
-        if (userId) {
-          await addMember({ teamId, userId, organizationId });
-        }
-      } else {
-        const results = await Promise.allSettled(
-          memberIds.map((userId) =>
-            addMember({ teamId, userId, organizationId }),
-          ),
-        );
-        const failedCount = results.filter(
-          (r) => r.status === 'rejected',
-        ).length;
-        if (failedCount > 0) {
-          console.warn(
-            `Failed to add ${failedCount} of ${memberIds.length} members`,
-          );
-        }
+        memberIds = userId ? [userId] : [];
       }
+      const results = await Promise.allSettled(
+        memberIds.map((userId) =>
+          addMember({ teamId, userId, organizationId }),
+        ),
+      );
+      const refused = results.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      );
 
-      const memberCount = memberIds.length > 0 ? memberIds.length : 1;
-
-      toast({
-        title: tSettings('teams.teamCreated'),
-        description: tSettings('teams.teamCreatedDescription', {
-          name: data.name,
-          count: memberCount,
-        }),
-        variant: 'success',
-      });
+      if (refused.length > 0) {
+        console.warn(
+          `Failed to add ${refused.length} of ${memberIds.length} members:`,
+          refused,
+        );
+        await queryClient.invalidateQueries({
+          queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
+        });
+        // The team exists, so this is not "couldn't create": one toast says
+        // it was created without every member, and why, as the edit dialog
+        // says a refused membership change — a lapsed session in its own
+        // words, else a count.
+        const lapsed = refused.find(
+          (f) => backendErrorCode(f.reason) === 'UNAUTHORIZED',
+        );
+        toast({
+          title: tSettings('teams.teamCreatedMembersRefused'),
+          description: lapsed
+            ? failureDetail(lapsed.reason)
+            : tSettings('teams.membershipChangesFailed', {
+                count: refused.length,
+              }),
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: tSettings('teams.teamCreated'),
+          description: tSettings('teams.teamCreatedDescription', {
+            name: data.name,
+            count: memberIds.length,
+          }),
+          variant: 'success',
+        });
+      }
 
       reset();
       setSelectedMemberIds(new Set());

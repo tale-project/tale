@@ -24,7 +24,6 @@ import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   isRagIndexableFile,
-  resolveFileType,
 } from '@/lib/shared/file-types';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -330,12 +329,7 @@ export function DocumentUploadDialog({
                 bytesLoaded={tracked.bytesLoaded}
                 bytesTotal={tracked.bytesTotal}
                 error={tracked.error}
-                notIndexable={
-                  !isRagIndexableFile(
-                    tracked.file.name,
-                    resolveFileType(tracked.file.name, tracked.file.type),
-                  )
-                }
+                notIndexable={!isRagIndexableFile(tracked.file.name)}
                 onRetry={
                   isUploading || tracked.retryable === false
                     ? undefined

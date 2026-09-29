@@ -15,6 +15,8 @@ import {
   POLICY_SCHEMAS,
   POLICY_TYPES,
   reviewPolicyConfigSchema,
+  skillOrgWideModeOf,
+  skillSharingConfigSchema,
   transcriptionModelConfigSchema,
   visionModelConfigSchema,
 } from './governance';
@@ -522,5 +524,26 @@ describe('embeddingConfigSchema', () => {
 
   it('is registered as the embedding policy schema', () => {
     expect(POLICY_SCHEMAS.embedding).toBe(embeddingConfigSchema);
+  });
+});
+
+describe('skillSharingConfigSchema', () => {
+  it('takes the three modes and nothing else', () => {
+    for (const orgWide of ['everyone', 'editors', 'admins']) {
+      expect(skillSharingConfigSchema.parse({ orgWide })).toEqual({ orgWide });
+    }
+    expect(
+      skillSharingConfigSchema.safeParse({ orgWide: 'members' }).success,
+    ).toBe(false);
+    expect(skillSharingConfigSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('reads a missing file as everyone — the behaviour before the policy', () => {
+    expect(skillOrgWideModeOf(null)).toBe('everyone');
+    expect(skillOrgWideModeOf({ orgWide: 'admins' })).toBe('admins');
+  });
+
+  it('is registered as the skill_sharing policy schema', () => {
+    expect(POLICY_SCHEMAS.skill_sharing).toBe(skillSharingConfigSchema);
   });
 });

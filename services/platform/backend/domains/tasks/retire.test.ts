@@ -14,8 +14,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { cancelRunInTx } from '../automations/store.ts';
+import { RELEASE_REFS_PER_JOB } from '../knowledge/release-queue.ts';
 import { cancelAgentRunInTx } from './agent-runs.ts';
-import { retireTasksInTx } from './retire.ts';
+import { releaseUnlistedTaskBlobRefs, retireTasksInTx } from './retire.ts';
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../automations/store.ts', () => ({
@@ -147,5 +148,39 @@ describe('retireTasksInTx', () => {
       organizationId: 'org_1',
       refs: ['s3:only-mine'],
     });
+  });
+});
+
+describe('releaseUnlistedTaskBlobRefs', () => {
+  it('queues a large release in bounded jobs, as every lane releasing more than one ref does', async () => {
+    // A project's whole task tree can release thousands of refs at once.
+    const refs = Array.from(
+      { length: RELEASE_REFS_PER_JOB + 1 },
+      (_, at) => `s3:org/f${String(at).padStart(4, '0')}.pdf`,
+    );
+    // No surviving task lists any of them.
+    const run = (strings: TemplateStringsArray, ...values: unknown[]) =>
+      Promise.resolve(
+        strings.join('?').includes('FROM unnest')
+          ? (values[0] as string[]).map((ref) => ({ ref }))
+          : [],
+      );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js transaction
+    const tx = run as unknown as TransactionSql;
+    await expect(
+      releaseUnlistedTaskBlobRefs(tx, 'org_1', refs),
+    ).resolves.toEqual(refs);
+    expect(
+      vi
+        .mocked(addJobInTx)
+        .mock.calls.map(([handle, name, payload]) => [
+          handle,
+          name,
+          (payload as { refs: string[] }).refs,
+        ]),
+    ).toEqual([
+      [tx, 'knowledge.release_refs', refs.slice(0, RELEASE_REFS_PER_JOB)],
+      [tx, 'knowledge.release_refs', refs.slice(RELEASE_REFS_PER_JOB)],
+    ]);
   });
 });

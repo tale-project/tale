@@ -1,9 +1,12 @@
 import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+import { toast } from '@tale/ui/use-toast';
 import { Plus } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { MemberTable } from './member-table';
 
@@ -11,8 +14,14 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+const { removeMember } = vi.hoisted(() => ({ removeMember: vi.fn() }));
 vi.mock('../hooks/mutations', () => ({
-  useRemoveMember: () => ({ mutateAsync: vi.fn() }),
+  useRemoveMember: () => ({ mutateAsync: removeMember }),
+}));
+
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
+  toast: vi.fn(),
 }));
 
 vi.mock('./member-row-actions', () => ({
@@ -100,5 +109,50 @@ describe('MemberTable', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add member' }));
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+  // Each row's remove stays quiet, so the bulk bar's one toast is the batch's
+  // only report: it names the first refusal's reason, through
+  // `describeFailure`, and never a toast per failed row.
+  it('says why a bulk remove was refused, in one toast', async () => {
+    removeMember
+      .mockRejectedValueOnce(
+        new AppError({
+          code: 'LAST_ADMIN',
+          message: 'An organization needs at least one admin.',
+        }),
+      )
+      .mockRejectedValueOnce(new AppError({ code: 'SOMETHING_ELSE' }));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { user } = render(
+      <MemberTable
+        members={[
+          makeMember(),
+          makeMember({
+            _id: 'member-2',
+            userId: 'user-2',
+            email: 'bob@example.com',
+            displayName: 'Bob',
+          }),
+        ]}
+      />,
+    );
+
+    const [selectAll] = screen.getAllByRole('checkbox');
+    await user.click(selectAll as HTMLElement);
+    await user.click(screen.getByRole('button', { name: /Delete/ }));
+    const confirm = await screen.findByRole('dialog');
+    await user.click(within(confirm).getByRole('button', { name: /Delete/ }));
+
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(removeMember).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(toast).mock.calls).toEqual([
+      [
+        {
+          title: i18n.t('bulkActions.deleteFailed', { ns: 'common' }),
+          description: 'An organization needs at least one admin.',
+          variant: 'destructive',
+        },
+      ],
+    ]);
   });
 });

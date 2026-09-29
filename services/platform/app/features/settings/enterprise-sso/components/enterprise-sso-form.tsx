@@ -34,6 +34,7 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import type {
   PlatformRole,
@@ -695,9 +696,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           : (result.error ?? t('enterpriseSso.testFailed')),
         variant: result.valid ? 'success' : 'destructive',
       });
-    } catch {
+    } catch (error) {
+      console.error('[sso] connection test failed', error);
       toast({
         title: t('enterpriseSso.testFailed'),
+        description: failureDetail(error),
         variant: 'destructive',
       });
     }
@@ -739,10 +742,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         sso_metadata_fetch_failed: t('enterpriseSso.metadata.errorFetchFailed'),
       };
       const code = backendErrorCode(error);
+      const known = code !== undefined ? errorByCode[code] : undefined;
       toast({
-        title:
-          (code !== undefined ? errorByCode[code] : undefined) ??
-          t('enterpriseSso.metadata.importFailed'),
+        title: known ?? t('enterpriseSso.metadata.importFailed'),
+        // A refusal named above is the whole story; any other says why.
+        description: known === undefined ? failureDetail(error) : undefined,
         variant: 'destructive',
       });
     }
@@ -764,9 +768,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     try {
       const result = await regenScim.mutateAsync({ organizationId });
       setScimToken(result.token);
-    } catch {
+    } catch (error) {
+      console.error('[sso] SCIM token regeneration failed', error);
       toast({
         title: t('enterpriseSso.scim.tokenFailed'),
+        description: failureDetail(error),
         variant: 'destructive',
       });
     }

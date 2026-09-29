@@ -567,7 +567,10 @@ automations:
     loadFailed: "Couldn't load automations: {error}"
     empty:
       title: No automations yet
-      description: Create an agent with a trigger, or upload a workflow package.
+      description: Choose Create automation to start from a trigger and an agent, or to upload a package.
+    emptyReader:
+      title: No live automations
+      description: An automation appears here once an Owner, Admin, or Developer deploys it.
   createMenu:
     blank: Blank (trigger + agent)
   blank:
@@ -1866,7 +1869,12 @@ conversations:
       Install an email automation (Gmail, Outlook, or IMAP)
       to start reading and replying to conversations here.
     composeNotice: To email {name}, first install an email automation.
+    composeNoticeReader: You can email {name} once an email automation is deployed.
     browseAutomations: Browse automations
+    noAutomationReaderDescription:
+      Once someone with the Owner, Admin, or Developer role deploys an email
+      automation (Gmail, Outlook, or IMAP), you can read and reply to
+      conversations here.
   filter:
     all: All
     read: Read
@@ -2183,6 +2191,8 @@ documents:
     openFolder: Open folder {name}
     openDocument: Open document {name}
     navigateToFolder: Navigate to folder {name}
+    selectFolder: Select folder {name}
+    selectFile: Select file {name}
   folderNotFound: Folder not found or no longer accessible
   filter:
     ragStatus:
@@ -2530,10 +2540,6 @@ onboarding:
       Next to try again.
     creationForbidden: You cannot create an organization on this deployment. Contact the operator to request a workspace.
     nameTakenError: That name is already taken. Pick a different one.
-  provider:
-    heading: Connect OpenRouter
-    why: One key unlocks hundreds of models for chat, images, voice, and more —
-      we'll preconfigure a recommended set so you're ready right away.
   finish:
     heading: Ready to go
     subtitle: "Here's what you can do next:"
@@ -2564,7 +2570,7 @@ emptyStates:
     description: Save facts from chat or add entries agents can reuse.
   skills:
     title: No skills yet
-    description: Write a skill to give agents reusable knowledge — equip it in chat or attach it to an automation.
+    description: Write a skill once, then equip project agents or automation agent nodes with it.
   members:
     title: No members found
     description: Invite people to collaborate in this workspace.
@@ -3069,6 +3075,19 @@ governance:
     enabledLabel: Voice output enabled for this organization
     saved: Voice-output policy updated
     saveFailed: Couldn't save the voice-output policy
+  skillSharing:
+    title: Skill sharing
+    description: Choose who may share a skill with the whole organization.
+      Anyone can still share a skill with their own teams, and a stricter
+      setting narrows no skill that is already shared with the organization.
+    label: Share skills with the organization
+    labelHint: Owners and admins always may. To allow one more member, grant
+      them Publish skills to the organization under Competences.
+    modes:
+      everyone: Every member
+      editors: Editors and above
+      admins: Owners and admins only
+    saveFailed: Couldn't save the skill sharing policy
   dataNotice:
     title: Confidentiality notice
     description:
@@ -3460,6 +3479,9 @@ governance:
       restActAs:
         label: Act for another member
         description: Name the member an API call answers a question or decides a review for, so the record shows that person instead of the key.
+      skillsPublish:
+        label: Publish skills to the organization
+        description: Share a skill with the whole organization even when the skill sharing policy reserves that for Editors or admins.
     empty:
       title: No competences granted yet
       description: Grant a member a platform capability or a qualification. It applies in this organization only.
@@ -4873,6 +4895,7 @@ skills:
     description: Description
     visibility: Visibility
     labels: Labels
+    createdBy: Created by
     loadError: Couldn't read SKILL.md
   loadErrorDetail:
     title:
@@ -4954,6 +4977,31 @@ skills:
       skillMdTooLarge: SKILL.md exceeds the per-file cap of {max}.
       assetTooLarge: '"{path}" exceeds the per-file cap of {max}.'
       totalTooLarge: The unpacked bundle exceeds {max}.
+  attribution:
+    createdBy: Created by
+    lastEditedBy: Last edited by
+    builtin: Built-in
+    release: Configuration release
+    releaseBy: Configuration release · {name}
+    formerMember: Former member
+    byMember: By {name}
+    byFormerMember: By a former member
+  publishing:
+    reserved:
+      editors: Your organization reserves sharing with everyone for Editors
+        and above, and members an admin allowed.
+      admins: Your organization reserves sharing with everyone for owners and
+        admins, and members an admin allowed.
+    noTeams: You aren't in a team, and your organization reserves sharing
+      with everyone. Ask an admin to add you to a team or to let you publish
+      skills.
+    lockedEdit: While it stays shared with the whole organization, only a
+      member allowed to publish can change it. You can narrow it to your teams
+      (and edit it in the same save) or delete it.
+    uploadRefused: Set visibility to team with your team IDs in SKILL.md, or
+      ask an admin to upload this bundle.
+    refused: Your organization reserves sharing with everyone, and you aren't
+      allowed to publish. Share the skill with your teams instead.
   addMenu:
     label: Add skill
   createMenu:
@@ -5424,7 +5472,7 @@ settings:
     sandboxes:
       description: Manage always-on remote sandboxes.
     skills:
-      description: Reusable instructions and tools the assistant can load.
+      description: Reusable instruction bundles for project agents and automation agent nodes.
     enterpriseSso:
       description: Single sign-on and directory sync for your organization.
     dataResidency:
@@ -5612,6 +5660,7 @@ settings:
     teamDeleteFailed: Couldn't delete team
     teamCreated: Team created
     teamCreatedDescription: '{name} created with {count} {count, plural, one {member} other {members}}.'
+    teamCreatedMembersRefused: Team created, but not every member was added
     teamCreateFailed: Couldn't create team
     teamUpdated: Team updated
     teamUpdateFailed: Couldn't update team
@@ -6475,7 +6524,11 @@ settings:
         api: API
         workflow: Automation
       actionLabels:
+        skill.created: Skill created
+        skill.updated: Skill updated
+        skill.sharing_changed: Skill sharing changed
         skill.deleted: Skill deleted
+        skill.publish_denied: Skill publishing refused
         team.created: Team created
         team.updated: Team updated
         team.deleted: Team deleted
@@ -7146,6 +7199,7 @@ tasks:
     agentMissing: The assigned agent no longer exists. Assign another agent to run this task.
     noAgentAssignee: No agent is assigned to this task. Assign one to start a run.
     cancelled: The agent run was cancelled.
+    cancelFailed: The agent run could not be cancelled.
     start: Start agent
     willStart: Dropping here starts the agent run.
     willCancel: Dropping here cancels the agent's live run.
@@ -7164,6 +7218,9 @@ tasks:
     # Caption under the status line while a machine-kicked retry runs — the
     # user must be able to tell the platform's retry from their own.
     autoRetrying: 'Auto-retry {n} of {max}'
+    # Replaces the caption when the broker refreshed the account's token
+    # under the run and the platform resumed it — no attempt spent yet.
+    resumedAfterTokenRefresh: Resumed after a token refresh
     retry: Retry
     cancel: Cancel run
   automation:

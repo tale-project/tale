@@ -119,7 +119,7 @@ export function ModerationProviderConfigView({
     organizationId,
     'moderation_provider',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   const initial = useMemo(() => deriveDraft(policy), [policy]);
 

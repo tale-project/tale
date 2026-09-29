@@ -22,6 +22,8 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createAuditLog } from '../domains/audit_logs/service.ts';
+import type { CreateAuditLogArgs } from '../domains/audit_logs/types.ts';
 import { getDocumentById } from '../domains/documents/service.ts';
 import {
   KnowledgeError,
@@ -113,6 +115,9 @@ interface FixtureOptions {
   role?: string;
   /** The rate-limit UPSERT answers no row — the budget is spent. */
   rateLimited?: boolean;
+  /** The organization row and the key user's live competence grants, for
+   * the skill door's organization-wide publish rule. */
+  publishGrants?: object[];
 }
 
 function fakeSql(options: FixtureOptions = {}): {
@@ -168,8 +173,49 @@ function fakeSql(options: FixtureOptions = {}): {
     if (text.includes('FROM "teamMember"')) {
       return Promise.resolve([{ teamId: 'team-1' }]);
     }
+    if (options.publishGrants !== undefined) {
+      if (text.includes('FROM "organization" WHERE "id"')) {
+        return Promise.resolve([{ slug: 'acme' }]);
+      }
+      if (text.includes('FROM "team" WHERE')) {
+        return Promise.resolve([{ id: 'team-1' }]);
+      }
+      if (text.includes('FROM app.competence_records')) {
+        return Promise.resolve(options.publishGrants);
+      }
+    }
     if (text.includes('INSERT INTO app.rate_limits')) {
       return Promise.resolve(options.rateLimited ? [] : [{ value: '1' }]);
+    }
+    // The skill attribution reads: the member directory knows the key's
+    // user, and the audit log answers from what the doors appended to it
+    // (`createAuditLog` is mocked), newest skill write per slug.
+    if (text.includes('FROM "user" u JOIN "member" m')) {
+      return Promise.resolve([
+        { id: 'user-1', name: 'Ada Lovelace', email: 'user@example.com' },
+      ]);
+    }
+    if (text.includes('FROM app.audit_logs') && text.includes('DISTINCT ON')) {
+      const newest = new Map<string, CreateAuditLogArgs>();
+      for (const call of vi.mocked(createAuditLog).mock.calls) {
+        const row = call[1];
+        if (
+          row.resourceType === 'skill' &&
+          ['skill.created', 'skill.updated', 'skill.deleted'].includes(
+            row.action,
+          )
+        ) {
+          newest.set(row.resourceId ?? '', row);
+        }
+      }
+      return Promise.resolve(
+        [...newest.values()].map((row) => ({
+          slug: row.resourceId,
+          action: row.action,
+          actorId: row.actorId,
+          etag: row.metadata?.etag ?? null,
+        })),
+      );
     }
     return Promise.resolve([]);
   };
@@ -934,6 +980,200 @@ describe('the skills door over the file layer', () => {
       code: 'INVALID_SKILL_SLUG',
       error: expect.stringContaining('reserved'),
     });
+  });
+
+  describe('who created and who last edited a skill', () => {
+    beforeEach(() => {
+      vi.mocked(createAuditLog).mockClear();
+    });
+
+    const skillRows = () =>
+      vi
+        .mocked(createAuditLog)
+        .mock.calls.map((call) => call[1])
+        .filter((row) => row.category === 'skill');
+
+    it('audits a create as the key user and names them as its creator', async () => {
+      const { app } = mount();
+      const created = await put(app, 'probe', {
+        description: 'First',
+        body: '# First',
+      });
+      expect(created.status).toBe(201);
+      const view: Record<string, unknown> = await created.json();
+      expect(view).toMatchObject({
+        owner: 'user-1',
+        origin: 'member',
+        ownerName: 'Ada Lovelace',
+      });
+      // Nobody has edited it since it was created.
+      expect(view).not.toHaveProperty('updatedBy');
+      expect(skillRows()).toEqual([
+        expect.objectContaining({
+          action: 'skill.created',
+          actorId: 'user-1',
+          actorEmail: 'user@example.com',
+          resourceId: 'probe',
+          newState: { visibility: 'org', teams: [] },
+          metadata: { etag: view.etag, via: 'api' },
+        }),
+      ]);
+    });
+
+    it('audits an edit and names the editor while the tag holds', async () => {
+      const { app } = mount();
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      const edited = await put(app, 'probe', {
+        description: 'Second',
+        body: '# First',
+        labels: ['tone'],
+      });
+      expect(edited.status).toBe(200);
+      const view: Record<string, unknown> = await edited.json();
+      expect(view).toMatchObject({
+        updatedBy: 'user-1',
+        updatedByName: 'Ada Lovelace',
+      });
+      expect(skillRows().map((row) => row.action)).toEqual([
+        'skill.created',
+        'skill.updated',
+      ]);
+      expect(skillRows()[1]).toMatchObject({
+        changedFields: ['description', 'labels'],
+        metadata: { etag: view.etag, via: 'api' },
+      });
+
+      const listing = await app.request('http://localhost/skills');
+      const body: { skills: Array<Record<string, unknown>> } =
+        await listing.json();
+      expect(body.skills).toContainEqual(
+        expect.objectContaining({ slug: 'probe', updatedBy: 'user-1' }),
+      );
+    });
+
+    it('records nothing for a save that writes nothing', async () => {
+      const { app } = mount();
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      expect(skillRows().map((row) => row.action)).toEqual(['skill.created']);
+    });
+
+    it('names no editor once the file changed outside Tale', async () => {
+      const { app } = mount();
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      await put(app, 'probe', { description: 'Second', body: '# First' });
+      const file = path.join(configRoot, 'acme', 'skills', 'probe', 'SKILL.md');
+      await writeFile(
+        file,
+        (await readFile(file, 'utf-8')).replace('# First', '# Hand-edited'),
+      );
+
+      const read = await app.request('http://localhost/skills/probe');
+      const view: Record<string, unknown> = await read.json();
+      expect(view.body).toBe('# Hand-edited\n');
+      expect(view).not.toHaveProperty('updatedBy');
+      expect(view.ownerName).toBe('Ada Lovelace');
+    });
+  });
+});
+
+/**
+ * An organization that reserves organization-wide skills (`skill_sharing`
+ * in its governance tree): the REST door refuses a key holder who may not
+ * publish exactly where the app does — creating an organization-wide skill,
+ * widening one, changing one in place — with 403 `SKILL_PUBLISH_FORBIDDEN`,
+ * audited as denied, and lets a team share and a granted member through.
+ */
+describe('the skills door under a skill sharing policy', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-rest-skill-policy-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    const governance = path.join(configRoot, 'acme', 'governance');
+    await mkdir(governance, { recursive: true });
+    await writeFile(
+      path.join(governance, 'skill-sharing.yml'),
+      'orgWide: editors\n',
+    );
+    vi.mocked(createAuditLog).mockClear();
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) {
+      delete process.env.TALE_CONFIG_DIR;
+    } else {
+      process.env.TALE_CONFIG_DIR = savedConfigDir;
+    }
+    await rm(configRoot, { recursive: true, force: true });
+  });
+
+  const put = (app: Hono<RestEnv>, slug: string, body: unknown) =>
+    app.request(`http://localhost/skills/${slug}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  const onDisk = (slug: string) =>
+    readFile(
+      path.join(configRoot, 'acme', 'skills', slug, 'SKILL.md'),
+      'utf-8',
+    );
+
+  it('refuses a member an organization-wide skill, writes nothing, and audits the refusal', async () => {
+    const { app } = mount({ role: 'member', publishGrants: [] });
+    const refused = await put(app, 'probe', {
+      description: 'Everyone',
+      body: '# Everyone',
+    });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({
+      code: 'SKILL_PUBLISH_FORBIDDEN',
+    });
+    await expect(onDisk('probe')).rejects.toThrow();
+    const rows = vi
+      .mocked(createAuditLog)
+      .mock.calls.map((call) => call[1])
+      .filter((row) => row.category === 'skill');
+    expect(rows).toEqual([
+      expect.objectContaining({
+        action: 'skill.publish_denied',
+        status: 'denied',
+        actorId: 'user-1',
+        resourceId: 'probe',
+        metadata: { via: 'api' },
+      }),
+    ]);
+  });
+
+  it('lets the same member share a skill with their own team', async () => {
+    const { app } = mount({ role: 'member', publishGrants: [] });
+    const created = await put(app, 'probe', {
+      description: 'Team',
+      body: '# Team',
+      visibility: 'team',
+      teams: ['team-1'],
+    });
+    expect(created.status).toBe(201);
+    expect(await created.json()).toMatchObject({ visibility: 'team' });
+  });
+
+  it('lets an Editor, and a member holding tale:skills.publish, publish to the organization', async () => {
+    const editor = mount({ role: 'editor', publishGrants: [] });
+    expect(
+      (await put(editor.app, 'by-editor', { description: 'a', body: 'x' }))
+        .status,
+    ).toBe(201);
+    const granted = mount({
+      role: 'member',
+      publishGrants: [{ expiresAt: null, revokedAt: null }],
+    });
+    expect(
+      (await put(granted.app, 'by-grant', { description: 'a', body: 'x' }))
+        .status,
+    ).toBe(201);
   });
 });
 

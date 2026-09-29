@@ -10,8 +10,8 @@ Read the [screenshot guide](../../../../.agents/skills/write-docs/SCREENSHOTS.md
 ## Prepare a local platform
 
 Use a disposable development environment. The seeder creates an organization, documents, tasks,
-credentials, and governance examples; do not point it at a customer deployment or a database whose
-contents you need to preserve.
+skills, credentials, and governance examples; do not point it at a customer deployment or a
+database whose contents you need to preserve.
 
 From the repository root, install dependencies and Chromium:
 
@@ -141,14 +141,14 @@ availability.
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| Sign-in succeeds but seeded content is missing | Confirm port 3000 belongs to this checkout and `.state/` points to its database. |
-| Chat has no usable models | Check the gateway, provider credential, and `docs-demo` builtin catalog. The normal catalog needs real provider credentials. |
-| File upload fails or stays in indexing | Check object storage, the knowledge database and corpus migrations, the embedding model, and backend logs. |
-| A selected shot cannot find its project or thread | Run the seed and retain the new `.state/` IDs before using `--skip-seed`. |
-| A model identifier is absent from the visible option label | Search by the API identifier, then select the matching friendly model name. |
-| `settings-sandboxes` never reaches readiness | Supply a connected Docker spawner with matching `SANDBOX_URL` and `SANDBOX_TOKEN`. This shot requires a real host observation. |
+| Symptom                                                    | Check                                                                                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Sign-in succeeds but seeded content is missing             | Confirm port 3000 belongs to this checkout and `.state/` points to its database.                                               |
+| Chat has no usable models                                  | Check the gateway, provider credential, and `docs-demo` builtin catalog. The normal catalog needs real provider credentials.   |
+| File upload fails or stays in indexing                     | Check object storage, the knowledge database and corpus migrations, the embedding model, and backend logs.                     |
+| A selected shot cannot find its project or thread          | Run the seed and retain the new `.state/` IDs before using `--skip-seed`.                                                      |
+| A model identifier is absent from the visible option label | Search by the API identifier, then select the matching friendly model name.                                                    |
+| `settings-sandboxes` never reaches readiness               | Supply a connected Docker spawner with matching `SANDBOX_URL` and `SANDBOX_TOKEN`. This shot requires a real host observation. |
 
 Use `E2E_BASE_URL` for another app origin and `TALE_MOCK_CONNECTORS_BASE` for another mock gateway.
 The manifest is the complete shot inventory; a subset capture does not verify all screenshots.

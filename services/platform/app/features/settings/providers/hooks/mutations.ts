@@ -24,12 +24,16 @@ import {
 
 /** Create one credential (api-key / env / subscription-broker). */
 export function useCreateCredential() {
-  return useBackendAction('provider_credentials/actions:createCredential');
+  return useBackendAction('provider_credentials/actions:createCredential', {
+    errorToast: false,
+  });
 }
 
 /** Patch one credential: name, allowlist, status, default flag, or secret. */
 export function useUpdateCredential() {
-  return useBackendAction('provider_credentials/actions:updateCredential');
+  return useBackendAction('provider_credentials/actions:updateCredential', {
+    errorToast: false,
+  });
 }
 
 /** Delete one credential. Deleting the default leaves the pair without one. */

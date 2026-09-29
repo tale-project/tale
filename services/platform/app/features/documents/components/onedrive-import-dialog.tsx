@@ -23,6 +23,7 @@ import {
   useSharePointFiles,
   useSharePointSites,
 } from '../hooks/queries';
+import { useListingFailureToast } from '../hooks/use-listing-failure-toast';
 import { OneDrivePickerStage } from './onedrive-import/onedrive-picker-stage';
 import { OneDriveSettingsStage } from './onedrive-import/onedrive-settings-stage';
 import type {
@@ -77,11 +78,15 @@ export function OneDriveImportDialog({
     useImportOneDriveFiles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
+  // The import's folder walk: a refused listing stops the import, which
+  // reports it in its one failure toast.
   const { mutateAsync: listOneDriveFiles } = useBackendAction(
     'onedrive/actions:listFiles',
+    { errorToast: false },
   );
   const { mutateAsync: listSharePointFiles } = useBackendAction(
     'onedrive/actions:listSharePointFiles',
+    { errorToast: false },
   );
 
   const [stage, setStage] = useState<Stage>('picker');
@@ -169,7 +174,11 @@ export function OneDriveImportDialog({
       isMicrosoftConnected,
   );
 
-  const { data: drivesData, isLoading: loadingDrives } = useSharePointDrives(
+  const {
+    data: drivesData,
+    isLoading: loadingDrives,
+    error: drivesError,
+  } = useSharePointDrives(
     organizationId,
     selectedSite?.id,
     stage === 'picker' &&
@@ -179,7 +188,11 @@ export function OneDriveImportDialog({
       isMicrosoftConnected,
   );
 
-  const { data: spListing, isLoading: loadingSpFiles } = useSharePointFiles(
+  const {
+    data: spListing,
+    isLoading: loadingSpFiles,
+    error: spFilesError,
+  } = useSharePointFiles(
     organizationId,
     selectedSite?.id,
     selectedDrive?.id,
@@ -195,11 +208,36 @@ export function OneDriveImportDialog({
   const listingTruncatedCount =
     sourceTab === 'sharepoint' ? spTruncatedCount : oneDriveTruncatedCount;
 
+  // A listing that failed is reported once, after its retries; a lapsed
+  // grant hands off to the connect dialog below instead.
+  useListingFailureToast(
+    loadError,
+    t('onedrive.loadFailed'),
+    isCloudImportAuthError,
+  );
+  useListingFailureToast(
+    sitesError,
+    t('onedrive.loadFailed'),
+    isCloudImportAuthError,
+  );
+  useListingFailureToast(
+    drivesError,
+    t('onedrive.loadFailed'),
+    isCloudImportAuthError,
+  );
+  useListingFailureToast(
+    spFilesError,
+    t('onedrive.loadFailed'),
+    isCloudImportAuthError,
+  );
+
   const isMicrosoftAccountError =
     (!cloudImportAuthLoading &&
       (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError) ||
-    isCloudImportAuthError(sitesError);
+    isCloudImportAuthError(sitesError) ||
+    isCloudImportAuthError(drivesError) ||
+    isCloudImportAuthError(spFilesError);
 
   // Safety net: if the picker opens without a grant (or the grant dies
   // mid-session), hand off to the connect dialog instead of resizing.

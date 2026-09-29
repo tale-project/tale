@@ -951,16 +951,59 @@ async function stampExtractionMetadata(
 
 /**
  * The conversation an emailed attachment's corpus row is stamped with: the
- * one its file row is bound to, unless the file has been filed into a
- * document — then it indexes as that document, under the document's scope.
- * The indexer's rule; the backfill (`reconcileMailAttachmentStamps`) walks
- * exactly the rows it stamps.
+ * one its file row is bound to, unless the file indexes as a document —
+ * filed into one, or unbound while an active document holds its ref
+ * (`heldByActiveDocument`, read by `activeDocumentHoldingRef`) — then none:
+ * the row carries a document's scope instead. The indexer's rule, and the
+ * one both walks of the stamp pass read (`readMailAttachments`), so the
+ * backfill walks exactly the rows it stamps.
  */
 export function emailedAttachmentConversation(file: {
   readonly documentId: string | null;
   readonly conversationId?: string | null;
+  readonly heldByActiveDocument?: boolean;
 }): string | null {
-  return file.documentId === null ? (file.conversationId ?? null) : null;
+  if (file.documentId !== null || file.heldByActiveDocument === true) {
+    return null;
+  }
+  return file.conversationId ?? null;
+}
+
+/** A document's scope as the indexer stamps it on the corpus row. */
+interface DocumentScopeRow {
+  teamId: string | null;
+  teamTags: string[];
+  projectId: string | null;
+  folderId: string | null;
+  folderPath: string | null;
+}
+
+/**
+ * The active document that holds this ref as its file, with its scope — the
+ * ref's HOLDER, the document a file holding the same ref indexes as: the
+ * corpus row is the ref's. Several documents can hold one ref (a WebDAV COPY
+ * shares it), so the holder is the one with the lowest id, the document
+ * whose scope the scope passes write back on the row too
+ * (`reconcileDocumentScopeStamps`, `syncRagDocumentScopes`). The stamp
+ * pass's walks exclude an attachment on the same active-document condition
+ * (`readMailAttachments`).
+ */
+async function activeDocumentHoldingRef(
+  sql: Sql,
+  organizationId: string,
+  ref: string,
+): Promise<DocumentScopeRow | null> {
+  const rows = await sql<DocumentScopeRow[]>`
+    SELECT d.team_id AS "teamId", d.team_tags AS "teamTags",
+           d.project_id AS "projectId", d.folder_id AS "folderId",
+           d.folder_path AS "folderPath"
+    FROM app.documents d
+    WHERE d.org_id = ${organizationId} AND d.file_ref = ${ref}
+      AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
+    ORDER BY d.id
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
 }
 
 /**
@@ -1083,43 +1126,52 @@ export async function indexUploadedFile(
     );
     const piiConfig = parsePiiConfig(piiPolicy);
 
-    // Scope stamp from the bound document (hub/team/project), and its folder
-    // — the corpus filters on both; a NULL folder stamp made every
-    // folder-scoped search miss the document it was filed in.
-    let teamIds: string[] | null = null;
-    let projectId: string | null = null;
-    let folderPath: string | null = null;
-    if (file.documentId !== null) {
-      const docRows = await sql<
-        {
-          teamId: string | null;
-          teamTags: string[];
-          projectId: string | null;
-          folderId: string | null;
-          folderPath: string | null;
-        }[]
-      >`
+    // Scope stamp from the document the file indexes as (hub/team/project),
+    // and its folder — the corpus filters on both; a NULL folder stamp made
+    // every folder-scoped search miss the document it was filed in. The
+    // corpus row is the ref's, so that is the ref's holder
+    // (`activeDocumentHoldingRef`), whose scope the scope passes write back —
+    // also for a file bound to a WebDAV COPY's twin — and the document the
+    // file is bound to only when no active document holds the ref. An
+    // unbound file indexed under no scope would blank the holder's stamps
+    // until the nightly scope pass wrote them back.
+    let doc = await activeDocumentHoldingRef(
+      sql,
+      file.organizationId,
+      file.storageRef,
+    );
+    const heldByActiveDocument = doc !== null;
+    if (doc === null && file.documentId !== null) {
+      const docRows = await sql<DocumentScopeRow[]>`
         SELECT team_id AS "teamId", team_tags AS "teamTags",
                project_id AS "projectId", folder_id AS "folderId",
                folder_path AS "folderPath"
         FROM app.documents WHERE id = ${file.documentId} LIMIT 1
       `;
-      const doc = docRows[0];
-      if (doc) {
-        teamIds = doc.teamTags.length > 0 ? doc.teamTags : null;
-        projectId = doc.projectId;
-        folderPath = await resolveDocumentFolderPath(
-          sql,
-          file.organizationId,
-          doc,
-        );
-      }
+      doc = docRows[0] ?? null;
+    }
+    let teamIds: string[] | null = null;
+    let projectId: string | null = null;
+    let folderPath: string | null = null;
+    if (doc !== null) {
+      teamIds = doc.teamTags.length > 0 ? doc.teamTags : null;
+      projectId = doc.projectId;
+      folderPath = await resolveDocumentFolderPath(
+        sql,
+        file.organizationId,
+        doc,
+      );
     }
     // An emailed attachment is stamped with the conversation it arrived on
     // (`emailedAttachmentConversation`): the corpus pre-filter then keeps it
     // out of every door that does not wrap mail, and the chat tools label
-    // and wrap it as mail. A file filed into a document is that document's.
-    const conversationId = emailedAttachmentConversation(file);
+    // and wrap it as mail. A file filed into a document is that document's,
+    // and so is one whose ref an active document holds.
+    const conversationId = emailedAttachmentConversation({
+      documentId: file.documentId,
+      conversationId: file.conversationId,
+      heldByActiveDocument,
+    });
 
     await writeRagStatus(sql, fileId, {
       ragStatus: 'running',
@@ -1470,8 +1522,12 @@ export async function markRagQueued(
  * edit that moved either — retrieval filters on these columns, and
  * re-embedding would be wasted work. Reads the document's CURRENT row, so
  * every caller (the app update, REST, WebDAV MOVE, a sync engine) speaks the
- * same one-liner. Best-effort by contract (0.4 parity): corpus failures log;
- * the next re-index is the backstop.
+ * same one-liner. The corpus row is the ref's, and carries its holder's
+ * scope (`activeDocumentHoldingRef`): an edit of a document that shares its
+ * ref with a lower-id active one writes that one's scope, as the reconcile
+ * does, and a document's own scope is written only when it is the holder or
+ * no active document holds its ref. Best-effort by contract (0.4 parity):
+ * corpus failures log; the next re-index is the backstop.
  */
 export async function syncRagDocumentScope(
   sql: Sql,
@@ -1498,14 +1554,16 @@ export async function syncRagDocumentScope(
     `;
     const doc = rows[0];
     if (!doc || doc.fileRef === null) return;
+    const scope =
+      (await activeDocumentHoldingRef(sql, organizationId, doc.fileRef)) ?? doc;
     const folderPath = await resolveDocumentFolderPath(
       sql,
       organizationId,
-      doc,
+      scope,
     );
     const orgSlug = await requireOrgSlug(sql, organizationId);
     const pool = await getKnowledgePoolForOrg(orgSlug);
-    const teamIds = doc.teamTags;
+    const teamIds = scope.teamTags;
     // `team_ids` (retrieval matches ANY) + the deprecated single mirror.
     await pool.unsafe(
       `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
@@ -1521,7 +1579,7 @@ export async function syncRagDocumentScope(
         doc.fileRef,
         teamIds.length > 0 ? teamIds : null,
         teamIds[0] ?? null,
-        doc.projectId,
+        scope.projectId,
         folderPath,
       ],
     );
@@ -1542,6 +1600,8 @@ export async function syncRagDocumentScope(
  * still reports `indexing.status: "completed"`, with no re-index to heal it
  * (a scope-only move never re-embeds). Reads the documents' CURRENT rows, so a
  * caller passes ids and this speaks the same one-liner every scope edit uses.
+ * A document whose ref a lower-id active document holds too writes nothing:
+ * the row carries its ref's holder's scope, as the reconcile writes it.
  * Best-effort by contract like its single-document sibling: a corpus failure
  * logs; {@link reconcileDocumentScopeStamps} is the backstop.
  */
@@ -1566,11 +1626,17 @@ export async function syncRagDocumentScopes(
       SELECT id, file_ref AS "fileRef", team_id AS "teamId",
              team_tags AS "teamTags", project_id AS "projectId",
              folder_id AS "folderId", folder_path AS "folderPath"
-      FROM app.documents
+      FROM app.documents d
       WHERE org_id = ${organizationId}
         AND id = ANY(${[...documentIds]})
         AND file_ref IS NOT NULL
         AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+        AND NOT EXISTS (
+          SELECT 1 FROM app.documents o
+          WHERE o.org_id = d.org_id AND o.file_ref = d.file_ref
+            AND (o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')
+            AND o.id < d.id
+        )
     `;
     if (docs.length === 0) return;
     const treePaths = await folderTreePaths(
@@ -1646,6 +1712,13 @@ const SCOPE_RECONCILE_PAGE = 1000;
  * per-edit sync failed to write it — and is the stamp pass's to take off
  * (`reconcileMailAttachmentStamps`), so the count stays what the reconcile
  * reports it as: edits whose corpus write failed.
+ *
+ * The corpus row is the ref's, and several documents can hold one ref (a
+ * WebDAV COPY shares it), so the walk reads each ref's holder alone — the
+ * active document with the lowest id, the one the indexer indexes the ref as
+ * (`activeDocumentHoldingRef`). Written from every document holding it, the
+ * row took either twin within one statement, a later page's twin overwrote
+ * an earlier one's, and the same row was drift again every night.
  */
 export async function reconcileDocumentScopeStamps(
   sql: Sql,
@@ -1678,7 +1751,8 @@ interface ScopeReconcilePage {
 }
 
 /** One page of {@link reconcileDocumentScopeStamps}: the documents after
- * `afterId` in id order, compared and corrected in one corpus statement. */
+ * `afterId` in id order, each ref's holder alone, compared and corrected in
+ * one corpus statement. */
 async function reconcileScopeStampPage(
   sql: Sql,
   args: {
@@ -1702,10 +1776,16 @@ async function reconcileScopeStampPage(
     SELECT id, file_ref AS "fileRef", team_id AS "teamId",
            team_tags AS "teamTags", project_id AS "projectId",
            folder_id AS "folderId", folder_path AS "folderPath"
-    FROM app.documents
+    FROM app.documents d
     WHERE org_id = ${args.organizationId}
       AND file_ref IS NOT NULL
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+      AND NOT EXISTS (
+        SELECT 1 FROM app.documents o
+        WHERE o.org_id = d.org_id AND o.file_ref = d.file_ref
+          AND (o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')
+          AND o.id < d.id
+      )
       AND (${args.afterId}::text IS NULL OR id > ${args.afterId})
     ORDER BY id
     LIMIT ${args.pageSize}
@@ -1782,12 +1862,22 @@ export interface MailAttachmentStampStats {
    * conversation (a thread or chat file) — whose stamp came off. No sync
    * failed for these; they are not scope drift. */
   cleared: number;
-  /** Second walk: refs no attachment backs and nothing keeps in the corpus,
-   * released — their bytes too when nothing references those (see
-   * `releaseUnbacked`). */
+  /** Second walk: rows whose stamp the backing recheck after the clear put
+   * back, since the ref was an emailed attachment again by then — a dead
+   * one's too, before its release (`recheckReleased`). */
+  restamped: number;
+  /** Second walk: refs no attachment backs and nothing keeps, released —
+   * their bytes too when nothing references those (see `releaseUnbacked`). */
   unbackedReleased: number;
-  /** Second walk: refs whose release failed. */
+  /** Second walk: those refs whose release failed. */
   unbackedFailures: number;
+  /** Second walk: attachments the backing recheck found on a conversation
+   * that is gone or marked spam, whose corpus rows were released once their
+   * stamp was back; the file row keeps their bytes. */
+  recheckReleased: number;
+  /** Second walk: those attachments whose release failed; the stamp put
+   * back keeps them isolated until the next night retries them. */
+  recheckFailures: number;
 }
 
 /**
@@ -1816,10 +1906,11 @@ export interface MailAttachmentStampStats {
  * one release, not one a night.
  *
  * CLEAR — a stamp can outlive the attachment it was written for. A file
- * filed into a document indexes as that document, but a stamp that raced
- * the filing stays on the row, as does the stamp of any row that stops being
- * an attachment without a re-index, and the pre-filter keeps every stamped
- * row out of every document door: the document is hidden from all of them.
+ * filed into a document indexes as that document, as does one whose ref an
+ * active document holds, but a stamp that raced the filing stays on the row,
+ * as does the stamp of any row that stops being an attachment without a
+ * re-index, and the pre-filter keeps every stamped row out of every document
+ * door: the document is hidden from all of them.
  * So a second walk reads the corpus rows that carry a stamp — email bodies
  * aside: a `msg:` ref is decided by its inbound email — and hands each ref no
  * attachment row backs to `releaseUnbacked`. A ref nothing keeps in the
@@ -1834,7 +1925,11 @@ export interface MailAttachmentStampStats {
  * stamp it took off, and a ref that turned back into a live attachment
  * meanwhile gets its stamp back. A newly dead attachment gets its stamp
  * back too before its corpus release: a failed release must never leave it
- * available to ordinary content-hash clones.
+ * available to ordinary content-hash clones. The rows a clear takes the
+ * stamp off stay locked until that recheck answers, and an indexer claiming
+ * one of those refs waits behind them, so a clear locks at most
+ * `STAMP_CLEAR_ROWS` rows and its recheck is bounded (`clearMailStamps`); one
+ * that cannot finish rolls back, its stamps still on, for the next night.
  *
  * Both walks read the attachment rows through one statement
  * (`readMailAttachments`) — unbound file rows bound to a conversation, live,
@@ -1968,7 +2063,7 @@ interface AttachmentStampRow {
  * one of `refs`.
  */
 async function readMailAttachments(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   args: {
     organizationId: string;
     afterId?: string | null;
@@ -2026,14 +2121,23 @@ async function clearUnbackedMailStamps(
 ): Promise<
   Pick<
     MailAttachmentStampStats,
-    'stampsScanned' | 'cleared' | 'unbackedReleased' | 'unbackedFailures'
+    | 'stampsScanned'
+    | 'cleared'
+    | 'restamped'
+    | 'unbackedReleased'
+    | 'unbackedFailures'
+    | 'recheckReleased'
+    | 'recheckFailures'
   >
 > {
   const counts = {
     stampsScanned: 0,
     cleared: 0,
+    restamped: 0,
     unbackedReleased: 0,
     unbackedFailures: 0,
+    recheckReleased: 0,
+    recheckFailures: 0,
   };
   const pool = await getKnowledgePoolForOrg(args.orgSlug);
   let afterRef: string | null = null;
@@ -2070,8 +2174,9 @@ async function clearUnbackedMailStamps(
       if (stale.length > 0) {
         const cleared = await clearMailStamps(sql, pool, args, stale);
         counts.cleared += cleared.cleared;
-        counts.unbackedReleased += cleared.unbackedReleased;
-        counts.unbackedFailures += cleared.unbackedFailures;
+        counts.restamped += cleared.restamped;
+        counts.recheckReleased += cleared.recheckReleased;
+        counts.recheckFailures += cleared.recheckFailures;
       }
     }
     if (stamped.length < pageSize) break;
@@ -2079,6 +2184,18 @@ async function clearUnbackedMailStamps(
   }
   return counts;
 }
+
+/** Stale stamps one clear takes off, in a corpus transaction of its own:
+ * the rows it clears stay locked until its backing recheck answers. */
+const STAMP_CLEAR_ROWS = 100;
+
+/** How long a clear waits on the app connection of its recheck — for the
+ * read, then for the transaction around it to end — before it takes that
+ * connection for gone. Above the recheck's own statement timeout (10 s),
+ * which answers first while the connection is sound: this bound is for one
+ * that no longer answers at all, a half-open socket, which the server's
+ * timeout never reaches and TCP gives up on only minutes later. */
+const STAMP_RECHECK_ANSWER_MS = 15_000;
 
 /**
  * Take the stamp off rows no attachment backs, then read their backing
@@ -2090,6 +2207,12 @@ async function clearUnbackedMailStamps(
  * gets its stamp back straight away rather than reading as a hub row until
  * the next night. A dead conversation's attachment is then released, with
  * its stamp still protecting it if that release fails.
+ *
+ * The rows stay locked from the clear until that recheck answers, and an
+ * indexer claiming one of those refs, or a release, waits behind them. So a
+ * clear takes at most `STAMP_CLEAR_ROWS` rows, and its recheck is bounded
+ * (`clearMailStampRows`). One that cannot finish rolls back with its stamps
+ * still on, and the next night retries it.
  */
 async function clearMailStamps(
   sql: Sql,
@@ -2103,70 +2226,195 @@ async function clearMailStamps(
 ): Promise<
   Pick<
     MailAttachmentStampStats,
-    'cleared' | 'unbackedReleased' | 'unbackedFailures'
+    'cleared' | 'restamped' | 'recheckReleased' | 'recheckFailures'
   >
 > {
-  const counts = { cleared: 0, unbackedReleased: 0, unbackedFailures: 0 };
-  // A restored stamp must commit with the clear: another indexer must
-  // never see its temporary NULL and clone mail context into an ordinary file.
-  const { cleared: clearedRows, backedAgain: currentAttachments } =
-    await pool.begin(async (tx) => {
-      // Only the stamp this walk read comes off; a row stamped with another
-      // conversation meanwhile is left for the next night to judge.
-      const cleared = await tx.unsafe<{ fileId: string }[]>(
-        `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+  const counts = {
+    cleared: 0,
+    restamped: 0,
+    recheckReleased: 0,
+    recheckFailures: 0,
+  };
+  for (let at = 0; at < stale.length; at += STAMP_CLEAR_ROWS) {
+    const rows = stale.slice(at, at + STAMP_CLEAR_ROWS);
+    let settled: ClearedStamps;
+    try {
+      settled = await clearMailStampRows(sql, pool, args, rows);
+    } catch (error) {
+      console.warn(
+        `[knowledge] stale conversation stamps for ${args.orgSlug}: a clear did not finish (rows=${rows.length}), the next night retries it:`,
+        error,
+      );
+      continue;
+    }
+    // The release takes its own corpus locks. Run it after the transaction
+    // commits, while its restored stamp already keeps the row out of clones.
+    const dead = settled.backedAgain
+      .filter((row) => !row.conversationLive)
+      .map((row) => row.storageRef);
+    if (dead.length > 0) {
+      const outcome = await args.releaseUnbacked(dead);
+      counts.recheckReleased += outcome.released.length;
+      counts.recheckFailures += outcome.failures.length;
+    }
+    const backed = new Set(settled.backedAgain.map((row) => row.storageRef));
+    const restamped = settled.cleared.filter((row) =>
+      backed.has(row.fileId),
+    ).length;
+    counts.restamped += restamped;
+    counts.cleared += settled.cleared.length - restamped;
+  }
+  return counts;
+}
+
+/** What one clear committed: the rows it took the stamp off, and the
+ * attachments its recheck found backing them again. */
+interface ClearedStamps {
+  cleared: readonly { fileId: string }[];
+  backedAgain: readonly AttachmentStampRow[];
+}
+
+/**
+ * One clear of `clearMailStamps`: take the stamps off, read the backing
+ * again, and put back each one an attachment backs again, in one corpus
+ * transaction. The app connection the recheck reads on is taken, and its
+ * statement timeout set, before a corpus row is locked, so the rows stay
+ * locked for the clear, one bounded read and the stamps put back — never for
+ * a wait on the app pool. The read is bounded on this side too
+ * (`STAMP_RECHECK_ANSWER_MS`): a connection that no longer answers never
+ * delivers the server's timeout, and the clear rolls back without it.
+ *
+ * The clear is what its corpus transaction did. The app transaction around
+ * it only reads: once the corpus side has committed, a failure to end it
+ * undoes nothing and the clear stands. Whichever way the corpus side went,
+ * the end of the app transaction is waited for only so long
+ * (`STAMP_RECHECK_ANSWER_MS`), so a connection that stops answering during
+ * the clear holds up neither its corpus rows nor the pass. One already gone
+ * when the clear opens its app transaction locks no corpus row, and holds
+ * the pass as it would hold any other read of it.
+ */
+async function clearMailStampRows(
+  sql: Sql,
+  pool: Sql,
+  args: { organizationId: string; orgSlug: string },
+  rows: readonly StampedCorpusRow[],
+): Promise<ClearedStamps> {
+  const corpus = Promise.withResolvers<ClearedStamps>();
+  let corpusBegun = false;
+  const app = sql.begin(async (atx) => {
+    await atx`SET LOCAL statement_timeout = '10s'`;
+    corpusBegun = true;
+    // A restored stamp must commit with the clear: another indexer must
+    // never see its temporary NULL and clone mail context into an ordinary file.
+    pool
+      .begin(async (tx): Promise<ClearedStamps> => {
+        // Only the stamp this walk read comes off; a row stamped with another
+        // conversation meanwhile is left for the next night to judge.
+        const cleared = await tx.unsafe<{ fileId: string }[]>(
+          `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         SET conversation_id = NULL
        FROM jsonb_to_recordset($2::jsonb)
             AS v(file_id text, conversation_id text)
       WHERE d.org_slug = $1 AND d.file_id = v.file_id
         AND d.conversation_id = v.conversation_id
       RETURNING d.file_id AS "fileId"`,
-        [
-          args.orgSlug,
-          tx.json(
-            stale.map((row) => ({
-              file_id: row.fileId,
-              conversation_id: row.conversationId,
-            })),
-          ),
-        ],
-      );
-      const backedAgain =
-        cleared.length === 0
-          ? []
-          : await readMailAttachments(sql, {
-              organizationId: args.organizationId,
-              refs: cleared.map((row) => row.fileId),
-            });
-      if (backedAgain.length > 0) {
-        // Restore every attachment before a release can fail. Even dead mail
-        // must not donate its contextual headers to an ordinary content-hash clone.
-        await stampMailAttachments(tx, args.orgSlug, backedAgain);
-      }
-      return { cleared, backedAgain };
-    });
-  // The release takes its own corpus locks. Run it after the transaction
-  // commits, while its restored stamp already keeps the row out of clones.
-  const dead = currentAttachments
-    .filter((row) => !row.conversationLive)
-    .map((row) => row.storageRef);
-  if (dead.length > 0) {
-    const outcome = await args.releaseUnbacked(dead);
-    counts.unbackedReleased += outcome.released.length;
-    counts.unbackedFailures += outcome.failures.length;
+          [
+            args.orgSlug,
+            tx.json(
+              rows.map((row) => ({
+                file_id: row.fileId,
+                conversation_id: row.conversationId,
+              })),
+            ),
+          ],
+        );
+        const backedAgain =
+          cleared.length === 0
+            ? []
+            : await answeredWithin(
+                readMailAttachments(atx, {
+                  organizationId: args.organizationId,
+                  refs: cleared.map((row) => row.fileId),
+                }),
+                'the recheck',
+              );
+        if (backedAgain.length > 0) {
+          // Restore every attachment before a release can fail. Even dead mail
+          // must not donate its contextual headers to an ordinary content-hash clone.
+          await stampMailAttachments(tx, args.orgSlug, backedAgain);
+        }
+        return { cleared, backedAgain };
+      })
+      .then(corpus.resolve, corpus.reject);
+    // The app transaction ends as the corpus side did: committed with it,
+    // or rolled back.
+    return corpus.promise;
+  });
+  // Before the corpus side begins, the app transaction failing (its BEGIN,
+  // the timeout) fails the clear; from then on the corpus side decides it.
+  app.catch((error: unknown) => {
+    if (!corpusBegun) corpus.reject(error);
+  });
+  let committed: ClearedStamps;
+  try {
+    committed = await corpus.promise;
+  } catch (error) {
+    // Rolled back, its stamps still on: how its app transaction ended adds
+    // nothing to that, so it is only waited for.
+    await appTransactionEnd(app);
+    throw error;
   }
-  const restamped = new Set(currentAttachments.map((row) => row.storageRef));
-  counts.cleared = clearedRows.filter(
-    (row) => !restamped.has(row.fileId),
-  ).length;
-  return counts;
+  const failure = await appTransactionEnd(app);
+  if (failure !== null) {
+    console.warn(
+      `[knowledge] stale conversation stamps for ${args.orgSlug}: a clear committed (rows=${rows.length}), but its recheck's app transaction did not end cleanly:`,
+      failure,
+    );
+  }
+  return committed;
+}
+
+/** `work`'s answer, or a rejection once `STAMP_RECHECK_ANSWER_MS` have
+ * passed without one. The query it stops waiting for settles on its own. */
+async function answeredWithin<T>(work: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              `${what} did not answer within ${STAMP_RECHECK_ANSWER_MS} ms`,
+            ),
+          );
+        }, STAMP_RECHECK_ANSWER_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The end of a clear's app transaction: `null` once it ended cleanly, else
+ * what failed — its own error, or the answer bound lapsing on a connection
+ * that no longer answers. */
+async function appTransactionEnd(app: Promise<unknown>): Promise<unknown> {
+  try {
+    await answeredWithin(app, "the recheck's app transaction");
+    return null;
+  } catch (error) {
+    return error;
+  }
 }
 
 /**
  * Re-stamp the corpus folder path of every live, file-backed document under a
  * folder after the folder itself was renamed or moved — the path of each
- * document changed without any document row being touched. One read of the
- * subtree, one corpus update; best-effort like the per-document sync.
+ * document changed without any document row being touched. A ref's row
+ * carries its holder's path, so a document that is not its ref's holder is
+ * not read (`subtreeDocumentFolderPaths`). One read of the subtree, one
+ * corpus update; best-effort like the per-document sync.
  */
 export async function syncRagFolderSubtree(
   sql: Sql,

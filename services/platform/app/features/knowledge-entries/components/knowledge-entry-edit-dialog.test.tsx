@@ -18,7 +18,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 const updateEntryMock = vi.fn();
 vi.mock('../hooks/mutations', () => ({
   useUpdateKnowledgeEntry: () => ({
-    mutate: updateEntryMock,
+    mutateAsync: updateEntryMock,
     isPending: false,
   }),
 }));
@@ -41,15 +41,11 @@ describe('KnowledgeEntryEditDialog', () => {
   // AppError({ code: 'KNOWLEDGE_ENTRY_DUPLICATE' }); the dialog reads the
   // code rather than the prod-redacted error message.
   it('surfaces the duplicate toast when the server throws the duplicate code', async () => {
-    updateEntryMock.mockImplementation(
-      (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-        opts.onError(
-          new AppError({
-            code: 'KNOWLEDGE_ENTRY_DUPLICATE',
-            topic: 'Refunds',
-          }),
-        );
-      },
+    updateEntryMock.mockRejectedValue(
+      new AppError({
+        code: 'KNOWLEDGE_ENTRY_DUPLICATE',
+        topic: 'Refunds',
+      }),
     );
 
     const { user } = render(

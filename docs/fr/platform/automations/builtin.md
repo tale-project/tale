@@ -19,7 +19,7 @@ Les paquets sont ajoutés à la création de l’organisation. Lorsque le paquet
 
 ## Synchroniser le courrier dans la Boîte de réception
 
-Ces workflows importent les nouveaux messages dans des conversations toutes les cinq minutes. Chacun fournit la vue **Réception** : sa mise en service ajoute cette vue à [Accueil](/fr/platform#home) et propose la boîte connectée dans le formulaire de rédaction. Avant cela, **Accueil** n’a pas de vue **Réception**, et un lien vers la boîte de réception renvoie vers **Automatisations**.
+Ces workflows importent les nouveaux messages dans des conversations toutes les cinq minutes. Chacun fournit la vue **Réception** : sa mise en service ajoute cette vue à [Accueil](/fr/platform#home) et propose la boîte connectée dans le formulaire de rédaction. Avant cela, **Accueil** n’a pas de vue **Réception**. Un lien vers la boîte de réception affiche alors une invite de configuration : pour les rôles Propriétaire, Admin et Développeur, elle renvoie vers **Automatisations** ; les autres apprennent qu’une personne ayant l’un de ces rôles doit mettre en service une automatisation e-mail.
 
 | Automatisation | Connector requis | Planification |
 | --- | --- | --- |

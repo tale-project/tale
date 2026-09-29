@@ -54,6 +54,7 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import {
   backendErrorFromResponse,
   backendRefusalDetail,
+  failureDetail,
 } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { isAuthoredSourceProvider } from '@/lib/shared/document-source-providers';
@@ -153,7 +154,8 @@ function ProjectFileRecordMenu({
   const { t: tGovernance } = useT('governance');
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
+  const { mutateAsync: deleteDocument, isPending: isDeleting } =
+    useDeleteDocument();
   const { actions, dialogs, isHeld, isRecordProtected } =
     useDocumentRecordActions({
       documentId: doc._id,
@@ -171,17 +173,14 @@ function ProjectFileRecordMenu({
     });
 
   const handleDeleteConfirm = useCallback(() => {
-    deleteDocument(
-      { documentId: doc._id },
-      {
-        onSuccess: () => setConfirmDelete(false),
-        onError: (error) => {
-          console.error('Failed to delete project document:', error);
-          toast({
-            title: tDocuments('actions.deleteFileFailed'),
-            variant: 'destructive',
-          });
-        },
+    void deleteDocument({ documentId: doc._id }).then(
+      () => setConfirmDelete(false),
+      (error: unknown) => {
+        console.error('Failed to delete project document:', error);
+        toast({
+          title: tDocuments('actions.deleteFileFailed'),
+          variant: 'destructive',
+        });
       },
     );
   }, [deleteDocument, doc._id, tDocuments]);
@@ -283,14 +282,20 @@ export function ProjectFilesTab({
   const { mutateAsync: deleteFolder } = useDeleteFolder();
   const { mutateAsync: createFolder } = useCreateFolder();
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+  // An upload that did not land is named in the batch's one summary toast,
+  // beside its reason, and a refused retry in the tab's own toast: these
+  // writes keep their default toast quiet.
   const { mutateAsync: generateUploadUrl } = useBackendMutation(
     'files/mutations:generateUploadUrl',
+    { errorToast: false },
   );
   const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
     'documents/mutations:createDocumentFromUpload',
+    { errorToast: false },
   );
   const { mutateAsync: retryRagIndexing } = useBackendAction(
     'documents/actions:retryRagIndexing',
+    { errorToast: false },
   );
 
   const [uploading, setUploading] = useState(false);
@@ -800,7 +805,11 @@ export function ProjectFilesTab({
           }
         }
         console.error('detachDocument failed', error);
-        toast({ title: t('files.detachError'), variant: 'destructive' });
+        toast({
+          title: t('files.detachError'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       }
     },
     [detachDocument, t],
@@ -862,6 +871,7 @@ export function ProjectFilesTab({
               ? 'files.indexingStartFailed'
               : 'files.indexingRetryFailed',
           ),
+          description: failureDetail(error),
           variant: 'destructive',
         });
       } finally {

@@ -21,8 +21,16 @@ import {
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
+import { getProjectAuthContext } from '../projects/service.ts';
+import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
+import { auditIfPublishRefused } from '../skills/publish.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { getOrgAutomationMetrics } from './metrics.ts';
+import {
+  canReadRun,
+  readableProject,
+  readableProjectIds,
+} from './project-visibility.ts';
 import {
   AutomationError,
   answerAsk,
@@ -31,6 +39,7 @@ import {
   cancelRun,
   deleteAutomationCascade,
   deleteTrigger,
+  getAskRunId,
   getPendingAskForRun,
   getRun,
   listAutomationsForApp,
@@ -128,6 +137,18 @@ const startSchema = z.object({
   projectId: z.string().min(1).max(128).optional(),
 });
 
+/**
+ * The audience refusals a carried skill can answer, which keep the skill
+ * door's statuses so both upload lanes agree (403 for a team the caller is
+ * not in, and for an organization-wide skill the caller may not publish).
+ * Every other coded refusal of this lane stays a 400.
+ */
+const AUDIENCE_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  'TEAM_NOT_IN_ORG',
+  'TEAM_ACCESS_DENIED',
+  'SKILL_PUBLISH_FORBIDDEN',
+]);
+
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
@@ -152,15 +173,18 @@ function handleError<E extends OrgEnv>(
     if (data !== null && typeof data === 'object') {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate the reads
       const record = data as Record<string, unknown>;
+      const code = typeof record.code === 'string' ? record.code : 'REFUSED';
       return c.json(
         {
-          error: typeof record.code === 'string' ? record.code : 'REFUSED',
+          error: code,
           message:
             typeof record.message === 'string'
               ? record.message
               : 'The request was refused.',
         },
-        400,
+        (AUDIENCE_REFUSAL_CODES.has(code)
+          ? SKILL_ERROR_STATUS[code]
+          : undefined) ?? 400,
       );
     }
   }
@@ -227,13 +251,47 @@ export function createAutomationRoutes(deps: {
       ? null
       : c.json({ error: 'admin or developer role required' }, 403);
 
+  // Runs, bindings and project-scoped listings follow the project's read
+  // rule, like the REST and engine doors: a member outside a team-restricted
+  // project learns nothing of what ran there, and a hidden run answers
+  // exactly like a missing one.
+  const projectAuth = (c: Context<OrgEnv>) =>
+    getProjectAuthContext(deps.sql, {
+      organizationId: c.get('orgId'),
+      userId: c.get('sessionBundle').user.id,
+      role: c.get('orgMember').role,
+    });
+  const visibleRun = async (c: Context<OrgEnv>, runId: string) => {
+    const run = await getRun(deps.sql, c.get('orgId'), runId);
+    if (run === null) return null;
+    return (await canReadRun(deps.sql, await projectAuth(c), run)) ? run : null;
+  };
   // The APP listing (0.4 wire): deployed-version behaviour fields + scope.
   app.get('/listing', async (c) => {
     const projectId = c.req.query('projectId');
+    const auth = await projectAuth(c);
+    if (
+      projectId !== undefined &&
+      (await readableProject(deps.sql, auth, projectId)) === null
+    ) {
+      return c.json({ automations: [] });
+    }
+    const visible = new Set(await readableProjectIds(deps.sql, auth));
+    const automations = await listAutomationsForApp(deps.sql, c.get('orgId'), {
+      ...(projectId !== undefined ? { projectId } : {}),
+      includeProjectBound: c.req.query('includeProjectBound') === 'true',
+    });
+    // A row bound only to projects outside the viewer's view is dropped,
+    // not listed with no bindings: an empty list reads as organization
+    // scope, where the automation cannot run.
     return c.json({
-      automations: await listAutomationsForApp(deps.sql, c.get('orgId'), {
-        ...(projectId !== undefined ? { projectId } : {}),
-        includeProjectBound: c.req.query('includeProjectBound') === 'true',
+      automations: automations.flatMap((automation) => {
+        const projectIds = automation.projectIds.filter((id) =>
+          visible.has(id),
+        );
+        return automation.projectIds.length > 0 && projectIds.length === 0
+          ? []
+          : [{ ...automation, projectIds }];
       }),
     });
   });
@@ -334,12 +392,25 @@ export function createAutomationRoutes(deps: {
             organizationId: c.get('orgId'),
             orgSlug,
             userId: c.get('sessionBundle').user.id,
+            email: c.get('sessionBundle').user.email,
             role: c.get('orgMember').role,
           },
           body.data,
         ),
       );
     } catch (error) {
+      // A carried skill shared with the whole organization the uploader may
+      // not publish: the refusal is audited as denied, as on the skill doors.
+      const user = c.get('sessionBundle').user;
+      await auditIfPublishRefused(deps.sql, error, {
+        organizationId: c.get('orgId'),
+        actor: {
+          id: user.id,
+          email: user.email,
+          role: c.get('orgMember').role,
+        },
+        via: 'automation_package',
+      });
       return handleError(c, error);
     }
   });
@@ -356,12 +427,10 @@ export function createAutomationRoutes(deps: {
   // The live question of one run — membership-gated like every run read;
   // null when nothing is waiting on a person.
   app.get('/runs/:runId/ask', async (c) => {
+    const runId = c.req.param('runId');
+    if ((await visibleRun(c, runId)) === null) return c.json({ ask: null });
     return c.json({
-      ask: await getPendingAskForRun(
-        deps.sql,
-        c.get('orgId'),
-        c.req.param('runId'),
-      ),
+      ask: await getPendingAskForRun(deps.sql, c.get('orgId'), runId),
     });
   });
 
@@ -371,11 +440,22 @@ export function createAutomationRoutes(deps: {
     const body = answerSchema.safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
+      const askId = c.req.param('askId');
+      const runId = await getAskRunId(deps.sql, c.get('orgId'), askId);
+      if (runId === null || (await visibleRun(c, runId)) === null) {
+        throw new AutomationError(
+          'HUMAN_ASK_NOT_FOUND',
+          'this question does not exist',
+          404,
+        );
+      }
       await answerAsk(deps.sql, {
         organizationId: c.get('orgId'),
-        askId: c.req.param('askId'),
+        askId,
         answer: body.data.answer,
         answeredBy: c.get('sessionBundle').user.id,
+        // Pin the answer to the run whose visibility was just checked.
+        runId,
       });
     } catch (error) {
       return handleError(c, error);
@@ -385,11 +465,16 @@ export function createAutomationRoutes(deps: {
 
   app.post('/runs/:runId/cancel', async (c) => {
     try {
+      const runId = c.req.param('runId');
+      // A hidden run answers like a missing one: nothing to stop.
+      if ((await visibleRun(c, runId)) === null) {
+        return c.json({ cancelled: false });
+      }
       return c.json(
         await cancelRun(
           deps.sql,
           c.get('orgId'),
-          c.req.param('runId'),
+          runId,
           c.get('sessionBundle').user.id,
         ),
       );
@@ -404,7 +489,7 @@ export function createAutomationRoutes(deps: {
   // the raw row: the app names what a run waits on and what started it in
   // words, and the row's ask fact is the read's own input.
   app.get('/runs/:runId', async (c) => {
-    const run = await getRun(deps.sql, c.get('orgId'), c.req.param('runId'));
+    const run = await visibleRun(c, c.req.param('runId'));
     return run === null
       ? c.json({ error: 'run not found' }, 404)
       : c.json({ run: toRunDetail(run) });
@@ -414,10 +499,18 @@ export function createAutomationRoutes(deps: {
     const name = c.req.query('name');
     const projectId = c.req.query('projectId');
     const limitRaw = Number(c.req.query('limit') ?? '50');
+    const auth = await projectAuth(c);
+    if (
+      projectId !== undefined &&
+      (await readableProject(deps.sql, auth, projectId)) === null
+    ) {
+      return c.json({ runs: [] });
+    }
     const rows = await listRuns(deps.sql, c.get('orgId'), {
       ...(name !== undefined ? { name } : {}),
       ...(projectId !== undefined ? { projectId } : {}),
       ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
+      visibleProjectIds: await readableProjectIds(deps.sql, auth),
     });
     // The full rows, not summaries: the editor overlays the last run's
     // trace and checkpoints on the canvas from this listing.
@@ -579,6 +672,12 @@ export function createAutomationRoutes(deps: {
         name: nameFrom(c, 'projects'),
         projectIds: body.data.projectIds,
         actor: c.get('sessionBundle').user.id,
+        // The editor saves the bindings it was shown; bindings to projects
+        // outside the author's view survive the save.
+        visibleProjectIds: await readableProjectIds(
+          deps.sql,
+          await projectAuth(c),
+        ),
       });
       return c.json({ ok: true });
     } catch (error) {
@@ -597,12 +696,31 @@ export function createAutomationRoutes(deps: {
       if (denied) return denied;
     }
     try {
+      const visibleProjectIds = await readableProjectIds(
+        deps.sql,
+        await projectAuth(c),
+      );
+      // A hidden project answers exactly like a missing one, before
+      // anything about the automation's version or input is revealed.
+      if (
+        body.data.projectId !== undefined &&
+        !visibleProjectIds.includes(body.data.projectId)
+      ) {
+        throw new AutomationError(
+          'PROJECT_NOT_FOUND',
+          'Project not found.',
+          404,
+        );
+      }
       const started = await beginRun(deps.sql, {
         organizationId: c.get('orgId'),
         name: nameFrom(c, 'start'),
         input: body.data.input === undefined ? {} : body.data.input,
         mode,
         startedBy: `user:${c.get('sessionBundle').user.id}`,
+        // Admission checks the binding it actually resolves, including a
+        // sole inferred project and all bindings of an organization run.
+        visibleProjectIds,
         ...(body.data.version !== undefined
           ? { version: body.data.version }
           : {}),
@@ -646,13 +764,15 @@ export function createAutomationRoutes(deps: {
   });
 
   app.get('/:name{.+}/projects', async (c) => {
-    return c.json({
-      projectIds: await bindingProjectIds(
-        deps.sql,
-        c.get('orgId'),
-        nameFrom(c, 'projects'),
-      ),
-    });
+    const visible = new Set(
+      await readableProjectIds(deps.sql, await projectAuth(c)),
+    );
+    const projectIds = await bindingProjectIds(
+      deps.sql,
+      c.get('orgId'),
+      nameFrom(c, 'projects'),
+    );
+    return c.json({ projectIds: projectIds.filter((id) => visible.has(id)) });
   });
 
   app.delete('/:name{.+}', async (c) => {

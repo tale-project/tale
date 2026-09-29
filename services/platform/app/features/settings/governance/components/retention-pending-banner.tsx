@@ -32,8 +32,10 @@ export function RetentionPendingBanner({ organizationId }: Props) {
     'governance/queries:getPendingRetentionChange',
     { organizationId },
   );
+  // The cancel's failure toast below is its one report.
   const cancel = useBackendAction(
     'governance/retention_actions:cancelPendingRetentionChange',
+    { errorToast: false },
   );
 
   if (!pending.data) return null;

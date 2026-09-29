@@ -130,6 +130,16 @@ export const SKILL_VISIBILITIES = ['private', 'team', 'org'] as const;
 export type SkillVisibility = (typeof SKILL_VISIBILITIES)[number];
 
 /**
+ * Where a skill came from, which decides how its "Created by" reads:
+ * `release` — a managed configuration release installed it (its frontmatter
+ * carries the release compiler's `metadata.tale-release` marker); `builtin`
+ * — no owner is recorded, as on the catalog copies an organization starts
+ * with; `member` — the member named by `owner` created it.
+ */
+export const SKILL_ORIGINS = ['builtin', 'release', 'member'] as const;
+export type SkillOrigin = (typeof SKILL_ORIGINS)[number];
+
+/**
  * The visibilities a save may SET. `private` is not one of them: a bundle
  * that already carries it keeps it when the edit omits `visibility`, but
  * no edit surface may name it — the REST door's enum is exactly this list,

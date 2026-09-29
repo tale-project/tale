@@ -286,7 +286,7 @@ function ProjectOverviewContent({
                 <SettingsFieldRow
                   label={t('identity.label')}
                   description={t('identity.hint')}
-                  className="sm:items-center"
+                  className="@xl/field-layout:items-center"
                 >
                   <ProjectIdentityPicker
                     name={project.name}

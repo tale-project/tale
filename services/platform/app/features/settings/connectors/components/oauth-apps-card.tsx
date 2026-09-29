@@ -356,20 +356,17 @@ function ReuseSsoDialog({
       confirmText={t('connectors.oauthApps.reuseSsoConfirm')}
       isLoading={reuse.isPending}
       onConfirm={() => {
-        reuse.mutate(
-          { organizationId, slug: ONEDRIVE_SLUG },
-          {
-            onSuccess: () => {
-              toast({ title: t('connectors.oauthApps.reuseSsoDoneToast') });
-              onClose();
-            },
-            onError: (err) => {
-              console.error('connectors: reuse sso oauth app failed', err);
-              toast({
-                title: mapCredentialError(err),
-                variant: 'destructive',
-              });
-            },
+        void reuse.mutateAsync({ organizationId, slug: ONEDRIVE_SLUG }).then(
+          () => {
+            toast({ title: t('connectors.oauthApps.reuseSsoDoneToast') });
+            onClose();
+          },
+          (err: unknown) => {
+            console.error('connectors: reuse sso oauth app failed', err);
+            toast({
+              title: mapCredentialError(err),
+              variant: 'destructive',
+            });
           },
         );
       }}
@@ -563,20 +560,17 @@ function RemoveOauthAppDialog({
       variant="destructive"
       isLoading={remove.isPending}
       onConfirm={() => {
-        remove.mutate(
-          { organizationId, slug: target.slug },
-          {
-            onSuccess: () => {
-              toast({ title: t('connectors.oauthApps.removedToast') });
-              onClose();
-            },
-            onError: (err) => {
-              console.error('connectors: remove oauth app failed', err);
-              toast({
-                title: mapCredentialError(err),
-                variant: 'destructive',
-              });
-            },
+        void remove.mutateAsync({ organizationId, slug: target.slug }).then(
+          () => {
+            toast({ title: t('connectors.oauthApps.removedToast') });
+            onClose();
+          },
+          (err: unknown) => {
+            console.error('connectors: remove oauth app failed', err);
+            toast({
+              title: mapCredentialError(err),
+              variant: 'destructive',
+            });
           },
         );
       }}

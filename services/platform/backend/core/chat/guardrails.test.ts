@@ -8,6 +8,7 @@ import type { ActionCtx } from '../lib/ctx';
 import {
   buildTurnGuardrails,
   mandatoryInstructionsFor,
+  readMandatoryInstructions,
   readTurnPolicies,
 } from './guardrails';
 
@@ -142,10 +143,38 @@ describe('readTurnPolicies', () => {
     const fake = fakeCtx({ pii_config: { enabled: 'yes' } });
     const policies = await readTurnPolicies(fake.ctx, ORG);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('unparseable pii_config'),
+      expect.stringContaining('[chat] ignoring unparseable pii_config'),
     );
     warn.mockRestore();
     expect(policies.pii).toBeNull();
+  });
+});
+
+describe('readMandatoryInstructions', () => {
+  it('yields the org text an agent run leads with', async () => {
+    const fake = fakeCtx({
+      system_prompt: { mandatoryInstructions: '  Never quote prices.  ' },
+    });
+    await expect(
+      readMandatoryInstructions(fake.ctx, ORG, '[task-agent]'),
+    ).resolves.toBe('Never quote prices.');
+  });
+
+  it("reports a corrupt policy under the calling run's tag, not chat's", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fake = fakeCtx({ system_prompt: { mandatoryInstructions: 42 } });
+    const instructions = await readMandatoryInstructions(
+      fake.ctx,
+      ORG,
+      '[agent-host]',
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^\[agent-host\] ignoring unparseable system_prompt/,
+      ),
+    );
+    warn.mockRestore();
+    expect(instructions).toBeUndefined();
   });
 });
 

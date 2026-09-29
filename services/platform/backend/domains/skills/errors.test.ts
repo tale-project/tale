@@ -57,6 +57,21 @@ describe('skill refusal → HTTP status', () => {
     expect(malformed.status).toBe(422);
   });
 
+  it('answers a reserved organization-wide audience with 403 and its words', async () => {
+    const res = await answer(
+      new AppError({
+        code: 'SKILL_PUBLISH_FORBIDDEN',
+        message: 'reserved',
+        data: { slug: 'house-voice' },
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'SKILL_PUBLISH_FORBIDDEN',
+      message: 'reserved',
+    });
+  });
+
   it('lets an unmapped code and a plain Error reach the app-level handler', async () => {
     expect(
       (await answer(new AppError({ code: 'SOMETHING_NEW', message: 'x' })))

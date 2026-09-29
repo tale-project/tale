@@ -26,6 +26,7 @@ import {
   useCloudImportAuthorizationStatus,
   useGoogleDriveFiles,
 } from '../hooks/queries';
+import { useListingFailureToast } from '../hooks/use-listing-failure-toast';
 import { GoogleDisconnectButton } from './google-disconnect-button';
 import { OneDriveFileTable } from './onedrive-import/onedrive-file-table';
 import { OneDriveSettingsStage } from './onedrive-import/onedrive-settings-stage';
@@ -77,8 +78,11 @@ export function GoogleDriveImportDialog({
     useImportGoogleDriveFiles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
+  // The import's folder walk: a refused listing stops the import, which
+  // reports it in its one failure toast.
   const { mutateAsync: listGoogleDriveFiles } = useBackendAction(
     'google_drive/actions:listFiles',
+    { errorToast: false },
   );
 
   const [stage, setStage] = useState<Stage>('picker');
@@ -126,6 +130,14 @@ export function GoogleDriveImportDialog({
   const listingTruncatedCount = listing?.truncated
     ? listing.items.length
     : null;
+
+  // A listing that failed is reported once, after its retries; a lapsed
+  // grant hands off to the connect dialog below instead.
+  useListingFailureToast(
+    loadError,
+    t('googledrive.loadFailed'),
+    isCloudImportAuthError,
+  );
 
   const isGoogleAccountError =
     (!cloudImportAuthLoading &&

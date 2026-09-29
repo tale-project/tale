@@ -14,13 +14,14 @@ import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   SkillsMenu,
   type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -32,6 +33,7 @@ import {
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
+import { DOCUMENT_SKILL_SLUGS } from '../lib/document-skills';
 import { findSelectedModel, type ModelOption } from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 
@@ -49,7 +51,8 @@ interface ProjectAgentDialogProps {
   organizationId: string;
   harnesses: readonly HarnessOption[];
   models: readonly ModelOption[];
-  skills: readonly SkillOption[];
+  /** Undefined until the project's capability catalog has loaded. */
+  skills: readonly SkillOption[] | undefined;
   connectors: readonly SkillOption[];
   /** The row being edited; absent = create. */
   agent?: ProjectAgentRow;
@@ -91,6 +94,9 @@ export function ProjectAgentDialog({
   const [instructions, setInstructions] = useState('');
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Whether this opening of a create dialog already ticked the document
+  // skills — once, so unticking one sticks while the catalog refetches.
+  const documentSkillsSeeded = useRef(false);
 
   // Re-seed from the row each time the dialog opens; create mode seeds blank.
   useEffect(() => {
@@ -111,7 +117,24 @@ export function ProjectAgentDialog({
     setSecretNames(agent?.secrets ?? []);
     setInstructions(agent?.instructions ?? '');
     setNameError(undefined);
+    documentSkillsSeeded.current = false;
   }, [open, agent]);
+
+  // A new agent starts with the document skills the project can see ticked.
+  // Wait for the first catalog, including a successful empty result. Later
+  // refreshes must not add equipment to a form the person is already editing.
+  useEffect(() => {
+    if (!open || agent || skills === undefined || documentSkillsSeeded.current)
+      return;
+    documentSkillsSeeded.current = true;
+    const visible = new Set(skills.map((option) => option.slug));
+    const defaults = DOCUMENT_SKILL_SLUGS.filter((slug) => visible.has(slug));
+    if (defaults.length === 0) return;
+    setBinding((current) => ({
+      ...current,
+      skills: [...new Set([...current.skills, ...defaults])],
+    }));
+  }, [open, agent, skills]);
 
   // The grantable platform tools, labelled per name with a read/write badge
   // and grouped by their org module (Tasks, Documents, …).
@@ -249,7 +272,11 @@ export function ProjectAgentDialog({
         toast({ title: t(`errors.${code}`), variant: 'destructive' });
       } else {
         console.error('saveProjectAgent failed', error);
-        toast({ title: t('agents.mutationError'), variant: 'destructive' });
+        toast({
+          title: t('agents.mutationError'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       }
     } finally {
       setIsSubmitting(false);
@@ -354,7 +381,7 @@ export function ProjectAgentDialog({
         modal
       />
       <SkillsMenu
-        skills={skills}
+        skills={skills ?? []}
         connectors={connectors}
         tools={toolOptions}
         value={binding}

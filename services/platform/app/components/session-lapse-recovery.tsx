@@ -1,5 +1,6 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { useT } from '@tale/ui/i18n/client';
 import { Row } from '@tale/ui/layout';
@@ -19,8 +20,8 @@ type SessionLapseRecoveryState = ReturnType<typeof useSessionLapseRedirect>;
 
 interface NoticeHost {
   recovery: SessionLapseRecoveryState;
-  /** Show the standing notice in the caller's flow instead of floating it;
-   * returns the release. */
+  /** Show the standing notice in the caller's flow instead of above the
+   * page; returns the release. */
   claim: () => () => void;
 }
 
@@ -30,8 +31,8 @@ const NoticeHostContext = createContext<NoticeHost | null>(null);
  * Keep the dashboard mounted until the person chooses to leave its drafts:
  * the confirmation, and after Stay here the standing notice that reopens it.
  * A layout with an alert stack shows that notice in its own flow
- * ({@link SessionLapseNotice}); a dashboard page without one gets it floating
- * at the top of the window.
+ * ({@link SessionLapseNotice}); a dashboard page without one gets it here, in
+ * the flow at the top of the window.
  */
 export function SessionLapseRecovery({
   recovery,
@@ -47,49 +48,38 @@ export function SessionLapseRecovery({
     return () => setClaims((count) => count - 1);
   }, []);
   const host = useMemo(() => ({ recovery, claim }), [recovery, claim]);
+  // The notice floated over the top of such a page and, on a narrow window,
+  // covered its header or back link. In the flow it pushes the page down;
+  // while it stands, the page is bounded to the rest of the window, so one
+  // exactly the viewport tall still scrolls all of its content into view.
+  // The frame is there whether or not it stands, so the page never remounts.
+  const unhosted = recovery.isLapsed && claims === 0;
   return (
     <NoticeHostContext.Provider value={host}>
-      {children}
+      <div className="flex h-full flex-col">
+        {unhosted && <StandingNotice recovery={recovery} />}
+        <div className={cn('min-h-0 flex-1', unhosted && '*:max-h-full')}>
+          {children}
+        </div>
+      </div>
       {recovery.isLapsed && (
-        <>
-          {!recovery.open &&
-            claims === 0 && (
-              // `z-50`, the page's sticky headers' layer: rendered after the
-              // page, the notice paints over them, and every dialog and sheet,
-              // portaled to `<body>` after the app root, still paints over it.
-              <div className="fixed inset-x-3 top-[calc(0.75rem+var(--safe-top))] z-50 mx-auto max-w-lg">
-                <Alert
-                  title={t('sessionLapse.title')}
-                  description={t('sessionLapse.paused')}
-                >
-                  <Button
-                    className="mt-3"
-                    size="sm"
-                    onClick={() => recovery.setOpen(true)}
-                  >
-                    {t('sessionLapse.signIn')}
-                  </Button>
-                </Alert>
-              </div>
-            )}
-          <ConfirmDialog
-            open={recovery.open}
-            onOpenChange={recovery.setOpen}
-            title={t('sessionLapse.title')}
-            description={t('sessionLapse.description')}
-            cancelText={t('sessionLapse.stayHere')}
-            confirmText={t('sessionLapse.signIn')}
-            disableConfirm={recovery.checking}
-            onConfirm={recovery.continueToLogIn}
-          >
-            {recovery.checkFailed && (
-              <Alert
-                variant="destructive"
-                description={t('sessionLapse.checkFailed')}
-              />
-            )}
-          </ConfirmDialog>
-        </>
+        <ConfirmDialog
+          open={recovery.open}
+          onOpenChange={recovery.setOpen}
+          title={t('sessionLapse.title')}
+          description={t('sessionLapse.description')}
+          cancelText={t('sessionLapse.stayHere')}
+          confirmText={t('sessionLapse.signIn')}
+          disableConfirm={recovery.checking}
+          onConfirm={recovery.continueToLogIn}
+        >
+          {recovery.checkFailed && (
+            <Alert
+              variant="destructive"
+              description={t('sessionLapse.checkFailed')}
+            />
+          )}
+        </ConfirmDialog>
       )}
     </NoticeHostContext.Provider>
   );
@@ -98,23 +88,41 @@ export function SessionLapseRecovery({
 /**
  * The standing notice as a shell alert: in the flow above the page's header,
  * so the header's title, navigation and actions stay usable at every width,
- * which a notice floating over them was not on a phone. A narrow or short
- * viewport keeps it to its title and Sign in; the sentence stays for screen
- * readers. It pads the notch itself, since it sits above the header that
- * otherwise would.
+ * which a notice floating over them was not on a phone.
  */
 export function SessionLapseNotice() {
-  const { t } = useT('auth');
   const host = useContext(NoticeHostContext);
   const claim = host?.claim;
   useLayoutEffect(() => claim?.(), [claim]);
-  if (!host?.recovery.isLapsed || host.recovery.open) return null;
-  const { recovery } = host;
+  if (!host?.recovery.isLapsed) return null;
+  return <StandingNotice recovery={host.recovery} />;
+}
+
+/**
+ * The notice's one row, wherever it stands. A narrow or short viewport keeps
+ * it to its title and Sign in; the sentence stays for screen readers. It pads
+ * the notch itself, since it stands first, above the header that otherwise
+ * would; like every shell alert (`data-shell-alert`, `layout/shell-alert.tsx`)
+ * it has the shell's header drop its own pad while it stands
+ * (`layout/shell-mobile-header.tsx`).
+ *
+ * While the confirmation is open the notice steps aside, unseen and out of
+ * the accessibility tree, but keeps its place: removed, it grew the page
+ * behind the dialog by its own height and shrank it again on Stay here, and
+ * the focus had no Sign in to come back to.
+ */
+function StandingNotice({ recovery }: { recovery: SessionLapseRecoveryState }) {
+  const { t } = useT('auth');
   return (
     <Row
       role="status"
+      data-shell-alert
+      aria-hidden={recovery.open || undefined}
       gap={2}
-      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 pt-[calc(0.5rem+var(--safe-top))] pb-2 text-sm"
+      className={cn(
+        'bg-warning/10 border-warning/30 shrink-0 border-b px-4 pt-[calc(0.5rem+var(--safe-top))] pb-2 text-sm',
+        recovery.open && 'invisible',
+      )}
     >
       <span className="min-w-0 grow">
         <span className="font-medium">{t('sessionLapse.title')}</span>

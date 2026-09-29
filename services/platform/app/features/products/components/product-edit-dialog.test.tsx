@@ -53,7 +53,15 @@ vi.mock('../hooks/use-product-image-upload', () => ({
 
 const mockMutate = vi.fn();
 vi.mock('../hooks/mutations', () => ({
-  useUpdateProduct: () => ({ mutate: mockMutate, isPending: false }),
+  // The dialog reports from the call's own promise; a test settles it
+  // through `mockMutate(args, { onSuccess, onError })`.
+  useUpdateProduct: () => ({
+    mutateAsync: (args: unknown) =>
+      new Promise((resolve, reject) => {
+        mockMutate(args, { onSuccess: resolve, onError: reject });
+      }),
+    isPending: false,
+  }),
 }));
 
 import { ProductEditDialog } from './product-edit-dialog';

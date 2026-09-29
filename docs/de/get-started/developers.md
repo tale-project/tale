@@ -75,6 +75,7 @@ Meldet curl vor einer JSON-Antwort einen TLS- oder Netzwerkfehler, prüfe Host u
 | Eine fertige Assistentenantwort ausgeben | [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script). |
 | Eine Automation aus einem anderen System starten | [Eine Automation per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). |
 | Einen MCP-Client verbinden | [MCP-Endpunkt](/de/develop/mcp-endpoint). |
+| Tale aus opencode, Claude Code oder einem Shell-Skript nutzen | [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor). |
 | Mit Projektdateien, Aufgaben oder Läufen arbeiten | [API-Referenz](/de/develop/api-reference). |
 
 Verwende für projektbezogene Arbeit Routen unter `/api/v1/projects/{id}/...`. Die Projekt-ID gehört in den Pfad, der Organisations-Slug in die Kopfzeile. Halte beide Werte in der Integrationskonfiguration ausdrücklich fest.

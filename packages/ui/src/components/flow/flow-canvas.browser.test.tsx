@@ -1,3 +1,5 @@
+import { viewportAtRest } from '@tale/ui/testing/flow';
+import type { UserEvent } from '@testing-library/user-event';
 import { useReactFlow, type Node } from '@xyflow/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -69,13 +71,39 @@ function transform(): string {
   );
 }
 
+// React Flow's view before anything has fitted it.
+const DEFAULT_VIEW = 'translate(0px, 0px) scale(1)';
+
+// At mount the view is React Flow's default, where this column already fits
+// the pane, so the nodes fitting proves nothing yet. The fit replaces that
+// view in one step once the nodes are measured, zooming to show the whole
+// column (about 1.14 here, never the default's 1): wait for it to land.
+async function fitted() {
+  await waitFor(() => expect(transform()).not.toBe(DEFAULT_VIEW));
+  await waitFor(() => expect(nodesFitThePane()).toBe(true));
+  return viewportAtRest();
+}
+
+/** Press a corner control; resolves with the view its ease comes to rest at. */
+async function press(user: UserEvent, name: string) {
+  const before = transform();
+  await user.click(screen.getByRole('button', { name }));
+  await waitFor(() => expect(transform()).not.toBe(before));
+  return viewportAtRest();
+}
+
+// A refit that must not come has no event to await: the pause gives one time
+// to show. A runner too slow to draw it in time can only miss it, never fail
+// a canvas that holds still.
+const refitWindow = () => new Promise((resolve) => setTimeout(resolve, 400));
+
 // React Flow fits once, against the box it has at mount. A canvas that then
 // shrank — a window resized, a tab strip wrapping onto a second row — kept
 // that zoom and cut its last boxes off. Only a real engine resizes a box.
 describe('FlowCanvas fit (real layout)', () => {
   it('refits when its box shrinks', async () => {
     const { frame } = renderCanvas();
-    await waitFor(() => expect(nodesFitThePane()).toBe(true));
+    await fitted();
     frame.style.height = '420px';
     frame.style.width = '600px';
     await waitFor(() => expect(nodesFitThePane()).toBe(true));
@@ -83,35 +111,29 @@ describe('FlowCanvas fit (real layout)', () => {
 
   it('leaves the view alone once the reader has zoomed', async () => {
     const { frame, user } = renderCanvas();
-    await waitFor(() => expect(nodesFitThePane()).toBe(true));
-    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
-    await waitFor(() => expect(transform()).not.toBe(''));
-    // let the zoom animation settle
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    const chosen = transform();
+    await fitted();
+    const chosen = await press(user, 'Zoom in');
     frame.style.height = '500px';
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await refitWindow();
     expect(transform()).toBe(chosen);
   });
 
   it('leaves the view alone once the page has moved it', async () => {
     const { frame, user } = renderCanvas();
-    await waitFor(() => expect(nodesFitThePane()).toBe(true));
+    await fitted();
     await user.click(screen.getByRole('button', { name: 'Pan to a node' }));
     await waitFor(() => expect(transform()).toContain('scale(1)'));
     const chosen = transform();
     frame.style.width = '600px';
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await refitWindow();
     expect(transform()).toBe(chosen);
   });
 
   it('follows the box again after "reset view"', async () => {
     const { frame, user } = renderCanvas();
-    await waitFor(() => expect(nodesFitThePane()).toBe(true));
-    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
-    await user.click(screen.getByRole('button', { name: 'Reset view' }));
-    // the reset eases in over 300ms
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await fitted();
+    await press(user, 'Zoom in');
+    await press(user, 'Reset view');
     frame.style.height = '420px';
     frame.style.width = '600px';
     await waitFor(() => expect(nodesFitThePane()).toBe(true));
