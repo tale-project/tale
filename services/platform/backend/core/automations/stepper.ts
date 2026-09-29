@@ -1269,7 +1269,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       // handle — the agent's reasoning and the operator's answers stand,
       // only the cut is repaired. No handle (or a session that is gone)
       // means a fresh conversation over the preserved workspace, as before.
-      const resume = workflowAgentRetryResume(settled, reason);
+      // A start refused while the pool cooled down resumes what it was to.
+      const resume = workflowAgentRetryResume(settled, reason, parked);
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,
@@ -1299,7 +1300,10 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         ...(plan.credentialRotations > 0
           ? { credentialRotations: plan.credentialRotations }
           : {}),
-        ...(resume !== undefined ? { resumedFrom: resume.agentSessionId } : {}),
+        ...(resume !== undefined
+          ? { resumedFrom: resume.agentSessionId, resumeReason: resume.reason }
+          : {}),
+        ...(settled.apiErrorStatus === 429 ? { retriedRateLimit: true } : {}),
       };
       const cursor: NodeCursor = {
         node: node.id,

@@ -124,6 +124,13 @@ export interface AgentCursor {
   /** The conversation this attempt resumed — the failed attempt's harness
    * session handle — so the record says the retry continued, not restarted. */
   resumedFrom?: string;
+  /** Why the conversation it resumed was cut, carried so a retry of a start
+   * that never launched resumes it with the same words. */
+  resumeReason?: string;
+  /** This attempt retries one that ended on a 429 — the rate limit that
+   * cooled its broker pool — so a start of it refused while the pool cools
+   * down spends no attempt (`planWorkflowAgentRetry`). */
+  retriedRateLimit?: boolean;
   result?: AgentTurnResult;
 }
 

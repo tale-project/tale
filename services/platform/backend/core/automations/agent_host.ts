@@ -80,9 +80,9 @@ import {
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../provider_credentials/broker_pool';
 import {
-  credentialRefusalMessage,
   credentialRetryAtMs,
   resolveProviderCredential,
+  runFailureMessage,
 } from '../provider_credentials/resolve_credential';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
@@ -1424,8 +1424,12 @@ export async function startWorkflowAgentTurnImpl(
         errored: true,
         reason: budgetRefused
           ? `the agent turn was refused by the organization's spend cap: ${err.reason}`
-          : `the agent turn could not start: ${credentialRefusalMessage(err) ?? (err instanceof Error ? err.message : String(err))}`,
-        failureCode: budgetRefused ? 'budget_exceeded' : 'start_failed',
+          : `the agent turn could not start: ${runFailureMessage(err)}`,
+        failureCode: budgetRefused
+          ? 'budget_exceeded'
+          : retryAtMs !== undefined
+            ? 'credential_cooldown'
+            : 'start_failed',
         ...(retryAtMs !== undefined ? { retryAtMs } : {}),
         text: '',
         files: [],
@@ -1980,6 +1984,9 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       await continueOrSettle(ctx, keys, window);
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
+      // A broker pool cooling down says when its first account is back: the
+      // stepper's re-kick waits for it.
+      const retryAtMs = credentialRetryAtMs(err);
       // A death BEFORE the retarget settles under the asking exec the cursor
       // still names: its finalize claim was burned at the ask park, but the
       // dead-winner branch completes the record (cursor matches, no result),
@@ -1991,8 +1998,9 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         retargeted ? keys : { ...keys, execId: ask.execId },
         {
           errored: true,
-          reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
+          reason: `the agent turn could not resume after the answer: ${runFailureMessage(err)}`,
           failureCode: 'resume_failed',
+          ...(retryAtMs !== undefined ? { retryAtMs } : {}),
           text: '',
           files: [],
         },

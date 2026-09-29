@@ -47,7 +47,13 @@ export type TaskRunFailureCode =
    * conversation — the first {@link CREDENTIAL_ROTATION_FREE_RETRIES} in a
    * row outside the crash-loop budget and without burning the account
    * ({@link freeCredentialRotations}). */
-  | 'credential_rotated';
+  | 'credential_rotated'
+  /** The start met a subscription broker whose every account was cooling
+   * down after a rate limit, so nothing ran. The retry's start waits until
+   * the first account is back; when the run it retried ended on a 429 —
+   * the rate limit that cooled the pool — the wait spends no attempt
+   * ({@link freeCooldownWaits}). */
+  | 'credential_cooldown';
 
 /** Failures where a retry is pure waste: the run burned its 12h window
  * (either executing or parked), or the agent configuration itself is gone.
@@ -93,9 +99,9 @@ export function isCredentialRotation(end: {
 
 /** How many run rows the retry decision reads, newest first: enough to see
  * one attempt past the budget even when every counted failure sits behind a
- * full allowance of free rotations. */
+ * full allowance of free rotations and a free cooldown wait. */
 export const AUTO_RETRY_HISTORY_LIMIT =
-  (AUTO_RETRY_MAX_ATTEMPTS + 1) * (CREDENTIAL_ROTATION_FREE_RETRIES + 1) + 1;
+  (AUTO_RETRY_MAX_ATTEMPTS + 1) * (CREDENTIAL_ROTATION_FREE_RETRIES + 2) + 1;
 
 /** The run-row facts the budget walk reads, newest-first; element 0 is the
  * run that just failed. */
@@ -112,15 +118,20 @@ export interface AutoRetryRunFacts {
   /** The producer's failure code (`project_agent_runs.failure_code`);
    * absent on rows failed before the column, which read as ordinary. */
   readonly failureCode?: string | undefined;
+  /** The vendor's HTTP status on a turn-ending API error (429, 401, …). */
+  readonly apiErrorStatus?: number | undefined;
+  /** The attempt the run's card showed (`auto_retry_attempt`); absent on a
+   * run a person or a mention started. */
+  readonly autoRetryAttempt?: number | undefined;
 }
 
 export interface AutoRetryBudget {
   /** Whether the just-failed run may be auto-retried. */
   readonly retry: boolean;
   /** The retry run's display stamp: the attempt of the budget it spends,
-   * 1-based. A free credential rotation spends none and shows the attempts
-   * already spent — 0 when there are none, which the task card reads as a
-   * resume after a token refresh. */
+   * 1-based. A free retry spends none and shows what the run it replaces
+   * showed — 0 when that run showed no attempt, which the task card reads
+   * as a resume after a token refresh. */
   readonly attempt: number;
 }
 
@@ -168,21 +179,49 @@ export function freeCredentialRotations(
 }
 
 /**
+ * Which rows of a task's newest-first run history are FREE cooldown waits:
+ * a start the broker refused while every account cooled down
+ * (`credential_cooldown`) whose run retried one that ended on a 429 — the
+ * rate limit that cooled the pool. That failure already counted; the wait
+ * for its cooldown is the same event, not a second attempt. Each free wait
+ * needs a counted 429 of its own directly behind it, so waits cannot loop:
+ * a second refusal in a row, or one that follows anything else, counts.
+ */
+export function freeCooldownWaits(
+  rows: readonly AutoRetryRunFacts[],
+): boolean[] {
+  return rows.map((row, index) => {
+    const retried = rows[index + 1];
+    return (
+      row.status === 'failed' &&
+      row.failureCode === 'credential_cooldown' &&
+      retried !== undefined &&
+      retried.status === 'failed' &&
+      retried.agentId === row.agentId &&
+      retried.apiErrorStatus === 429
+    );
+  });
+}
+
+/**
  * Count the streak of consecutive short-lived failures ending at `rows[0]`
  * (the run that just failed) and decide whether one more auto-retry fits the
  * budget. The walk stops — resetting the budget — at the first row that is
  * not a failure of the same agent (human cancel, a settled run, or a
  * reassignment boundary all count as intervention/progress), or whose
  * attempt executed ≥ the progress threshold. A free credential rotation
- * ({@link freeCredentialRotations}) is skipped — neither counted nor ending
- * the streak — and, when it is the run that just failed, is retried whatever
- * the streak behind it: the turn was cut by the broker, not by a crash loop.
+ * ({@link freeCredentialRotations}) or cooldown wait
+ * ({@link freeCooldownWaits}) is skipped — neither counted nor ending the
+ * streak — and, when it is the run that just failed, is retried whatever
+ * the streak behind it: the broker cut or held the turn, not a crash loop.
  */
 export function resolveAutoRetryBudget(
   rows: readonly AutoRetryRunFacts[],
 ): AutoRetryBudget {
   const agentId = rows[0]?.agentId;
-  const free = freeCredentialRotations(rows);
+  const rotations = freeCredentialRotations(rows);
+  const waits = freeCooldownWaits(rows);
+  const free = rotations.map((rotation, index) => rotation || waits[index]);
   let shortStreak = 0;
   for (const [index, row] of rows.entries()) {
     if (row.agentId !== agentId) break;
@@ -195,11 +234,12 @@ export function resolveAutoRetryBudget(
   }
   return {
     retry: free[0] || shortStreak <= AUTO_RETRY_MAX_ATTEMPTS,
-    // A free retry spends nothing: it shows the attempts already spent, so
-    // after a clean run it is no "1 of 3" — the next counted failure is.
-    attempt: Math.min(
-      free[0] ? shortStreak : Math.max(shortStreak, 1),
-      AUTO_RETRY_MAX_ATTEMPTS,
-    ),
+    // A free rotation spends nothing: its retry shows what the cut run
+    // showed — no attempt (0) after a run nothing retried, which is no
+    // "1 of 3". A free wait's run retried a counted 429, so it shows the
+    // count that 429 reached, as an ordinary retry would.
+    attempt: rotations[0]
+      ? (rows[0]?.autoRetryAttempt ?? 0)
+      : Math.min(Math.max(shortStreak, 1), AUTO_RETRY_MAX_ATTEMPTS),
   };
 }

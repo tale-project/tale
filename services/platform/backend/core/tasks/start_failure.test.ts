@@ -37,7 +37,7 @@ describe('classifyStartFailure', () => {
     expect(settled).toEqual({
       reason:
         'the agent run could not start: Every account behind credential "Team pool" is cooling down after a rate limit — try again in 42 seconds.',
-      failureCode: 'start_failed',
+      failureCode: 'credential_cooldown',
       retryAtMs,
     });
     expect(isAutoRetryableFailure(settled.failureCode)).toBe(true);

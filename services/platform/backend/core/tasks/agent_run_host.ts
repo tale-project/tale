@@ -76,7 +76,11 @@ import {
   TurnBudgetExceededError,
 } from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
-import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import {
+  credentialRetryAtMs,
+  resolveProviderCredential,
+  runFailureMessage,
+} from '../provider_credentials/resolve_credential';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   grantedToolsGuidance,
@@ -2323,16 +2327,20 @@ export async function steerTaskAgentTurnImpl(
     // with no engine: settle it under the NEW exec (first-wins,
     // exec-guarded), so Retry works and the comment heads the next brief.
     console.error('[task-agent] steer restart failed:', err);
+    // A broker pool cooling down says when its first account is back: the
+    // retry waits for it (`classifyStartFailure`).
+    const retryAtMs = credentialRetryAtMs(err);
     await settleTaskAgentTurn(
       ctx,
       { ...args, execId },
       {
         errored: true,
-        reason: `the run could not be restarted to take a new comment: ${err instanceof Error ? err.message : String(err)}`,
+        reason: `the run could not be restarted to take a new comment: ${runFailureMessage(err)}`,
         text: '',
         // Retryable: the retry run's resume prompt carries the comment via
         // the discussion delta, so the steer is not lost with the restart.
         failureCode: 'steer_restart_failed',
+        ...(retryAtMs !== undefined ? { retryAtMs } : {}),
       },
     );
   }

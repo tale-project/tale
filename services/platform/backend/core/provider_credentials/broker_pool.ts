@@ -337,8 +337,8 @@ export function diagnoseTokenMapping(
 
 /**
  * Explain an empty pool in the caller's terms: name the mapping piece that
- * dropped everything and the way out. Only meaningful when
- * `diagnostics.usableTokens` is empty.
+ * dropped everything and the way out. Only meaningful when the diagnostics
+ * hold neither usable nor held accounts.
  */
 export function describeEmptyPool(
   diagnostics: TokenMappingDiagnostics,

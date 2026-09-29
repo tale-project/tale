@@ -151,9 +151,7 @@ reports the pool; the consumer owns distribution between its eligible entries,
 and the fallback described below when its own rules leave it none.
 
 `available` says whether the account may take new work — its quota, and the
-hand-out floor below — independently of credential status. `hold` says which
-of the two holds an unavailable account back: `quota` or `refresh`, with
-`quota` named when both do; it is null while the account is available. A session or
+hand-out floor below — independently of credential status. A session or
 weekly window at 100% makes it false until its reset. OpenAI's
 explicit `allowed: false` or `limit_reached: true` also makes it false, even
 with rounded or absent percentages; `usage.limited` preserves that signal
@@ -181,7 +179,9 @@ a cooldown after a rate limit, a vendor account id it requires. So an account
 held back only by the floor says `hold: "refresh"`, and a consumer those rules
 leave with no available account may start work on it anyway, the latest
 `refresh_at` first, as the gateway would itself; an account with
-`hold: "quota"` has no quota left for it. When a due refresh keeps failing, the token may still
+`hold: "quota"` has no quota left for it. `hold` names which block holds an
+unavailable account back — `quota` when both do — and is null while the
+account is available. When a due refresh keeps failing, the token may still
 work but its end cannot be promised; the account is held back like one
 inside its floor, with `available_at: null`. A token whose whole planned life
 is shorter than the floor is handed out until its planned refresh is due, since

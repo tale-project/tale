@@ -19,6 +19,8 @@ import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 
 const io = vi.hoisted(() => ({
+  /** The serving the resolver answers; the local gateway model when unset. */
+  serving: undefined as Record<string, unknown> | undefined,
   instructions: [] as string[],
   starts: [] as Array<{
     execId: string;
@@ -66,11 +68,12 @@ vi.mock(
   }),
 );
 vi.mock('../lib/providers/agent_serving', () => ({
-  resolveWorkflowAgentServing: async () => ({
-    lane: 'gateway',
-    providerSlug: 'local-inference',
-    modelId: 'qwen3-32b',
-  }),
+  resolveWorkflowAgentServing: async () =>
+    io.serving ?? {
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+    },
 }));
 vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
@@ -201,6 +204,7 @@ function makeCtx(cursor: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  io.serving = undefined;
   io.starts = [];
   io.instructions = [];
   vi.mocked(resolveModel).mockReset();
@@ -402,10 +406,52 @@ describe('an automation agent turn', () => {
       )?.args.result,
     ).toMatchObject({
       errored: true,
-      failureCode: 'start_failed',
+      failureCode: 'credential_cooldown',
       retryAtMs,
       reason:
         'the agent turn could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
+
+  it('settles an answered-ask resume the broker refused while every account cooled down with when the first is back', async () => {
+    io.serving = {
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+      vision: { readable: true },
+    };
+    servesWindow(200_000);
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'resume_failed',
+        retryAtMs,
+        reason:
+          'the agent turn could not resume after the answer: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+      },
     });
   });
 

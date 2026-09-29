@@ -219,20 +219,50 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     expect(parkedCursor(failed.suspended)).toMatchObject({ attempt: 1 });
   });
 
-  it('holds the re-kick until a cooling broker pool has an account back', async () => {
-    // Every account of the pool was cooling down after a 429: re-kicking at
+  it('marks the retry of a 429 so waiting out its cooldown costs nothing more', async () => {
+    const { ctx, suspended } = harness(
+      parkedAttempt({
+        attempt: 1,
+        result: {
+          errored: true,
+          reason: 'the agent turn failed: API Error: 429 rate limited',
+          failureCode: 'harness_error',
+          apiErrorStatus: 429,
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(parkedCursor(suspended)).toMatchObject({
+      attempt: 2,
+      retriedRateLimit: true,
+      resumedFrom: 'conv-1',
+      resumeReason: 'the agent turn failed: API Error: 429 rate limited',
+    });
+  });
+
+  it('holds the re-kick until a cooling broker pool has an account back, resuming what the refused start was to resume', async () => {
+    // The pool cooled down after this node's own 429, and the retry that
+    // was to resume `conv-1` was refused before it launched. Re-kicking at
     // once met the same refusal and spent the budget in seconds.
     const retryAtMs = Date.now() + 42_000;
     const { ctx, kicks, suspended } = harness(
       parkedAttempt({
-        attempt: 1,
+        attempt: 2,
         launchedAt: undefined,
         brokerTokenHash: undefined,
+        retriedRateLimit: true,
+        resumedFrom: 'conv-1',
+        resumeReason: 'the agent turn failed: API Error: 429 rate limited',
         result: {
           errored: true,
           reason:
             'the agent turn could not start: Every account behind credential "Pool" is cooling down after a rate limit — try again in 42 seconds.',
-          failureCode: 'start_failed',
+          failureCode: 'credential_cooldown',
           retryAtMs,
           text: '',
           files: [],
@@ -243,9 +273,39 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     await stepRunImpl(ctx, RUN);
 
     expect(kicks).toHaveLength(1);
-    expect(kicks[0]).toMatchObject({ notBefore: retryAtMs });
-    // The attempt still counts, so a pool other work keeps cooling cannot
-    // hold the node in a wait loop.
+    expect(kicks[0]).toMatchObject({
+      notBefore: retryAtMs,
+      resume: {
+        agentSessionId: 'conv-1',
+        reason: 'the agent turn failed: API Error: 429 rate limited',
+      },
+    });
+    // The 429 already counted; the wait for its cooldown does not.
+    const cursor = parkedCursor(suspended);
+    expect(cursor).toMatchObject({ attempt: 2, resumedFrom: 'conv-1' });
+    // A second refusal in a row would count.
+    expect(cursor).not.toHaveProperty('retriedRateLimit');
+  });
+
+  it('counts a refused start that did not retry its own 429', async () => {
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: 1,
+        launchedAt: undefined,
+        brokerTokenHash: undefined,
+        result: {
+          errored: true,
+          failureCode: 'credential_cooldown',
+          retryAtMs: Date.now() + 42_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
     expect(parkedCursor(suspended)).toMatchObject({ attempt: 2 });
   });
 

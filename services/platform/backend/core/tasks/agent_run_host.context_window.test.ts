@@ -368,7 +368,7 @@ describe('a task agent start', () => {
     ).toMatchObject({
       runId: 'run-1',
       execId: 'exec-1',
-      failureCode: 'start_failed',
+      failureCode: 'credential_cooldown',
       retryAtMs,
       error:
         'the agent run could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
@@ -490,5 +490,50 @@ describe('a task agent steer restart', () => {
       )?.args,
     ).toMatchObject({ execId: 'exec-rotated', kind: 'task-agent' });
     expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('fails a restart the broker refused while every account cooled down, naming when the first is back', async () => {
+    io.subscription = {
+      providerSlug: 'openai',
+      modelId: 'gpt-5.4',
+      apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+    };
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+    });
+
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-rotated',
+      failureCode: 'steer_restart_failed',
+      retryAtMs,
+      error:
+        'the run could not be restarted to take a new comment: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
   });
 });

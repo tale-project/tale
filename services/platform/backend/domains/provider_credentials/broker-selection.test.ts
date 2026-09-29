@@ -135,6 +135,24 @@ describe('pickBrokerCandidate', () => {
     });
   });
 
+  it('ignores random and round-robin among held accounts: the order given decides', () => {
+    const held = [
+      { hash: 'refresh-later', excluded: false, held: true },
+      { hash: 'refresh-sooner', excluded: false, held: true },
+    ];
+    for (const selection of ['random', 'round-robin'] as const) {
+      expect(
+        pickBrokerCandidate(
+          held,
+          states({ 'refresh-later': { sequence: '9' } }),
+          selection,
+          NOW,
+          () => 0.99,
+        ).selected?.hash,
+      ).toBe('refresh-later');
+    }
+  });
+
   it('never vends a cooling account, held or not, and says when the first comes back', () => {
     const picked = pickBrokerCandidate(
       [

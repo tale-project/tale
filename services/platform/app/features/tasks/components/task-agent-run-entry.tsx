@@ -260,8 +260,8 @@ export function TaskAgentRunEntry({
           who watched the run fail sees it silently "running" again and
           cannot tell their Retry from the machine's. A resume after the
           broker refreshed the token under the run spends no attempt: it
-          shows the count already spent, and with none spent (0) says what
-          happened instead. */}
+          shows the count the cut run showed, and where that run showed
+          none (0) says what happened instead. */}
       {live &&
       run.trigger === 'auto_retry' &&
       run.autoRetryAttempt !== undefined ? (

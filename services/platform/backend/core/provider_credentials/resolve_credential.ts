@@ -183,6 +183,18 @@ export function isTerminalCredentialRefusal(error: unknown): boolean {
 }
 
 /**
+ * The words a run records for a failure: a resolver refusal's own sentence
+ * — `AppError` serializes its whole payload into `message`, which is for
+ * logs — else the error's message.
+ */
+export function runFailureMessage(error: unknown): string {
+  return (
+    credentialRefusalMessage(error) ??
+    (error instanceof Error ? error.message : String(error))
+  );
+}
+
+/**
  * When a broker pool that refused because every account was cooling down
  * after a rate limit (`CREDENTIAL_BROKER_EXHAUSTED`) has its first account
  * back — epoch ms — or undefined for any other error. A caller that retries
