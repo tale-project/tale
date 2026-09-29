@@ -13,9 +13,10 @@ import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import { getRun, resolveRunProject } from '../automations/store.ts';
 import {
-  assertWritable,
   getProjectAuthContext,
   loadProjectOrThrow,
+  type ProjectAuthContext,
+  type ProjectRow,
 } from '../projects/service.ts';
 import {
   addTaskComment,
@@ -25,8 +26,12 @@ import {
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
 import {
   agentUpdateTaskStatusTrusted,
+  assertTaskCreatable,
+  assertTaskWorkable,
+  boardTaskAccess,
   loadTaskOrThrow,
   TaskError,
+  type TaskRow,
 } from '../tasks/service.ts';
 
 function issueImportQueueKey(
@@ -53,12 +58,26 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       userId: 'system',
       role: 'owner',
     });
+  /**
+   * The project a native writes in, and the PERSON the write answers to:
+   * a person's own connector call, or the person who started the workflow
+   * run. A run a schedule or a webhook fired answers to nobody (null) and
+   * keeps the automation's own reach.
+   *
+   * An org-wide run's input is not a grant to every private project: the
+   * person's current rights on the project hold at the write boundary, the
+   * same rights they have on the board — a reader of the active project
+   * creates tasks there, and changes only the tasks they may work (an
+   * editor, every task). So a run a member may start (one built for their
+   * task) works within the member's reach instead of dying on an editor
+   * check halfway.
+   */
   const authorizeProject = async (
     tx: TransactionSql,
     organizationId: string,
     projectId: string,
     caller: ConnectorCaller,
-  ) => {
+  ): Promise<{ project: ProjectRow; person: ProjectAuthContext | null }> => {
     const project = await loadProjectOrThrow(tx, projectId);
     if (
       project.organizationId !== organizationId ||
@@ -66,6 +85,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
     ) {
       throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
     }
+    let personId: string | null = null;
     if (caller.kind === 'workflow') {
       const run = await getRun(tx, organizationId, caller.runId);
       if (!run || (run.projectId !== null && run.projectId !== projectId)) {
@@ -76,47 +96,54 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         name: run.name,
         projectId: projectId,
       });
-      // An org-wide run's input is not a grant to every private project.
-      // Keep the initiating person's current write access at the write
-      // boundary, just as a direct connector call does.
       const starter = parseRunStarter(run.startedBy);
       if (starter.kind === 'user' || starter.kind === 'api-key') {
-        const auth = await authorizeActorRun(
-          tx,
-          organizationId,
-          starter.userId,
-          'membership',
-        );
-        assertWritable(project, auth);
+        personId = starter.userId;
       } else if (starter.kind !== 'trigger') {
         throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
       }
     } else if (caller.kind === 'user') {
-      const auth = await authorizeActorRun(
-        tx,
-        organizationId,
-        caller.userId,
-        'membership',
-      );
-      assertWritable(project, auth);
+      personId = caller.userId;
     }
+    if (personId === null) return { project, person: null };
+    const person = await authorizeActorRun(
+      tx,
+      organizationId,
+      personId,
+      'membership',
+    );
+    assertTaskCreatable(project, person);
+    return { project, person };
   };
   const persistIssue = async (
     tx: TransactionSql,
     organizationId: string,
     caller: ConnectorCaller,
-    projectId: string,
+    scope: { project: ProjectRow; person: ProjectAuthContext | null },
     issue: WorkflowIssueInput,
-  ) =>
-    upsertTaskByExternalRef(tx, {
+  ) => {
+    const { project, person } = scope;
+    // A person who is not the project's editor changes only the tasks they
+    // may work and names only labels the catalog already has.
+    const restricted =
+      person !== null && !boardTaskAccess(project, person).canEdit;
+    return upsertTaskByExternalRef(tx, {
       ...issue,
       organizationId,
-      projectId,
+      projectId: project.id,
       actorId: caller.kind === 'user' ? caller.userId : 'workflow',
       ...(caller.kind === 'user' ? { creatorType: 'user' as const } : {}),
       dedupeScope: 'project',
       descriptionMode: 'preserve',
+      ...(restricted
+        ? {
+            mintLabels: false,
+            authorizeReconcile: (task: TaskRow) =>
+              assertTaskWorkable(tx, project, task, person),
+          }
+        : {}),
     });
+  };
   return {
     async upsertIssues({ organizationId, caller, projectId, issues }) {
       const queueKey = issueImportQueueKey(organizationId, projectId);
@@ -127,7 +154,12 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           // mark conflicts so the shared retry queue takes this lock before
           // opening the retry's snapshot, ahead of any inner audit locks.
           await lockIssueImportQueue(tx, queueKey);
-          await authorizeProject(tx, organizationId, projectId, caller);
+          const scope = await authorizeProject(
+            tx,
+            organizationId,
+            projectId,
+            caller,
+          );
           const ordered = issues
             .map((issue, index) => ({ issue, index }))
             .sort((left, right) =>
@@ -141,7 +173,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
               tx,
               organizationId,
               caller,
-              projectId,
+              scope,
               issue,
             );
             // The domain answers the title the task carries after the write
@@ -248,8 +280,13 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
     },
     async upsert({ organizationId, caller, ...input }) {
       return sql.begin(async (tx) => {
-        await authorizeProject(tx, organizationId, input.projectId, caller);
-        return persistIssue(tx, organizationId, caller, input.projectId, input);
+        const scope = await authorizeProject(
+          tx,
+          organizationId,
+          input.projectId,
+          caller,
+        );
+        return persistIssue(tx, organizationId, caller, scope, input);
       });
     },
     async get({ organizationId, taskId }) {

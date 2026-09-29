@@ -3,7 +3,7 @@ title: Gérer les tâches d’un projet
 description: Crée une tâche, désigne son responsable, suis sa progression et examine le résultat au même endroit.
 ---
 
-Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Tu dois pouvoir modifier le projet pour changer ses tâches, et le projet doit être actif : un projet archivé reste en lecture seule jusqu’à ce qu’un administrateur le restaure.
+Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Toute personne qui peut ouvrir le projet peut y créer des tâches ; [qui peut modifier une tâche](#qui-peut-creer-et-modifier-les-taches) dépend de ton rôle et du fait que la tâche soit la tienne ou non. Le projet doit être actif : un projet archivé reste en lecture seule jusqu’à ce qu’un administrateur le restaure.
 
 <Frame caption="Le tableau classe les tâches par statut. Passe à Liste pour retrouver les mêmes tâches sous forme de lignes.">
 
@@ -23,6 +23,8 @@ Un titre compte jusqu’à 200 caractères et une description jusqu’à 20 00
 
 Tale attribue un identifiant à partir de la clé du projet, par exemple `WEB-1`. Utilise-le pour désigner le travail sans confondre des tâches aux titres proches.
 
+Une automatisation conçue pour les tâches peut aussi proposer un modèle dans **Créer une tâche** : son nom apparaît alors à côté de **Tâche vierge**, au-dessus du formulaire. Choisis-la, saisis le nom qu’elle demande, par exemple un trimestre, puis clique sur **Créer une tâche** ; l’automatisation devient responsable de la tâche. Si une tâche existe déjà pour ce nom, Tale l’ouvre au lieu d’en créer une deuxième et indique **Une tâche existe déjà pour ce sujet.** Un Membre peut alors la lire et la commenter, mais ne la modifie que si elle est la sienne. Les modèles qui créent des dossiers ou des fichiers de paramètres dans le projet ne sont proposés qu’aux Éditeurs et aux rôles supérieurs.
+
 <Tip>
 
 Une description utile précise les éléments de départ, le résultat attendu et un critère de fin. Par exemple : « Compare la date de revue du brief joint avec les notes de réunion. Signale toute différence dans un commentaire en citant les deux fichiers. »
@@ -35,13 +37,44 @@ Une description utile précise les éléments de départ, le résultat attendu e
 
 </Frame>
 
+## Qui peut créer et modifier les tâches
+
+Toute personne qui peut ouvrir un projet peut y créer des tâches. Les Éditeurs et les rôles supérieurs peuvent modifier toutes les tâches du projet. Un Membre modifie les tâches qu’il a créées et celles qui lui sont attribuées, avec les mêmes possibilités qu’un Éditeur :
+
+- Modifier le titre, la description, les pièces jointes, les sous-tâches, les dates, la priorité, les étiquettes, le relecteur et la répétition.
+- Attribuer la tâche à lui-même, à un autre membre du projet, à l’un de ses agents ou à une automatisation conçue pour les tâches.
+- Démarrer, guider ou arrêter l’agent, y compris en le mentionnant avec @ dans un commentaire.
+- Changer le statut, et accepter un résultat en passant la tâche à **Terminé**.
+- Archiver la tâche ou la restaurer.
+
+Il en va de même pour les sous-tâches placées sous une telle tâche, quelle que soit la personne qui les a ajoutées, par exemple un agent qui a découpé le travail : elles n’empêchent donc jamais le Membre de clôturer sa tâche.
+
+Sur les tâches des autres, un Membre lit et commente ; s’il y mentionne un agent, la mention reste ordinaire et ne lance rien. Chacun peut modifier et supprimer ses propres commentaires sur toute tâche qu’il peut lire, et les propriétaires et les admins peuvent aussi supprimer ceux des autres.
+
+Si tu confies à quelqu’un d’autre, une personne ou un agent, une tâche qui t’était attribuée, tu lui cèdes aussi le droit de la modifier, sauf si tu l’as créée. Une exécution que tu as démarrée reste toutefois entre tes mains : si ta mention avec @ confie la tâche à un agent, tu peux guider cette exécution par d’autres mentions et l’arrêter avec **Annuler l'exécution** jusqu’à ce qu’elle se termine.
+
+Une dépendance appartient à la tâche qu’elle bloque : un Membre n’enregistre donc de dépendances que pour ses propres tâches, sous **Bloqué par** sur l’une de ses tâches, ou sous **Bloque** sur toute tâche qu’il peut ouvrir, en choisissant l’une de ses tâches comme tâche bloquée. Les paramètres, les agents, les fichiers et le catalogue d’étiquettes du projet restent réservés aux Éditeurs et aux rôles supérieurs ; un Membre choisit parmi les étiquettes que le projet possède déjà. Seuls les propriétaires et les admins peuvent supprimer une tâche ; les autres personnes qui peuvent la modifier l’archivent à la place.
+
+Les automatisations suivent une règle plus stricte, car une automatisation agit en son propre nom, avec les identifiants de connecteurs de l’organisation, et non au nom de la personne qui la démarre. Un Membre ne peut confier une tâche qu’à une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**, ou à l’automatisation à laquelle la tâche appartient déjà. Ce sont aussi les seules qu’il peut démarrer ou auxquelles il peut demander des modifications. Toutes les autres restent réservées aux Éditeurs et aux rôles supérieurs.
+
+### Exécutions démarrées par un Membre
+
+Une exécution démarrée par une personne qui ne peut pas modifier le projet, par exemple un Membre, s’en tient à sa tâche :
+
+- Ses outils de plateforme ne modifient que cette tâche et ses sous-tâches : l’agent ne crée de nouvelles tâches que comme sous-tâches de celle-ci, n’utilise que des étiquettes que le projet possède déjà et ne peut pas synchroniser dans le projet des éléments venant d’autres systèmes.
+- Elle ne peut pas enregistrer de documents dans le projet. Les fichiers produits arrivent quand même sur la tâche, sous **Fichiers produits**.
+- L’exécution ne reçoit ni les **Secrets** de l’agent ni le jeton d’un accès GitHub équipé. L’agent apprend quels identifiants ont été retenus et doit le signaler dans son compte rendu si le travail en a besoin ; un Éditeur ou un rôle supérieur doit alors le démarrer. Les connecteurs équipés sur l’agent continuent de fonctionner, au nom de la personne qui a démarré l’exécution.
+- Elle travaille dans son propre espace de travail, conservé pour les exécutions de cette personne avec cet agent : les fichiers des exécutions que des Éditeurs ont démarrées n’y sont pas, et ce que cette exécution laisse ne parvient jamais à celles-ci. Les exécutions suivantes de la même personne avec cet agent le retrouvent.
+
+L’exécution peut toujours lire les tâches et les connaissances du projet, et elle garde ces limites même si un Éditeur la guide ensuite. Une exécution qu’un Éditeur ou un rôle supérieur démarre dispose, sur toute tâche, de l’équipement complet de l’agent. Le commentaire d’un Membre peut changer cela : si l’environnement de l’agent redémarre pour prendre en compte le commentaire, comme le font [tous les environnements sauf Claude Code](/fr/platform/agents/harnesses), la suite de l’exécution compte comme celle du Membre, avec les mêmes limites pour ses outils et ses identifiants.
+
 ## Désigner un responsable et un relecteur
 
 **Assigné à** indique qui fait le travail : une personne, un agent du projet ou une automatisation disponible dans ce projet. **Relecteur** désigne la personne à prévenir lorsque le résultat d’un agent attend une revue. Seuls les membres qui peuvent modifier le projet peuvent être relecteurs.
 
 Assigner un agent et lancer son exécution sont deux choix distincts. Après l’assignation, clique sur **Démarrer l'agent** ou passe la tâche à **En cours**. Lis [Automatiser les tâches](/fr/platform/projects/task-automation) avant de lancer un travail qui utilise des services connectés ou produit des fichiers.
 
-Le relecteur reçoit la demande de revue, sans être le seul autorisé à décider. Un autre membre disposant du droit de modification peut aussi accepter le résultat.
+Le relecteur reçoit la demande de revue, sans être le seul autorisé à décider. Toute autre personne qui peut modifier la tâche peut aussi accepter le résultat : un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient. Si ton organisation exige une relecture indépendante, la personne qui a démarré l’exécution d’agent examinée ne peut toutefois pas en accepter le résultat ; quand aucune exécution d’agent n’a produit le résultat, c’est la personne qui a créé la tâche qui ne le peut pas. Une exécution qu’un Membre a démarrée sur sa propre tâche attend alors un Éditeur ou un rôle supérieur, tandis que le Membre peut toujours accepter une exécution qu’un Éditeur y a démarrée.
 
 ## Montrer la progression avec les statuts
 
@@ -111,6 +144,8 @@ Sous **Répéter**, la tâche précédente renvoie à la suivante, par exemple *
 
 Quand tu clôtures une tâche récurrente, le message **Tâche suivante créée** indique l’échéance de la suivante et propose **Arrêter la répétition**. Le même bouton reste sous **Répéter** sur la tâche qui a créé la suivante, à côté de **Tâche suivante**, tant que la tâche suivante se répète. Si personne n’a encore touché à la tâche suivante (elle est toujours dans **À faire**, inchangée, sans commentaire ni exécution d’agent), elle est supprimée avec ses sous-tâches. Sinon, elle reste en place mais ne se répète plus. Dans les deux cas, la série s’arrête : sur la tâche depuis laquelle tu l’as arrêtée, **Répéter** affiche **Jamais**, et son infobulle indique **La série a été arrêtée.** Si tu as utilisé le bouton sous **Répéter**, le focus passe ensuite sur **Répéter**. Tu peux aussi ouvrir la tâche la plus récente de la série et régler son champ **Répéter** sur **Jamais**.
 
+**Arrêter la répétition** n’agit que sur les tâches que tu peux modifier : celle sur laquelle tu l’utilises et les tâches ultérieures de la série que tu peux modifier aussi. Les tâches antérieures continuent d’afficher leur répétition. Si une tâche ultérieure appartient désormais à quelqu’un d’autre, par exemple après une réattribution, elle garde sa répétition et la série continue à partir d’elle ; aucune tâche suivante n’est alors supprimée.
+
 Si tu supprimes la tâche la plus récente d’une série, la série s’arrête. La tâche précédente n’en crée pas d’autre, même si tu la rouvres puis la clôtures à nouveau : elle n’affiche pas d’icône de répétition, et son champ **Répéter** reste verrouillé, avec l’infobulle **La tâche suivante a été supprimée. Cette tâche ne peut plus se répéter.** Si tu supprimes une tâche plus ancienne, la série continue à partir de la plus récente.
 
 ### Quand la répétition ne peut pas être modifiée
@@ -148,4 +183,4 @@ Dans les vues **Tableau** et **Liste**, appuie sur **Tab** jusqu’à placer le 
 
 Si tu peux modifier la tâche, place le focus sur son titre et appuie sur **Espace** pour la saisir. Déplace-la avec les touches fléchées, puis appuie de nouveau sur **Espace** pour la déposer. **Échap** annule le déplacement et laisse la tâche à sa place. Un lecteur d’écran nomme la tâche quand tu la saisis, puis annonce son statut et sa position pendant le déplacement.
 
-Si une modification est refusée, vérifie l’état de la tâche avant de réessayer : une exécution active empêche de réassigner l’agent, des sous-tâches ouvertes empêchent la clôture, et l’accès au projet détermine tes droits de modification.
+Si une modification est refusée, vérifie l’état de la tâche avant de réessayer : une exécution active empêche de réassigner l’agent, des sous-tâches ouvertes empêchent la clôture, et ton rôle, ainsi que le fait que la tâche soit la tienne ou non, déterminent si tu peux la modifier.

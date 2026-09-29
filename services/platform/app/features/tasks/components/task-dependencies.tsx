@@ -22,6 +22,7 @@ import {
   useRemoveTaskDependency,
 } from '../hooks/mutations';
 import { useTaskDependencies, useTasksByProject } from '../hooks/queries';
+import { useTaskAccess } from '../hooks/use-task-access';
 import type { TaskDoc } from '../lib/display';
 import { TaskStatusBadge } from './task-status-badge';
 
@@ -34,6 +35,13 @@ type TaskRow = TaskDoc;
  * status change. The picker only offers same-project tasks not already linked,
  * and the backend rejects any edge that would close a cycle (surfaced here as a
  * friendly toast).
+ *
+ * An edge is the BLOCKED task's record — the server holds it to that task's
+ * work gate. So "Blocked by" is editable with this task, and "Blocks" offers
+ * (and takes back) the tasks the viewer may work themselves — every task for
+ * an editor, their own for anyone else — whoever this task belongs to: a
+ * member reading someone else's task may still record that it blocks one of
+ * theirs.
  */
 export function TaskDependencies({
   task,
@@ -42,6 +50,7 @@ export function TaskDependencies({
   onOpenTask,
 }: {
   task: TaskRow;
+  /** The viewer may work this task, and it is not archived. */
   canEdit: boolean;
   projectKey?: string | null;
   onOpenTask?: (taskId: string) => void;
@@ -49,7 +58,17 @@ export function TaskDependencies({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { blockedBy, blocks } = useTaskDependencies(task._id);
-  const { tasks: projectTasks } = useTasksByProject(task.projectId);
+  const projectList = useTasksByProject(task.projectId);
+  const projectTasks = projectList.tasks;
+  const byId = useMemo(
+    () => new Map(projectTasks.map((row) => [row._id, row])),
+    [projectTasks],
+  );
+  const { canWorkTask } = useTaskAccess(
+    task.organizationId,
+    { canEdit: projectList.canEdit, canCreate: projectList.canCreate },
+    (taskId) => byId.get(taskId),
+  );
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
 
@@ -80,7 +99,20 @@ export function TaskDependencies({
     return projectTasks.filter((p) => !excluded.has(p._id) && !p.archivedAt);
   }, [projectTasks, blockedBy, blocks, task._id]);
 
-  if (!canEdit && blockedBy.length === 0 && blocks.length === 0) return null;
+  // "Blocks" follows the task it marks, not this one: an active task may be
+  // named as the blocker of any task the viewer works.
+  const blockable =
+    task.archivedAt == null ? candidates.filter((c) => canWorkTask(c)) : [];
+  const canLinkBlocks = canEdit || blockable.length > 0;
+
+  if (
+    !canEdit &&
+    !canLinkBlocks &&
+    blockedBy.length === 0 &&
+    blocks.length === 0
+  ) {
+    return null;
+  }
 
   return (
     // Lives in the modal's side property panel — the heading is the section
@@ -94,6 +126,7 @@ export function TaskDependencies({
         items={blockedBy}
         candidates={candidates}
         canEdit={canEdit}
+        canRemove={() => canEdit}
         projectKey={projectKey}
         onOpenTask={onOpenTask}
         onAdd={(blockerTaskId) =>
@@ -110,8 +143,10 @@ export function TaskDependencies({
       <DependencyGroup
         label={t('detail.blocks')}
         items={blocks}
-        candidates={candidates}
-        canEdit={canEdit}
+        // Marking another task as blocked changes that task, not this one.
+        candidates={blockable}
+        canEdit={canLinkBlocks}
+        canRemove={(item) => canWorkTask(item)}
         projectKey={projectKey}
         onOpenTask={onOpenTask}
         onAdd={(blockedTaskId) =>
@@ -134,6 +169,7 @@ function DependencyGroup({
   items,
   candidates,
   canEdit,
+  canRemove,
   projectKey,
   onOpenTask,
   onAdd,
@@ -143,6 +179,8 @@ function DependencyGroup({
   items: TaskRow[];
   candidates: TaskRow[];
   canEdit: boolean;
+  /** Whether the viewer may take this edge back. */
+  canRemove: (item: TaskRow) => boolean;
   projectKey?: string | null;
   onOpenTask?: (taskId: string) => void;
   onAdd: (taskId: string) => void;
@@ -227,7 +265,7 @@ function DependencyGroup({
                     {item.title}
                   </span>
                 </button>
-                {canEdit && (
+                {canRemove(item) && (
                   // Gradient scrub under the remove control so the X doesn't
                   // sit on top of the title glyphs (see browser-tab chips).
                   <div

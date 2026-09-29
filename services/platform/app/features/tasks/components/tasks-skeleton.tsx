@@ -208,10 +208,14 @@ export function TasksSkeleton({
 export function TasksPageSkeleton({
   view,
   canEdit = false,
+  canCreate = false,
   allProjects = false,
 }: {
   view: TaskView;
+  /** The viewer edits every task: the cards' pickers are live. */
   canEdit?: boolean;
+  /** The viewer may create a task here: the create action is there. */
+  canCreate?: boolean;
   allProjects?: boolean;
 }) {
   const { t } = useT('tasks');
@@ -248,7 +252,7 @@ export function TasksPageSkeleton({
         </Row>
         <Skeletonize loading>
           <Row gap={2}>
-            {canEdit && !allProjects && (
+            {canCreate && !allProjects && (
               <Button size="sm" icon={Plus}>
                 {t('actions.create')}
               </Button>

@@ -97,6 +97,10 @@ function makeCtx(run: { status: string; execId: string }) {
       if (name === 'tasks/agent_runs:getTaskAgentRunForDrive') {
         return { ...run, sessionId: 'pa-alice', organizationId: 'org-1' };
       }
+      // An editor's run: the agent's full equipment.
+      if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
+        return { confined: false };
+      }
       if (name === 'projects/internal_queries:getProjectAgentSkillScope') {
         return null;
       }

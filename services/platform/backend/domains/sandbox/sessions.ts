@@ -137,9 +137,14 @@ export async function reserveSessionSlot(
     await lockOrgAdmission(tx, args.organizationId);
     const now = Date.now();
 
+    // One live session per workspace. A project agent owns several — its
+    // standing one and one per member who starts its runs — each with its
+    // own session id, so its cap counts per session.
+    const perSession = args.ownerType === 'project_agent';
     const ownerActive = await tx<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.sandbox_sessions
       WHERE owner_type = ${args.ownerType} AND owner_id = ${args.ownerId}
+        AND (${!perSession} OR session_id = ${args.sessionId})
         AND status IN ('creating', 'active')
     `;
     if (
@@ -279,7 +284,9 @@ export async function setSessionPinned(
  * released, workspace preserved, slot freed) unless a sibling turn's op is
  * still running on it, a live turn of the agent (queued or running, not
  * parked for capacity) still owns the slot before its exec exists, or the
- * row is pinned. A freed slot is a release edge: the org's oldest parked
+ * row is pinned. The guard is the agent's, not the workspace's: a live turn
+ * of the agent holds every workspace it owns — its standing one and one per
+ * member who starts its runs — until the agent's last turn ends. A freed slot is a release edge: the org's oldest parked
  * run is woken at once instead of idling until the 2-minute watchdog tick.
  * Best-effort — a wake failure must never fail the release.
  */
@@ -455,6 +462,10 @@ export interface SessionTokenScope {
    * no identity (the connectors bridge reads it; the workspace tools never
    * do). */
   connectorCaller?: TurnConnectorCaller;
+  /** The task run a task turn serves — every task turn's token names its
+   * exec. The workspace tools read the live run on it: a run its starter
+   * could not have edited the project for acts on its own task alone. */
+  taskRun?: { execId: string };
   /** The op this token's turn is — written only on a turn granted
    * `generate_image`, whose dispatch books the images under that op's run
    * and saves them into its delivery box. Names no person either. */

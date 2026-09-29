@@ -3050,9 +3050,10 @@ async function checkTasksOrgIsolation(
     `cancel=${crossCancel.status} (want 404), run=${runAfterCross[0]?.status} (want running), task=${taskAfterCross[0]?.status} (want todo)`,
   );
 
-  // A read-only MEMBER of the victim org (the harness member idiom): reads
-  // pass, but starting or cancelling a run is an EDIT and refuses BEFORE
-  // any side effect — the run must still be running afterwards.
+  // A MEMBER of the victim org (the harness member idiom) on a task someone
+  // else created: reads pass, but starting or cancelling a run is a change
+  // to the task — its work gate refuses BEFORE any side effect, and the run
+  // must still be running afterwards.
   const { cookie: viewerCookie, userId: viewerId } = await signUpOrgMember(
     sql,
     base,
@@ -3076,7 +3077,7 @@ async function checkTasksOrgIsolation(
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
   record(
-    'tasks: a read-only member reads the task but cannot start/cancel runs',
+    "tasks: a member reads someone else's task but cannot start/cancel its runs",
     viewerRead.status === 200 &&
       viewerStart.status === 403 &&
       viewerCancel.status === 403 &&
@@ -3088,9 +3089,9 @@ async function checkTasksOrgIsolation(
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
 
-  // Deciding a review is deciding the task: a read-only member's move to
-  // Done (the approve gesture) refuses on the project write gate and the
-  // gate stays pending.
+  // Deciding a review is deciding the task: a member's move to Done (the
+  // approve gesture) on someone else's task refuses on the task's work gate
+  // and the gate stays pending.
   const approvalRows = await sql<{ id: string }[]>`
     INSERT INTO app.approvals (
       org_id, status, resource_type, resource_id, priority, metadata,
@@ -3120,7 +3121,7 @@ async function checkTasksOrgIsolation(
     SELECT status FROM app.approvals WHERE id = ${approvalId}
   `;
   record(
-    'tasks: approving a review (the Done move) requires task-edit access',
+    'tasks: approving a review (the Done move) requires the right to work the task',
     respondOutcome === 'RBAC_FORBIDDEN' &&
       approvalAfter[0]?.status === 'pending',
     `done move → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
@@ -37286,10 +37287,13 @@ async function checkSandboxSessions(
     status: 'active',
   });
   await reserve(2, 'project_agent');
+  // One live session per workspace: a project agent owns several (its
+  // standing one and one per member who starts its runs), so the duplicate
+  // is a second live row for the same workspace.
   const dupOwner = await sessions
     .reserveSessionSlot(sql, {
       organizationId: orgId,
-      sessionId: 'itest-sb-1b',
+      sessionId: 'itest-sb-1',
       profile: {},
       ownerType: 'project_agent',
       ownerId: 'owner-1',

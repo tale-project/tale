@@ -7245,7 +7245,7 @@ tasks:
     deleteConfirmDescription: Entfernt „{label}“ aus dem Projekt und von allen Aufgaben, die es nutzen.
     errors:
       TASK_LABEL_NAME_TAKEN: Ein Label mit diesem Namen gibt es schon.
-      TASK_LABEL_UNKNOWN: Dieses Label fehlt im Projekt — tippe den Namen im Picker, um es anzulegen.
+      TASK_LABEL_UNKNOWN: Dieses Label gibt es im Projekt nicht — wähle eines, das es schon hat. Neue Labels legen Redakteure und höhere Rollen im Picker an.
       TASK_LABELS_INVALID: Ungültiger Labelname.
       TASK_LABEL_IN_USE: Dieses Label hängt noch an einer Aufgabe.
       createFailed: Label konnte nicht angelegt werden.
@@ -7515,6 +7515,7 @@ tasks:
     breakerPaused: '{slug} antwortet nicht — Agenten-Läufe sind auf dieser Aufgabe pausiert'
     budgetPaused: '{slug} antwortet nicht — Monatsbudget aufgebraucht'
     agentNotLive: '{slug} antwortet nicht — Agent ist nicht installiert oder deaktiviert'
+    notPermitted: '{slug} antwortet nicht — auf dieser Aufgabe kannst du keine Agenten starten'
   mentionPicker:
     title: Mitglied, Agent oder Automatisierung erwähnen
     empty: Keine Treffer

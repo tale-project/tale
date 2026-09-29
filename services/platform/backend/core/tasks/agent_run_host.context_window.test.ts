@@ -197,6 +197,10 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       if (name === 'governance/internal_queries:getPolicyConfigInternal') {
         return args.policyType === 'system_prompt' ? io.systemPrompt : null;
       }
+      // An editor's run: the agent's full equipment.
+      if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
+        return { confined: false };
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {

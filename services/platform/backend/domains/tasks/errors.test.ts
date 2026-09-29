@@ -313,8 +313,9 @@ const ADMITTED = [
 
 describe('task refusal sentences', () => {
   it('follow every projects-domain function a task door reaches', () => {
-    // The doors' own imports, and what those call in turn: an access check
-    // throws through `assertSameOrg` before its own refusals.
+    // The doors' own imports, and what those call in turn. The task doors
+    // judge access themselves (`assertTaskWorkable` and its siblings), so
+    // no projects-domain access check throws through them any more.
     const reached = domainFunctionsReached(
       sourceFiles(BACKEND),
       'domains/projects/',
@@ -322,8 +323,6 @@ describe('task refusal sentences', () => {
     expect([...reached.keys()]).toEqual(['domains/projects/service.ts']);
     expect([...(reached.get('domains/projects/service.ts') ?? [])]).toEqual(
       expect.arrayContaining([
-        'assertSameOrg',
-        'assertWritable',
         'getProjectAuthContext',
         'listProjects',
         'loadProjectOrThrow',

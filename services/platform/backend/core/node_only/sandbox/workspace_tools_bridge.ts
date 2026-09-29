@@ -219,9 +219,17 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
  * the data domain in the role-denied case, so the model can tell the user
  * exactly what their role cannot reach. */
 function actionContextBlocker(
-  reason: 'no_access_context' | 'not_a_member' | 'read_denied',
+  reason: 'no_access_context' | 'not_a_member' | 'read_denied' | 'run_ended',
   subject?: string,
 ): BridgeBlocker {
+  if (reason === 'run_ended') {
+    return {
+      code: 'run_ended',
+      guidance:
+        'The task run this session served has ended, so its workspace tools ' +
+        'act for nobody any more. Stop; do not retry.',
+    };
+  }
   if (reason === 'no_access_context') {
     return {
       code: 'no_access_context',
@@ -267,6 +275,9 @@ export async function dispatchWorkspaceToolImpl(
     sessionId: string;
     userId?: string;
     mintedKeyId?: string;
+    /** The exec of the task run a task turn's token names: the run whose
+     * starter the task and document tools answer to. */
+    taskRunExecId?: string;
     /** The token's own `turnOp` — the turn a generation is booked and
      * delivered for. Read by `generate_image` alone. */
     turn?: TurnOpRef;
@@ -343,6 +354,7 @@ async function runWorkspaceTool(
     organizationId: string;
     sessionId: string;
     userId?: string;
+    taskRunExecId?: string;
     turn?: TurnOpRef;
     tool: string;
     callArgs: unknown;
@@ -379,7 +391,8 @@ async function runWorkspaceTool(
 
   // The task family and document_create act with the session's OWN authority
   // (binding first, user-read fallback — writes and tasks are binding-only),
-  // resolved once here and handed to the domain handlers.
+  // resolved once here and handed to the domain handlers. A task turn's
+  // authority also answers to the person who started its run.
   if (isWorkspaceTaskTool(args.tool) || args.tool === 'document_create') {
     const context = await ctx.runQuery(
       internal.sandbox.workspace_access.resolveSessionActionContext,
@@ -387,6 +400,9 @@ async function runWorkspaceTool(
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         ...(args.userId !== undefined ? { userId: args.userId } : {}),
+        ...(args.taskRunExecId !== undefined
+          ? { taskRunExecId: args.taskRunExecId }
+          : {}),
         subject: args.tool === 'document_create' ? 'documents' : 'tasks',
         effect: WRITE_TOOL_SET.has(args.tool) ? 'write' : 'read',
       },
@@ -402,7 +418,13 @@ async function runWorkspaceTool(
         ],
       };
     }
-    const authority = { actorId: context.actorId, scope: context.scope };
+    const authority = {
+      actorId: context.actorId,
+      scope: context.scope,
+      ...(typeof context.confinedToTaskId === 'string'
+        ? { confinedToTaskId: context.confinedToTaskId }
+        : {}),
+    };
     if (args.tool === 'document_create') {
       return await runDocumentCreate(ctx, {
         organizationId: args.organizationId,
@@ -521,13 +543,17 @@ async function runWorkspaceTool(
   }
 
   // The remaining find tools are org-wide reads behind the same binding-first
-  // door, then plain org-scoped internal queries.
+  // door, then plain org-scoped internal queries. A task turn names its run
+  // here too: the door answers for a live run only.
   const context = await ctx.runQuery(
     internal.sandbox.workspace_access.resolveSessionActionContext,
     {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      ...(args.taskRunExecId !== undefined
+        ? { taskRunExecId: args.taskRunExecId }
+        : {}),
       subject: TOOL_READ_SUBJECT[args.tool],
       effect: 'read',
     },

@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 88 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 92 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -47,7 +47,10 @@ TASK-B22 and TASK-B24 wait up to five minutes for each next task it creates.
 TASK-B17 alone needs a deployed automation with a task contract bound to the
 project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
 whose credential is a subscription broker on a local Tale AI gateway
-(`services/ai-gateway`) holding one Claude account.
+(`services/ai-gateway`) holding one Claude account. The member boxes
+(TASK-F49, TASK-F50, TASK-B26, TASK-B27) need a second account whose role is
+**Member**, the default of **Add member** (SETUP.md extras); TASK-F50 also
+needs a project agent that can run, and TASK-B27 a team the member is not in.
 
 > **Agent note**: board DnD is `dnd-kit` — a single `dragTo` drops the card
 > back at its source; drag with stepped mouse moves (down → several small
@@ -598,6 +601,29 @@ whose credential is a subscription broker on a local Tale AI gateway
   **Repeat** reads **Never** and stays locked, and no further next task appears
   within ten minutes.
 
+### A member's own tasks
+
+- [ ] `TASK-F49` · **A member creates a task** — Signed in as the member, open
+  an organization-wide project's **Tasks** tab and press **Create task**
+  (`tasks.actions.create`) in the header; create a task with a title and an
+  attachment → The card lands in **To do** (`tasks.status.todo`); after a
+  reload its dialog names the member as **Author** (`tasks.fields.author`),
+  the title is an editable field, **Status** (`tasks.fields.status`) opens its
+  picker and **Archive** (`tasks.actions.archive`) is offered, while the
+  **Labels** field has no **Manage labels** (`tasks.labels.manage`) and there
+  is no **Delete** (`tasks.actions.delete`).
+- [ ] `TASK-F50` · **A member puts a project agent on their task and closes
+  it** — On the task from `TASK-F49`, pick a project agent under **Assignee**
+  (`tasks.fields.assignee`) and press **Start agent** (`tasks.agentRun.start`)
+  → The card moves to **In progress** (`tasks.status.in_progress`) and the Run
+  field reads **Working…** (`tasks.agentRun.status.running`); once the run
+  settles, the agent's report is a comment, its files are listed under
+  **Deliverables** (`tasks.outputs.label`), the task sits in **In review**
+  (`tasks.status.in_review`) and the member's bell announces the move; the
+  member moves it to **Done** (`tasks.status.done`) and it stays there after a
+  reload, and the member's **Usage** page (`navigation.usage`) counts the
+  run's spend.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -860,6 +886,20 @@ whose credential is a subscription broker on a local Tale AI gateway
   its card shows no repeat icon, and its **Repeat**, still reading its rule, is
   locked with the same reason — and its close creates nothing and no toast —
   each also after a reload.
+- [ ] `TASK-B26` · **A member cannot change someone else's task** — As the
+  member, open a task an editor created and assigned to someone else → Its
+  title is plain text, **Status** shows a badge without a picker, there is no
+  **Archive**, and its card on the board does not drag; the comment box still
+  posts, and typing `@` and picking a project agent shows the chip **… won't
+  respond — you can't start agents on this task**
+  (`tasks.mentionPreview.notPermitted`); after posting, the task keeps its
+  status and assignee, also after a reload.
+- [ ] `TASK-B27` · **No task in a team project the member cannot see** — As an
+  admin, restrict a project to a team the member is not in (**General >
+  Sharing**) and copy its board URL; sign in as the member → The project is
+  missing from Home's **Projects**, and the copied URL answers **We couldn't
+  find that project. It may have been deleted.**
+  (`projects.errors.PROJECT_NOT_FOUND`) with no **Create task**.
 - [ ] `TASK-B25` · **A reached spend cap refuses the image, not the run** —
   With **Image generation** on, **Start agent** (`tasks.agentRun.start`) on a
   task that asks the agent to research for a minute and then create an image
