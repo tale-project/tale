@@ -1,3 +1,6 @@
+/** The longest delay `setTimeout` holds: 2^31 − 1 ms, about 24.8 days. */
+const MAX_TIMER_DELAY = 2 ** 31 - 1;
+
 /**
  * Waits for a React Flow view to come to rest, for browser tests
  * (`*.browser.test.{ts,tsx}`) that measure a canvas after it pans or zooms.
@@ -19,7 +22,8 @@
  * the view where it was, it rejects, naming the last transform it read.
  * Frames that stop coming end the wait the same way — a hidden or throttled
  * page draws none, and no read can then tell whether the view still moves —
- * and a wait in which not one frame came says so.
+ * and a wait in which not one frame came says so. `timeout` is a number of
+ * milliseconds; `Infinity` waits without a bound.
  */
 export async function viewportAtRest(
   within: ParentNode = document,
@@ -43,22 +47,29 @@ export async function viewportAtRest(
     // Two frames, so the ease has stepped at least once between the reads
     // whichever order a frame runs its callbacks in — raced against the time
     // left, since frames that stop coming would otherwise hold this forever.
+    const frames = new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        framed = true;
+        requestAnimationFrame(resolve);
+      });
+    });
+    // `setTimeout` fires at once for a delay it cannot hold — not a finite
+    // number, or past 2^31 − 1 ms — so a wait with no bound arms no timer,
+    // and a longer one than that waits at most that long.
+    const left = deadline - performance.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      await Promise.race([
-        new Promise((resolve) => {
-          requestAnimationFrame(() => {
-            framed = true;
-            requestAnimationFrame(resolve);
-          });
-        }),
-        new Promise((_resolve, reject) => {
-          timer = setTimeout(
-            () => reject(unsettled()),
-            Math.max(0, deadline - performance.now()),
-          );
-        }),
-      ]);
+      await (Number.isFinite(left)
+        ? Promise.race([
+            frames,
+            new Promise((_resolve, reject) => {
+              timer = setTimeout(
+                () => reject(unsettled()),
+                Math.min(MAX_TIMER_DELAY, Math.max(0, left)),
+              );
+            }),
+          ])
+        : frames);
     } finally {
       clearTimeout(timer);
     }
