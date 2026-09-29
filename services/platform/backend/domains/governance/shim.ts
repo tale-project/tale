@@ -25,10 +25,13 @@ export function governanceShimHandlers(sql: Sql): ShimHandlers {
         sql,
         args.organizationId,
         args.policyType,
-        // An unreadable routing pin must never turn into automatic selection.
-        // Other policies retain their established best-effort default posture.
+        // An unreadable routing pin must never turn into automatic selection,
+        // nor an unreadable image-generation switch into a silent "off" the
+        // settings page could not explain. Other policies retain their
+        // established best-effort default posture.
         args.policyType === 'vision_model' ||
-          args.policyType === 'transcription_model'
+          args.policyType === 'transcription_model' ||
+          args.policyType === 'image_generation'
           ? { strict: true }
           : {},
       );

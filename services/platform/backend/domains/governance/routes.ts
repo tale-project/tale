@@ -129,7 +129,9 @@ export function createGovernanceRoutes(deps: {
       deps.sql,
       c.get('orgId'),
       policyType,
-      policyType === 'transcription_model' ? { strict: true } : {},
+      policyType === 'transcription_model' || policyType === 'image_generation'
+        ? { strict: true }
+        : {},
     );
     return c.json({
       policy: config === null ? null : { key: policyType, config },
@@ -261,7 +263,8 @@ export function createGovernanceRoutes(deps: {
       if (
         policyType === 'model_access' ||
         policyType === 'vision_model' ||
-        policyType === 'transcription_model'
+        policyType === 'transcription_model' ||
+        policyType === 'image_generation'
       ) {
         // The serving catalog and resolved picks are provider-derived reads.
         // Every open session must refresh them, not only the saving tab.
