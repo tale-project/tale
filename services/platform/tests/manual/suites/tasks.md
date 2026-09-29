@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 92 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 93 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -44,8 +44,8 @@ TASK-B24 an organization owner or admin, who alone may delete a task.
 TASK-B14 and TASK-B22 set due dates in the past, which the date picker
 accepts. The due-date scan runs every five minutes, so TASK-F40, TASK-F44,
 TASK-B22 and TASK-B24 wait up to five minutes for each next task it creates.
-TASK-B17 alone needs a deployed automation with a task contract bound to the
-project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
+TASK-B17 and TASK-B29 need a deployed automation with a task contract bound to
+the project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
 whose credential is a subscription broker on a local Tale AI gateway
 (`services/ai-gateway`) holding one Claude account. The member boxes
 (TASK-F49, TASK-F50, TASK-B26, TASK-B27) need a second account whose role is
@@ -914,6 +914,23 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   image model; the run itself still settles. Restore: delete the rule —
   env-gated: mark **ENVIRONMENT** without a runnable harness and an
   image-capable credential.
+- [ ] `TASK-B29` · **Moving a live automation's parent task** — (env-gated
+  like TASK-B17; without one mark **ENVIRONMENT**) Give two tasks that
+  automation owns an open subtask each (`tasks.detail.addSubtask`) and start
+  their runs so they work, or wait on a question, at **In progress**; drag the
+  first to **Done** (`tasks.status.done`) and confirm the dialog
+  (`tasks.subject.cancelConfirmTitle`); drag it again, now between two cards in
+  **To do** (`tasks.status.todo`), and confirm; last, on the second, press
+  **Cancel run** (`tasks.subject.cancel`) in its automation panel and confirm →
+  The move to **Done** is refused with **Finish all subtasks before closing this
+  task.** (`tasks.detail.parentCloseGuard`): the card snaps back to **In
+  progress** and the run keeps working (its question still takes an answer);
+  the move to **To do** toasts **The run was cancelled.** (`tasks.run.cancelled`),
+  the card stays where it was dropped, its subtask stays open, and its history
+  shows one status change, In progress to To do, never Cancelled in between;
+  **Cancel run** is refused with the same sentence and stops nothing — each also
+  after a reload, and the same through the **Status** picker
+  (`tasks.fields.status`) in German and French.
 
 ## Accessibility (WCAG 2.1 AA)
 

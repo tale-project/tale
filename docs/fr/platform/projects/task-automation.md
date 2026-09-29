@@ -71,6 +71,8 @@ Une exécution peut aussi ne pas démarrer du tout, parce que tous les comptes d
 
 Utilise **Annuler l'exécution** pour arrêter l’agent actif. Toute personne qui peut modifier la tâche peut annuler son exécution, tout comme la personne qui a démarré celle-ci, même si la tâche est passée depuis à l’agent. Déplacer une tâche d’agent hors de **En cours** peut aussi annuler son exécution : lis la confirmation avant de continuer. Une tâche ne peut pas avoir deux exécutions d’agent actives en même temps.
 
+Pour une tâche pilotée par une automatisation, le déplacement arrête l’exécution et place la tâche là où tu l’as déplacée, en une seule étape. Si ce déplacement est refusé, par exemple parce que tu passes à **Terminé** une tâche parente dont des sous-tâches restent ouvertes, l’exécution continue et la tâche reste dans **En cours**. **Annuler l'exécution**, dans le panneau de l’automatisation sur la tâche, passe la tâche à **Annulé** : les mêmes sous-tâches ouvertes l’en empêchent donc. Pour arrêter l’exécution tout en gardant la tâche ouverte, déplace-la plutôt vers **À faire**.
+
 Un admin peut désactiver l’automatisation des tâches pour l’organisation. Cela bloque les nouveaux démarrages pendant que le travail déjà lancé se termine. Les limites et budgets de l’organisation s’appliquent toujours ; consulte [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
 
 ## Choisir le bon responsable

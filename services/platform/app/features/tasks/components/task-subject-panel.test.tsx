@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
+import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen } from '@/tests/utils/render';
 
 import {
@@ -24,9 +26,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (_query: unknown, args: unknown) => {
+  useBackendQuery: (query: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined };
-    return { data: mocks.run };
+    // Only the live-run read answers a run; every other read is empty.
+    return {
+      data:
+        query === 'automations/queries:getLiveRunForTask' ? mocks.run : null,
+    };
   },
 }));
 
@@ -118,6 +124,8 @@ describe('TaskSubjectPanel', () => {
     mocks.start.mockResolvedValue({ started: true });
     mocks.updateStatus.mockReset();
     mocks.updateStatus.mockResolvedValue(undefined);
+    mocks.cancel.mockReset();
+    vi.mocked(toast).mockClear();
   });
 
   it('names the automation and shows the automation s own description', () => {
@@ -273,6 +281,45 @@ describe('TaskSubjectPanel', () => {
     expect(mocks.updateStatus).toHaveBeenCalledWith({
       taskId: 'task_1',
       status: 'done',
+    });
+  });
+
+  // Cancel run parks the task at Cancelled, which closes it: a parent whose
+  // subtasks are still open is refused, and the run keeps running. The
+  // reader hears that reason once, not "something went wrong".
+  it('names the open subtasks when Cancel run is refused for them', async () => {
+    mocks.run = {
+      runId: 'run_1',
+      name: 'document-verify-desk',
+      status: 'waiting',
+      version: 1,
+      detail: null,
+    };
+    mocks.cancel.mockRejectedValue(
+      new AppError({
+        code: 'TASK_HAS_OPEN_SUBTASKS',
+        message: 'Open subtasks remain',
+      }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { user } = renderPanel(ownedBy(), true, 'in_progress');
+
+    await user.click(screen.getByRole('button', { name: 'Cancel run' }));
+    await screen.findByText('Cancel this run?');
+    const confirm = screen
+      .getAllByRole('button', { name: 'Cancel run' })
+      .at(-1);
+    if (confirm === undefined) throw new Error('the dialog has no Cancel run');
+    await user.click(confirm);
+
+    expect(mocks.cancel).toHaveBeenCalledWith({
+      organizationId: 'org_1',
+      taskId: 'task_1',
+    });
+    expect(toast).toHaveBeenCalledExactlyOnceWith({
+      title: 'Finish all subtasks before closing this task.',
+      description: undefined,
+      variant: 'destructive',
     });
   });
 });

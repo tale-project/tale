@@ -16,12 +16,17 @@ import type { TaskRow } from '../components/task-card';
 import type { TaskStatus } from '../lib/display';
 import { useTaskBoardDnd } from './use-task-board-dnd';
 
-const move = vi.hoisted(() => vi.fn());
+const { move, choreograph } = vi.hoisted(() => ({
+  move: vi.fn(),
+  choreograph: vi.fn(
+    async (): Promise<'move' | 'handled' | 'blocked'> => 'move',
+  ),
+}));
 vi.mock('./mutations', () => ({
   useMoveTask: () => ({ mutate: move, isPending: false }),
 }));
 vi.mock('./use-task-status-choreography', () => ({
-  useTaskStatusChoreography: () => async () => 'move' as const,
+  useTaskStatusChoreography: () => choreograph,
 }));
 
 // Real ids are UUIDs; an announcement must never read one out (#3561).
@@ -167,6 +172,7 @@ async function renderDrag(
 afterEach(() => {
   localStorage.removeItem('user-locale');
   move.mockReset();
+  choreograph.mockClear();
 });
 
 describe('useTaskBoardDnd announcements', () => {
@@ -305,4 +311,23 @@ describe('useTaskBoardDnd announcements', () => {
       expect(drag.spoken.join('\n')).not.toMatch(UUID);
     },
   );
+});
+
+describe('useTaskBoardDnd cross-status drops', () => {
+  it('hands the choreography the drop position, and writes nothing more when it lands the card itself', async () => {
+    // A live run's stop moves the card in its own write (`'handled'`).
+    choreograph.mockResolvedValueOnce('handled');
+    const drag = await renderDrag(TASKS);
+    drag.pickUp(WELCOME);
+    drag.moveOver(WELCOME, 'in_progress');
+    drag.drop(WELCOME, 'in_progress');
+
+    await waitFor(() => expect(choreograph).toHaveBeenCalledTimes(1));
+    expect(choreograph).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: WELCOME }),
+      'in_progress',
+      { beforeTaskId: CHECKLIST, afterTaskId: undefined },
+    );
+    expect(move).not.toHaveBeenCalled();
+  });
 });

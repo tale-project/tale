@@ -71,6 +71,8 @@ A run can also fail to start because every account of its subscription broker is
 
 Use **Cancel run** to stop the active agent. Anyone who can change the task can cancel its run, and so can the person who started the run, even after the task has passed to the agent. Moving a running agent-owned task out of **In progress** can also cancel the run; read the confirmation before proceeding. A task cannot have two active agent runs at once.
 
+For a task an automation owns, the move stops the run and puts the task where you moved it in one step. If that move is refused, for example because you moved a parent task to **Done** while its subtasks are still open, the run keeps working and the task stays in **In progress**. **Cancel run** in the automation's panel on the task moves it to **Cancelled**, so the same open subtasks refuse it; to stop the run and keep the task open, move it to **To do** instead.
+
 An admin can disable task automation for the organization. That blocks new starts while existing work finishes. Organization limits and budget policies still apply to each run; see [Policies and limits](/platform/admin/governance/policies-and-limits).
 
 ## Choose the right assignee

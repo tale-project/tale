@@ -71,6 +71,8 @@ Ein Lauf kann auch gar nicht erst starten, weil alle Konten seines Abo-Brokers n
 
 Mit **Lauf abbrechen** stoppst du den aktiven Agenten. Abbrechen kann den Lauf, wer die Aufgabe ändern darf, und auch die Person, die ihn gestartet hat, selbst wenn die Aufgabe inzwischen beim Agenten liegt. Auch das Verschieben einer laufenden Agentenaufgabe aus **In Bearbeitung** kann den Lauf abbrechen. Lies die Bestätigung vorher. Pro Aufgabe kann nur ein Agentenlauf aktiv sein.
 
+Bei einer Aufgabe mit zuständiger Automatisierung stoppt das Verschieben den Lauf und legt die Aufgabe in einem Schritt dort ab, wohin du sie verschoben hast. Wird die Verschiebung abgelehnt, etwa weil du eine übergeordnete Aufgabe mit noch offenen Teilaufgaben nach **Erledigt** verschiebst, arbeitet der Lauf weiter, und die Aufgabe bleibt in **In Bearbeitung**. **Lauf abbrechen** im Bereich der Automatisierung auf der Aufgabe verschiebt sie nach **Abgebrochen**; offene Teilaufgaben verhindern das ebenso. Willst du den Lauf stoppen und die Aufgabe offen lassen, verschiebe sie stattdessen nach **Zu erledigen**.
+
 Ein Admin kann die Aufgabenautomatisierung für die Organisation ausschalten. Neue Läufe starten dann nicht; bestehende Arbeit endet regulär. Organisationslimits und Budgets gelten weiterhin für jeden Lauf. Siehe [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
 
 ## Die passende Zuständigkeit wählen

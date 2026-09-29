@@ -92,6 +92,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from '../lib/display';
+import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
 import { subtaskProgress } from '../lib/subtasks';
@@ -1290,11 +1291,9 @@ export function EditTaskBody({
   const pasteCounterRef = useRef(1);
 
   const onMutationError = (error: unknown) => {
-    if (
-      error instanceof AppError &&
-      error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
-    ) {
-      toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+    const closeRefusal = parentCloseRefusal(error, t);
+    if (closeRefusal !== undefined) {
+      toast({ title: closeRefusal, variant: 'destructive' });
       return;
     }
     // Setting In review → Done IS the review approve, so the org's

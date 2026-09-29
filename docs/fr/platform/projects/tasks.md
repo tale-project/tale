@@ -99,7 +99,7 @@ Saisis `@` dans un commentaire pour ouvrir le sélecteur de mentions. Mentionner
 
 Les mentions dans la description de la tâche agissent de la même façon quand tu enregistres la tâche : les personnes citées sont notifiées, et un agent cité est guidé ou démarre une exécution comme décrit ci-dessus. S’il démarre une exécution, la tâche passe à **En cours**, quelle que soit la colonne où tu l’as créée. Quand tu modifies la description plus tard, seules les mentions que tu ajoutes comptent. Reformuler le texte autour d’une mention existante ne notifie personne à nouveau. L’agent lit la description telle qu’elle est au démarrage de son exécution : si tu la modifies pendant que l’exécution attend encore, c’est ta nouvelle version qu’il suit.
 
-Utilise **Sous-tâches** pour séparer des résultats vérifiables indépendamment. Une sous-tâche nomme sa tâche parente en haut de ses détails (**Partie de …**) ; clique dessus pour y remonter. Une tâche parente ne peut pas être clôturée tant que ses sous-tâches restent ouvertes. **Dépendances** indique ce qui bloque la tâche et ce qu’elle bloque. Les dépendances circulaires sont refusées.
+Utilise **Sous-tâches** pour séparer des résultats vérifiables indépendamment. Une sous-tâche nomme sa tâche parente en haut de ses détails (**Partie de …**) ; clique dessus pour y remonter. Tant qu’une de ses sous-tâches reste ouverte, une tâche parente ne peut passer ni à **Terminé** ni à **Annulé** ; les autres statuts restent disponibles, **À faire** compris. **Dépendances** indique ce qui bloque la tâche et ce qu’elle bloque. Les dépendances circulaires sont refusées.
 
 ## Rendre une tâche récurrente
 
