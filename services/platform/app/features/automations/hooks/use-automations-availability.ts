@@ -1,5 +1,7 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
+import { isLiveAutomation } from '../lib/reader-listing';
+
 /**
  * Whether the Automations section holds anything for someone who cannot
  * build automations: at least one DEPLOYED organization automation — one
@@ -8,9 +10,11 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
  * so for everyone else a section of seeded, undeployed packages is clutter
  * they cannot act on.
  *
- * Ask the server for organization-wide automations: the all-projects listing
- * hides unreadable project IDs, so an empty returned `projectIds` array alone
- * cannot establish that an automation is unbound.
+ * Reads the same all-projects listing the Inbox availability check, the org
+ * Automations list and its route loader already hold, so the rail costs no
+ * request of its own; an unbound automation is one whose `projectIds` is
+ * empty. Pass an empty `organizationId` to skip the read — authors see the
+ * section regardless, so they never need the answer.
  */
 export function useAutomationsAvailability(organizationId: string): {
   isLoading: boolean;
@@ -18,14 +22,12 @@ export function useAutomationsAvailability(organizationId: string): {
 } {
   const { data, isLoading } = useBackendQuery(
     'automations/queries:listAutomations',
-    organizationId ? { organizationId } : 'skip',
+    organizationId ? { organizationId, includeProjectBound: true } : 'skip',
   );
   return {
     isLoading,
     hasLiveOrgAutomation: (data ?? []).some(
-      (row) =>
-        row.deployedVersion !== undefined &&
-        (row.projectIds ?? []).length === 0,
+      (row) => isLiveAutomation(row) && row.projectIds.length === 0,
     ),
   };
 }

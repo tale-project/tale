@@ -41,11 +41,11 @@ beforeEach(() => {
 });
 
 describe('useAutomationsAvailability', () => {
-  it('requests only organization-wide automations', () => {
+  it('reads the all-projects listing the Inbox and the org list share', () => {
     availability([]);
     expect(backendQuery).toHaveBeenCalledWith(
       'automations/queries:listAutomations',
-      { organizationId: 'org-1' },
+      { organizationId: 'org-1', includeProjectBound: true },
     );
   });
 
@@ -62,21 +62,11 @@ describe('useAutomationsAvailability', () => {
     ).toBe(false);
   });
 
-  it('does not mistake hidden project bindings for organization scope', () => {
-    // The app listing removes unreadable project IDs, so a project-only
-    // automation can have [] in the all-projects response. The org-only
-    // listing excludes it using its actual bindings before that projection.
-    backendQuery.mockImplementation(
-      (_ref: unknown, args: { includeProjectBound?: boolean }) => ({
-        data: args.includeProjectBound
-          ? [row('hidden-project-only', [], 1)]
-          : [],
-        isLoading: false,
-      }),
-    );
-    const { result } = renderHook(() => useAutomationsAvailability('org-1'));
-
-    expect(result.current.hasLiveOrgAutomation).toBe(false);
+  it('counts a deployed automation bound to no project beside project-bound ones', () => {
+    expect(
+      availability([row('invoice-desk', ['p-1'], 2), row('mail-sync', [], 1)])
+        .hasLiveOrgAutomation,
+    ).toBe(true);
   });
 
   it('counts a deployed organization automation', () => {

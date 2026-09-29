@@ -83,8 +83,11 @@ export function useNavigationItems(businessId: string): NavigationItems {
   // server's author gate) always see it; everyone else only once the
   // organization runs a deployed organization automation they can follow.
   // A presentation rule, not access control — the routes stay reachable.
+  // Authors skip the availability read: they see the section regardless.
   const canAuthor = useAbility().can('read', 'developerSettings');
-  const { hasLiveOrgAutomation } = useAutomationsAvailability(businessId);
+  const { hasLiveOrgAutomation } = useAutomationsAvailability(
+    canAuthor ? '' : businessId,
+  );
   const showAutomations = canAuthor || hasLiveOrgAutomation;
   return useMemo(
     (): NavigationItems => ({
