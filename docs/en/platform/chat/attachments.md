@@ -36,7 +36,7 @@ File upload support and text extraction are separate. A file that appears in the
 
 If documents or recordings are still processing when you send, Tale queues the message and sends it after they are ready. The queued message appears above the composer. Cancel it there if you need to change the question; its text returns to the field.
 
-Paste a supported video link into the message field to start creating an attachment. A URL entered by typing stays ordinary message text. Tale retrieves captions first and uses audio transcription when captions are unavailable, then supplies the transcript to the assistant. Pasting a link remains available without a transcription model because usable captions do not need one. If that link fails, retry it or remove it before sending.
+Paste a supported video link into the message field to start creating an attachment. A URL entered by typing stays ordinary message text. Tale retrieves captions first and uses audio transcription when captions are unavailable, then supplies the transcript to the assistant. When the captions show two people speaking at once, the transcript keeps both lines. Pasting a link remains available without a transcription model because usable captions do not need one. Pasting the same link again in a chat keeps its one attachment there, even if you pasted it in another chat in between; each chat has its own. If that link fails, retry it or remove it before sending. If Tale cannot remove a link, its chip comes back and a message says why; the link stays attached until a removal succeeds.
 
 A model change applies to new transcription work; completed attachments keep their existing transcript. Uploading the same bytes again reuses completed work for the same transcription target, but transcribes them again when the target provider or model differs.
 
@@ -61,5 +61,6 @@ For recurring questions about a brief or policy, put the file in the appropriate
 | The assistant knows the name but not the contents | Check the format and processing status. Convert legacy files to a supported modern format. |
 | The answer invents detail from a recording | Check the transcript against the recording and supply the corrected passage before continuing. |
 | A queued message has not sent | Inspect every attachment’s status, including video links. Remove or retry failed items. |
+| A removed video link comes back | Tale could not remove it, and the message that appears says why. The link is still attached. Remove it again once the cause is resolved, for example when your connection is back or after you sign in again. |
 
 Return to [Chat basics](/platform/chat/basics) to check sources and continue the conversation.
