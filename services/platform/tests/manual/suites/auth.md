@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 50 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 51 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -419,6 +419,21 @@ compute codes from the enrollment secret.
   wizard → the notice stands in the flow above the page, never over it:
   **Back** (`changelog.viewer.back`) can be pressed, and the organization
   wizard keeps the typed name and scrolls to its last control.
+- [ ] `AUTH-B15` · **A live session the backend has no user for** — Signed in
+  as an admin, in Chromium's devtools → **Network**, override the response of
+  `/api/app/users/me` with `{"user":null}` (**Override content**), then open
+  `/dashboard/create-organization` → the page reloads once, after about 8 s,
+  and then shows **Your account could not be loaded.**
+  (`auth.accountUnavailable.description`) with **Try again**
+  (`common.actions.tryAgain`) and **Sign in again**
+  (`auth.accountUnavailable.signInAgain`), never a loading frame that stays;
+  the Network panel shows no `/api/app/users/me` or `get-session` request
+  repeating on its own. Remove the override and choose **Try again** → the
+  organization wizard opens. Override again and reload; once the message is
+  back, choose **Sign in again** → the log-in form shows and stays: the
+  session has ended, so the log-in page does not send you back. Remove the
+  override and sign in → back on `/dashboard/create-organization`. Repeat
+  with Deutsch and Français → the message and both actions are localized.
 
 ## Accessibility (WCAG 2.1 AA)
 

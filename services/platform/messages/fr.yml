@@ -358,6 +358,9 @@ auth:
     stayHere: Rester ici
     signIn: Se reconnecter
     checkFailed: Ta session n'a pas pu être vérifiée. Reste ici et réessaie quand la connexion sera rétablie.
+  accountUnavailable:
+    description: Ton compte n'a pas pu être chargé.
+    signInAgain: Se reconnecter
   oauth:
     title: 'Continuer avec Tale'
     request: '{application} souhaite te connecter avec Tale.'
