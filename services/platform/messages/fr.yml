@@ -8135,6 +8135,7 @@ projects:
     emptyDescription:
       Crée un projet pour partager fichiers, instructions et chats
       avec ton équipe.
+    emptyReaderDescription: Un projet apparaît ici dès qu’une personne le partage avec toi ou l’une de tes équipes.
     searchPlaceholder: Rechercher des projets
     showArchived: Afficher les archivés
     columnName: Nom

@@ -5157,6 +5157,7 @@ projects:
     createButton: Create project
     emptyTitle: No projects yet
     emptyDescription: Create one to share files, instructions, and chats
+    emptyReaderDescription: A project appears here once someone shares it with you or one of your teams.
     searchPlaceholder: Search projects
     showArchived: Show archived
     columnName: Name

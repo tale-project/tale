@@ -8029,6 +8029,7 @@ projects:
     emptyTitle: Noch keine Projekte
     emptyDescription: Lege ein Projekt an, um Dateien, Anweisungen und Chats mit
       deinem Team zu teilen.
+    emptyReaderDescription: Ein Projekt erscheint hier, sobald jemand es mit dir oder einem deiner Teams teilt.
     searchPlaceholder: Projekte suchen
     showArchived: Archivierte anzeigen
     columnName: Name

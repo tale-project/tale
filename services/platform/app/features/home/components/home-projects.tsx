@@ -39,6 +39,7 @@ import { useProjectPin } from '@/app/features/chat/data/chat-backend';
 import type { ChatProjectSummary } from '@/app/features/chat/types';
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
+import { useAbility } from '@/app/hooks/use-ability';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
@@ -158,6 +159,9 @@ export function HomeProjects({
     true,
   );
   const [createOpen, setCreateOpen] = useState(false);
+  // Creating a project takes the Editor role or higher; the server refuses
+  // anyone else, so a Member is not offered the door.
+  const canCreate = useAbility().can('write', 'projects');
 
   const sorted = useMemo(
     () =>
@@ -219,17 +223,19 @@ export function HomeProjects({
             </Link>
           </Button>
         </Tooltip>
-        <Tooltip content={t('projects.newProject')} side="bottom">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setCreateOpen(true)}
-            aria-label={t('projects.newProject')}
-            className="text-muted-foreground hover:text-foreground size-6 p-1"
-          >
-            <FolderPlus className="size-3.5" />
-          </Button>
-        </Tooltip>
+        {canCreate && (
+          <Tooltip content={t('projects.newProject')} side="bottom">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setCreateOpen(true)}
+              aria-label={t('projects.newProject')}
+              className="text-muted-foreground hover:text-foreground size-6 p-1"
+            >
+              <FolderPlus className="size-3.5" />
+            </Button>
+          </Tooltip>
+        )}
       </div>
       <SubPanelDisclosureBody open={open} className="min-h-0">
         <div
@@ -263,7 +269,7 @@ export function HomeProjects({
           )}
         </div>
       </SubPanelDisclosureBody>
-      {createOpen && (
+      {canCreate && createOpen && (
         <ProjectCreateDialog
           open={createOpen}
           onOpenChange={setCreateOpen}
