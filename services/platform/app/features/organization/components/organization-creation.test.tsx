@@ -18,7 +18,8 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ href: '/dashboard/org-a' }),
 }));
 // A query result as TanStack Query v5 shapes it: pending until it has an
-// answer, whether or not it is fetching one yet.
+// answer, whether or not it is fetching one yet, and a failed re-read keeps
+// the answer it had (an error, but not a loading error).
 vi.mock('@/app/features/organization/hooks/queries', () => ({
   useOrganizationCapabilities: () => ({
     data:
@@ -28,6 +29,7 @@ vi.mock('@/app/features/organization/hooks/queries', () => ({
     isPending: state.canCreate === undefined && !state.isError,
     isLoading: state.isLoading,
     isError: state.isError,
+    isLoadingError: state.isError && state.canCreate === undefined,
     refetch: retry,
   }),
   useUserOrganizations: () => ({ isLoading: false }),
@@ -98,14 +100,25 @@ describe('deployment-owned organization provisioning', () => {
     expect(screen.queryByText('Workspace wizard')).not.toBeInTheDocument();
   });
 
-  // A read waiting on the session probe has not started, so it is not
-  // loading either; the page took that for a refusal.
+  // A read waiting on the session probe has not started: it is pending, but
+  // not loading. Guarded on `isLoading`, the page would read that as a no.
   it('does not refuse while the capability waits to be read', () => {
     state.canCreate = undefined;
     render(<CreatePage />);
     expect(screen.getByText('Resolving workspace')).toBeInTheDocument();
     expect(
       screen.queryByText(/You cannot create an organization/),
+    ).not.toBeInTheDocument();
+  });
+
+  // A re-read that failed, the one a session ending under the page meets,
+  // keeps its last answer, and the wizard with it.
+  it('keeps the wizard when a re-read of the capability fails', () => {
+    state.isError = true;
+    render(<CreatePage />);
+    expect(screen.getByText('Workspace wizard')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
     ).not.toBeInTheDocument();
   });
 

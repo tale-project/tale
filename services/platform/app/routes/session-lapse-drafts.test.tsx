@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
@@ -43,7 +44,7 @@ vi.mock('@/app/hooks/use-session-idle-watchdog', () => ({
   useSessionIdleWatchdog: () => undefined,
 }));
 vi.mock('@/app/components/layout/dashboard-shell-frame', () => ({
-  DashboardShellFrame: () => null,
+  DashboardShellFrame: () => <div data-testid="shell-frame" />,
 }));
 vi.mock('@/app/context/account-bootstrap-context', () => ({
   useTwoFactorStatus: () => ({ authenticated: true, decision: 'allowed' }),
@@ -379,7 +380,11 @@ describe('a session that ends on the create-organization page', () => {
     queryClient.setQueryData(organizationCapabilitiesQuery().queryKey, {
       canCreate: true,
     });
-    h.outlet = () => <CreateOrganization />;
+    h.outlet = () => (
+      <div data-testid="page">
+        <CreateOrganization />
+      </div>
+    );
   });
 
   it("keeps the wizard and its typed name behind the layout's Stay here", async () => {
@@ -396,6 +401,42 @@ describe('a session that ends on the create-organization page', () => {
     );
     expect(name).toBeInTheDocument();
     expect(name).toHaveValue('Acme Research');
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(href).toBe('/dashboard/create-organization');
+  });
+
+  // A session that ends here is mostly met by a re-read, once the stale
+  // window has passed (a reconnect re-reads what is stale). Its refusal keeps
+  // the last answer, and the wizard must stay behind the layout's Stay here
+  // rather than give way to "the page could not load".
+  it('keeps the wizard when a re-read of its capabilities meets the lapse', async () => {
+    queryClient.setQueryData(currentUserQuery().queryKey, member);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      Response.json(LAPSED_SESSION_ANSWER.body, {
+        status: LAPSED_SESSION_ANSWER.status,
+      }),
+    );
+    const user = userEvent.setup();
+    render(<Dashboard />, { wrapper: QueryWrapper });
+    const name = screen.getByLabelText('Organization name');
+    await user.type(name, 'Acme Research');
+    await act(async () => {
+      await queryClient.refetchQueries({
+        queryKey: organizationCapabilitiesQuery().queryKey,
+      });
+    });
+    expect(
+      queryClient.getQueryState(organizationCapabilitiesQuery().queryKey)
+        ?.status,
+    ).toBe('error');
+    await user.click(
+      await screen.findByRole('button', { name: 'auth.sessionLapse.stayHere' }),
+    );
+    expect(name).toBeInTheDocument();
+    expect(name).toHaveValue('Acme Research');
+    expect(
+      screen.queryByText('common.errors.errorLoadingPage'),
+    ).not.toBeInTheDocument();
     expect(h.navigate).not.toHaveBeenCalled();
     expect(href).toBe('/dashboard/create-organization');
   });
@@ -428,23 +469,25 @@ describe('a session that ends on the create-organization page', () => {
         return Response.json({ organizations: [] });
       });
     render(<Dashboard />, { wrapper: QueryWrapper });
+    // The layout has mounted the page; the probe has not answered yet.
+    const page = await screen.findByTestId('page');
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
         expect.stringMatching(/\/users\/me$/),
         expect.anything(),
       ),
     );
-    await act(async () => {});
+    expect(within(page).getByTestId('shell-frame')).toBeInTheDocument();
     expect(
-      screen.queryByText('onboarding.workspace.creationForbidden'),
+      within(page).queryByText('onboarding.workspace.creationForbidden'),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByLabelText('Organization name'),
+      within(page).queryByLabelText('Organization name'),
     ).not.toBeInTheDocument();
 
     await act(async () => answerProbe(Response.json({ user: member })));
     expect(
-      await screen.findByLabelText('Organization name'),
+      await within(page).findByLabelText('Organization name'),
     ).toBeInTheDocument();
     expect(
       screen.queryByText('onboarding.workspace.creationForbidden'),

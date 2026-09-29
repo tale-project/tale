@@ -38,19 +38,23 @@ function CreateOrganizationPage() {
     return <DashboardShellFrame />;
   }
 
-  if (capabilities.isError || !capabilities.data.canCreate) {
+  // Only a read that never answered is an error here. A re-read that fails
+  // keeps its last answer: a session ending under the page is met by such a
+  // re-read, and must leave the wizard to the layout's Stay here.
+  const failed = capabilities.isLoadingError;
+  if (failed || !capabilities.data.canCreate) {
     return (
       <FullPageCenter>
         <Stack gap={3} className="max-w-md p-6">
           <Alert
-            variant={capabilities.isError ? 'destructive' : 'info'}
+            variant={failed ? 'destructive' : 'info'}
             description={
-              capabilities.isError
+              failed
                 ? tCommon('errors.errorLoadingPage')
                 : t('workspace.creationForbidden')
             }
           />
-          {capabilities.isError && (
+          {failed && (
             <Button
               variant="secondary"
               onClick={() => void capabilities.refetch()}
