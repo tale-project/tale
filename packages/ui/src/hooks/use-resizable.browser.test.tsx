@@ -81,6 +81,9 @@ describe('shared resize hook in the existing right-hand Sheet', () => {
     mouse(document, 'mousemove', 1280 - 520, 0);
     await expect.poll(() => document.body.style.cursor).toBe('crosshair');
     expect(document.body.style.userSelect).toBe('text');
-    expect(panel.getBoundingClientRect().width).toBe(width);
+    // The ignored move would have resized the panel by hundreds of pixels;
+    // the two reads may differ in the last subpixel (383.9999… against 384)
+    // while the sheet settles, so they are compared to half a pixel.
+    expect(panel.getBoundingClientRect().width).toBeCloseTo(width, 0);
   });
 });
