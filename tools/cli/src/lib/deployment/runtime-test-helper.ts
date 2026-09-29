@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { parse, stringify } from 'yaml';
 
@@ -146,6 +147,35 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
   return { directory, repoRoot, source, caddy, revision, git, options };
 }
 export type RuntimeFixture = ReturnType<typeof runtimeFixture>;
+
+/**
+ * The files `prepareRuntime` reads from a release commit, from the repo root.
+ * The fixture above builds its own; a pinned deploy reads these, so a suite
+ * that proves the release's CLI accepts its own runtime reads them too (and
+ * `tools/cli/turbo.json` hashes them for `@tale/cli#test`).
+ */
+export const REPOSITORY_RUNTIME_SOURCE = [
+  'compose.yml',
+  'services/proxy/Caddyfile',
+] as const;
+
+/**
+ * Commit this repository's own runtime source over the fixture's, as a
+ * release commit carries it: LF, whatever a Windows checkout made of it.
+ */
+export function commitRepositorySource(fixture: RuntimeFixture): void {
+  for (const file of REPOSITORY_RUNTIME_SOURCE)
+    writeFileSync(
+      join(fixture.repoRoot, file),
+      readFileSync(
+        fileURLToPath(new URL(`../../../../../${file}`, import.meta.url)),
+        'utf8',
+      ).replace(/\r\n/g, '\n'),
+    );
+  fixture.git('add', '.');
+  fixture.git('commit', '-qm', "the repository's own runtime source");
+  fixture.revision = fixture.git('rev-parse', 'HEAD');
+}
 
 export class RuntimeDockerFixture {
   calls: { args: string[]; options: Parameters<typeof exec>[2] }[] = [];

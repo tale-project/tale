@@ -13,6 +13,7 @@ import {
 } from './runtime-model';
 import { prepareRuntime } from './runtime-prepare';
 import {
+  commitRepositorySource,
   RuntimeDockerFixture,
   runtimeFixture,
   type RuntimeFixture,
@@ -459,16 +460,63 @@ describe('committed source runtime preparation', () => {
     expect(() => parseCompose(stringify(source))).toThrow();
   });
 
-  test("accepts the repository's own Compose source", () => {
-    // The pinned runtime a deploy reads IS this file at the release commit:
-    // a port, mount or network compose.yml gains must be one this model
-    // allows, or the release's own CLI refuses the release (v0.5.62 shipped
-    // the device hub's 127.0.0.1:8004 and refused it).
-    const source = readFileSync(
-      new URL('../../../../../compose.yml', import.meta.url),
-      'utf8',
+  // The pinned runtime a deploy reads IS compose.yml and the proxy Caddyfile
+  // at the release commit: a port, mount, image, sandbox default or proxy
+  // anchor they gain must be one this CLI prepares and reads back, or the
+  // release's own CLI refuses the release (v0.5.62 shipped the device hub's
+  // 127.0.0.1:8004 and refused it).
+  test.each<[string, string | undefined, Parameters<typeof create>[1]]>([
+    ['as a plain deployment', undefined, {}],
+    ['under a container prefix', 'north-desk-prod', {}],
+    [
+      'with additional origins and organization creators',
+      undefined,
+      {
+        additionalOrigins: ['https://desk.partner.example'],
+        organizationCreators: ['ops@north-labs.example'],
+      },
+    ],
+  ])(
+    "prepares the repository's own runtime source %s",
+    async (_, containerPrefix, declared) => {
+      const { fixture, prepare } = create(containerPrefix, declared);
+      commitRepositorySource(fixture);
+      const bundle = await prepare();
+      const verified = readRuntimeBundle(fixture.options.bundleDirectory);
+      expect(verified.bundle).toEqual(bundle);
+      expect(bundle.source.composeSha256).toBe(
+        hash(readFileSync(join(fixture.repoRoot, 'compose.yml'))),
+      );
+      const source = parseCompose(
+        readFileSync(join(fixture.repoRoot, 'compose.yml'), 'utf8'),
+      );
+      expect(verified.compose.services.sandbox.ports).toEqual(
+        source.services.sandbox.ports,
+      );
+    },
+  );
+
+  // A managed host's runtime pin may lag the CLI pin (ops keeps the CLI at
+  // or ahead of every runtime), so this CLI still prepares and reads the
+  // runtimes from before the device hub, whose sandbox publishes 8003 alone.
+  test.each([
+    [['127.0.0.1:8003:8003']],
+    [['127.0.0.1:8003:8003', '127.0.0.1:8004:8004']],
+  ])('prepares and reads back a sandbox that publishes %j', async (ports) => {
+    const { fixture, prepare } = create();
+    fixture.source.services.sandbox.ports = ports;
+    writeFileSync(
+      join(fixture.repoRoot, 'compose.yml'),
+      stringify(fixture.source),
     );
-    expect(() => parseCompose(source)).not.toThrow();
+    fixture.git('add', '.');
+    fixture.git('commit', '--allow-empty', '-qm', 'publish sandbox ports');
+    fixture.revision = fixture.git('rev-parse', 'HEAD');
+    await prepare();
+    expect(
+      readRuntimeBundle(fixture.options.bundleDirectory).compose.services
+        .sandbox.ports,
+    ).toEqual(ports);
   });
 
   test.each([['8004:8004'], ['0.0.0.0:8004:8004'], ['127.0.0.1:8005:8005']])(
