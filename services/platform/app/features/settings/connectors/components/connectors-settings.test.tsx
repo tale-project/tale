@@ -511,6 +511,34 @@ describe('ConnectorsSettings', () => {
       });
     });
 
+    // #3716: GlitchTip names its own instance too, and says which one.
+    it('tells a GlitchTip credential which instance origin to enter', async () => {
+      fixtures.connectors = [
+        {
+          slug: 'glitchtip',
+          displayName: 'GlitchTip',
+          description: 'Read GlitchTip issues for task intake.',
+          tags: ['Developer'],
+          endpointMode: 'per-credential',
+          authMethods: ['bearer'],
+          configFields: [],
+          actionCount: 3,
+        } satisfies ConnectorSummary,
+      ];
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const form = await pickConnector(user, 'GlitchTip');
+
+      const instance = form.getByRole('textbox', { name: /^Instance URL/ });
+      expect(instance).toHaveAttribute(
+        'placeholder',
+        'https://app.glitchtip.com',
+      );
+      expect(instance).toHaveAccessibleDescription(
+        'Your GlitchTip instance origin, such as https://app.glitchtip.com. A self-hosted instance works once the deployment allows its host.',
+      );
+    });
+
     it('collects the connector settings it declares, and gates submit on the required ones', async () => {
       // createCredential validates config against the connector's configFields
       // and refuses a missing required one. The form used to render no field for
