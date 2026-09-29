@@ -9,8 +9,10 @@ on:
       - 'package.json'
       - 'services/*/package.json'
       # The sandbox runtime's baked document-skill libraries carry their own
-      # npm lock and Python hash lock outside bun.lock; a change to either
-      # alone must still reach the Trivy gate.
+      # npm lock outside bun.lock, which the Trivy gate scans, so a change to
+      # it alone must still run the gate. The Python hash lock beside it is
+      # not a file name Trivy reads for vulnerabilities, but its secret
+      # scanner still covers it.
       - 'services/sandbox-runtime/document-node/**'
       - 'services/sandbox-runtime/document-python-requirements.txt'
       # Dockerfile + dockerignore changes alter what trivy's misconfig
