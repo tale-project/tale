@@ -331,4 +331,60 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       failureCode: 'harness_error',
     });
   });
+
+  it('fails a run whose last attempts a cooling pool refused as `start_failed`, the code a refused start always carried', async () => {
+    // Other work kept the pool cooling: each refused start counted, and the
+    // last one leaves the budget spent. The turn never started, so the run
+    // must not read `harness_error` on the wire.
+    const { ctx, kicks, finished } = harness(
+      parkedAttempt({
+        attempt: AUTO_RETRY_MAX_ATTEMPTS,
+        launchedAt: undefined,
+        brokerTokenHash: undefined,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn could not start: Every account behind credential "Pool" is cooling down after a rate limit — try again in 42 seconds.',
+          failureCode: 'credential_cooldown',
+          retryAtMs: Date.now() + 42_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'start_failed',
+    });
+  });
+
+  it('fails a run whose dead grant kept rotating as `harness_error`, as a 401 always read', async () => {
+    const { ctx, kicks, finished } = harness(
+      parkedAttempt({
+        attempt: AUTO_RETRY_MAX_ATTEMPTS,
+        credentialRotations: 2,
+        result: {
+          errored: true,
+          reason: 'API Error: 401 OAuth access token has been revoked.',
+          failureCode: 'credential_rotated',
+          apiErrorStatus: 401,
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'harness_error',
+    });
+  });
 });
