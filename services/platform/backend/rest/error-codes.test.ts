@@ -442,6 +442,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // list (TALE_ORGANIZATION_CREATORS) is judged in the before-hook of
   // `/organization/create`, which the REST door never mounts either.
   'ORGANIZATION_CREATION_FORBIDDEN',
+  // Personal API-key creation is another Better Auth-only door:
+  // `/api/auth/api-key/create` judges the holder's roles and grants;
+  // REST authenticates existing keys and mounts no key-creation route.
+  'API_KEY_CREATE_FORBIDDEN',
   // The same door's team-name rule (one name per organization, judged in
   // the before-hooks of `/organization/create-team` and `/update-team`);
   // REST has no team write, and SCIM answers its own 409 `uniqueness`.
