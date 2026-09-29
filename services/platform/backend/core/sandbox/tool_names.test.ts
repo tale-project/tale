@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   grantedToolsGuidance,
+  IMAGE_GENERATION_TOOL,
+  imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
   normalizeToolGrants,
+  readTurnOpRef,
   secretsGuidance,
   WRITE_EFFECT_TOOLS,
 } from './tool_names';
@@ -81,5 +84,33 @@ describe('secretsGuidance', () => {
     expect(line).toContain('GLITCHTIP_TOKEN');
     expect(line).toContain('LINEAR_API_KEY');
     expect(line).toContain('never print');
+  });
+});
+
+describe('image generation', () => {
+  it('is never user-grantable: the organization policy is the switch', () => {
+    expect(normalizeToolGrants([IMAGE_GENERATION_TOOL])).toEqual([]);
+  });
+
+  it('names the tool and the delivery box the images land in', () => {
+    const line = imageGenerationGuidance('/agent/output/task_1');
+    expect(line).toContain('"workspace_tool"');
+    expect(line).toContain(`tool: "${IMAGE_GENERATION_TOOL}"`);
+    expect(line).toContain('/agent/output/task_1/');
+    expect(line).toContain('billed to the organization');
+  });
+
+  it.each([
+    [{ kind: 'task-agent', execId: 'exec_1' }, true],
+    [{ kind: 'workflow-agent', execId: 'exec_2' }, true],
+    [{ kind: 'chat', execId: 'exec_3' }, false],
+    [{ kind: 'task-agent', execId: '' }, false],
+    [{ kind: 'task-agent' }, false],
+    ['task-agent', false],
+    [null, false],
+    [undefined, false],
+  ])('reads a token turnOp %j', (value, valid) => {
+    expect(readTurnOpRef(value) !== undefined).toBe(valid);
+    if (valid) expect(readTurnOpRef(value)).toEqual(value);
   });
 });

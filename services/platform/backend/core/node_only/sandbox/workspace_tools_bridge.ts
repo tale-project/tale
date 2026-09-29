@@ -22,8 +22,10 @@ import { internal } from '../../lib/handler_names';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import {
   ASK_HUMAN_TOOL,
+  IMAGE_GENERATION_TOOL,
   KNOWLEDGE_REFS_PER_CALL_CAP,
   WRITE_EFFECT_TOOLS,
+  type TurnOpRef,
 } from '../../sandbox/tool_names';
 import type { SessionActionSubject } from '../../sandbox/workspace_access';
 import {
@@ -40,6 +42,10 @@ import {
   TASK_LABELS_CAP,
   WORKSPACE_TASK_TOOLS,
 } from './workspace_domain_tools';
+import {
+  IMAGE_GENERATION_TOOL_DESCRIPTION,
+  runGenerateImage,
+} from './workspace_image_tool';
 import {
   isRecord,
   readCursor,
@@ -73,6 +79,7 @@ const ALL_WORKSPACE_TOOLS: readonly string[] = [
   ...WORKSPACE_READ_TOOLS,
   ...WORKSPACE_TASK_TOOLS,
   'document_create',
+  IMAGE_GENERATION_TOOL,
 ];
 
 const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_EFFECT_TOOLS);
@@ -205,6 +212,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'string (a file name, e.g. "report.md"), content: string, contentType?: ' +
     'string (default text/plain)}. The same name refreshes the same document ' +
     '(idempotent).',
+  [IMAGE_GENERATION_TOOL]: IMAGE_GENERATION_TOOL_DESCRIPTION,
 };
 
 /** The blocker a refused session-authority dispatch relays. `subject` names
@@ -259,6 +267,9 @@ export async function dispatchWorkspaceToolImpl(
     sessionId: string;
     userId?: string;
     mintedKeyId?: string;
+    /** The token's own `turnOp` — the turn a generation is booked and
+     * delivered for. Read by `generate_image` alone. */
+    turn?: TurnOpRef;
     tool: string;
     callArgs: unknown;
   },
@@ -332,6 +343,7 @@ async function runWorkspaceTool(
     organizationId: string;
     sessionId: string;
     userId?: string;
+    turn?: TurnOpRef;
     tool: string;
     callArgs: unknown;
   },
@@ -341,6 +353,18 @@ async function runWorkspaceTool(
   // exactly when the narrowing left nothing (`never`), so it needs the raw
   // requested name to still be a plain string.
   const requestedTool: string = args.tool;
+
+  // Not an org-data read either: the turn the TOKEN serves decides whose
+  // spend it is and where the images land; the org policy is re-read on the
+  // call, so a grant alone never keeps a switched-off capability alive.
+  if (args.tool === IMAGE_GENERATION_TOOL) {
+    return await runGenerateImage(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      turn: args.turn,
+      callArgs,
+    });
+  }
 
   // Not an org-data read: no turn user required (an automation run carries
   // none), no role matrix — the ask attaches to the run the SESSION proves,
@@ -971,7 +995,9 @@ export function workspaceToolStatusImpl(grants: readonly string[]): unknown {
     tools: grants.map((name) => ({
       name,
       description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
-      readOnly: !WRITE_TOOL_SET.has(name),
+      // Image generation changes no org data, but it writes files and
+      // spends the organization's money: never badge it read-only.
+      readOnly: !WRITE_TOOL_SET.has(name) && name !== IMAGE_GENERATION_TOOL,
     })),
   };
 }

@@ -58,6 +58,7 @@ page, the budget gate, erasure and retention are its readers.
 | Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare) | `project_agents.id` | — |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` |
+| Agent image generation (`generate_image`, one row per image) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above |
 | Voice output, transcription | `domains/tts`, `domains/files/transcription.ts` | the requester | `__tts__`, `__transcription__` | — |
 | Connector call | `recordConnectorUsage` | the caller | optional | — |
 
@@ -77,6 +78,8 @@ page, the budget gate, erasure and retention are its readers.
 - `domains/sandbox/op-attribution.test.ts` — the subject per lane, sentinel, key, stamp fallback.
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
+- `domains/sandbox/image-generation.test.ts` — an agent's image is measured and booked under its
+  turn's subject, net of every other hold, and a trigger run's image is impersonal.
 - `core/tasks/agent_run_host.connector_caller.test.ts`, `domains/connectors/bridge-routes.test.ts`
   — a task turn's connector calls act for the run's starter while the run is live, and for
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an
