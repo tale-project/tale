@@ -1,8 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { BulkArchiveBar, BulkDeleteBar } from './data-table-bulk-actions';
+
+const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
+  toast: toastMock,
+}));
 
 describe('BulkDeleteBar', () => {
   const defaultProps = {
@@ -65,6 +71,57 @@ describe('BulkDeleteBar', () => {
     expect(
       screen.getByText(/delete these 2 items\? this can't be undone/i),
     ).toBeInTheDocument();
+  });
+
+  describe('when a delete is refused', () => {
+    const refusal = new Error('Refused');
+    const onDeleteItem = vi.fn(async (id: string) => {
+      if (id === 'id2') throw refusal;
+    });
+
+    async function deleteBoth(
+      describeFailure?: (reasons: unknown[]) => string,
+    ) {
+      toastMock.mockClear();
+      const { user } = render(
+        <BulkDeleteBar
+          {...defaultProps}
+          rowSelection={{ id1: true, id2: true }}
+          onDeleteItem={onDeleteItem}
+          describeFailure={describeFailure}
+        />,
+      );
+      await user.click(
+        screen.getByRole('button', { name: /delete selected/i }),
+      );
+      await user.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+          name: /^delete$/i,
+        }),
+      );
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      return toastMock.mock.calls[0]?.[0];
+    }
+
+    it('shows only its title by default', async () => {
+      expect(await deleteBoth()).toEqual({
+        title: "Couldn't delete some items",
+        description: undefined,
+        variant: 'destructive',
+      });
+    });
+
+    // The one toast of a batch used to drop why it failed, so a caller
+    // whose own write hook stays silent showed no reason at all.
+    it("says why, in the caller's words for the refusals", async () => {
+      const describeFailure = vi.fn(() => 'Your session has ended.');
+      expect(await deleteBoth(describeFailure)).toEqual({
+        title: "Couldn't delete some items",
+        description: 'Your session has ended.',
+        variant: 'destructive',
+      });
+      expect(describeFailure).toHaveBeenCalledWith([refusal]);
+    });
   });
 
   it('filters out false-valued selection entries', () => {

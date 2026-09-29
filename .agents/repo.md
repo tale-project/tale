@@ -86,7 +86,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
   through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,
   a lapsed session and a lost connection as localized sentences, nothing for a fault) or, in
-  `packages/ui`, through `readableErrorMessage` (`@tale/ui/error-message`); never through
+  `packages/ui`, through `readableErrorMessage` (`@tale/ui/error-message`), the floor
+  `failureDetail` builds on: a plain error's sentence, and nothing for a structured error, a
+  runtime error (`TypeError`, `SyntaxError`, …) or a thrown non-error. Never through
   `error.message`, where an `AppError` serializes its whole payload.
   `services/platform/tests/guards/error-message-description.guard.test.ts` fails on a
   `description` or `title` built from an error's message under `services/platform/app` and

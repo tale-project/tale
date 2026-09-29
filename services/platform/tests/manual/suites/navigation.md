@@ -484,7 +484,18 @@ loaded, and reads **No teams** for an account in none.
   tab re-navigates), and the service worker's precached offline shell keeps
   the user inside Tale — never the browser's own "site can't be reached" page.
   Start the backend, press **Try again** → the reloaded page comes back
-  signed in on the same URL.
+  signed in on the same URL. Save variant, with **Manage account →
+  Language** (`auth.userButton.language`) on Deutsch: on a project's
+  **Environment** tab (`projectSecrets.title`) **Add variable**
+  (`envEditor.add`) → a name and a value, then set the browser **offline**
+  and press **Save** (`envEditor.save`) at once → before the overlay covers
+  the page, the editor's one save toast (`envEditor.saveError`) reads **Tale
+  ist nicht erreichbar. Prüfe deine Verbindung und versuch es erneut.**
+  (`common.errors.connectionLost`) beneath its title; repeat in Français
+  (**Impossible de joindre Tale. Vérifie ta connexion et réessaie.**), then
+  in Firefox and in Safari → never the browser's own wording (**Failed to
+  fetch**, **NetworkError when attempting to fetch resource.**, **Load
+  failed**) and never an English sentence under the German or French title.
 
 - [ ] `NAV-B7` · **A project that is gone** — Open a project, then in a
   second session **delete it**. Back in the first session, reload that

@@ -5500,6 +5500,7 @@ settings:
     teamCreatedDescription:
       L'équipe {name} a été créée avec {count} {count, plural,
       one {membre} other {membres}}.
+    teamCreatedMembersRefused: Équipe créée, mais tous les membres n'ont pas été ajoutés
     teamCreateFailed: Échec de la création de l'équipe
     teamUpdated: Équipe mise à jour
     teamUpdateFailed: Échec de la mise à jour de l'équipe

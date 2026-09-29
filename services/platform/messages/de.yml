@@ -5418,6 +5418,7 @@ settings:
     teamDeleteFailed: Team konnte nicht gelöscht werden
     teamCreated: Team erstellt
     teamCreatedDescription: '{name} mit {count} {count, plural, one {Mitglied} other {Mitgliedern}} erstellt.'
+    teamCreatedMembersRefused: Team erstellt, aber nicht alle Mitglieder wurden hinzugefügt
     teamCreateFailed: Team konnte nicht erstellt werden
     teamUpdated: Team aktualisiert
     teamUpdateFailed: Team konnte nicht aktualisiert werden
