@@ -44,11 +44,22 @@ vi.mock('./mutations', () => ({
   }),
 }));
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { BULK_CONVERSATION_LIMIT } from '@/lib/shared/conversations/bulk-limit';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { getSelectedConversationIds, useBulkActions } from './use-bulk-actions';
 
 const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
+
+/** A summary's counts beside the first refusal's reason, as the stubbed
+ * translator renders `bulk.outcomeWithReason`. */
+const withReason = (outcome: string, reason: string) =>
+  `bulk.outcomeWithReason:${JSON.stringify({ outcome, reason })}`;
+
+/** A fault, not a refusal: a 5xx carries no words for the person. */
+const unavailable = () =>
+  new BackendApiError(503, 'Request failed with status 503');
 
 // `getSelectedConversationIds` reads only `id` / `_id` from each row, and the
 // selection `Set` stores `id` while bulk mutations operate on `_id`. Use a stub
@@ -259,8 +270,10 @@ describe('useBulkActions handleSendMessages', () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'bulk.messagesSent',
-        description:
+        description: withReason(
           'bulk.messagesSentDescription:{"successCount":1,"failedCount":2}',
+          'panel.contactEmailNotFound',
+        ),
         variant: 'default',
       }),
     );
@@ -284,8 +297,10 @@ describe('useBulkActions handleSendMessages', () => {
     expect(mockSendMessageViaConnector).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        description:
+        description: withReason(
           'bulk.messagesSentDescription:{"successCount":0,"failedCount":2}',
+          'panel.contactEmailNotFound',
+        ),
         variant: 'destructive',
       }),
     );
@@ -295,7 +310,7 @@ describe('useBulkActions handleSendMessages', () => {
   it('tallies connector failures into the failed count', async () => {
     mockSendMessageViaConnector
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('connector down'));
+      .mockRejectedValueOnce(unavailable());
     const conversations = [
       makeConversation('conv-1', 'alice@example.com'),
       makeConversation('conv-2', 'bob@example.com'),
@@ -309,11 +324,80 @@ describe('useBulkActions handleSendMessages', () => {
       await result.current.handleSendMessages('Hello');
     });
 
+    // The 503 carries no words for the person: the counts stand alone.
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         description:
           'bulk.messagesSentDescription:{"successCount":1,"failedCount":1}',
         variant: 'default',
+      }),
+    );
+  });
+
+  // Each send is quiet at its hook, so the summary is the only report of a
+  // refused send: it used to give the counts alone, and the reason appeared
+  // nowhere.
+  it("names the first refused send's reason beside the counts", async () => {
+    mockSendMessageViaConnector.mockImplementation(
+      async ({ conversationId }: { conversationId: string }) => {
+        if (conversationId === 'conv-2') {
+          throw new AppError({
+            code: 'customer_email_not_found',
+            message: 'Conversation has no contact email to reply to',
+          });
+        }
+        if (conversationId === 'conv-3') {
+          throw new AppError({
+            code: 'conversation_connector_missing',
+            message: 'Conversation has no connector to reply through',
+          });
+        }
+        return 'message-1';
+      },
+    );
+    const conversations = [
+      makeConversation('conv-1', 'alice@example.com'),
+      makeConversation('conv-2', 'bob@example.com'),
+      makeConversation('conv-3', 'carol@example.com'),
+    ];
+    const { result } = setup(conversations, { type: 'all' });
+
+    await act(async () => {
+      await result.current.handleSendMessages('Hello');
+    });
+
+    expect(mockToast).toHaveBeenCalledTimes(1);
+    expect(mockToast).toHaveBeenCalledWith({
+      title: 'bulk.messagesSent',
+      description: withReason(
+        'bulk.messagesSentDescription:{"successCount":1,"failedCount":2}',
+        'Conversation has no contact email to reply to',
+      ),
+      variant: 'default',
+    });
+  });
+
+  it("never puts a refusal's payload in the summary", async () => {
+    mockSendMessageViaConnector.mockRejectedValue(
+      new AppError({ code: 'RATE_LIMITED' }),
+    );
+    const { result } = setup(
+      [makeConversation('conv-1', 'alice@example.com')],
+      { type: 'all' },
+    );
+
+    await act(async () => {
+      await result.current.handleSendMessages('Hello');
+    });
+
+    // A refusal that carries only its code is named by it, never by the
+    // serialized `{"code":…}` its `message` holds.
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: withReason(
+          'bulk.messagesSentDescription:{"successCount":0,"failedCount":1}',
+          'RATE_LIMITED',
+        ),
       }),
     );
   });
@@ -474,7 +558,7 @@ describe('useBulkActions status verbs', () => {
   it('reports a refused batch beside the rest, and keeps its rows selected', async () => {
     verbs.close
       .mockImplementationOnce(answerAll)
-      .mockRejectedValueOnce(new Error('Request failed with status 503'));
+      .mockRejectedValueOnce(unavailable());
     const list = rows(BULK_CONVERSATION_LIMIT + 1);
     const { result, onComplete } = setup(list, { type: 'all' });
 
@@ -493,6 +577,33 @@ describe('useBulkActions status verbs', () => {
     expect(onComplete).toHaveBeenCalledWith(
       idsOf(list.slice(BULK_CONVERSATION_LIMIT)),
     );
+  });
+
+  // The rows a refused batch named stay selected, and the summary says why,
+  // as it does when nothing changed at all.
+  it('names why a refused batch was refused beside the counts', async () => {
+    verbs.close.mockImplementationOnce(answerAll).mockRejectedValueOnce(
+      new AppError({
+        code: 'RATE_LIMITED',
+        message: 'Too many requests — try again in a minute.',
+      }),
+    );
+    const list = rows(BULK_CONVERSATION_LIMIT + 1);
+    const { result } = setup(list, { type: 'all' });
+
+    await act(async () => {
+      await result.current.handleBulkResolve();
+    });
+
+    expect(mockToast).toHaveBeenCalledTimes(1);
+    expect(mockToast).toHaveBeenCalledWith({
+      title: 'bulk.resolved',
+      description: withReason(
+        `bulk.resolvedDescription:{"successCount":${BULK_CONVERSATION_LIMIT},"failedCount":1}`,
+        'Too many requests — try again in a minute.',
+      ),
+      variant: 'default',
+    });
   });
 
   it('hands the refused rows back by the id the selection keeps', async () => {
