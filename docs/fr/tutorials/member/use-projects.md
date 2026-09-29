@@ -1,17 +1,21 @@
 ---
 title: Utiliser un projet pour partager le contexte
-description: Crée un projet, ajoute des fichiers et des instructions, puis pose une question sur ses connaissances.
+description: Pose une question à laquelle répondent les fichiers d’un projet, partage la conversation et confie la suite à un agent du projet.
 ---
 
-Crée un projet lorsque plusieurs chats ont besoin des mêmes documents. Dans ce parcours, tu vas préparer un espace de travail, ajouter un fichier et vérifier qu’un chat du projet peut l’utiliser. Prévois environ dix minutes, auxquelles s’ajoute le temps d’indexation du fichier.
+Un projet réunit les fichiers, les instructions, les conversations et les tâches d’un même travail. Dans ce parcours, tu poses une question à laquelle répond un fichier de référence du projet, tu partages la conversation utile et tu confies le livrable qui en découle à l’un des agents du projet. Prévois environ quinze minutes, auxquelles s’ajoutent le temps d’indexation et celui de l’exécution de l’agent.
 
 ## Avant de commencer
 
-Créer le projet, importer ses fichiers et enregistrer ses instructions demandent le rôle **Éditeur** ou supérieur. En tant que **Membre**, demande ces étapes à un Éditeur ou prends un projet que tu peux déjà ouvrir, puis commence à [Poser une question et vérifier la source](#poser-une-question-et-verifier-la-source). Il te faut un court document texte, un PDF dont le texte est sélectionnable ou un fichier Office récent. Choisis un contenu vérifiable, par exemple un brief qui nomme une personne responsable et une date de revue. Un admin doit avoir configuré le stockage documentaire et un modèle d’embedding pour rendre les fichiers consultables.
+En tant que **Membre**, tu travailles dans les projets partagés avec toi : tu poses des questions dans leurs chats, tu partages des conversations et tu crées des tâches pour les agents du projet. Prends un projet que tu peux ouvrir, avec un fichier de référence indexé et au moins un agent, puis commence à [Poser une question et vérifier la source](#poser-une-question-et-verifier-la-source). Créer un projet, importer ses fichiers, enregistrer ses instructions et ajouter des agents demandent le rôle **Éditeur** ou supérieur ; si tu prépares le projet, commence à [Préparer le projet](#preparer-le-projet). Il te faut un court document texte, un PDF dont le texte est sélectionnable ou un fichier Office récent. Choisis un contenu vérifiable, par exemple un brief qui nomme une personne responsable et une date de revue. Un admin doit avoir configuré le stockage documentaire et un modèle d’embedding pour rendre les fichiers consultables.
 
 Les nouveaux projets sont accessibles à **Toute l'organisation**. Utilise un document sans données sensibles pour ce parcours. Si ton projet doit être restreint, choisis son équipe propriétaire sous **Général > Partage** avant d’importer ses fichiers. Les chats du projet restent personnels tant que tu ne les partages pas.
 
-## Créer le projet
+## Préparer le projet
+
+Les Éditeurs et les rôles supérieurs le font une fois par projet. Les Membres passent directement à [Poser une question et vérifier la source](#poser-une-question-et-verifier-la-source).
+
+### Créer le projet
 
 1. Dans **Accueil**, clique sur **Nouveau projet**, l’icône de dossier à côté de **Projets**.
 2. Renseigne **Nom du projet** avec un nom reconnaissable, par exemple `Refonte du site`.
@@ -20,7 +24,7 @@ Les nouveaux projets sont accessibles à **Toute l'organisation**. Utilise un do
 
 Le projet s’ouvre sur **Tâches** et apparaît sous **Projets** dans **Accueil**. Sa navigation comprend aussi **Général**, **Chats**, **Connaissances** et **Agents**. Tu n’as pas besoin de créer un agent pour utiliser le chat du projet.
 
-## Ajouter un fichier de référence
+### Ajouter un fichier de référence
 
 Ouvre **Connaissances** dans le projet et clique sur **Ajouter un fichier**, ou dépose le fichier dans la zone d’import. Il apparaît dans l’arborescence du projet. Attends le statut **Indexé** avant de te fier à la recherche ; **En file d'attente** et **Indexation…** indiquent que la préparation continue.
 
@@ -32,7 +36,7 @@ Ouvre **Connaissances** dans le projet et clique sur **Ajouter un fichier**, ou 
 
 Un fichier ajouté ici appartient à ce projet. Pose tes questions à son sujet dans un chat du projet. Le chat général de l’organisation ne recherche pas dans les fichiers des projets.
 
-## Donner des instructions à tous les chats du projet
+### Donner des instructions à tous les chats du projet
 
 Ouvre **Général**, puis décris dans **Instructions** le contexte ou les contraintes que chaque chat doit suivre. Par exemple :
 
@@ -45,6 +49,8 @@ Clique sur **Enregistrer** en haut de la page. Ces instructions font partie du c
 ![L’onglet Général contient le nom du projet, sa description, l’éditeur d’instructions et la section Partage, avec Enregistrer et Abandonner dans l’en-tête.](/images/platform/project-general-tab.webp)
 
 </Frame>
+
+La dernière partie de ce parcours demande aussi un agent dans le projet. [Agents du projet](/fr/platform/projects/project-agents) explique comment en ajouter un.
 
 ## Poser une question et vérifier la source
 
@@ -66,6 +72,19 @@ L’onglet **Chats** sépare **Tes chats** et **Partagés avec le projet**. Acti
 
 Pour envoyer un lien vers un instantané aux membres de l’organisation, suis [Chats partagés](/fr/platform/chat/shared-threads). Relis la conversation avant de la partager : elle peut reprendre des informations issues de sources dont l’accès est plus restreint.
 
+## Confier la suite à un agent du projet
+
+Le chat répond aux questions ; il ne produit pas de fichiers. Quand la réponse doit devenir un document, par exemple une synthèse de lancement d’une page, confie le travail à l’un des agents du projet au moyen d’une tâche.
+
+1. Dans la conversation, ouvre le menu **⋯** et choisis **Créer une tâche depuis le chat**. Comme le chat appartient à ce projet, **Créer une tâche** s’y ouvre, avec ta dernière question comme description, un lien vers le chat et les fichiers que tu as joints.
+2. Reformule la description en résultat attendu, par exemple : `Rédige à partir du brief une synthèse de lancement d’une page au format Word. Cite le brief pour chaque date.`
+3. Sous **Assigné à**, choisis l’un des agents du projet, puis sélectionne **Créer une tâche**.
+4. Sélectionne **Ouvrir la tâche** dans la confirmation, puis **Démarrer l'agent**.
+
+À la fin de l’exécution, le rapport de l’agent se trouve dans les commentaires de la tâche, le fichier sous **Fichiers produits**, et la tâche attend en **En revue**. Mentionne l’agent avec `@` dans un commentaire pour demander des modifications, et passe la tâche à **Terminé** lorsque le résultat correspond à la description.
+
+Toute personne qui peut ouvrir un projet peut y créer des tâches. Une exécution démarrée par un Membre reste limitée à cette tâche et à ses sous-tâches, sans les secrets de l’agent ; [Exécutions démarrées par un Membre](/fr/platform/projects/tasks#executions-demarrees-par-un-membre) détaille ces limites.
+
 ## Si le fichier manque dans la réponse
 
 | Ce que tu observes | Vérification |
@@ -76,4 +95,4 @@ Pour envoyer un lien vers un instantané aux membres de l’organisation, suis [
 | **Non indexé** | Utilise **Indexer maintenant** lorsque cette action est proposée. Pour un ancien fichier Office sans extracteur compatible, enregistre-le dans le format récent. |
 | **Indexé**, mais aucune source pertinente dans la réponse | Vérifie que le chat appartient au projet, nomme le fichier et demande une information précise. Compare la réponse avec l’original. |
 
-Les sources et les conversations du projet ont maintenant un emplacement commun. Ajoute une tâche au [tableau du projet](/fr/platform/projects/tasks) lorsque le travail demande un responsable, une échéance ou un résultat à examiner.
+Le projet réunit désormais ses sources, ses conversations et ses tâches. [Gérer les tâches du projet](/fr/platform/projects/tasks) présente le tableau, la revue et le travail récurrent.

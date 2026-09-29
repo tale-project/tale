@@ -1095,6 +1095,7 @@ chat:
     created: Aufgabe in {project} erstellt
     openTask: Aufgabe öffnen
     openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
+    readFailed: Tale konnte dieses Gespräch nicht lesen, deshalb kann die Aufgabe deine Anfrage und Dateien noch nicht übernehmen. Versuche es erneut oder lege die Aufgabe auf dem Board des Projekts an.
   export:
     button: Exportieren
     title: Chat exportieren

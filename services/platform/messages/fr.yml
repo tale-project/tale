@@ -1107,6 +1107,7 @@ chat:
     created: Tâche créée dans {project}
     openTask: Ouvrir la tâche
     openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
+    readFailed: 'Tale n’a pas pu lire cette conversation : la tâche ne peut pas encore reprendre ta demande et tes fichiers. Réessaie, ou crée la tâche depuis le tableau du projet.'
   export:
     button: Exporter
     title: Exporter le chat
