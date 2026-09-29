@@ -86,7 +86,9 @@ interface HoldRow {
  * What every other piece of work in flight holds, per bucket the subject is
  * measured in: the organization's, the subject's own, each of their teams'
  * (the holds of that team's CURRENT members, as the team's usage is read)
- * and the authenticating API key's. A hold counts as one request. `exclude`
+ * and the authenticating API key's — a keyed chat turn's, a keyed run's
+ * managed turn and a model-endpoint request alike, each op row carrying the
+ * key its reservation stamped. A hold counts as one request. `exclude`
  * leaves out the admission's own row when it already exists.
  */
 export async function readInFlightReservations(
@@ -108,7 +110,7 @@ export async function readInFlightReservations(
       WHERE org_id = ${org} AND user_id IS NOT NULL
         AND thread_id <> ${exclude.threadId ?? ''}
       UNION ALL
-      SELECT user_id, NULL, budget_cents::float8, 0::float8
+      SELECT user_id, api_key_id, budget_cents::float8, 0::float8
       FROM app.sandbox_session_ops
       WHERE org_id = ${org} AND budget_cents IS NOT NULL
         AND spend_settled_at_ms IS NULL
