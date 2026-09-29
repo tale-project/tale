@@ -26,8 +26,11 @@ vi.mock('../folders/paths.ts', async (importOriginal) => ({
   folderTreePaths,
 }));
 
-const { reconcileDocumentScopeStamps, syncRagDocumentScopes } =
-  await import('./service.ts');
+const {
+  reconcileDocumentScopeStamps,
+  syncRagDocumentScope,
+  syncRagDocumentScopes,
+} = await import('./service.ts');
 
 interface DocRow {
   id: string;
@@ -530,5 +533,79 @@ describe('syncRagDocumentScopes', () => {
 
     // The document read binds the id array, not a keyset cursor.
     expect(sql.reads.some((text) => text.includes('id = ANY'))).toBe(true);
+  });
+});
+
+/**
+ * `syncRagDocumentScope` reads the edited document by id, then its ref's
+ * holder — the lowest-id active document holding the ref, answered here from
+ * `rows` as that statement reads it (`activeDocumentHoldingRef`: ordered by
+ * id, the first one) — then the org slug.
+ */
+function fakeSqlForDocument(rows: (DocRow & { trashed?: boolean })[]): Sql {
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join(' ');
+    if (text.includes('FROM "organization"')) {
+      return Promise.resolve([{ slug: 'acme' }]);
+    }
+    if (text.includes('d.file_ref =') && text.includes('ORDER BY d.id')) {
+      const holders = rows
+        .filter((row) => row.fileRef === values[1] && row.trashed !== true)
+        .sort((a, b) => (a.id < b.id ? -1 : 1));
+      return Promise.resolve(holders.slice(0, 1));
+    }
+    return Promise.resolve(rows.filter((row) => row.id === values[0]));
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the single sync issues only these three tagged reads
+  return sql as unknown as Sql;
+}
+
+describe('syncRagDocumentScope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('writes a ref two documents share from its holder, whichever of them was edited', async () => {
+    // The copy moved to another team: written from the copy, the row would
+    // carry the copy's scope until the reconcile wrote the holder's back and
+    // counted it as a failed sync.
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+    const sql = fakeSqlForDocument([
+      doc({ id: 'doc-1', fileRef: 'blob:shared', teamTags: ['team-a'] }),
+      doc({ id: 'doc-3', fileRef: 'blob:shared', teamTags: ['team-b'] }),
+    ]);
+
+    await syncRagDocumentScope(sql, 'org-9', 'doc-3');
+    await syncRagDocumentScope(sql, 'org-9', 'doc-1');
+
+    const holderScope = [
+      'acme',
+      'blob:shared',
+      ['team-a'],
+      'team-a',
+      null,
+      null,
+    ];
+    expect(sent).toEqual([holderScope, holderScope]);
+  });
+
+  it('writes its own scope for a document no active document holds the ref of', async () => {
+    // Itself in the trash, say: the ref has no holder, and an edit of it
+    // still reaches its corpus row, as before.
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+    const sql = fakeSqlForDocument([
+      {
+        ...doc({ id: 'doc-5', fileRef: 'blob:t', teamTags: ['team-t'] }),
+        trashed: true,
+      },
+    ]);
+
+    await syncRagDocumentScope(sql, 'org-9', 'doc-5');
+
+    expect(sent).toEqual([
+      ['acme', 'blob:t', ['team-t'], 'team-t', null, null],
+    ]);
   });
 });

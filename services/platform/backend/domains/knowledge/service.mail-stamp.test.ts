@@ -247,8 +247,14 @@ describe('indexUploadedFile — the conversation stamp', () => {
       teamIds: ['team-twin'],
       folderPath: 'Copies',
     });
-    // The holder is read first; the bound document only stands in for one.
-    expect(log.filter(isHolderRead)).toHaveLength(1);
+    // The holder is read first — the lowest-id active document holding the
+    // ref, as the scope passes pick it — and the bound document only stands
+    // in for one.
+    const [holder, ...more] = log.filter(isHolderRead);
+    expect(more).toEqual([]);
+    expect(holder?.values).toEqual(['org-1', REF]);
+    expect(holder?.text).toContain(ACTIVE_DOCUMENT);
+    expect(holder?.text).toMatch(/ORDER BY d\.id\s+LIMIT 1/);
     expect(
       log.filter((query) => query.text.includes('FROM app.documents WHERE id')),
     ).toEqual([]);

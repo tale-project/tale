@@ -407,7 +407,10 @@ export async function resolveDocumentFolderPath(
  * Every live, file-backed document under a folder (the folder itself
  * included) with its canonical folder path — what a rename or a move of that
  * folder has to re-stamp wherever the path is copied (the knowledge corpus
- * row the folder filter matches on).
+ * row the folder filter matches on). That row is the ref's, and carries its
+ * holder's path, so a document sharing its ref with a lower-id active one
+ * (a WebDAV COPY's twin) is left out, as the corpus scope passes leave it
+ * (`activeDocumentHoldingRef` in `knowledge/service.ts`).
  */
 export async function subtreeDocumentFolderPaths(
   db: Sql | TransactionSql,
@@ -439,6 +442,12 @@ export async function subtreeDocumentFolderPaths(
     WHERE d.org_id = ${organizationId}
       AND d.file_ref IS NOT NULL
       AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
+      AND NOT EXISTS (
+        SELECT 1 FROM app.documents o
+        WHERE o.org_id = d.org_id AND o.file_ref = d.file_ref
+          AND (o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')
+          AND o.id < d.id
+      )
   `;
   const treePaths = await folderTreePaths(
     db,

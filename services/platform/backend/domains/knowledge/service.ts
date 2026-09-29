@@ -1522,8 +1522,12 @@ export async function markRagQueued(
  * edit that moved either — retrieval filters on these columns, and
  * re-embedding would be wasted work. Reads the document's CURRENT row, so
  * every caller (the app update, REST, WebDAV MOVE, a sync engine) speaks the
- * same one-liner. Best-effort by contract (0.4 parity): corpus failures log;
- * the next re-index is the backstop.
+ * same one-liner. The corpus row is the ref's, and carries its holder's
+ * scope (`activeDocumentHoldingRef`): an edit of a document that shares its
+ * ref with a lower-id active one writes that one's scope, as the reconcile
+ * does, and a document's own scope is written only when it is the holder or
+ * no active document holds its ref. Best-effort by contract (0.4 parity):
+ * corpus failures log; the next re-index is the backstop.
  */
 export async function syncRagDocumentScope(
   sql: Sql,
@@ -1550,14 +1554,16 @@ export async function syncRagDocumentScope(
     `;
     const doc = rows[0];
     if (!doc || doc.fileRef === null) return;
+    const scope =
+      (await activeDocumentHoldingRef(sql, organizationId, doc.fileRef)) ?? doc;
     const folderPath = await resolveDocumentFolderPath(
       sql,
       organizationId,
-      doc,
+      scope,
     );
     const orgSlug = await requireOrgSlug(sql, organizationId);
     const pool = await getKnowledgePoolForOrg(orgSlug);
-    const teamIds = doc.teamTags;
+    const teamIds = scope.teamTags;
     // `team_ids` (retrieval matches ANY) + the deprecated single mirror.
     await pool.unsafe(
       `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
@@ -1573,7 +1579,7 @@ export async function syncRagDocumentScope(
         doc.fileRef,
         teamIds.length > 0 ? teamIds : null,
         teamIds[0] ?? null,
-        doc.projectId,
+        scope.projectId,
         folderPath,
       ],
     );
@@ -2402,8 +2408,10 @@ async function appTransactionEnd(app: Promise<unknown>): Promise<unknown> {
 /**
  * Re-stamp the corpus folder path of every live, file-backed document under a
  * folder after the folder itself was renamed or moved — the path of each
- * document changed without any document row being touched. One read of the
- * subtree, one corpus update; best-effort like the per-document sync.
+ * document changed without any document row being touched. A ref's row
+ * carries its holder's path, so a document that is not its ref's holder is
+ * not read (`subtreeDocumentFolderPaths`). One read of the subtree, one
+ * corpus update; best-effort like the per-document sync.
  */
 export async function syncRagFolderSubtree(
   sql: Sql,
