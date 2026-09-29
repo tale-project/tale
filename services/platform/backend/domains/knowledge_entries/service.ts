@@ -14,7 +14,7 @@ import {
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
 import { releaseCorpusRefs } from '../knowledge/release.ts';
-import { markRagQueued } from '../knowledge/service.ts';
+import { markRagQueued, syncRagRefHolderScopes } from '../knowledge/service.ts';
 
 /**
  * User-contributed knowledge entries — the 0.5 twin of
@@ -740,6 +740,9 @@ export async function deleteKnowledgeEntry(
           `[knowledge-entries] de-indexing ${retired.documentId} after its entry was deleted failed (the retention purge retries): ${failure.message}`,
         );
       }
+      // A ref another active document holds (a WebDAV copy of the entry's
+      // file) keeps its row, and that document may be its holder now.
+      await syncRagRefHolderScopes(sql, args.organizationId, [retired.fileRef]);
     }
   }
 }

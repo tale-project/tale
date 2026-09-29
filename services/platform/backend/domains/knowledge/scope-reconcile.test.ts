@@ -31,6 +31,7 @@ const {
   syncRagDocumentScope,
   syncRagDocumentScopes,
   syncRagFolderSubtree,
+  syncRagRefHolderScopes,
 } = await import('./service.ts');
 
 interface DocRow {
@@ -608,6 +609,182 @@ describe('syncRagDocumentScope', () => {
     expect(sent).toEqual([
       ['acme', 'blob:t', ['team-t'], 'team-t', null, null],
     ]);
+  });
+});
+
+/**
+ * `syncRagRefHolderScopes` re-stamps refs whose holder may have changed — a
+ * copy inserted, a holder trashed, restored, deleted or moved off the ref —
+ * from the holders it reads: the ref's lowest-id ACTIVE document, answered
+ * here from `rows` (a `trashed` row is not active). A trashed row is read
+ * only when the statement lacks its own active filter, and only the rows no
+ * lower-id active row shares a ref with when it carries the holder clause.
+ */
+function fakeSqlByRefs(
+  rows: (DocRow & { trashed?: boolean })[],
+): Sql & { reads: string[] } {
+  const reads: string[] = [];
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join(' ');
+    reads.push(text);
+    if (text.includes('FROM "organization"')) {
+      return Promise.resolve([{ slug: 'acme' }]);
+    }
+    const refs = values.find((value): value is string[] =>
+      Array.isArray(value),
+    );
+    const active = rows.filter((row) => row.trashed !== true);
+    const candidates = text.includes(
+      "AND (lifecycle_status IS NULL OR lifecycle_status = 'active')",
+    )
+      ? active
+      : rows;
+    const read = readsHoldersOnly(text)
+      ? candidates.filter(
+          (row) =>
+            !active.some(
+              (other) => other.fileRef === row.fileRef && other.id < row.id,
+            ),
+        )
+      : candidates;
+    return Promise.resolve(
+      read.filter((row) => (refs ?? []).includes(row.fileRef)),
+    );
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the holder sync issues only these two tagged reads
+  return Object.assign(sql, { reads }) as unknown as Sql & { reads: string[] };
+}
+
+describe('syncRagRefHolderScopes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    folderTreePaths.mockResolvedValue(new Map<string, string>());
+  });
+
+  it('re-stamps a shared ref with its holder’s scope — the copy’s, when the copy’s id sorts first', async () => {
+    // A WebDAV COPY into another team: the copy's random id sorted below
+    // its source's, so the copy is the ref's holder now, and nothing else
+    // would write its scope before the nightly reconcile.
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await syncRagRefHolderScopes(
+      fakeSqlByRefs([
+        doc({ id: 'doc-5', fileRef: 'blob:shared', teamTags: ['team-a'] }),
+        doc({ id: 'doc-2', fileRef: 'blob:shared', teamTags: ['team-b'] }),
+      ]),
+      'org-9',
+      ['blob:shared'],
+    );
+
+    expect(sent[0]?.[0]).toBe('acme');
+    expect(payloadOf(sent)).toEqual([
+      {
+        file_id: 'blob:shared',
+        team_ids: ['team-b'],
+        team_id: 'team-b',
+        project_id: null,
+        folder_path: null,
+      },
+    ]);
+  });
+
+  it('passes over a trashed lower id: the holder is the lowest ACTIVE document', async () => {
+    // The holder went to the trash; its twin holds the ref now.
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await syncRagRefHolderScopes(
+      fakeSqlByRefs([
+        {
+          ...doc({ id: 'doc-1', fileRef: 'blob:shared', teamTags: ['t-1'] }),
+          trashed: true,
+        },
+        doc({ id: 'doc-3', fileRef: 'blob:shared', teamTags: ['t-3'] }),
+      ]),
+      'org-9',
+      ['blob:shared'],
+    );
+
+    expect(payloadOf(sent).map((row) => row.team_ids)).toEqual([['t-3']]);
+  });
+
+  it('writes nothing for a ref no active document holds any more', async () => {
+    // Its row is the release seam's, or the trashed document's own.
+    const { pool, sent } = fakePool(0);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await syncRagRefHolderScopes(
+      fakeSqlByRefs([
+        {
+          ...doc({ id: 'doc-1', fileRef: 'blob:gone', teamTags: ['t-1'] }),
+          trashed: true,
+        },
+      ]),
+      'org-9',
+      ['blob:gone'],
+    );
+
+    expect(sent).toEqual([]);
+    expect(getKnowledgePoolForOrg).not.toHaveBeenCalled();
+  });
+
+  it('sends one row per ref, each from its holder, for several refs at once', async () => {
+    // A folder copy or a folder cascade moves the holders of many refs.
+    const { pool, sent } = fakePool(2);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+    folderTreePaths.mockResolvedValue(new Map([['fold-1', 'Copies/2026']]));
+
+    await syncRagRefHolderScopes(
+      fakeSqlByRefs([
+        doc({ id: 'doc-1', fileRef: 'blob:a', folderId: 'fold-1' }),
+        doc({ id: 'doc-4', fileRef: 'blob:a', teamTags: ['team-x'] }),
+        doc({ id: 'doc-2', fileRef: 'blob:b', projectId: 'p-1' }),
+        doc({ id: 'doc-3', fileRef: 'blob:untouched', teamTags: ['t'] }),
+      ]),
+      'org-9',
+      ['blob:a', 'blob:b', 'blob:a', null, undefined, ''],
+    );
+
+    expect(payloadOf(sent)).toEqual([
+      {
+        file_id: 'blob:a',
+        team_ids: null,
+        team_id: null,
+        project_id: null,
+        folder_path: 'Copies/2026',
+      },
+      {
+        file_id: 'blob:b',
+        team_ids: null,
+        team_id: null,
+        project_id: 'p-1',
+        folder_path: null,
+      },
+    ]);
+  });
+
+  it('reads nothing for no ref', async () => {
+    const sql = fakeSqlByRefs([doc()]);
+
+    await syncRagRefHolderScopes(sql, 'org-9', [null, undefined, '']);
+
+    expect(sql.reads).toEqual([]);
+  });
+
+  it('logs a corpus failure instead of throwing it into the caller', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    getKnowledgePoolForOrg.mockRejectedValue(new Error('corpus down'));
+
+    await expect(
+      syncRagRefHolderScopes(fakeSqlByRefs([doc()]), 'org-9', ['blob:f1']),
+    ).resolves.toBeUndefined();
+
+    expect(warned).toHaveBeenCalledWith(
+      '[knowledge] corpus holder scope sync failed:',
+      expect.any(Error),
+    );
+    warned.mockRestore();
   });
 });
 

@@ -984,7 +984,8 @@ interface DocumentScopeRow {
  * corpus row is the ref's. Several documents can hold one ref (a WebDAV COPY
  * shares it), so the holder is the one with the lowest id, the document
  * whose scope the scope passes write back on the row too
- * (`reconcileDocumentScopeStamps`, `syncRagDocumentScopes`). The stamp
+ * (`reconcileDocumentScopeStamps`, `syncRagDocumentScopes`,
+ * `syncRagRefHolderScopes` after a write that moved the holder). The stamp
  * pass's walks exclude an attachment on the same active-document condition
  * (`readMailAttachments`).
  */
@@ -1639,43 +1640,128 @@ export async function syncRagDocumentScopes(
         )
     `;
     if (docs.length === 0) return;
-    const treePaths = await folderTreePaths(
-      sql,
-      organizationId,
-      docs.flatMap((doc) => (doc.folderId !== null ? [doc.folderId] : [])),
-    );
-    const intended = docs.map((doc) => {
-      // The tag array wins, the single column is its deprecated mirror —
-      // the same precedence the per-edit sync and the reconcile apply.
-      const teamIds = doc.teamTags;
-      return {
-        file_id: doc.fileRef,
-        team_ids: teamIds.length > 0 ? teamIds : null,
-        team_id: teamIds[0] ?? null,
-        project_id: doc.projectId,
-        folder_path: documentFolderPathFrom(doc, treePaths),
-      };
-    });
     const orgSlug = await requireOrgSlug(sql, organizationId);
-    const pool = await getKnowledgePoolForOrg(orgSlug);
-    await pool.unsafe(
-      `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
-          SET team_ids = v.team_ids, team_id = v.team_id,
-              project_id = v.project_id, folder_path = v.folder_path,
-              updated_at = NOW()
-         FROM jsonb_to_recordset($2::jsonb)
-              AS v(file_id text, team_ids text[], team_id text,
-                   project_id text, folder_path text)
-        WHERE d.org_slug = $1 AND d.file_id = v.file_id
-          AND (d.team_ids IS DISTINCT FROM v.team_ids
-            OR d.team_id IS DISTINCT FROM v.team_id
-            OR d.project_id IS DISTINCT FROM v.project_id
-            OR d.folder_path IS DISTINCT FROM v.folder_path)`,
-      [orgSlug, pool.json(intended)],
-    );
+    await writeScopeStamps(sql, { organizationId, orgSlug }, docs);
   } catch (error) {
     console.warn('[knowledge] corpus batch scope sync failed:', error);
   }
+}
+
+/**
+ * Re-stamp the corpus row of each ref whose HOLDER may have changed — the
+ * set of active documents holding it moved without any document's scope
+ * being edited: a copy inserted beside its source (a WebDAV COPY, whose
+ * random id sorts below the source's about half the time), a holder
+ * trashed, restored, hard-deleted, or moved off the ref by a new version of
+ * its bytes. No per-edit sync runs for any of those, so the row kept the
+ * previous holder's scope until the nightly reconcile wrote the new one's
+ * back and counted it as drift — and until then a scope-filtered search
+ * from the new holder's team or folder missed it.
+ *
+ * Each ref's row takes its holder's scope: the lowest-id active document
+ * holding it, read with the clause every scope writer reads holders with
+ * (`activeDocumentHoldingRef`). A ref no active document holds any more is
+ * left as it is: its row is the release seam's to take out, or a trashed
+ * document's, which keeps its own stamp. Call it after the commit that moved
+ * the holders. Best-effort like the per-edit syncs: a corpus failure logs,
+ * and {@link reconcileDocumentScopeStamps} is the backstop.
+ */
+export async function syncRagRefHolderScopes(
+  sql: Sql,
+  organizationId: string,
+  refs: readonly (string | null | undefined)[],
+): Promise<void> {
+  const unique = [
+    ...new Set(
+      refs.filter(
+        (ref): ref is string => typeof ref === 'string' && ref.length > 0,
+      ),
+    ),
+  ];
+  if (unique.length === 0) return;
+  try {
+    const holders = await sql<ScopeStampRow[]>`
+      SELECT file_ref AS "fileRef", team_tags AS "teamTags",
+             project_id AS "projectId", folder_id AS "folderId",
+             folder_path AS "folderPath"
+      FROM app.documents d
+      WHERE org_id = ${organizationId}
+        AND file_ref = ANY(${unique})
+        AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+        AND NOT EXISTS (
+          SELECT 1 FROM app.documents o
+          WHERE o.org_id = d.org_id AND o.file_ref = d.file_ref
+            AND (o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')
+            AND o.id < d.id
+        )
+    `;
+    if (holders.length === 0) return;
+    const orgSlug = await requireOrgSlug(sql, organizationId);
+    await writeScopeStamps(sql, { organizationId, orgSlug }, holders);
+  } catch (error) {
+    console.warn('[knowledge] corpus holder scope sync failed:', error);
+  }
+}
+
+/** A document's scope columns, as a batch scope writer reads them. */
+interface ScopeStampRow {
+  fileRef: string;
+  teamTags: string[];
+  projectId: string | null;
+  folderId: string | null;
+  folderPath: string | null;
+}
+
+/**
+ * Write each document's scope onto its ref's corpus row, in one statement —
+ * the write the batch scope writers share (`syncRagDocumentScopes`,
+ * `syncRagRefHolderScopes` and the reconcile's pages). The tag array wins
+ * and the single team column is its deprecated mirror, the precedence the
+ * per-edit sync applies too; the folder path is the tree's. The guard is
+ * `IS DISTINCT FROM` on all four stamped columns, so a row already in step
+ * is not written and the count is the drift the write corrected.
+ */
+async function writeScopeStamps(
+  sql: Sql,
+  org: { organizationId: string; orgSlug: string },
+  docs: readonly ScopeStampRow[],
+): Promise<number> {
+  const treePaths = await folderTreePaths(
+    sql,
+    org.organizationId,
+    docs.flatMap((doc) => (doc.folderId !== null ? [doc.folderId] : [])),
+  );
+  const intended = docs.map((doc) => {
+    const teamIds = doc.teamTags;
+    return {
+      file_id: doc.fileRef,
+      team_ids: teamIds.length > 0 ? teamIds : null,
+      team_id: teamIds[0] ?? null,
+      project_id: doc.projectId,
+      folder_path: documentFolderPathFrom(doc, treePaths),
+    };
+  });
+  const pool = await getKnowledgePoolForOrg(org.orgSlug);
+  // `pool.json` hands postgres.js the rows as ONE jsonb parameter. A
+  // pre-serialized string would be JSON-encoded a second time once the server
+  // reports the parameter as jsonb, and `jsonb_to_recordset` then refuses the
+  // resulting JSON string ("cannot call jsonb_to_recordset on a non-array").
+  const result = await pool.unsafe(
+    `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+        SET team_ids = v.team_ids, team_id = v.team_id,
+            project_id = v.project_id, folder_path = v.folder_path,
+            updated_at = NOW()
+       FROM jsonb_to_recordset($2::jsonb)
+            AS v(file_id text, team_ids text[], team_id text,
+                 project_id text, folder_path text)
+      WHERE d.org_slug = $1 AND d.file_id = v.file_id
+        AND (d.team_ids IS DISTINCT FROM v.team_ids
+          OR d.team_id IS DISTINCT FROM v.team_id
+          OR d.project_id IS DISTINCT FROM v.project_id
+          OR d.folder_path IS DISTINCT FROM v.folder_path)`,
+    [org.orgSlug, pool.json(intended)],
+  );
+  return result.count ?? 0;
 }
 
 /** Documents compared per corpus statement — one document read, one folder
@@ -1709,9 +1795,11 @@ const SCOPE_RECONCILE_PAGE = 1000;
  * One statement per page: the guard is `IS DISTINCT FROM` on all four stamped
  * columns, so the row count IS the drift count and an in-sync corpus writes
  * nothing. A conversation stamp on a document's ref is not scope drift — no
- * per-edit sync failed to write it — and is the stamp pass's to take off
+ * scope write failed to write it — and is the stamp pass's to take off
  * (`reconcileMailAttachmentStamps`), so the count stays what the reconcile
- * reports it as: edits whose corpus write failed.
+ * reports it as: scope writes that failed or never ran — a per-edit sync the
+ * corpus refused, or a shared ref's holder that changed on a lane that does
+ * not re-stamp it ({@link syncRagRefHolderScopes}).
  *
  * The corpus row is the ref's, and several documents can hold one ref (a
  * WebDAV COPY shares it), so the walk reads each ref's holder alone — the
@@ -1791,48 +1879,10 @@ async function reconcileScopeStampPage(
     LIMIT ${args.pageSize}
   `;
   if (docs.length === 0) return { scanned: 0, corrected: 0, lastId: null };
-
-  const treePaths = await folderTreePaths(
-    sql,
-    args.organizationId,
-    docs.flatMap((doc) => (doc.folderId !== null ? [doc.folderId] : [])),
-  );
-  const intended = docs.map((doc) => {
-    // Same precedence as the per-edit sync: the tag array wins, the single
-    // column is its deprecated mirror.
-    const teamIds = doc.teamTags;
-    return {
-      file_id: doc.fileRef,
-      team_ids: teamIds.length > 0 ? teamIds : null,
-      team_id: teamIds[0] ?? null,
-      project_id: doc.projectId,
-      folder_path: documentFolderPathFrom(doc, treePaths),
-    };
-  });
-
-  const pool = await getKnowledgePoolForOrg(args.orgSlug);
-  // `pool.json` hands postgres.js the rows as ONE jsonb parameter. A
-  // pre-serialized string would be JSON-encoded a second time once the server
-  // reports the parameter as jsonb, and `jsonb_to_recordset` then refuses the
-  // resulting JSON string ("cannot call jsonb_to_recordset on a non-array").
-  const result = await pool.unsafe(
-    `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
-        SET team_ids = v.team_ids, team_id = v.team_id,
-            project_id = v.project_id, folder_path = v.folder_path,
-            updated_at = NOW()
-       FROM jsonb_to_recordset($2::jsonb)
-            AS v(file_id text, team_ids text[], team_id text,
-                 project_id text, folder_path text)
-      WHERE d.org_slug = $1 AND d.file_id = v.file_id
-        AND (d.team_ids IS DISTINCT FROM v.team_ids
-          OR d.team_id IS DISTINCT FROM v.team_id
-          OR d.project_id IS DISTINCT FROM v.project_id
-          OR d.folder_path IS DISTINCT FROM v.folder_path)`,
-    [args.orgSlug, pool.json(intended)],
-  );
+  const corrected = await writeScopeStamps(sql, args, docs);
   return {
     scanned: docs.length,
-    corrected: result.count ?? 0,
+    corrected,
     lastId: docs.at(-1)?.id ?? null,
   };
 }
