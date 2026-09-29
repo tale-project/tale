@@ -15,9 +15,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * enrols, when policy is disabled, or when grace expires (at which
  * point sign-in itself redirects to the enrolment wall).
  *
- * A `ShellAlert` rather than the shared `Banner` component, because the
- * CTA is an inline TanStack Router `<Link>` and `Banner` rejects children
- * by design.
+ * A `ShellAlert`, like every dashboard nudge, with an inline TanStack
+ * Router `<Link>` as its call to action.
  */
 export function TwoFactorGraceBanner({
   organizationId,
