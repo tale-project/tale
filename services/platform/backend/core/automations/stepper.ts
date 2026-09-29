@@ -1279,6 +1279,12 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         request: parked.input as unknown as WorkflowAgentRequest,
         ...(burned.length > 0 ? { excludeBrokerTokenHashes: burned } : {}),
         ...(resume !== undefined ? { resume } : {}),
+        // A start refused while every broker account cooled down: the
+        // re-kick's start waits for the first one back instead of meeting
+        // the same refusal at once and spending the budget in seconds.
+        ...(settled.retryAtMs !== undefined
+          ? { notBefore: settled.retryAtMs }
+          : {}),
       });
       const agent: AgentCursor = {
         execId: kicked.execId,

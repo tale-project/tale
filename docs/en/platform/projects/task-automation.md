@@ -61,6 +61,8 @@ Recoverable failures get up to three immediate automatic retries. A run that mak
 
 An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance: the run keeps the count it had reached, or reads **Resumed after a token refresh** when it had not used an automatic retry yet. After two such interruptions in a row, a further one counts like any other failure.
 
+A run can also fail to start because every account of its subscription broker is cooling down after a rate limit. Its retry is queued at once but starts only when the first account is available again, at most a minute later. That retry counts as an attempt.
+
 ## Cancel or pause work
 
 Use **Cancel run** to stop the active agent. Moving a running agent-owned task out of **In progress** can also cancel the run; read the confirmation before proceeding. A task cannot have two active agent runs at once.

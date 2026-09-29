@@ -61,6 +61,8 @@ Bei behebbaren Fehlern folgen bis zu drei sofortige Wiederholungsversuche. Ein L
 
 Ein Agent, der über einen Abo-Broker arbeitet, kann sein Token mitten in der Arbeit verlieren, wenn der Broker das Konto erneuert. Die Wiederholung setzt die Konversation dann mit einem neuen Token fort, ohne den Versuchszähler zu erhöhen: Der Lauf zeigt weiter den erreichten Stand an. Hatte er noch keinen automatischen Versuch verbraucht, steht dort **Nach einer Token-Erneuerung fortgesetzt**. Nach zwei solchen Unterbrechungen in Folge zählt eine weitere wie jeder andere Fehler.
 
+Ein Lauf kann auch gar nicht erst starten, weil alle Konten seines Abo-Brokers nach Erreichen eines Rate-Limits pausieren. Seine Wiederholung wird dann sofort eingereiht, startet aber erst, sobald das erste Konto wieder verfügbar ist, spätestens eine Minute später. Diese Wiederholung zählt als Versuch.
+
 ## Arbeit abbrechen oder pausieren
 
 Mit **Lauf abbrechen** stoppst du den aktiven Agenten. Auch das Verschieben einer laufenden Agentenaufgabe aus **In Bearbeitung** kann den Lauf abbrechen. Lies die Bestätigung vorher. Pro Aufgabe kann nur ein Agentenlauf aktiv sein.

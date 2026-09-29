@@ -1253,7 +1253,8 @@ export async function startTaskAgentTurnImpl(
       console.error('[task-agent] turn start failed:', err);
       // A cap refusal is the org's decision and a missing skill the agent's
       // configuration — neither a fault, neither retried; the rest is
-      // `start_failed` and retries by default (`classifyStartFailure`).
+      // `start_failed` and retries by default, once a broker pool that was
+      // cooling down has an account back (`classifyStartFailure`).
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
         ...classifyStartFailure(err),
@@ -1665,6 +1666,10 @@ async function settleTaskAgentTurn(
     failureCode?: TaskRunFailureCode;
     /** The harness-reported provider HTTP status, when there was one. */
     apiErrorStatus?: number;
+    /** No retry can start before this, epoch ms: the subscription broker's
+     * every account was cooling down after a rate limit
+     * (`classifyStartFailure`). */
+    retryAtMs?: number;
     /** The harness's own token totals, booked alongside the gateway spend. */
     usageTotals?: { inputTokens: number; outputTokens: number };
   },
@@ -1770,6 +1775,9 @@ async function settleTaskAgentTurn(
       ...(failureCode !== undefined ? { failureCode } : {}),
       ...(result.apiErrorStatus !== undefined
         ? { apiErrorStatus: result.apiErrorStatus }
+        : {}),
+      ...(result.retryAtMs !== undefined
+        ? { retryAtMs: result.retryAtMs }
         : {}),
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);

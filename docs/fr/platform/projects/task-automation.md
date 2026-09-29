@@ -61,6 +61,8 @@ Un échec récupérable donne lieu à jusqu’à trois nouvelles tentatives apr�
 
 Un agent servi par un courtier d’abonnement peut perdre son jeton en cours de travail, lorsque le courtier actualise le compte. La nouvelle tentative poursuit alors la conversation avec un nouveau jeton, sans faire avancer le compteur de tentatives : l’exécution garde le compteur qu’elle affichait. Si elle n’avait encore utilisé aucune tentative automatique, elle affiche **Reprise après l'actualisation du jeton**. Après deux interruptions de ce type d’affilée, une nouvelle interruption compte comme n’importe quel autre échec.
 
+Une exécution peut aussi ne pas démarrer du tout, parce que tous les comptes de son courtier d’abonnement sont en pause après avoir atteint une limite de requêtes. Sa nouvelle tentative est alors mise en file d’attente aussitôt, mais ne démarre que lorsque le premier compte redevient disponible, au plus tard une minute après. Cette tentative compte dans le compteur.
+
 ## Annuler ou suspendre le travail
 
 Utilise **Annuler l'exécution** pour arrêter l’agent actif. Déplacer une tâche d’agent hors de **En cours** peut aussi annuler son exécution : lis la confirmation avant de continuer. Une tâche ne peut pas avoir deux exécutions d’agent actives en même temps.

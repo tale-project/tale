@@ -88,7 +88,10 @@ import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.t
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
-import { checkCredentialRotationRetry } from './domains/tasks/credential-rotation.integration.ts';
+import {
+  checkCooledStartRetry,
+  checkCredentialRotationRetry,
+} from './domains/tasks/credential-rotation.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
@@ -55640,6 +55643,10 @@ async function main(): Promise<void> {
       [
         'checkCredentialRotationRetry',
         () => checkCredentialRotationRetry(sql, authCtx, record),
+      ],
+      [
+        'checkCooledStartRetry',
+        () => checkCooledStartRetry(sql, authCtx, record),
       ],
       [
         'checkSessionOpTranscriptMerge',

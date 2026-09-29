@@ -174,6 +174,8 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       'account-a',
       'account-b',
     ]);
+    // Nothing to wait for: the re-kick starts at once.
+    expect(kicks[0]).not.toHaveProperty('notBefore');
     const cursor = parkedCursor(suspended);
     expect(cursor).toMatchObject({ attempt: 2 });
     // Any other failure ends a streak of rotations.
@@ -215,6 +217,36 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     await stepRunImpl(failed.ctx, RUN);
     expect(failed.kicks).toHaveLength(1);
     expect(parkedCursor(failed.suspended)).toMatchObject({ attempt: 1 });
+  });
+
+  it('holds the re-kick until a cooling broker pool has an account back', async () => {
+    // Every account of the pool was cooling down after a 429: re-kicking at
+    // once met the same refusal and spent the budget in seconds.
+    const retryAtMs = Date.now() + 42_000;
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: 1,
+        launchedAt: undefined,
+        brokerTokenHash: undefined,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn could not start: Every account behind credential "Pool" is cooling down after a rate limit — try again in 42 seconds.',
+          failureCode: 'start_failed',
+          retryAtMs,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(kicks[0]).toMatchObject({ notBefore: retryAtMs });
+    // The attempt still counts, so a pool other work keeps cooling cannot
+    // hold the node in a wait loop.
+    expect(parkedCursor(suspended)).toMatchObject({ attempt: 2 });
   });
 
   it('fails the run once the budget is spent on ordinary failures', async () => {

@@ -10,6 +10,7 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
@@ -102,9 +103,15 @@ vi.mock('./task_serving', () => ({
           vision: { readable: true },
         },
 }));
-vi.mock('../provider_credentials/resolve_credential', () => ({
-  resolveProviderCredential: vi.fn(),
-}));
+vi.mock(
+  '../provider_credentials/resolve_credential',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../provider_credentials/resolve_credential')
+    >()),
+    resolveProviderCredential: vi.fn(),
+  }),
+);
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
 }));
@@ -326,6 +333,47 @@ describe('a task agent start', () => {
       ).toBe('stable-selected-account-hash');
     },
   );
+
+  it('fails a start the broker refused while every account cooled down, naming when the first is back', async () => {
+    io.subscription = {
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+    };
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      model: 'claude-sonnet-4-6',
+      modelProvider: 'anthropic',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    // The retry this arms waits for the cooldown instead of meeting the same
+    // refusal at once; the run shows the refusal's words, not its payload.
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      runId: 'run-1',
+      execId: 'exec-1',
+      failureCode: 'start_failed',
+      retryAtMs,
+      error:
+        'the agent run could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
 
   it('hands Claude Code the serving model’s window', async () => {
     servesWindow(32_768);

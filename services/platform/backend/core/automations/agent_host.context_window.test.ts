@@ -12,6 +12,7 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
@@ -55,9 +56,15 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
 }));
-vi.mock('../provider_credentials/resolve_credential', () => ({
-  resolveProviderCredential: vi.fn(),
-}));
+vi.mock(
+  '../provider_credentials/resolve_credential',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../provider_credentials/resolve_credential')
+    >()),
+    resolveProviderCredential: vi.fn(),
+  }),
+);
 vi.mock('../lib/providers/agent_serving', () => ({
   resolveWorkflowAgentServing: async () => ({
     lane: 'gateway',
@@ -82,8 +89,11 @@ vi.mock('../node_only/sandbox/turn_equipment', () => ({
   resolveTurnEquipmentEnv: async () => ({}),
 }));
 
-const { resumeWorkflowAgentTurnWithAnswerImpl, startWorkflowAgentTurnImpl } =
-  await import('./agent_host');
+const {
+  automationAgentHost,
+  resumeWorkflowAgentTurnWithAnswerImpl,
+  startWorkflowAgentTurnImpl,
+} = await import('./agent_host');
 
 function servesWindow(contextWindow: number): void {
   const entry: ModelCatalogEntry = {
@@ -137,6 +147,7 @@ function makeCtx(cursor: unknown) {
   const queries: Array<{ name: string; args: Record<string, unknown> }> = [];
   const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
   const scheduled: string[] = [];
+  const delays: number[] = [];
   const ctx = {
     runQuery: async (ref: unknown, args: Record<string, unknown>) => {
       const name = functionRefName(ref);
@@ -178,13 +189,14 @@ function makeCtx(cursor: unknown) {
       throw new Error(`unexpected action ${functionRefName(ref)}`);
     },
     scheduler: {
-      runAfter: async (_delay: number, ref: unknown) => {
+      runAfter: async (delay: number, ref: unknown) => {
         scheduled.push(functionRefName(ref));
+        delays.push(delay);
         return 'job';
       },
     },
   } as unknown as ActionCtx;
-  return { ctx, queries, scheduled, mutations };
+  return { ctx, queries, scheduled, mutations, delays };
 }
 
 beforeEach(() => {
@@ -342,6 +354,86 @@ describe('an automation agent turn', () => {
     expect(scheduled).toEqual([
       'automations/agent_host:driveWorkflowAgentTurn',
     ]);
+  });
+
+  it('settles a start the broker refused while every account cooled down with when the first is back', async () => {
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      cursor: {
+        node: 'book',
+        agent: { ...WAITING_CURSOR.cursor.agent, execId: 'exec-1' },
+      },
+    });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      gatewayModel: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: 'claude-sonnet-4-6',
+        prompt: 'Book the synthetic invoice.',
+      },
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    // The stepper's re-kick holds its start until then; the reason is the
+    // refusal's own words, not its serialized payload.
+    expect(
+      mutations.find(
+        (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+      )?.args.result,
+    ).toMatchObject({
+      errored: true,
+      failureCode: 'start_failed',
+      retryAtMs,
+      reason:
+        'the agent turn could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
+
+  it('holds a kicked start until a cooling broker pool has an account back', async () => {
+    const NOW = Date.UTC(2026, 8, 28, 12, 0, 0);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    try {
+      const { ctx, delays } = makeCtx({ status: 'running' });
+      const host = automationAgentHost(ctx, 'org-1');
+      const kick = {
+        runId: 'run-1',
+        nodeId: 'book',
+        request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+      };
+
+      const now = await host.kick(kick);
+      const held = await host.kick({ ...kick, notBefore: NOW + 42_000 });
+      await host.kick({ ...kick, notBefore: NOW + 10 * 60_000 });
+      await host.kick({ ...kick, notBefore: NOW - 1 });
+
+      // Never past a cooldown's length, nor for one already over.
+      expect(delays).toEqual([0, 42_000, 60_000, 0]);
+      // The turn's time limit counts from its start, not from the kick.
+      expect(held.deadlineAt - now.deadlineAt).toBe(42_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('resumes after an answer with the window re-resolved', async () => {

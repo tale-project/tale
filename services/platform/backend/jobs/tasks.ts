@@ -205,12 +205,15 @@ export interface TaskPayloads {
   'notification.email': { notificationId: string; epoch: number };
   /** Auto-retry arm for a retryably-failed task-agent run: the handler
    * re-derives every guard (task still in_progress and agent-assigned, the
-   * failed run still newest, the consecutive-failure budget) and kicks. */
+   * failed run still newest, the consecutive-failure budget) and kicks —
+   * the retry's start held until `startAfterMs` when the failed start met a
+   * subscription broker whose every account was cooling down. */
   'task.agent_retry': {
     organizationId: string;
     taskId: string;
     agentId: string;
     expectedRunId: string;
+    startAfterMs?: number;
   };
   /** Finish a settled turn's gateway-key settlement (book its spend, revoke
    * the key) that the host's own settle could not complete — scheduled by

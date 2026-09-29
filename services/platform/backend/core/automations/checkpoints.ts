@@ -66,6 +66,10 @@ export interface AgentTurnResult {
    * announced one — the auto-retry resumes that conversation over the
    * preserved workspace instead of starting the node's reasoning again. */
   agentSessionId?: string;
+  /** No retry can start before this, epoch ms: the start met a
+   * subscription broker whose every account was cooling down after a rate
+   * limit, and this is when the first one is back. */
+  retryAtMs?: number;
   text: string;
   files: AgentTurnFile[];
   /** Outputs the harvest could not bring back (over a cap, unreadable,

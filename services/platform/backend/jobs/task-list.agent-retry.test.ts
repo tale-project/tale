@@ -163,6 +163,24 @@ describe('task.agent_retry', () => {
     );
   });
 
+  it('queues the retry at once and hands the kick when a cooling broker has an account back', async () => {
+    const handler = createTaskList({
+      sql: sqlWith([failedRun('run-failed', 'start_failed')]),
+    })['task.agent_retry'];
+    const startAfterMs = Date.now() + 42_000;
+
+    await handler?.({ ...PAYLOAD, startAfterMs });
+
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        trigger: 'auto_retry',
+        autoRetryAttempt: 1,
+        startAfterMs,
+      }),
+    );
+  });
+
   it('stops a grant that answers 401 on every vend, once free retries and budget are spent', async () => {
     const handler = createTaskList({
       sql: sqlWith(
