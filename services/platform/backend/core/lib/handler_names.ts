@@ -355,6 +355,7 @@ interface HandlerNames {
     internal_queries: FunctionRef & {
       getTaskByIdInternal: FunctionRef;
       getTaskContextForAgent: FunctionRef;
+      getTaskWorkStateForAgent: FunctionRef;
       listTasksForAgent: FunctionRef;
     };
     mutations: FunctionRef & {

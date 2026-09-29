@@ -239,6 +239,153 @@ describe("chat shim 'tasks/internal_queries:getTaskContextForAgent'", () => {
   });
 });
 
+describe("chat shim 'tasks/internal_queries:getTaskContextForAgent' — ids and pages", () => {
+  /** Answers each statement by the table it reads, recording text and
+   * values: the task (in project p-1, with a discussion thread), 51
+   * subtasks, 26 blockers, and a discussion tail of 11 comments. */
+  function boardSql() {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      statements.push({ text, values });
+      if (text.includes('discussion_thread_id AS "discussionThreadId"')) {
+        return Promise.resolve([
+          {
+            _id: 't-1',
+            title: 'Parent',
+            status: 'todo',
+            projectId: 'p-1',
+            discussionThreadId: 'thread-1',
+          },
+        ]);
+      }
+      if (text.includes('FROM app.projects')) {
+        return Promise.resolve([
+          { name: 'Fleet', key: 'FL', instructions: null },
+        ]);
+      }
+      if (text.includes('WHERE parent_task_id')) {
+        return Promise.resolve(
+          Array.from({ length: 51 }, (_, index) => ({
+            taskId: `sub-${index}`,
+            number: index + 2,
+            title: `Sub ${index}`,
+            status: 'todo',
+            assigneeId: null,
+          })),
+        );
+      }
+      if (text.includes('FROM app.task_dependencies')) {
+        return Promise.resolve(
+          Array.from({ length: 26 }, (_, index) => ({
+            taskId: `blk-${index}`,
+            number: null,
+            title: `Blocker ${index}`,
+            status: 'in_progress',
+          })),
+        );
+      }
+      if (text.includes('FROM app.messages')) {
+        // The tail reads one row past the page, newest first.
+        return Promise.resolve(
+          Array.from({ length: 11 }, (_, index) => ({
+            id: `m-${100 - index}`,
+            order: 100 - index,
+            stepOrder: 0,
+            role: 'assistant',
+            text: `Comment ${100 - index}`,
+            createdAt: 1_790_000_000_000 + (100 - index),
+          })),
+        );
+      }
+      if (text.includes('FROM app.task_discussion_message_meta')) {
+        const ids = values.find(Array.isArray) as string[];
+        return Promise.resolve(
+          ids.map((messageId) => ({
+            messageId,
+            authorType: 'agent',
+            authorId: 'agent-1',
+            editedAt: messageId === 'm-100' ? 1_790_000_009_999 : null,
+            mentions: null,
+            bodyByLocale: null,
+          })),
+        );
+      }
+      return Promise.resolve([]);
+    };
+    const sql = Object.assign(tag, { unsafe: (text: string) => text });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag and `unsafe` are all the context read calls
+    return { sql: sql as unknown as Sql, statements };
+  }
+
+  it('names every subtask, blocker and comment by id, and says where a list was cut', async () => {
+    const { sql, statements } = boardSql();
+    const context =
+      chatShimHandlers(sql)['tasks/internal_queries:getTaskContextForAgent'];
+    if (context === undefined) throw new Error('context handler missing');
+    const read = (await context({
+      taskId: 't-1',
+      organizationId: 'org-1',
+      commentLimit: 10,
+      commentsBefore: 111,
+    })) as Record<string, unknown>;
+
+    const subtasks = read.subtasks as Record<string, unknown>[];
+    expect(subtasks).toHaveLength(50);
+    expect(subtasks[0]).toEqual({
+      taskId: 'sub-0',
+      number: 2,
+      title: 'Sub 0',
+      status: 'todo',
+    });
+    expect(read.subtasksTruncated).toBe(true);
+    const blockedBy = read.blockedBy as Record<string, unknown>[];
+    expect(blockedBy).toHaveLength(25);
+    expect(blockedBy[0]).toEqual({
+      taskId: 'blk-0',
+      title: 'Blocker 0',
+      status: 'in_progress',
+    });
+    expect(read.blockedByTruncated).toBe(true);
+
+    // The comment feed's own page: newest ten, oldest first, each with its
+    // id, and the order the next older page ends before.
+    const comments = read.comments as Record<string, unknown>[];
+    expect(comments.map((comment) => comment.commentId)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `m-${91 + index}`),
+    );
+    expect(comments.at(-1)).toEqual({
+      commentId: 'm-100',
+      authorType: 'agent',
+      authorId: 'agent-1',
+      body: 'Comment 100',
+      createdAt: 1_790_000_000_100,
+      editedAt: 1_790_000_009_999,
+    });
+    expect(read.commentsHasMore).toBe(true);
+    expect(read.commentsNextBefore).toBe(91);
+
+    // A related task is read inside the task's own project only.
+    const subtaskRead = statements.find((s) =>
+      s.text.includes('WHERE parent_task_id'),
+    );
+    expect(subtaskRead?.text).toContain('AND project_id = ?');
+    expect(subtaskRead?.values).toEqual(
+      expect.arrayContaining(['t-1', 'org-1', 'p-1']),
+    );
+    const blockerRead = statements.find((s) =>
+      s.text.includes('FROM app.task_dependencies'),
+    );
+    expect(blockerRead?.text).toContain('AND b.project_id = ?');
+    expect(blockerRead?.values).toEqual(
+      expect.arrayContaining(['org-1', 'p-1']),
+    );
+    // The page continues before the cursor it was handed.
+    const tail = statements.find((s) => s.text.includes('FROM app.messages'));
+    expect(tail?.values).toEqual(expect.arrayContaining([111, 0]));
+  });
+});
+
 describe("chat shim 'products/internal_queries:queryProducts'", () => {
   it('reads every user-facing field — the chat row is the only view of a product', async () => {
     const { sql, texts } = capturingSql();

@@ -96,6 +96,7 @@ import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.t
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
+import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
@@ -56235,6 +56236,10 @@ async function main(): Promise<void> {
       [
         'checkTaskBoardSearch',
         () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReadTools',
+        () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
       [

@@ -2984,9 +2984,26 @@ export async function listTasksByProject(
   };
 }
 
-/** How many cards one `task_find` may walk. The tool answers a working set,
- * not a board: an agent that needs more should filter harder. */
+/** The most rows one `task_find` read returns. The tool pages its answer
+ * (`workspace_domain_tools.ts` asks for a page and one row more), so this
+ * only bounds a single statement. */
 const AGENT_TASK_LIST_CAP = 200;
+
+/**
+ * The orders `task_find` walks in. `board` is the columns as people see them
+ * (status, then the column's rank); `created` is the order the tasks were
+ * made in, oldest first, and a task's place in it never changes. Both end on
+ * the task id, so tasks tied on rank or on their creation millisecond still
+ * have exactly one order, and a page that ends inside a tie resumes after
+ * the row it ended on.
+ */
+export type AgentTaskListOrder = 'board' | 'created';
+
+/** The sort key of the last row a `task_find` page answered — where the next
+ * page starts, exclusive. */
+export type AgentTaskListPosition =
+  | { order: 'board'; status: TaskStatus; rank: string; id: string }
+  | { order: 'created'; createdAt: number; id: string };
 
 /**
  * The `task_find` read — undecorated rows for an agent, NOT a board page.
@@ -2995,6 +3012,11 @@ const AGENT_TASK_LIST_CAP = 200;
  * its automation's bound set for an org-wide one, and nothing at all for a
  * truly org-level run, which reads the whole organization. Labels and folder
  * facts are skipped — the model reads titles and status, not chips.
+ *
+ * A keyset page: the rows strictly after `after` in `order`, at most `limit`
+ * of them. Each page reads the board as it stands, never a snapshot of the
+ * first one — see {@link AgentTaskListOrder} for what a move between pages
+ * does to a walk.
  */
 export async function listTasksForAgent(
   sql: Sql,
@@ -3005,6 +3027,9 @@ export async function listTasksForAgent(
     status?: TaskStatus;
     assigneeId?: string;
     includeArchived?: boolean;
+    order?: AgentTaskListOrder;
+    after?: AgentTaskListPosition;
+    limit?: number;
   },
 ): Promise<TaskRow[]> {
   // One named project wins over the bound set — the caller already checked it
@@ -3016,13 +3041,39 @@ export async function listTasksForAgent(
     ...(args.status !== undefined ? { status: args.status } : {}),
     ...(args.assigneeId !== undefined ? { assigneeId: args.assigneeId } : {}),
   };
+  const order = args.order ?? 'board';
+  const after = args.after;
+  if (after !== undefined && after.order !== order) {
+    throw new TaskError(
+      'TASK_CURSOR_INVALID',
+      'The listing position belongs to another order',
+      400,
+    );
+  }
+  const limit =
+    args.limit !== undefined && Number.isFinite(args.limit)
+      ? Math.min(Math.max(Math.floor(args.limit), 1), AGENT_TASK_LIST_CAP)
+      : AGENT_TASK_LIST_CAP;
   const rows = await sql<TaskRow[]>`
     SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${args.organizationId}
       AND (${scoped === null} OR project_id = ANY(${scoped ?? []}))
       AND ${boardFilterClause(sql, filters)}
-    ORDER BY status ASC, rank ASC
-    LIMIT ${AGENT_TASK_LIST_CAP}
+      AND ${
+        after === undefined
+          ? sql`TRUE`
+          : after.order === 'created'
+            ? sql`(t.created_at_ms, t.id)
+                  > (${after.createdAt}::bigint, ${after.id}::text)`
+            : sql`(t.status, t.rank, t.id)
+                  > (${after.status}::text, ${after.rank}::text, ${after.id}::text)`
+      }
+    ORDER BY ${
+      order === 'created'
+        ? sql`t.created_at_ms ASC, t.id ASC`
+        : sql`t.status ASC, t.rank ASC, t.id ASC`
+    }
+    LIMIT ${limit}
   `;
   return [...rows];
 }

@@ -665,6 +665,67 @@ export async function getLatestAgentRunCardForTask(
   };
 }
 
+/** How much of a run's `feedback` an agent reading the task sees — enough
+ * for the ids a manager's restart message opens with. */
+export const AGENT_RUN_FEEDBACK_EXCERPT_CHARS = 500;
+
+/**
+ * One run as an agent reading its task sees it (`task_get`): identity,
+ * status and timing, the start's message as an excerpt — never the
+ * transcript, the error text, the result or the run's workspace handles
+ * (exec, session, model).
+ */
+export interface TaskAgentRunSummary {
+  id: string;
+  /** Creation order, tie-free — the walk's position (`seq`). */
+  seq: number;
+  agentId: string;
+  status: string;
+  trigger: string | null;
+  startedAt: number;
+  launchedAt: number | null;
+  settledAt: number | null;
+  waitingForCapacity: boolean;
+  failureCode: string | null;
+  feedback: string | null;
+  feedbackTruncated: boolean;
+}
+
+/**
+ * A task's runs, newest first on `seq` (the creation order the kick plan and
+ * the retry budget walk, which never ties on a same-millisecond clock), from
+ * before `beforeSeq` when a previous page ended there. The one live run a
+ * task can have (migration 0080) is always the newest: a run is inserted
+ * only while none is live.
+ */
+export async function listTaskAgentRunSummaries(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    taskId: string;
+    limit: number;
+    beforeSeq?: number;
+  },
+): Promise<TaskAgentRunSummary[]> {
+  return sql<TaskAgentRunSummary[]>`
+    SELECT id, seq::float8 AS seq, agent_id AS "agentId", status, trigger,
+           started_at_ms::float8 AS "startedAt",
+           launched_at_ms::float8 AS "launchedAt",
+           settled_at_ms::float8 AS "settledAt",
+           waiting_for_capacity_at_ms IS NOT NULL AS "waitingForCapacity",
+           failure_code AS "failureCode",
+           left(feedback, ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS}) AS feedback,
+           coalesce(char_length(feedback) > ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS},
+                    false) AS "feedbackTruncated"
+    FROM app.project_agent_runs
+    WHERE org_id = ${args.organizationId} AND task_id = ${args.taskId}
+      AND (${args.beforeSeq ?? null}::bigint IS NULL
+           OR seq < ${args.beforeSeq ?? null}::bigint)
+    ORDER BY seq DESC
+    LIMIT ${Math.min(Math.max(Math.floor(args.limit), 1), 100)}
+  `;
+}
+
 /** The 0.4 sandbox-op wire for one run's live transcript. */
 export interface TaskAgentRunSandboxOp {
   execId: string;
