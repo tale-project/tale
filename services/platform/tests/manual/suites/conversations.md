@@ -518,7 +518,8 @@ subject.
   one toast follows (**Resolved 201 conversations**,
   `conversations.bulk.resolvedDescription`), and after a reload all 201 sit
   under **Closed**; reopen them the same way from **Closed**. A request the
-  door refuses is counted as failed in that same toast, and its rows stay
+  door refuses is counted as failed in that same toast, beside the reason
+  the door gave (`conversations.bulk.outcomeWithReason`), and its rows stay
   ticked for another try.
 
 ## Boundary & error tests
