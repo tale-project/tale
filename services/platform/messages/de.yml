@@ -1081,6 +1081,20 @@ chat:
   markAsRead: Als gelesen markieren
   markAsUnread: Als ungelesen markieren
   readOnlyShared: Mit dem Projekt geteilt — nur Lesen
+  createTask:
+    button: Aufgabe aus Chat erstellen
+    projectTitle: Aufgabe aus diesem Chat erstellen
+    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. Ein Projekt-Agent dort kann sie bearbeiten und die Dateien liefern.
+    projectLabel: Projekt
+    projectPlaceholder: Projekt wählen
+    projectEmpty: Kein passendes Projekt
+    noProjects: Es gibt noch kein Projekt für die Aufgabe. Bitte einen Redakteur oder Admin, eines anzulegen.
+    continue: Weiter
+    fromChat: 'Aus dem Chat: {title}'
+    fromChatUntitled: Aus dem Chat
+    created: Aufgabe in {project} erstellt
+    openTask: Aufgabe öffnen
+    openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
   export:
     button: Exportieren
     title: Chat exportieren

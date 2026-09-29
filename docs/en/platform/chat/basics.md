@@ -57,7 +57,19 @@ Above the reply, the timeline shows search and reading steps. A failed step expl
 
 **Sources** below the answer lists documents and pages the assistant loaded. Open a source and check that it supports the relevant claim. A citation establishes which material was used, not that every conclusion is correct. A reply without a retrieval step may rely on the model’s prior knowledge.
 
-The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, create images, produce file deliverables, or use [skills](/platform/workspace/skills); assign that work to a [project task](/platform/projects/tasks). Any member can create one in a project they can open and hand it to one of the project's agents. A project agent working on the task can create images when an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images).
+The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, create images, produce file deliverables, or use [skills](/platform/workspace/skills); assign that work to a [project task](/platform/projects/tasks). Any member can create one in a project they can open and hand it to one of the project's agents; [Create task from chat](#create-task-from-chat) starts it from the conversation. A project agent working on the task can create images when an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images).
+
+## Turn a chat into a task {#create-task-from-chat}
+
+When a conversation ends in work that needs a file, such as a presentation, a report, or a spreadsheet, hand it to a project agent. Open the conversation's **⋯** menu and choose **Create task from chat**. A chat filed in a project creates the task there; otherwise, pick the project first. The task dialog opens with your last request as the description, a link back to the chat, and the files you attached in the conversation. Edit anything you like, choose the agent as the **Assignee**, and select **Create task**. **Open task** in the confirmation takes you to the task, where **Start agent** runs it.
+
+<Frame caption="Create task from chat opens the task dialog with the request and a link back to the chat.">
+
+![The Create task dialog holds the title and description "Draft a launch checklist for the website relaunch project" and, below the request, a link labelled From the chat.](/images/platform/chat-create-task.webp)
+
+</Frame>
+
+Files come along only from your own conversation. A task takes only its creator's uploads, so a task created from a chat someone shared into a project starts without them.
 
 ## Continue, copy, or keep the conversation
 
