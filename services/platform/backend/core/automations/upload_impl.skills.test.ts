@@ -314,6 +314,46 @@ describe('an automation package carrying a skill', () => {
       expect(host.recorded[0]?.current.body).toContain('# Changed');
       expect(host.recorded[0]?.filesChanged).toBe(false);
     });
+
+    it('only once every carried bundle is on disk', async () => {
+      const zip = new JSZip();
+      zip.file('workflow.yml', WORKFLOW);
+      zip.file(
+        'automation.yml',
+        'name: Triage flow\nskills:\n  - alpha\n  - triage\n',
+      );
+      zip.file(
+        'skills/alpha/SKILL.md',
+        skillMd('').replace('name: triage', 'name: alpha'),
+      );
+      zip.file('skills/triage/SKILL.md', skillMd(''));
+      const host = hostFor(await zip.generateAsync({ type: 'uint8array' }));
+      const events: string[] = [];
+      vi.mocked(writeSkillBundleFiles).mockImplementation(
+        async (_org, slug) => {
+          events.push(`write ${slug}`);
+        },
+      );
+      const record = host.withSkillWriterLocks.bind(host);
+      host.withSkillWriterLocks = (slugs, work) =>
+        record(slugs, (writer) =>
+          work({
+            ...writer,
+            recordSkillWrite: async (write) => {
+              events.push(`audit ${write.slug}`);
+              await writer.recordSkillWrite(write);
+            },
+          }),
+        );
+
+      await uploadAutomationImpl(host, { storageId: 's3:x' });
+      expect(events).toEqual([
+        'write alpha',
+        'write triage',
+        'audit alpha',
+        'audit triage',
+      ]);
+    });
   });
 
   it('keeps the audit rows of skills installed before a later install fails', async () => {

@@ -577,6 +577,8 @@ export async function uploadAutomationImpl(
         // them `unchanged`. A failed install stops the loop but is refused
         // only once the lock's transaction has committed: the skills written
         // before it stay installed, so their audit rows must stay too.
+        const written: CarriedSkillWrite[] = [];
+        let failure: { kind: 'write_failed'; message: string } | undefined;
         for (const entry of planned.plan) {
           if (entry.action === 'unchanged') continue;
           try {
@@ -586,12 +588,13 @@ export async function uploadAutomationImpl(
               entry.files,
             );
           } catch (error) {
-            return {
-              kind: 'write_failed' as const,
+            failure = {
+              kind: 'write_failed',
               message: `could not install the carried skill "${entry.skill.slug}": ${error instanceof Error ? error.message : String(error)}`,
             };
+            break;
           }
-          await writer.recordSkillWrite({
+          written.push({
             slug: entry.skill.slug,
             ...describeBundleWrite({
               slug: entry.skill.slug,
@@ -601,7 +604,14 @@ export async function uploadAutomationImpl(
             }),
           });
         }
-        return planned;
+        // The audit rows go in only after the last bundle write: the first
+        // row takes the organization's audit-chain lock until commit, so
+        // recording while bundles are still being written would stall every
+        // other audited write in the organization behind this install.
+        for (const write of written) {
+          await writer.recordSkillWrite(write);
+        }
+        return failure ?? planned;
       },
     );
     if (outcome.kind === 'needs_confirm') {
