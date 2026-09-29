@@ -1,10 +1,11 @@
 /**
  * A task run gets `generate_image` — the grant on its session token, the op
  * the images are booked and delivered for, and the one instruction line
- * that names the tool — only while the organization's image generation
- * policy is on AND a model resolves. Otherwise the tool is absent, and so is
- * any mention of it. The REAL start and steer hosts run with only external
- * I/O replaced and the image-model resolution stubbed.
+ * that names the tool — only on a harness that mounts the platform bridge,
+ * while the organization's image generation policy is on AND a model
+ * resolves. Otherwise the tool is absent, and so is any mention of it. The
+ * REAL start and steer hosts run with only external I/O replaced and the
+ * image-model resolution stubbed.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -260,4 +261,19 @@ describe('image generation on a task run', () => {
     expect(scopeOf(1).toolGrants).not.toContain('generate_image');
     expect(io.instructions[1]).not.toContain('generate_image');
   });
+
+  it.each(['pi', 'hermes'])(
+    'is never offered on %s, a harness that mounts no bridge to call it through',
+    async (harness) => {
+      vi.mocked(resolveTurnImageGeneration).mockResolvedValue(PICK);
+      await startTaskAgentTurnImpl(
+        makeCtx({ status: 'queued', execId: 'exec-1' }),
+        { ...KEYS, harness, sweep: true } as never,
+      );
+      expect(resolveTurnImageGeneration).not.toHaveBeenCalled();
+      expect(scopeOf(0).toolGrants).not.toContain('generate_image');
+      expect(scopeOf(0)).not.toHaveProperty('turnOp');
+      expect(io.instructions[0]).not.toContain('generate_image');
+    },
+  );
 });

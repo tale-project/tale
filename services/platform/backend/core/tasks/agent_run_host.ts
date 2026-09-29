@@ -35,6 +35,7 @@ import {
   spendRefusalReason,
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
+  harnessMountsMcp,
   resolveHarnessTurnContextWindow,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
@@ -1047,12 +1048,12 @@ export async function startTaskAgentTurnImpl(
           brokerTokenHash: prepared.brokerTokenHash ?? null,
         },
       );
-      // Offered only while the organization's policy is on AND a model
-      // resolves — an absent tool, not a dead instruction, otherwise.
-      const imageModel = await resolveTurnImageGeneration(
-        ctx,
-        args.organizationId,
-      );
+      // Offered only on a harness that mounts the bridge, while the
+      // organization's policy is on AND a model resolves — an absent tool,
+      // not a dead instruction, otherwise.
+      const imageModel = harnessMountsMcp(args.harness)
+        ? await resolveTurnImageGeneration(ctx, args.organizationId)
+        : null;
       await insertTaskTurnSessionToken(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
@@ -2192,10 +2193,9 @@ export async function steerTaskAgentTurnImpl(
     );
     // The same grant set and caller as the first start, for the rotated exec
     // — image generation re-decided against the policy as it is now.
-    const imageModel = await resolveTurnImageGeneration(
-      ctx,
-      args.organizationId,
-    );
+    const imageModel = harnessMountsMcp(args.harness)
+      ? await resolveTurnImageGeneration(ctx, args.organizationId)
+      : null;
     await insertTaskTurnSessionToken(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,

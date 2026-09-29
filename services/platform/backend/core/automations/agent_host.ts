@@ -40,6 +40,7 @@ import {
   type ExternalTurnServing,
   type HarnessTimelinePart,
   connectorsBridgeUrlForSessions,
+  harnessMountsMcp,
   isManagedHarness,
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
@@ -1336,12 +1337,12 @@ export async function startWorkflowAgentTurnImpl(
           brokerTokenHash: auth.brokerTokenHash ?? null,
         },
       );
-      // Offered only while the organization's policy is on AND a model
-      // resolves — an absent tool, not a dead instruction, otherwise.
-      const imageModel = await resolveTurnImageGeneration(
-        ctx,
-        args.organizationId,
-      );
+      // Offered only on a harness that mounts the bridge, while the
+      // organization's policy is on AND a model resolves — an absent tool,
+      // not a dead instruction, otherwise.
+      const imageModel = harnessMountsMcp(args.harness)
+        ? await resolveTurnImageGeneration(ctx, args.organizationId)
+        : null;
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1906,10 +1907,9 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       });
       // Re-decided against the policy as it is now: the wait may have
       // outlasted an admin switching image generation on or off.
-      const imageModel = await resolveTurnImageGeneration(
-        ctx,
-        args.organizationId,
-      );
+      const imageModel = harnessMountsMcp(agent.harness)
+        ? await resolveTurnImageGeneration(ctx, args.organizationId)
+        : null;
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {

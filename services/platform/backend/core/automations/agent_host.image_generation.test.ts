@@ -3,9 +3,10 @@
 /**
  * An automation agent node gets `generate_image` — the grant on its session
  * token, the op the images are booked and delivered for, and the one
- * instruction line that names the tool — only while the organization's
- * image generation policy is on AND a model resolves, on its first start and
- * on the resume after an answered question alike. The REAL hosts run with
+ * instruction line that names the tool — only on a harness that mounts the
+ * platform bridge, while the organization's image generation policy is on
+ * AND a model resolves, on its first start and on the resume after an
+ * answered question alike. The REAL hosts run with
  * only external I/O replaced and the image-model resolution stubbed.
  */
 
@@ -259,5 +260,17 @@ describe('image generation on an automation agent node', () => {
     expect(turnOp.execId).not.toBe('exec-asking');
     expect(scopeOf(0).toolGrants).toContain('generate_image');
     expect(io.instructions[0]).toContain('tool: "generate_image"');
+  });
+
+  it('is never offered on a harness that mounts no bridge to call it through', async () => {
+    vi.mocked(resolveTurnImageGeneration).mockResolvedValue(PICK);
+    await startWorkflowAgentTurnImpl(makeCtx({ status: 'running' }), {
+      ...START,
+      harness: 'pi',
+    } as never);
+    expect(resolveTurnImageGeneration).not.toHaveBeenCalled();
+    expect(scopeOf(0).toolGrants).not.toContain('generate_image');
+    expect(scopeOf(0)).not.toHaveProperty('turnOp');
+    expect(io.instructions[0]).not.toContain('generate_image');
   });
 });
