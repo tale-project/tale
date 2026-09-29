@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  iconForPath,
+  TreeRowButton,
+  treeNavigationKeyDown,
+} from '@tale/ui/file-tree-primitives';
 import { Heading } from '@tale/ui/heading';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -7,28 +12,17 @@ import { Text } from '@tale/ui/text';
 import {
   ChevronDown,
   ChevronRight,
-  File,
-  FileArchive,
-  FileCode,
-  FileImage,
-  FileJson,
-  FileSpreadsheet,
   FileText,
   Folder,
   FolderOpen,
 } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
+import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 import {
   buildBundleTree,
+  bundleTreeEntryPath,
   collectDirPaths,
   type BundleTreeNode,
 } from '@/lib/skills/build-bundle-tree';
@@ -39,8 +33,11 @@ interface BundleAsset {
 }
 
 interface SkillBundleTreePanelProps {
+  /** With the slug, keys the folders this browser remembers as collapsed:
+   * every organization starts with the same builtin slugs. */
+  organizationId: string;
   assets: ReadonlyArray<BundleAsset>;
-  /** Skill slug — used as the per-bundle localStorage key for expansion state. */
+  /** Skill slug — keys the folders this browser remembers as collapsed. */
   slug: string;
   /**
    * Selected file — 'SKILL.md', an asset path, or `null` when the panel shows
@@ -57,103 +54,59 @@ interface SkillBundleTreePanelProps {
 }
 
 const SKILL_MD = 'SKILL.md';
-const EXPANSION_STORAGE_PREFIX = 'skill-bundle-tree-expanded:';
+/** Per organization and skill: the folders the member collapsed. Every other
+ * folder shows open, one the bundle gains later included. */
+const COLLAPSED_STORAGE_PREFIX = 'skill-bundle-tree-collapsed:';
+/**
+ * The earlier record: the folders left OPEN, per slug. It is dropped, not
+ * read — a folder missing from it may have been collapsed or may have
+ * joined the bundle since it was written, and the tree re-expanded every
+ * folder on open anyway, so no member ever saw it kept.
+ */
+const LEGACY_EXPANDED_STORAGE_PREFIX = 'skill-bundle-tree-expanded:';
+const NONE: readonly string[] = [];
+// The top level reads as the bundle's headings.
+const TOP_LEVEL_ROW = 'py-1.5 text-sm';
 
-function iconForPath(rel: string): typeof File {
-  const lower = rel.toLowerCase();
-  if (lower.endsWith('.md') || lower.endsWith('.mdx')) return FileText;
-  if (lower.endsWith('.json') || lower.endsWith('.jsonc')) return FileJson;
-  if (
-    lower.endsWith('.py') ||
-    lower.endsWith('.js') ||
-    lower.endsWith('.cjs') ||
-    lower.endsWith('.mjs') ||
-    lower.endsWith('.ts') ||
-    lower.endsWith('.tsx') ||
-    lower.endsWith('.sh') ||
-    lower.endsWith('.bash') ||
-    lower.endsWith('.zsh') ||
-    lower.endsWith('.yaml') ||
-    lower.endsWith('.yml') ||
-    lower.endsWith('.toml')
-  ) {
-    return FileCode;
-  }
-  if (
-    lower.endsWith('.png') ||
-    lower.endsWith('.jpg') ||
-    lower.endsWith('.jpeg') ||
-    lower.endsWith('.gif') ||
-    lower.endsWith('.svg') ||
-    lower.endsWith('.webp') ||
-    lower.endsWith('.ico') ||
-    lower.endsWith('.bmp') ||
-    lower.endsWith('.avif')
-  ) {
-    return FileImage;
-  }
-  if (
-    lower.endsWith('.csv') ||
-    lower.endsWith('.xlsx') ||
-    lower.endsWith('.tsv')
-  ) {
-    return FileSpreadsheet;
-  }
-  if (
-    lower.endsWith('.zip') ||
-    lower.endsWith('.tar') ||
-    lower.endsWith('.gz') ||
-    lower.endsWith('.tgz') ||
-    lower.endsWith('.7z') ||
-    lower.endsWith('.rar')
-  ) {
-    return FileArchive;
-  }
-  return File;
-}
-
-function readExpansionState(slug: string): Set<string> | null {
-  if (typeof window === 'undefined') return null;
+function dropLegacyExpansion(slug: string): void {
   try {
-    const raw = window.localStorage.getItem(EXPANSION_STORAGE_PREFIX + slug);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-    return new Set(parsed.filter((s): s is string => typeof s === 'string'));
+    window.localStorage.removeItem(LEGACY_EXPANDED_STORAGE_PREFIX + slug);
   } catch (err) {
-    console.warn('[skill-tree] failed to read expansion state:', err);
-    return null;
-  }
-}
-
-function writeExpansionState(slug: string, expanded: Set<string>): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(
-      EXPANSION_STORAGE_PREFIX + slug,
-      JSON.stringify(Array.from(expanded)),
+    console.warn(
+      '[skill-tree] failed to drop the earlier expansion state:',
+      err,
     );
-  } catch (err) {
-    console.warn('[skill-tree] failed to persist expansion state:', err);
   }
+}
+
+/** A stored value as the set of folder paths it names; anything else as none. */
+function pathSet(stored: unknown): Set<string> {
+  return new Set(
+    Array.isArray(stored)
+      ? stored.filter((path): path is string => typeof path === 'string')
+      : [],
+  );
 }
 
 /**
  * Middle pane of the three-pane skill detail view: a recursive tree of
  * every file in the bundle, with chevron expand/collapse on directories.
- * Implements WAI-ARIA tree semantics — Up/Down move focus between
- * visible rows, Left/Right collapse/expand or jump to parent, Home and
- * End jump to the first/last visible row, Enter and Space activate.
+ * Implements WAI-ARIA tree semantics with the shared file-tree primitives —
+ * Up/Down move focus between visible rows, Left/Right collapse/expand or
+ * jump to parent, Home and End jump to the first/last visible row, Enter and
+ * Space activate. One row carries the Tab stop: the selected file, or the
+ * folder that hides it once collapsed, so Tab always finds the tree.
  *
- * Expansion state is persisted per-skill in localStorage under
- * `skill-bundle-tree-expanded:<slug>`. Default state when no entry
- * exists: every directory expanded — Office-class skills like `pptx`
- * nest six levels deep, and a collapsed-by-default tree would hide the
- * 25+ XSDs that are the point of the bundle.
+ * The folders a member collapses are remembered per skill in localStorage
+ * under `skill-bundle-tree-collapsed:<organizationId>:<slug>`; every other
+ * folder opens expanded — Office-class skills like `pptx` nest six levels
+ * deep, and a collapsed-by-default tree would hide the 25+ XSDs that are
+ * the point of the bundle — a folder the bundle gains later included.
  *
  * SKILL.md is pinned at the top as the "root" file of the bundle.
  */
 export function SkillBundleTreePanel({
+  organizationId,
   assets,
   slug,
   selectedPath,
@@ -167,133 +120,33 @@ export function SkillBundleTreePanel({
   const tree = useMemo(() => buildBundleTree(assets), [assets]);
   const allDirPaths = useMemo(() => collectDirPaths(tree), [tree]);
 
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(allDirPaths),
-  );
-  const [hydrated, setHydrated] = useState(false);
-
-  // Hydrate expansion from localStorage on first mount (or when the slug
-  // changes). Done in an effect so SSR renders the deterministic
-  // "all-expanded" default and avoids hydration mismatches.
+  const [storedCollapsed, setStoredCollapsed] = usePersistedState<
+    readonly string[]
+  >(`${COLLAPSED_STORAGE_PREFIX}${organizationId}:${slug}`, NONE);
   useEffect(() => {
-    const stored = readExpansionState(slug);
-    if (stored) {
-      setExpanded(stored);
-    } else {
-      setExpanded(new Set(allDirPaths));
-    }
-    setHydrated(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    dropLegacyExpansion(slug);
   }, [slug]);
-
-  // When the asset list changes (file added/removed/renamed) keep newly
-  // appeared directories expanded by default — the user just navigated
-  // there, hiding the new node would feel broken. We only add, never
-  // remove, so user-collapsed directories stay collapsed.
-  useEffect(() => {
-    if (!hydrated) return;
-    setExpanded((prev) => {
-      let mutated = false;
-      const next = new Set(prev);
-      for (const dir of allDirPaths) {
-        if (!next.has(dir)) {
-          // Only auto-expand a brand-new dir that wasn't previously
-          // present at all. If the user already collapsed it before
-          // refresh, the stored state already covers that case.
-          next.add(dir);
-          mutated = true;
-        }
-      }
-      return mutated ? next : prev;
-    });
-  }, [allDirPaths, hydrated]);
+  const expanded = useMemo(() => {
+    const collapsed = pathSet(storedCollapsed);
+    return new Set(allDirPaths.filter((dir) => !collapsed.has(dir)));
+  }, [allDirPaths, storedCollapsed]);
 
   const toggleDir = useCallback(
     (dirPath: string) => {
-      setExpanded((prev) => {
-        const next = new Set(prev);
-        if (next.has(dirPath)) next.delete(dirPath);
-        else next.add(dirPath);
-        writeExpansionState(slug, next);
-        return next;
+      setStoredCollapsed((prev) => {
+        const present = new Set(allDirPaths);
+        const collapsed = pathSet(prev);
+        if (collapsed.has(dirPath)) collapsed.delete(dirPath);
+        else collapsed.add(dirPath);
+        // Folders that left the bundle are forgotten.
+        return [...collapsed].filter((path) => present.has(path));
       });
     },
-    [slug],
+    [allDirPaths, setStoredCollapsed],
   );
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
-    const { key } = event;
-    if (
-      ![
-        'ArrowDown',
-        'ArrowUp',
-        'ArrowLeft',
-        'ArrowRight',
-        'Home',
-        'End',
-      ].includes(key)
-    ) {
-      return;
-    }
-    const items =
-      treeRef.current?.querySelectorAll<HTMLButtonElement>('[role="treeitem"]');
-    if (!items || items.length === 0) return;
-    event.preventDefault();
-
-    const current = document.activeElement;
-    let idx = -1;
-    items.forEach((el, i) => {
-      if (el === current) idx = i;
-    });
-
-    if (key === 'ArrowDown') {
-      const next = idx === -1 ? 0 : Math.min(idx + 1, items.length - 1);
-      items[next]?.focus();
-      return;
-    }
-    if (key === 'ArrowUp') {
-      const next = idx === -1 ? items.length - 1 : Math.max(idx - 1, 0);
-      items[next]?.focus();
-      return;
-    }
-    if (key === 'Home') {
-      items[0]?.focus();
-      return;
-    }
-    if (key === 'End') {
-      items[items.length - 1]?.focus();
-      return;
-    }
-    if (key === 'ArrowRight' || key === 'ArrowLeft') {
-      if (idx === -1) return;
-      const el = items[idx];
-      const dirPath = el.dataset.dirPath;
-      const parentPath = el.dataset.parentPath;
-      if (key === 'ArrowRight' && dirPath !== undefined) {
-        if (!expanded.has(dirPath)) {
-          toggleDir(dirPath);
-        } else {
-          // Already expanded — move into the first child if present.
-          const nextIdx = Math.min(idx + 1, items.length - 1);
-          items[nextIdx]?.focus();
-        }
-        return;
-      }
-      if (key === 'ArrowLeft') {
-        if (dirPath !== undefined && expanded.has(dirPath)) {
-          toggleDir(dirPath);
-          return;
-        }
-        // Leaf or collapsed dir — jump to parent dir row if one exists.
-        if (parentPath) {
-          const parent = treeRef.current?.querySelector<HTMLButtonElement>(
-            `[data-dir-path="${CSS.escape(parentPath)}"]`,
-          );
-          parent?.focus();
-        }
-      }
-    }
-  };
+  const entryPath =
+    bundleTreeEntryPath(tree, expanded, selectedPath) ?? SKILL_MD;
 
   // Inline "Bundle · N files" header (replaces the old separate boxed
   // "Bundle files" stat) — falls back to just "Bundle" while the count loads.
@@ -325,16 +178,20 @@ export function SkillBundleTreePanel({
           ref={treeRef}
           role="tree"
           aria-label={heading}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(event) =>
+            treeNavigationKeyDown(event, treeRef.current, expanded, toggleDir)
+          }
           className="m-0 list-none p-0"
         >
           <li role="none">
             <TreeRowButton
               isActive={selectedPath === SKILL_MD}
+              tabbable={entryPath === SKILL_MD}
               depth={0}
               onClick={() => onSelectPath(SKILL_MD)}
               title={SKILL_MD}
               ariaLabel={SKILL_MD}
+              className={TOP_LEVEL_ROW}
             >
               <span className="size-3 shrink-0" aria-hidden />
               <FileText className="size-3.5 shrink-0" aria-hidden />
@@ -361,6 +218,7 @@ export function SkillBundleTreePanel({
                 parentPath={null}
                 expanded={expanded}
                 selectedPath={selectedPath}
+                entryPath={entryPath}
                 onSelectPath={onSelectPath}
                 onToggleDir={toggleDir}
               />
@@ -376,9 +234,11 @@ interface TreeNodeRowProps {
   node: BundleTreeNode;
   depth: number;
   parentPath: string | null;
-  expanded: Set<string>;
+  expanded: ReadonlySet<string>;
   /** Selected file path, or `null` when the overview (no file) is shown. */
   selectedPath: string | null;
+  /** The one row Tab lands on (`bundleTreeEntryPath`). */
+  entryPath: string;
   onSelectPath: (path: string) => void;
   onToggleDir: (path: string) => void;
 }
@@ -389,15 +249,18 @@ function TreeNodeRow({
   parentPath,
   expanded,
   selectedPath,
+  entryPath,
   onSelectPath,
   onToggleDir,
 }: TreeNodeRowProps) {
+  const rowClassName = depth === 0 ? TOP_LEVEL_ROW : undefined;
   if (node.kind === 'dir') {
     const isOpen = expanded.has(node.path);
     return (
       <li role="none">
         <TreeRowButton
           isActive={false}
+          tabbable={entryPath === node.path}
           depth={depth}
           onClick={() => onToggleDir(node.path)}
           title={node.path}
@@ -405,6 +268,7 @@ function TreeNodeRow({
           ariaExpanded={isOpen}
           dataDirPath={node.path}
           dataParentPath={parentPath}
+          className={rowClassName}
         >
           {isOpen ? (
             <ChevronDown
@@ -440,6 +304,7 @@ function TreeNodeRow({
                 parentPath={node.path}
                 expanded={expanded}
                 selectedPath={selectedPath}
+                entryPath={entryPath}
                 onSelectPath={onSelectPath}
                 onToggleDir={onToggleDir}
               />
@@ -450,16 +315,17 @@ function TreeNodeRow({
     );
   }
   const Icon = iconForPath(node.path);
-  const isActive = selectedPath === node.path;
   return (
     <li role="none">
       <TreeRowButton
-        isActive={isActive}
+        isActive={selectedPath === node.path}
+        tabbable={entryPath === node.path}
         depth={depth}
         onClick={() => onSelectPath(node.path)}
         title={node.path}
         ariaLabel={node.path}
         dataParentPath={parentPath}
+        className={rowClassName}
       >
         <span className="size-3 shrink-0" aria-hidden />
         <Icon className="size-3 shrink-0" aria-hidden />
@@ -468,56 +334,5 @@ function TreeNodeRow({
         </span>
       </TreeRowButton>
     </li>
-  );
-}
-
-interface TreeRowButtonProps {
-  isActive: boolean;
-  depth: number;
-  onClick: () => void;
-  title: string;
-  ariaLabel: string;
-  ariaExpanded?: boolean;
-  dataDirPath?: string;
-  dataParentPath?: string | null;
-  children: React.ReactNode;
-}
-
-function TreeRowButton({
-  isActive,
-  depth,
-  onClick,
-  title,
-  ariaLabel,
-  ariaExpanded,
-  dataDirPath,
-  dataParentPath,
-  children,
-}: TreeRowButtonProps) {
-  const base =
-    depth === 0
-      ? 'flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm'
-      : 'flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs';
-  const state = isActive
-    ? 'bg-muted text-foreground'
-    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground';
-  return (
-    <button
-      type="button"
-      role="treeitem"
-      aria-selected={isActive}
-      aria-level={depth + 1}
-      tabIndex={isActive ? 0 : -1}
-      onClick={onClick}
-      title={title}
-      aria-label={ariaLabel}
-      aria-expanded={ariaExpanded}
-      data-dir-path={dataDirPath}
-      data-parent-path={dataParentPath ?? undefined}
-      style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
-      className={`${base} ${state} focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none`}
-    >
-      {children}
-    </button>
   );
 }

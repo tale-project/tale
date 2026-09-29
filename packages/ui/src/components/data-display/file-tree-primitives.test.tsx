@@ -115,3 +115,28 @@ describe('TreeRowButton default semantics', () => {
     expect(row).not.toHaveAttribute('aria-current');
   });
 });
+
+describe('TreeRowButton className', () => {
+  it("merges over the row's own classes, so a top level can read larger", () => {
+    render(
+      <ul role="tree" aria-label="Files">
+        <li role="none">
+          <TreeRowButton
+            isActive={false}
+            depth={0}
+            onClick={() => undefined}
+            title="references"
+            ariaLabel="references/"
+            className="py-1.5 text-sm"
+          >
+            references
+          </TreeRowButton>
+        </li>
+      </ul>,
+    );
+    const row = screen.getByRole('treeitem', { name: 'references/' });
+    expect(row).toHaveClass('py-1.5', 'text-sm', 'text-muted-foreground');
+    expect(row).not.toHaveClass('py-1');
+    expect(row).not.toHaveClass('text-xs');
+  });
+});

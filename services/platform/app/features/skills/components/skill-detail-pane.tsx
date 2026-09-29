@@ -203,6 +203,7 @@ export function SkillDetailPane({
       <div className="grid min-h-0 flex-1 gap-4 overflow-hidden md:grid-cols-[16rem_1fr]">
         <div className="min-h-0 overflow-y-auto">
           <SkillBundleTreePanel
+            organizationId={organizationId}
             assets={assets}
             slug={slug}
             selectedPath={selectedPath}
