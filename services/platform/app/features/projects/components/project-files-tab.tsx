@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
@@ -31,7 +32,14 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { DocumentDeleteDialog } from '@/app/features/documents/components/document-delete-dialog';
 import { DocumentHistoryDialog } from '@/app/features/documents/components/document-history-dialog';
@@ -276,8 +284,10 @@ export function ProjectFilesTab({
   const navigate = useNavigate();
   const policyLimits = useUploadPolicy(organizationId);
   const { project } = useProject(projectId);
-  const { documents, isLoading } = useProjectDocuments(projectId);
-  const { folders } = useProjectFolders(projectId);
+  const documentsRead = useProjectDocuments(projectId);
+  const { documents, isLoading } = documentsRead;
+  const foldersRead = useProjectFolders(projectId);
+  const { folders } = foldersRead;
   const { mutateAsync: detachDocument } = useDetachDocumentFromProject();
   const { mutateAsync: deleteFolder } = useDeleteFolder();
   const { mutateAsync: createFolder } = useCreateFolder();
@@ -318,6 +328,9 @@ export function ProjectFilesTab({
     parentId?: string;
   } | null>(null);
   const treeRef = useRef<HTMLUListElement | null>(null);
+  // Where focus goes when a retry replaces the control that ran it.
+  const treeAreaRef = useRef<HTMLDivElement | null>(null);
+  const unplacedLabelId = useId();
   const hydratedFolderIdRef = useRef<string | null>(null);
   const hydratedCreateFolderRef = useRef(false);
   const hydratedHistoryRef = useRef<string | null>(null);
@@ -487,6 +500,23 @@ export function ProjectFilesTab({
     () => buildTree(folders, documents),
     [folders, documents],
   );
+
+  // A failed read is named above the tree with one retry, never shown as an
+  // empty project (#3736). Files are listed whenever their read answered: a
+  // file whose folder is not among the folders that loaded — none did, or
+  // the folder is newer than their last answer — sits in its own group
+  // rather than vanishing with the folder.
+  const documentsUnavailable = documentsRead.unavailable;
+  const foldersUnavailable = foldersRead.unavailable;
+  const readStale = documentsRead.stale || foldersRead.stale;
+  const readFailed = documentsUnavailable || foldersUnavailable || readStale;
+  const unplacedFiles = useMemo(() => {
+    if (!foldersUnavailable && !foldersRead.stale) return [];
+    const loadedFolderIds = new Set(folders.map((folder) => folder._id));
+    return documents.filter(
+      (doc) => doc.folderId && !loadedFolderIds.has(doc.folderId),
+    );
+  }, [documents, folders, foldersUnavailable, foldersRead.stale]);
 
   const selectedFolderName = useMemo(() => {
     if (!selectedFolderId) return null;
@@ -1114,7 +1144,29 @@ export function ProjectFilesTab({
 
   const rootFolders = childFolders.get('') ?? [];
   const rootFiles = filesByFolder.get('') ?? [];
-  const isEmpty = rootFolders.length === 0 && documents.length === 0;
+  const hasTreeRows =
+    rootFolders.length > 0 || rootFiles.length > 0 || unplacedFiles.length > 0;
+  // Empty only when both reads answered, with nothing.
+  const isEmpty =
+    !readFailed && rootFolders.length === 0 && documents.length === 0;
+  // The tree waits for both reads, so nested files never appear only once
+  // their folders catch up; a read that failed ends the wait.
+  const treeLoading = !readFailed && (isLoading || foldersRead.isLoading);
+  const treeFailure =
+    documentsUnavailable && foldersUnavailable
+      ? t('files.treeLoadFailed')
+      : documentsUnavailable
+        ? t('files.loadFailed')
+        : foldersUnavailable
+          ? t('files.foldersLoadFailed')
+          : t('files.refreshFailed');
+  const retryTree = () => {
+    // Onto the tree first: the alert that held focus goes once the reads
+    // answer.
+    treeAreaRef.current?.focus();
+    if (documentsUnavailable || documentsRead.stale) documentsRead.retry();
+    if (foldersUnavailable || foldersRead.stale) foldersRead.retry();
+  };
 
   return (
     <ProjectFilesFrame
@@ -1132,35 +1184,70 @@ export function ProjectFilesTab({
       }
     >
       <FormSection>
-        {!isEmpty ? (
-          /* A plain list, not a `role="tree"`: each row sits beside its own
+        <div
+          ref={treeAreaRef}
+          role="group"
+          aria-label={t('files.title')}
+          tabIndex={-1}
+          className="flex flex-col gap-3 outline-none empty:hidden"
+        >
+          {readFailed ? (
+            <CatalogLoadError
+              // A fresh alert for each failure, so a retry that fails again is
+              // announced again.
+              key={documentsRead.failureCount + foldersRead.failureCount}
+              message={treeFailure}
+              onRetry={retryTree}
+              isRetrying={documentsRead.retrying || foldersRead.retrying}
+            />
+          ) : null}
+          {treeLoading ? (
+            <ProjectFilesTreeSkeleton canEdit={canEdit} />
+          ) : hasTreeRows ? (
+            /* A plain list, not a `role="tree"`: each row sits beside its own
              Preview / History / Remove / menu buttons, which a tree cannot
              own (axe `aria-required-children`). Rows keep aria-expanded,
              aria-current and the arrow-key navigation. */
-          <ul
-            ref={treeRef}
-            aria-label={t('files.treeLabel', { defaultValue: 'Project files' })}
-            className="rounded-lg border p-2"
-            onKeyDown={(event) =>
-              treeNavigationKeyDown(event, treeRef.current, expanded, (id) =>
-                toggleFolder(id),
-              )
-            }
-          >
-            {rootFolders.map((folder) => renderFolder(folder, 0))}
-            {rootFiles.map((doc) => renderFileRow(doc, 0))}
-          </ul>
-        ) : isLoading ? (
-          <ProjectFilesTreeSkeleton canEdit={canEdit} />
-        ) : !canEdit ? (
-          // An editor's empty project needs no second dashed box: the upload
-          // area below is the empty state, and the one place to act on it.
-          <EmptyState
-            icon={FileText}
-            title={t('files.emptyTitle')}
-            className="rounded-lg border border-dashed py-8"
-          />
-        ) : null}
+            <ul
+              ref={treeRef}
+              aria-label={t('files.treeLabel', {
+                defaultValue: 'Project files',
+              })}
+              className="rounded-lg border p-2"
+              onKeyDown={(event) =>
+                treeNavigationKeyDown(event, treeRef.current, expanded, (id) =>
+                  toggleFolder(id),
+                )
+              }
+            >
+              {rootFolders.map((folder) => renderFolder(folder, 0))}
+              {rootFiles.map((doc) => renderFileRow(doc, 0))}
+              {unplacedFiles.length > 0 ? (
+                <li>
+                  <Text
+                    as="span"
+                    variant="caption"
+                    id={unplacedLabelId}
+                    className="block px-2 pt-2 pb-1"
+                  >
+                    {t('files.unplacedGroup')}
+                  </Text>
+                  <ul aria-labelledby={unplacedLabelId}>
+                    {unplacedFiles.map((doc) => renderFileRow(doc, 1))}
+                  </ul>
+                </li>
+              ) : null}
+            </ul>
+          ) : isEmpty && !canEdit ? (
+            // An editor's empty project needs no second dashed box: the upload
+            // area below is the empty state, and the one place to act on it.
+            <EmptyState
+              icon={FileText}
+              title={t('files.emptyTitle')}
+              className="rounded-lg border border-dashed py-8"
+            />
+          ) : null}
+        </div>
 
         {canEdit ? (
           <FileUpload.Root>
@@ -1173,7 +1260,7 @@ export function ProjectFilesTab({
               aria-label={t('files.addButton')}
               className={cn(
                 'hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors',
-                isEmpty && !isLoading && 'py-12',
+                isEmpty && !treeLoading && 'py-12',
               )}
             >
               <Upload

@@ -5308,6 +5308,11 @@ projects:
     newSubfolderAction: New folder inside
     uploadingIndicator: Uploading…
     historyAction: Version history
+    loadFailed: "Couldn't load this project's files."
+    foldersLoadFailed: "Couldn't load this project's folders. Files inside folders are listed separately until the folders load."
+    treeLoadFailed: "Couldn't load this project's files and folders."
+    refreshFailed: "Couldn't refresh this project's files. What's shown may be out of date."
+    unplacedGroup: Files inside folders
   threads:
     yourChats: Your chats
     subtitle: Chats you've started in this project.

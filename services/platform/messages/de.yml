@@ -8161,6 +8161,11 @@ projects:
     newSubfolderAction: Neuer Unterordner
     uploadingIndicator: Wird hochgeladen…
     historyAction: Versionsverlauf
+    loadFailed: Die Dateien dieses Projekts konnten nicht geladen werden.
+    foldersLoadFailed: Die Ordner dieses Projekts konnten nicht geladen werden. Dateien in Ordnern stehen gesondert da, bis die Ordner geladen sind.
+    treeLoadFailed: Die Dateien und Ordner dieses Projekts konnten nicht geladen werden.
+    refreshFailed: Die Dateien dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+    unplacedGroup: Dateien in Ordnern
   threads:
     yourChats: Deine Chats
     subtitle: Chats, die du in diesem Projekt gestartet hast.

@@ -8263,6 +8263,11 @@ projects:
     newSubfolderAction: Nouveau sous-dossier
     uploadingIndicator: Envoi en cours…
     historyAction: Historique des versions
+    loadFailed: Impossible de charger les fichiers de ce projet.
+    foldersLoadFailed: "Impossible de charger les dossiers de ce projet. Les fichiers placés dans des dossiers sont listés à part jusqu'au chargement des dossiers."
+    treeLoadFailed: Impossible de charger les fichiers et les dossiers de ce projet.
+    refreshFailed: "Impossible d'actualiser les fichiers de ce projet. L'affichage n'est peut-être plus à jour."
+    unplacedGroup: Fichiers dans des dossiers
   threads:
     yourChats: Tes chats
     subtitle: Les chats que tu as démarrés dans ce projet.
