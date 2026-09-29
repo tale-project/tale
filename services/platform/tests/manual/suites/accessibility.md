@@ -1,6 +1,6 @@
 # Accessibility (cross-cutting)
 
-> **Prefix** `A11Y-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `A11Y-` · **Reset** none · **Cost** 27 boxes
 
 A WCAG 2.1 **Level AA** sweep across the whole app. Tale's standard (root
 [`AGENTS.md`](../../../AGENTS.md) → Accessibility) is mandatory, not
@@ -139,6 +139,22 @@ component-level axe coverage comes from `vitest-axe` via
   track and every **(optional)** label suffix (`common.optional`) reads
   ≥ 4.5:1 on the dialog; the suffix is the full muted colour, not a faded
   copy of it.
+- [ ] `A11Y-A19` · **Filter panels by keyboard** — With the keyboard alone,
+  on a project's **Board**: Tab to **Filter** (`common.labels.filter`) and
+  press Enter; press Enter on **Assignee** (`tasks.fields.assignee`), Tab into
+  it and press ArrowDown twice; Tab on to **Priority** (`tasks.fields.priority`),
+  press Enter, Tab, ArrowDown, then Space; press Shift+Tab, then Escape; repeat
+  on **Settings → Metrics → Projects**, whose **Period** (`metrics.period.label`)
+  always holds a value → The panel opens with the focus on its first facet's
+  header, never on **Clear all** and never left on **Filter**, and Tab stays
+  inside the panel; each single-choice facet is one Tab stop (its chosen
+  option, else its first) and the other options are out of the tab order;
+  each arrow key moves the focus and the choice together, wraps at the ends,
+  and the board narrows at once, the option announced as checked; Tab leaves
+  the facet for the next header; Space on the chosen option clears an
+  optional facet and puts **Period** back to its default; every focused
+  option shows the focus ring; Escape closes the panel with the focus back on
+  **Filter**.
 
 ## Boundary & error tests
 

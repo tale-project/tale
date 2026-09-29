@@ -179,6 +179,8 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 
 Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep proposals in [Backlog](/platform/projects/backlog) until they are ready to start; use labels for distinctions that do not need another status.
 
+With the keyboard, press **Enter** on **Filter**: the panel opens on its first filter, **Assignee**. Press **Enter** to expand it and **Tab** to reach its options. The arrow keys choose one, and the board follows at once. **Space** on the chosen option clears it, **Tab** moves on to the next filter, and **Escape** closes the panel.
+
 In **Board** and **List**, press **Tab** until the task title is focused, then press **Enter** to open the task.
 
 If you can edit the task, press **Space** on its title to pick it up, move it with the arrow keys, and press **Space** again to drop it. **Escape** cancels the move and leaves the task where it was. A screen reader names the task when you pick it up and announces its status and position as you move it.

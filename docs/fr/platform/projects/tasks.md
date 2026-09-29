@@ -179,6 +179,8 @@ Passe la tâche à **Terminé** lorsqu’elle répond au besoin. Si l’agent do
 
 Réduis le tableau avec les filtres ou passe à la liste pour parcourir les tâches ligne par ligne. Garde les propositions dans le [Backlog](/fr/platform/projects/backlog) jusqu’à leur démarrage. Utilise des étiquettes pour les distinctions qui ne demandent pas un nouveau statut.
 
+Au clavier, appuie sur **Entrée** sur **Filtre** : le panneau s’ouvre sur son premier filtre, **Assigné à**. Appuie sur **Entrée** pour le déplier, puis sur **Tab** pour atteindre ses options. Les touches fléchées en choisissent une, et le tableau suit aussitôt. **Espace** sur l’option choisie l’annule, **Tab** passe au filtre suivant et **Échap** ferme le panneau.
+
 Dans les vues **Tableau** et **Liste**, appuie sur **Tab** jusqu’à placer le focus sur le titre de la tâche, puis sur **Entrée** pour l’ouvrir.
 
 Si tu peux modifier la tâche, place le focus sur son titre et appuie sur **Espace** pour la saisir. Déplace-la avec les touches fléchées, puis appuie de nouveau sur **Espace** pour la déposer. **Échap** annule le déplacement et laisse la tâche à sa place. Un lecteur d’écran nomme la tâche quand tu la saisis, puis annonce son statut et sa position pendant le déplacement.

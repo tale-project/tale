@@ -179,6 +179,8 @@ Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ei
 
 Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu überfliegen. Lass Vorschläge im [Backlog](/de/platform/projects/backlog), bis sie begonnen werden sollen. Nutze Labels für Unterscheidungen, die keinen eigenen Status brauchen.
 
+Mit der Tastatur drückst du **Enter** auf **Filter**: Das Panel öffnet sich beim ersten Filter, **Zuständig**. Mit **Enter** klappst du ihn auf, mit **Tab** erreichst du seine Optionen. Die Pfeiltasten wählen eine aus, und das Board folgt sofort. Die **Leertaste** auf der gewählten Option hebt die Auswahl auf, **Tab** führt zum nächsten Filter, und **Escape** schließt das Panel.
+
 In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Tab**. Drücke dann **Enter**, um die Aufgabe zu öffnen.
 
 Kannst du die Aufgabe bearbeiten, drückst du auf ihrem Titel die **Leertaste**, um sie aufzunehmen. Verschiebe sie mit den Pfeiltasten und lege sie mit der **Leertaste** wieder ab. **Escape** bricht das Verschieben ab und lässt die Aufgabe, wo sie war. Ein Screenreader nennt die Aufgabe beim Aufnehmen und sagt beim Verschieben ihren Status und ihre Position an.
