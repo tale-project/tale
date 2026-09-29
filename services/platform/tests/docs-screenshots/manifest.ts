@@ -180,17 +180,34 @@ const RIG_SECRETS: readonly RigSwap[] = [
  * origin (a redirect URL, a connection URL, an API endpoint, a link the app
  * builds from `window.location`), the mock gateway's names and the rig's
  * secrets become what a customer's page shows, in text and in read-only
- * fields alike, so no published image shows the rig. The origin is the
- * page's own, so a stack on another port (`E2E_BASE_URL`) is sanitized too.
- * It keeps swapping until the capture: a field a late query remounts or
- * refills prints the rig's values again, after the pass that ran when the
- * shot was ready.
+ * fields alike, so no published image shows the rig. The origins are the
+ * page's own and the ones the deployment reports (`SITE_URL`,
+ * `SITE_ORIGINS`), so a stack on another port or host name (`E2E_BASE_URL`)
+ * is sanitized too. It keeps swapping until the capture: a field a late
+ * query remounts or refills prints the rig's values again, after the pass
+ * that ran when the shot was ready.
  */
 const replaceRigNames = async (page: Page): Promise<void> => {
   await page.evaluate(
     ({ swaps, secrets }) => {
+      // The app prints absolute URLs from the origins the deployment
+      // reports, which a capture on another host name does not share.
+      const origins = new Set(
+        [
+          window.location.href,
+          window.__ENV__?.SITE_URL,
+          ...(window.__ENV__?.SITE_ORIGINS ?? []),
+        ]
+          .filter(
+            (url): url is string => url !== undefined && URL.canParse(url),
+          )
+          .map((url) => new URL(url).origin),
+      );
       const literals: RigSwap[] = [
-        [window.location.origin, 'https://tale.yourcompany.com'],
+        ...[...origins].map((origin): RigSwap => [
+          origin,
+          'https://tale.yourcompany.com',
+        ]),
         ...swaps,
       ];
       const matchers = secrets.map(
@@ -217,13 +234,18 @@ const replaceRigNames = async (page: Page): Promise<void> => {
         for (const field of document.querySelectorAll<
           HTMLInputElement | HTMLTextAreaElement
         >('input, textarea')) {
-          const next = swap(field.value);
-          if (next !== field.value) field.value = next;
+          // The default too: React writes a controlled field's value back
+          // without a trace, but then re-syncs a default that differs from
+          // it, and the observer sees that attribute change.
+          for (const key of ['value', 'defaultValue'] as const) {
+            const next = swap(field[key]);
+            if (next !== field[key]) field[key] = next;
+          }
         }
       };
       sweep();
-      // A swap writes text the sweep no longer matches, so the observer
-      // settles after one extra, empty pass.
+      // Swapping is idempotent: the pass a swap itself triggers finds
+      // nothing left to change, so the observer settles.
       new MutationObserver(sweep).observe(document.body, {
         childList: true,
         subtree: true,
