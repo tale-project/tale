@@ -178,8 +178,12 @@ describe('OneDriveImportDialog', () => {
     );
   });
 
+  // The provider's own answer used to stand under the title, in English.
   it('stops the import when a folder cannot be listed at all', async () => {
-    mockListFiles.mockResolvedValue({ success: false, error: 'Graph 503' });
+    mockListFiles.mockResolvedValue({
+      success: false,
+      error: 'OneDrive API error: 503 {"error":{"code":"serviceNotAvailable"}}',
+    });
     const user = userEvent.setup();
     render(<OneDriveImportDialog {...defaultProps} />);
 
@@ -192,10 +196,43 @@ describe('OneDriveImportDialog', () => {
     );
 
     expect(mockImportFiles).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: 'documents.onedrive.importFailed',
+      description: 'common.errors.generic',
+    });
+  });
+
+  // The import's own `error` is the backend's English — the grant check's
+  // sentence when the token could not be had.
+  it("keeps an unsuccessful import answer's own words out of the toast", async () => {
+    mockImportFiles.mockResolvedValueOnce({
+      success: false,
+      results: [],
+      totalFiles: 0,
+      successCount: 0,
+      failedCount: 0,
+      skippedCount: 0,
+      error:
+        'OneDrive is not authorized for importing. Connect Microsoft 365 from Documents.',
+    });
+    const user = userEvent.setup();
+    render(<OneDriveImportDialog {...defaultProps} />);
+
+    await user.click(meetingsCheckbox());
+    await user.click(
+      screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    );
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
         variant: 'destructive',
-        description: 'Graph 503',
+        title: 'documents.onedrive.importFailed',
+        description: 'common.errors.generic',
       }),
     );
   });
