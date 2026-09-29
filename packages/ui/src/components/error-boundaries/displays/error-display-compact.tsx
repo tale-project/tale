@@ -8,6 +8,7 @@ import { Text } from '@tale/ui/text';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
 
+import { useFocusHandoff } from '../../../hooks/use-focus-handoff';
 import { supportUrlFor, useSupportUrl } from '../core/support-url';
 import { useErrorLogger } from '../hooks/use-error-logger';
 
@@ -24,6 +25,13 @@ interface ErrorDisplayCompactProps {
    * `SupportUrlProvider`, else `https://tale.dev/contact`.
    */
   supportUrl?: string;
+  /**
+   * Takes the focus this display held when it leaves — a data table's error
+   * state that a refresh replaced with its loading state or its rows — so
+   * the focus lands on a stable target instead of the page. Focus the reader
+   * moved elsewhere stays where it is.
+   */
+  onFocusLost?: () => void;
 }
 
 /**
@@ -53,10 +61,12 @@ export function ErrorDisplayCompact({
   organizationId,
   reset,
   supportUrl,
+  onFocusLost,
 }: ErrorDisplayCompactProps) {
   const { t } = useT('common');
   const logError = useErrorLogger();
   const supportHref = supportUrlFor(useSupportUrl(supportUrl), organizationId);
+  const handoffRef = useFocusHandoff<HTMLDivElement>(onFocusLost);
 
   // Log error on mount
   useEffect(() => {
@@ -67,7 +77,7 @@ export function ErrorDisplayCompact({
   }, [error, organizationId, logError]);
 
   return (
-    <Center className="min-h-200 flex-col px-4 py-16">
+    <Center ref={handoffRef} className="min-h-200 flex-col px-4 py-16">
       <Stack gap={4} className="w-full max-w-md text-center">
         {/* Error icon */}
         <Center>

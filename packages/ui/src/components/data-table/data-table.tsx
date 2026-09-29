@@ -304,6 +304,15 @@ export interface DataTableProps<TData, TValue = unknown> {
   error?: Error | null;
   /** Callback when retry is clicked */
   onRetry?: () => void;
+  /**
+   * Takes the focus the error state held when it leaves: a refresh the
+   * reader did not start (the tab regaining focus, another session's
+   * change) replaces it with the loading state, and later with the rows.
+   * Pass a stable, named target around the table — the list's region — so
+   * the focus does not drop to the page. Focus the reader moved elsewhere
+   * stays where it is.
+   */
+  onErrorFocusLost?: () => void;
 }
 
 /**
@@ -357,6 +366,7 @@ export function DataTable<TData, TValue = unknown>({
   isLoading = false,
   error,
   onRetry,
+  onErrorFocusLost,
 }: DataTableProps<TData, TValue>) {
   const { t } = useT('common');
   const { organizationId: orgId } = useErrorScope();
@@ -607,6 +617,7 @@ export function DataTable<TData, TValue = unknown>({
         error={error}
         organizationId={orgId}
         reset={onRetry || (() => {})}
+        onFocusLost={onErrorFocusLost}
       />
     );
   }
