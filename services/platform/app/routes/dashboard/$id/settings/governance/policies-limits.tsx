@@ -8,6 +8,7 @@ import { DataNoticePolicyEditor } from '@/app/features/settings/governance/compo
 import { FeatureFlagsEditor } from '@/app/features/settings/governance/components/feature-flags-editor';
 import { PersonalizationPolicyEditor } from '@/app/features/settings/governance/components/personalization-policy-editor';
 import { RetentionEditor } from '@/app/features/settings/governance/components/retention-editor';
+import { SkillSharingPolicyEditor } from '@/app/features/settings/governance/components/skill-sharing-policy-editor';
 import { UploadPolicyEditor } from '@/app/features/settings/governance/components/upload-policy-editor';
 import { VoiceOutputPolicyEditor } from '@/app/features/settings/governance/components/voice-output-policy-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
@@ -27,6 +28,7 @@ export const Route = createFileRoute(
       'voice_output',
       'data_classification_notice',
       'conversation_routing',
+      'skill_sharing',
     ]).catch((error: unknown) => {
       console.warn('Failed to preload policies-limits policies', error);
     }),
@@ -57,6 +59,7 @@ function PoliciesLimitsRoute() {
         <PersonalizationPolicyEditor organizationId={organizationId} />
         <VoiceOutputPolicyEditor organizationId={organizationId} />
         <DataNoticePolicyEditor organizationId={organizationId} />
+        <SkillSharingPolicyEditor organizationId={organizationId} />
         <ConversationRoutingPolicyEditor
           organizationId={organizationId}
           openAddRule={Boolean(openRoutingRule)}

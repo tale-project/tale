@@ -6,17 +6,20 @@
  * permanently null and the editor blank.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-const { useSkill, useOrgTeams, saveSkill } = vi.hoisted(() => ({
-  useSkill: vi.fn(),
-  useOrgTeams: vi.fn(),
-  saveSkill: vi.fn().mockResolvedValue(undefined),
-}));
+const { useSkill, useSkillPublishing, useOrgTeams, saveSkill } = vi.hoisted(
+  () => ({
+    useSkill: vi.fn(),
+    useSkillPublishing: vi.fn(),
+    useOrgTeams: vi.fn(),
+    saveSkill: vi.fn().mockResolvedValue(undefined),
+  }),
+);
 
-vi.mock('../hooks/queries', () => ({ useSkill }));
+vi.mock('../hooks/queries', () => ({ useSkill, useSkillPublishing }));
 vi.mock('../hooks/mutations', () => ({
   useSaveSkill: () => ({ mutateAsync: saveSkill, isPending: false }),
   useDeleteSkill: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -63,6 +66,11 @@ function mountPane(slug: string) {
     />,
   );
 }
+
+beforeEach(() => {
+  saveSkill.mockClear();
+  useSkillPublishing.mockReturnValue({ mode: 'everyone', allowed: true });
+});
 
 describe('SkillDetailPane', () => {
   // The door keeps a stored icon when the field is omitted and clears it on
@@ -180,6 +188,103 @@ describe('SkillDetailPane', () => {
       });
       mountPane('invoices');
       expect(rowValue('Created by')).toBe('Configuration release · Ops Bot');
+    });
+  });
+
+  describe('when the organization reserves organization-wide skills', () => {
+    const reserved = { mode: 'admins', allowed: false };
+    const reason =
+      'Your organization reserves sharing with everyone for owners and admins, and members an admin allowed.';
+
+    it('says why an organization-wide skill cannot be changed in place, and keeps Save off while it stays shared with everyone', async () => {
+      useSkillPublishing.mockReturnValue(reserved);
+      useOrgTeams.mockReturnValue({
+        teams: [{ id: 'team-red', name: 'Red' }],
+        isLoading: false,
+      });
+      useSkill.mockReturnValue({
+        data: skillDoc('alpha', 'Alpha body'),
+        isPending: false,
+      });
+      const { user } = mountPane('alpha');
+
+      // The reason heads the notice and stands in for Organization's help.
+      expect(screen.getAllByText(reason)).toHaveLength(2);
+      expect(
+        screen.getByText(
+          'While it stays shared with the whole organization, only a member allowed to publish can change it. You can narrow it to your teams (and edit it in the same save) or delete it.',
+        ),
+      ).toBeInTheDocument();
+      await user.clear(screen.getByDisplayValue('Alpha body'));
+      await user.type(
+        screen.getByRole('textbox', { name: /Instructions/ }),
+        'Changed',
+      );
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+      // The Organization audience itself is withheld, with the same reason.
+      expect(
+        screen.getByRole('radio', { name: /Organization/ }),
+      ).toBeDisabled();
+      expect(saveSkill).not.toHaveBeenCalled();
+    });
+
+    it('lets its owner narrow it to a team in the same save', async () => {
+      useSkillPublishing.mockReturnValue(reserved);
+      useOrgTeams.mockReturnValue({
+        teams: [{ id: 'team-red', name: 'Red' }],
+        isLoading: false,
+      });
+      useSkill.mockReturnValue({
+        data: skillDoc('alpha', 'Alpha body'),
+        isPending: false,
+      });
+      const { user } = mountPane('alpha');
+
+      await user.click(screen.getByRole('radio', { name: /Teams/ }));
+      await user.click(await screen.findByRole('button', { name: 'Confirm' }));
+      await user.click(
+        screen.getByRole('combobox', { name: /Shared with teams/ }),
+      );
+      await user.click(await screen.findByRole('option', { name: /Red/ }));
+      // Every step away from the whole organization asks first.
+      await user.click(await screen.findByRole('button', { name: 'Confirm' }));
+      // Close the team picker.
+      await user.keyboard('{Escape}');
+      await user.click(await screen.findByRole('button', { name: 'Save' }));
+
+      expect(saveSkill).toHaveBeenCalledWith(
+        expect.objectContaining({
+          slug: 'alpha',
+          visibility: 'team',
+          teams: ['team-red'],
+        }),
+      );
+    });
+
+    it('leaves a team skill editable, with Organization withheld', () => {
+      useSkillPublishing.mockReturnValue(reserved);
+      useOrgTeams.mockReturnValue({
+        teams: [{ id: 'team-red', name: 'Red' }],
+        isLoading: false,
+      });
+      useSkill.mockReturnValue({
+        data: {
+          ...skillDoc('alpha', 'Alpha body'),
+          visibility: 'team',
+          teams: ['team-red'],
+        },
+        isPending: false,
+      });
+      mountPane('alpha');
+
+      expect(
+        screen.queryByText(
+          'While it stays shared with the whole organization, only a member allowed to publish can change it. You can narrow it to your teams (and edit it in the same save) or delete it.',
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('radio', { name: /Organization/ }),
+      ).toBeDisabled();
     });
   });
 });

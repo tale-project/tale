@@ -3069,6 +3069,19 @@ governance:
     enabledLabel: Voice output enabled for this organization
     saved: Voice-output policy updated
     saveFailed: Couldn't save the voice-output policy
+  skillSharing:
+    title: Skill sharing
+    description: Choose who may share a skill with the whole organization.
+      Anyone can still share a skill with their own teams, and a stricter
+      setting narrows no skill that is already shared with the organization.
+    label: Share skills with the organization
+    labelHint: Owners and admins always may. To allow one more member, grant
+      them Publish skills to the organization under Competences.
+    modes:
+      everyone: Every member
+      editors: Editors and above
+      admins: Owners and admins only
+    saveFailed: Couldn't save the skill sharing policy
   dataNotice:
     title: Confidentiality notice
     description:
@@ -3460,6 +3473,9 @@ governance:
       restActAs:
         label: Act for another member
         description: Name the member an API call answers a question or decides a review for, so the record shows that person instead of the key.
+      skillsPublish:
+        label: Publish skills to the organization
+        description: Share a skill with the whole organization even when the skill sharing policy reserves that for Editors or admins.
     empty:
       title: No competences granted yet
       description: Grant a member a platform capability or a qualification. It applies in this organization only.
@@ -4964,6 +4980,20 @@ skills:
     formerMember: Former member
     byMember: By {name}
     byFormerMember: By a former member
+  publishing:
+    reserved:
+      editors: Your organization reserves sharing with everyone for Editors
+        and above, and members an admin allowed.
+      admins: Your organization reserves sharing with everyone for owners and
+        admins, and members an admin allowed.
+    noTeams: You aren't in a team, and your organization reserves sharing
+      with everyone. Ask an admin to add you to a team or to let you publish
+      skills.
+    lockedEdit: While it stays shared with the whole organization, only a
+      member allowed to publish can change it. You can narrow it to your teams
+      (and edit it in the same save) or delete it.
+    uploadRefused: Set visibility to team with your team IDs in SKILL.md, or
+      ask an admin to upload this bundle.
   addMenu:
     label: Add skill
   createMenu:
@@ -6489,6 +6519,7 @@ settings:
         skill.updated: Skill updated
         skill.sharing_changed: Skill sharing changed
         skill.deleted: Skill deleted
+        skill.publish_denied: Skill publishing refused
         team.created: Team created
         team.updated: Team updated
         team.deleted: Team deleted

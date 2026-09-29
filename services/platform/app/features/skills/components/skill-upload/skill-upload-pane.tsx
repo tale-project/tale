@@ -9,6 +9,7 @@ import { useCallback, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { isAbortError } from '@/lib/utils/abort-error';
 
+import { useOrgReservedReason } from '../../hooks/use-org-reserved-reason';
 import { useSkillBundleUpload } from './hooks/use-skill-bundle-upload';
 import { useUploadSkill } from './hooks/use-upload-skill';
 import { PreviewStep } from './steps/preview-step';
@@ -35,6 +36,12 @@ export function SkillUploadPane({
   const { t: tCommon } = useT('common');
 
   const state = useUploadSkill();
+  const orgReservedReason = useOrgReservedReason(organizationId);
+  // An organization-wide bundle the viewer may not publish: the server
+  // would refuse it, so the preview says why and nothing is sent.
+  const orgWideReserved =
+    orgReservedReason !== undefined &&
+    state.parsedBundle?.meta.visibility === 'org';
   const { upload, isMountedRef } = useSkillBundleUpload(organizationId);
   const [confirmReplaceSlug, setConfirmReplaceSlug] = useState<string | null>(
     null,
@@ -95,7 +102,10 @@ export function SkillUploadPane({
             {state.step === 'upload' ? (
               <UploadStep mode={mode} onBundleParsed={state.setParsedBundle} />
             ) : state.parsedBundle ? (
-              <PreviewStep parsedBundle={state.parsedBundle} />
+              <PreviewStep
+                parsedBundle={state.parsedBundle}
+                orgReservedReason={orgReservedReason}
+              />
             ) : null}
           </div>
         </div>
@@ -118,7 +128,7 @@ export function SkillUploadPane({
               <Button
                 type="button"
                 onClick={() => void submit(false)}
-                disabled={!state.parsedBundle}
+                disabled={!state.parsedBundle || orgWideReserved}
                 isLoading={state.isSubmitting}
               >
                 {state.isSubmitting
