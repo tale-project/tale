@@ -303,15 +303,12 @@ function renderItem(item: DropdownMenuItem, key: number) {
           // activation — and preventDefault to keep the menu open. Routing
           // through `onClick` (pointer-only) would make the item unreachable by
           // keyboard; wiring both would double-fire on click.
-          onClick={item.keepOpen ? undefined : item.onClick}
-          onSelect={
-            item.keepOpen
-              ? (e) => {
-                  e.preventDefault();
-                  item.onClick?.();
-                }
-              : undefined
-          }
+          onSelect={(e) => {
+            if (item.keepOpen) {
+              e.preventDefault();
+            }
+            item.onClick?.();
+          }}
           disabled={item.disabled}
         >
           {Icon && <Icon />}
