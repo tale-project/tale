@@ -416,6 +416,16 @@ export async function checkDocumentTools(
       'PYTHONDONTWRITEBYTECODE=1',
       '--env',
       'PIP_NO_INDEX=1',
+      // The default session profile's 128-pid cap counts threads, and
+      // OpenBLAS (numpy) and libvips (sharp) size their pools to the host's
+      // cores. One thread each keeps this library check independent of the
+      // machine it runs on.
+      '--env',
+      'OPENBLAS_NUM_THREADS=1',
+      '--env',
+      'OMP_NUM_THREADS=1',
+      '--env',
+      'VIPS_CONCURRENCY=1',
       '--entrypoint',
       'python3',
       image,
