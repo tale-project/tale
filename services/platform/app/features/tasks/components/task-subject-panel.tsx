@@ -18,6 +18,7 @@ import { RunAskCard } from '@/app/features/automations/components/run-ask-card';
 import { useRunPendingAsk } from '@/app/features/automations/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -210,7 +211,11 @@ export function TaskSubjectPanel({
         toast({ title: reviewRefusal, variant: 'destructive' });
       } else {
         console.error('[tasks] subject-panel approve failed', error);
-        toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+        toast({
+          title: tCommon('errors.generic'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       }
     } finally {
       setBusy(false);
@@ -254,8 +259,8 @@ export function TaskSubjectPanel({
         toast({ title: t('run.alreadyRunning', { name: displayName }) });
       }
     } catch (error) {
+      // `useAddTaskComment`'s own toast reports the failure.
       console.error('[tasks] request-changes failed', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
     } finally {
       setBusy(false);
     }

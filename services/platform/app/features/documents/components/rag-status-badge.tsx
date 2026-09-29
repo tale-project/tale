@@ -10,6 +10,7 @@ import { Loader2, RotateCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/backend/core/knowledge/rag_error_codes';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
@@ -101,9 +102,11 @@ export function RagStatusBadge({
           variant: 'destructive',
         });
       }
-    } catch {
+    } catch (retryError) {
+      console.error('Failed to retry indexing:', retryError);
       toast({
         title: t('rag.toast.unexpectedError'),
+        description: failureDetail(retryError),
         variant: 'destructive',
       });
     }

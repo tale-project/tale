@@ -43,12 +43,15 @@ export function SkillMetadataFields({
   savedSharing,
   onChange,
   disabled,
+  orgReservedReason,
 }: {
   values: SkillMetadataValues;
   /** What the file on disk says — the narrowing warning's baseline. */
   savedSharing?: SkillSharingValue;
   onChange: (values: SkillMetadataValues) => void;
   disabled?: boolean;
+  /** Why the Organization audience is withheld from this viewer, if it is. */
+  orgReservedReason?: string;
 }) {
   const { t } = useT('skills');
 
@@ -74,7 +77,7 @@ export function SkillMetadataFields({
       <SettingsFieldRow
         label={t('iconPicker.label')}
         wideControl
-        className="sm:items-center"
+        className="@xl/field-layout:items-center"
       >
         <SkillIconPicker
           value={values.icon}
@@ -104,6 +107,7 @@ export function SkillMetadataFields({
           savedValue={savedSharing}
           onChange={(sharing) => onChange({ ...values, sharing })}
           disabled={disabled}
+          orgReservedReason={orgReservedReason}
         />
       </SettingsFieldRow>
     </>

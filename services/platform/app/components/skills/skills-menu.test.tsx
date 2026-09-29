@@ -51,4 +51,61 @@ describe('SkillsMenu', () => {
       expect.objectContaining({ skills: ['docx'] }),
     );
   });
+
+  it('names who created each skill under its row', async () => {
+    const { user } = render(
+      <SkillsMenu
+        skills={[
+          {
+            slug: 'house-voice',
+            label: 'house-voice',
+            origin: 'member',
+            ownerName: 'Ada Lovelace',
+          },
+          { slug: 'orphan', label: 'orphan', origin: 'member' },
+          { slug: 'docx', label: 'docx', origin: 'builtin' },
+          { slug: 'invoices', label: 'invoices', origin: 'release' },
+          {
+            slug: 'spoofed',
+            label: 'spoofed',
+            origin: 'release',
+            ownerName: 'Mallory',
+          },
+        ]}
+        connectors={[]}
+        tools={[]}
+        value={EMPTY}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+
+    const row = (name: string) =>
+      screen.findByRole('menuitemcheckbox', { name: new RegExp(`^${name}`) });
+    expect(await row('house-voice')).toHaveTextContent('By Ada Lovelace');
+    expect(await row('orphan')).toHaveTextContent('By a former member');
+    expect(await row('docx')).toHaveTextContent('Built-in');
+    expect(await row('invoices')).toHaveTextContent('Configuration release');
+    // The release marker is plain frontmatter any upload can carry, so the
+    // caption names whose upload installed the skill.
+    expect(await row('spoofed')).toHaveTextContent(
+      'Configuration release · Mallory',
+    );
+  });
+
+  it('adds no caption to an option that carries no provenance', async () => {
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[{ slug: 'github', label: 'GitHub' }]}
+        tools={[]}
+        value={EMPTY}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    expect(
+      await screen.findByRole('menuitemcheckbox', { name: /GitHub/ }),
+    ).toHaveTextContent(/^GitHub$/);
+  });
 });

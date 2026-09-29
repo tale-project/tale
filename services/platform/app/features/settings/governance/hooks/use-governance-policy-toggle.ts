@@ -37,7 +37,7 @@ export function useGovernancePolicyToggle<C>(
   onToggle: (next: boolean) => Promise<void>;
 } {
   const { organizationId, policyType, savedEnabled, isLoading } = options;
-  const upsert = useUpsertGovernancePolicy();
+  const upsert = useUpsertGovernancePolicy({ errorToast: false });
   const [enabled, setEnabled] = useState(false);
 
   // Seed the optimistic mirror from the persisted value once the read settles

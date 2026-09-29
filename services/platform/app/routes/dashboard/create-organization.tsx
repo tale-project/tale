@@ -3,7 +3,6 @@ import { Button } from '@tale/ui/button';
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { Stack } from '@tale/ui/layout';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
 
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { OnboardingWizard } from '@/app/features/organization/components/onboarding/onboarding-wizard';
@@ -26,42 +25,36 @@ function CreateOrganizationPage() {
   const capabilities = useOrganizationCapabilities();
   const { t } = useT('onboarding');
   const { t: tCommon } = useT('common');
-  const {
-    isLoading: isOrgsLoading,
-    isAuthLoading,
-    isAuthenticated,
-  } = useUserOrganizations();
+  const { isLoading: isOrgsLoading } = useUserOrganizations();
 
-  useEffect(() => {
-    // Only kick unauthenticated users back to login. Users who already
-    // belong to an org can still reach this route to create another one.
-    if (!isAuthLoading && !isAuthenticated) {
-      void navigate({ to: '/log-in' });
-    }
-  }, [isAuthLoading, isAuthenticated, navigate]);
-
-  if (
-    isAuthLoading ||
-    !isAuthenticated ||
-    isOrgsLoading ||
-    capabilities.isLoading
-  ) {
+  // A signed-out visit and a session that ends here belong to the dashboard
+  // layout (`routes/dashboard.tsx`): its beforeLoad and re-check send the
+  // first to /log-in, and the second keeps this page, and the name typed into
+  // the wizard, mounted behind its Sign in / Stay here choice. `isPending`,
+  // not `isLoading`: the capabilities read waits for the session probe, and
+  // until it has run it is not loading, so the page would say creation is
+  // forbidden while the probe catches up.
+  if (isOrgsLoading || capabilities.isPending) {
     return <DashboardShellFrame />;
   }
 
-  if (capabilities.isError || capabilities.data?.canCreate !== true) {
+  // Only a read that never answered is an error here. A re-read that fails
+  // keeps its last answer: a session ending under the page is met by such a
+  // re-read, and must leave the wizard to the layout's Stay here.
+  const failed = capabilities.isLoadingError;
+  if (failed || !capabilities.data.canCreate) {
     return (
       <FullPageCenter>
         <Stack gap={3} className="max-w-md p-6">
           <Alert
-            variant={capabilities.isError ? 'destructive' : 'info'}
+            variant={failed ? 'destructive' : 'info'}
             description={
-              capabilities.isError
+              failed
                 ? tCommon('errors.errorLoadingPage')
                 : t('workspace.creationForbidden')
             }
           />
-          {capabilities.isError && (
+          {failed && (
             <Button
               variant="secondary"
               onClick={() => void capabilities.refetch()}

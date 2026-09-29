@@ -1,4 +1,6 @@
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { useT } from '@/lib/i18n/client';
 
 /** A caller that reports the outcome itself — the editor's sends, the bulk
  * verbs — opts out of the hook's default failure toast. */
@@ -45,11 +47,13 @@ export function useBulkUnarchiveConversations(options?: ErrorFeedbackOptions) {
   );
 }
 
-export function useSendMessageViaConnector(options?: ErrorFeedbackOptions) {
-  return useBackendMutation(
-    'conversations/mutations:sendMessageViaConnector',
-    options,
-  );
+/** Every caller reports a failed send itself — the message editor's send
+ * feedback, the bulk send's one summary toast — so the default toast stays
+ * quiet. */
+export function useSendMessageViaConnector() {
+  return useBackendMutation('conversations/mutations:sendMessageViaConnector', {
+    errorToast: false,
+  });
 }
 
 export function useComposeEmailConversation(options?: ErrorFeedbackOptions) {
@@ -59,42 +63,101 @@ export function useComposeEmailConversation(options?: ErrorFeedbackOptions) {
   );
 }
 
+// A status, assignment or message write below raises its own failure toast:
+// the verb's title, and the refusal's words. Its callers — the conversation
+// header, the panel and the assignee picker — call `mutate` and add no
+// failure toast of their own: react-query drops a `mutate` call's own
+// `onError` once another call starts on the same hook (Retry on one failed
+// message, then on the next; a second pick) or once the caller unmounts
+// before the write settles, and the failure would go unreported. The write's
+// own toast fires for every call.
+
 export function useCloseConversation() {
-  return useBackendMutation('conversations/mutations:closeConversation');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:closeConversation', {
+    errorToast: {
+      title: t('header.toast.closeFailed'),
+      description: failureDetail,
+    },
+  });
 }
 
 export function useReopenConversation() {
-  return useBackendMutation('conversations/mutations:reopenConversation');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:reopenConversation', {
+    errorToast: {
+      title: t('header.toast.reopenFailed'),
+      description: failureDetail,
+    },
+  });
 }
 
 export function useAssignConversation() {
-  return useBackendMutation('conversations/mutations:assignConversation');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:assignConversation', {
+    errorToast: { title: t('header.assignError'), description: failureDetail },
+  });
 }
 
 export function useAssignConversationTeam() {
-  return useBackendMutation('conversations/mutations:assignConversationTeam');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:assignConversationTeam', {
+    errorToast: { title: t('header.assignError'), description: failureDetail },
+  });
 }
 
+// Keeps the default toast: its one caller (the panel, marking a conversation
+// read as it opens) only logs a failure.
 export function useMarkAsRead() {
   return useBackendMutation('conversations/mutations:markConversationAsRead');
 }
 
 export function useMarkAsSpam() {
-  return useBackendMutation('conversations/mutations:markConversationAsSpam');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:markConversationAsSpam', {
+    errorToast: {
+      title: t('header.toast.markAsSpamFailed'),
+      description: failureDetail,
+    },
+  });
 }
 
 export function useDeleteConversation() {
-  return useBackendMutation('conversations/mutations:deleteConversation');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:deleteConversation', {
+    errorToast: {
+      title: t('panel.deleteFailed'),
+      description: failureDetail,
+    },
+  });
 }
 
 export function useUndoSendMessage() {
-  return useBackendMutation('conversations/mutations:undoSendMessage');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:undoSendMessage', {
+    errorToast: {
+      title: t('panel.undoSendFailed'),
+      description: failureDetail,
+    },
+  });
 }
 
 export function useRetrySendMessage() {
-  return useBackendMutation('conversations/mutations:retrySendMessage');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:retrySendMessage', {
+    errorToast: {
+      title: t('panel.retrySendFailed'),
+      description: failureDetail,
+    },
+  });
 }
 
 export function useDiscardOutboundMessage() {
-  return useBackendMutation('conversations/mutations:discardOutboundMessage');
+  const { t } = useT('conversations');
+  return useBackendMutation('conversations/mutations:discardOutboundMessage', {
+    errorToast: {
+      title: t('panel.discardMessageFailed'),
+      description: failureDetail,
+    },
+  });
 }

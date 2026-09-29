@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 57 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 58 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -53,7 +53,9 @@ queries load, the Inbox view and the route body stay hidden (no flash). With no
 qualifying deploy or registered API source, `…/conversations*` renders a localized empty state
 (`conversations.activate.noAutomationTitle` / `.noAutomationDescription`) with
 a **Browse automations** link (`conversations.activate.browseAutomations`)
-instead of the inbox.
+instead of the inbox. Only Owners, Admins and Developers can deploy one, so
+everyone else gets the reader description
+(`conversations.activate.noAutomationReaderDescription`) and no link (CONV-G4).
 
 A registered native API source (for example VAT plus) also opens the Inbox and
 keeps its conversations in channel `api`. This requires no mail credentials. Use
@@ -146,7 +148,7 @@ subject.
   `getByRole('radio', { name: 'Inbox' })` count 0) — and neither does the
   phone's Home list; the **All** view lists no conversations; the Home tile
   carries no unread chip; the option also never flashes in during load.
-- [ ] `CONV-G2` · **Deep link guarded** — Open
+- [ ] `CONV-G2` · **Deep link guarded** — As an Owner, Admin or Developer, open
   `/dashboard/{org}/conversations` directly (same org as CONV-G1) → Redirect
   to `…/open` still happens; the body is the localized empty state **Set up
   your Inbox** (`conversations.activate.noAutomationTitle`) + description +
@@ -162,6 +164,13 @@ subject.
   Connectors) — **no Inbox tab**. Uninstalling the last email automation
   removes the option again (a remembered Inbox view falls back to **All**) and
   CONV-G2 applies again.
+- [ ] `CONV-G4` · **Reader deep link** — As a Member or Editor in the same org
+  as CONV-G1, open `/dashboard/{org}/conversations` directly, then a contact's
+  **New email** action → **Set up your Inbox** says an Owner, Admin or
+  Developer must deploy an email automation
+  (`conversations.activate.noAutomationReaderDescription`) and offers **no
+  Browse automations** link; with the contact, the notice reads
+  `conversations.activate.composeNoticeReader` (not "first install").
 
 ## Functional tests
 

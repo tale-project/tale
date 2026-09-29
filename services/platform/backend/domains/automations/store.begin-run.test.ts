@@ -161,6 +161,31 @@ describe('durable run admission', () => {
     expect(writes[0]?.[3]).toBeNull();
   });
 
+  it.each([['hidden'], ['p-1', 'hidden']])(
+    'refuses hidden bindings at admission even when the app omitted projectId: %j',
+    async (...projects) => {
+      const { sql, writes } = fakeStore(1, projects);
+      const admission = { ...args, visibleProjectIds: ['p-1'] };
+      await expect(beginRun(sql, admission)).rejects.toMatchObject({
+        code: 'PROJECT_NOT_FOUND',
+        status: 404,
+      });
+      expect(writes).toHaveLength(0);
+      expect(addJobInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps a readable explicit project when other bindings are hidden', async () => {
+    const { sql, writes } = fakeStore(1, ['p-1', 'hidden']);
+    const admission = {
+      ...args,
+      projectId: 'p-1',
+      visibleProjectIds: ['p-1'],
+    };
+    await beginRun(sql, admission);
+    expect(writes[0]?.[3]).toBe('p-1');
+  });
+
   it('preserves the explicit project scope supplied by an authorized task or REST door', async () => {
     const { sql, writes } = fakeStore(1, ['p-1']);
     await beginRun(sql, { ...args, projectId: 'p-1' });

@@ -5,20 +5,15 @@ import {
   invalidateMyPasswordPolicy,
   passwordExpiryQuery,
 } from '@/app/lib/backend/account';
-import { backendRefusalDetail } from '@/app/lib/backend/adapters';
-import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
-/** The profile name save. A submit the header's Save cluster does not run
- * (Enter in the field) has only this toast, so it names why the server
- * refused the save; a fault keeps the generic "try again". */
+/** The profile name save. Its one caller, the profile form, rethrows a
+ * refusal as the sentence naming why, and the form's Save cluster — or, for
+ * Enter in the field, the form's own submit — raises the one toast with it:
+ * this write's own toast would report the failure a second time. */
 export function useUpdateUserName() {
-  const { t } = useT('toast');
   return useBackendMutation('users/mutations:updateUserName', {
-    errorToast: {
-      title: t('error.profileUpdateFailed.title'),
-      description: backendRefusalDetail,
-    },
+    errorToast: false,
   });
 }
 

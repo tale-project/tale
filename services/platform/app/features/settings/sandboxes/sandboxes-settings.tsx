@@ -83,14 +83,19 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     void refetchDevices();
   }, [refetchDevices]);
 
+  // Each control runs through `run` below, whose failure toast says why:
+  // the three writes keep their default toast quiet.
   const stop = useBackendAction(
     'node_only/sandbox/session_admin_actions:stopSandboxTask',
+    { errorToast: false },
   );
   const destroy = useBackendAction(
     'node_only/sandbox/session_admin_actions:destroySandbox',
+    { errorToast: false },
   );
   const setPinned = useBackendAction(
     'node_only/sandbox/session_admin_actions:setSandboxPinned',
+    { errorToast: false },
   );
 
   // Reconcile business allocation records on mount. Physical runtime state

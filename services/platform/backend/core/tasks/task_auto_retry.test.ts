@@ -4,6 +4,7 @@ import {
   AUTO_RETRY_HISTORY_LIMIT,
   AUTO_RETRY_MAX_ATTEMPTS,
   CREDENTIAL_ROTATION_FREE_RETRIES,
+  freeCooldownWaits,
   freeCredentialRotations,
   isAutoRetryableFailure,
   isCredentialRotation,
@@ -85,6 +86,24 @@ function rotated(
 /** An attempt that worked past the progress threshold before it failed. */
 const LONG = { launchedAt: 0, settledAt: 20 * 60_000 };
 
+/** A short attempt that ended on the vendor's rate limit. */
+function limited(
+  overrides: Partial<AutoRetryRunFacts> = {},
+): AutoRetryRunFacts {
+  return failed({ apiErrorStatus: 429, ...overrides });
+}
+
+/** A start the broker refused while every account cooled down: it never
+ * launched. */
+function cooled(overrides: Partial<AutoRetryRunFacts> = {}): AutoRetryRunFacts {
+  return failed({
+    failureCode: 'credential_cooldown',
+    launchedAt: undefined,
+    settledAt: 1_000,
+    ...overrides,
+  });
+}
+
 describe('resolveAutoRetryBudget', () => {
   it('counts consecutive short failures and stops one past the budget', () => {
     expect(resolveAutoRetryBudget([failed()])).toEqual({
@@ -119,13 +138,107 @@ describe('resolveAutoRetryBudget', () => {
     // The budget behind it is spent; the run that just failed was cut by the
     // broker's refresh, not by a crash loop.
     expect(
-      resolveAutoRetryBudget([rotated(), failed(), failed(), failed()]),
+      resolveAutoRetryBudget([
+        rotated({ autoRetryAttempt: 3 }),
+        failed({ autoRetryAttempt: 2 }),
+        failed({ autoRetryAttempt: 1 }),
+        failed(),
+      ]),
     ).toEqual({ retry: true, attempt: AUTO_RETRY_MAX_ATTEMPTS });
     // Behind a later failure it is not counted either.
     expect(
       resolveAutoRetryBudget([failed(), rotated(), failed(), failed()]),
     ).toEqual({ retry: true, attempt: AUTO_RETRY_MAX_ATTEMPTS });
+  });
+
+  it('stamps a free rotation with what the cut run showed — no attempt after a run nothing retried', () => {
+    // The card reads 0 as "resumed after a token refresh", not "1 of 3";
+    // the next counted failure is the first attempt.
     expect(resolveAutoRetryBudget([rotated()])).toEqual({
+      retry: true,
+      attempt: 0,
+    });
+    expect(resolveAutoRetryBudget([failed(), rotated()])).toEqual({
+      retry: true,
+      attempt: 1,
+    });
+    expect(
+      resolveAutoRetryBudget([rotated({ autoRetryAttempt: 1 }), failed()]),
+    ).toEqual({ retry: true, attempt: 1 });
+    // A retry after a quarter of an hour of work showed "1 of 3"; cut by a
+    // refresh, its own retry keeps showing it — the count does not advance,
+    // and it does not fall back either.
+    expect(
+      resolveAutoRetryBudget([rotated({ autoRetryAttempt: 1 }), failed(LONG)]),
+    ).toEqual({ retry: true, attempt: 1 });
+    // A person's Retry after the budget ran out showed no count.
+    expect(
+      resolveAutoRetryBudget([
+        rotated(),
+        failed({ autoRetryAttempt: 3 }),
+        failed({ autoRetryAttempt: 2 }),
+        failed({ autoRetryAttempt: 1 }),
+        failed(),
+      ]),
+    ).toEqual({ retry: true, attempt: 0 });
+  });
+
+  it('shows no count after a rotation that cut a quarter of an hour of work, whatever the cut run showed', () => {
+    // The last try of a spent budget worked twenty minutes before the
+    // refresh cut it: that progress refreshed the budget, so its retry is
+    // no "3 of 3" — the card reads "resumed after a token refresh", as the
+    // automation lane's stamp does.
+    const cut = rotated({ autoRetryAttempt: 3, ...LONG });
+    expect(
+      resolveAutoRetryBudget([
+        cut,
+        failed({ autoRetryAttempt: 2 }),
+        failed({ autoRetryAttempt: 1 }),
+        failed(),
+      ]),
+    ).toEqual({ retry: true, attempt: 0 });
+    // The next ordinary failure is the first attempt of the fresh budget.
+    expect(
+      resolveAutoRetryBudget([failed({ autoRetryAttempt: 0 }), cut]),
+    ).toEqual({ retry: true, attempt: 1 });
+  });
+
+  it('spends no attempt waiting out the cooldown of the 429 it retried', () => {
+    // A lone account answered 429 and cooled down; the retry's start was
+    // refused at once. That is one event, not two attempts.
+    expect(
+      resolveAutoRetryBudget([cooled({ autoRetryAttempt: 1 }), limited()]),
+    ).toEqual({ retry: true, attempt: 1 });
+    // Four 429s, each followed by a free wait: the fifth decides, as four
+    // plain failures would.
+    const pairs = (count: number) =>
+      Array.from({ length: count }, () => [cooled(), limited()]).flat();
+    expect(resolveAutoRetryBudget(pairs(3)).retry).toBe(true);
+    expect(resolveAutoRetryBudget([limited(), ...pairs(3)]).retry).toBe(false);
+    // The budget behind a free wait may already be spent; the wait is
+    // retried anyway, showing the count its 429 reached.
+    expect(
+      resolveAutoRetryBudget([
+        cooled({ autoRetryAttempt: 3 }),
+        limited({ autoRetryAttempt: 2 }),
+        failed({ autoRetryAttempt: 1 }),
+        failed(),
+      ]),
+    ).toEqual({ retry: true, attempt: AUTO_RETRY_MAX_ATTEMPTS });
+  });
+
+  it('counts a refused start that did not follow its own 429', () => {
+    // Another run cooled the pool, or the pool is still cooling after the
+    // wait: waiting again spends an attempt, so it cannot loop.
+    expect(resolveAutoRetryBudget([cooled(), failed()])).toEqual({
+      retry: true,
+      attempt: 2,
+    });
+    expect(resolveAutoRetryBudget([cooled(), cooled(), limited()])).toEqual({
+      retry: true,
+      attempt: 2,
+    });
+    expect(resolveAutoRetryBudget([cooled()])).toEqual({
       retry: true,
       attempt: 1,
     });
@@ -135,7 +248,7 @@ describe('resolveAutoRetryBudget', () => {
     const streak = (length: number) => Array.from({ length }, () => rotated());
     expect(resolveAutoRetryBudget(streak(2))).toEqual({
       retry: true,
-      attempt: 1,
+      attempt: 0,
     });
     // The third is counted, like any failure.
     expect(resolveAutoRetryBudget(streak(3))).toEqual({
@@ -155,17 +268,36 @@ describe('resolveAutoRetryBudget', () => {
     ).toBe(false);
   });
 
-  it('reads enough history to see past a budget hidden behind free rotations', () => {
-    // Each counted failure behind a full allowance of free rotations: the
-    // walk needs every row of the window to find the one past the budget.
+  it('reads enough history to see past a budget hidden behind free rotations and waits', () => {
+    // Each counted 429 behind a full allowance of free rotations and a free
+    // wait: the walk needs every row of the window to find the one past the
+    // budget.
     const rows = Array.from({ length: AUTO_RETRY_MAX_ATTEMPTS + 1 }, () => [
-      failed(),
+      limited(),
       rotated(),
       rotated(),
+      cooled(),
     ]).flat();
     expect(rows.length).toBeLessThanOrEqual(AUTO_RETRY_HISTORY_LIMIT);
     expect(resolveAutoRetryBudget(rows).retry).toBe(false);
     expect(resolveAutoRetryBudget(rows.slice(1)).retry).toBe(true);
+  });
+});
+
+describe('freeCooldownWaits', () => {
+  it('frees a refused start only right behind a 429 of the same agent', () => {
+    expect(
+      freeCooldownWaits([
+        cooled(),
+        limited(),
+        cooled(),
+        failed(),
+        cooled(),
+        limited({ agentId: 'bob' }),
+        cooled(),
+        limited({ status: 'settled' }),
+      ]),
+    ).toEqual([true, false, false, false, false, false, false, false]);
   });
 });
 

@@ -101,11 +101,15 @@ export function useFileUpload(config: FileUploadConfig) {
   // Backend-aware upload handoff: routes to the org's own S3 bucket when
   // configured, else Convex `_storage`. An ACTION (not a mutation) because
   // presigning S3 needs the node runtime. Mirrors the documents uploader.
+  // The upload's own failure toast names the file and the door's reason, so
+  // the two writes an upload runs keep their default toast quiet.
   const { mutateAsync: generateBlobUpload } = useBackendAction(
     'files/blob_actions:generateBlobUpload',
+    { errorToast: false },
   );
   const { mutateAsync: saveFileMetadata } = useBackendMutation(
     'file_metadata/mutations:saveFileMetadata',
+    { errorToast: false },
   );
   const { mutateAsync: skipTranscription } = useBackendMutation(
     'file_metadata/mutations:skipTranscription',

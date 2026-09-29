@@ -9,6 +9,7 @@ import { toast } from '@tale/ui/use-toast';
 import { type RefObject, useMemo } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,
@@ -42,7 +43,7 @@ export function KnowledgeEntryEditDialog({
   restoreFocusRef,
 }: KnowledgeEntryEditDialogProps) {
   const { t } = useT('knowledgeEntries');
-  const { mutate: updateEntry, isPending } = useUpdateKnowledgeEntry();
+  const { mutateAsync: updateEntry, isPending } = useUpdateKnowledgeEntry();
 
   const formSchema = useMemo(
     () =>
@@ -72,29 +73,28 @@ export function KnowledgeEntryEditDialog({
   });
 
   const onSubmit = (data: FormData) => {
-    updateEntry(
-      {
-        entryId: entry._id,
-        topic: data.topic,
-        content: data.content,
+    void updateEntry({
+      entryId: entry._id,
+      topic: data.topic,
+      content: data.content,
+    }).then(
+      () => {
+        toast({ title: t('toast.updateSuccess'), variant: 'success' });
+        onSaved?.();
+        onClose();
       },
-      {
-        onSuccess: () => {
-          toast({ title: t('toast.updateSuccess'), variant: 'success' });
-          onSaved?.();
-          onClose();
-        },
-        onError: (error) => {
-          console.error('Failed to update knowledge entry:', error);
-          const isDuplicate =
-            backendErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
-          toast({
-            title: isDuplicate
-              ? t('toast.addErrorDuplicate')
-              : t('toast.updateError'),
-            variant: 'destructive',
-          });
-        },
+      (error: unknown) => {
+        console.error('Failed to update knowledge entry:', error);
+        const isDuplicate =
+          backendErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
+        toast({
+          title: isDuplicate
+            ? t('toast.addErrorDuplicate')
+            : t('toast.updateError'),
+          // A duplicate is the whole story; any other refusal says why.
+          description: isDuplicate ? undefined : failureDetail(error),
+          variant: 'destructive',
+        });
       },
     );
   };

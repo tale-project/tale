@@ -1,8 +1,8 @@
 'use client';
 
-import { Row } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 
+import { ShellAlert } from '@/app/components/layout/shell-alert';
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { useT } from '@/lib/i18n/client';
 
@@ -14,9 +14,8 @@ const LOW_BACKUP_CODES_THRESHOLD = 3;
  * Nudges the user toward regenerating a fresh batch in Settings →
  * Account before they lose access to their authenticator and run out.
  *
- * Mirrors `TwoFactorGraceBanner`'s structure deliberately — same query,
- * same markup shape, same warning colours — so the two banners feel
- * consistent when either fires.
+ * Shares `TwoFactorGraceBanner`'s query and its `ShellAlert` row
+ * deliberately, so the two banners feel consistent when either fires.
  */
 export function TwoFactorLowBackupCodesBanner({
   organizationId,
@@ -40,12 +39,7 @@ export function TwoFactorLowBackupCodesBanner({
     count === 1 ? 'lowBackupCodes.titleOne' : 'lowBackupCodes.titleOther';
 
   return (
-    <Row
-      role="status"
-      gap={2}
-      wrap
-      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 py-3 text-sm"
-    >
+    <ShellAlert>
       <span className="grow">
         <span className="font-medium">{t(titleKey, { count })}</span>
         {/* Same phone treatment as every dashboard nudge: read out, not
@@ -62,6 +56,6 @@ export function TwoFactorLowBackupCodesBanner({
       >
         {t('lowBackupCodes.regenerateLink')}
       </Link>
-    </Row>
+    </ShellAlert>
   );
 }

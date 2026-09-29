@@ -334,7 +334,7 @@ export function FeatureFlagsEditor({
     organizationId,
     'feature_flags',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
 

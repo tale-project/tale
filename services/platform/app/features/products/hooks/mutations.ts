@@ -10,7 +10,11 @@ export function useCreateProduct() {
 }
 
 export function useBulkCreateProducts() {
-  return useBackendMutation('products/mutations:bulkCreateProducts');
+  return useBackendMutation('products/mutations:bulkCreateProducts', {
+    // The import dialog toasts a refused file itself, naming its row and
+    // column; the default toast would report it a second time.
+    errorToast: false,
+  });
 }
 
 export function useDeleteProduct() {

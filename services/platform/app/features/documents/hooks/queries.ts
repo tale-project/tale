@@ -5,6 +5,8 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 
+import { CloudListingError } from '../lib/cloud-listing-error';
+
 export type Document =
   ReturnsOf<'documents/queries:listDocuments'>['documents'][number];
 
@@ -105,12 +107,21 @@ export function useFolders(organizationId: string, parentFolderId?: string) {
   });
 }
 
+// The cloud pickers' listings below run their write as a query that retries
+// it twice, so the write's own toast would fire once per attempt: each opts
+// out, and the import dialog reports the query's final error once
+// (`useListingFailureToast`) or hands a lapsed grant to the connect dialog.
+// A `success: false` answer throws a `CloudListingError`: its `error` is the
+// provider's raw answer, for the log, never for the toast.
+
 export function useOneDriveFiles(
   organizationId: string,
   folderId: string | undefined,
   enabled: boolean,
 ) {
-  const listOneDriveFiles = useBackendAction('onedrive/actions:listFiles');
+  const listOneDriveFiles = useBackendAction('onedrive/actions:listFiles', {
+    errorToast: false,
+  });
 
   return useReactQuery({
     queryKey: ['onedrive-items', organizationId, folderId],
@@ -120,7 +131,9 @@ export function useOneDriveFiles(
         folderId,
       });
       if (!result.success || !result.items) {
-        throw new Error(result.error || 'Failed to load OneDrive files');
+        throw new CloudListingError(
+          result.error || 'Failed to load OneDrive files',
+        );
       }
       // `truncated` rides along: the picker must say when a folder holds
       // more than the listing bound instead of showing a shorter folder.
@@ -139,6 +152,7 @@ export function useGoogleDriveFiles(
 ) {
   const listGoogleDriveFiles = useBackendAction(
     'google_drive/actions:listFiles',
+    { errorToast: false },
   );
 
   return useReactQuery({
@@ -149,7 +163,9 @@ export function useGoogleDriveFiles(
         folderId,
       });
       if (!result.success || !result.items) {
-        throw new Error(result.error || 'Failed to load Google Drive files');
+        throw new CloudListingError(
+          result.error || 'Failed to load Google Drive files',
+        );
       }
       // `truncated` rides along: the picker must say when a folder holds
       // more than the listing bound instead of showing a shorter folder.
@@ -164,6 +180,7 @@ export function useGoogleDriveFiles(
 export function useSharePointSites(organizationId: string, enabled: boolean) {
   const listSharePointSites = useBackendAction(
     'onedrive/actions:listSharePointSites',
+    { errorToast: false },
   );
 
   return useReactQuery({
@@ -171,7 +188,9 @@ export function useSharePointSites(organizationId: string, enabled: boolean) {
     queryFn: async () => {
       const result = await listSharePointSites.mutateAsync({ organizationId });
       if (!result.success || !result.sites) {
-        throw new Error(result.error || 'Failed to load SharePoint sites');
+        throw new CloudListingError(
+          result.error || 'Failed to load SharePoint sites',
+        );
       }
       return result.sites;
     },
@@ -188,18 +207,21 @@ export function useSharePointDrives(
 ) {
   const listSharePointDrives = useBackendAction(
     'onedrive/actions:listSharePointDrives',
+    { errorToast: false },
   );
 
   return useReactQuery({
     queryKey: ['sharepoint-drives', organizationId, siteId],
     queryFn: async () => {
-      if (!siteId) throw new Error('No site selected');
+      if (!siteId) throw new CloudListingError('No site selected');
       const result = await listSharePointDrives.mutateAsync({
         organizationId,
         siteId,
       });
       if (!result.success || !result.drives) {
-        throw new Error(result.error || 'Failed to load SharePoint drives');
+        throw new CloudListingError(
+          result.error || 'Failed to load SharePoint drives',
+        );
       }
       return result.drives;
     },
@@ -238,12 +260,14 @@ export function useSharePointFiles(
 ) {
   const listSharePointFiles = useBackendAction(
     'onedrive/actions:listSharePointFiles',
+    { errorToast: false },
   );
 
   return useReactQuery({
     queryKey: ['sharepoint-files', organizationId, siteId, driveId, folderId],
     queryFn: async () => {
-      if (!siteId || !driveId) throw new Error('No site/drive selected');
+      if (!siteId || !driveId)
+        throw new CloudListingError('No site/drive selected');
       const result = await listSharePointFiles.mutateAsync({
         organizationId,
         siteId,
@@ -251,7 +275,9 @@ export function useSharePointFiles(
         folderId,
       });
       if (!result.success || !result.items) {
-        throw new Error(result.error || 'Failed to load SharePoint files');
+        throw new CloudListingError(
+          result.error || 'Failed to load SharePoint files',
+        );
       }
       return { items: result.items, truncated: result.truncated ?? false };
     },

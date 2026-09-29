@@ -22,6 +22,7 @@ import { ConversationsNavigation } from '@/app/features/conversations/components
 import { InboxMobileBackButton } from '@/app/features/conversations/components/inbox-mobile-back-button';
 import { useComposeContactName } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
+import { useAbility } from '@/app/hooks/use-ability';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
@@ -99,6 +100,7 @@ function ConversationsLayout() {
       : undefined;
 
   const { user } = useAuth();
+  const canAuthor = useAbility().can('read', 'developerSettings');
   const [pendingCompose, setPendingCompose, clearPendingCompose] =
     usePersistedState<PendingCompose | null>(
       pendingComposeKey(user?.userId, organizationId),
@@ -158,6 +160,12 @@ function ConversationsLayout() {
     );
 
   if (isLoading || !hasInbox) {
+    // Only Owners, Admins and Developers can deploy the mail automation that
+    // feeds the Inbox. Everyone else is told who can, rather than sent to an
+    // Automations list that holds nothing they could act on.
+    const setupDescription = canAuthor
+      ? t('activate.noAutomationDescription')
+      : t('activate.noAutomationReaderDescription');
     return (
       <PageLayout
         organizationId={organizationId}
@@ -179,26 +187,32 @@ function ConversationsLayout() {
               description={
                 composeContactParam && !isComposeContactLoading ? (
                   <>
-                    {t('activate.noAutomationDescription')}{' '}
+                    {setupDescription}{' '}
                     <span className="text-foreground font-medium">
-                      {t('activate.composeNotice', {
-                        name: composeContactName ?? t('unknownContact'),
-                      })}
+                      {canAuthor
+                        ? t('activate.composeNotice', {
+                            name: composeContactName ?? t('unknownContact'),
+                          })
+                        : t('activate.composeNoticeReader', {
+                            name: composeContactName ?? t('unknownContact'),
+                          })}
                     </span>
                   </>
                 ) : (
-                  t('activate.noAutomationDescription')
+                  setupDescription
                 )
               }
               action={
-                <Button asChild>
-                  <Link
-                    to="/dashboard/$id/automations"
-                    params={{ id: organizationId }}
-                  >
-                    {t('activate.browseAutomations')}
-                  </Link>
-                </Button>
+                canAuthor ? (
+                  <Button asChild>
+                    <Link
+                      to="/dashboard/$id/automations"
+                      params={{ id: organizationId }}
+                    >
+                      {t('activate.browseAutomations')}
+                    </Link>
+                  </Button>
+                ) : undefined
               }
             />
           )}

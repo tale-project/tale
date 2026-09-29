@@ -19,7 +19,7 @@ The packages are added when an organization is created. Existing versions are pr
 
 ## Sync mail into the Inbox
 
-These workflows pull new messages into conversations every five minutes. Each declares the **Inbox** view: deploying one adds that view to [Home](/platform#home) and offers its connected mailbox in the compose form. Before deployment, Home has no **Inbox** view, and a link to the inbox points to **Automations**.
+These workflows pull new messages into conversations every five minutes. Each declares the **Inbox** view: deploying one adds that view to [Home](/platform#home) and offers its connected mailbox in the compose form. Before deployment, Home has no **Inbox** view. A link to the inbox shows a setup notice instead: for Owners, Admins, and Developers it points to **Automations**; everyone else is told that one of those roles must deploy an email automation.
 
 | Automation | Required connector | Schedule |
 | --- | --- | --- |

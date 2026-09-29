@@ -73,7 +73,7 @@ export function PasswordPolicyEditor({
     organizationId,
     'password_policy',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   const schema = useMemo(
     () =>

@@ -1,0 +1,64 @@
+import type { Sql, TransactionSql } from 'postgres';
+
+import {
+  assertReadable,
+  listProjects,
+  loadProjectOrThrow,
+  ProjectError,
+  type ProjectAuthContext,
+  type ProjectRow,
+} from '../projects/service.ts';
+
+/**
+ * Project visibility for automation runs and bindings. An organization run
+ * (no project) is visible to every member; a project run, a binding and a
+ * project-scoped listing follow the project's read rule, so a member outside
+ * a team-restricted project learns nothing of what ran there. Every door
+ * that answers runs — the app routes, the engine/MCP actor and REST — reads
+ * the same rule; a hidden project answers exactly like a missing one.
+ */
+
+/** The project when the actor may read it; null for a missing or hidden
+ * one. Driver failures still throw — an outage is not "not found". */
+export async function readableProject(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<ProjectRow | null> {
+  try {
+    const project = await loadProjectOrThrow(sql, projectId);
+    assertReadable(project, auth);
+    return project;
+  } catch (error) {
+    if (
+      error instanceof ProjectError &&
+      (error.code === 'PROJECT_NOT_FOUND' || error.code === 'PROJECT_FORBIDDEN')
+    )
+      return null;
+    throw error;
+  }
+}
+
+/** Every project the actor may read, archived ones included — the filter
+ * run listings and binding lists go through. */
+export async function readableProjectIds(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+): Promise<string[]> {
+  return (await listProjects(sql, auth, { includeArchived: true })).map(
+    (project) => project.id,
+  );
+}
+
+/** Whether the actor may see a run: an organization run is visible to
+ * every member, a project run needs read access to its project. */
+export async function canReadRun(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  run: { projectId: string | null },
+): Promise<boolean> {
+  return (
+    run.projectId === null ||
+    (await readableProject(sql, auth, run.projectId)) !== null
+  );
+}

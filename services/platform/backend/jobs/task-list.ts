@@ -980,6 +980,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           taskId: z.string().min(1),
           agentId: z.string().min(1),
           expectedRunId: z.string().min(1),
+          startAfterMs: z.number().optional(),
         })
         .parse(payload);
       // The 0.5 port of `kickAutoRetryRun`: every guard re-derived in ONE
@@ -1046,6 +1047,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           startedBy: newest.startedBy,
           trigger: 'auto_retry',
           autoRetryAttempt: budget.attempt,
+          // Queued now, so the card shows the retry; started once the
+          // broker's cooldown has an account back.
+          ...(input.startAfterMs !== undefined
+            ? { startAfterMs: input.startAfterMs }
+            : {}),
         });
         return 'kicked';
       });

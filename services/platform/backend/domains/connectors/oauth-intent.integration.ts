@@ -16,6 +16,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { hashStateToken } from '../../core/http_connectors/oauth_state.ts';
+import { signUpUser } from '../../integration-lane-helpers.ts';
 import {
   createCredential,
   deleteCredential,
@@ -42,36 +43,6 @@ interface StoredRow {
   inboundSince: number | null;
 }
 
-function cookieOf(response: Response): string {
-  return response.headers
-    .getSetCookie()
-    .map((entry) => entry.split(';')[0] ?? '')
-    .filter((pair) => pair.length > 0)
-    .join('; ');
-}
-
-async function signUp(
-  base: string,
-  label: string,
-): Promise<{ cookie: string; userId: string }> {
-  const response = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email: `itest-${label}-${randomUUID().slice(0, 8)}@example.com`,
-      password: 'itest-password-1',
-      name: `Itest ${label}`,
-    }),
-  });
-  const body = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await response.json());
-  return {
-    cookie: cookieOf(response),
-    userId: body.success ? body.data.user.id : '',
-  };
-}
-
 async function waitUntil(
   predicate: () => Promise<boolean>,
   timeoutMs: number,
@@ -90,7 +61,7 @@ export async function checkConnectorOauthIntent(
   record: RecordCheck,
 ): Promise<void> {
   const suffix = randomUUID().slice(0, 8);
-  const owner = await signUp(base, `oauth-intent-owner-${suffix}`);
+  const owner = await signUpUser(base, `oauth-intent-owner-${suffix}`);
   const orgResponse = await fetch(`${base}/api/auth/organization/create`, {
     method: 'POST',
     headers: {
@@ -578,7 +549,7 @@ export async function checkConnectorOauthIntent(
     );
 
     // ---- 8. the initiator's access, re-checked at the callback ----------
-    const developer = await signUp(base, `oauth-intent-dev-${suffix}`);
+    const developer = await signUpUser(base, `oauth-intent-dev-${suffix}`);
     await sql`
       INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
       VALUES (gen_random_uuid(), ${orgId}, ${developer.userId}, 'developer', ${new Date()})

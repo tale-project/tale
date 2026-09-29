@@ -49,13 +49,15 @@ Project chat also receives the project’s standing instructions. File access is
 
 Use [attachments](/platform/chat/attachments) for material needed in this conversation, [project files](/platform/projects/manage-files) for recurring project work, and [Knowledge](/platform/knowledge/overview) for shared reference material. The assistant retrieves content when it needs it; uploading a document does not mean every answer has read it.
 
+Questions about Tale itself need no upload: the assistant looks up the public documentation at docs.tale.dev before explaining how a screen or setting works. If the server cannot reach docs.tale.dev, for example on a self-hosted installation without internet access, the timeline shows a failed reading step and the answer is not grounded in the documentation. The documentation describes the latest release, so the assistant points out when your workspace may differ.
+
 ## Check what the assistant used
 
 Above the reply, the timeline shows search and reading steps. A failed step explains what could not be read; it is useful evidence when an answer is incomplete. Expand the thinking section when one is available, but judge factual claims against sources rather than the fluency of that explanation.
 
 **Sources** below the answer lists documents and pages the assistant loaded. Open a source and check that it supports the relevant claim. A citation establishes which material was used, not that every conclusion is correct. A reply without a retrieval step may rely on the model’s prior knowledge.
 
-The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, or produce file deliverables; assign that work to a [project task](/platform/projects/tasks).
+The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, produce file deliverables, or use [skills](/platform/workspace/skills); assign that work to a [project task](/platform/projects/tasks).
 
 ## Continue, copy, or keep the conversation
 

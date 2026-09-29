@@ -59,6 +59,7 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -480,8 +481,11 @@ function TemplateCreateBody({
   const { t: tCommon } = useT('common');
   const { t: tAutomations } = useT('automations');
   const { locale } = useLocale();
+  // The create's catch below toasts a refusal itself, a missing setup
+  // folder by name.
   const createFromTemplate = useBackendAction(
     'tasks/public_actions:createTaskFromExternalIssue',
+    { errorToast: false },
   );
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -592,7 +596,11 @@ function TemplateCreateBody({
         });
       } else {
         console.error('[tasks] template create failed', error);
-        toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+        toast({
+          title: tCommon('errors.generic'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       }
       setSubmitting(false);
     }
@@ -876,7 +884,11 @@ function CreateTaskBody({
       } else if (limitRefusal !== undefined) {
         toast({ title: limitRefusal, variant: 'destructive' });
       } else {
-        toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+        toast({
+          title: tCommon('errors.generic'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       }
       setSubmitting(false);
     }
@@ -1177,7 +1189,7 @@ export function EditTaskBody({
   const { formatDate } = useFormatDate();
   const { formatNumber } = useFormatNumber();
 
-  const updateTask = useUpdateTask();
+  const updateTask = useUpdateTask({ errorToast: false });
   const updateStatus = useUpdateTaskStatus();
   // Status verbs on an automation-owned task route through the owning
   // workflow's choreography; a plain task keeps the bare write. Cancelling a
@@ -1284,7 +1296,11 @@ export function EditTaskBody({
       return;
     }
     console.error('[tasks] detail action failed', error);
-    toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+    toast({
+      title: tCommon('errors.generic'),
+      description: failureDetail(error),
+      variant: 'destructive',
+    });
   };
 
   if (!task) {
@@ -1992,20 +2008,16 @@ export function EditTaskBody({
               {assigneeName}
             </span>
           }
+          // `useAssignTask`'s own toast reports a refused assignment, naming
+          // a live run that holds the task, as on every other picker.
           onAssign={(assigneeType, assigneeId) =>
-            void assignTask
-              .mutateAsync({
-                taskId: task._id,
-                assigneeType,
-                assigneeId,
-              })
-              .catch(onMutationError)
+            assignTask.mutate({
+              taskId: task._id,
+              assigneeType,
+              assigneeId,
+            })
           }
-          onUnassign={() =>
-            void assignTask
-              .mutateAsync({ taskId: task._id })
-              .catch(onMutationError)
-          }
+          onUnassign={() => assignTask.mutate({ taskId: task._id })}
         />
       </PropertyField>
       {/* The agent lane's status + verbs live WITH the assignee — the

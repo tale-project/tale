@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 /**
  * The per-(org, slug) writer mutex every skill write holds — the 0.4
@@ -29,18 +29,42 @@ export async function withSkillWriterLock<T>(
   sql: Sql,
   organizationId: string,
   slug: string,
-  work: () => Promise<T>,
+  work: (tx: TransactionSql) => Promise<T>,
 ): Promise<T> {
+  return withSkillWriterLocks(sql, organizationId, [slug], work);
+}
+
+/** Hold every carried skill's mutex from planning through the last write.
+ * One transaction avoids nested reservations exhausting the pool. Ordering
+ * by the actual advisory key prevents deadlocks between overlapping packs,
+ * even when distinct (org, slug) strings happen to hash to the same key. */
+export async function withSkillWriterLocks<T>(
+  sql: Sql,
+  organizationId: string,
+  slugs: readonly string[],
+  work: (tx: TransactionSql) => Promise<T>,
+): Promise<T> {
+  const keys = [
+    ...new Set(slugs.map((slug) => skillWriterLockKey(organizationId, slug))),
+  ];
   // Assigned inside the callback: postgres.js types `begin`'s result through
   // an array-unwrapping conditional a generic `T` cannot collapse.
   let result!: T;
   await sql.begin(async (tx) => {
-    await tx`
-      SELECT pg_advisory_xact_lock(
-        hashtext(${skillWriterLockKey(organizationId, slug)})
-      )
-    `;
-    result = await work();
+    if (keys.length === 1) {
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${keys[0]}))`;
+    } else if (keys.length > 1) {
+      const locks = await tx<{ id: number }[]>`
+        SELECT DISTINCT hashtext(key) AS id FROM unnest(${keys}::text[]) AS keys(key)
+        ORDER BY id
+      `;
+      for (const lock of locks) {
+        await tx`SELECT pg_advisory_xact_lock(${lock.id}::bigint)`;
+      }
+    }
+    // SQL inside the critical section must use this connection, not reserve
+    // another from the pool while every available connection holds a lock.
+    result = await work(tx);
   });
   return result;
 }

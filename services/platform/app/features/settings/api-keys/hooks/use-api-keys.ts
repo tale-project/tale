@@ -3,7 +3,9 @@ import { queryOptions } from '@tanstack/react-query';
 import { useReactMutation } from '@/app/hooks/use-react-mutation';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
+import { API_KEY_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 interface CreateApiKeyParams {
   name: string;
@@ -69,10 +71,18 @@ export function useCreateApiKey(organizationId: string) {
     // Done would hand focus to the empty-state button just before the refetch
     // unmounted it, dropping focus to the page. A failed refetch still
     // resolves (`invalidateQueries` never throws), so the key is always shown.
+    // The organization's key listing (the budget editor's picker) hears of
+    // the change from the backend's hint too; invalidating it here keeps this
+    // tab from waiting a hint round-trip.
     onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: apiKeysQuery(organizationId).queryKey,
-      }),
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: apiKeysQuery(organizationId).queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: backendEntityPrefix(organizationId, API_KEY_HINT_ENTITY),
+        }),
+      ]),
   });
 }
 
@@ -94,6 +104,9 @@ export function useRevokeApiKey(organizationId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ['api-keys', organizationId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: backendEntityPrefix(organizationId, API_KEY_HINT_ENTITY),
       });
     },
   });

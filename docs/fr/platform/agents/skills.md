@@ -22,11 +22,17 @@ Ouvre l’[agent de projet](/fr/platform/projects/project-agents) et sélectionn
 
 Les anciens skills privés ne peuvent pas équiper un agent de projet. La même règle d’accès est vérifiée au démarrage d’une tâche : sélectionner un skill ne donne pas au projet un accès permanent à celui-ci.
 
+Pour un nouvel agent de projet, les skills de documents `docx`, `pptx`, `xlsx` et `pdf` sont cochés s’ils sont accessibles au projet. Décoche ceux dont la tâche n’a pas besoin.
+
+Chaque skill de la liste indique son créateur : un membre, **Fourni avec Tale** pour les skills fournis à la création de ton organisation, ou **Release de configuration** suivi du membre dont le téléversement l’a installé. Vérifie l’origine d’un skill inconnu avant d’en équiper un agent.
+
 ## Utiliser des skills dans une automatisation
 
 Les nœuds agent d’une automatisation déclarent les skills dont ils ont besoin. Une exécution liée à un projet utilise l’accès de ce projet. Une exécution au niveau de l’organisation peut seulement utiliser les skills de l’organisation. Ton appartenance personnelle à d’autres équipes n’élargit pas ces accès.
 
-Lors de la préparation de la sandbox, Tale met les bundles équipés à disposition sous forme de fichiers et indique à l’agent les chemins de leurs instructions `SKILL.md`. Les fichiers complémentaires se trouvent à côté. Limite l’équipement aux besoins de la tâche et précise quelle procédure utiliser. La disponibilité d’un skill ne prouve pas à elle seule que le résultat suit ses instructions.
+Lors de la préparation de la sandbox, Tale met les bundles équipés à disposition sous forme de fichiers. Pour chaque skill, l’agent reçoit un extrait de la description, limité à 300 caractères, et le chemin de ses instructions `SKILL.md`. Cet extrait l’aide à choisir un skill pour une tâche formulée librement ; c’est une aide au choix, pas une consigne à exécuter. Les fichiers complémentaires se trouvent à côté des instructions.
+
+Pour un skill marqué `disable-model-invocation`, la liste demande à l’agent d’attendre que la tâche le nomme explicitement. Cette consigne ne constitue pas un contrôle d’accès. Limite l’équipement aux besoins de la tâche et précise la procédure quand elle compte. La disponibilité d’un skill ne prouve pas à elle seule que le résultat suit ses instructions.
 
 ## Vérifier les skills manquants ou modifiés
 

@@ -27,6 +27,7 @@ import { KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -138,8 +139,13 @@ export function AgentSecretsField({
       await deleteSecret({ organizationId, name });
       toggle(name, false);
       toast({ title: t('agents.secrets.deleted'), variant: 'success' });
-    } catch {
-      toast({ title: t('agents.secrets.deleteError'), variant: 'destructive' });
+    } catch (error) {
+      console.error('deleteAgentSecret failed', error);
+      toast({
+        title: t('agents.secrets.deleteError'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
       setPendingDelete(undefined);

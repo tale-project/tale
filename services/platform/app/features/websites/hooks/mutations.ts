@@ -8,12 +8,19 @@ export function useCreateWebsite() {
   });
 }
 
+// A failed delete is reported by the one toast of the delete dialog or the
+// table's bulk bar, and a failed edit by the edit dialog's own toast, each
+// with the refusal's words; the default toast would report it again.
 export function useDeleteWebsite() {
-  return useBackendAction('websites/actions:deleteWebsite');
+  return useBackendAction('websites/actions:deleteWebsite', {
+    errorToast: false,
+  });
 }
 
 export function useUpdateWebsite() {
-  return useBackendAction('websites/actions:updateWebsite');
+  return useBackendAction('websites/actions:updateWebsite', {
+    errorToast: false,
+  });
 }
 
 export function useSyncWebsiteStatuses() {

@@ -1,7 +1,8 @@
 /**
- * The serving model's context window reaches every exec a task agent run
- * launches: the REAL start and steer hosts, with only external I/O replaced
- * and the model's catalog entry stubbed. Without it Claude Code assumes a
+ * The serving model's context window — and the organization's Custom
+ * instructions — reach every exec a task agent run launches: the REAL start
+ * and steer hosts, with only external I/O replaced and the model's catalog
+ * entry stubbed. Without it Claude Code assumes a
  * 200,000-token window for a model it does not know — a local model serving
  * 32,768 let a desk turn grow to ~140K before the CLI compacted, and the
  * prefill outlasted the CLI's own 30-minute stream watchdog.
@@ -10,12 +11,15 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
+  /** The org's `system_prompt` policy file; null reads as "no policy". */
+  systemPrompt: null as unknown,
   starts: [] as Array<{
     execId: string;
     argv: string[];
@@ -102,9 +106,15 @@ vi.mock('./task_serving', () => ({
           vision: { readable: true },
         },
 }));
-vi.mock('../provider_credentials/resolve_credential', () => ({
-  resolveProviderCredential: vi.fn(),
-}));
+vi.mock(
+  '../provider_credentials/resolve_credential',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../provider_credentials/resolve_credential')
+    >()),
+    resolveProviderCredential: vi.fn(),
+  }),
+);
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
 }));
@@ -185,6 +195,9 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       if (name === 'governance/queries:getContextCapInternal') {
         return contextCap;
       }
+      if (name === 'governance/internal_queries:getPolicyConfigInternal') {
+        return args.policyType === 'system_prompt' ? io.systemPrompt : null;
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
@@ -234,6 +247,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   io.starts = [];
   io.instructions = [];
+  io.systemPrompt = null;
   io.builds = [];
   io.windows = [];
   io.subscription = undefined;
@@ -326,6 +340,47 @@ describe('a task agent start', () => {
       ).toBe('stable-selected-account-hash');
     },
   );
+
+  it('fails a start the broker refused while every account cooled down, naming when the first is back', async () => {
+    io.subscription = {
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+    };
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      model: 'claude-sonnet-4-6',
+      modelProvider: 'anthropic',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    // The retry this arms waits for the cooldown instead of meeting the same
+    // refusal at once; the run shows the refusal's words, not its payload.
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      runId: 'run-1',
+      execId: 'exec-1',
+      failureCode: 'credential_cooldown',
+      retryAtMs,
+      error:
+        'the agent run could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
 
   it('hands Claude Code the serving model’s window', async () => {
     servesWindow(32_768);
@@ -442,5 +497,107 @@ describe('a task agent steer restart', () => {
       )?.args,
     ).toMatchObject({ execId: 'exec-rotated', kind: 'task-agent' });
     expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('fails a restart the broker refused while every account cooled down, naming when the first is back', async () => {
+    io.subscription = {
+      providerSlug: 'openai',
+      modelId: 'gpt-5.4',
+      apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+    };
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+    });
+
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-rotated',
+      failureCode: 'steer_restart_failed',
+      retryAtMs,
+      error:
+        'the run could not be restarted to take a new comment: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
+});
+
+describe("the organization's Custom instructions", () => {
+  const HOUSE_RULE = 'Sign every report as the Finance desk.';
+
+  it('lead the instructions of a start and of a steer restart', async () => {
+    servesWindow(32_768);
+    io.systemPrompt = { enabled: true, mandatoryInstructions: HOUSE_RULE };
+    const start = makeCtx({ status: 'queued', execId: 'exec-1' });
+    await startTaskAgentTurnImpl(start.ctx, {
+      ...KEYS,
+      instructions: 'You are the invoice desk.',
+      sweep: true,
+    } as never);
+
+    const steer = makeCtx({ status: 'running', execId: 'exec-1' });
+    await steerTaskAgentTurnImpl(steer.ctx, {
+      ...KEYS,
+      harness: 'codex',
+      instructions: 'You are the invoice desk.',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(io.instructions).toHaveLength(2);
+    for (const instructions of io.instructions) {
+      expect(
+        instructions.startsWith(`${HOUSE_RULE}\n\nYou are the invoice desk.`),
+      ).toBe(true);
+      expect(instructions.split(HOUSE_RULE)).toHaveLength(2);
+    }
+    // Read for the run's own organization, never another's.
+    expect(
+      start.queries.find(
+        (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
+      )?.args,
+    ).toEqual({ organizationId: 'org-1', policyType: 'system_prompt' });
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('add nothing when the section is switched off', async () => {
+    servesWindow(32_768);
+    io.systemPrompt = { enabled: false, mandatoryInstructions: HOUSE_RULE };
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      instructions: 'You are the invoice desk.',
+      sweep: true,
+    } as never);
+
+    expect(io.instructions[0]).not.toContain(HOUSE_RULE);
+    expect(io.instructions[0]?.startsWith('You are the invoice desk.')).toBe(
+      true,
+    );
   });
 });

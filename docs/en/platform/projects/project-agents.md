@@ -37,7 +37,13 @@ An older configuration may name a model without a pinned provider. The dialog re
 
 <Step title="Grant equipment and write instructions">
 
-Under **Skills, connectors & tools**, add the bundles, services and platform operations the work needs. Skill availability follows the project’s team access, not merely what you personally can see. A missing skill may therefore require a sharing change.
+Under **Skills, connectors & tools**, add the bundles, services and platform operations the work needs. A new agent preselects the document skills `docx`, `pptx`, `xlsx` and `pdf` that are available to the project. They provide instructions for working with Word, PowerPoint, Excel and PDF files. Untick any the agent does not need; editing an existing agent keeps its saved equipment. Skill availability follows the project’s team access, not merely what you personally can see. A missing skill may therefore require a sharing change.
+
+<Frame caption="A new agent's Skills menu with the document skills already switched on; each skill names who created it.">
+
+![The New agent dialog with its Skills menu open: docx, pdf, pptx, and xlsx are switched on and marked Built-in, while brief-summary and release-notes by Alex Rivera and visual-aspect-analyzer stay off.](/images/platform/project-agent-document-skills.webp)
+
+</Frame>
 
 Read the **Writes data** label before granting a platform write tool: it authorizes real operations within that tool’s access rules. Connector broker actions available to agents are read-only; direct GitHub tooling or explicit secrets use separate access paths.
 

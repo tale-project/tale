@@ -83,6 +83,11 @@ export const POLICY_TYPES = [
   // Tale, exactly as before the policy existed. See `embeddingConfigSchema`;
   // read by the web tier's security headers and the trusted-headers door.
   'embedding',
+  // Who may give a skill the whole organization as its audience. Missing
+  // file ⇒ everyone, exactly as before the policy existed. See
+  // `skillSharingConfigSchema`; decided by `mayChooseOrgWideAudience`
+  // (`backend/core/lib/audience.ts`) at every skill write door.
+  'skill_sharing',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -1063,6 +1068,39 @@ export function frameAncestorsOf(config: EmbeddingConfig | null): string[] {
 }
 
 /**
+ * Who may give a skill an organization-wide audience — create one, widen a
+ * team skill to the organization, or change one in place:
+ *
+ * - `everyone` — every member (the default, and what a missing file means);
+ * - `editors` — Editors and above (owner, admin, developer, editor), the
+ *   roles that equip agents;
+ * - `admins` — owners and admins only.
+ *
+ * Whatever the mode, owners and admins always may, and a member an admin
+ * granted the `tale:skills.publish` capability may too. Sharing with one's
+ * own teams is never restricted by it, and tightening it narrows no skill
+ * that is already organization-wide.
+ */
+export const ORG_WIDE_AUDIENCE_MODES = [
+  'everyone',
+  'editors',
+  'admins',
+] as const;
+export type OrgWideAudienceMode = (typeof ORG_WIDE_AUDIENCE_MODES)[number];
+
+export const skillSharingConfigSchema = z.object({
+  orgWide: z.enum(ORG_WIDE_AUDIENCE_MODES),
+});
+export type SkillSharingConfig = z.infer<typeof skillSharingConfigSchema>;
+
+/** The mode a stored policy (or its absence) puts in force. */
+export function skillOrgWideModeOf(
+  config: SkillSharingConfig | null,
+): OrgWideAudienceMode {
+  return config?.orgWide ?? 'everyone';
+}
+
+/**
  * Maps each governance `PolicyType` to its config Zod schema. Single source
  * of truth replacing the per-type `safeParse` switch that used to live in
  * `governance/mutations.ts`. The file-based config store (`governance/file_utils.ts`)
@@ -1101,6 +1139,7 @@ export const POLICY_SCHEMAS = {
   transcription_model: transcriptionModelConfigSchema,
   review_policy: reviewPolicyConfigSchema,
   embedding: embeddingConfigSchema,
+  skill_sharing: skillSharingConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

@@ -24,7 +24,7 @@ Open the project's **Agents** tab and click **New agent**.
 1. Set **Name** to `Triage assistant`.
 2. Choose an **Agent type** that your administrator has configured.
 3. Under **Model**, search by model name or API ID and select the entry for the intended provider. The same model can appear from more than one provider.
-4. Leave **Skills, connectors & tools** and **Secrets** empty for this exercise.
+4. Under **Skills, connectors & tools**, untick any document skills that are preselected, and leave **Secrets** empty for this exercise.
 5. Paste the instructions below into **Instructions**, then click **Create agent**.
 
 ```text

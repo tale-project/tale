@@ -1,64 +1,101 @@
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
+// Every caller of these writes reports a failure itself, and none relies on
+// the default toast: a dialog, a tab or a row menu in its own toast (a
+// refusal's code by its house sentence, anything else with the door's own
+// words), an editor section through its Save cluster, the projects table's
+// bulk archive in the bar's one toast. The default toast would report the
+// same failure a second time.
+
 export function useCreateProject() {
-  return useBackendMutation('projects/mutations:createProject');
+  return useBackendMutation('projects/mutations:createProject', {
+    errorToast: false,
+  });
 }
 
 export function useUpdateProjectIdentity() {
-  return useBackendMutation('projects/mutations:updateProjectIdentity');
+  return useBackendMutation('projects/mutations:updateProjectIdentity', {
+    errorToast: false,
+  });
 }
 
 export function useUpdateProjectInstructions() {
-  return useBackendMutation('projects/mutations:updateProjectInstructions');
+  return useBackendMutation('projects/mutations:updateProjectInstructions', {
+    errorToast: false,
+  });
 }
 
 export function useUpdateProjectSharing() {
-  return useBackendMutation('projects/mutations:updateProjectSharing');
+  return useBackendMutation('projects/mutations:updateProjectSharing', {
+    errorToast: false,
+  });
 }
 
 export function useCreateProjectAgent() {
-  return useBackendMutation('projects/mutations:createProjectAgent');
+  return useBackendMutation('projects/mutations:createProjectAgent', {
+    errorToast: false,
+  });
 }
 
 export function useUpdateProjectAgent() {
-  return useBackendMutation('projects/mutations:updateProjectAgent');
+  return useBackendMutation('projects/mutations:updateProjectAgent', {
+    errorToast: false,
+  });
 }
 
 export function useDeleteProjectAgent() {
-  return useBackendMutation('projects/mutations:deleteProjectAgent');
+  return useBackendMutation('projects/mutations:deleteProjectAgent', {
+    errorToast: false,
+  });
 }
 
 /** Org agent secrets: the value is encrypted server-side in a Node action
  * (`lib/secret_box`), so the write path is an action, not a mutation. */
 export function useUpsertAgentSecret() {
-  return useBackendAction('agent_secrets/actions:upsertAgentSecret');
+  return useBackendAction('agent_secrets/actions:upsertAgentSecret', {
+    errorToast: false,
+  });
 }
 
 export function useDeleteAgentSecret() {
-  return useBackendMutation('agent_secrets/mutations:deleteAgentSecret');
+  return useBackendMutation('agent_secrets/mutations:deleteAgentSecret', {
+    errorToast: false,
+  });
 }
 
 export function useDetachDocumentFromProject() {
-  return useBackendMutation('projects/mutations:detachDocumentFromProject');
+  return useBackendMutation('projects/mutations:detachDocumentFromProject', {
+    errorToast: false,
+  });
 }
 
 export function useSetThreadSharedWithProject() {
-  return useBackendMutation('chat/threads:setThreadSharedWithProject');
+  return useBackendMutation('chat/threads:setThreadSharedWithProject', {
+    errorToast: false,
+  });
 }
 
 export function useArchiveProject() {
-  return useBackendMutation('projects/mutations:archiveProject');
+  return useBackendMutation('projects/mutations:archiveProject', {
+    errorToast: false,
+  });
 }
 
 export function useRestoreProject() {
-  return useBackendMutation('projects/mutations:restoreProject');
+  return useBackendMutation('projects/mutations:restoreProject', {
+    errorToast: false,
+  });
 }
 
 export function useDeleteProject() {
-  return useBackendMutation('projects/mutations:deleteProject');
+  return useBackendMutation('projects/mutations:deleteProject', {
+    errorToast: false,
+  });
 }
 
 export function useDuplicateProject() {
-  return useBackendMutation('projects/mutations:duplicateProject');
+  return useBackendMutation('projects/mutations:duplicateProject', {
+    errorToast: false,
+  });
 }

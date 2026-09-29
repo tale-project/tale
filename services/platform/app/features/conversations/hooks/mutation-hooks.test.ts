@@ -17,6 +17,12 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => mockMutationResult,
 }));
 
+// The status writes name their own failure toast; its words are not what
+// these tests pin.
+vi.mock('@/lib/i18n/client', () => ({
+  useT: () => ({ t: (key: string) => key }),
+}));
+
 import {
   useCloseConversation,
   useReopenConversation,

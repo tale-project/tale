@@ -69,6 +69,7 @@ function sqlWith(runs: Array<Record<string, unknown>>): Sql {
 function failedRun(
   id: string,
   failureCode: string | null,
+  extra: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
     id,
@@ -78,6 +79,7 @@ function failedRun(
     launchedAt: 1_000,
     settledAt: 2_000,
     failureCode,
+    ...extra,
   };
 }
 
@@ -125,9 +127,9 @@ describe('task.agent_retry', () => {
   it('resumes a run the broker’s refresh cut, even with the crash-loop budget spent', async () => {
     const handler = createTaskList({
       sql: sqlWith([
-        failedRun('run-failed', 'credential_rotated'),
-        failedRun('run-3', 'harness_error'),
-        failedRun('run-2', 'harness_error'),
+        failedRun('run-failed', 'credential_rotated', { autoRetryAttempt: 3 }),
+        failedRun('run-3', 'harness_error', { autoRetryAttempt: 2 }),
+        failedRun('run-2', 'harness_error', { autoRetryAttempt: 1 }),
         failedRun('run-1', 'harness_error'),
       ]),
     })['task.agent_retry'];
@@ -138,14 +140,69 @@ describe('task.agent_retry', () => {
       expect.anything(),
       expect.objectContaining({
         trigger: 'auto_retry',
-        // Nothing more spent: the stamp shows the attempts already used.
+        // Nothing more spent: the stamp shows what the cut run showed.
         autoRetryAttempt: AUTO_RETRY_MAX_ATTEMPTS,
       }),
     );
-    // The codes come from the rows, over a window wide enough to see past
-    // free rotations.
+    // The codes, statuses and stamps come from the rows, over a window wide
+    // enough to see past free rotations and waits.
     expect(reads[0]?.text).toContain('failure_code');
+    expect(reads[0]?.text).toContain('api_error_status');
+    expect(reads[0]?.text).toContain('auto_retry_attempt');
     expect(reads[0]?.values).toContain(AUTO_RETRY_HISTORY_LIMIT);
+  });
+
+  it('stamps a resume after a clean run’s token refresh with no attempt spent', async () => {
+    const handler = createTaskList({
+      sql: sqlWith([failedRun('run-failed', 'credential_rotated')]),
+    })['task.agent_retry'];
+
+    await handler?.(PAYLOAD);
+
+    // 0, not "1 of 3": the card says the run resumed after a token refresh,
+    // and the next ordinary failure is the first counted attempt.
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ trigger: 'auto_retry', autoRetryAttempt: 0 }),
+    );
+  });
+
+  it('waits out the cooldown of its own 429 without spending an attempt', async () => {
+    const handler = createTaskList({
+      sql: sqlWith([
+        failedRun('run-failed', 'credential_cooldown', {
+          launchedAt: null,
+          autoRetryAttempt: 1,
+        }),
+        failedRun('run-1', 'harness_error', { apiErrorStatus: 429 }),
+      ]),
+    })['task.agent_retry'];
+
+    await handler?.({ ...PAYLOAD, startAfterMs: Date.now() + 42_000 });
+
+    // Still "1 of 3": the 429 counted, the wait for its cooldown does not.
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ trigger: 'auto_retry', autoRetryAttempt: 1 }),
+    );
+  });
+
+  it('queues the retry at once and hands the kick when a cooling broker has an account back', async () => {
+    const handler = createTaskList({
+      sql: sqlWith([failedRun('run-failed', 'credential_cooldown')]),
+    })['task.agent_retry'];
+    const startAfterMs = Date.now() + 42_000;
+
+    await handler?.({ ...PAYLOAD, startAfterMs });
+
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        trigger: 'auto_retry',
+        autoRetryAttempt: 1,
+        startAfterMs,
+      }),
+    );
   });
 
   it('stops a grant that answers 401 on every vend, once free retries and budget are spent', async () => {

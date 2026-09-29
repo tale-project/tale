@@ -18,6 +18,7 @@ import * as z from 'zod';
 
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import {
@@ -201,7 +202,8 @@ export function AddMemberDialog({
       }
       toast({
         title: tToast('error.addMemberFailed.title'),
-        description: tToast('error.addMemberFailed.description'),
+        description:
+          failureDetail(error) ?? tToast('error.addMemberFailed.description'),
         variant: 'destructive',
       });
     }

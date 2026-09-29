@@ -47,6 +47,7 @@ export function OneDriveFileTable({
   const { locale } = useFormatNumber();
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
+  const { t: tCommon } = useT('common');
 
   const columns = useMemo<ColumnDef<OneDriveApiItem>[]>(
     () => [
@@ -57,6 +58,7 @@ export function OneDriveFileTable({
             checked={getSelectAllState()}
             onCheckedChange={handleSelectAllChange}
             disabled={items.length === 0}
+            aria-label={tCommon('aria.selectAll')}
           />
         ),
         cell: ({ row }) => {
@@ -73,6 +75,14 @@ export function OneDriveFileTable({
                 handleCheckChange(item.id, Boolean(checked))
               }
               onClick={(e) => e.stopPropagation()}
+              // Named after its item, and what it is: a screen reader
+              // walking the rows' boxes hears which file or folder each one
+              // selects, and a file named "all" is not "Select all".
+              aria-label={
+                isFolder(item)
+                  ? t('aria.selectFolder', { name: item.name })
+                  : t('aria.selectFile', { name: item.name })
+              }
             />
           );
         },
@@ -165,7 +175,9 @@ export function OneDriveFileTable({
       buildItemPath,
       handleCheckChange,
       handleFolderClick,
+      t,
       tTables,
+      tCommon,
       formatDate,
       timezoneShort,
       locale,

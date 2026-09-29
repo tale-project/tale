@@ -47,6 +47,7 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import {
   backendErrorFromResponse,
   backendRefusalDetail,
+  failureDetail,
 } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -99,11 +100,15 @@ export function SettingsUploadsPanel({
   const { mutateAsync: createFolder } = useCreateFolder();
   const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =
     useDeleteDocument();
+  // A file that did not land is named in the one summary toast after the
+  // batch, beside the door's reason: these writes stay quiet.
   const { mutateAsync: generateUploadUrl } = useBackendMutation(
     'files/mutations:generateUploadUrl',
+    { errorToast: false },
   );
   const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
     'documents/mutations:createDocumentFromUpload',
+    { errorToast: false },
   );
   const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{
@@ -535,6 +540,8 @@ export function SettingsUploadsPanel({
         title: isDuplicate
           ? tDocuments('folder.duplicateName')
           : t('settings.uploads.newFolderFailed'),
+        // A taken name is the whole story; any other refusal says why.
+        description: isDuplicate ? undefined : failureDetail(error),
         variant: 'destructive',
       });
     } finally {

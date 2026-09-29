@@ -326,6 +326,24 @@ export const DEMO_API_KEYS: readonly string[] = [
   'CI pipeline',
 ] as const;
 
+/**
+ * House skills (Settings > Skills), written by the owner beside the built-in
+ * document skills so the library's "Created by" column names a person. The
+ * first is the example the skill library page walks through creating.
+ */
+export const DEMO_SKILLS: readonly { slug: string; description: string }[] = [
+  {
+    slug: 'brief-summary',
+    description:
+      'Summarize a project brief into its review date, owner, and open questions. Use when someone asks for a handover or a quick check of a brief.',
+  },
+  {
+    slug: 'release-notes',
+    description:
+      'Write release notes from a list of changes, grouped by what readers notice first. Use when a release ships.',
+  },
+] as const;
+
 /** WebDAV app-passwords (Settings > API > WebDAV). */
 export const DEMO_WEBDAV_RETIRED_LABEL = 'Retired design workstation';
 export const DEMO_WEBDAV_LABELS: readonly string[] = [

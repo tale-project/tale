@@ -4,6 +4,7 @@ import { EntityDeleteDialog } from '@tale/ui/entity/entity-delete-dialog';
 import { useDeleteDialogTranslations } from '@tale/ui/entity/use-delete-dialog';
 import { type RefObject, useCallback } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
@@ -57,6 +58,7 @@ export function ContactDeleteDialog({
       entity={contact}
       getEntityName={getEntityName}
       deleteMutation={handleDelete}
+      describeFailure={failureDetail}
       translations={translations}
       restoreFocusRef={restoreFocusRef}
     />

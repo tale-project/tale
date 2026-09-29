@@ -387,6 +387,7 @@ describe('createAccountService', () => {
       accessToken: 'access-2',
       available: true,
       availableAt: null,
+      hold: null,
       usage: { checkedAt: now.toISOString() },
     });
   });
@@ -414,6 +415,7 @@ describe('createAccountService', () => {
       status: 'active',
       available: false,
       availableAt: '2026-09-23T10:00:00.000Z',
+      hold: 'quota',
       usage: { checkedAt: now.toISOString(), windows: anthropic.usage },
     });
   });
@@ -457,6 +459,7 @@ describe('createAccountService', () => {
       expect((await service.handOutTokens('openai'))[0]).toMatchObject({
         available: false,
         availableAt: null,
+        hold: 'quota',
       });
     },
   );
@@ -1266,12 +1269,61 @@ describe('staggered refreshes and the hand-out floor', () => {
       accessToken: 'early-access',
       available: false,
       availableAt: plannedRefresh('early'),
+      // Only the floor holds it: a consumer with no other account may use it.
+      hold: 'refresh',
       refreshAt: plannedRefresh('early'),
       // The vendor's expiry is still reported, and still later.
       expiresAt: EXPIRES,
     });
-    expect(byId.late).toMatchObject({ available: true, availableAt: null });
+    expect(byId.late).toMatchObject({
+      available: true,
+      availableAt: null,
+      hold: null,
+    });
     expect(anthropic.refreshCount).toBe(0);
+  });
+
+  it('names what holds each account back, so a consumer can tell the hold it may fall back to', async () => {
+    // Forty minutes before the early account's planned refresh.
+    now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+    const read = new Date(now.getTime() - 60_000).toISOString();
+    await store.putAccount(storedAccount('early'));
+    await store.putAccount(storedAccount('late'));
+    await store.putAccount(
+      storedAccount('spent', {
+        usage: {
+          checkedAt: read,
+          windows: [
+            {
+              kind: 'session',
+              label: null,
+              utilization: 100,
+              resetsAt: new Date(now.getTime() + 2 * HOUR).toISOString(),
+              windowSeconds: 18_000,
+            },
+          ],
+          limited: null,
+        },
+        usageAttemptedAt: read,
+      }),
+    );
+
+    const handouts = await service().handOutTokens('anthropic');
+
+    // `late` can take the work as this gateway sees the pool, so the floor
+    // holds `early` back. A consumer that cannot use `late` — a cooldown
+    // after a rate limit, a vendor account id it requires — may still start
+    // on `early`, as the gateway itself would with nothing else left; never
+    // on `spent`, whose quota is gone.
+    expect(
+      Object.fromEntries(
+        handouts.map((h) => [h.id, { available: h.available, hold: h.hold }]),
+      ),
+    ).toEqual({
+      early: { available: false, hold: 'refresh' },
+      late: { available: true, hold: null },
+      spent: { available: false, hold: 'quota' },
+    });
   });
 
   it('hands the account out again once its planned refresh has renewed the token', async () => {
@@ -1313,6 +1365,7 @@ describe('staggered refreshes and the hand-out floor', () => {
       accessToken: 'early-access',
       available: false,
       availableAt: null,
+      hold: 'refresh',
       refreshAt: plannedRefresh('early'),
     });
 
@@ -1323,7 +1376,12 @@ describe('staggered refreshes and the hand-out floor', () => {
       (handout) => handout.id === 'early',
     );
     expect(anthropic.refreshCount).toBe(2);
-    expect(retried).toMatchObject({ status: 'error', available: false });
+    // The hold stays the floor's; the status is the consumer's own check.
+    expect(retried).toMatchObject({
+      status: 'error',
+      available: false,
+      hold: 'refresh',
+    });
   });
 
   it('leaves an account the vendor refused to its status, not the floor', async () => {
@@ -1336,7 +1394,11 @@ describe('staggered refreshes and the hand-out floor', () => {
     );
 
     // The consumer's status check says why; `available` stays the quota's.
-    expect(early).toMatchObject({ status: 'expired', available: true });
+    expect(early).toMatchObject({
+      status: 'expired',
+      available: true,
+      hold: null,
+    });
   });
 
   it('never holds back a vendor’s only account', async () => {
@@ -1346,7 +1408,11 @@ describe('staggered refreshes and the hand-out floor', () => {
     await store.putAccount(storedAccount('early'));
     now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
     const [early] = await service().handOutTokens('anthropic');
-    expect(early).toMatchObject({ available: true, availableAt: null });
+    expect(early).toMatchObject({
+      available: true,
+      availableAt: null,
+      hold: null,
+    });
   });
 
   it('hands out the account with the most life left when every one is inside the floor', async () => {
@@ -1357,12 +1423,17 @@ describe('staggered refreshes and the hand-out floor', () => {
     const byId = Object.fromEntries(
       (await service().handOutTokens('anthropic')).map((h) => [h.id, h]),
     );
-    expect(byId.early).toMatchObject({ available: true, availableAt: null });
+    expect(byId.early).toMatchObject({
+      available: true,
+      availableAt: null,
+      hold: null,
+    });
     expect(byId['account-a']).toMatchObject({
       available: false,
       availableAt: new Date(
         SKEW_POINT - SPREAD * refreshStaggerShare('account-a'),
       ).toISOString(),
+      hold: 'refresh',
     });
   });
 
@@ -1392,8 +1463,12 @@ describe('staggered refreshes and the hand-out floor', () => {
     const byId = Object.fromEntries(
       (await service().handOutTokens('anthropic')).map((h) => [h.id, h]),
     );
-    expect(byId.late).toMatchObject({ available: false });
-    expect(byId.early).toMatchObject({ available: true, availableAt: null });
+    expect(byId.late).toMatchObject({ available: false, hold: 'quota' });
+    expect(byId.early).toMatchObject({
+      available: true,
+      availableAt: null,
+      hold: null,
+    });
   });
 
   it('hands out every token when the floor is off', async () => {
@@ -1462,6 +1537,9 @@ describe('staggered refreshes and the hand-out floor', () => {
       expect(early).toMatchObject({
         available: false,
         availableAt: later === 'quota' ? resetsAt : plannedRefresh('early'),
+        // Whichever lifts later, a spent quota is never a hold to fall
+        // back to.
+        hold: 'quota',
       });
     },
   );

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 58 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -21,11 +21,11 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
-| Content & Models      | `content-models`                          | Custom instructions (unified field, was prefix/suffix), Default Models, Model access        |
-| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, conversation routing |
+| Content & Models      | `content-models`                          | Default models, Model access, Vision model, Audio transcription model                       |
+| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
-| Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
+| Guardrails            | `guardrails`                              | Guardrails overview, Custom instructions, Content safety, PII protection, Moderation provider |
 | Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
 | Usage                 | `usage`                                   | Read-only org usage metrics (cards + chart + tables)                                        |
 | Legal hold            | `legal-hold`                              | Active holds + Release requests; **Place legal hold**                                       |
@@ -44,7 +44,8 @@ Stack up + signed in per [SETUP.md](../setup.md) as owner/admin. Mock mode (A)
 is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
 target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
-select lists only the current admin's keys (`useApiKeys`).
+select lists every member's live key, read from
+`GET /api/app/governance/api-keys` (disabled and expired keys are left out).
 
 > **Agent note**: save → reload → assert the **persisted control state**,
 > never the toast. Voice output autosaves on toggle (no Save button); the
@@ -58,13 +59,20 @@ select lists only the current admin's keys (`useApiKeys`).
 
 - [ ] `GOV-F1` · **Index redirect** — Open `…/governance` → URL becomes
   `…/governance/content-models`
-- [ ] `GOV-F2` · **System prompt persist** — `content-models` → in the
+- [ ] `GOV-F2` · **System prompt persist** — `guardrails` → in the
   **Custom instructions** section (`governance.systemPrompt.title`) flip the
   section Switch ON (aria-label `governance.systemPrompt.enabled`) → type into
   the textarea (placeholder `governance.systemPrompt.instructionsPlaceholder`,
   aria-label = the section title) → **Save** (`common.actions.save`, the
   settings header's global bar) → reload → After reload the section Switch is
   still ON and the textarea still holds the typed text.
+- [ ] `GOV-F35` · **Custom instructions reach agents** — On `guardrails`, with
+  GOV-F2's **Custom instructions** section ON and holding "End every report
+  with the line: Finance desk.", start a project agent on a task, then run an
+  automation whose agent node writes a short report → Both the task's agent
+  report and the agent node's output end with **Finance desk.**, as a chat
+  reply does; switch the section OFF, save, and use a new task and a new
+  automation run with fresh conversations → the line no longer appears.
 - [ ] `GOV-F2b` · **Voice-output toggle** — `policies-limits` → flip **Voice
   output enabled for this organization**
   (`governance.voiceOutput.enabledLabel`) — it **autosaves** (toast
@@ -94,9 +102,10 @@ select lists only the current admin's keys (`useApiKeys`).
   requests** (`governance.budgets.maxRequests`) → **Confirm**
   (`governance.budgets.confirm`) → reload → The rule row's **Scope** cell
   reads **ApiKey** (CSS-capitalized `scope`) and its **Target**
-  (`governance.budgets.target`) cell shows the chosen key's name (falls back
-  to the raw key id if the key isn't in the admin's list); the row survives
-  reload. **Precondition:** ≥1 API key exists (see Prerequisites)
+  (`governance.budgets.target`) cell shows the chosen key's name and its
+  owner, "CI Key · Dana" (falls back to the raw key id if the key is no longer
+  held by a member); the row survives reload. **Precondition:** ≥1 API key
+  exists (see Prerequisites)
 - [ ] `GOV-F4c` · **API-key budget refuses REST** — with the GOV-F4b rule
   saved at **Max requests** 1 → send twice through
   `POST /api/v1/threads/{id}/messages` with that key → The second send answers
@@ -104,6 +113,15 @@ select lists only the current admin's keys (`useApiKeys`).
   is `apiKey`, and
   nothing is queued; the same person's in-app chat is not refused by the key's
   cap. **Delete the rule after**
+- [ ] `GOV-F36` · **Cap a member's key** — As a Developer member, create an API
+  key "opencode"; as an Admin, open the GOV-F4b dialog → the **API key**
+  select lists the Developer's key as **opencode · <their name>** beside the
+  Admin's own keys, and no key of someone outside the organization; save a
+  rule on it → a REST send with the Developer's key over the cap answers 429
+  `BUDGET_EXCEEDED` as in GOV-F4c. With the dialog still open, the Developer
+  creates a second key in their own session → it joins the select within
+  seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
+  answers 403, and no response carries a key secret.
 - [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback
   Metrics** dashboard renders (`analytics.feedback.title`); with no feedback
   it shows the empty state **No feedback collected yet**
@@ -407,6 +425,17 @@ select lists only the current admin's keys (`useApiKeys`).
   pending receipt still shows the approval actions with the hint **The
   approval requirement was captured when the request was filed**
   (`governance.dataSubjectRequests.approval.capturedPolicy`).
+- [ ] `GOV-F37` · **Skill sharing policy** — As an admin on Policies & Limits,
+  find **Skill sharing** (`governance.skillSharing.title`); switch **Share
+  skills with the organization** (`governance.skillSharing.label`) through
+  **Editors and above** and **Owners and admins only**, saving each through
+  the page's Save cluster, then back to **Every member** → A fresh
+  organization reads **Every member**
+  (`governance.skillSharing.modes.everyone`); each saved mode survives a
+  reload; Discard restores the saved one; Logs lists a
+  `governance_policy.created` then `governance_policy.updated` row for
+  `skill_sharing`; a Member never reaches the page. What each mode does to
+  skills is `SKILL-B5` / `SKILL-B6`.
 
 ## Boundary & error tests
 

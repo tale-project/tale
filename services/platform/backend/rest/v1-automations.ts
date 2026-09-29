@@ -9,6 +9,7 @@ import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
+import { readableProjectIds } from '../domains/automations/project-visibility.ts';
 import {
   answerAsk,
   AutomationError,
@@ -41,10 +42,7 @@ import {
   unbindProjectInTx,
   versionRow,
 } from '../domains/automations/store.ts';
-import {
-  getProjectAuthContext,
-  listProjects,
-} from '../domains/projects/service.ts';
+import { getProjectAuthContext } from '../domains/projects/service.ts';
 import { addTaskComment } from '../domains/tasks/comments.ts';
 import {
   actedBy,
@@ -213,11 +211,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     c: Context<RestEnv>,
   ): Promise<Set<string>> => {
     const auth = await restProjectAuth(deps.sql, c);
-    return new Set(
-      (await listProjects(deps.sql, auth, { includeArchived: true })).map(
-        (project) => project.id,
-      ),
-    );
+    return new Set(await readableProjectIds(deps.sql, auth));
   };
   const runBody = z
     .object({

@@ -23,7 +23,7 @@ Crée une [clé API](/fr/platform/admin/api-keys) et conserve-la dans la configu
 | Organisation | `X-Organization-Slug: <slug>` |
 | Révisions du protocole | `2025-06-18`, ou `2025-03-26` si le client la propose |
 
-Le client doit accepter un point d'accès HTTP distant avec des en-têtes personnalisés. Il n'y a ni flux SSE, ni session à supprimer, ni parcours d'autorisation OAuth. Les URL de découverte OAuth renvoient du JSON avec `404` ; un client qui exige ce parcours doit être configuré autrement. Un client limité aux serveurs stdio locaux ne peut pas utiliser directement cette URL.
+Le client doit accepter un point d'accès HTTP distant avec des en-têtes personnalisés. Il n'y a ni flux SSE, ni session à supprimer, ni parcours d'autorisation OAuth. Les URL de découverte OAuth renvoient du JSON avec `404` ; un client qui exige ce parcours doit être configuré autrement. Un client limité aux serveurs stdio locaux ne peut pas utiliser directement cette URL. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor) fournit des configurations prêtes pour opencode et Claude Code.
 
 Envoie toujours l'en-tête d'organisation dans une intégration réutilisable. Il n'est facultatif que si le titulaire de la clé appartient à une seule organisation. Avec plusieurs appartenances, son absence produit `400 ORG_SLUG_REQUIRED`. Un slug inconnu produit `404 ORG_SLUG_INVALID`, et une organisation dont le titulaire n'est pas membre produit `403 ORG_FORBIDDEN`. Chacun de ces refus liste dans `data.organizations` les slugs que tu peux envoyer.
 

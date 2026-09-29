@@ -16,8 +16,11 @@ Une attribution ne s’applique que dans cette organisation. Tale enregistre cha
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Exporter les notifications** (`tale:notifications.export`) | Lire par l’API REST les notifications qu’un autre membre peut voir, pour qu’une autre application les reflète.                                                                                                       |
 | **Agir pour un autre membre** (`tale:rest.act-as`)           | Nommer, dans un appel d’API, le membre pour qui une question reçoit une réponse ou une relecture est décidée. La chronologie de la tâche et le journal d’audit indiquent alors cette personne plutôt que la clé API. |
+| **Publier des skills pour l'organisation** (`tale:skills.publish`) | Partager un skill avec toute l’organisation, même quand la [politique de partage des skills](/fr/platform/admin/governance/policies-and-limits#skill-sharing) le réserve aux éditeurs ou aux admins. |
 
-Les propriétaires et les admins ont les deux par leur rôle. Tout autre membre, par exemple un compte Developer dont une intégration utilise la clé API, a besoin de l’attribution ici. Sans elle, l’API REST répond à une telle requête par `403 ROLE_FORBIDDEN`. La [référence de l’API](/fr/develop/api-reference#nommer-le-membre-pour-lequel-on-agit) décrit les deux requêtes.
+Les propriétaires et les admins ont les trois par leur rôle. Tout autre membre, par exemple un compte Developer dont une intégration utilise la clé API, a besoin de l’attribution ici. Sans elle, l’API REST répond à un export ou à un `actor` par `403 ROLE_FORBIDDEN`. La [référence de l’API](/fr/develop/api-reference#nommer-le-membre-pour-lequel-on-agit) décrit les deux requêtes.
+
+**Publier des skills pour l'organisation** ne compte que tant que la politique de partage des skills réserve les skills partagés avec l’organisation. Avec **Éditeurs et au-delà**, les éditeurs et les développeurs l’ont déjà par leur rôle. Sans elle, un membre ne peut partager des skills qu’avec ses propres équipes ; l’éditeur de skills, les téléversements et l’API REST refusent un skill partagé avec l’organisation par `403 SKILL_PUBLISH_FORBIDDEN`.
 
 ## Attribuer une compétence
 
@@ -48,6 +51,6 @@ Retirer un membre révoque chaque attribution active qu’il détient — capaci
 
 <Tip>
 
-Une intégration peut vérifier sa propre clé avec `GET /api/v1/me` : `capabilities.actAs` et `capabilities.notificationExport` indiquent si la clé détient chaque capacité.
+Une intégration peut vérifier sa propre clé avec `GET /api/v1/me` : `capabilities.actAs`, `capabilities.notificationExport` et `capabilities.skillPublish` indiquent si la clé peut utiliser chaque capacité, par son rôle ou par une attribution.
 
 </Tip>

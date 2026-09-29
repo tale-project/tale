@@ -6,7 +6,6 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@tale/ui/searchable-select';
-import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import { Settings, UserPlus, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -228,20 +227,17 @@ export function ConversationAssigneePicker({
 
   function handleValueChange(value: string) {
     setOpen(false);
-    const onError = {
-      onError: () =>
-        toast({ title: t('header.assignError'), variant: 'destructive' }),
-    };
+    // A refused pick raises the write's own toast (see `../hooks/mutations`).
     const conversationId = conversation._id;
 
     if (value === UNASSIGN_USER) {
       if (!assigneeUserId) return;
-      assignConversation({ conversationId, assigneeUserId: null }, onError);
+      assignConversation({ conversationId, assigneeUserId: null });
       return;
     }
     if (value === UNASSIGN_TEAM) {
       if (!assigneeTeamId) return;
-      assignConversationTeam({ conversationId, assigneeTeamId: null }, onError);
+      assignConversationTeam({ conversationId, assigneeTeamId: null });
       return;
     }
     // Re-picking the row that is already set clears that dimension, which is
@@ -249,22 +245,19 @@ export function ConversationAssigneePicker({
     if (value.startsWith(USER_PREFIX)) {
       const next = value.slice(USER_PREFIX.length);
       if ((assigneeUserId ?? undefined) === next) {
-        assignConversation({ conversationId, assigneeUserId: null }, onError);
+        assignConversation({ conversationId, assigneeUserId: null });
         return;
       }
-      assignConversation({ conversationId, assigneeUserId: next }, onError);
+      assignConversation({ conversationId, assigneeUserId: next });
       return;
     }
     if (value.startsWith(TEAM_PREFIX)) {
       const next = value.slice(TEAM_PREFIX.length);
       if ((assigneeTeamId ?? undefined) === next) {
-        assignConversationTeam(
-          { conversationId, assigneeTeamId: null },
-          onError,
-        );
+        assignConversationTeam({ conversationId, assigneeTeamId: null });
         return;
       }
-      assignConversationTeam({ conversationId, assigneeTeamId: next }, onError);
+      assignConversationTeam({ conversationId, assigneeTeamId: next });
     }
   }
 

@@ -17,6 +17,7 @@ import { z } from 'zod/v4';
 
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -191,6 +192,7 @@ export function ProjectCreateDialog({
       console.error('createProject failed', error);
       toast({
         title: t('create.errorToast'),
+        description: failureDetail(error),
         variant: 'destructive',
       });
     }

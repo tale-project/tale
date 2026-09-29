@@ -9,6 +9,7 @@ import { Globe } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
@@ -213,6 +214,7 @@ export function WebsitesTable({
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleClearSelection}
+            describeFailure={firstFailureDetail}
           />
         }
         {...list.tableProps}

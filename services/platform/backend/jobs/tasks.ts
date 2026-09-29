@@ -205,12 +205,15 @@ export interface TaskPayloads {
   'notification.email': { notificationId: string; epoch: number };
   /** Auto-retry arm for a retryably-failed task-agent run: the handler
    * re-derives every guard (task still in_progress and agent-assigned, the
-   * failed run still newest, the consecutive-failure budget) and kicks. */
+   * failed run still newest, the consecutive-failure budget) and kicks —
+   * the retry's start held until `startAfterMs` when the failed start met a
+   * subscription broker whose every account was cooling down. */
   'task.agent_retry': {
     organizationId: string;
     taskId: string;
     agentId: string;
     expectedRunId: string;
+    startAfterMs?: number;
   };
   /** Finish a settled turn's gateway-key settlement (book its spend, revoke
    * the key) that the host's own settle could not complete — scheduled by
@@ -399,8 +402,12 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // A missed sweep is picked up by the next cron tick; nothing to retry.
   'realtime.reclaim_outbox': { retryLimit: 0, expireInSeconds: 300 },
   // Releases are idempotent (liveness re-checked at run time; corpus and
-  // blob deletes are no-ops on missing targets) — retry generously, and let
-  // the daily corpus reconcile catch anything that exhausts the ladder.
+  // blob deletes are no-ops on missing targets) — retry generously. A job
+  // that exhausts the ladder on the corpus stage leaves rows that still list
+  // its ref, for the daily corpus reconcile's bounded walks to reach; one
+  // that exhausts it on the blob stage leaves bytes nothing lists any more —
+  // their corpus rows are gone and no sweep lists bucket objects — so those
+  // stay behind.
   'knowledge.release_refs': {
     retryLimit: 8,
     retryDelay: 10,

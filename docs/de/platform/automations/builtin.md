@@ -19,7 +19,7 @@ Die Pakete werden beim Anlegen der Organisation hinzugefügt. Ändert sich ein m
 
 ## E-Mails in die Inbox synchronisieren
 
-Diese Workflows übernehmen alle fünf Minuten neue Nachrichten in Konversationen. Jeder stellt die Ansicht **Inbox** bereit: Nach dem Live-Schalten erscheint sie im Bereich [Start](/de/platform#home), und das Formular zum Verfassen bietet das verbundene Postfach an. Vorher hat **Start** keine Ansicht **Inbox**, und ein Link zur Inbox verweist auf **Automatisierungen**.
+Diese Workflows übernehmen alle fünf Minuten neue Nachrichten in Konversationen. Jeder stellt die Ansicht **Inbox** bereit: Nach dem Live-Schalten erscheint sie im Bereich [Start](/de/platform#home), und das Formular zum Verfassen bietet das verbundene Postfach an. Vorher hat **Start** keine Ansicht **Inbox**. Ein Link zur Inbox zeigt dann einen Hinweis zur Einrichtung: Für Inhaber, Admins und Entwickler verweist er auf **Automatisierungen**; alle anderen erfahren, dass jemand mit einer dieser Rollen eine E-Mail-Automatisierung live schalten muss.
 
 | Automatisierung | Benötigter Connector | Zeitplan |
 | --- | --- | --- |

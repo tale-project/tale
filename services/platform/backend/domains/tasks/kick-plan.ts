@@ -216,9 +216,10 @@ export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
 
 /**
  * The run history `resolveAutoRetryBudget` walks, newest first: as far back
- * as a spent budget hidden behind free credential rotations can reach
- * (`AUTO_RETRY_HISTORY_LIMIT`), each run with the failure code its failed
- * mark stamped — the rotations the budget skips are told apart by it.
+ * as a spent budget hidden behind free rotations and waits can reach
+ * (`AUTO_RETRY_HISTORY_LIMIT`), each run with the failure code and vendor
+ * status its failed mark stamped — the rotations and cooldown waits the
+ * budget skips are told apart by them — and the attempt its card showed.
  */
 export async function loadTaskRetryHistory(
   sql: Sql | TransactionSql,
@@ -233,13 +234,17 @@ export async function loadTaskRetryHistory(
       launchedAt: number | null;
       settledAt: number | null;
       failureCode: string | null;
+      apiErrorStatus: number | null;
+      autoRetryAttempt: number | null;
     }[]
   >`
     SELECT id, status, agent_id AS "agentId",
            started_by AS "startedBy",
            launched_at_ms::float8 AS "launchedAt",
            settled_at_ms::float8 AS "settledAt",
-           failure_code AS "failureCode"
+           failure_code AS "failureCode",
+           api_error_status AS "apiErrorStatus",
+           auto_retry_attempt AS "autoRetryAttempt"
     FROM app.project_agent_runs
     WHERE task_id = ${taskId}
     ORDER BY seq DESC
@@ -254,5 +259,7 @@ export async function loadTaskRetryHistory(
     launchedAt: row.launchedAt ?? undefined,
     settledAt: row.settledAt ?? undefined,
     failureCode: row.failureCode ?? undefined,
+    apiErrorStatus: row.apiErrorStatus ?? undefined,
+    autoRetryAttempt: row.autoRetryAttempt ?? undefined,
   }));
 }

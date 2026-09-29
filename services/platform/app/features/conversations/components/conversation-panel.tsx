@@ -173,9 +173,7 @@ export function ConversationPanel({
   const isLoading = isQueryLoading || forceLoading;
 
   const { mutate: markAsRead } = useMarkAsRead();
-  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector({
-    errorToast: false,
-  });
+  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl({
     errorToast: false,
   });
@@ -368,45 +366,16 @@ export function ConversationPanel({
             }));
           }
         },
-        onError: (error) => {
-          console.error('Failed to undo send:', error);
-          toast({
-            title: tConversations('panel.undoSendFailed'),
-            variant: 'destructive',
-          });
-        },
       },
     );
   };
 
   const handleRetrySend = (messageId: string) => {
-    retrySendMessage(
-      { messageId: messageId },
-      {
-        onError: (error) => {
-          console.error('Failed to retry send:', error);
-          toast({
-            title: tConversations('panel.retrySendFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
+    retrySendMessage({ messageId: messageId });
   };
 
   const handleDiscardOutbound = (messageId: string) => {
-    discardOutboundMessage(
-      { messageId: messageId },
-      {
-        onError: (error) => {
-          console.error('Failed to discard message:', error);
-          toast({
-            title: tConversations('panel.discardMessageFailed'),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
+    discardOutboundMessage({ messageId: messageId });
   };
 
   // No selection (and not force-loading) → real empty state, never masked.
@@ -745,13 +714,6 @@ export function ConversationPanel({
                           });
                           onSelectedConversationChange(null);
                         },
-                        onError: (error) => {
-                          console.error('Error reopening conversation:', error);
-                          toast({
-                            title: tConversations('header.toast.reopenFailed'),
-                            variant: 'destructive',
-                          });
-                        },
                       },
                     );
                   }}
@@ -791,13 +753,6 @@ export function ConversationPanel({
                             variant: 'success',
                           });
                           onSelectedConversationChange(null);
-                        },
-                        onError: (error) => {
-                          console.error('Error reopening conversation:', error);
-                          toast({
-                            title: tConversations('header.toast.reopenFailed'),
-                            variant: 'destructive',
-                          });
                         },
                       },
                     );
@@ -840,18 +795,6 @@ export function ConversationPanel({
                             });
                             onSelectedConversationChange(null);
                           },
-                          onError: (error) => {
-                            console.error(
-                              'Error reopening conversation:',
-                              error,
-                            );
-                            toast({
-                              title: tConversations(
-                                'header.toast.reopenFailed',
-                              ),
-                              variant: 'destructive',
-                            });
-                          },
                         },
                       );
                     }}
@@ -874,16 +817,6 @@ export function ConversationPanel({
                               variant: 'success',
                             });
                             onSelectedConversationChange(null);
-                          },
-                          onError: (error) => {
-                            console.error(
-                              'Error deleting conversation:',
-                              error,
-                            );
-                            toast({
-                              title: tConversations('panel.deleteFailed'),
-                              variant: 'destructive',
-                            });
                           },
                         },
                       );

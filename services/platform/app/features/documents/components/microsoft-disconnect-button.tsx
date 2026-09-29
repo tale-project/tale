@@ -26,8 +26,10 @@ export function MicrosoftDisconnectButton({
   const { t: tCommon } = useT('common');
   const [isLoading, setIsLoading] = useState(false);
   const organizationId = useOrganizationId();
+  // The failure toast below says why the grant stayed.
   const { mutateAsync: revokeAuthorization } = useBackendMutation(
     'cloud_import/mutations:revokeAuthorization',
+    { errorToast: false },
   );
 
   const handleDisconnect = useCallback(async () => {

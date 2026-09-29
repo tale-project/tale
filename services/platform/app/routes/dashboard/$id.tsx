@@ -30,6 +30,10 @@ import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-p
 import { HomePanelPlaceholder } from '@/app/components/layout/home-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { MobileBottomNavPlaceholder } from '@/app/components/layout/mobile-bottom-nav-placeholder';
+import {
+  ShellMobileHeader,
+  ShellNotchSpacer,
+} from '@/app/components/layout/shell-mobile-header';
 import { SessionLapseNotice } from '@/app/components/session-lapse-recovery';
 import { UserButton } from '@/app/components/user-button';
 import {
@@ -312,7 +316,9 @@ function DashboardLayout() {
                   <HomePanelProvider organizationId={organizationId}>
                     {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
-                  inside #main-content pushed those headers down and looked broken. */}
+                  inside #main-content pushed those headers down and looked broken.
+                  They lead the shell: whichever stands first pads the notch
+                  (`layout/shell-alert.tsx`, `layout/shell-mobile-header.tsx`). */}
                     <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
                       <SessionLapseNotice />
                       {hasRole && (
@@ -331,22 +337,16 @@ function DashboardLayout() {
                       vertically centers the title and profile button so neither
                       sits high/low in the bar on notch devices. */}
                         {threadPage ? (
-                          // The notch clearance the bar would have given the
-                          // page's own header.
-                          <div
-                            aria-hidden
-                            className="bg-background h-(--safe-top) shrink-0 md:hidden"
-                          />
+                          <ShellNotchSpacer />
                         ) : (
-                          // Keep local header chrome above the mobile nav.
-                          <header className="bg-background border-border sticky top-0 z-40 border-b px-4 pt-(--safe-top) md:hidden">
+                          <ShellMobileHeader>
                             <Row gap={2} className="min-h-12">
                               <div className="min-w-0 flex-1">
                                 <AdaptiveHeaderSlot />
                               </div>
                               <UserButton align="end" />
                             </Row>
-                          </header>
+                          </ShellMobileHeader>
                         )}
 
                         {hasRole ? (

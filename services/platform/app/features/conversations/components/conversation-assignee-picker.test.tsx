@@ -295,10 +295,10 @@ describe('ConversationAssigneePicker', () => {
 
       await user.click(screen.getByTestId('option-user:user-1'));
 
-      expect(mutations.assignUser).toHaveBeenCalledWith(
-        { conversationId: 'conv-1', assigneeUserId: null },
-        expect.anything(),
-      );
+      expect(mutations.assignUser).toHaveBeenCalledWith({
+        conversationId: 'conv-1',
+        assigneeUserId: null,
+      });
     });
 
     it('assigns instead when a different person is picked', async () => {
@@ -311,10 +311,10 @@ describe('ConversationAssigneePicker', () => {
 
       await user.click(screen.getByTestId('option-user:user-2'));
 
-      expect(mutations.assignUser).toHaveBeenCalledWith(
-        { conversationId: 'conv-1', assigneeUserId: 'user-2' },
-        expect.anything(),
-      );
+      expect(mutations.assignUser).toHaveBeenCalledWith({
+        conversationId: 'conv-1',
+        assigneeUserId: 'user-2',
+      });
     });
 
     it('clears the team queue when the assigned team is picked again', async () => {
@@ -327,10 +327,10 @@ describe('ConversationAssigneePicker', () => {
 
       await user.click(screen.getByTestId('option-team:team-1'));
 
-      expect(mutations.assignTeam).toHaveBeenCalledWith(
-        { conversationId: 'conv-1', assigneeTeamId: null },
-        expect.anything(),
-      );
+      expect(mutations.assignTeam).toHaveBeenCalledWith({
+        conversationId: 'conv-1',
+        assigneeTeamId: null,
+      });
     });
 
     // The two stamps are independent: releasing a personal claim must leave the
@@ -373,10 +373,10 @@ describe('ConversationAssigneePicker', () => {
         await user.click(screen.getByRole('button', { name: label }));
 
         expect(mutations[mutation]).toHaveBeenCalledTimes(1);
-        expect(mutations[mutation]).toHaveBeenCalledWith(
-          { conversationId: 'conv-1', ...cleared },
-          expect.anything(),
-        );
+        expect(mutations[mutation]).toHaveBeenCalledWith({
+          conversationId: 'conv-1',
+          ...cleared,
+        });
         expect(
           mutations[mutation === 'assignUser' ? 'assignTeam' : 'assignUser'],
         ).not.toHaveBeenCalled();

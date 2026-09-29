@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 96 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 97 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -831,6 +831,17 @@ any toggled setting after the run.
   `sandboxes.devices.hub.notConfigured` and **Add device** is disabled; with
   the spawner stopped entirely the section reads
   `sandboxes.devices.hub.unavailable` and still lists the registered devices.
+- [ ] `SET-B22` · **A save refused on Enter says why, once** — Hold the
+  session as in AUTH-B12 (block `*/api/auth/get-session*` in this tab's
+  DevTools, **Log out** in a second tab); within five minutes, back on
+  `/dashboard/{org}/settings/account`, change **Name**
+  (`settings.account.profile.name`) and press **Enter** in the field, not
+  **Save** → one destructive toast titled **Save** (`common.actions.save`)
+  whose line reads `toast.error.profileUpdateFailed.withReason` with
+  **Your session has ended. Sign in again.** (`common.errors.sessionEnded`),
+  in the page's language — never `{"code":…}`, and no second toast takes its
+  place a moment later (the toaster shows one at a time, so watch for the
+  swap); the new name stays in the field.
 
 - [ ] `SET-B16` · **The embedding model's credential cannot be deleted** —
   With Settings › Data residency › **Embedding model** saved on provider P

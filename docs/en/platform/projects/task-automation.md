@@ -57,9 +57,11 @@ A task can have only one queued, running, or waiting run at a time, whichever au
 | Two automations keep mentioning each other on one task | There is no per-task rate cap: the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
 | The task cannot close | Finish its open subtasks first. |
 
-Recoverable failures get up to three immediate automatic retries. A run that makes sustained progress for at least fifteen minutes receives a fresh retry allowance. This helps long work recover from interruptions; it does not prove the resulting work is correct.
+Recoverable failures get up to three automatic retries, which start right away except in the case below. A run that makes sustained progress for at least fifteen minutes receives a fresh retry allowance. This helps long work recover from interruptions; it does not prove the resulting work is correct.
 
-An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance. After two such interruptions in a row, a further one counts like any other failure.
+An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance: the retry shows the same count as the run it replaces, or **Resumed after a token refresh** when that run showed none or had worked for at least fifteen minutes, which earned it a fresh retry allowance. After two such interruptions in a row, a further one counts like any other failure.
+
+A run can also fail to start because every account of its subscription broker is cooling down after a rate limit. Its retry is queued at once but starts only when the first account is available again, at most a minute later. The wait uses no attempt when the refused run was itself retrying a rate-limit failure; otherwise the refused start counts as one.
 
 ## Cancel or pause work
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
@@ -12,15 +13,23 @@ import type { ParsedSkillBundle } from '../utils/parse-skill-bundle';
 
 interface PreviewStepProps {
   parsedBundle: ParsedSkillBundle;
+  /** Why the organization withholds the Organization audience from this
+   * viewer, when it does — an organization-wide bundle is then refused. */
+  orgReservedReason?: string;
 }
 
 /**
  * Everything the server will conclude from the bundle, before it is sent:
  * identity, frontmatter extras, the resulting sharing, and the full file
  * list with sizes. The sharing row matters most — an unmarked bundle lands
- * as an organization skill, and this is where that stops being a surprise.
+ * as an organization skill, and this is where that stops being a surprise,
+ * or where the viewer learns the organization reserves it before anything
+ * is sent.
  */
-export function PreviewStep({ parsedBundle }: PreviewStepProps) {
+export function PreviewStep({
+  parsedBundle,
+  orgReservedReason,
+}: PreviewStepProps) {
   const { t } = useT('skills');
   const { locale } = useLocale();
   const { slug, meta, assets, totalBytes } = parsedBundle;
@@ -45,6 +54,13 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
           {' — '}
           {t('upload.sharingEditableAfter')}
         </Text>
+        {meta.visibility === 'org' && orgReservedReason !== undefined && (
+          <Alert
+            variant="warning"
+            title={orgReservedReason}
+            description={t('publishing.uploadRefused')}
+          />
+        )}
       </Stack>
 
       {(meta.license !== undefined ||

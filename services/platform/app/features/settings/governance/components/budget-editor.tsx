@@ -31,11 +31,11 @@ import type { TFunction } from 'i18next';
 import { Pencil, Plus, Trash2, Wallet, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -498,13 +498,18 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     organizationId,
     'budgets',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
-  // API keys the current admin can attach a budget to (their own keys, the
-  // reuse-first source). A rule stores the raw `apiKeyId`, so a key that isn't
-  // in this list still shows its id in the table via the fallback below.
-  const { data: apiKeys } = useApiKeys(organizationId);
+  // The API keys an admin can attach a budget to: every member's live key,
+  // not only the admin's own — a per-key cap is how an admin bounds one
+  // person's script or coding tool. A rule stores the raw `apiKeyId`, so a key
+  // that isn't in this list (revoked, expired, or its holder left) still shows
+  // its id in the table via the fallback below.
+  const { data: apiKeys } = useBackendQuery(
+    'governance/api_keys:listOrgApiKeys',
+    { organizationId },
+  );
 
   const memberOptions = useMemo(
     () =>
@@ -527,11 +532,14 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
 
   const apiKeyOptions = useMemo(
     () =>
-      (apiKeys ?? []).map((k) => ({
-        value: k.id,
-        label: k.name || k.start || k.id,
-        description: k.start && k.name ? k.start : undefined,
-      })),
+      (apiKeys ?? []).map((k) => {
+        const owner = k.ownerName || k.ownerEmail || k.userId;
+        return {
+          value: k.id,
+          label: `${k.name || k.start || k.id} · ${owner}`,
+          description: k.start && k.name ? k.start : undefined,
+        };
+      }),
     [apiKeys],
   );
 

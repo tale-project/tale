@@ -29,6 +29,7 @@ import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -146,7 +147,9 @@ export function TaskAgentRunEntry({
     { organizationId, taskId },
   );
   const { mutateAsync: startRun } = useStartTaskAgentRun();
-  const { mutateAsync: cancelRun } = useCancelTaskAgentRun();
+  const { mutateAsync: cancelRun } = useCancelTaskAgentRun({
+    errorToast: false,
+  });
   const [busy, setBusy] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -172,8 +175,11 @@ export function TaskAgentRunEntry({
       }
     } catch (error) {
       console.error('startTaskAgentRun failed', error);
+      const known = taskRunErrorMessage(error, t);
       toast({
-        title: taskRunErrorMessage(error, t) ?? t('agentRun.notStarted'),
+        title: known ?? t('agentRun.notStarted'),
+        // A refusal named above is the whole story; any other says why.
+        description: known === undefined ? failureDetail(error) : undefined,
         variant: 'destructive',
       });
     } finally {
@@ -188,7 +194,11 @@ export function TaskAgentRunEntry({
       toast({ title: t('agentRun.cancelled') });
     } catch (error) {
       console.error('cancelTaskAgentRun failed', error);
-      toast({ title: t('agentRun.notStarted'), variant: 'destructive' });
+      toast({
+        title: t('agentRun.cancelFailed'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
     }
@@ -258,15 +268,20 @@ export function TaskAgentRunEntry({
       </Row>
       {/* A run the platform re-kicked by itself says so — otherwise a user
           who watched the run fail sees it silently "running" again and
-          cannot tell their Retry from the machine's. */}
+          cannot tell their Retry from the machine's. A resume after the
+          broker refreshed the token under the run spends no attempt: it
+          shows the count the cut run showed, and where that run showed
+          none (0) says what happened instead. */}
       {live &&
       run.trigger === 'auto_retry' &&
       run.autoRetryAttempt !== undefined ? (
         <Text variant="caption" className="text-muted-foreground">
-          {t('agentRun.autoRetrying', {
-            n: run.autoRetryAttempt,
-            max: run.autoRetryMax,
-          })}
+          {run.autoRetryAttempt === 0
+            ? t('agentRun.resumedAfterTokenRefresh')
+            : t('agentRun.autoRetrying', {
+                n: run.autoRetryAttempt,
+                max: run.autoRetryMax,
+              })}
         </Text>
       ) : null}
       {run.status === 'failed' && run.error !== undefined ? (
