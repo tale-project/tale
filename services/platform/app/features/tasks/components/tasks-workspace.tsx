@@ -26,6 +26,7 @@ import {
   useTasksByProject,
 } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import { useTaskAccess } from '../hooks/use-task-access';
 import { BOARD_TASK_STATUSES, TASK_PRIORITY_ORDER } from '../lib/display';
 import {
   ALL_ASSIGNEE_FILTER,
@@ -108,7 +109,25 @@ export function TasksWorkspace({
     enabled: allProjects,
   });
   const loadedTasks = allProjects ? acrossList.tasks : projectList.tasks;
-  const canEdit = allProjects ? acrossList.canEdit : projectList.canEdit;
+  const list = allProjects ? acrossList : projectList;
+  // A subtask's parents are looked up among the loaded cards: work rights
+  // run down the subtask tree.
+  const loadedById = useMemo(
+    () => new Map(loadedTasks.map((task) => [task._id, task])),
+    [loadedTasks],
+  );
+  const resolveLoadedTask = useCallback(
+    (taskId: string) => loadedById.get(taskId),
+    [loadedById],
+  );
+  // Editors work every task; every reader creates tasks and works their own —
+  // one decision per task, the server's own rule.
+  const access = useTaskAccess(
+    organizationId,
+    { canEdit: list.canEdit, canCreate: list.canCreate },
+    resolveLoadedTask,
+  );
+  const { canCreate } = access;
   const isLoading = allProjects ? acrossList.isLoading : projectList.isLoading;
   const { edges } = useProjectDependencies(
     allProjects ? undefined : typedProjectId,
@@ -289,9 +308,10 @@ export function TasksWorkspace({
             },
           ]
         : []),
-      // Archived tasks are only actionable for editors (viewers can't
-      // restore them), so the filter mirrors the old checkbox's canEdit gate.
-      ...(canEdit
+      // Archived tasks are only actionable for someone who may restore one —
+      // an editor, or a member their own — so the filter shows for whoever
+      // may create (and so archive) a task here.
+      ...(canCreate
         ? [
             {
               key: 'archived',
@@ -308,7 +328,7 @@ export function TasksWorkspace({
     [
       agents,
       assigneeFilter,
-      canEdit,
+      canCreate,
       currentUserId,
       handleArchivedFilterChange,
       handleAssigneeFilterChange,
@@ -326,9 +346,14 @@ export function TasksWorkspace({
   // refetch with rows already present keeps showing them instead of flashing.
   const isFirstLoad = isLoading && loadedTasks.length === 0;
   // The project layout already knows its permission while the task read is
-  // pending. Reserve those control footprints without enabling the actions.
+  // pending. Reserve those control footprints without enabling the actions:
+  // the pickers an editor gets on every card, and the create action every
+  // reader of an active project gets.
   const skeletonCanEdit =
-    canEdit || (!allProjects && project?.canEdit === true);
+    list.canEdit || (!allProjects && project?.canEdit === true);
+  const skeletonCanCreate =
+    canCreate ||
+    (!allProjects && project != null && project.archivedAt === undefined);
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col">
@@ -338,11 +363,11 @@ export function TasksWorkspace({
           row beneath them. */}
       <DataTableToolbar
         action={
-          // Read-only viewers can't create tasks (the server rejects the
-          // write); hide the action rather than surface a doomed button.
-          // All-projects mode has no single write target — Create stays off
-          // even when canEdit is true (drag / pickers still work).
-          (canEdit || (isFirstLoad && skeletonCanEdit)) && !allProjects ? (
+          // Every reader of an active project may create a task; on an
+          // archived one the server refuses, so the action is hidden rather
+          // than a doomed button. All-projects mode has no single write
+          // target — Create stays off there (drag / pickers still work).
+          (canCreate || (isFirstLoad && skeletonCanCreate)) && !allProjects ? (
             <Skeletonize loading={isFirstLoad} className="contents">
               <DataTableActionMenu
                 label={t('actions.create')}
@@ -373,10 +398,12 @@ export function TasksWorkspace({
             }}
             filters={taskFilterConfigs}
             onClearAll={handleClearFilters}
-            // Editors always get the widening archived filter, so the button
-            // must stay reachable even over an empty default view (an
+            // Whoever may create gets the widening archived filter, so the
+            // button must stay reachable even over an empty default view (an
             // all-archived project is re-opened through it).
-            disabled={!canEdit && loadedTasks.length === 0 && !hasActiveFilters}
+            disabled={
+              !canCreate && loadedTasks.length === 0 && !hasActiveFilters
+            }
             className="w-auto"
           />
         </Row>
@@ -403,7 +430,7 @@ export function TasksWorkspace({
                 tasks={tasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
-                canEdit={canEdit}
+                canWorkTask={access.canWorkTask}
               />
             </div>
           ) : (
@@ -412,7 +439,7 @@ export function TasksWorkspace({
                 tasks={tasks}
                 onOpenTask={handleOpenTask}
                 projectKey={projectKey}
-                canEdit={canEdit}
+                canWorkTask={access.canWorkTask}
               />
             </div>
           )}

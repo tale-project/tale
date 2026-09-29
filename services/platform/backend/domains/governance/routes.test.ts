@@ -199,14 +199,21 @@ beforeEach(() => {
 });
 
 describe('POST /policies/:policyType — write order', () => {
-  it.each(['model_access', 'vision_model', 'transcription_model'])(
+  it.each([
+    'model_access',
+    'vision_model',
+    'transcription_model',
+    'image_generation',
+  ])(
     'refreshes provider-derived reads in every session when %s is saved',
     async (policyType) => {
       const response = await post(`/policies/${policyType}?orgId=o1`, {
         config:
           policyType === 'model_access'
             ? { enabled: false, mode: 'allowlist', rules: [] }
-            : {},
+            : policyType === 'image_generation'
+              ? { enabled: true }
+              : {},
       });
       expect(response.status).toBe(200);
       expect(emitHintInTx).toHaveBeenCalledWith(TX, {

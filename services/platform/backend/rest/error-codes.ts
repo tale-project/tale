@@ -199,6 +199,9 @@ export const REST_ERROR_CODES = [
   'TASK_AUTOMATION_UNAVAILABLE',
   'TASK_HAS_LIVE_RUN',
   'TASK_HAS_OPEN_SUBTASKS',
+  // The task intake of a key holder who is not the project's editor names a
+  // label the project's catalog does not have.
+  'TASK_LABEL_UNKNOWN',
   'TASK_NOT_FOUND',
   'TASK_NOT_IN_REVIEW',
   'TEAM_ACCESS_DENIED',

@@ -129,7 +129,7 @@ async function recomputeConversationLastMessageAt(
     { metadata: Record<string, unknown> | null; createdAt: number }[]
   >`
     SELECT metadata, created_at_ms::float8 AS "createdAt"
-    FROM app.conversations WHERE id = ${conversationId} LIMIT 1
+    FROM app.conversations WHERE id = ${conversationId} LIMIT 1 FOR UPDATE
   `;
   const conversation = conversations[0];
   if (!conversation) return;
@@ -221,9 +221,12 @@ async function sendMessageViaConnectorInTx(
   tx: TransactionSql,
   args: SendMessageViaConnectorArgs,
 ): Promise<string> {
+  // Locked: the send rewrites the summary from this read (the rule in
+  // `service.ts`'s module doc), so an inbound message landing meanwhile keeps
+  // its unread count.
   const conversations = await tx<ConversationRow[]>`
       SELECT ${tx.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
-      WHERE id = ${args.conversationId} LIMIT 1
+      WHERE id = ${args.conversationId} LIMIT 1 FOR UPDATE
     `;
   const conversation = conversations[0];
   if (!conversation) {

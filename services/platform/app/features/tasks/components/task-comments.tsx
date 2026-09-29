@@ -75,6 +75,7 @@ export function TaskCommentView({
   organizationId,
   projectId,
   canComment,
+  canWork = false,
   currentUserId,
   isAdmin,
   onRequestDelete,
@@ -83,6 +84,10 @@ export function TaskCommentView({
   organizationId: string;
   projectId: string;
   canComment: boolean;
+  /** Whether the viewer may work the task — the gate an admin's moderation
+   * of someone else's comment passes. Authors change their own comments
+   * with the read access posting took. */
+  canWork?: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
   onRequestDelete: (messageId: string) => void;
@@ -106,7 +111,10 @@ export function TaskCommentView({
     : null;
   const displayBody = pickCommentBody(c.body, c.bodyByLocale, locale);
   const canManage =
-    c.authorType === 'user' && !!currentUserId && c.authorId === currentUserId;
+    canComment &&
+    c.authorType === 'user' &&
+    !!currentUserId &&
+    c.authorId === currentUserId;
 
   const submitEdit = async () => {
     const body = editDraft.trim();
@@ -193,7 +201,7 @@ export function TaskCommentView({
                 {tCommon('actions.edit')}
               </CommentAction>
             )}
-            {(canManage || isAdmin) && (
+            {(canManage || (canWork && isAdmin === true)) && (
               <CommentAction
                 destructive
                 onClick={() => onRequestDelete(c.messageId)}
@@ -410,10 +418,12 @@ export function useTaskCommentDelete() {
  * Task comment thread, unified onto the task's `task_discussion` thread (one
  * conversation surface shared with project discussions). A flat message list —
  * author identity (resolved name + avatar), relative timestamps, the `(edited)`
- * marker, and inline edit/delete. Composer + edit are gated on `canComment`
+ * marker, and inline edit/delete. The composer is gated on `canComment`
  * (read-level — any org member who can open the task, mirroring a project
- * discussion reply); edit is author-only; delete is author-or-admin (all
- * re-enforced server-side). Agent replies (from `run_on_task`) render as
+ * discussion reply), and so are an author's edit and delete of their own
+ * comment; an admin's delete of someone else's also needs `canWork`, the
+ * task's work gate (all re-enforced server-side). Agent replies (from
+ * `run_on_task`) render as
  * agent-authored messages here. A task with no comments yet shows just the
  * composer when the viewer can comment — the placeholder teaches; a second
  * "No comments yet" line is omitted (empty-state craft). Read-only empty
@@ -433,6 +443,7 @@ export function TaskComments({
   organizationId,
   projectId,
   canComment,
+  canWork = false,
   currentUserId,
   isAdmin,
   showHeading = true,
@@ -444,6 +455,8 @@ export function TaskComments({
   organizationId: string;
   projectId: string;
   canComment: boolean;
+  /** The viewer may work the task: an admin's moderation passes it. */
+  canWork?: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
   /** When false, omit the "Comments (N)" title (e.g. parent disclosure owns it). */
@@ -526,6 +539,7 @@ export function TaskComments({
               organizationId={organizationId}
               projectId={projectId}
               canComment={canComment}
+              canWork={canWork}
               {...(currentUserId !== undefined ? { currentUserId } : {})}
               {...(isAdmin !== undefined ? { isAdmin } : {})}
               onRequestDelete={requestDelete}

@@ -59,3 +59,29 @@ export const SANDBOX_SESSION_LIVE_STATUSES = [
   // act on it, and the next turn resumes it in place (same createdAt).
   'stopped',
 ] as const;
+
+/**
+ * Images one managed agent turn may create through `generate_image`,
+ * whatever they cost: defense in depth under the turn's spend allowance, so
+ * a looping or misled agent stops even where images cost next to nothing.
+ */
+export const SANDBOX_TURN_MAX_GENERATED_IMAGES = 16;
+
+/**
+ * What one image is held at while its generation runs, in cents — measured
+ * against the turn's allowance and the budget caps before the provider is
+ * called, and replaced by the booked cost once the call ends. Generous on
+ * purpose: the curated image models cost 1–7 cents an image at the medium
+ * quality the platform asks for, and a pinned model priced higher can
+ * overshoot by its difference once at most, since the next call is measured
+ * against what the last one really cost.
+ */
+export const SANDBOX_IMAGE_HOLD_CENTS = 25;
+
+/**
+ * How long an admitted `generate_image` call may stay in flight before the
+ * next call of the same turn takes its place: longer than any live call
+ * runs (three minutes per provider request, plus reading and saving the
+ * files), so only a call whose process died is ever taken over.
+ */
+export const SANDBOX_IMAGE_CALL_STALE_MS = 10 * 60 * 1000;

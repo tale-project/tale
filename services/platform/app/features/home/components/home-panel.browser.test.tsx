@@ -82,6 +82,65 @@ it.each([320, 1280])(
   },
 );
 
+/**
+ * A row's checkbox takes a real pointer. It lies over the contact's initials,
+ * but sat under the row's link — lifted above the sliding highlight — so a
+ * click or a tap there opened the conversation, and a selection could start
+ * from the keyboard only (CONV-F28). jsdom performs no hit-testing; only a
+ * real engine shows which element a pointer at that spot reaches.
+ */
+it.each([
+  [1280, true],
+  [390, false],
+])(
+  'ticks a row checkbox under a real pointer at %ipx (pointing at the row first: %s)',
+  async (width, pointFirst) => {
+    await page.viewport(width, 720);
+    const onChange = vi.fn();
+    render(
+      <ul style={{ width: Math.min(width - 32, 400) }}>
+        <HomeConversationRow
+          organizationId={ORG}
+          active={false}
+          item={{
+            kind: 'conversation',
+            id: 'mail',
+            title: 'Invoice shows the wrong VAT',
+            activityAt: Date.now(),
+            unread: false,
+            status: 'open',
+            contactLabel: 'Support',
+          }}
+          selection={{
+            checked: false,
+            active: false,
+            onChange,
+            label: 'Select conversation',
+          }}
+        />
+      </ul>,
+    );
+    const link = screen.getByRole('link', {
+      name: /Invoice shows the wrong VAT/,
+    });
+    const checkbox = screen.getByRole('checkbox', {
+      name: 'Select conversation',
+    });
+    // A mouse finds the box by pointing at the row, which reveals it; on a
+    // phone, where nothing hovers, it is there from the start.
+    if (pointFirst) await page.elementLocator(link).hover();
+    const bounds = checkbox.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2,
+    );
+    expect(checkbox.contains(hit)).toBe(true);
+
+    await page.elementLocator(checkbox).click();
+    expect(onChange).toHaveBeenCalledWith(true);
+  },
+);
+
 const backend = vi.hoisted(() => ({
   location: { pathname: '/dashboard/org-test/chat', search: {} } as {
     pathname: string;

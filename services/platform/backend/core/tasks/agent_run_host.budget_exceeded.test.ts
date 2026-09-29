@@ -31,7 +31,6 @@ vi.mock('../automations/agent_host', () => ({
   }),
   releaseTurnKey: async () => ({ won: true }),
   stageWorkflowSkills: async () => '',
-  workflowAgentBudgetCents: () => 500,
 }));
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
   const actual =
@@ -135,6 +134,10 @@ function makeCtx(run: RunState) {
         return { userId: 'user-starter' };
       }
       if (name === 'governance/queries:getContextCapInternal') return null;
+      // An editor's run: the agent's full equipment.
+      if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
+        return { confined: false };
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {

@@ -232,12 +232,12 @@ export function ConversationAssigneePicker({
 
     if (value === UNASSIGN_USER) {
       if (!assigneeUserId) return;
-      assignConversation({ conversationId, assigneeUserId: undefined });
+      assignConversation({ conversationId, assigneeUserId: null });
       return;
     }
     if (value === UNASSIGN_TEAM) {
       if (!assigneeTeamId) return;
-      assignConversationTeam({ conversationId, assigneeTeamId: undefined });
+      assignConversationTeam({ conversationId, assigneeTeamId: null });
       return;
     }
     // Re-picking the row that is already set clears that dimension, which is
@@ -245,7 +245,7 @@ export function ConversationAssigneePicker({
     if (value.startsWith(USER_PREFIX)) {
       const next = value.slice(USER_PREFIX.length);
       if ((assigneeUserId ?? undefined) === next) {
-        assignConversation({ conversationId, assigneeUserId: undefined });
+        assignConversation({ conversationId, assigneeUserId: null });
         return;
       }
       assignConversation({ conversationId, assigneeUserId: next });
@@ -254,7 +254,7 @@ export function ConversationAssigneePicker({
     if (value.startsWith(TEAM_PREFIX)) {
       const next = value.slice(TEAM_PREFIX.length);
       if ((assigneeTeamId ?? undefined) === next) {
-        assignConversationTeam({ conversationId, assigneeTeamId: undefined });
+        assignConversationTeam({ conversationId, assigneeTeamId: null });
         return;
       }
       assignConversationTeam({ conversationId, assigneeTeamId: next });

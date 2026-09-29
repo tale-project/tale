@@ -36,6 +36,16 @@ export function useUpdateCredential() {
   });
 }
 
+/** Patch one credential of an organization-defined provider together with
+ * the provider's definition: one write, each part against the version the
+ * dialog read. The dialog shows a refusal inline, so no generic toast. */
+export function useUpdateCredentialWithDefinition() {
+  return useBackendAction(
+    'provider_credentials/actions:updateCredentialWithDefinition',
+    { errorToast: false },
+  );
+}
+
 /** Delete one credential. Deleting the default leaves the pair without one. */
 export function useDeleteCredential() {
   return useBackendMutation('provider_credentials/mutations:deleteCredential', {

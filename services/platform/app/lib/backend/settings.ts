@@ -52,6 +52,8 @@ type VisionModelPickResult =
   ReturnsOf<'lib/providers/vision_actions:getResolvedVisionModel'>;
 type TranscriptionModelState =
   ReturnsOf<'lib/providers/transcription_actions:getTranscriptionModelState'>;
+type ImageGenerationState =
+  ReturnsOf<'lib/providers/image_generation_actions:getImageGenerationState'>;
 type ConnectorSummaryItem =
   ItemOf<'connector_credentials/connector_catalog:listConnectors'>;
 type ConnectorOauthAppItem = ItemOf<'connector_oauth_apps/queries:list'>;
@@ -869,6 +871,17 @@ export const settingsActionQueryAdapters: Record<string, ActionQueryAdapter> = {
         orgId,
       });
   },
+  'lib/providers/image_generation_actions:getImageGenerationState': (
+    args,
+    ctx,
+  ) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<ImageGenerationState>('/providers/image-generation-model', {
+        orgId,
+      });
+  },
   'connector_credentials/connector_catalog:listConnectors': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -982,11 +995,11 @@ function invalidateUserPrefs(
 /**
  * The provider-credential entity: the credential list and every read derived
  * from what the org's providers serve — the composer and agent model pickers,
- * the runtime status, the resolved vision and audio models, the embedding
- * recommendations. Credential writes are not the only thing that moves those
- * answers: a catalog refresh changes the models behind them, and the
- * model-access, vision-model and transcription-model policies narrow or pick
- * among them.
+ * the runtime status, the resolved vision, audio and image models, the
+ * embedding recommendations. Credential writes are not the only thing that
+ * moves those answers: a catalog refresh changes the models behind them, and
+ * the model-access, vision-model, transcription-model and image-generation
+ * policies narrow or pick among them.
  */
 function invalidateProviderReads(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
@@ -1336,6 +1349,29 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null),
     invalidate: invalidateProviderReads,
   },
+  'provider_credentials/actions:updateCredentialWithDefinition': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}/with-definition`,
+        {
+          orgId: requireOrg(args, ctx),
+          // Strict on the server: exactly the fields the edit dialog sends
+          // for an organization-defined provider, and the two versions.
+          body: {
+            ...(typeof args.name === 'string' ? { name: args.name } : {}),
+            ...(args.modelAllowlist !== undefined
+              ? { modelAllowlist: args.modelAllowlist }
+              : {}),
+            ...(typeof args.endpointUrl === 'string'
+              ? { endpointUrl: args.endpointUrl }
+              : {}),
+            expectedHash: stringArg(args, 'expectedHash'),
+            definition: args.definition,
+          },
+        },
+      ).then(() => null),
+    invalidate: invalidateProviderReads,
+  },
   'provider_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(
@@ -1474,7 +1510,8 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       if (
         args.policyType === 'model_access' ||
         args.policyType === 'vision_model' ||
-        args.policyType === 'transcription_model'
+        args.policyType === 'transcription_model' ||
+        args.policyType === 'image_generation'
       ) {
         invalidateProviderReads(client, args, ctx);
       }
@@ -1546,8 +1583,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then((body) => body.models),
     invalidate: invalidateProviderReads,
   },
-  // A read on the write lane: the edit flow fetches the definition's current
-  // hash right before saving against it, never from a cached copy.
+  // A read on the write lane: the edit flow fetches the definition right
+  // before saving, to carry the fields its form has no input for — and
+  // only while it is still the version the dialog showed.
   'lib/providers/definition_actions:getProviderDefinition': {
     run: (args, ctx) =>
       backendFetch<ProviderDefinitionSnapshotResult>(

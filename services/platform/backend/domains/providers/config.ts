@@ -5,7 +5,7 @@ import {
   providerDefinitionSchema,
   type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
 import {
@@ -72,6 +72,28 @@ export async function readProviderDefinition(orgSlug: string, name: string) {
   return snapshot;
 }
 
+/** Put back what a save replaced: the exact preimage bytes, or no file at
+ * all where the save created one. Called while the providers lock holds. */
+async function restoreDefinition(
+  file: string,
+  preimage: string | null,
+): Promise<void> {
+  if (preimage === null) await removeFileSafe(file);
+  else await atomicWrite(file, preimage);
+  invalidateCatalogFetchCache();
+}
+
+export interface SaveProviderDefinitionOptions {
+  /**
+   * Database work that lands with the definition or not at all — the
+   * credential of a custom provider, edited in the same dialog. It runs in
+   * the save's own transaction, under the providers lock, after the
+   * definition's compare-and-set and before its file is touched: its
+   * refusal writes nothing, and the rollback takes back its rows.
+   */
+  alongside?: (tx: TransactionSql) => Promise<void>;
+}
+
 export async function saveProviderDefinition(
   sql: Sql,
   scope: {
@@ -83,6 +105,7 @@ export async function saveProviderDefinition(
   name: string,
   config: ProviderDefinition,
   expectedHash: string | null,
+  options: SaveProviderDefinitionOptions = {},
 ) {
   const parsed = providerDefinitionSchema.safeParse(config);
   if (!parsed.success || parsed.data.name !== name) {
@@ -112,10 +135,11 @@ export async function saveProviderDefinition(
     }
   }
   const content = stringifyYaml(parsed.data);
-  return sql.begin((tx) =>
+  const save = (tx: TransactionSql) =>
     withConfigWriteLock(tx, scope.orgSlug, 'providers', async () => {
       const current = await readProviderDefinition(scope.orgSlug, name);
       assertExpectedHash(current.hash, expectedHash);
+      await options.alongside?.(tx);
       if (current.hash === sha256(content)) return current;
       await createAuditLog(tx, {
         organizationId: scope.organizationId,
@@ -131,6 +155,7 @@ export async function saveProviderDefinition(
         newState: { hash: sha256(content) },
         status: 'success',
       });
+      let preimage: string | null = null;
       if (current.config !== null) {
         // Preserve the exact reviewed preimage, including its original formatting.
         const previous = configSnapshot(
@@ -152,24 +177,42 @@ export async function saveProviderDefinition(
           previous.config,
         );
         await pruneHistory(history, 100);
+        preimage = previous.config;
       }
       await atomicWrite(file, content);
       invalidateCatalogFetchCache();
-      const saved = await readProviderDefinition(scope.orgSlug, name);
-      if (
-        saved.hash !== sha256(content) ||
-        !loadOrgCustomProviders(scope.orgSlug).some(
-          (provider) => provider.name === name,
-        )
-      ) {
-        throw new ConfigurationError(
-          'CONFIG_READBACK_FAILED',
-          'The native provider did not pass its readback.',
-        );
+      try {
+        const saved = await readProviderDefinition(scope.orgSlug, name);
+        if (
+          saved.hash !== sha256(content) ||
+          !loadOrgCustomProviders(scope.orgSlug).some(
+            (provider) => provider.name === name,
+          )
+        ) {
+          throw new ConfigurationError(
+            'CONFIG_READBACK_FAILED',
+            'The native provider did not pass its readback.',
+          );
+        }
+        return saved;
+      } catch (error) {
+        // What fails its readback is not published: the preimage goes back
+        // while the lock still holds, and the rollback takes the rest.
+        await restoreDefinition(file, preimage).catch((restoreError) => {
+          console.error(
+            `[providers] the definition "${name}" failed its readback and could not be taken back:`,
+            restoreError,
+          );
+        });
+        throw error;
       }
-      return saved;
-    }),
-  );
+    });
+  // A lost COMMIT acknowledgement does not prove rollback. Once this
+  // transaction ends, a later writer can also have accepted the same bytes.
+  // Never compensate outside its lock: that could undo a committed save.
+  // File/DB crash recovery needs a durable protocol; callers must read back
+  // an unknown outcome before retrying.
+  return sql.begin(save);
 }
 
 /**

@@ -32,6 +32,9 @@ import {
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 import { TaskTitleButton } from './task-title-button';
 
+/** The board's default decision: no task is workable. */
+export const readOnlyBoard = (): boolean => false;
+
 export type TaskRow = TaskDoc & {
   /** Folder-input subject facts stamped by the board list query (see
    * `collectFolderFacts`) — absent on surfaces that don't stamp them. */
@@ -47,7 +50,7 @@ export function TaskCard({
   onOpen,
   dragging,
   projectKey,
-  canEdit = false,
+  canWorkTask = readOnlyBoard,
 }: {
   task: TaskRow;
   /** This task's subtasks, when known — drives the progress ring. */
@@ -56,15 +59,15 @@ export function TaskCard({
   /** True when rendered inside the DragOverlay (floating clone). */
   dragging?: boolean;
   projectKey?: string | null;
-  /** Caller may write to the project — gates drag and the inline pickers. */
-  canEdit?: boolean;
+  /** Whether the viewer may work the task (`useTaskAccess`) — gates drag
+   * and the inline pickers. Absent, the card is read-only. */
+  canWorkTask?: (task: TaskRow) => boolean;
 }) {
   const { t } = useT('tasks');
   const resolvedProjectKey = task.projectKey ?? projectKey;
   const identifier = formatTaskIdentifier(resolvedProjectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
-  const editable = canEdit && task.archivedAt == null;
   const {
     isBlocked,
     getTask,
@@ -73,6 +76,8 @@ export function TaskCard({
     needsReview,
     reviewRequestedFor,
   } = useTaskBoardContext();
+  // Drag and the inline pickers are for whoever may work this task.
+  const editable = canWorkTask(task) && task.archivedAt == null;
   const blocked = isBlocked(task._id);
   const { done, total } = subtaskProgress(subtasks);
   // Name the reviewer the review-gate chip waits on ("You" for the viewer).
@@ -101,8 +106,8 @@ export function TaskCard({
     : parent
       ? t('detail.partOf', { task: parent.title })
       : t('detail.subtask');
-  // Read-only viewers can't reorder: disabling the sortable drops the drag
-  // listeners (the server rejects the move anyway).
+  // A viewer who may not work the task can't move it: disabling the
+  // sortable drops the drag listeners (the server rejects the move anyway).
   const sortable = useSortable({
     id: task._id,
     data: { status: task.status },

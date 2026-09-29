@@ -179,6 +179,7 @@ interface BoardWire {
   tasks: TaskWire[];
   truncated: boolean;
   canEdit: boolean;
+  canCreate: boolean;
 }
 
 function boardView(body: BoardWire): TasksByProjectResult {
@@ -186,6 +187,7 @@ function boardView(body: BoardWire): TasksByProjectResult {
     tasks: body.tasks.map(taskView),
     truncated: body.truncated,
     canEdit: body.canEdit,
+    canCreate: body.canCreate,
   };
 }
 
@@ -282,12 +284,16 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{
           task: TaskWire;
           canEdit: boolean;
+          canCreate: boolean;
           canComment: boolean;
+          ancestors?: NonNullable<GetTaskResult>['ancestors'];
         }>(`/tasks/${encodeURIComponent(taskId)}`, { orgId }).then(
           (body): GetTaskResult => ({
             task: taskView(body.task),
             canEdit: body.canEdit,
+            canCreate: body.canCreate,
             canComment: body.canComment,
+            ancestors: body.ancestors ?? [],
           }),
           (error: unknown): GetTaskResult => {
             // 0.4 answers null for a missing task — never an error state.

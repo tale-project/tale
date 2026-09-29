@@ -3,6 +3,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { BULK_CONVERSATION_LIMIT } from '../../../lib/shared/conversations/bulk-limit.ts';
 import { hasBodyOrAttachments } from '../../../lib/shared/conversations/outbound-content.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
@@ -339,16 +340,27 @@ export function createConversationRoutes(deps: {
     }
   });
 
+  /**
+   * The two assignment doors each take ONE required field: the person's or
+   * the team's id, or `null` to clear that dimension alone — the gesture the
+   * machine door's `teamId: null` documents, and the one the Inbox's
+   * **Unassign** and **Remove team** send. A body without that field is
+   * refused, never read as a clear: an empty or truncated body fails the app
+   * door's JSON reader (400 `INVALID_JSON`), and `{}` fails here, so a broken
+   * request cannot take a conversation away from the person answering it.
+   */
+  const assignmentTarget = z.string().min(1).max(128).nullable();
+
   app.post('/:id/assign', async (c) => {
     const body = z
-      .object({ assigneeUserId: z.string().max(128).optional() })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .object({ assigneeUserId: assignmentTarget })
+      .safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await assignConversation(deps.sql, {
         organizationId: c.get('orgId'),
         conversationId: c.req.param('id'),
-        assigneeUserId: body.data.assigneeUserId ?? null,
+        assigneeUserId: body.data.assigneeUserId,
         actor: actor(c),
       });
       return c.json({ ok: true });
@@ -359,14 +371,14 @@ export function createConversationRoutes(deps: {
 
   app.post('/:id/assign-team', async (c) => {
     const body = z
-      .object({ assigneeTeamId: z.string().max(128).optional() })
-      .safeParse(await c.req.json().catch(() => ({})));
+      .object({ assigneeTeamId: assignmentTarget })
+      .safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await assignConversationTeam(deps.sql, {
         organizationId: c.get('orgId'),
         conversationId: c.req.param('id'),
-        assigneeTeamId: body.data.assigneeTeamId ?? null,
+        assigneeTeamId: body.data.assigneeTeamId,
         actor: actor(c),
       });
       return c.json({ ok: true });
@@ -592,8 +604,14 @@ export function createConversationRoutes(deps: {
       .enum(['close', 'reopen', 'spam', 'archive', 'unarchive'])
       .safeParse(c.req.param('verb'));
     if (!verb.success) return c.json({ error: 'unknown bulk verb' }, 404);
+    // The Inbox sends a larger selection in batches of this size.
     const body = z
-      .object({ conversationIds: z.array(z.string().max(64)).min(1).max(200) })
+      .object({
+        conversationIds: z
+          .array(z.string().max(64))
+          .min(1)
+          .max(BULK_CONVERSATION_LIMIT),
+      })
       .safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     // Scope every named row through the viewer's own visibility first.

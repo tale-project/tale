@@ -335,3 +335,22 @@ export function useTranscriptionModelState(organizationId: string) {
     { organizationId },
   );
 }
+
+/**
+ * Whether agents may generate images, the image models a pin may name, and
+ * what a turn would use right now — all resolved by the server with the
+ * admission a turn applies, so the picker never offers a model the tool
+ * could not call. Keyed under the provider-credential entity: a credential
+ * or catalog change moves the answer.
+ */
+export function useImageGenerationState(organizationId: string) {
+  return useActionQuery(
+    backendKey(
+      organizationId,
+      PROVIDER_CREDENTIAL_HINT_ENTITY,
+      'image-generation-model',
+    ),
+    'lib/providers/image_generation_actions:getImageGenerationState',
+    { organizationId },
+  );
+}

@@ -2,13 +2,15 @@ import {
   configurationHashSchema,
   expectedConfigurationHashSchema,
 } from '@tale/shared/schemas/configuration';
-import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
+import {
+  providerDefinitionSchema,
+  type ProviderDefinition,
+} from '@tale/shared/schemas/providers';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { parseYaml } from '../../../lib/shared/config/yaml';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -26,13 +28,15 @@ import {
   readSystemEntryIcon,
 } from '../../core/lib/providers/load_system_config.ts';
 import {
-  loadOrgCustomProviders,
+  loadOrgCustomProviderSnapshots,
   resolveProvidersForOrg,
 } from '../../core/lib/providers/org_providers.ts';
+import { inspectImageGenerationModels } from '../../core/lib/providers/resolve_image_model.ts';
 import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import { appErrorHandler } from '../../error-reporting';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { parseNativeJsonBody } from '../../lib/native-json-body.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
@@ -51,7 +55,7 @@ import {
  * /api/app/providers — the AI-providers SETTINGS surface (the 0.4
  * `lib/providers/*` actions): the per-provider model catalogs (live sources
  * read-through), a force refresh, the managed-harness status matrix, and the
- * resolved vision/transcription picks. Non-secret capability metadata throughout —
+ * resolved vision/transcription/image-generation picks. Non-secret capability metadata throughout —
  * credential SHAPES and counts, never material. Admin/developer-gated like
  * the credentials pages it sits beside.
  */
@@ -98,15 +102,9 @@ export function createProviderSettingRoutes(deps: {
   app.put('/definitions/:name', async (c) => {
     const denied = requireDeveloper(c);
     if (denied) return denied;
-    const raw = await c.req.text();
     // JSON-only transport plus the native parser's duplicate-key refusal.
-    let value: unknown;
-    try {
-      value = JSON.parse(raw);
-    } catch {
-      return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
-    }
-    if (!parseYaml(raw).ok)
+    const value = parseNativeJsonBody(await c.req.text());
+    if (value === undefined)
       return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
     const body = z
       .strictObject({
@@ -210,15 +208,24 @@ export function createProviderSettingRoutes(deps: {
     // The same union `resolveProvidersForOrg` serves, kept apart here so each
     // entry can say where it came from: the settings page lists and edits the
     // organization's own definitions, which the shipped set never includes.
-    const sources = [
-      { origin: 'shipped' as const, providers: loadProviderDefinitions() },
+    // Those carry the hash of the file their facts were read from: the edit
+    // dialog shows these facts and saves against that version, so a
+    // definition someone saved since is refused, never written over.
+    const sources: {
+      origin: 'shipped' | 'organization';
+      providers: { provider: ProviderDefinition; hash?: string }[];
+    }[] = [
       {
-        origin: 'organization' as const,
-        providers: loadOrgCustomProviders(orgSlug),
+        origin: 'shipped',
+        providers: loadProviderDefinitions().map((provider) => ({ provider })),
+      },
+      {
+        origin: 'organization',
+        providers: loadOrgCustomProviderSnapshots(orgSlug),
       },
     ];
     for (const { origin, providers } of sources)
-      for (const provider of providers) {
+      for (const { provider, hash } of providers) {
         let models: unknown[] = [];
         let catalogError: string | undefined;
         try {
@@ -257,6 +264,7 @@ export function createProviderSettingRoutes(deps: {
           authMethods: provider.auth.map((entry) => entry.method),
           models,
           ...(catalogError !== undefined ? { catalogError } : {}),
+          ...(hash !== undefined ? { definitionHash: hash } : {}),
         });
       }
     return c.json({ catalogs: results });
@@ -383,6 +391,26 @@ export function createProviderSettingRoutes(deps: {
       await inspectTranscriptionModels(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shared resolver's provider and policy reads are covered by these handlers
         shim as unknown as Parameters<typeof inspectTranscriptionModels>[0],
+        c.get('orgId'),
+      ),
+    );
+  });
+
+  app.get('/image-generation-model', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    c.header('Cache-Control', 'no-store');
+    // The same admission a turn's `generate_image` grant applies, answered
+    // without a secret: the picker can never offer a model the tool could
+    // not call, and the settings page never learns a key.
+    const shim = createCtxShim({
+      ...knowledgeShimHandlers(deps.sql),
+      ...governanceShimHandlers(deps.sql),
+    });
+    return c.json(
+      await inspectImageGenerationModels(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shared resolver's provider and policy reads are covered by these handlers
+        shim as unknown as Parameters<typeof inspectImageGenerationModels>[0],
         c.get('orgId'),
       ),
     );

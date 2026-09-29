@@ -7,7 +7,7 @@ Jede KI-Anfrage, die Tale für deine Organisation stellt, wird einmal erfasst, e
 
 ## Was als Nutzung zählt
 
-Tale erfasst eine Anfrage, sobald ein Modell oder ein gemessener Dienst für deine Organisation läuft: eine Chatantwort, auch eine neu erzeugte oder bearbeitete und beide Seiten eines Modellvergleichs; der kurze Modellaufruf, der einem neuen Chat seinen Titel gibt; ein Zug eines verwalteten Agenten, der an einer Aufgabe oder in einer Automatisierung arbeitet; Sprachausgabe; die Transkription einer hochgeladenen Aufnahme; ein gemessener Connector-Aufruf; und ein Aufruf der Modell-Endpunkte mit einem API-Schlüssel. Jeder Eintrag enthält die verbrauchten Tokens oder Einheiten und die Kosten, die zu diesem Zeitpunkt aus dem Listenpreis des Anbieters geschätzt wurden; bei einem Aufruf der Modell-Endpunkte sind es die Kosten, die das Modell-Gateway gemessen hat.
+Tale erfasst eine Anfrage, sobald ein Modell oder ein gemessener Dienst für deine Organisation läuft: eine Chatantwort, auch eine neu erzeugte oder bearbeitete und beide Seiten eines Modellvergleichs; der kurze Modellaufruf, der einem neuen Chat seinen Titel gibt; ein Zug eines verwalteten Agenten, der an einer Aufgabe oder in einer Automatisierung arbeitet; ein Bild, das ein solcher Agent erstellt; Sprachausgabe; die Transkription einer hochgeladenen Aufnahme; ein gemessener Connector-Aufruf; und ein Aufruf der Modell-Endpunkte mit einem API-Schlüssel. Jeder Eintrag enthält die verbrauchten Tokens oder Einheiten und die Kosten, die zu diesem Zeitpunkt aus dem Listenpreis des Anbieters geschätzt wurden; bei einem Aufruf der Modell-Endpunkte sind es die Kosten, die das Modell-Gateway gemessen hat.
 
 ## Wem eine Anfrage angerechnet wird
 
@@ -19,6 +19,7 @@ Die Regel ist überall dieselbe: Eine Anfrage zählt für die Person, die die Ar
 | Ein Agentenlauf zu einer Aufgabe | Das Mitglied, das den Lauf aus der Aufgabe gestartet hat oder mit einem Kommentar oder einer Aufgabenbeschreibung, die den Agenten erwähnt | — | Der Name des Agenten unter **Top-Assistenten** |
 | Ein Automatisierungslauf, den jemand gestartet hat | Das Mitglied, das ihn aus der Laufliste, dem Builder, einem Chat, einer Aufgabe, über die REST-API oder den MCP-Endpoint gestartet hat | Den API-Schlüssel, wenn der Lauf mit einem gestartet wurde | Der Name der Automatisierung unter **Top-Assistenten** |
 | Ein Automatisierungslauf, den ein Trigger gestartet hat | Niemanden: Hinter einem Zeitplan, einem Webhook oder einem Ereignis steht keine Person | — | Die Zeile **Automatisierungen (Trigger)** unter **Nutzung pro Benutzer** |
+| Ein Bild, das ein Agent erstellt | Die Person, für die der Lauf des Agenten zählt: wer ihn gestartet hat, bei einem Trigger-Lauf niemand | Den API-Schlüssel, wenn der Lauf mit einem gestartet wurde | Der Name des Agenten oder der Automatisierung unter **Top-Assistenten** und das Bildmodell unter **Top-Modelle** |
 | Sprachausgabe oder eine Transkription | Das Mitglied, das sie angefordert hat | — | **Sprachausgabe** oder **Transkription** unter **Top-Assistenten**; Sprachausgabe zusätzlich unter **Top-Sprachmodelle** |
 | Ein gemessener Connector-Aufruf | Das Mitglied, dessen Anfrage den Aufruf ausgelöst hat | — | Der Assistent, der ihn gemacht hat, oder **Connector** |
 | Ein Aufruf der [Modell-Endpunkte](/de/develop/use-tale-from-your-editor#model-endpoints) | Das Mitglied, dessen API-Schlüssel ihn gesendet hat | Den API-Schlüssel | **Direkter API-Aufruf** unter **Top-Assistenten** |
@@ -31,7 +32,7 @@ Ein erneuter Versuch eines Agentenlaufs führt den Lauf fort, den sein Starter a
 - **Organisationslimits** binden jede Anfrage, auch die Läufe eines Triggers.
 - **API-Schlüssellimits** binden die Anfragen, die mit diesem Schlüssel authentifiziert wurden: die damit gesendeten Chatnachrichten, die damit gestellten Aufrufe der Modell-Endpunkte und die damit gestarteten Läufe.
 
-Ist ein Limit erreicht, lehnt Tale die nächste Anfrage vor der Ausführung ab und nennt das Limit. Ein Zug eines verwalteten Agenten wird beim Start abgelehnt; ein bereits laufender Zug behält den Rahmen, den er bekommen hat. [So werden Regeln kombiniert](/de/platform/admin/governance/policies-and-limits#how-rules-combine) beschreibt den Fall, dass mehrere Regeln für eine Person gelten.
+Ist ein Limit erreicht, lehnt Tale die nächste Anfrage vor der Ausführung ab und nennt das Limit. Ein Zug eines verwalteten Agenten wird beim Start abgelehnt; ein bereits laufender Zug behält den Rahmen, den er bekommen hat. Ein Bild, das der Agent während seines Zugs anfordert, wird eigens geprüft, bevor das Bildmodell aufgerufen wird: Ist ein Limit erreicht, lehnt Tale das Bild ab, und der Zug läuft weiter. Das Bild zehrt außerdem vom Rahmen des Zugs, der es angefordert hat. [So werden Regeln kombiniert](/de/platform/admin/governance/policies-and-limits#how-rules-combine) beschreibt den Fall, dass mehrere Regeln für eine Person gelten.
 
 ## Drei Situationen, die du kennen solltest
 

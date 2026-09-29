@@ -529,6 +529,13 @@ export const modelCatalogEntrySchema = z
         outputCentsPerMillion: z.number().nonnegative().finite(),
         cacheReadCentsPerMillion: z.number().nonnegative().finite().optional(),
         cacheWriteCentsPerMillion: z.number().nonnegative().finite().optional(),
+        /** What an image generator charges per million IMAGE input tokens
+         * (the reference images of an edit), where the vendor prices them
+         * apart from text input — OpenAI's GPT image models do. Absent, an
+         * image input token bills at the plain input rate. For such a model
+         * `input` is the text-input price and `output` the image-output
+         * price. Static-catalog sources only. */
+        imageInputCentsPerMillion: z.number().nonnegative().finite().optional(),
       })
       .strict()
       .optional(),

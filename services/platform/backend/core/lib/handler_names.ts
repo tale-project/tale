@@ -268,6 +268,11 @@ interface HandlerNames {
     gateway_reconcile: FunctionRef & {
       reconcileSessionOpKey: FunctionRef;
     };
+    image_generation: FunctionRef & {
+      admitImageGeneration: FunctionRef;
+      getImageTurnContext: FunctionRef;
+      settleImageGeneration: FunctionRef;
+    };
     session_mutations: FunctionRef & {
       bumpSessionOpHeartbeat: FunctionRef;
       claimSessionOpFinalize: FunctionRef;
@@ -330,6 +335,7 @@ interface HandlerNames {
     agent_runs: FunctionRef & {
       completeTaskAgentRun: FunctionRef;
       getAgentLanguageContext: FunctionRef;
+      getTaskAgentRunAuthority: FunctionRef;
       getTaskAgentRunForDrive: FunctionRef;
       getTaskBriefForAgentRun: FunctionRef;
       markTaskAgentRunFailed: FunctionRef;

@@ -24,6 +24,23 @@ export function agentWorkTurnDeadlineMs(): number {
     : DEFAULT_AGENT_WORK_TURN_DEADLINE_MS;
 }
 
+/** Gateway budget for one work turn, in cents — the chat turn's default. */
+const DEFAULT_AGENT_BUDGET_CENTS = 500;
+
+/**
+ * The spend allowance of one work turn, in cents: what its gateway key is
+ * minted with unless a budget rule leaves less (`reserveTurnBudget`). A
+ * turn on a vendor subscription has no gateway key — its model spend is the
+ * vendor's — and measures its image generation against this default
+ * instead.
+ */
+export function workflowAgentBudgetCents(): number {
+  const configured = Number(process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_AGENT_BUDGET_CENTS;
+}
+
 /**
  * The moment a session op's chain last proved it was alive, across ALL turn
  * phases: the drain bumps `heartbeatAt` every attach window, the settle

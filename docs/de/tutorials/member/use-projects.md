@@ -7,7 +7,7 @@ Erstelle ein Projekt, wenn mehrere Chats dieselben Unterlagen brauchen. In diese
 
 ## Bevor du beginnst
 
-Du brauchst die Rolle **Mitglied** oder höher und ein kurzes Textdokument, eine PDF mit auswählbarem Text oder eine Datei in einem modernen Office-Format. Wähle eine Quelle, deren Angaben du nachprüfen kannst, etwa ein Projektbriefing mit einer verantwortlichen Person und einem Prüftermin. Ein Admin muss den Dateispeicher und ein Embedding-Modell für durchsuchbare Uploads eingerichtet haben.
+Um das Projekt zu erstellen, Dateien hochzuladen und Anweisungen zu speichern, brauchst du die Rolle **Redakteur** oder höher. Als **Mitglied** bittest du einen Redakteur um diese Schritte oder nimmst ein Projekt, das du schon öffnen kannst, und beginnst bei [Eine Frage stellen und die Quelle prüfen](#eine-frage-stellen-und-die-quelle-pruefen). Du brauchst ein kurzes Textdokument, eine PDF mit auswählbarem Text oder eine Datei in einem modernen Office-Format. Wähle eine Quelle, deren Angaben du nachprüfen kannst, etwa ein Projektbriefing mit einer verantwortlichen Person und einem Prüftermin. Ein Admin muss den Dateispeicher und ein Embedding-Modell für durchsuchbare Uploads eingerichtet haben.
 
 Neue Projekte sind **Organisationsweit** sichtbar. Verwende für diese Anleitung keine vertraulichen Unterlagen. Soll das spätere Projekt nur bestimmten Teams zugänglich sein, lege das zuständige Team unter **Allgemein > Freigabe** fest, bevor du Dateien hochlädst. Projektchats bleiben persönlich, bis du sie teilst.
 

@@ -62,6 +62,7 @@ page, the budget gate, erasure and retention are its readers.
 | Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare) | `project_agents.id` | — |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` |
+| Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above |
 | Voice output, transcription | `domains/tts`, `domains/files/transcription.ts` | the requester | `__tts__`, `__transcription__` | — |
 | Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key |
 | Connector call | `recordConnectorUsage` | the caller | optional | — |
@@ -84,6 +85,10 @@ page, the budget gate, erasure and retention are its readers.
   book the same subject and the key; a trigger run is impersonal.
 - `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder
   with the key and books the gateway's figure under the person, `__direct_api__` and the key.
+- `domains/sandbox/image-generation.test.ts` — an agent's image is admitted and booked under its
+  turn's subject, against every hold in flight (the turn's own allowance included) and the
+  turn's allowance, and a trigger run's image is impersonal; `image-generation.integration.ts`
+  proves racing admissions on the real schema.
 - `core/tasks/agent_run_host.connector_caller.test.ts`, `domains/connectors/bridge-routes.test.ts`
   — a task turn's connector calls act for the run's starter while the run is live, and for
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an

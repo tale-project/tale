@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 107 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 108 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -70,7 +70,7 @@ second account per role (mint via `POST /api/auth/sign-up/email`, add under
 Settings → Members); SET-F16 needs a second **already-existing** account. Mode
 A makes the connector add-credential smoke (SET-F25) deterministic. The model
 endpoint boxes (SET-F64–SET-F68, SET-B23–SET-B26, SET-A10) need the
-endpoints switched on as in governance.md GOV-F39; a real answer needs mode B
+endpoints switched on as in governance.md GOV-F41; a real answer needs mode B
 with the sandbox model gateway running. Restore any toggled setting after the
 run.
 
@@ -739,7 +739,7 @@ run.
   scrolls sideways at 390 px, and every button label is readable in both
   themes.
 - [ ] `SET-F64` · **Models tab while the model endpoints are off** — As an
-  owner, with **Model endpoints for API keys** off (governance.md GOV-F38),
+  owner, with **Model endpoints for API keys** off (governance.md GOV-F40),
   open `/dashboard/{org}/settings/api/models` → The API pages read **REST**,
   **Models** (`navigation.apiModels`), **MCP** and **WebDAV** in that order,
   in the settings rail's API row and, at narrow widths, in the tab strip; the
@@ -750,7 +750,7 @@ run.
   `/dashboard/{org}/settings/governance/content-models`; a developer sees the
   same state without the button; no base URL, slug or setup renders.
 - [ ] `SET-F65` · **Models tab once the model endpoints are on** — With
-  GOV-F39's switch on, reload `/dashboard/{org}/settings/api/models` as an
+  GOV-F41's switch on, reload `/dashboard/{org}/settings/api/models` as an
   owner → The page (`settings.modelEndpoints.title`) shows its description and
   `settings.modelEndpoints.governanceNote`; **OpenAI-compatible base URL**
   (`settings.modelEndpoints.openaiUrl.label`) reads `<site>/api/v1/openai` and
@@ -958,7 +958,7 @@ run.
   Anthropic shape; the retired `POST /api/v1/chat/completions` answers 404
   `NOT_FOUND` in the flat envelope.
 - [ ] `SET-B26` · **A granted member sees REST and Models only** — Sign in as
-  governance.md GOV-F41's **Member** while it holds **Call models over the
+  governance.md GOV-F43's **Member** while it holds **Call models over the
   API** → The settings rail shows **API** with only **REST** and **Models**;
   the member creates an API key on `/dashboard/{org}/settings/api/rest` and
   reads the setup on `/dashboard/{org}/settings/api/models` (or its
@@ -967,6 +967,19 @@ run.
   by URL show the access-denied message (`accessDenied.apiKeys`). Revoke the
   grant → the API row disappears, and `/dashboard/{org}/settings/api/models`
   shows `accessDenied.apiKeys` too.
+- [ ] `SET-B21` · **A custom provider's edit saves whole or not at all** —
+  With a custom provider holding two credentials A and B (`SET-F43`), open
+  A's **Edit credential** (`settings.credentials.edit`), change **Base URL**
+  (`settings.providers.custom.baseUrl`) and set **Provider name**
+  (`settings.providers.custom.nameLabel`) to B's name → **Save** → the dialog
+  keeps the form and shows the server's sentence (a credential named B
+  already exists), no toast; **Cancel**, reload → A's **Edit credential**
+  still shows the old **Base URL** and name. Then open A's **Edit credential**
+  in two tabs; in the second change **Base URL** and save; in the first
+  change only the name and save → the first dialog stays open and shows
+  `settings.providers.custom.errors.versionConflict`; reload the second
+  tab → its **Base URL** stands; reopen the first dialog → it shows that
+  **Base URL**, and the rename now saves.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -16,7 +16,8 @@ const DEBOUNCE_MS = 400;
 /**
  * Live trigger preview under a mention-aware composer (comment OR task
  * description): for each @-mentioned agent in the draft, whether saving will
- * put it to work (⚡) or why not (⛔ — automation off, breaker, budget).
+ * put it to work (⚡) or why not (⛔ — automation off, breaker, budget, or a
+ * task the viewer may comment on but not work).
  * Only tokens that name one of the project's agents are queried, by any
  * handle the server resolves (the name forms the picker inserts, or the
  * instance id) — human mentions and typos render no chip. Create mode (no
@@ -100,6 +101,8 @@ export function MentionTriggerChips({
         return t('mentionPreview.budgetPaused', { slug: name });
       case 'agent_not_live':
         return t('mentionPreview.agentNotLive', { slug: name });
+      case 'not_permitted':
+        return t('mentionPreview.notPermitted', { slug: name });
       default:
         return name;
     }

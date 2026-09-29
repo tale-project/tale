@@ -73,6 +73,10 @@ export const POLICY_TYPES = [
   // Organization-wide audio transcription routing. Missing/empty config is
   // Automatic; a pin applies to server dictation and uploaded audio/video alike.
   'transcription_model',
+  // Whether agents (project agents working tasks, automation agent steps)
+  // may generate images, and with which model. Missing file ⇒ off — the
+  // capability is opt-in. See `imageGenerationConfigSchema`.
+  'image_generation',
   // Independent-review requirements for the task-review gate. Missing row /
   // empty config ⇒ no extra requirement — anyone with project edit access
   // may approve, exactly as today. See `reviewPolicyConfigSchema`; enforced
@@ -347,6 +351,36 @@ export const transcriptionModelConfigSchema = visionModelConfigSchema.strict();
 export type TranscriptionModelConfig = z.infer<
   typeof transcriptionModelConfigSchema
 >;
+
+/**
+ * Image generation for agents — the `generate_image` workspace tool a
+ * project agent working a task, or an automation's agent step, can call.
+ * Chat never generates images.
+ *
+ * Opt-in: a missing file and `enabled: false` both mean OFF, and the tool is
+ * then absent from every agent turn. When on, both pin fields absent ⇒
+ * **automatic**: the platform picks the first model of a short curated list
+ * the organization can reach; set both to pin one model instead. Both fields
+ * move together (a provider without a model, or a model without its
+ * provider, cannot be routed). A pin may stay in place while the policy is
+ * off, so turning it back on restores the admin's choice.
+ */
+export const imageGenerationConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    providerSlug: z.string().min(1).max(64).optional(),
+    modelId: z.string().min(1).max(200).optional(),
+  })
+  .strict()
+  .refine(
+    (config) =>
+      (config.providerSlug === undefined) === (config.modelId === undefined),
+    {
+      message:
+        'pin both providerSlug and modelId, or neither (neither = automatic selection)',
+    },
+  );
+export type ImageGenerationConfig = z.infer<typeof imageGenerationConfigSchema>;
 
 export const uploadPolicyConfigSchema = z.object({
   enabled: z.boolean(),
@@ -1161,6 +1195,7 @@ export const POLICY_SCHEMAS = {
   approval_policy: approvalPolicyConfigSchema,
   vision_model: visionModelConfigSchema,
   transcription_model: transcriptionModelConfigSchema,
+  image_generation: imageGenerationConfigSchema,
   review_policy: reviewPolicyConfigSchema,
   embedding: embeddingConfigSchema,
   skill_sharing: skillSharingConfigSchema,

@@ -35,6 +35,14 @@ export interface WorkspaceActionAuthority {
   scope:
     | { kind: 'project'; projectId: string }
     | { kind: 'org'; allowedProjectIds?: string[] };
+  /**
+   * Set for a project agent's run that a member started — someone who may
+   * work their own tasks but not edit the project. Its writes stay on this
+   * task and the subtasks under it (a new task only as such a subtask, with
+   * labels the catalog already has); it syncs no external items and saves
+   * no project documents. Reads keep the scope above.
+   */
+  confinedToTaskId?: string;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

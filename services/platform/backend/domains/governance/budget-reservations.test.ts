@@ -82,14 +82,42 @@ describe('readInFlightReservations', () => {
     expect(read).toContain('FROM app.sandbox_session_ops');
     expect(read).toContain('spend_settled_at_ms IS NULL');
     // An unsettled op holds against the key its reservation stamped — a
-    // keyed run's turn and a model-endpoint request alike.
+    // keyed run's turn and a model-endpoint request alike — with the tokens
+    // its hold sized and an image generation it has in flight.
     expect(read).toContain(
-      'SELECT user_id, api_key_id, budget_cents::float8, coalesce(reserved_tokens, 0)::float8 FROM app.sandbox_session_ops',
+      'SELECT user_id, api_key_id, (coalesce(budget_cents, 0) + image_hold_cents)::float8, coalesce(reserved_tokens, 0)::float8,',
     );
     expect(read).toContain('JOIN "teamMember" tm ON tm."userId" = h.user_id');
     expect(statements[0]?.values).toEqual(
       expect.arrayContaining(['org-1', 'user-1', 'key-1', ['team-1']]),
     );
+  });
+
+  it('adds an image generation in flight to its turn’s hold, one request per image', async () => {
+    const { sql, statements } = scriptedSql([NO_HOLDS]);
+    await readInFlightReservations(sql, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      userTeamIds: ['team-1'],
+    });
+    const read = statements[0]?.text ?? '';
+    // A turn holds its allowance plus its generation's estimate — and a
+    // subscription turn, which has no allowance, holds while one runs.
+    expect(read).toContain(
+      '(coalesce(budget_cents, 0) + image_hold_cents)::float8',
+    );
+    expect(read).toContain(
+      '(budget_cents IS NOT NULL OR image_call_started_at_ms IS NOT NULL)',
+    );
+    // Requests are summed, not counted: a turn is one, each image one more.
+    expect(read).toContain(
+      '((CASE WHEN budget_cents IS NULL THEN 0 ELSE 1 END) + image_hold_requests)::float8',
+    );
+    expect(read).toContain('sum(h.requests)::float8 AS "requests"');
+    expect(read).toContain(
+      'coalesce(sum(requests), 0)::float8 AS "orgRequests"',
+    );
+    expect(read).not.toContain('count(*)');
   });
 
   it('leaves the key bucket out of a session request and holds nothing for an idle organization', async () => {

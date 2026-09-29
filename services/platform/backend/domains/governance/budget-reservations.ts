@@ -19,9 +19,10 @@ import type {
  * its first round's worst case on its generation row (`app.generations`,
  * gone when the turn settles or the watchdog clears it); a managed turn
  * holds its gateway allowance on its op row until its spend is booked
- * (`app.sandbox_session_ops`). An admission adds every other hold to the
- * booked usage under the organization's admission lock, so the holds it
- * reads cannot change until its own is written.
+ * (`app.sandbox_session_ops`), and while one of its `generate_image` calls
+ * runs, that call's estimate and image requests on top. An admission adds
+ * every other hold to the booked usage under the organization's admission
+ * lock, so the holds it reads cannot change until its own is written.
  */
 
 /** The retry-queue key the organization's budget admissions share. */
@@ -88,11 +89,13 @@ interface HoldRow {
  * (the holds of that team's CURRENT members, as the team's usage is read)
  * and the authenticating API key's — a keyed chat turn's, a keyed run's
  * managed turn and a model-endpoint request alike, each op row carrying the
- * key its reservation stamped. A hold counts as one request, its cost as
- * reserved, and its tokens where the work sized them (a chat turn's round, a
+ * key its reservation stamped. A chat turn's hold, a managed turn's
+ * allowance and a model-endpoint request count as one request each; an
+ * image generation in flight counts one per image it may make. Costs count
+ * as reserved, tokens where the work sized them (a chat turn's round, a
  * model-endpoint request's prompt and output cap; an agent turn holds no
- * token figure). `exclude`
- * leaves out the admission's own row when it already exists.
+ * token figure). `exclude` leaves out the admission's own row when it
+ * already exists.
  */
 export async function readInFlightReservations(
   sql: Sql | TransactionSql,
@@ -108,15 +111,23 @@ export async function readInFlightReservations(
     WITH holds AS (
       SELECT user_id, api_key_id,
              reserved_cost_cents::float8 AS cost_cents,
-             reserved_tokens::float8 AS tokens
+             reserved_tokens::float8 AS tokens,
+             1::float8 AS requests
       FROM app.generations
       WHERE org_id = ${org} AND user_id IS NOT NULL
         AND thread_id <> ${exclude.threadId ?? ''}
       UNION ALL
-      SELECT user_id, api_key_id, budget_cents::float8,
-             coalesce(reserved_tokens, 0)::float8
+      -- A managed turn or a model-endpoint request: its gateway allowance
+      -- (a subscription turn has none) and the tokens its hold sized, plus
+      -- the image generation it has in flight.
+      SELECT user_id, api_key_id,
+             (coalesce(budget_cents, 0) + image_hold_cents)::float8,
+             coalesce(reserved_tokens, 0)::float8,
+             ((CASE WHEN budget_cents IS NULL THEN 0 ELSE 1 END)
+               + image_hold_requests)::float8
       FROM app.sandbox_session_ops
-      WHERE org_id = ${org} AND budget_cents IS NOT NULL
+      WHERE org_id = ${org}
+        AND (budget_cents IS NOT NULL OR image_call_started_at_ms IS NOT NULL)
         AND spend_settled_at_ms IS NULL
         AND NOT (session_id = ${exclude.op?.sessionId ?? ''}
                  AND exec_id = ${exclude.op?.execId ?? ''})
@@ -125,7 +136,7 @@ export async function readInFlightReservations(
       SELECT tm."teamId" AS "teamId",
              sum(h.cost_cents)::float8 AS "costCents",
              sum(h.tokens)::float8 AS "tokens",
-             count(*)::float8 AS "requests"
+             sum(h.requests)::float8 AS "requests"
       FROM holds h
       JOIN "teamMember" tm ON tm."userId" = h.user_id
       JOIN "team" t ON t."id" = tm."teamId" AND t."organizationId" = ${org}
@@ -135,17 +146,19 @@ export async function readInFlightReservations(
     SELECT
       coalesce(sum(cost_cents), 0)::float8 AS "orgCostCents",
       coalesce(sum(tokens), 0)::float8 AS "orgTokens",
-      count(*)::float8 AS "orgRequests",
+      coalesce(sum(requests), 0)::float8 AS "orgRequests",
       coalesce(sum(cost_cents) FILTER (WHERE user_id = ${subject.userId}), 0)::float8
         AS "userCostCents",
       coalesce(sum(tokens) FILTER (WHERE user_id = ${subject.userId}), 0)::float8
         AS "userTokens",
-      count(*) FILTER (WHERE user_id = ${subject.userId})::float8 AS "userRequests",
+      coalesce(sum(requests) FILTER (WHERE user_id = ${subject.userId}), 0)::float8
+        AS "userRequests",
       coalesce(sum(cost_cents) FILTER (WHERE api_key_id = ${apiKeyId}), 0)::float8
         AS "keyCostCents",
       coalesce(sum(tokens) FILTER (WHERE api_key_id = ${apiKeyId}), 0)::float8
         AS "keyTokens",
-      count(*) FILTER (WHERE api_key_id = ${apiKeyId})::float8 AS "keyRequests",
+      coalesce(sum(requests) FILTER (WHERE api_key_id = ${apiKeyId}), 0)::float8
+        AS "keyRequests",
       (SELECT json_agg(team_holds) FROM team_holds) AS "teams"
     FROM holds
   `;

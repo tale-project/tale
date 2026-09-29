@@ -4,7 +4,9 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { sha256 } from '../file_io';
 import {
+  loadOrgCustomProviderSnapshots,
   loadOrgCustomProviders,
   resolveProvidersForOrg,
   resolveProvidersDir,
@@ -46,6 +48,16 @@ describe('resolveProvidersDir', () => {
   it('resolves inside the org subtree and rejects invalid slugs', () => {
     expect(resolveProvidersDir(ORG)).toBe(path.join(root, ORG, 'providers'));
     expect(() => resolveProvidersDir('../escape')).toThrow('Invalid org slug');
+  });
+});
+
+describe('loadOrgCustomProviderSnapshots', () => {
+  it('pairs each definition with the hash of the bytes it was parsed from', async () => {
+    await writeProvider('ollama-lab.yml', OLLAMA_YML);
+    await writeProvider('broken.yml', 'name: [ not yaml');
+    expect(loadOrgCustomProviderSnapshots(ORG)).toEqual([
+      { provider: loadOrgCustomProviders(ORG)[0], hash: sha256(OLLAMA_YML) },
+    ]);
   });
 });
 

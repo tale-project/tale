@@ -59,6 +59,7 @@ export function TaskConversation({
   organizationId,
   projectId,
   canComment,
+  canWork = false,
   currentUserId,
   isAdmin,
 }: {
@@ -66,6 +67,8 @@ export function TaskConversation({
   organizationId: string;
   projectId: string;
   canComment: boolean;
+  /** The viewer may work the task: an admin's moderation passes it. */
+  canWork?: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
 }) {
@@ -160,6 +163,7 @@ export function TaskConversation({
                         organizationId={organizationId}
                         projectId={projectId}
                         canComment={canComment}
+                        canWork={canWork}
                         {...(currentUserId !== undefined
                           ? { currentUserId }
                           : {})}

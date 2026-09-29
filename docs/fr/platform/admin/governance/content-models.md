@@ -50,6 +50,20 @@ Laisse la sélection du modèle de lecture sur automatique pour suivre le catalo
 
 Fixe un modèle si tu souhaites un choix stable. La sélection propose des modèles capables de lire les images. Si le modèle fixé devient indisponible, rétablis son accès fournisseur ou choisis explicitement **Automatique**, puis enregistre. Tale ne remplace pas silencieusement un modèle fixé. Vérifie le choix après une rotation des identifiants ou un changement de disponibilité.
 
+## Laisser les agents générer des images {#let-agents-generate-images}
+
+La **génération d’images** permet aux [agents de projet](/fr/platform/projects/project-agents) qui traitent des tâches et aux nœuds agent des [automatisations](/fr/platform/automations/concepts) de créer des images, par exemple la couverture d’un rapport ou un visuel de campagne. Elle reste désactivée tant que tu ne l’actives pas. Le chat ne crée jamais d’images : un membre qui en a besoin confie une tâche à un agent de projet.
+
+1. Active **Laisser les agents générer des images**. L’interrupteur enregistre aussitôt.
+2. Laisse **Modèle d'images** sur **Automatique**, ou choisis un modèle et enregistre les modifications en attente dans l’en-tête de la page.
+3. Vérifie la ligne sous la sélection. Elle nomme le modèle avec lequel les agents créent les images.
+
+**Automatique** prend le premier modèle d’une courte liste recommandée que tes identifiants fournisseur atteignent : Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1, puis FLUX.2 Pro. Tale tient compte pour cela des identifiants OpenRouter et OpenAI. La sélection liste chaque modèle d’images que tes identifiants peuvent servir, y compris ceux d’autres fournisseurs compatibles. Un modèle choisi reste fixé jusqu’à ce que tu le changes ; s’il devient indisponible, Tale le signale et ne passe pas à un autre modèle. Désactiver la génération d’images conserve le modèle choisi pour la prochaine activation.
+
+Tant que la génération d’images est activée et qu’un modèle est disponible, chaque agent qui commence à travailler dans un environnement doté du canal MCP de Tale reçoit un outil pour les images. Les agents des autres environnements, et tous les agents quand la génération d’images est désactivée, ne voient pas du tout cet outil ; [Choisir un environnement d’agent](/fr/platform/agents/harnesses) indique quels environnements disposent de ce canal. La désactivation refuse aussi la prochaine demande d’image d’un agent déjà en cours. Un agent range ses images parmi ses fichiers : celles d’une tâche apparaissent dans ses fichiers produits, celles d’une étape d’automatisation dans la sortie de l’étape.
+
+Chaque image est facturée à ton organisation et compte, comme le reste de l’exécution, pour la personne qui l’a lancée. Un tour d’agent crée au plus 16 images, une requête à la fois, et ses images puisent dans la même enveloppe que l’usage du modèle pendant ce tour : une fois l’enveloppe épuisée, Tale refuse l’image suivante. Une limite de budget qui s’applique à cette personne refuse l’image avant l’appel au modèle d’images. Fixe des limites de coût ou de requêtes pour les images dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; [Comment l’usage est compté](/fr/platform/admin/governance/usage-attribution) explique pour qui chaque image compte. Le fichier de politique et les endpoints d’images personnalisés sont décrits dans la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configure-image-generation).
+
 ## Choisir le modèle de transcription audio
 
 **Modèle de transcription audio** contrôle la transcription serveur des pièces jointes audio et vidéo, le recours à l’audio pour les liens vidéo sans sous-titres utilisables et la dictée dans les navigateurs sans reconnaissance vocale intégrée. La reconnaissance vocale du navigateur utilise son propre service et garde la priorité lorsqu’elle est prise en charge.

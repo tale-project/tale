@@ -223,8 +223,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // takes an `automationSlug`, never `assigneeType`/`assigneeId`; a
   // reassignment and its live-run guard are the board's), comment edits
   // and deletes (REST posts and lists), and the label catalog's own verbs
-  // (REST creates a missing label on the way in — `createIfMissing` — so
-  // the human path's unknown-label refusal never fires).
+  // (the intake creates a missing label for an editor and refuses it to
+  // anyone else with `TASK_LABEL_UNKNOWN`, which the registry lists; the
+  // catalog's rename and delete refusals never fire).
   'AGENT_NOT_ALLOWED_IN_PROJECT',
   'ASSIGNEE_NO_PROJECT_ACCESS',
   'TASK_ASSIGNEE_INVALID',
@@ -239,7 +240,6 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_HAS_LIVE_RUN',
   'TASK_LABEL_IN_USE',
   'TASK_LABEL_TAKEN',
-  'TASK_LABEL_UNKNOWN',
   'TASK_PARENT_ARCHIVED',
   'TASK_PARENT_PROJECT_MISMATCH',
   'TASK_REPEAT_INVALID',

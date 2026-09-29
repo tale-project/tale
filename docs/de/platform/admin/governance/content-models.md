@@ -50,6 +50,20 @@ Lass die Bildlesemodellauswahl auf automatisch, um dem verfügbaren Anbieterkata
 
 Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet Modelle an, die Bilder lesen können. Ist das festgelegte Modell später nicht mehr verfügbar, stelle seinen Anbieterzugang wieder her oder wähle ausdrücklich **Automatisch** und speichere. Tale wechselt ein festgelegtes Modell nicht stillschweigend. Prüfe die aktuelle Wahl nach dem Austausch von Zugangsdaten oder Änderungen der Modellverfügbarkeit.
 
+## Agenten Bilder erstellen lassen {#let-agents-generate-images}
+
+Mit der **Bildgenerierung** können [Projektagenten](/de/platform/projects/project-agents) bei ihren Aufgaben und Agent-Knoten in [Automatisierungen](/de/platform/automations/concepts) Bilder erstellen, etwa ein Titelbild für einen Bericht oder ein Motiv für eine Kampagne. Die Funktion bleibt aus, bis du sie einschaltest. Im Chat entstehen nie Bilder: Wer eines braucht, weist eine Aufgabe einem Projektagenten zu.
+
+1. Schalte **Agenten Bilder erstellen lassen** ein. Der Schalter speichert sofort.
+2. Lass **Bildmodell** auf **Automatisch** oder wähle ein Modell und speichere die offenen Änderungen der Seite in der Kopfzeile.
+3. Prüfe die Zeile unter der Auswahl. Sie nennt das Modell, mit dem Agenten Bilder erstellen.
+
+**Automatisch** nimmt das erste Modell einer kurzen Empfehlungsliste, das deine Anbieter-Zugangsdaten erreichen: Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1 und danach FLUX.2 Pro. Dabei berücksichtigt Tale Zugangsdaten für OpenRouter und OpenAI. Die Auswahl listet jedes Bildmodell, das deine Zugangsdaten bedienen können, auch die anderer kompatibler Anbieter. Ein ausgewähltes Modell bleibt fest, bis du es änderst. Ist es nicht mehr verfügbar, meldet Tale das und wechselt nicht zu einem anderen Modell. Schaltest du die Bildgenerierung aus, bleibt das gewählte Modell für das nächste Einschalten erhalten.
+
+Solange die Bildgenerierung eingeschaltet und ein Modell verfügbar ist, bekommt jeder Agent, der in einer Laufzeit mit MCP-Kanal von Tale zu arbeiten beginnt, ein Tool für Bilder. Agenten in anderen Laufzeiten und alle Agenten bei ausgeschalteter Bildgenerierung sehen dieses Tool gar nicht; welche Laufzeiten den Kanal haben, zeigt [Eine Agent-Laufzeit wählen](/de/platform/agents/harnesses). Schaltest du die Funktion aus, lehnt Tale auch die nächste Bildanfrage eines Agenten ab, der gerade läuft. Ein Agent legt seine Bilder bei seinen Dateien ab: Die Bilder einer Aufgabe erscheinen unter ihren Ergebnisdateien, die eines Automatisierungsschritts in dessen Ausgabe.
+
+Jedes Bild wird deiner Organisation berechnet und zählt wie der übrige Lauf für die Person, die ihn gestartet hat. Ein Zug eines Agenten erstellt höchstens 16 Bilder, eine Anfrage nach der anderen, und seine Bilder zehren vom selben Rahmen wie die Modellnutzung des Zugs: Ist der Rahmen aufgebraucht, lehnt Tale das nächste Bild ab. Ein Budgetlimit, das für diese Person gilt, lehnt das Bild ab, bevor das Bildmodell aufgerufen wird. Lege Kosten- oder Anfragelimits für Bilder unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) fest; [So wird Nutzung gezählt](/de/platform/admin/governance/usage-attribution) erklärt, für wen ein Bild zählt. Die Richtliniendatei und eigene Bild-Endpunkte beschreibt die [Anbieter-Referenz für Self-Hosting](/de/self-hosted/configuration/providers#configure-image-generation).
+
 ## Das Modell für Audiotranskription auswählen
 
 **Modell für Audiotranskription** steuert die serverseitige Transkription von Audio- und Videoanhängen, die Audiospur von Videolinks ohne nutzbare Untertitel sowie Diktate in Browsern ohne eigene Spracherkennung. Die Spracherkennung des Browsers nutzt ihren eigenen Dienst und hat Vorrang, wenn sie unterstützt wird.

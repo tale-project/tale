@@ -15,7 +15,9 @@ import {
   SpawnerUnreachableError,
   sessionAcquire,
   sessionCreate,
+  SessionFileTooLargeError,
   sessionIsAlive,
+  sessionReadFile,
   sessionStageFiles,
   type SessionStageFile,
 } from './session_client';
@@ -541,5 +543,73 @@ describe('spawner call preconditions', () => {
       /SANDBOX_TOKEN is not set/,
     );
     expect(calls).toBe(0);
+  });
+});
+
+describe('sessionReadFile with a byte cap', () => {
+  /** A file response streamed in chunks, with or without its length. */
+  function fileResponse(
+    chunks: number[],
+    declare: boolean,
+  ): { response: Response; pulled: () => number } {
+    let pulled = 0;
+    let index = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const size = chunks[index];
+        index += 1;
+        if (size === undefined) {
+          controller.close();
+          return;
+        }
+        pulled += size;
+        controller.enqueue(new Uint8Array(size).fill(7));
+      },
+    });
+    const total = chunks.reduce((sum, size) => sum + size, 0);
+    return {
+      response: new Response(body, {
+        status: 200,
+        headers: {
+          'content-type': 'application/octet-stream',
+          ...(declare ? { 'content-length': String(total) } : {}),
+        },
+      }),
+      pulled: () => pulled,
+    };
+  }
+
+  test('answers a file within the cap whole', async () => {
+    const file = fileResponse([40, 60], true);
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => file.response) as any;
+    const read = await sessionReadFile('ses-1', '/agent/workspace/a.png', {
+      maxBytes: 100,
+    });
+    expect(read?.bytes.byteLength).toBe(100);
+    expect(read?.contentType).toBe('application/octet-stream');
+  });
+
+  test('refuses a declared length over the cap before reading the body', async () => {
+    const file = fileResponse([60, 60], true);
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => file.response) as any;
+    const error = await sessionReadFile('ses-1', '/agent/workspace/a.png', {
+      maxBytes: 100,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(SessionFileTooLargeError);
+    expect((error as SessionFileTooLargeError).maxBytes).toBe(100);
+    // Refused unread: at most what the stream buffered ahead, never all of it.
+    expect(file.pulled()).toBeLessThan(120);
+  });
+
+  test('stops reading an undeclared body at the first chunk past the cap', async () => {
+    const file = fileResponse([60, 60, 60, 60], false);
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => file.response) as any;
+    await expect(
+      sessionReadFile('ses-1', '/agent/workspace/a.png', { maxBytes: 100 }),
+    ).rejects.toBeInstanceOf(SessionFileTooLargeError);
+    expect(file.pulled()).toBeLessThan(240);
   });
 });

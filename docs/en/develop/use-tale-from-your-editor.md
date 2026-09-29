@@ -347,7 +347,7 @@ To share the server with a team through a committed `.mcp.json`, reference the k
 
 To have the edit made inside Tale, in a sandbox and with a person's review, hand the script to a [project agent](/platform/projects/project-agents). Tale runs a coding harness such as OpenCode in a sandbox, on the model the agent is configured with. The run counts against the budgets of the member who started it and is recorded under that person; a run you start over REST is booked to you, not to the API key. The edited files come back as the task's deliverables, and the task waits in review for a person. [Choose an agent runtime](/platform/agents/harnesses) compares the harnesses; OpenCode runs only through Tale's model gateway, so it never receives a provider key.
 
-You need edit access to the project, which starts at the Editor role, and the organization needs a model the harness can use and available sandbox capacity. In the app, open the project's **Agents** tab, select **New agent**, choose OpenCode as the agent type and a model, then create a task with the script attached, assign it to the agent, and start the agent.
+Creating the agent needs edit access to the project, which starts at the Editor role; any member who can open the project can then create the task and start the agent on it. The organization needs a model the harness can use and available sandbox capacity. In the app, open the project's **Agents** tab, select **New agent**, choose OpenCode as the agent type and a model, then create a task with the script attached, assign it to the agent, and start the agent.
 
 The same loop works from a terminal over REST, reusing `tale-api.sh` from the chat example. First check that this deployment runs OpenCode for project agents:
 
@@ -385,7 +385,7 @@ echo "TASK_ID=$TASK_ID"
 
 `externalSystem` and `externalId` make the task idempotent: sending the same pair again returns the existing task. A description holds up to 20,000 characters; for a longer script, upload it to the project as described in [Upload a file in two steps](/develop/api-reference#upload-a-file-in-two-steps). An agent answers to its ID and to its name in lower case with spaces replaced by dots or removed, so `@script.editor` also works.
 
-The mention assigns the task to the agent and starts a run, and the task moves to `in_progress`. A mention that cannot start a run is saved as an ordinary comment without an error, for example when you lack edit access, task automation is turned off, or another run already holds the task. Set `TASK_ID` to the value the script printed, check the task, and read the agent's report once the task reaches `in_review`:
+The mention assigns the task to the agent and starts a run, and the task moves to `in_progress`. A mention that cannot start a run is saved as an ordinary comment without an error, for example when the task is not yours to change, task automation is turned off, or another run already holds the task. Set `TASK_ID` to the value the script printed, check the task, and read the agent's report once the task reaches `in_review`:
 
 ```bash
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID" | jq -r '.task.status'

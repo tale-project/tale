@@ -47,7 +47,7 @@ Sous **Skills, connectors & outils**, ajoute les bundles, services et opération
 
 Lis **Écrit des données** avant d’accorder un outil d’écriture : il autorise des opérations réelles selon ses règles d’accès. Le broker de connectors ne propose que des lectures aux agents. Les outils GitHub directs et les secrets explicitement accordés suivent d’autres voies.
 
-Les appels de connecteurs d’une exécution se font au nom du membre qui l’a démarrée, que ce soit avec **Démarrer l'agent**, **Relancer**, un passage à **En cours** ou une mention de l’agent avec @. Ils utilisent les [identifiants des connecteurs](/fr/platform/admin/connectors) de l’organisation et sont enregistrés au nom de ce membre. Si ce membre quitte l’organisation ou est désactivé, les appels sont refusés : utilise **Annuler l'exécution** (ou laisse l’exécution se terminer), puis redémarre-la pour qu’elle se fasse en ton nom.
+Les appels de connecteurs d’une exécution se font au nom du membre qui l’a démarrée, que ce soit avec **Démarrer l'agent**, **Relancer**, un passage à **En cours** ou une mention de l’agent avec @. Ils utilisent les [identifiants des connecteurs](/fr/platform/admin/connectors) de l’organisation et sont enregistrés au nom de ce membre. Si ce membre quitte l’organisation ou est désactivé, les appels sont refusés : utilise **Annuler l'exécution** (ou laisse l’exécution se terminer), puis redémarre-la pour qu’elle se fasse en ton nom. Quand un commentaire relance l’exécution pour la guider, comme le font tous les environnements sauf Claude Code, les appels se font ensuite au nom de l’auteur du commentaire.
 
 Rédige des **Instructions** qui définissent responsabilité, preuves et limites. Pour la revue du lancement : « Lis le brief fourni. Signale les approbations manquantes et les dates contradictoires avec le passage correspondant. Ne termine pas la tâche. »
 
@@ -55,7 +55,7 @@ Rédige des **Instructions** qui définissent responsabilité, preuves et limite
 
 <Step title="Vérifier et enregistrer">
 
-Si le travail demande des **Secrets**, un Propriétaire ou Admin accorde des identifiants nommés de l’organisation. L’agent en cours peut lire leurs valeurs : utilise des jetons limités et remplaçables. Modifier une valeur partagée affecte aussi les autres agents et nœuds de workflow qui utilisent ce nom.
+Si le travail demande des **Secrets**, un Propriétaire ou Admin accorde des identifiants nommés de l’organisation. L’agent en cours peut lire leurs valeurs : utilise des jetons limités et remplaçables. Modifier une valeur partagée affecte aussi les autres agents et nœuds de workflow qui utilisent ce nom. Une exécution qu’un Membre démarre ne reçoit aucun de ces secrets, ni le jeton d’une connexion GitHub équipée : un Éditeur ou un rôle supérieur doit démarrer le travail qui en a besoin.
 
 Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le modèle de la nouvelle ligne. Rouvre l’agent pour examiner l’équipement et les instructions enregistrés.
 
@@ -65,9 +65,9 @@ Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le mod
 
 ## Affecter et démarrer le travail
 
-Ouvre une tâche du même projet, affecte-la à l’agent et choisis **Démarrer l'agent**. L’affectation et l’exécution sont deux actions distinctes. Fournis les fichiers et les critères d’acceptation avant le démarrage.
+Ouvre une tâche du même projet, affecte-la à l’agent et choisis **Démarrer l'agent**. L’affectation et l’exécution sont deux actions distinctes. Fournis les fichiers et les critères d’acceptation avant le démarrage. Il n’est pas nécessaire de pouvoir modifier le projet : un Membre fait travailler un agent sur les tâches qu’il a créées ou qui lui sont attribuées, un Éditeur ou un rôle supérieur sur n’importe quelle tâche du projet. Une exécution qu’un Membre démarre s’en tient à cette tâche, sans les secrets de l’agent et dans un espace de travail à part ; [Exécutions démarrées par un Membre](/fr/platform/projects/tasks#executions-demarrees-par-un-membre) détaille ce qui change.
 
-Le compte rendu apparaît dans les commentaires et les fichiers collectés sont joints comme résultats. Après un travail réussi, la tâche passe **En revue** pour qu’une personne l’évalue. Mentionne l’agent dans un commentaire pour guider ou poursuivre le travail. Le harness détermine si le message rejoint le processus actif ou lance une continuation.
+Le compte rendu apparaît dans les commentaires et les fichiers collectés sont joints comme résultats. Si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images), l’agent peut aussi créer des images pour la tâche ; elles apparaissent parmi les fichiers produits et comptent pour le membre qui a lancé l’exécution. Après un travail réussi, la tâche passe **En revue** pour qu’une personne l’évalue. Mentionne l’agent dans un commentaire pour guider ou poursuivre le travail. Le harness détermine si le message rejoint le processus actif ou lance une continuation.
 
 L’[automatisation des tâches](/fr/platform/projects/task-automation) explique le suivi, l’arrêt et la revue. L’assistant de chat ordinaire reste distinct, même avec un contexte de projet.
 

@@ -7,7 +7,7 @@ Every AI request Tale makes for your organization is recorded once, against one 
 
 ## What counts as usage
 
-Tale records a request whenever a model or a metered service runs for your organization: a chat reply, including a regenerated or edited one and both sides of a model comparison; the short model call that names a new chat; a turn of a managed agent working on a task or inside an automation; voice output; the transcription of an uploaded recording; a metered connector call; and a call to the model endpoints with an API key. Each record carries the tokens or units used and the cost estimated from the provider's list price at that moment; for a model endpoint call, it is the cost the model gateway measured.
+Tale records a request whenever a model or a metered service runs for your organization: a chat reply, including a regenerated or edited one and both sides of a model comparison; the short model call that names a new chat; a turn of a managed agent working on a task or inside an automation; an image such an agent generates; voice output; the transcription of an uploaded recording; a metered connector call; and a call to the model endpoints with an API key. Each record carries the tokens or units used and the cost estimated from the provider's list price at that moment; for a model endpoint call, it is the cost the model gateway measured.
 
 ## Who a request counts against
 
@@ -19,6 +19,7 @@ The rule is the same everywhere: a request counts against the person who asked f
 | An agent run on a task | The member who started the run from the task, or with a comment or a task description that mentions the agent | — | The agent's name under **Top assistants** |
 | An automation run someone started | The member who started it from the run list, the builder, a chat, a task, the REST API, or the MCP endpoint | The API key, when the run was started with one | The automation's name under **Top assistants** |
 | An automation run a trigger started | Nobody: a schedule, a webhook, or an event has no person behind it | — | The **Automations (triggers)** row under **Per-user usage** |
+| An image an agent generates | The person the agent's run counts against: its starter, or nobody for a run a trigger started | The API key, when the run was started with one | The agent's or automation's name under **Top assistants**, and the image model under **Top models** |
 | Voice output or a transcription | The member who requested it | — | **Voice output** or **Transcription** under **Top assistants**; voice output also under **Top voice models** |
 | A metered connector call | The member whose request made the call | — | The assistant that made it, or **Connector** |
 | A call to the [model endpoints](/develop/use-tale-from-your-editor#model-endpoints) | The member whose API key sent it | The API key | **Direct API** under **Top assistants** |
@@ -31,7 +32,7 @@ A retry of an agent run continues the run its starter kicked off, so its usage s
 - **Organization limits** bind every request, including trigger-started runs.
 - **API-key limits** bind the requests authenticated with that key: the chat messages it sent, its model endpoint calls, and the runs it started.
 
-When a limit is reached, Tale refuses the next request before it runs and names the limit. A managed agent turn is refused at its start; a turn already running keeps the allowance it was given. [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine) covers the case of several rules applying to one person.
+When a limit is reached, Tale refuses the next request before it runs and names the limit. A managed agent turn is refused at its start; a turn already running keeps the allowance it was given. An image the agent asks for during its turn is checked on its own before the image model is called, so a reached limit refuses the image while the turn continues. The image also draws on the allowance of the turn that asked for it. [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine) covers the case of several rules applying to one person.
 
 ## Three situations worth knowing
 

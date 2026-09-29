@@ -2,7 +2,6 @@ import {
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
 } from '@tale/shared/db/serializable';
-import { parseTaskSubjectContract } from '@tale/shared/schemas/task-contract';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
@@ -23,13 +22,13 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { deployedVersion, versionRow } from '../automations/store.ts';
 import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
+  type ProjectRow,
 } from '../projects/service.ts';
 import {
   createThread,
@@ -39,12 +38,14 @@ import {
   THREAD_MESSAGES_READ_MAX,
   updateMessageText,
 } from '../threads/store.ts';
+import { taskOwnedByAutomation } from './automation-access.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
 import {
   assertTaskReadable,
-  assertTaskWritable,
+  assertTaskWorkable,
   dispatchMentionedProjectAgent,
   loadTaskOrThrow,
+  mayWorkTask,
   TaskError,
   type TaskRow,
 } from './service.ts';
@@ -183,7 +184,8 @@ async function appendTaskComment(
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   // Commenting is READ-level (0.4 `addTaskComment*`): anyone who can see
-  // the task may join its discussion; edit/delete stay write-gated below.
+  // the task may join its discussion; edit/delete stay behind the task's
+  // work gate below.
   assertTaskReadable(project, auth);
   // Archived = read-only for the whole project, its discussions included —
   // the one code every write on it answers, so the app door and the
@@ -469,13 +471,30 @@ async function loadCommentMeta(
   return meta;
 }
 
-function assertCommentOwnerOrAdmin(
+/**
+ * Who may edit or delete a comment: its author, with the read access posting
+ * it took — a member fixes their own comment on anyone's task — or an
+ * admin, whose moderation of someone else's words is a change to the task
+ * and so passes its work gate. An archived project is read-only for both.
+ */
+async function assertCommentModifiable(
+  tx: TransactionSql,
+  project: ProjectRow,
+  task: TaskRow,
   auth: ProjectAuthContext,
   meta: { authorType: string; authorId: string },
-): void {
+): Promise<void> {
   const isOwn = meta.authorType === 'user' && meta.authorId === auth.userId;
+  if (isOwn) {
+    assertTaskReadable(project, auth);
+    if (project.archivedAt !== null) {
+      throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
+    }
+    return;
+  }
+  await assertTaskWorkable(tx, project, task, auth);
   const isAdmin = auth.role === 'owner' || auth.role === 'admin';
-  if (!isOwn && !isAdmin) {
+  if (!isAdmin) {
     throw new TaskError(
       'TASK_COMMENT_FORBIDDEN',
       'Only the author or an admin may modify a comment',
@@ -509,8 +528,7 @@ export async function editTaskComment(
   const meta = await loadCommentMeta(tx, args.messageId);
   const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
-  assertCommentOwnerOrAdmin(auth, meta);
+  await assertCommentModifiable(tx, project, task, auth, meta);
   const body = args.body.trim();
   const refusal = taskCommentRefusal(body);
   if (refusal !== null) {
@@ -599,8 +617,7 @@ async function removeTaskComment(
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
-  assertCommentOwnerOrAdmin(auth, meta);
+  await assertCommentModifiable(tx, project, task, auth, meta);
   // Meta dies by FK when the message row goes.
   await deleteMessage(tx, messageId);
   await tx`
@@ -638,8 +655,9 @@ async function removeTaskComment(
  * automation starts nothing — a task runs only the workflow it belongs to.
  *
  * Refusals are deliberately quiet (the comment has already posted) and the
- * gate is WRITE access: commenting is read-level, but running a workflow is
- * an edit, so a read-only member's `@` stays a plain mention. One engine per
+ * gate is the task's work gate: commenting is read-level, but running a
+ * workflow is a change to the task, so the `@` of someone who may not work
+ * it stays a plain mention. One engine per
  * task across BOTH lanes — a task with a live agent run or a live automation
  * run keeps it; `startWorkflowForTask`'s own duplicate guard backstops the
  * pre-check.
@@ -686,14 +704,10 @@ async function maybeTriggerOwningAutomation(
   if (mentioned === undefined) return false;
   if (args.task.archivedAt !== null) return false;
   const project = await loadProjectOrThrow(tx, args.task.projectId);
-  try {
-    // Running a workflow is an EDIT: a read-only member's `@` stays a plain
-    // mention rather than a start (commenting itself is read-level).
-    assertTaskWritable(project, args.auth);
-  } catch {
-    return false;
-  }
-  if (!(await ownsTask(tx, args.task, mentioned.id))) {
+  // Running a workflow is a change to the task: the `@` of someone who may
+  // not work it stays a plain mention (commenting itself is read-level).
+  if (!(await mayWorkTask(tx, project, args.task, args.auth))) return false;
+  if (!(await taskOwnedByAutomation(tx, args.task, mentioned.id))) {
     console.warn(
       `[tasks] automation mention "${mentioned.id}" ignored: it does not own task ${args.task.id}`,
     );
@@ -728,30 +742,6 @@ async function maybeTriggerOwningAutomation(
     },
   );
   return true;
-}
-
-/**
- * Does this automation OWN the task? Three ownership shapes, in the 0.4
- * order: an app-assigned task names its automation directly, an
- * app-created one names its creator, and an externally-mirrored one matches
- * through its deployed version's task contract. A task with a human or agent
- * assignee is owned by nobody on this lane.
- */
-async function ownsTask(
-  tx: TransactionSql,
-  task: TaskRow,
-  name: string,
-): Promise<boolean> {
-  if (task.assigneeType === 'app') return task.assigneeId === name;
-  if (task.assigneeType !== null) return false;
-  if (task.createdByType === 'app') return task.createdBy === name;
-  if (task.externalSystem === null || task.externalSystem === '') return false;
-  const version = await deployedVersion(tx, task.organizationId, name);
-  if (version === undefined) return false;
-  const row = await versionRow(tx, task.organizationId, name, version);
-  const contract =
-    row === null ? null : parseTaskSubjectContract(row.taskContract);
-  return contract?.externalSystem === task.externalSystem;
 }
 
 /** The task fields `startWorkflowForTask` needs, read outside the comment's

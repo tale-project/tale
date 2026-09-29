@@ -27,22 +27,27 @@ import { TaskLabelBadge } from './task-label-badge';
 type LabelOption = { name: string };
 
 /**
- * Attach/detach project catalog labels on a task. Type a name that isn't in
- * the catalog to create it here (and attach it). Rename/delete stay in
+ * Attach/detach project catalog labels on a task. An editor of the project
+ * types a name that isn't in the catalog to create it here (and attach it);
+ * everyone else picks from the labels the project has. Rename/delete stay in
  * {@link LabelManageDialog}. Colour is automatic from the name.
  *
- * Default labels are seeded when the picker first opens (user gesture).
+ * Default labels are seeded when an editor first opens the picker (user
+ * gesture).
  */
 export function LabelEditor({
   labels,
   onChange,
   projectId,
   disabled,
+  canManage = false,
 }: {
   labels: string[];
   onChange: (labels: string[]) => void;
   projectId: string;
   disabled?: boolean;
+  /** The viewer edits the project: the label catalog is theirs to grow. */
+  canManage?: boolean;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -76,6 +81,7 @@ export function LabelEditor({
 
   const exactExists = catalog.some((l) => l.name.toLowerCase() === folded);
   const canCreate =
+    canManage &&
     query.length > 0 &&
     !exactExists &&
     labels.length < TASK_LABELS_MAX &&
@@ -140,7 +146,7 @@ export function LabelEditor({
   };
 
   const handleOpenChange = (next: boolean) => {
-    if (next && !disabled && !seeded) {
+    if (next && !disabled && canManage && !seeded) {
       setSeeded(true);
       void ensureDefaults.mutateAsync({ projectId }).catch(() => {
         setSeeded(false);
@@ -278,7 +284,9 @@ export function LabelEditor({
             {itemCount === 0 && (
               <div className="text-muted-foreground px-3 py-4 text-center text-sm">
                 {catalog.length === 0
-                  ? t('labels.emptyHint')
+                  ? canManage
+                    ? t('labels.emptyHint')
+                    : t('labels.empty')
                   : tCommon('search.noResults')}
               </div>
             )}

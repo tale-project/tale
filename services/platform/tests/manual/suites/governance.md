@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 69 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 72 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -21,7 +21,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
-| Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Audio transcription model |
+| Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Image generation, Audio transcription model |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
@@ -47,7 +47,7 @@ target — create one first under **Settings → API → REST**
 select lists every member's live key, read from
 `GET /api/app/governance/api-keys` (disabled and expired keys are left out).
 
-**GOV-F38–GOV-F44 and GOV-B14–GOV-B16 (model endpoints for API keys)** call
+**GOV-F40–GOV-F46 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
 **Settings → API → REST** and need a chat model that a provider credential of
 type **API key** or **Environment variable** serves — in mode A, connect the
@@ -445,7 +445,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `governance_policy.created` then `governance_policy.updated` row for
   `skill_sharing`; a Member never reaches the page. What each mode does to
   skills is `SKILL-B5` / `SKILL-B6`.
-- [ ] `GOV-F38` · **Model endpoints are off by default** — On an org whose
+- [ ] `GOV-F40` · **Model endpoints are off by default** — On an org whose
   model access policy never turned them on, with an owner's API key (see
   [settings.md](settings.md) SET-F32), call `GET /api/v1/openai/models`,
   `POST /api/v1/openai/chat/completions` and
@@ -459,7 +459,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `capabilities.modelApi: false`; on `content-models` the **Model endpoints
   for API keys** section (`governance.modelAccess.modelApi.title`) shows its
   switch (`governance.modelAccess.modelApi.enabled`) off.
-- [ ] `GOV-F39` · **Turn the model endpoints on** — As an admin on
+- [ ] `GOV-F41` · **Turn the model endpoints on** — As an admin on
   `content-models`, turn on the **Model endpoints for API keys** switch
   (`governance.modelAccess.modelApi.enabled`) → It saves at once (toast
   `governance.modelAccess.saved`) and is still on after a reload, while
@@ -473,8 +473,8 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   0 — the ids the **Models** tab lists (SET-F65). Switch it off → the next call
   answers 403 `MODEL_API_DISABLED` without a restart. Switch it back on for
   the boxes below, and restore the state you found at the end of the run.
-- [ ] `GOV-F40` · **Model access binds every model call** — With the model
-  endpoints on (GOV-F39) and **Enable model access policy** on in
+- [ ] `GOV-F42` · **Model access binds every model call** — With the model
+  endpoints on (GOV-F41) and **Enable model access policy** on in
   **Blocklist** mode, add a rule for a Developer account that blocks model M →
   With that account's key, `GET /api/v1/openai/models` no longer lists M's id;
   a chat completion naming it answers 403 `MODEL_API_MODEL_FORBIDDEN` (`param`
@@ -484,7 +484,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   such as `openrouter/no-such-model` answers 404 `MODEL_API_MODEL_UNKNOWN`, and
   so does a listed model's bare catalog id without its provider prefix. The
   owner's key still lists M. Remove the rule afterwards.
-- [ ] `GOV-F41` · **Grant Call models over the API** — With the model
+- [ ] `GOV-F43` · **Grant Call models over the API** — With the model
   endpoints on, give a second account the **Developer** role, let it create an
   API key under `/dashboard/{org}/settings/api/rest`, then change its role to
   **Member** → The same key's `GET /api/v1/openai/models` answers 403
@@ -497,7 +497,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   403 `MODEL_API_FORBIDDEN` again, and **Logs** lists `competence_granted` and
   `competence_revoked`. What the member sees under **Settings → API** is
   SET-B26.
-- [ ] `GOV-F42` · **A budget cap refuses a model call in the interface's
+- [ ] `GOV-F44` · **A budget cap refuses a model call in the interface's
   shape** — Save the GOV-F4b rule on a key at **Max requests** 1, spend that
   request with one REST send (`POST /api/v1/threads/{id}/messages`) or one
   model call with the key, wait a few seconds, then call
@@ -508,7 +508,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   seconds (at most the time until the period resets), `x-should-retry: false`
   and a message naming the cap; the OpenAI Python SDK raises its rate-limit
   error at once instead of retrying. **Delete the rule after**.
-- [ ] `GOV-F43` · **Model calls land in Usage as Direct API** — Mode B. Make a
+- [ ] `GOV-F45` · **Model calls land in Usage as Direct API** — Mode B. Make a
   few chat completions and messages with a Developer's key, then open `usage`
   → In **Top assistants** (`analytics.usage.tables.topAgents.title`) the calls
   sit on one **Direct API** row (`analytics.usage.directApi`) whose request
@@ -516,7 +516,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   usage** (`analytics.usage.tables.users.title`) they sit on the Developer's
   own row — no row reads `api-key:…`; a GOV-F4b rule on that key and the
   Developer's personal caps under **Settings → Usage** count the same requests.
-- [ ] `GOV-F44` · **Input guardrails judge model calls** — On `guardrails`,
+- [ ] `GOV-F46` · **Input guardrails judge model calls** — On `guardrails`,
   with a **Content safety** category checking user input in **Block** mode,
   send a chat completion whose user message contains its word → 400
   `MODEL_API_GUARDRAIL_BLOCKED` whose message says nothing was sent to the
@@ -527,6 +527,29 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   **Recent events** shows the mask, and a model asked to repeat the message
   word for word repeats the placeholder, not the word; a category that checks
   only model output leaves the answer untouched. Restore the guardrails.
+- [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
+  `content-models` in a fresh organization, find **Image generation**
+  (`governance.imageGeneration.title`), then **Start agent**
+  (`tasks.agentRun.start`) on a task whose description asks the agent to call
+  `workspace_status` and list the workspace tools it was granted → The
+  section's switch (`governance.imageGeneration.enabledLabel`) is off, no
+  **Image model** row (`governance.imageGeneration.label`) shows, and the
+  agent's report lists no `generate_image`. Turn the switch on and reload → it
+  is still on; **Image model** reads **Automatic**
+  (`governance.imageGeneration.automaticLabel`) and the line below names the
+  model a turn would use (`governance.imageGeneration.currentModel.preferred`),
+  or, with neither an OpenRouter nor an OpenAI credential, the warning
+  `governance.imageGeneration.noAvailable` shows; a new run's report now lists
+  `generate_image`. Restore: switch it off — env-gated: mark the two runs
+  **ENVIRONMENT** without a runnable harness.
+- [ ] `GOV-F39` · **Pin an image model** — With **Image generation** on, open
+  **Image model** (`governance.imageGeneration.label`), pick a listed model
+  (e.g. `OpenAI · gpt-image-1`), **Save** (`common.actions.save`) and reload →
+  The list offers only image models the organization's credentials reach,
+  never a chat model; the pin survives the reload and
+  `governance.imageGeneration.currentModel.pinned` names it. Switch image
+  generation off and on again → the same pin is still selected. Restore: pick
+  **Automatic**, **Save**, and switch image generation off.
 
 ## Boundary & error tests
 
@@ -595,14 +618,15 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   message (`accessDenied.organization`) renders, and no request names
   `budgets`, `retention_policy`, `voice_output`, `conversation_routing`,
   `login_policy`, `password_policy`, `two_factor_policy`, `model_access`,
-  `vision_model` or `transcription_model`; no `governance/policies` request
+  `vision_model`, `image_generation` or `transcription_model`; no
+  `governance/policies` request
   answers 403. As an **admin** in the other profile, open `policies-limits`
   by URL the same way → **Budget rules** (`governance.budgets.title`),
   **Retention policy** (`governance.retentionPolicy.title`), **Voice output**
   (`governance.voiceOutput.title`) and **Conversation routing**
   (`governance.conversationRouting.title`) paint their saved state, and every
   policy read answers 200.
-- [ ] `GOV-B14` · **Tokenize mode refuses every model call** — On
+- [ ] `GOV-B15` · **Tokenize mode refuses every model call** — On
   `guardrails` turn **PII protection** (`governance.pii.title`) on in
   **Tokenize** mode (`piiConfigPanel.modeTokenize`), then send a chat
   completion and a message naming a listed model → Both answer 403
@@ -610,7 +634,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   mask or block, even when the text holds no personal data; switch the mode to
   **Mask** (`piiConfigPanel.modeMask`) → that refusal is gone. Restore the
   mode.
-- [ ] `GOV-B15` · **A failing moderation provider closes the door** —
+- [ ] `GOV-B16` · **A failing moderation provider closes the door** —
   Configure the **Moderation provider**
   (`governance.moderationProvider.title`) with an unreachable endpoint
   (`http://127.0.0.1:9/`) and **Fail behavior**
@@ -620,11 +644,21 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   text was not relayed; with **Fail open (pass)**
   (`governance.moderationProvider.failOpen`) the same call gets past the
   guardrails. Restore the provider.
-- [ ] `GOV-B16` · **A credential's allowlist narrows the list for everyone** —
+- [ ] `GOV-B17` · **A credential's allowlist narrows the list for everyone** —
   Under **Settings → AI providers** edit the default credential of a provider
   and leave model M out of its **Model allowlist** → For every key holder, the
   owner included, `GET /api/v1/openai/models` drops M, and a call naming it
   answers 404 `MODEL_API_MODEL_UNKNOWN`; put M back → it is listed again.
+- [ ] `GOV-B14` · **An unavailable image model refuses, never falls back** —
+  With **Image generation** on and a model pinned (GOV-F39), disable the
+  default credential of the pinned model's provider on
+  `/dashboard/{org}/settings/providers`, reload `content-models`, then **Start
+  agent** (`tasks.agentRun.start`) on a task that asks the agent to list its
+  workspace tools → The picker still shows the saved pin, marked
+  `governance.imageGeneration.savedUnavailable`, above the warning
+  `governance.imageGeneration.unavailable`; the run's report lists no
+  `generate_image`, and no other model stands in. Restore the credential —
+  env-gated: mark the run **ENVIRONMENT** without a runnable harness.
 
 ## Accessibility (WCAG 2.1 AA)
 

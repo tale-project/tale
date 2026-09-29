@@ -75,6 +75,17 @@ export function CredentialEditDialog<
     setError(null);
   };
 
+  // The dialog stays mounted with its row, so seed the form on the open
+  // transition from the credential and vendor as they are now — render-time
+  // state adjustment, no effect: the form shows what the listing holds, and
+  // the versions an extra carries (a custom provider's) are those of the
+  // values on screen, not of whatever the row held when it first rendered.
+  const [seededOpen, setSeededOpen] = useState(open);
+  if (open !== seededOpen) {
+    setSeededOpen(open);
+    if (open) resetToBaseline();
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (update.isPending || name.trim().length === 0) return;

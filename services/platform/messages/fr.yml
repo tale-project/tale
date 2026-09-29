@@ -1816,6 +1816,7 @@ conversations:
     sent: E-mail envoyé
   updating: Mise à jour des conversations...
   bulk:
+    progress: 'Mise à jour des conversations... {settled} sur {total}'
     sendMessages: Envoyer les messages
     close: Fermer
     reopen: Rouvrir
@@ -1939,6 +1940,8 @@ conversations:
     discard: Supprimer
   list:
     empty: Aucune conversation dans cet onglet
+    loadFailed: Échec du chargement des conversations
+    loadFailedDescription: Une erreur s'est produite lors du chargement de ces conversations.
   activate:
     title: Aucune conversation pour le moment
     description: Les conversations entrantes de vos canaux connectés apparaîtront ici.
@@ -2849,6 +2852,58 @@ governance:
     searchModels: Rechercher des modèles
     noModelsFound: Aucun modèle capable de lire les images
     saveFailed: Échec de l'enregistrement du modèle pour les images
+  imageGeneration:
+    title: Génération d'images
+    description:
+      Permet aux agents de projet qui traitent des tâches et aux nœuds agent
+      des automatisations de créer des images, facturées à ton organisation.
+      Désactivée tant que tu ne l'actives pas. Le chat ne crée jamais
+      d'images.
+    enabledLabel: Laisser les agents générer des images
+    label: Modèle d'images
+    labelHint:
+      Automatique utilise le premier modèle d'images recommandé que tes accès
+      fournisseurs atteignent. Un modèle fixé reste sélectionné jusqu'à ce que
+      tu le changes, même s'il devient indisponible.
+    automaticLabel: Automatique
+    automaticHint: Tale choisit parmi les modèles d'images recommandés que tes accès atteignent.
+    currentModel:
+      pinned: 'Les agents génèrent actuellement les images avec {model}.'
+      preferred: 'Les agents génèrent actuellement les images avec {model}, le choix recommandé.'
+    draftHint: Enregistre pour appliquer cette sélection.
+    noAvailable:
+      "Aucun des modèles d'images recommandés n'est disponible : les agents
+      n'ont donc pas d'outil pour les images. Ajoute un accès OpenRouter ou
+      OpenAI dans Fournisseurs IA, ou choisis un des modèles proposés."
+    unavailable:
+      "Le modèle d'images enregistré est indisponible : les agents n'ont donc
+      pas d'outil pour les images. Choisis un autre modèle ou Automatique, ou
+      vérifie son accès fournisseur et les modèles qu'il autorise. Tale ne
+      passera pas à un autre modèle tant que cette sélection est enregistrée."
+    invalidPolicy:
+      "La configuration enregistrée de la génération d'images est invalide :
+      les agents n'ont donc pas d'outil pour les images. Désactive puis
+      réactive la génération d'images, ou choisis un modèle et enregistre,
+      pour la corriger."
+    policyUnavailable:
+      La configuration enregistrée de la génération d'images n'a pas pu être
+      lue. Réessaie avant de la modifier. Les agents n'ont pas d'outil pour
+      les images tant qu'elle reste illisible.
+    resolutionFailed:
+      Tale n'a pas pu vérifier le modèle d'images. Vérifie la connexion au
+      fournisseur et réessaie.
+    loadFailed: Impossible de charger les réglages de la génération d'images. Réessaie de les charger.
+    invalidSelection: Configuration enregistrée invalide
+    unknownSelection: Impossible de lire la sélection enregistrée
+    savedUnavailable: La sélection enregistrée est actuellement indisponible
+    providersLink: Fournisseurs IA
+    retry: Réessayer
+    searchModels: Rechercher des modèles d'images
+    noModelsFound: Aucun modèle d'images correspondant
+    saveFailed: Impossible d'enregistrer les réglages de la génération d'images
+    remoteUpdate:
+      Ce réglage a changé dans une autre session. Abandonne tes modifications
+      pour charger la sélection enregistrée, ou enregistre pour la remplacer.
   transcriptionModel:
     title: Modèle de transcription audio
     description:
@@ -7376,7 +7431,7 @@ tasks:
     deleteConfirmDescription: Retire « {label} » du projet et de toutes les tâches qui l'utilisent.
     errors:
       TASK_LABEL_NAME_TAKEN: Une étiquette porte déjà ce nom.
-      TASK_LABEL_UNKNOWN: Cette étiquette n'existe pas dans le projet — tape son nom dans le sélecteur pour la créer.
+      TASK_LABEL_UNKNOWN: Cette étiquette n'existe pas dans le projet — choisis-en une qu'il a déjà. Les Éditeurs et les rôles supérieurs ajoutent de nouvelles étiquettes dans le sélecteur.
       TASK_LABELS_INVALID: Nom d'étiquette invalide.
       TASK_LABEL_IN_USE: Cette étiquette est encore sur une tâche.
       createFailed: Impossible de créer l'étiquette.
@@ -7644,6 +7699,7 @@ tasks:
       sur cette tâche"
     budgetPaused: '{slug} ne répondra pas — budget mensuel épuisé'
     agentNotLive: "{slug} ne répondra pas — l'agent n'est pas installé ou est désactivé"
+    notPermitted: "{slug} ne répondra pas — tu ne peux pas lancer d'agents sur cette tâche"
   mentionPicker:
     title: Mentionner un membre, un agent ou une automatisation
     empty: Aucun résultat

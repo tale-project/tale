@@ -47,7 +47,7 @@ Under **Skills, connectors & tools**, add the bundles, services and platform ope
 
 Read the **Writes data** label before granting a platform write tool: it authorizes real operations within that tool’s access rules. Connector broker actions available to agents are read-only; direct GitHub tooling or explicit secrets use separate access paths.
 
-A run’s connector calls act for the member who started it, whether with **Start agent**, **Retry**, a move to **In progress** or an @mention of the agent. They use the organization’s [connector credentials](/platform/admin/connectors) and are recorded under that member. If that member leaves the organization or is disabled, the calls are refused: use **Cancel run** (or let the run finish), then start it again so it acts for you.
+A run’s connector calls act for the member who started it, whether with **Start agent**, **Retry**, a move to **In progress** or an @mention of the agent. They use the organization’s [connector credentials](/platform/admin/connectors) and are recorded under that member. If that member leaves the organization or is disabled, the calls are refused: use **Cancel run** (or let the run finish), then start it again so it acts for you. When a comment restarts the run to guide it, as every runtime except Claude Code does, the calls act for the comment's author from then on.
 
 Write **Instructions** that define responsibility, evidence and boundaries. For the launch reviewer: “Read the supplied brief. Report missing approvals and conflicting dates with the source passage. Do not mark the task complete.”
 
@@ -55,7 +55,7 @@ Write **Instructions** that define responsibility, evidence and boundaries. For 
 
 <Step title="Review and save">
 
-If the work needs **Secrets**, an Owner or Admin grants named organization credentials. The running agent can read their values, so use narrowly scoped, replaceable tokens. Shared names affect other agents and workflow nodes when their underlying value changes.
+If the work needs **Secrets**, an Owner or Admin grants named organization credentials. The running agent can read their values, so use narrowly scoped, replaceable tokens. Shared names affect other agents and workflow nodes when their underlying value changes. A run a Member starts gets none of these secrets, nor the token of an equipped GitHub connection: an Editor or higher has to start work that needs them.
 
 Select **Create agent**. Check the new row’s runtime, provider and model, then reopen it if you need to inspect the saved equipment or instructions.
 
@@ -65,9 +65,9 @@ Select **Create agent**. Check the new row’s runtime, provider and model, then
 
 ## Assign and start work
 
-Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting.
+Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting. You don't need project edit access for this: a Member can put an agent to work on a task they created or that is assigned to them, and an Editor or higher on any task in the project. A run a Member starts keeps to that task, without the agent's secrets and in a workspace of its own; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
 
-The agent’s report appears in task comments and collected files appear as deliverables. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
+The agent’s report appears in task comments and collected files appear as deliverables. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), the agent can also create images for the task; they appear among the deliverables and count against the member who started the run. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
 
 [Task automation](/platform/projects/task-automation) explains progress, stopping and review. The ordinary Chat assistant remains separate, even when a chat has project context.
 

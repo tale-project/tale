@@ -68,6 +68,8 @@ export function TaskSubjectPanel({
     hasFiles?: boolean;
   };
   ownedBy: ResolvedTaskSubjectContract;
+  /** The viewer may work the task (`useTaskAccess`): start, approve,
+   * request changes, cancel. */
   canEdit: boolean;
 }) {
   const { t } = useT('tasks');

@@ -263,7 +263,24 @@
  * `org` skill in place; `GET /api/v1/me` answers
  * `capabilities.skillPublish`.
  *
- * 3.6.0 — 2026-09-29: compatible model endpoints for personal API keys —
+ * 3.6.0 — 2026-09-29: members create tasks and work their own. `POST
+ * /api/v1/projects/{id}/tasks` creates a task for every key holder who can
+ * read an active project, Members included, where it answered them 403
+ * `RBAC_FORBIDDEN`. A change to one task — the intake's repeat, `PATCH
+ * …/tasks/{taskId}`, `POST …/start`, and `POST …/review` for the key holder
+ * and for the member it acts for — takes that task's work gate: an editor of
+ * the project (the Editor role or higher), or the member who created the
+ * task or is its person assignee; anyone else still gets 403
+ * `RBAC_FORBIDDEN` (`ACTOR_FORBIDDEN` for the actor). The intake of a key
+ * holder who is not the project's editor creates no label: a name the
+ * project's catalog lacks answers the new 400 `TASK_LABEL_UNKNOWN`, nothing
+ * written. Such a key holder also names, in the intake's `automationSlug`
+ * and `runWorkflowSlug`, `…/start`'s and a review's `workflowSlug`, only an
+ * automation built for tasks (its deployed version declares a task
+ * contract) or the automation that owns the task: 403 `RBAC_FORBIDDEN`
+ * otherwise.
+ *
+ * 3.7.0 — 2026-09-29: compatible model endpoints for personal API keys —
  * `POST /api/v1/openai/chat/completions` and `GET /api/v1/openai/models`
  * (OpenAI Chat Completions) and `POST /api/v1/anthropic/v1/messages`
  * (Anthropic Messages), streamed and not, with tools and images, relayed
@@ -278,8 +295,9 @@
  * `MODEL_API_MODEL_UNKNOWN`, `MODEL_API_VISION_UNSUPPORTED`,
  * `MODEL_API_TOOLS_UNSUPPORTED`, `MODEL_API_VENDOR_TOOL_UNSUPPORTED`,
  * `MODEL_API_GUARDRAIL_BLOCKED`, `MODEL_API_GUARDRAIL_UNSUPPORTED`,
- * `MODEL_API_GUARDRAIL_UNAVAILABLE`, `MODEL_API_UNAVAILABLE` and
+ * `MODEL_API_GUARDRAIL_UNAVAILABLE`, `MODEL_API_TEXT_TOO_LARGE`,
+ * `MODEL_API_CONCURRENCY_EXCEEDED`, `MODEL_API_UNAVAILABLE` and
  * `MODEL_API_UPSTREAM_ERROR`. `GET /api/v1/me` answers
  * `capabilities.modelApi`.
  */
-export const API_CONTRACT_VERSION = '3.6.0';
+export const API_CONTRACT_VERSION = '3.7.0';

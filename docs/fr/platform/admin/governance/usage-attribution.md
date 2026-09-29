@@ -7,7 +7,7 @@ Chaque requête d’IA que Tale émet pour ton organisation est enregistrée une
 
 ## Ce qui compte comme usage
 
-Tale enregistre une requête chaque fois qu’un modèle ou un service mesuré tourne pour ton organisation : une réponse de chat, y compris une réponse régénérée ou modifiée et les deux côtés d’une comparaison de modèles ; le court appel de modèle qui donne son titre à un nouveau chat ; un tour d’un agent géré qui travaille sur une tâche ou dans une automatisation ; une sortie vocale ; la transcription d’un enregistrement téléversé ; un appel de connecteur mesuré ; et un appel aux endpoints de modèles avec une clé API. Chaque enregistrement porte les tokens ou unités consommés et le coût estimé d’après le tarif public du fournisseur à ce moment-là ; pour un appel aux endpoints de modèles, c’est le coût mesuré par la passerelle de modèles.
+Tale enregistre une requête chaque fois qu’un modèle ou un service mesuré tourne pour ton organisation : une réponse de chat, y compris une réponse régénérée ou modifiée et les deux côtés d’une comparaison de modèles ; le court appel de modèle qui donne son titre à un nouveau chat ; un tour d’un agent géré qui travaille sur une tâche ou dans une automatisation ; une image que crée un tel agent ; une sortie vocale ; la transcription d’un enregistrement téléversé ; un appel de connecteur mesuré ; et un appel aux endpoints de modèles avec une clé API. Chaque enregistrement porte les tokens ou unités consommés et le coût estimé d’après le tarif public du fournisseur à ce moment-là ; pour un appel aux endpoints de modèles, c’est le coût mesuré par la passerelle de modèles.
 
 ## À qui une requête est imputée
 
@@ -19,6 +19,7 @@ La règle est la même partout : une requête compte pour la personne qui a dem
 | Une exécution d’agent sur une tâche | Le membre qui a lancé l’exécution depuis la tâche, ou avec un commentaire ou une description de tâche qui mentionne l’agent | — | Le nom de l’agent sous **Principaux assistants** |
 | Une exécution d’automatisation lancée par quelqu’un | Le membre qui l’a lancée depuis la liste des exécutions, le builder, un chat, une tâche, l’API REST ou le point d’accès MCP | La clé API, quand l’exécution a été lancée avec une clé | Le nom de l’automatisation sous **Principaux assistants** |
 | Une exécution d’automatisation lancée par un déclencheur | Personne : une planification, un webhook ou un événement n’a personne derrière lui | — | La ligne **Automatisations (déclencheurs)** sous **Utilisation par utilisateur** |
+| Une image que crée un agent | La personne pour qui l’exécution de l’agent compte : celle qui l’a lancée, ou personne pour une exécution lancée par un déclencheur | La clé API, quand l’exécution a été lancée avec une clé | Le nom de l’agent ou de l’automatisation sous **Principaux assistants**, et le modèle d’images sous **Principaux modèles** |
 | Une sortie vocale ou une transcription | Le membre qui l’a demandée | — | **Sortie vocale** ou **Transcription** sous **Principaux assistants** ; la sortie vocale aussi sous **Principaux modèles vocaux** |
 | Un appel de connecteur mesuré | Le membre dont la requête a provoqué l’appel | — | L’assistant qui l’a fait, ou **Connector** |
 | Un appel aux [endpoints de modèles](/fr/develop/use-tale-from-your-editor#model-endpoints) | Le membre dont la clé API l’a envoyé | La clé API | **Appel API direct** sous **Principaux assistants** |
@@ -31,7 +32,7 @@ Une nouvelle tentative d’une exécution d’agent poursuit l’exécution lanc
 - **Les limites de l’organisation** s’appliquent à toute requête, y compris aux exécutions lancées par un déclencheur.
 - **Les limites de clé API** s’appliquent aux requêtes authentifiées par cette clé : les messages de chat qu’elle a envoyés, ses appels aux endpoints de modèles et les exécutions qu’elle a lancées.
 
-Quand une limite est atteinte, Tale refuse la requête suivante avant de l’exécuter et nomme la limite. Un tour d’agent géré est refusé à son démarrage ; un tour déjà en cours conserve l’enveloppe qui lui a été accordée. [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine) traite le cas où plusieurs règles visent la même personne.
+Quand une limite est atteinte, Tale refuse la requête suivante avant de l’exécuter et nomme la limite. Un tour d’agent géré est refusé à son démarrage ; un tour déjà en cours conserve l’enveloppe qui lui a été accordée. Une image que l’agent demande pendant son tour est vérifiée à part, avant l’appel au modèle d’images : si une limite est atteinte, Tale refuse l’image et le tour continue. L’image puise aussi dans l’enveloppe du tour qui l’a demandée. [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine) traite le cas où plusieurs règles visent la même personne.
 
 ## Trois situations à connaître
 

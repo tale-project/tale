@@ -68,6 +68,9 @@ export interface LibContract {
       displayName: string;
       /** Shipped with the platform image, or defined by this organization. */
       origin?: 'shipped' | 'organization';
+      /** An organization-defined provider's native version: the hash of
+       * the file these facts were read from, which an edit saves against. */
+      definitionHash?: string;
     }>;
   };
   'lib/providers/definition_actions:getProviderDefinition': {
@@ -138,6 +141,26 @@ export interface LibContract {
         providerSlug: string;
         modelId: string;
         source: 'automatic' | 'pinned';
+      } | null;
+      error?: { code: string };
+    };
+  };
+  /** Whether agents may generate images, every image model a pin may name
+   * (the admission a turn applies), and what a turn would use right now. */
+  'lib/providers/image_generation_actions:getImageGenerationState': {
+    kind: 'action';
+    args: { organizationId: string };
+    returns: {
+      enabled: boolean;
+      models: Array<{
+        providerSlug: string;
+        providerDisplayName: string;
+        modelId: string;
+      }>;
+      pick: {
+        providerSlug: string;
+        modelId: string;
+        source: 'pinned' | 'preferred';
       } | null;
       error?: { code: string };
     };
