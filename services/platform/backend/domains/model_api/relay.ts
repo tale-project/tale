@@ -184,6 +184,20 @@ const INTERNAL_DETAIL: readonly RegExp[] = [
 ];
 
 /** Whether a relayed message would name the platform's internals. */
+/**
+ * Drop the gateway's own bookkeeping from an answer or a stream event. The
+ * gateway adds `extra_fields` beside the vendor's fields — its routing name
+ * for the provider (which carries the organization's id), the virtual key's
+ * name, latency and chunk counters — none of which belongs to the OpenAI or
+ * Anthropic shape the caller asked for, and none of which it should see.
+ */
+function withoutGatewayFields(
+  record: Record<string, unknown>,
+): Record<string, unknown> {
+  delete record.extra_fields;
+  return record;
+}
+
 function namesInternalDetail(text: string): boolean {
   return INTERNAL_DETAIL.some((pattern) => pattern.test(text));
 }
@@ -717,7 +731,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
               return null;
             }
             if (typeof event.model === 'string') event.model = publicModel;
-            return event;
+            return withoutGatewayFields(event);
           }
         : (event) => {
             if (
@@ -727,7 +741,8 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
             ) {
               event.message.model = publicModel;
             }
-            return event;
+            if (isRecord(event.message)) withoutGatewayFields(event.message);
+            return withoutGatewayFields(event);
           };
     const body = relayEventStream(upstream.body, {
       wire,
@@ -791,6 +806,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
   }
   const usage = answerUsage(wire, answer);
   if (typeof answer.model === 'string') answer.model = publicModel;
+  withoutGatewayFields(answer);
   done({ status: 'completed', ...(usage !== undefined ? { usage } : {}) });
   return new Response(JSON.stringify(answer), {
     status: 200,

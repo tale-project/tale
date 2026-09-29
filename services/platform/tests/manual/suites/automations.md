@@ -354,6 +354,8 @@ output:
       current step badged `automations.runs.timeline.current`) and a settings
       entry opening **{name} — settings** (`automations.settings.dialogTitle`);
       saving valid values toasts `automations.settings.saved` and survives reopen.
+      Signed in as a Member who works the task, the entry is absent: saving
+      writes the project's files, which stay with the project's editors.
 - [ ] `AUTO-F33` · **Metrics redirect + page** — Navigate to
       `/dashboard/{org}/automations/metrics?period=7d` → URL is rewritten to
       `/dashboard/{org}/settings/metrics/automations` keeping the query; the page

@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 56 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -465,6 +465,14 @@ projects-list row ⋯ menu.
   `*/api/app/documents/by-project/*` instead → the folders stay and the
   notice reads `projects.files.loadFailed`; both blocked →
   `projects.files.treeLoadFailed`. No toast.
+- [ ] `PROJ-B11` · **A Member is offered no project create** — Sign in as a
+  Member and open the Home panel, then `/dashboard/{org}/projects` → the
+  **Projects** section header offers **All projects** but no **New project**
+  (`home.projects.newProject`), and the list has no **Create project**
+  (`projects.list.createButton`); with no project shared with them the list
+  reads **A project appears here once someone shares it with you or one of
+  your teams.** (`projects.list.emptyReaderDescription`). As an Editor both
+  doors are back. The server refuses a create below the Editor role.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)

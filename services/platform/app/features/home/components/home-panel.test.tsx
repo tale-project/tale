@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AbilityContext } from '@/app/context/ability-context';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, within } from '@/tests/utils/render';
 
@@ -77,6 +79,9 @@ vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
 });
 
 const { HomeNavigator, HomePanel } = await import('./home-panel');
+
+const EDITOR = defineAbilityFor('editor');
+const MEMBER = defineAbilityFor('member');
 const { HomePanelProvider } = await import('./home-panel-context');
 
 // Noon today — the rows below land in Today and Yesterday.
@@ -227,6 +232,31 @@ describe('HomeNavigator', () => {
     expect(
       within(projects).getByRole('link', { name: /Website relaunch/ }),
     ).toHaveAttribute('href', '/dashboard/org-1/projects/p1');
+  });
+
+  it('offers New project only to a role that may create one', () => {
+    // The server refuses a project create below the Editor role.
+    const { unmount } = render(
+      <AbilityContext.Provider value={EDITOR}>
+        <HomeNavigator organizationId="org-1" />
+      </AbilityContext.Provider>,
+    );
+    expect(
+      screen.getByRole('button', { name: 'New project' }),
+    ).toBeInTheDocument();
+    unmount();
+
+    render(
+      <AbilityContext.Provider value={MEMBER}>
+        <HomeNavigator organizationId="org-1" />
+      </AbilityContext.Provider>,
+    );
+    expect(
+      screen.getByRole('region', { name: 'Projects' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'New project' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows a draft row while a fresh chat is being written', () => {

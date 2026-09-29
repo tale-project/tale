@@ -6,6 +6,8 @@ import {
 } from '@tale/ui/data-table/column-builders';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AbilityContext } from '@/app/context/ability-context';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
@@ -136,14 +138,23 @@ function row(overrides: RowOverrides = {}) {
   };
 }
 
+const ABILITIES = {
+  editor: defineAbilityFor('editor'),
+  member: defineAbilityFor('member'),
+};
+
 function renderTable(
   rows: ReturnType<typeof row>[],
-  flags: { overdueTruncated?: boolean } = {},
+  flags: { overdueTruncated?: boolean; role?: 'editor' | 'member' } = {},
 ) {
   overview.projects = rows;
   overview.overdueTruncated = flags.overdueTruncated ?? false;
   overview.isLoading = false;
-  return render(<ProjectsTable organizationId="test-org-id" />);
+  return render(
+    <AbilityContext.Provider value={ABILITIES[flags.role ?? 'editor']}>
+      <ProjectsTable organizationId="test-org-id" />
+    </AbilityContext.Provider>,
+  );
 }
 
 describe('ProjectsTable', () => {
@@ -329,6 +340,21 @@ describe('ProjectsTable', () => {
     expect(
       screen.getAllByRole('button', { name: 'projects.list.createButton' }),
     ).toHaveLength(1);
+  });
+
+  it('offers a Member no create button and says how projects reach them', () => {
+    // The server refuses a project create below the Editor role.
+    renderTable([], { role: 'member' });
+
+    expect(
+      screen.queryByRole('button', { name: 'projects.list.createButton' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('projects.list.emptyReaderDescription'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('projects.list.emptyDescription'),
+    ).not.toBeInTheDocument();
   });
 
   it('renders the fixed frame every overview list uses', () => {
