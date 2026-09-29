@@ -135,6 +135,29 @@ afterEach(async () => {
   await forgetSavedLocale();
 });
 
+/** Name a new team "Finance", choose the `toggle` members and create it. */
+async function createTeam(toggle: readonly string[]) {
+  const onOpenChange = vi.fn();
+  const { user } = renderWithToaster(
+    <TeamCreateDialog
+      organizationId="org-1"
+      open
+      onOpenChange={onOpenChange}
+    />,
+  );
+  await user.type(
+    screen.getByRole('textbox', { name: settings('teams.teamName') }),
+    'Finance',
+  );
+  for (const name of toggle) {
+    await user.click(screen.getByRole('button', { name }));
+  }
+  await user.click(
+    screen.getByRole('button', { name: settings('teams.createTeam') }),
+  );
+  return { onOpenChange };
+}
+
 /** Every toast raised so far, as the person reads it. */
 function toasts() {
   return vi.mocked(toast).mock.calls.map(([shown]) => ({
@@ -216,7 +239,7 @@ describe('a lapsed session raises one toast per refused save', () => {
     });
 
     // The team exists once Better Auth has answered, so the one toast says
-    // what the save could not do rather than "couldn't create".
+    // it was created without its members rather than "couldn't create".
     it.each([
       { members: 'no member chosen (the creator joins)', toggle: [] },
       { members: 'a chosen member', toggle: ['Toggle user-b'] },
@@ -225,30 +248,12 @@ describe('a lapsed session raises one toast per refused save', () => {
         toggle: ['Toggle user-b', 'Toggle user-c'],
       },
     ])('when creating a team with $members', async ({ toggle }) => {
-      const onOpenChange = vi.fn();
-      const { user } = renderWithToaster(
-        <TeamCreateDialog
-          organizationId="org-1"
-          open
-          onOpenChange={onOpenChange}
-        />,
-      );
-
-      await user.type(
-        screen.getByRole('textbox', { name: settings('teams.teamName') }),
-        'Finance',
-      );
-      for (const name of toggle) {
-        await user.click(screen.getByRole('button', { name }));
-      }
-      await user.click(
-        screen.getByRole('button', { name: settings('teams.createTeam') }),
-      );
+      const { onOpenChange } = await createTeam(toggle);
 
       expect(await screen.findByText(SESSION_ENDED[locale])).toBeVisible();
       expect(toasts()).toEqual([
         {
-          title: settings('teams.teamCreated'),
+          title: settings('teams.teamCreatedMembersRefused'),
           description: SESSION_ENDED[locale],
           variant: 'destructive',
         },
@@ -293,13 +298,16 @@ describe('a lapsed session raises one toast per refused save', () => {
 
 // A refusal that is not a lapse keeps the save's own words, still once.
 describe('a refused membership change without a lapse', () => {
-  it('counts the refused changes in the one toast', async () => {
+  beforeEach(() => {
     vi.mocked(globalThis.fetch).mockImplementation(async () =>
       Response.json(
         { error: 'Not a member of this organization', code: 'NOT_A_MEMBER' },
         { status: 409 },
       ),
     );
+  });
+
+  it('counts the refused changes in the one toast', async () => {
     const { user } = renderWithToaster(
       <TeamEditDialog
         team={TEAM}
@@ -324,5 +332,56 @@ describe('a refused membership change without a lapse', () => {
         variant: 'destructive',
       },
     ]);
+  });
+
+  // The hook's own toast used to sit under a green "Team created" that
+  // covered it; the create dialog says the refusal itself now.
+  it('counts the members a new team could not take in the one toast', async () => {
+    const { onOpenChange } = await createTeam([
+      'Toggle user-b',
+      'Toggle user-c',
+    ]);
+
+    const refused = settings('teams.membershipChangesFailed', { count: 2 });
+    expect(await screen.findByText(refused)).toBeVisible();
+    expect(toasts()).toEqual([
+      {
+        title: settings('teams.teamCreatedMembersRefused'),
+        description: refused,
+        variant: 'destructive',
+      },
+    ]);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+// Every member joined: the one toast is the success, counting who joined.
+describe('a team created with every member', () => {
+  it.each([
+    { members: 'no member chosen (the creator joins)', toggle: [], count: 1 },
+    {
+      members: 'two chosen members',
+      toggle: ['Toggle user-b', 'Toggle user-c'],
+      count: 2,
+    },
+  ])('says so in one toast with $members', async ({ toggle, count }) => {
+    vi.mocked(globalThis.fetch).mockImplementation(async () =>
+      Response.json({ teamMemberId: 'tm-new' }),
+    );
+    const { onOpenChange } = await createTeam(toggle);
+
+    const created = settings('teams.teamCreatedDescription', {
+      name: 'Finance',
+      count,
+    });
+    expect(await screen.findByText(created)).toBeVisible();
+    expect(toasts()).toEqual([
+      {
+        title: settings('teams.teamCreated'),
+        description: created,
+        variant: 'success',
+      },
+    ]);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

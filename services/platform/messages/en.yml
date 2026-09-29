@@ -5612,6 +5612,7 @@ settings:
     teamDeleteFailed: Couldn't delete team
     teamCreated: Team created
     teamCreatedDescription: '{name} created with {count} {count, plural, one {member} other {members}}.'
+    teamCreatedMembersRefused: Team created, but not every member was added
     teamCreateFailed: Couldn't create team
     teamUpdated: Team updated
     teamUpdateFailed: Couldn't update team

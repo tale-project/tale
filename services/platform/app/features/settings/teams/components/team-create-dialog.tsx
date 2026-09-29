@@ -145,13 +145,14 @@ export function TeamCreateDialog({
           queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
         });
         // The team exists, so this is not "couldn't create": one toast says
-        // what was refused, as the edit dialog says a refused membership
-        // change — a lapsed session in its own words, else a count.
+        // it was created without every member, and why, as the edit dialog
+        // says a refused membership change — a lapsed session in its own
+        // words, else a count.
         const lapsed = refused.find(
           (f) => backendErrorCode(f.reason) === 'UNAUTHORIZED',
         );
         toast({
-          title: tSettings('teams.teamCreated'),
+          title: tSettings('teams.teamCreatedMembersRefused'),
           description: lapsed
             ? failureDetail(lapsed.reason)
             : tSettings('teams.membershipChangesFailed', {
