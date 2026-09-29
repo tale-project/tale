@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 93 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 99 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -94,9 +94,20 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
 - [ ] `TASK-F18` · **Show archived survives a search** — With **Show archived**
   on and an archived task visible, type part of its title into **Search tasks**
   (`tasks.searchPlaceholder`) → The archived task stays in the results. Clear
-  the search, turn **Show archived** off, search again → it is gone. The page
-  renders the board read narrowed by the search read, so the toggle has to
-  govern both or typing silently drops rows the toggle just revealed.
+  the search, turn **Show archived** off, search again → it is gone. The
+  search narrows the board read itself, so **Show archived** governs it like
+  every other filter and typing never drops rows the toggle just revealed.
+- [ ] `TASK-F52` · **A search reaches every match** — In a project with more
+  than 25 tasks whose titles share one word, where the only **Urgent**
+  (`tasks.priority.p0`) one is the oldest: **Filter** → **Priority** →
+  **Urgent**, then type the word into **Search tasks**
+  (`tasks.searchPlaceholder`); clear the priority; pick **Assignee** → **You**
+  (`tasks.assignee.you`); last, type a word no task holds → The Urgent task
+  stays, alone; without the priority every match shows, a task whose only match
+  is a comment included, and the lane counts add up to the number of matches;
+  **You** keeps exactly your matches; the unmatched word leaves six **No
+  tasks** (`tasks.board.noTasks`) lanes and no alert. DevTools → Network shows
+  the query on the board read (`q=`) and no `/tasks/search` request.
 - [ ] `TASK-F6` · **Backlog lane semantics** — **Create task** → open the
   **Status** picker (`tasks.fields.status`) in the dialog → **Backlog**; later
   open the task and promote it to **To do** → The task lands in the Backlog
@@ -914,6 +925,38 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   image model; the run itself still settles. Restore: delete the rule —
   env-gated: mark **ENVIRONMENT** without a runnable harness and an
   image-capable credential.
+- [ ] `TASK-B32` · **A failed board read** — DevTools → Network → block the
+  request URL `*/api/app/tasks/by-project/*`, open **Board**, then **List**;
+  unblock and press **Try again** (`common.actions.tryAgain`) → Once the
+  retries settle, an alert **Couldn't load the tasks, so none are shown. Your
+  search and filters stay as they are.** (`tasks.read.tasksFailed`) takes the
+  lanes' place — never six **No tasks** (`tasks.board.noTasks`); **Filter** and,
+  for an editor, **Create task** (`tasks.actions.create`) stay usable; while
+  the retry runs the alert reads **Trying again…** (`tasks.read.retrying`), and
+  the tasks come back without a reload, the search and filters as they were.
+- [ ] `TASK-B33` · **A failed refresh, a failed search** — With the board
+  loaded, block `*/api/app/tasks/by-project/*` and rename a task from a second
+  session; then type a search; unblock, press **Try again**, and while it runs
+  type another search → The tasks stay on screen under **Couldn't refresh the
+  tasks. They are shown as they were last loaded.** (`tasks.read.tasksStale`);
+  the failed search replaces the rows with the failed-read alert — never the
+  unsearched tasks — and the search box keeps the query; the board ends on the
+  last search's matches, and a late answer for the earlier one never replaces
+  them.
+- [ ] `TASK-B30` · **Failed dependencies and activity** — On a project where
+  one task blocks another, block `*/api/app/tasks/dependencies/by-project/*`
+  and reload; then unblock it, block `*/api/app/tasks/ops-indicators/*`,
+  reload, and turn on **Needs my review** (`tasks.review.needsMyReview`) → The
+  board stands under a warning **Couldn't load the dependencies, so blocked
+  tasks may not be marked as blocked.** (`tasks.read.dependenciesFailed`), and
+  its **Try again** brings the **Blocked** (`tasks.detail.blocked`) mark back
+  with no new board read in the Network panel; the activity warning
+  (`tasks.read.activityFailed`) says **Needs my review** may leave tasks out
+  (`tasks.read.activityFailedReviewFilter`) once that filter is on.
+- [ ] `TASK-B31` · **Past the board's cap** — Open a project with more than
+  2,000 tasks, then search for a task past the first 2,000 → A note **Showing
+  the first 2,000 tasks. Search to find the others.** (`tasks.read.truncated`)
+  stands above the board; the search finds the task and the note goes.
 - [ ] `TASK-B29` · **Moving a live automation's parent task** — (env-gated
   like TASK-B17; without one mark **ENVIRONMENT**) Give two tasks that
   automation owns an open subtask each (`tasks.detail.addSubtask`) and start
@@ -1051,6 +1094,15 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the ✕ goes away and focus is back on the date button, now **Pick a date**
   (`common.datePicker.placeholder`), with no calendar opening; a screen
   reader names the ✕ in German and French too; the read-only task shows no ✕.
+- [ ] `TASK-A13` · **Recover a failed board from the keyboard** — Block
+  `*/api/app/tasks/by-project/*`, load **Board** with a screen reader on, Tab
+  to **Try again**, unblock and press **Enter**; repeat 390 px wide → The alert
+  is announced when it appears; **Try again** is a named button with a visible
+  focus ring; while it retries it keeps the focus, marked busy, and the alert
+  reads **Trying again…**; when the tasks arrive the focus lands on the board,
+  announced as **Board** (`tasks.views.board`), with a visible ring, and
+  **Tab** moves on into the first card; 390 px wide the alert and its button
+  fit without horizontal scrolling.
 
 ## Performance
 

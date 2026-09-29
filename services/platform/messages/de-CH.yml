@@ -180,3 +180,5 @@ tasks:
     dateOutOfRange: Die nächsten Termine liegen ausserhalb des unterstützten Datumsbereichs. Wähle ein früheres Datum.
     stop:
       altText: 'Du kannst die Wiederholung auch später beenden: Öffne die Aufgabe und wähle bei «Wiederholen» die Aktion «Wiederholung beenden».'
+  read:
+    activityFailedReviewFilter: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert, und «Wartet auf mein Review» lässt vielleicht Aufgaben aus, die auf dich warten.

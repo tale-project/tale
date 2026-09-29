@@ -95,6 +95,7 @@ import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tabl
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
@@ -56060,6 +56061,10 @@ async function main(): Promise<void> {
       [
         'checkProjectTaskMetrics',
         () => checkProjectTaskMetrics(sql, authCtx, record),
+      ],
+      [
+        'checkTaskBoardSearch',
+        () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
       [
