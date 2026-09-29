@@ -26,7 +26,12 @@ import { isDeepStrictEqual } from 'node:util';
 import { createAuthClient } from 'better-auth/client';
 import { organizationClient } from 'better-auth/client/plugins';
 import type { Sql } from 'postgres';
-import { z } from 'zod';
+
+import {
+  ITEST_PASSWORD,
+  cookieHeaderFrom,
+  signUpUser,
+} from '../integration-lane-helpers.ts';
 
 /**
  * Better Auth's answer to a team write whose session has ended, as its
@@ -78,15 +83,6 @@ export function lapsedAnswerOf(error: unknown): unknown {
 
 const SESSION_COOKIE = 'better-auth.session_token';
 
-/** The `Cookie` header a browser would send after `response`. */
-function cookieOf(response: Response): string {
-  return response.headers
-    .getSetCookie()
-    .map((entry) => entry.split(';')[0] ?? '')
-    .filter((pair) => pair.length > 0)
-    .join('; ');
-}
-
 /** The session token a signed session cookie carries (`<token>.<signature>`). */
 function sessionTokenOf(cookie: string): string {
   const pair = cookie
@@ -104,8 +100,6 @@ export async function checkLapsedTeamWrites(
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
   const suffix = randomUUID().slice(0, 8);
-  const email = `itest-team-lapse-${suffix}@example.com`;
-  const password = 'itest-password-1';
   const post = (path: string, body: unknown, cookie?: string) =>
     fetch(`${base}/api/auth${path}`, {
       method: 'POST',
@@ -120,23 +114,16 @@ export async function checkLapsedTeamWrites(
   // A throwaway owner of an organization of its own: the lane ends two of
   // its sessions, and the suite's shared session and organization stay as
   // every other lane expects them.
-  const signedUp = await post('/sign-up/email', {
-    email,
-    password,
-    name: 'Itest team lapse',
-  });
-  const user = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await signedUp.json());
-  if (!signedUp.ok || !user.success) {
+  const owner = await signUpUser(base, `team-lapse-${suffix}`);
+  if (owner.userId === '') {
     record(
       'team lapse: the lane signs up its owner',
       false,
-      `sign-up → ${signedUp.status}`,
+      `sign-up of ${owner.email} refused`,
     );
     return;
   }
-  const userId = user.data.user.id;
+  const { userId, email } = owner;
   const orgId = randomUUID();
   await sql`
     INSERT INTO "organization" ("id", "name", "slug", "createdAt")
@@ -149,7 +136,9 @@ export async function checkLapsedTeamWrites(
     VALUES (${randomUUID()}, ${orgId}, ${userId}, 'owner', ${new Date()})
   `;
   const signIn = async (): Promise<string> =>
-    cookieOf(await post('/sign-in/email', { email, password }));
+    cookieHeaderFrom(
+      await post('/sign-in/email', { email, password: ITEST_PASSWORD }),
+    );
 
   const client = teamWriteClient(`${base}/api/auth`);
   const as = (cookie: string | undefined) => ({
@@ -160,7 +149,7 @@ export async function checkLapsedTeamWrites(
 
   // The control: a live session creates and renames, so every refusal
   // below is the session's, not a closed door's.
-  const live = cookieOf(signedUp);
+  const live = owner.cookie;
   const teamName = `Lapse ${suffix}`;
   const created = await client.organization.createTeam({
     name: teamName,

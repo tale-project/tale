@@ -97,6 +97,7 @@ import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.inte
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
+import { cookieHeaderFrom, signUpUser } from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -454,14 +455,6 @@ async function drainNotificationEmails(sql: Sql): Promise<boolean> {
   }, 15_000);
 }
 
-function cookieHeaderFrom(response: Response): string {
-  return response.headers
-    .getSetCookie()
-    .map((entry) => entry.split(';')[0] ?? '')
-    .filter((pair) => pair.length > 0)
-    .join('; ');
-}
-
 /**
  * The cookie jar after a response: every `Set-Cookie` pair overlays the
  * existing header by name and a cleared cookie (empty value) leaves the jar
@@ -485,37 +478,6 @@ function mergeCookieHeader(existing: string, response: Response): string {
     put(entry.split(';')[0] ?? '', true);
   }
   return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
-}
-
-/**
- * A fresh user signed up through Better Auth and a member of NO organization
- * yet — what a lane needs when the membership itself is what it exercises
- * (the members API, an org the user goes on to create and own) or when the
- * probe is about the account alone. `signUpOrgMember` builds on it; a lane
- * that only needs another pair of hands in the suite's org wants that one.
- */
-async function signUpUser(
-  base: string,
-  label: string,
-): Promise<{ cookie: string; userId: string; email: string }> {
-  const email = `itest-${label}-${Date.now()}@example.com`;
-  const res = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email,
-      password: 'itest-password-1',
-      name: `Itest ${label}`,
-    }),
-  });
-  const parsed = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await res.json());
-  return {
-    cookie: cookieHeaderFrom(res),
-    userId: parsed.success ? parsed.data.user.id : '',
-    email,
-  };
 }
 
 /**
