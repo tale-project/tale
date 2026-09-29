@@ -1386,6 +1386,12 @@ export async function applyGatewayConfig(
     log_retention_days: logRetention,
     enforce_auth_on_inference: true,
     enforce_governance_header: true,
+    // The gateway's request log would otherwise keep every prompt and
+    // answer — agent turns and model-endpoint calls alike — for its
+    // retention window, outside the organization's retention policy and
+    // erasure. Tale never reads that log: spend is read from each virtual
+    // key's usage, which the governance plugin keeps without content.
+    disable_content_logging: true,
   };
   // The gateway (Bifrost >= v1.6.9) enforces an admin-password strength policy
   // (>=12 chars, an upper, a lower, a digit and a non-alphanumeric special

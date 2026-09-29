@@ -31,7 +31,7 @@ Les rôles applicatifs utilisent la même image Tale Platform. `TALE_ROLE=api` d
 | `config-data` | Fichiers de configuration des organisations : agents, skills, définitions de fournisseurs, règles de gouvernance, SSO et identité visuelle. |
 | `object-store-data` | Documents importés, pièces jointes, audio et fichiers générés. |
 | `caddy-data`, `caddy-config` | Certificats et état du proxy. |
-| `llm-gateway-data` | Configuration de la passerelle et état des accès de session. |
+| `llm-gateway-data` | Configuration de la passerelle, état des accès de session et journal des requêtes de la passerelle (modèle, jetons, durée), sans prompts ni réponses. |
 
 Le stack fourni place les deux bases dans un seul service Postgres et expose la connexion aux connaissances sous l’alias réseau `knowledge-db`. Les bases restent distinctes. Un déploiement Compose depuis les sources avec un service de connaissances séparé possède aussi `knowledge-db-data`.
 

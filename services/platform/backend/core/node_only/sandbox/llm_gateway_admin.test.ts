@@ -1304,6 +1304,7 @@ describe('applyGatewayConfig', () => {
         max_request_body_size_mb: 100,
         enforce_auth_on_inference: true,
         enforce_governance_header: true,
+        disable_content_logging: true,
       },
       // First-time bootstrap (GET reports auth not yet enabled): the plaintext
       // password is sent to establish it — the gateway hashes it on store. A
