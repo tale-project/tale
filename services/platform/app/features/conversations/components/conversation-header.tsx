@@ -26,6 +26,7 @@ import {
   useContactById,
   useContacts,
 } from '@/app/features/contacts/hooks/queries';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import {
   mailboxSideAddress,
@@ -171,6 +172,7 @@ export function ConversationHeader({
           console.error('Error closing conversation:', error);
           toast({
             title: t('header.toast.closeFailed'),
+            description: failureDetail(error),
             variant: 'destructive',
           });
         },
@@ -193,6 +195,7 @@ export function ConversationHeader({
           console.error('Error reopening conversation:', error);
           toast({
             title: t('header.toast.reopenFailed'),
+            description: failureDetail(error),
             variant: 'destructive',
           });
         },
@@ -215,6 +218,7 @@ export function ConversationHeader({
           console.error('Error marking conversation as spam:', error);
           toast({
             title: t('header.toast.markAsSpamFailed'),
+            description: failureDetail(error),
             variant: 'destructive',
           });
         },

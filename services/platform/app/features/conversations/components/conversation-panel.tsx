@@ -28,7 +28,10 @@ import {
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
+import {
+  backendErrorFromResponse,
+  failureDetail,
+} from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -173,9 +176,7 @@ export function ConversationPanel({
   const isLoading = isQueryLoading || forceLoading;
 
   const { mutate: markAsRead } = useMarkAsRead();
-  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector({
-    errorToast: false,
-  });
+  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl({
     errorToast: false,
   });
@@ -372,6 +373,7 @@ export function ConversationPanel({
           console.error('Failed to undo send:', error);
           toast({
             title: tConversations('panel.undoSendFailed'),
+            description: failureDetail(error),
             variant: 'destructive',
           });
         },
@@ -387,6 +389,7 @@ export function ConversationPanel({
           console.error('Failed to retry send:', error);
           toast({
             title: tConversations('panel.retrySendFailed'),
+            description: failureDetail(error),
             variant: 'destructive',
           });
         },
@@ -402,6 +405,7 @@ export function ConversationPanel({
           console.error('Failed to discard message:', error);
           toast({
             title: tConversations('panel.discardMessageFailed'),
+            description: failureDetail(error),
             variant: 'destructive',
           });
         },
@@ -749,6 +753,7 @@ export function ConversationPanel({
                           console.error('Error reopening conversation:', error);
                           toast({
                             title: tConversations('header.toast.reopenFailed'),
+                            description: failureDetail(error),
                             variant: 'destructive',
                           });
                         },
@@ -796,6 +801,7 @@ export function ConversationPanel({
                           console.error('Error reopening conversation:', error);
                           toast({
                             title: tConversations('header.toast.reopenFailed'),
+                            description: failureDetail(error),
                             variant: 'destructive',
                           });
                         },
@@ -849,6 +855,7 @@ export function ConversationPanel({
                               title: tConversations(
                                 'header.toast.reopenFailed',
                               ),
+                              description: failureDetail(error),
                               variant: 'destructive',
                             });
                           },
@@ -882,6 +889,7 @@ export function ConversationPanel({
                             );
                             toast({
                               title: tConversations('panel.deleteFailed'),
+                              description: failureDetail(error),
                               variant: 'destructive',
                             });
                           },

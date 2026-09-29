@@ -15,6 +15,7 @@ import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { mailboxSideAddress } from '@/lib/shared/conversations/reply-from';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -229,8 +230,12 @@ export function ConversationAssigneePicker({
   function handleValueChange(value: string) {
     setOpen(false);
     const onError = {
-      onError: () =>
-        toast({ title: t('header.assignError'), variant: 'destructive' }),
+      onError: (error: Error) =>
+        toast({
+          title: t('header.assignError'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        }),
     };
     const conversationId = conversation._id;
 
