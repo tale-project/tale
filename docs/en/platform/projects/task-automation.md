@@ -56,7 +56,7 @@ A manager agent is a project agent whose instructions are to read the whole boar
 
 **Find tasks** answers at most 50 tasks at a time. While a page says `isDone: false`, its `continueCursor`, passed back as `cursor` with the same arguments, returns the next page; the last page says `isDone: true`. A cursor that comes back with other filters, another order or from another project's run is refused, and so is a damaged one: it is never read as the first page. A total appears only when one page holds every matching task.
 
-To walk a whole queue, use `order: "created"`. Tasks come oldest first and keep their place, so a pass lists each task at most once, as it stands when its page is read. The default order follows the board's columns, and a task that moves while the manager pages through them can be missed or listed twice.
+To walk a whole queue, use `order: "created"`. Tasks come oldest first and keep their place, so a pass lists each task at most once, as it stands when its page is read. The default order groups tasks by status and keeps each column's order within it, so a task that moves while the manager pages can be missed or listed twice.
 
 A pass can outlast one run. Before its run ends, the manager saves a checkpoint comment on its own task: the pass, its order and filters, the next `continueCursor` and the last task it examined. Its next run finds that checkpoint with **Read a task** and continues from it. When a pass ends, or its cursor is refused, the next pass starts at the first page. A read that fails is not an empty queue: the manager reports it and stops.
 
@@ -74,9 +74,9 @@ The answer leaves out transcripts, error texts and results, and anything from an
 
 A routine question is one the manager can answer from what the project already records. Write the same protocol into the instructions of the working agents and of the manager:
 
-1. The working agent posts the question as a task comment with a stable question key, its evidence and the question. It names the comment's ID and its own run ID in its result and finishes the run instead of waiting inside it. Mentioning the manager in that comment starts nothing: a comment by an agent never starts an agent.
-2. On its next pass, the manager reads the task and answers only once the run that asked has finished and nothing is live on the task.
-3. It posts its answer as a comment that names the question's comment ID, then restarts the agent with **Start other agents on tasks**, with a message that names the question, the answer's comment ID and the run that asked. The restart withdraws the task's pending review without approving it.
+1. The working agent posts the question as a task comment with a stable question key, its evidence and the question. It names the comment's ID and its own run ID in its result (**Read a task** on its task shows that run as the live one) and finishes the run instead of waiting inside it. Mentioning the manager in that comment starts nothing: a comment by an agent never starts an agent.
+2. On its next pass, the manager answers only while the task still waits on that question: the run that asked is the task's newest run and has finished, nothing is live on the task, and the task waits in review of that run (`pendingReview.runId`). If a person has since moved the task on, by accepting or cancelling it or asking for changes, the question is no longer the manager's to answer, and it reports the question instead.
+3. It posts its answer as a comment that names the question's comment ID, then restarts the agent with **Start other agents on tasks**, with a message that opens with the question's key, the answer's comment ID and the run that asked: a later **Read a task** shows only the first 500 characters of a start's message. The restart withdraws the task's pending review without approving it.
 4. If the restart's response is lost, the manager reads the task again before trying anything else: a newer run whose message names the answer's comment ID means the restart went through.
 
 Accepting a result, answering an automation's question and deciding an approval stay with people. The manager sees them in **Read a task** so that it can leave them to the person concerned and report them.

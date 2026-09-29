@@ -50,13 +50,13 @@ Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich
 
 ## Einen Manager-Agenten die Warteschlange betreuen lassen
 
-Ein Manager-Agent ist ein Projektagent, der laut seinen Anweisungen das ganze Board liest, startbereite Arbeit verteilt und die Routinefragen anderer Agenten beantwortet, damit Personen nur noch sehen, was sie wirklich braucht. Er liest mit **Aufgaben finden** und **Aufgabe lesen**; keines der beiden Tools ändert etwas.
+Ein Manager-Agent ist ein Projektagent, der laut seinen Anweisungen das ganze Board liest, startbereite Arbeit verteilt und die Routinefragen anderer Agenten beantwortet, damit Personen nur noch sehen, was ihr Eingreifen braucht. Er liest mit **Aufgaben finden** und **Aufgabe lesen**; keines der beiden Tools ändert etwas.
 
 ### Die ganze Warteschlange in Durchgängen lesen
 
 **Aufgaben finden** liefert höchstens 50 Aufgaben auf einmal. Solange eine Seite `isDone: false` meldet, bringt ihr `continueCursor`, als `cursor` mit denselben Argumenten zurückgegeben, die nächste Seite; die letzte Seite meldet `isDone: true`. Ein Cursor, der mit anderen Filtern, einer anderen Reihenfolge oder aus dem Lauf eines anderen Projekts zurückkommt, wird abgelehnt, ebenso ein beschädigter: Er wird nie als erste Seite gelesen. Eine Gesamtzahl erscheint nur, wenn eine einzige Seite alle passenden Aufgaben enthält.
 
-Um eine ganze Warteschlange durchzugehen, verwende `order: "created"`. Die Aufgaben kommen dann nach ihrer Erstellung geordnet, die älteste zuerst, und behalten ihren Platz. So nennt ein Durchgang jede Aufgabe höchstens einmal, in dem Zustand, den sie beim Lesen ihrer Seite hat. Die Standardreihenfolge folgt den Spalten des Boards: Eine Aufgabe, die sich bewegt, während der Manager blättert, kann dabei fehlen oder doppelt erscheinen.
+Um eine ganze Warteschlange durchzugehen, verwende `order: "created"`. Die Aufgaben kommen dann nach ihrer Erstellung geordnet, die älteste zuerst, und behalten ihren Platz. So nennt ein Durchgang jede Aufgabe höchstens einmal, in dem Zustand, den sie beim Lesen ihrer Seite hat. Die Standardreihenfolge gruppiert die Aufgaben nach Status und behält darin die Reihenfolge der Spalte bei. Eine Aufgabe, die sich bewegt, während der Manager blättert, kann dabei fehlen oder doppelt erscheinen.
 
 Ein Durchgang kann länger dauern als ein Lauf. Bevor sein Lauf endet, hält der Manager den Zwischenstand in einem Kommentar auf seiner eigenen Aufgabe fest: den Durchgang, dessen Reihenfolge und Filter, den nächsten `continueCursor` und die zuletzt geprüfte Aufgabe. Sein nächster Lauf findet diesen Kommentar mit **Aufgabe lesen** und macht dort weiter. Ist ein Durchgang zu Ende oder wird sein Cursor abgelehnt, beginnt der nächste auf der ersten Seite. Ein fehlgeschlagener Lesevorgang ist keine leere Warteschlange: Der Manager meldet ihn und hört auf.
 
@@ -72,14 +72,14 @@ Transkripte, Fehlertexte und Ergebnisse gehören nicht zur Antwort, ebenso wenig
 
 ### Eine Routinefrage beantworten
 
-Eine Routinefrage kann der Manager aus dem beantworten, was das Projekt bereits festhält. Schreib dasselbe Vorgehen in die Anweisungen der arbeitenden Agenten und des Managers:
+Eine Routinefrage ist eine Frage, die der Manager aus dem beantworten kann, was das Projekt bereits festhält. Schreib dasselbe Vorgehen in die Anweisungen der arbeitenden Agenten und des Managers:
 
-1. Der arbeitende Agent stellt die Frage als Aufgabenkommentar mit einem festen Fragenschlüssel, seinen Belegen und der Frage. Er nennt in seinem Ergebnis die ID des Kommentars und die ID seines Laufs und beendet den Lauf, statt darin zu warten. Erwähnt er den Manager in diesem Kommentar, startet das nichts: Ein Kommentar eines Agenten startet nie einen Agenten.
-2. Bei seinem nächsten Durchgang liest der Manager die Aufgabe und antwortet erst, wenn der fragende Lauf beendet ist und auf der Aufgabe kein Lauf mehr aktiv ist.
-3. Er schreibt seine Antwort als Kommentar, der die Kommentar-ID der Frage nennt, und startet den Agenten dann mit **Andere Agenten auf Aufgaben starten** neu, mit einer Nachricht, die die Frage, die Kommentar-ID der Antwort und den fragenden Lauf nennt. Der Neustart zieht die offene Prüfanfrage der Aufgabe zurück, ohne das Ergebnis anzunehmen.
+1. Der arbeitende Agent stellt die Frage als Aufgabenkommentar mit einem festen Fragenschlüssel, seinen Belegen und der Frage. Er nennt in seinem Ergebnis die ID des Kommentars und die ID seines Laufs (**Aufgabe lesen** zeigt diesen Lauf auf seiner Aufgabe als den aktiven) und beendet den Lauf, statt darin zu warten. Erwähnt er den Manager in diesem Kommentar, startet das nichts: Ein Kommentar eines Agenten startet nie einen Agenten.
+2. Bei seinem nächsten Durchgang antwortet der Manager nur, solange die Aufgabe noch auf diese Frage wartet: Der fragende Lauf ist der neueste Lauf der Aufgabe und beendet, auf der Aufgabe ist kein Lauf aktiv, und die Aufgabe wartet auf die Prüfung genau dieses Laufs (`pendingReview.runId`). Hat eine Person die Aufgabe inzwischen weitergebracht, indem sie das Ergebnis angenommen, die Aufgabe abgebrochen oder Änderungen verlangt hat, beantwortet der Manager die Frage nicht mehr, sondern meldet sie.
+3. Er schreibt seine Antwort als Kommentar, der die Kommentar-ID der Frage nennt, und startet den Agenten dann mit **Andere Agenten auf Aufgaben starten** neu, mit einer Nachricht, die mit dem Fragenschlüssel, der Kommentar-ID der Antwort und dem fragenden Lauf beginnt: **Aufgabe lesen** zeigt später nur die ersten 500 Zeichen der Nachricht eines Starts. Der Neustart zieht die offene Prüfanfrage der Aufgabe zurück, ohne das Ergebnis anzunehmen.
 4. Geht die Rückmeldung des Neustarts verloren, liest der Manager die Aufgabe erneut, bevor er etwas anderes versucht: Ein neuerer Lauf, dessen Nachricht die Kommentar-ID der Antwort nennt, zeigt, dass der Neustart durchgegangen ist.
 
-Ein Ergebnis annehmen, die Frage einer Automatisierung beantworten und über eine Genehmigung entscheiden bleibt Sache von Personen. Der Manager sieht diese Punkte in **Aufgabe lesen**, damit er sie der zuständigen Person überlässt und meldet.
+Ein Ergebnis annehmen, die Frage einer Automatisierung beantworten und über eine Genehmigung entscheiden bleiben Sache von Personen. Der Manager sieht diese Punkte in **Aufgabe lesen**, damit er sie der zuständigen Person überlässt und meldet.
 
 ## Wartende und fehlgeschlagene Läufe behandeln
 
