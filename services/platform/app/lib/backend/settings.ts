@@ -1332,6 +1332,29 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null),
     invalidate: invalidateProviderReads,
   },
+  'provider_credentials/actions:updateCredentialWithDefinition': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}/with-definition`,
+        {
+          orgId: requireOrg(args, ctx),
+          // Strict on the server: exactly the fields the edit dialog sends
+          // for an organization-defined provider, and the two versions.
+          body: {
+            ...(typeof args.name === 'string' ? { name: args.name } : {}),
+            ...(args.modelAllowlist !== undefined
+              ? { modelAllowlist: args.modelAllowlist }
+              : {}),
+            ...(typeof args.endpointUrl === 'string'
+              ? { endpointUrl: args.endpointUrl }
+              : {}),
+            expectedHash: stringArg(args, 'expectedHash'),
+            definition: args.definition,
+          },
+        },
+      ).then(() => null),
+    invalidate: invalidateProviderReads,
+  },
   'provider_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(
@@ -1543,8 +1566,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then((body) => body.models),
     invalidate: invalidateProviderReads,
   },
-  // A read on the write lane: the edit flow fetches the definition's current
-  // hash right before saving against it, never from a cached copy.
+  // A read on the write lane: the edit flow fetches the definition right
+  // before saving, to carry the fields its form has no input for — and
+  // only while it is still the version the dialog showed.
   'lib/providers/definition_actions:getProviderDefinition': {
     run: (args, ctx) =>
       backendFetch<ProviderDefinitionSnapshotResult>(

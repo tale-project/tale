@@ -2,13 +2,15 @@ import {
   configurationHashSchema,
   expectedConfigurationHashSchema,
 } from '@tale/shared/schemas/configuration';
-import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
+import {
+  providerDefinitionSchema,
+  type ProviderDefinition,
+} from '@tale/shared/schemas/providers';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { parseYaml } from '../../../lib/shared/config/yaml';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -26,7 +28,7 @@ import {
   readSystemEntryIcon,
 } from '../../core/lib/providers/load_system_config.ts';
 import {
-  loadOrgCustomProviders,
+  loadOrgCustomProviderSnapshots,
   resolveProvidersForOrg,
 } from '../../core/lib/providers/org_providers.ts';
 import { inspectImageGenerationModels } from '../../core/lib/providers/resolve_image_model.ts';
@@ -34,6 +36,7 @@ import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_tra
 import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import { appErrorHandler } from '../../error-reporting';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { parseNativeJsonBody } from '../../lib/native-json-body.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
@@ -99,15 +102,9 @@ export function createProviderSettingRoutes(deps: {
   app.put('/definitions/:name', async (c) => {
     const denied = requireDeveloper(c);
     if (denied) return denied;
-    const raw = await c.req.text();
     // JSON-only transport plus the native parser's duplicate-key refusal.
-    let value: unknown;
-    try {
-      value = JSON.parse(raw);
-    } catch {
-      return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
-    }
-    if (!parseYaml(raw).ok)
+    const value = parseNativeJsonBody(await c.req.text());
+    if (value === undefined)
       return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
     const body = z
       .strictObject({
@@ -211,15 +208,24 @@ export function createProviderSettingRoutes(deps: {
     // The same union `resolveProvidersForOrg` serves, kept apart here so each
     // entry can say where it came from: the settings page lists and edits the
     // organization's own definitions, which the shipped set never includes.
-    const sources = [
-      { origin: 'shipped' as const, providers: loadProviderDefinitions() },
+    // Those carry the hash of the file their facts were read from: the edit
+    // dialog shows these facts and saves against that version, so a
+    // definition someone saved since is refused, never written over.
+    const sources: {
+      origin: 'shipped' | 'organization';
+      providers: { provider: ProviderDefinition; hash?: string }[];
+    }[] = [
       {
-        origin: 'organization' as const,
-        providers: loadOrgCustomProviders(orgSlug),
+        origin: 'shipped',
+        providers: loadProviderDefinitions().map((provider) => ({ provider })),
+      },
+      {
+        origin: 'organization',
+        providers: loadOrgCustomProviderSnapshots(orgSlug),
       },
     ];
     for (const { origin, providers } of sources)
-      for (const provider of providers) {
+      for (const { provider, hash } of providers) {
         let models: unknown[] = [];
         let catalogError: string | undefined;
         try {
@@ -258,6 +264,7 @@ export function createProviderSettingRoutes(deps: {
           authMethods: provider.auth.map((entry) => entry.method),
           models,
           ...(catalogError !== undefined ? { catalogError } : {}),
+          ...(hash !== undefined ? { definitionHash: hash } : {}),
         });
       }
     return c.json({ catalogs: results });

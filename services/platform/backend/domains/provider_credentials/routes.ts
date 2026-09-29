@@ -3,8 +3,10 @@ import { configurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
   providerCredentialCreateSchema,
   providerCredentialUpdateSchema,
+  providerDefinitionSchema,
 } from '@tale/shared/schemas/providers';
 import { Hono, type Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
@@ -14,9 +16,11 @@ import { requireSession } from '../../auth/session.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { loadOrgCustomProviders } from '../../core/lib/providers/org_providers.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import { parseNativeJsonBody } from '../../lib/native-json-body.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { requeueEmbeddingBlockedDocuments } from '../knowledge/service.ts';
 import { deleteProviderDefinition } from '../providers/config.ts';
+import { updateCredentialWithDefinition } from './custom-provider-edit.ts';
 import {
   CredentialAdminError,
   createCredential,
@@ -33,6 +37,22 @@ const createSchema = providerCredentialCreateSchema.extend({
 });
 const updateSchema = providerCredentialUpdateSchema.extend({
   expectedHash: configurationHashSchema.optional(),
+});
+/** The edit dialog's Save for a credential of an organization-defined
+ * provider: the credential's non-secret fields beside the provider's
+ * definition, each against the hash the dialog read it at. Strict, so a
+ * field this door does not take is refused rather than dropped. */
+const updateWithDefinitionSchema = z.strictObject({
+  ...providerCredentialUpdateSchema.pick({
+    name: true,
+    modelAllowlist: true,
+    endpointUrl: true,
+  }).shape,
+  expectedHash: configurationHashSchema,
+  definition: z.strictObject({
+    config: providerDefinitionSchema,
+    expectedHash: configurationHashSchema,
+  }),
 });
 
 /** What the credential resolver reads off a row — an edit to any of these
@@ -183,6 +203,55 @@ export function createProviderCredentialRoutes(deps: {
         updateCredential(tx, scope, credentialId, config, expectedHash),
       );
       if (RESOLVED_FIELDS.some((field) => config[field] !== undefined)) {
+        await requeueEmbeddingBlocked(scope, credentialId);
+      }
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The definition door's cap on a definition, with room for the credential
+  // fields beside it.
+  app.use(
+    '/:credentialId/with-definition',
+    bodyLimit({
+      maxSize: 512 * 1024,
+      onError: (c) => c.json({ error: 'PROVIDER_DEFINITION_TOO_LARGE' }, 413),
+    }),
+  );
+
+  /**
+   * An edit of an organization-defined provider's credential and of the
+   * provider it names, as one write: a refused credential never leaves the
+   * provider changed, and neither part lands over a version saved since the
+   * dialog read it. JSON-only, refusing a repeated key, like the definition
+   * door.
+   */
+  app.post('/:credentialId/with-definition', async (c) => {
+    const body = updateWithDefinitionSchema.safeParse(
+      parseNativeJsonBody(await c.req.text()) ?? null,
+    );
+    if (!body.success) {
+      return invalidBodyResponse(c, body.error);
+    }
+    try {
+      const scope = scopeOf(c);
+      const credentialId = c.req.param('credentialId');
+      const orgSlug = await resolveOrgSlug(deps.sql, scope.organizationId);
+      if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+      const { expectedHash, definition, ...patch } = body.data;
+      await updateCredentialWithDefinition(
+        deps.sql,
+        scope,
+        orgSlug,
+        credentialId,
+        patch,
+        expectedHash,
+        definition,
+      );
+      // The one field here the credential resolver reads (RESOLVED_FIELDS).
+      if (patch.endpointUrl !== undefined) {
         await requeueEmbeddingBlocked(scope, credentialId);
       }
       return c.json({ ok: true });

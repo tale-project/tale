@@ -68,6 +68,9 @@ export interface LibContract {
       displayName: string;
       /** Shipped with the platform image, or defined by this organization. */
       origin?: 'shipped' | 'organization';
+      /** An organization-defined provider's native version: the hash of
+       * the file these facts were read from, which an edit saves against. */
+      definitionHash?: string;
     }>;
   };
   'lib/providers/definition_actions:getProviderDefinition': {
