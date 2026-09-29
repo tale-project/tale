@@ -397,6 +397,15 @@ compute codes from the enrollment secret.
   localized. Repeat while delaying the session recheck and typing before its
   answer → the new draft is also retained. Restore the session in another tab
   before confirming → the recheck keeps the page open and removes the notice.
+  Layout on real devices: in the app installed on a notched iPhone (**Add to
+  Home Screen**), end the session the same way and choose **Stay here** → the
+  notice sits directly above the shell's header, with no blank band as tall
+  as the notch between them; press its **Sign in**, then **Stay here** → the
+  page does not move behind the confirmation or when it closes. At 375 px,
+  end the session while tab 1 shows `/dashboard/changelog`, then while it
+  shows `/dashboard/create-organization` → the notice stands in the flow above
+  the page, never over it: **Back** (`changelog.viewer.back`) can be pressed,
+  and the organization wizard scrolls to its last control.
 
 ## Accessibility (WCAG 2.1 AA)
 
