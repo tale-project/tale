@@ -8,6 +8,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
+import { HomeBackButton } from '@/app/features/home/components/home-back-button';
 import { ProjectsTable } from '@/app/features/projects/components/projects-table';
 import { projectsOverviewArgs } from '@/app/features/projects/hooks/queries';
 import {
@@ -68,6 +69,7 @@ function ProjectsPage() {
       organizationId={organizationId}
       header={
         <AdaptiveHeaderRoot showBorder standalone={false}>
+          <HomeBackButton organizationId={organizationId} />
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
         </AdaptiveHeaderRoot>
       }

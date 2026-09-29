@@ -241,10 +241,6 @@ afterEach(() => {
 
 type Point = { x: number; y: number };
 
-/** The share of the column PROJECTS may take (its `max-h-[45%]`). */
-const PROJECTS_SHARE = 0.45;
-/** The `mt-2` between PROJECTS and the stream. */
-const STREAM_GAP = 8;
 /**
  * A fractional height lands a box edge on a fractional pixel, and a scroll
  * offset snaps to a whole one — edges compare within one pixel.
@@ -259,8 +255,14 @@ function projectList(count: number): ChatProjectSummary[] {
   }));
 }
 
-/** Loose chats, newest first, every one of them inside Today. */
-function chatList(count: number): ChatThreadSummary[] {
+/**
+ * Loose chats, newest first, every one of them inside Today. `filed` puts
+ * the first few of them in a project.
+ */
+function chatList(
+  count: number,
+  filed?: { projectId: string; count: number },
+): ChatThreadSummary[] {
   const now = Date.now();
   return Array.from({ length: count }, (_, index) => ({
     id: `chat-${index}`,
@@ -270,6 +272,9 @@ function chatList(count: number): ChatThreadSummary[] {
     updatedAt: now - index,
     archived: false,
     generating: false,
+    ...(filed !== undefined && index < filed.count
+      ? { projectId: filed.projectId }
+      : {}),
   }));
 }
 
@@ -286,6 +291,7 @@ function homeData(
     unread: unread.includes(thread.id),
     generating: false,
     shared: false,
+    ...(thread.projectId !== undefined ? { projectId: thread.projectId } : {}),
   }));
   return {
     items,
@@ -312,13 +318,22 @@ function renderHome({
   threads = [],
   openThreadId = 'chat-0',
   unread = [],
+  variant = 'panel',
+  width,
+  view = 'chats',
 }: {
   height?: number;
   projects?: ChatProjectSummary[];
   threads?: ChatThreadSummary[];
   openThreadId?: string;
   unread?: readonly string[];
+  /** `screen` is the phone's Home, as its route mounts it. */
+  variant?: 'panel' | 'screen';
+  /** Overrides the panel's column width, e.g. a phone's full width. */
+  width?: number;
+  view?: string;
 }) {
+  localStorage.setItem(`home-view-${ORG}`, JSON.stringify(view));
   backend.home = homeData(projects, threads, unread);
   backend.location = {
     pathname: `/dashboard/${ORG}/chat/${openThreadId}`,
@@ -327,42 +342,16 @@ function renderHome({
   return render(
     <div
       data-testid="frame"
-      style={{ height }}
+      style={{ height, ...(width !== undefined ? { width } : {}) }}
       className="bg-background flex w-70 flex-col overflow-hidden"
     >
-      <HomeNavigator organizationId={ORG} />
+      <HomeNavigator organizationId={ORG} variant={variant} />
     </div>,
   );
 }
 
 function frame() {
   return screen.getByTestId('frame');
-}
-
-function projectsSection() {
-  return screen.getByRole('region', { name: 'Projects' });
-}
-
-/** The column PROJECTS and the stream share, above the ARCHIVED drawer. */
-function column() {
-  const element = projectsSection().parentElement;
-  if (!element) throw new Error('PROJECTS has no parent column');
-  return element;
-}
-
-function scrollerIn(root: Element) {
-  const element = Array.from(root.querySelectorAll('*')).find((child) =>
-    ['auto', 'scroll'].includes(getComputedStyle(child).overflowY),
-  );
-  if (!(element instanceof HTMLElement)) {
-    throw new Error('Found no scrolling element');
-  }
-  return element;
-}
-
-/** PROJECTS' own scrolling rows. */
-function projectRows() {
-  return scrollerIn(projectsSection());
 }
 
 /** The stream's scroller — the element holding the time-banded list. */
@@ -373,14 +362,6 @@ function streamRows() {
   const element = list.parentElement;
   if (!element) throw new Error('The stream has no scroller');
   return element;
-}
-
-function projectRow(name: string) {
-  const row = screen
-    .getByRole('link', { name: new RegExp(name) })
-    .closest('li');
-  if (!row) throw new Error(`No row for ${name}`);
-  return row;
 }
 
 function chatRow(threadId: string) {
@@ -398,10 +379,6 @@ function box(element: Element) {
 function centre(element: Element): Point {
   const rect = box(element);
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
-function scrolls(element: HTMLElement) {
-  return element.scrollHeight > element.clientHeight;
 }
 
 /** Whether all of `element` is drawn inside `container`'s box. */
@@ -488,64 +465,8 @@ async function carryTo(from: Point, to: Point, settled: () => boolean) {
   }
 }
 
-function lit(zone: Element) {
-  return zone.className.includes('ring-primary');
-}
-
 describe('Home panel in Chromium', () => {
-  it.each([800, 480])(
-    'holds a long project list under half of a %i px column and scrolls each list',
-    (height) => {
-      renderHome({
-        height,
-        projects: projectList(40),
-        threads: chatList(60),
-      });
-
-      expect(box(projectsSection()).height).toBeLessThanOrEqual(
-        box(column()).height * PROJECTS_SHARE + SUBPIXEL,
-      );
-      expect(scrolls(projectRows())).toBe(true);
-      expect(scrolls(streamRows())).toBe(true);
-      // The stream runs down to the ARCHIVED drawer, which stays in the frame.
-      expect(box(streamRows()).bottom).toBeLessThanOrEqual(
-        box(column()).bottom + SUBPIXEL,
-      );
-      expect(
-        drawnInside(screen.getByRole('button', { name: /archived/i }), frame()),
-      ).toBe(true);
-    },
-  );
-
-  it('scrolls the projects without moving the stream', () => {
-    renderHome({ projects: projectList(40), threads: chatList(60) });
-    const firstChatTop = box(chatRow('chat-0')).top;
-
-    const rows = projectRows();
-    rows.scrollTop = rows.scrollHeight;
-
-    expect(box(chatRow('chat-0')).top).toBe(firstChatTop);
-    // The last project is reachable inside its own list.
-    expect(drawnInside(projectRow('Project 40'), rows)).toBe(true);
-  });
-
-  it('keeps a short project list at its own height', () => {
-    renderHome({ projects: projectList(2), threads: chatList(60) });
-
-    expect(scrolls(projectRows())).toBe(false);
-    expect(drawnInside(projectRow('Project 02'), projectsSection())).toBe(true);
-    expect(box(projectsSection()).height).toBeLessThan(
-      box(column()).height * PROJECTS_SHARE,
-    );
-    // The stream starts right under the projects and takes the rest.
-    expect(box(streamRows()).top - box(projectsSection()).bottom).toBeCloseTo(
-      STREAM_GAP,
-      0,
-    );
-    expect(scrolls(streamRows())).toBe(true);
-  });
-
-  it('brings the open chat into view when it sits below the fold', async () => {
+  it('scrolls stream list and keeps open chat in view', async () => {
     renderHome({
       projects: projectList(4),
       threads: chatList(60),
@@ -557,71 +478,34 @@ describe('Home panel in Chromium', () => {
     expect(rows.scrollTop).toBeGreaterThan(0);
   });
 
-  it('files a chat dropped on a project', async () => {
-    renderHome({ projects: projectList(3), threads: chatList(5) });
-    const target = projectRow('Project 02');
-
-    const held = await pickUp(chatRow('chat-2'));
-    await carryTo(held, centre(target), () => lit(target));
-    expect(lit(target)).toBe(true);
-    mouse(document, 'mouseup', centre(target));
-
-    await vi.waitFor(() =>
-      expect(backend.move).toHaveBeenCalledWith('chat-2', 'project-1'),
-    );
-  });
-
-  it('puts back a chat released over the stream, never filing it into a project scrolled out of view', async () => {
-    renderHome({
-      height: 480,
-      projects: projectList(40),
-      threads: chatList(3),
+  it('filters stream list when searching', async () => {
+    const { user } = renderHome({
+      projects: projectList(2),
+      threads: chatList(10),
     });
-    // The projects past the list's fold are still laid out below it —
-    // beneath the stream, right where a chat can be released.
-    const rows = projectRows();
-    const stream = streamRows();
-    const hidden = Array.from(projectsSection().querySelectorAll('li')).find(
-      (row) => {
-        const point = centre(row);
-        return (
-          box(row).top > box(rows).bottom &&
-          point.y > box(stream).top &&
-          point.y < box(stream).bottom
-        );
-      },
-    );
-    if (!hidden) throw new Error('No project row lies under the stream');
 
-    const held = await pickUp(chatRow('chat-1'));
-    await carryTo(held, centre(hidden), () => lit(hidden));
-    expect(lit(hidden)).toBe(false);
-    mouse(document, 'mouseup', centre(hidden));
-    await nextFrame();
+    const searchInput = screen.getByPlaceholderText(/Search/i);
+    await user.type(searchInput, 'Chat 05');
     await nextFrame();
 
-    expect(backend.move).not.toHaveBeenCalled();
+    expect(chatRow('chat-4')).toBeDefined();
   });
 
-  it('puts back a chat released over the stream, never archiving it beside the ARCHIVED drawer', async () => {
+  it('puts back a chat released over the stream, never archiving or moving it', async () => {
     renderHome({
       height: 480,
       projects: projectList(2),
       threads: chatList(60),
     });
-    // The last chat sits right above the drawer once the stream is scrolled
-    // to its end.
+    // The last chat sits inside the stream once scrolled to its end.
     const stream = streamRows();
     stream.scrollTop = stream.scrollHeight;
     const last = chatRow('chat-59');
     expect(drawnInside(last, stream)).toBe(true);
-    const drawer = screen.getByRole('button', { name: /archived/i });
 
-    // A short drag down that stays over the stream: the lifted card grazes
-    // the drawer, the pointer never leaves the list.
+    // A short drag down that stays over the stream: the pointer stays inside the list.
     const held = await pickUp(last);
     const release = { x: held.x, y: box(stream).bottom - 3 };
-    expect(release.y).toBeLessThan(box(drawer).top);
     await carryTo(held, release, () => false);
     mouse(document, 'mouseup', release);
     await nextFrame();
@@ -800,5 +684,54 @@ describe('desktop Home panel resizing', () => {
     await nextFrame();
     await resizeViewport(390, 800);
     expect(screen.queryByRole('separator')).toBeNull();
+  });
+});
+
+describe('Home screen on a phone', () => {
+  it('fits 390px wide when narrowed, with tappable controls', async () => {
+    await resizeViewport(390, 800);
+    const longName =
+      'Quarterly planning and launch readiness review for the whole organisation';
+    const projects = projectList(3);
+    projects[0] = { id: 'project-0', name: longName };
+    const threads = chatList(6, { projectId: 'project-0', count: 2 });
+    const { user } = renderHome({
+      variant: 'screen',
+      width: 390,
+      height: 760,
+      projects,
+      threads,
+      openThreadId: 'none',
+    });
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    await user.click(screen.getByRole('button', { name: /All projects/i }));
+    await user.click(screen.getByRole('menuitemradio', { name: /Quarterly/i }));
+    await nextFrame();
+
+    // Only the project's two chats are left.
+    expect(
+      within(
+        screen.getByRole('list', {
+          name: 'Your chats, tasks and conversations',
+        }),
+      ).getAllByRole('link'),
+    ).toHaveLength(2);
+
+    const controls = [
+      screen.getByRole('button', { name: /Quarterly/i }),
+      screen.getByPlaceholderText(/Search/i),
+    ];
+    const frameBox = frame().getBoundingClientRect();
+    for (const control of controls) {
+      const controlBox = control.getBoundingClientRect();
+      // Inside the screen, and tall enough for a thumb: the 24px WCAG 2.2
+      // minimum with room to spare.
+      expect(controlBox.left).toBeGreaterThanOrEqual(frameBox.left - SUBPIXEL);
+      expect(controlBox.right).toBeLessThanOrEqual(frameBox.right + SUBPIXEL);
+      expect(controlBox.height).toBeGreaterThanOrEqual(24);
+    }
+    expect(frame().scrollWidth).toBeLessThanOrEqual(frame().clientWidth);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
   });
 });

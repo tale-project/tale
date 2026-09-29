@@ -134,5 +134,10 @@ declare module '@tanstack/react-router' {
     /** How many `?task=` sheet entries the tasks board pushed above the bare
      *  board (see `features/tasks/lib/view.ts`). */
     taskSheetDepth?: number;
+    /** Set on a rail click that resolved to a remembered deep link (see
+     *  `use-navigation-items.ts`). Lets the landing route tell a restored
+     *  arrival from a deliberate one, so a since-deleted automation or
+     *  project falls back to its list instead of dead-ending. */
+    navRestore?: boolean;
   }
 }

@@ -4,6 +4,7 @@ import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import { useMemo } from 'react';
 
 import {
+  useArchivedThreads,
   useChatProjects,
   useChatThreads,
 } from '@/app/features/chat/data/chat-backend';
@@ -111,17 +112,32 @@ export function toHomeConversationItem(
  * Inbox view was left on: that view reads its own pages, and the stream and
  * the Inbox dot are about what still needs an answer.
  */
-export function useHomeData(organizationId: string): HomeData {
+export function useHomeData(
+  organizationId: string,
+  options?: {
+    includeArchivedChats?: boolean;
+    taskStatuses?: TaskStatus[];
+  },
+): HomeData {
+  const includeArchived = options?.includeArchivedChats === true;
   const threads = useChatThreads(organizationId);
+  const archivedThreads = useArchivedThreads(organizationId, {
+    enabled: includeArchived,
+  });
   const projectsQuery = useChatProjects(organizationId);
   const { data: me } = useCurrentUser();
   const myUserId = me?.userId;
+
+  const taskStatuses =
+    options?.taskStatuses !== undefined && options.taskStatuses.length > 0
+      ? options.taskStatuses
+      : OPEN_TASK_STATUSES;
 
   // Two reads make "my tasks": the open work assigned to me, and the work
   // waiting on my review — whoever it is assigned to.
   const tasksQuery = useTasksAcrossProjects({
     assigneeId: myUserId,
-    statuses: OPEN_TASK_STATUSES,
+    statuses: taskStatuses,
     enabled: myUserId !== undefined,
   });
   const reviewsQuery = useTasksAcrossProjects({
@@ -151,8 +167,23 @@ export function useHomeData(organizationId: string): HomeData {
   }, [projects]);
 
   const chatItems = useMemo((): HomeChatItem[] => {
-    if (threads.status !== 'ready') return [];
-    return threads.data.map((thread) => ({
+    const list: ChatThreadSummary[] = [];
+    if (threads.status === 'ready') {
+      list.push(...threads.data);
+    }
+    if (
+      includeArchived &&
+      archivedThreads.status === 'ready' &&
+      archivedThreads.data?.threads
+    ) {
+      const existingIds = new Set(list.map((t) => t.id));
+      for (const thread of archivedThreads.data.threads) {
+        if (!existingIds.has(thread.id)) {
+          list.push(thread);
+        }
+      }
+    }
+    return list.map((thread) => ({
       kind: 'chat',
       id: thread.id,
       title: thread.title ?? '',
@@ -161,14 +192,13 @@ export function useHomeData(organizationId: string): HomeData {
         !thread.generating &&
         thread.lastReplyAt !== undefined &&
         thread.lastReplyAt > (thread.lastReadAt ?? 0),
-      ...(thread.projectId !== undefined
-        ? { projectId: thread.projectId }
-        : {}),
-      ...(thread.pinnedAt !== undefined ? { pinnedAt: thread.pinnedAt } : {}),
+      projectId: thread.projectId,
+      pinnedAt: thread.pinnedAt,
       generating: thread.generating,
       shared: thread.isShared === true || thread.sharedWithProject === true,
+      archived: thread.archived ?? false,
     }));
-  }, [threads]);
+  }, [threads, archivedThreads, includeArchived]);
 
   const taskItems = useMemo((): HomeTaskItem[] => {
     const seen = new Set<string>();
@@ -192,6 +222,7 @@ export function useHomeData(organizationId: string): HomeData {
           projectId: task.projectId,
           identifier: identifier ?? undefined,
           status: task.status,
+          priority: task.priority ?? 'none',
           awaitingMyReview,
         };
         return item;
@@ -225,8 +256,17 @@ export function useHomeData(organizationId: string): HomeData {
     if (threads.status === 'ready') {
       for (const thread of threads.data) map.set(thread.id, thread);
     }
+    if (
+      includeArchived &&
+      archivedThreads.status === 'ready' &&
+      archivedThreads.data?.threads
+    ) {
+      for (const thread of archivedThreads.data.threads) {
+        map.set(thread.id, thread);
+      }
+    }
     return map;
-  }, [threads]);
+  }, [threads, archivedThreads, includeArchived]);
 
   return {
     items,
