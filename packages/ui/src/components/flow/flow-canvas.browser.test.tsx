@@ -71,9 +71,15 @@ function transform(): string {
   );
 }
 
+// React Flow's view before anything has fitted it.
+const DEFAULT_VIEW = 'translate(0px, 0px) scale(1)';
+
 // At mount the view is React Flow's default, where this column already fits
-// the pane; the fit replaces it in one step once the nodes are measured.
+// the pane, so the nodes fitting proves nothing yet. The fit replaces that
+// view in one step once the nodes are measured, zooming to show the whole
+// column (about 1.14 here, never the default's 1): wait for it to land.
 async function fitted() {
+  await waitFor(() => expect(transform()).not.toBe(DEFAULT_VIEW));
   await waitFor(() => expect(nodesFitThePane()).toBe(true));
   return viewportAtRest();
 }
@@ -97,7 +103,7 @@ const refitWindow = () => new Promise((resolve) => setTimeout(resolve, 400));
 describe('FlowCanvas fit (real layout)', () => {
   it('refits when its box shrinks', async () => {
     const { frame } = renderCanvas();
-    await waitFor(() => expect(nodesFitThePane()).toBe(true));
+    await fitted();
     frame.style.height = '420px';
     frame.style.width = '600px';
     await waitFor(() => expect(nodesFitThePane()).toBe(true));

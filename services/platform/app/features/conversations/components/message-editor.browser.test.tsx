@@ -96,9 +96,9 @@ describe('Inbox editor height (real layout)', () => {
     expect(await focusedHeight()).toBeCloseTo(320, 0);
   });
 
-  it('keeps to 30 % of a short viewport', async () => {
+  it('grows to 30 % of a short viewport, and no further', async () => {
     await page.viewport(640, 360);
-    expect(await focusedHeight()).toBeLessThanOrEqual(0.3 * 360 + 0.5);
+    expect(await focusedHeight()).toBeCloseTo(0.3 * 360, 0);
   });
 });
 
