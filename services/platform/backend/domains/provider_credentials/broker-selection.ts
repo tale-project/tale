@@ -8,7 +8,10 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
-import type { BrokerSelectionResult } from '../../core/provider_credentials/broker_pool.ts';
+import {
+  BROKER_RATE_LIMIT_COOLDOWN_MS,
+  type BrokerSelectionResult,
+} from '../../core/provider_credentials/broker_pool.ts';
 
 const accountHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
 export const brokerSelectionArgsSchema = z
@@ -22,6 +25,9 @@ export const brokerSelectionArgsSchema = z
           .object({
             hash: accountHashSchema,
             excluded: z.boolean(),
+            /** Held back by the broker for its coming token refresh — a
+             * fallback, in the order given. */
+            held: z.boolean().optional(),
           })
           .strict(),
       )
@@ -41,6 +47,73 @@ interface AccountState {
   hash: string;
   sequence: string;
   cooldownUntilMs: number;
+}
+
+type BrokerCandidate = z.infer<
+  typeof brokerSelectionArgsSchema
+>['candidates'][number];
+
+/**
+ * The pick itself, over the candidates' shared state — no I/O. A cooling
+ * account is never picked. Among the rest, an account the broker counts as
+ * available always beats one it holds back for its coming refresh: the
+ * broker judged that another account could take the work, without seeing
+ * the cooldowns or the account-id rule that may have left none — a
+ * two-account pool would otherwise refuse all work while its one available
+ * account cools down. The held tier keeps the order given (the latest
+ * refresh first), as the broker would choose itself. Within either tier a
+ * retry exclusion only reorders: an excluded account serves when nothing
+ * else in its tier can.
+ */
+export function pickBrokerCandidate(
+  candidates: readonly BrokerCandidate[],
+  stateByHash: ReadonlyMap<
+    string,
+    Pick<AccountState, 'sequence' | 'cooldownUntilMs'>
+  >,
+  selection: z.infer<typeof brokerSelectionSchema>,
+  nowMs: number,
+  randomFn: () => number,
+): {
+  selected?: BrokerCandidate;
+  fellBack: boolean;
+  held: boolean;
+  retryAtMs?: number;
+} {
+  const healthy = candidates.filter(
+    ({ hash }) => (stateByHash.get(hash)?.cooldownUntilMs ?? 0) <= nowMs,
+  );
+  if (healthy.length === 0) {
+    const cooling = candidates.map(
+      ({ hash }) => stateByHash.get(hash)?.cooldownUntilMs ?? 0,
+    );
+    return {
+      fellBack: false,
+      held: false,
+      ...(cooling.length > 0 && { retryAtMs: Math.min(...cooling) }),
+    };
+  }
+  const available = healthy.filter(({ held }) => held !== true);
+  const tier = available.length > 0 ? available : healthy;
+  const preferred = tier.filter(({ excluded }) => !excluded);
+  const fellBack = preferred.length === 0;
+  const pool = fellBack ? tier : preferred;
+  const held = available.length === 0;
+  let selected = pool[0];
+  if (!held && selection === 'random') {
+    selected = pool[Math.floor(randomFn() * pool.length)];
+  } else if (!held && selection === 'round-robin') {
+    selected = [...pool].sort((a, b) => {
+      const first = BigInt(stateByHash.get(a.hash)?.sequence ?? '0');
+      const second = BigInt(stateByHash.get(b.hash)?.sequence ?? '0');
+      return first < second
+        ? -1
+        : first > second
+          ? 1
+          : a.hash.localeCompare(b.hash);
+    })[0];
+  }
+  return { ...(selected !== undefined && { selected }), fellBack, held };
 }
 
 /**
@@ -83,35 +156,22 @@ export async function selectBrokerAccount(
           AND account_hash = ANY(${hashes}::text[])
       `;
       const stateByHash = new Map(states.map((state) => [state.hash, state]));
-      // A retry exclusion is advisory; quota and shared cooldown never are.
-      const healthy = args.candidates.filter(
-        ({ hash }) => (stateByHash.get(hash)?.cooldownUntilMs ?? 0) <= nowMs,
+      // A retry exclusion and a refresh hold are advisory; quota and shared
+      // cooldown never are.
+      const { selected, fellBack, held, retryAtMs } = pickBrokerCandidate(
+        args.candidates,
+        stateByHash,
+        args.selection,
+        nowMs,
+        randomFn,
       );
-      const preferred = healthy.filter(({ excluded }) => !excluded);
-      const fellBack = healthy.length > 0 && preferred.length === 0;
-      const candidates = preferred.length > 0 ? preferred : healthy;
-      if (candidates.length === 0) {
+      if (selected === undefined) {
         return {
           hash: null,
           fellBack: false,
-          retryAtMs: Math.min(...states.map((state) => state.cooldownUntilMs)),
+          ...(retryAtMs !== undefined && { retryAtMs }),
         };
       }
-      let selected = candidates[0];
-      if (args.selection === 'random') {
-        selected = candidates[Math.floor(randomFn() * candidates.length)];
-      } else if (args.selection === 'round-robin') {
-        selected = [...candidates].sort((a, b) => {
-          const first = BigInt(stateByHash.get(a.hash)?.sequence ?? '0');
-          const second = BigInt(stateByHash.get(b.hash)?.sequence ?? '0');
-          return first < second
-            ? -1
-            : first > second
-              ? 1
-              : a.hash.localeCompare(b.hash);
-        })[0];
-      }
-      if (selected === undefined) return { hash: null, fellBack: false };
       await tx`
         INSERT INTO app.provider_broker_accounts
           (org_id, credential_id, account_hash, last_selected_sequence, updated_at_ms)
@@ -128,7 +188,7 @@ export async function selectBrokerAccount(
           AND updated_at_ms < ${nowMs - 7 * 86_400_000} AND cooldown_until_ms <= ${nowMs}
           AND NOT (account_hash = ANY(${hashes}::text[]))
       `;
-      return { hash: selected.hash, fellBack };
+      return { hash: selected.hash, fellBack, ...(held && { held }) };
     } catch (error) {
       throw markRetryQueueKey(error, queueKey);
     }
@@ -146,7 +206,7 @@ export async function recordBrokerFailure(
   if (args.apiErrorStatus !== 429) return;
   await sql`
     UPDATE app.provider_broker_accounts
-    SET cooldown_until_ms = greatest(cooldown_until_ms, ${nowMs + 60_000}),
+    SET cooldown_until_ms = greatest(cooldown_until_ms, ${nowMs + BROKER_RATE_LIMIT_COOLDOWN_MS}),
       updated_at_ms = greatest(updated_at_ms, ${nowMs})
     WHERE org_id = ${args.organizationId} AND account_hash = ${args.brokerTokenHash}
   `;

@@ -11,6 +11,7 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
@@ -105,9 +106,15 @@ vi.mock('./task_serving', () => ({
           vision: { readable: true },
         },
 }));
-vi.mock('../provider_credentials/resolve_credential', () => ({
-  resolveProviderCredential: vi.fn(),
-}));
+vi.mock(
+  '../provider_credentials/resolve_credential',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../provider_credentials/resolve_credential')
+    >()),
+    resolveProviderCredential: vi.fn(),
+  }),
+);
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
 }));
@@ -334,6 +341,47 @@ describe('a task agent start', () => {
     },
   );
 
+  it('fails a start the broker refused while every account cooled down, naming when the first is back', async () => {
+    io.subscription = {
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+    };
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      model: 'claude-sonnet-4-6',
+      modelProvider: 'anthropic',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    // The retry this arms waits for the cooldown instead of meeting the same
+    // refusal at once; the run shows the refusal's words, not its payload.
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      runId: 'run-1',
+      execId: 'exec-1',
+      failureCode: 'credential_cooldown',
+      retryAtMs,
+      error:
+        'the agent run could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
+
   it('hands Claude Code the serving model’s window', async () => {
     servesWindow(32_768);
     const { ctx, queries, mutations } = makeCtx({
@@ -449,6 +497,51 @@ describe('a task agent steer restart', () => {
       )?.args,
     ).toMatchObject({ execId: 'exec-rotated', kind: 'task-agent' });
     expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('fails a restart the broker refused while every account cooled down, naming when the first is back', async () => {
+    io.subscription = {
+      providerSlug: 'openai',
+      modelId: 'gpt-5.4',
+      apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+    };
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+    });
+
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-rotated',
+      failureCode: 'steer_restart_failed',
+      retryAtMs,
+      error:
+        'the run could not be restarted to take a new comment: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
   });
 });
 

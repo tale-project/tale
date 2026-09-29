@@ -77,7 +77,11 @@ import {
   TurnBudgetExceededError,
 } from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
-import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import {
+  credentialRetryAtMs,
+  resolveProviderCredential,
+  runFailureMessage,
+} from '../provider_credentials/resolve_credential';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   grantedToolsGuidance,
@@ -1261,7 +1265,8 @@ export async function startTaskAgentTurnImpl(
       console.error('[task-agent] turn start failed:', err);
       // A cap refusal is the org's decision and a missing skill the agent's
       // configuration — neither a fault, neither retried; the rest is
-      // `start_failed` and retries by default (`classifyStartFailure`).
+      // `start_failed` and retries by default, once a broker pool that was
+      // cooling down has an account back (`classifyStartFailure`).
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
         ...classifyStartFailure(err),
@@ -1673,6 +1678,10 @@ async function settleTaskAgentTurn(
     failureCode?: TaskRunFailureCode;
     /** The harness-reported provider HTTP status, when there was one. */
     apiErrorStatus?: number;
+    /** No retry can start before this, epoch ms: the subscription broker's
+     * every account was cooling down after a rate limit
+     * (`classifyStartFailure`). */
+    retryAtMs?: number;
     /** The harness's own token totals, booked alongside the gateway spend. */
     usageTotals?: { inputTokens: number; outputTokens: number };
   },
@@ -1778,6 +1787,9 @@ async function settleTaskAgentTurn(
       ...(failureCode !== undefined ? { failureCode } : {}),
       ...(result.apiErrorStatus !== undefined
         ? { apiErrorStatus: result.apiErrorStatus }
+        : {}),
+      ...(result.retryAtMs !== undefined
+        ? { retryAtMs: result.retryAtMs }
         : {}),
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);
@@ -2330,16 +2342,20 @@ export async function steerTaskAgentTurnImpl(
     // with no engine: settle it under the NEW exec (first-wins,
     // exec-guarded), so Retry works and the comment heads the next brief.
     console.error('[task-agent] steer restart failed:', err);
+    // A broker pool cooling down says when its first account is back: the
+    // retry waits for it (`classifyStartFailure`).
+    const retryAtMs = credentialRetryAtMs(err);
     await settleTaskAgentTurn(
       ctx,
       { ...args, execId },
       {
         errored: true,
-        reason: `the run could not be restarted to take a new comment: ${err instanceof Error ? err.message : String(err)}`,
+        reason: `the run could not be restarted to take a new comment: ${runFailureMessage(err)}`,
         text: '',
         // Retryable: the retry run's resume prompt carries the comment via
         // the discussion delta, so the steer is not lost with the restart.
         failureCode: 'steer_restart_failed',
+        ...(retryAtMs !== undefined ? { retryAtMs } : {}),
       },
     );
   }
