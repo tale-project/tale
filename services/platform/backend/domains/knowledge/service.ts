@@ -2288,7 +2288,10 @@ interface ClearedStamps {
  * it only reads: once the corpus side has committed, a failure to end it
  * undoes nothing and the clear stands. Whichever way the corpus side went,
  * the end of the app transaction is waited for only so long
- * (`STAMP_RECHECK_ANSWER_MS`), so the pass goes on past a dead connection.
+ * (`STAMP_RECHECK_ANSWER_MS`), so a connection that stops answering during
+ * the clear holds up neither its corpus rows nor the pass. One already gone
+ * when the clear opens its app transaction locks no corpus row, and holds
+ * the pass as it would hold any other read of it.
  */
 async function clearMailStampRows(
   sql: Sql,
