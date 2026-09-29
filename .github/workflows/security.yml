@@ -8,6 +8,11 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'services/*/package.json'
+      # The sandbox runtime's baked document-skill libraries carry their own
+      # npm lock and Python hash lock outside bun.lock; a change to either
+      # alone must still reach the Trivy gate.
+      - 'services/sandbox-runtime/document-node/**'
+      - 'services/sandbox-runtime/document-python-requirements.txt'
       # Dockerfile + dockerignore changes alter what trivy's misconfig
       # scanner sees on the fs-scan path; .trivyignore.yaml changes can
       # silently un-suppress findings. Round-2 R2-B11 found this branch
@@ -24,6 +29,8 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'services/*/package.json'
+      - 'services/sandbox-runtime/document-node/**'
+      - 'services/sandbox-runtime/document-python-requirements.txt'
       - 'services/*/Dockerfile'
       - 'services/*/Dockerfile.dockerignore'
       - '.trivyignore.yaml'
