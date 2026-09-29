@@ -391,6 +391,11 @@ export async function prepareRuntime(
   );
   compose.services.db.ports = ['127.0.0.1:5432:5432'];
   compose.services['knowledge-db'].ports = ['127.0.0.1:5433:5432'];
+  // The source publishes the spawner (8003) and its device hub (8004) on
+  // loopback for `bun dev` alone. Nothing on a managed host calls either: the
+  // backend and the proxy reach them over `internal`, and this CLI's health
+  // and drain calls run inside the container. So the host binds neither.
+  compose.services.sandbox.ports = [];
   const proxyVolumes = z
     .array(z.string())
     .parse(compose.services.proxy.volumes);
