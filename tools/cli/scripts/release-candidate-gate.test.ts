@@ -6,8 +6,11 @@ import { fileURLToPath } from 'node:url';
 
 import {
   gate,
+  CANDIDATE_JOBS,
+  IMAGE_SERVICES,
+  candidateArtifactName,
+  decodeCandidateArchive,
   type GitHubApi,
-  REQUIRED_WHEN_RUN,
   REQUIRED_WORKFLOWS,
   UsageError,
 } from './release-candidate-gate';
@@ -79,6 +82,7 @@ type Scenario = {
   artifacts: Record<number, { id: number; name: string; expired: boolean }[]>;
   commitRuns: Run[];
   runPageOverrides?: Record<string, unknown>;
+  receiptOverrides?: Record<number, unknown>;
 };
 
 /** Everything the gate reads, for a candidate every check passed on. */
@@ -95,14 +99,20 @@ function passing(): Scenario {
     candidateRuns: [validation],
     jobs: {
       [validation.id]: [
-        { name: 'Smoke test', conclusion: 'success' },
+        ...CANDIDATE_JOBS.build!.names.map((name) => ({
+          name,
+          conclusion: 'success',
+        })),
         { name: 'Smoke test (fork PR)', conclusion: 'skipped' },
-        { name: 'Candidate gate', conclusion: 'success' },
       ],
     },
     artifacts: {
       [validation.id]: [
-        { id: 7, name: `release-candidate-${CANDIDATE}`, expired: false },
+        {
+          id: 7,
+          name: candidateArtifactName(validation.path, CANDIDATE, 1),
+          expired: false,
+        },
       ],
     },
     commitRuns: [
@@ -111,7 +121,6 @@ function passing(): Scenario {
           event: path.endsWith('e2e.yml') ? 'workflow_dispatch' : 'push',
         }),
       ),
-      run('.github/workflows/cli.yml', 'success'),
       // The push Build run main merges starved (#3951): not a candidate check.
       run('.github/workflows/build.yml', 'cancelled'),
       run('.github/workflows/scorecard.yml', 'failure'),
@@ -145,7 +154,13 @@ function rerunScenario(
     scenario.candidateRuns = [newer, retried];
     for (const entry of scenario.candidateRuns) {
       scenario.jobs[entry.id] = scenario.jobs[initial.id]!;
-      scenario.artifacts[entry.id] = scenario.artifacts[initial.id]!;
+      scenario.artifacts[entry.id] = [
+        {
+          id: entry.id,
+          name: candidateArtifactName(entry.path, CANDIDATE, entry.run_attempt),
+          expired: false,
+        },
+      ];
     }
   } else {
     scenario.commitRuns = [
@@ -205,6 +220,12 @@ function fakeApi(scenario: Scenario) {
     if (Object.hasOwn(scenario.runPageOverrides ?? {}, rest))
       return scenario.runPageOverrides![rest];
     let match: RegExpMatchArray | null;
+    if ((match = rest.match(/^actions\/runs\/(\d+)$/)))
+      return (
+        scenario.candidateRuns.find(
+          (entry) => entry.id === Number(match![1]),
+        ) ?? null
+      );
     if ((match = rest.match(/^git\/ref\/tags\/(.+)$/))) {
       const tag = scenario.tags[match[1]!];
       if (!tag) return null;
@@ -227,13 +248,15 @@ function fakeApi(scenario: Scenario) {
     }
     if (
       (match = rest.match(
-        /^actions\/workflows\/build\.yml\/runs\?branch=main&event=(\w+)&per_page=100(?:&page=(\d+))?$/,
+        /^actions\/workflows\/(\w+)\.yml\/runs\?branch=main&event=(\w+)&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
       const rows = scenario.candidateRuns.filter(
-        (entry) => entry.event === match![1],
+        (entry) =>
+          entry.event === match![2] &&
+          entry.path === `.github/workflows/${match![1]}.yml`,
       );
-      const page = Number(match[2] ?? 1);
+      const page = Number(match[3] ?? 1);
       return {
         total_count: rows.length,
         workflow_runs: rows.slice((page - 1) * 100, page * 100),
@@ -241,19 +264,68 @@ function fakeApi(scenario: Scenario) {
     }
     if (
       (match = rest.match(
-        /^actions\/runs\/(\d+)\/jobs\?filter=latest&per_page=100$/,
+        /^actions\/runs\/(\d+)\/attempts\/(\d+)\/jobs\?per_page=100$/,
       ))
     ) {
-      return {
-        jobs: (scenario.jobs[Number(match[1])] ?? []).map(
-          ({ name, conclusion }) => ({ name, conclusion, status: 'completed' }),
-        ),
-      };
+      const jobs = (scenario.jobs[Number(match[1])] ?? []).map(
+        ({ name, conclusion }, index) => ({
+          id: index + 1,
+          name,
+          conclusion,
+          status: 'completed',
+          run_attempt: Number(match![2]),
+        }),
+      );
+      return { total_count: jobs.length, jobs };
     }
     if (
       (match = rest.match(/^actions\/runs\/(\d+)\/artifacts\?per_page=100$/))
     ) {
-      return { artifacts: scenario.artifacts[Number(match[1])] ?? [] };
+      const artifacts = (scenario.artifacts[Number(match[1])] ?? []).map(
+        ({ id, name, expired }) => ({ id, name, expired, size_in_bytes: 512 }),
+      );
+      return { total_count: artifacts.length, artifacts };
+    }
+    if ((match = rest.match(/^actions\/artifacts\/(\d+)\/zip$/))) {
+      const id = Number(match[1]);
+      if (Object.hasOwn(scenario.receiptOverrides ?? {}, id))
+        return scenario.receiptOverrides![id];
+      const owner = Object.entries(scenario.artifacts).find(([_key, rows]) =>
+        rows.some((entry) => entry.id === id),
+      );
+      const record = scenario.candidateRuns.find(
+        (entry) => entry.id === Number(owner?.[0]),
+      );
+      if (!record) return null;
+      const stem = record.path.split('/').at(-1)!.replace('.yml', '');
+      return {
+        schemaVersion: 1,
+        workflow: record.path,
+        candidate: CANDIDATE,
+        verdict: 'passed',
+        run: {
+          id: String(record.id),
+          attempt: String(record.run_attempt),
+          url: record.html_url,
+          event: record.event,
+          workflowSha: record.head_sha,
+          ref: 'refs/heads/main',
+          sha: record.head_sha,
+        },
+        jobs: Object.fromEntries(
+          CANDIDATE_JOBS[stem]!.ids.map((key) => [key, 'success']),
+        ),
+        images:
+          stem === 'build'
+            ? IMAGE_SERVICES.map((service) => ({
+                service,
+                image: `ghcr.io/${REPOSITORY}/tale-${service}`,
+                revision: CANDIDATE,
+                tag: `candidate-sha-${CANDIDATE}`,
+                digest: `sha256:${'a'.repeat(64)}`,
+              }))
+            : [],
+      };
     }
     if (
       (match = rest.match(
@@ -283,6 +355,427 @@ async function judge(scenario: Scenario, version = 'v0.5.64') {
   return { report, calls };
 }
 
+function dispatchedSources() {
+  const scenario = passing();
+  scenario.commitRuns = scenario.commitRuns.filter(
+    (entry) =>
+      !REQUIRED_WORKFLOWS.includes(
+        entry.path as (typeof REQUIRED_WORKFLOWS)[number],
+      ),
+  );
+  for (const path of REQUIRED_WORKFLOWS) {
+    const validation = candidateRun('success', {
+      path,
+      event: 'repository_dispatch',
+      created_at: '2026-09-29T21:00:00Z',
+    });
+    scenario.candidateRuns.push(validation);
+    const stem = path.split('/').at(-1)!.replace('.yml', '');
+    scenario.jobs[validation.id] = CANDIDATE_JOBS[stem]!.names.map((name) => ({
+      name,
+      conclusion: 'success',
+    }));
+    if (stem === 'cli')
+      scenario.jobs[validation.id]!.push({
+        name: 'Attach to release',
+        conclusion: 'skipped',
+      });
+    scenario.artifacts[validation.id] = [
+      {
+        id: validation.id,
+        name: candidateArtifactName(path, CANDIDATE, 1),
+        expired: false,
+      },
+    ];
+  }
+  return scenario;
+}
+
+type ReceiptFixture = {
+  schemaVersion: number;
+  workflow: string;
+  candidate: string;
+  verdict: string;
+  run: Record<string, string>;
+  jobs: Record<string, string>;
+  images: Record<string, string>[];
+};
+async function replaceReceipt(
+  scenario: Scenario,
+  stem: string,
+  change: (receipt: ReceiptFixture) => void,
+) {
+  const entry = scenario.candidateRuns.find(
+    (candidate) => candidate.path === `.github/workflows/${stem}.yml`,
+  )!;
+  const id = scenario.artifacts[entry.id]![0]!.id;
+  const receipt = (await fakeApi(scenario).api(
+    `${API_ROOT}actions/artifacts/${id}/zip`,
+  )) as ReceiptFixture;
+  change(receipt);
+  scenario.receiptOverrides = { ...scenario.receiptOverrides, [id]: receipt };
+  return entry;
+}
+
+describe('complete candidate event and receipt provenance', () => {
+  test('all existing source workflows can validate C from trusted main H without an E2E push', async () => {
+    const { report } = await judge(dispatchedSources());
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.checks).toHaveLength(6);
+    for (const check of report.checks) {
+      expect(check.run).toMatchObject({
+        event: 'repository_dispatch',
+        headSha: WORKFLOW_SOURCE,
+      });
+      expect(check.receipt?.artifact).toBe(
+        candidateArtifactName(check.workflow, CANDIDATE, 1),
+      );
+    }
+  });
+
+  test.each(['failure', 'cancelled', 'skipped', null] as const)(
+    'the latest candidate E2E %s cannot be replaced by an older normal success',
+    async (conclusion) => {
+      const scenario = dispatchedSources();
+      const entry = scenario.candidateRuns.find((candidate) =>
+        candidate.path.endsWith('/e2e.yml'),
+      )!;
+      entry.conclusion = conclusion;
+      entry.status = conclusion === null ? 'in_progress' : 'completed';
+      scenario.commitRuns.push(
+        run(entry.path, 'success', {
+          event: 'schedule',
+          created_at: '2026-09-29T20:00:00Z',
+        }),
+      );
+      expect((await judge(scenario)).report.state).toBe(
+        conclusion === null ? 'pending' : 'blocked',
+      );
+    },
+  );
+
+  test.each(['checks', 'sast', 'commitlint', 'e2e', 'cli', 'security'])(
+    '%s: candidate success recovers an older cancelled source run, but a later failed source rerun still blocks',
+    async (stem) => {
+      const scenario = dispatchedSources();
+      const normal = run(`.github/workflows/${stem}.yml`, 'cancelled', {
+        created_at: '2026-09-29T20:00:00Z',
+      });
+      scenario.commitRuns.push(normal);
+      expect((await judge(scenario)).report.state).toBe('eligible');
+      normal.run_attempt = 2;
+      normal.run_started_at = '2026-09-29T22:00:00Z';
+      normal.conclusion = 'failure';
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.reasons).toContain(
+        `${normal.path} ${normal.html_url} concluded failure`,
+      );
+    },
+  );
+
+  test('a repository dispatch for D with GitHub head C cannot masquerade as source-C evidence', async () => {
+    const scenario = dispatchedSources();
+    scenario.candidateRuns = scenario.candidateRuns.filter(
+      (entry) => !entry.path.endsWith('/e2e.yml'),
+    );
+    scenario.commitRuns.push(
+      candidateRun('success', {
+        path: '.github/workflows/e2e.yml',
+        event: 'repository_dispatch',
+        head_sha: CANDIDATE,
+        display_title: `Release candidate ${ELSEWHERE}`,
+      }),
+    );
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toContain(
+      `.github/workflows/e2e.yml never ran for ${CANDIDATE}`,
+    );
+  });
+
+  test.each(['cli', 'security'])(
+    '%s must run even when the old path-filtered workflow produced no evidence',
+    async (stem) => {
+      const scenario = dispatchedSources();
+      const path = `.github/workflows/${stem}.yml`;
+      scenario.candidateRuns = scenario.candidateRuns.filter(
+        (entry) => entry.path !== path,
+      );
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.reasons).toContain(`${path} never ran for ${CANDIDATE}`);
+    },
+  );
+
+  test('a CLI tag-publication dispatch at workflow C cannot prove the tag source D was candidate C', async () => {
+    const scenario = dispatchedSources();
+    const path = '.github/workflows/cli.yml';
+    scenario.candidateRuns = scenario.candidateRuns.filter(
+      (entry) => entry.path !== path,
+    );
+    // cli.yml workflow_dispatch checks out release_tag, not GitHub's head_sha.
+    // That tag may point at D; API run metadata cannot bind this build to C.
+    scenario.commitRuns.push(
+      run(path, 'success', { event: 'workflow_dispatch', head_sha: CANDIDATE }),
+    );
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toContain(`${path} never ran for ${CANDIDATE}`);
+  });
+
+  test.each(['head_branch', 'head_sha'] as const)(
+    'candidate source workflow rejects foreign %s provenance',
+    async (field) => {
+      const scenario = dispatchedSources();
+      scenario.candidateRuns.find((candidate) =>
+        candidate.path.endsWith('/e2e.yml'),
+      )![field] = field === 'head_branch' ? 'ci/unmerged' : 'short-sha';
+      expect((await judge(scenario)).report.state).toBe('blocked');
+    },
+  );
+
+  test.each([
+    'candidate',
+    'workflow',
+    'verdict',
+    'run.id',
+    'run.attempt',
+    'run.url',
+    'run.event',
+    'run.workflowSha',
+    'run.ref',
+    'run.sha',
+    'jobs',
+    'images',
+    'schemaVersion',
+  ])('receipt refuses a foreign or incomplete %s', async (field) => {
+    const scenario = dispatchedSources();
+    await replaceReceipt(scenario, 'e2e', (receipt) => {
+      if (field.startsWith('run.')) receipt.run[field.slice(4)] = 'foreign';
+      else if (field === 'jobs') delete receipt.jobs.e2e;
+      else if (field === 'images') receipt.images.push({ service: 'foreign' });
+      else if (field === 'schemaVersion') receipt.schemaVersion = 2;
+      else receipt[field as 'candidate' | 'workflow' | 'verdict'] = 'foreign';
+    });
+    expect((await judge(scenario)).report.state).toBe('blocked');
+  });
+
+  test.each([
+    'missing',
+    'skipped',
+    'failure',
+    'cancelled',
+    'duplicate',
+    'unexpected',
+  ])('a green E2E verdict cannot hide a %s shard', async (mode) => {
+    const scenario = dispatchedSources();
+    const entry = scenario.candidateRuns.find((candidate) =>
+      candidate.path.endsWith('/e2e.yml'),
+    )!;
+    const name = 'Playwright (platform 16/16)';
+    if (mode === 'missing')
+      scenario.jobs[entry.id] = scenario.jobs[entry.id]!.filter(
+        (job) => job.name !== name,
+      );
+    else if (mode === 'duplicate')
+      scenario.jobs[entry.id]!.push({ name, conclusion: 'success' });
+    else if (mode === 'unexpected')
+      scenario.jobs[entry.id]!.push({
+        name: 'New unreviewed gate',
+        conclusion: 'skipped',
+      });
+    else
+      scenario.jobs[entry.id]!.find((job) => job.name === name)!.conclusion =
+        mode;
+    expect((await judge(scenario)).report.state).toBe('blocked');
+  });
+
+  test.each([
+    'old-artifact',
+    'old-jobs',
+    'partial-jobs',
+    'partial-artifacts',
+    'duplicate-artifact',
+    'oversized-artifact',
+    'moving-attempt',
+  ])('incomplete or historical evidence (%s) is refused', async (mode) => {
+    const scenario = dispatchedSources();
+    const entry = scenario.candidateRuns.find((candidate) =>
+      candidate.path.endsWith('/e2e.yml'),
+    )!;
+    const { api } = fakeApi(scenario);
+    const jobsPath = `actions/runs/${entry.id}/attempts/1/jobs?per_page=100`;
+    const artifactsPath = `actions/runs/${entry.id}/artifacts?per_page=100`;
+    if (mode === 'old-artifact')
+      scenario.artifacts[entry.id]![0]!.name = candidateArtifactName(
+        entry.path,
+        CANDIDATE,
+        2,
+      );
+    else if (mode === 'moving-attempt')
+      scenario.runPageOverrides = {
+        [`actions/runs/${entry.id}`]: {
+          ...entry,
+          run_attempt: 2,
+          run_started_at: '2026-09-29T22:00:00Z',
+          status: 'in_progress',
+          conclusion: null,
+        },
+      };
+    else if (mode.includes('jobs')) {
+      const listing = (await api(API_ROOT + jobsPath)) as {
+        total_count: number;
+        jobs: { run_attempt: number }[];
+      };
+      if (mode === 'old-jobs') listing.jobs[0]!.run_attempt = 2;
+      else listing.total_count += 1;
+      scenario.runPageOverrides = { [jobsPath]: listing };
+    } else {
+      const listing = (await api(API_ROOT + artifactsPath)) as {
+        total_count: number;
+        artifacts: { id: number; size_in_bytes: number }[];
+      };
+      if (mode === 'partial-artifacts') listing.total_count += 1;
+      else if (mode === 'oversized-artifact')
+        listing.artifacts[0]!.size_in_bytes = 1_048_577;
+      else {
+        listing.artifacts.push({ ...listing.artifacts[0]!, id: 999999 });
+        listing.total_count += 1;
+      }
+      scenario.runPageOverrides = { [artifactsPath]: listing };
+    }
+    expect((await judge(scenario)).report.state).toBe('blocked');
+  });
+
+  test('source candidate pagination cannot hide the latest failed attempt on page two', async () => {
+    const scenario = dispatchedSources();
+    const path = '.github/workflows/e2e.yml';
+    for (let index = 0; index < 99; index++)
+      scenario.candidateRuns.push(
+        candidateRun('success', {
+          path,
+          event: 'repository_dispatch',
+          display_title: `Release candidate ${ELSEWHERE}`,
+        }),
+      );
+    scenario.candidateRuns.push(
+      candidateRun('failure', {
+        path,
+        event: 'repository_dispatch',
+        created_at: '2026-09-29T19:00:00Z',
+        run_started_at: '2026-09-29T23:00:00Z',
+        run_attempt: 2,
+      }),
+    );
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(calls).toContain(
+      `${API_ROOT}actions/workflows/e2e.yml/runs?branch=main&event=repository_dispatch&per_page=100&page=2`,
+    );
+  });
+
+  test.each(['missing', 'duplicate', 'foreign-source', 'wrong-digest'])(
+    'Build digest receipt refuses %s image evidence',
+    async (mode) => {
+      const scenario = dispatchedSources();
+      await replaceReceipt(scenario, 'build', (receipt) => {
+        if (mode === 'missing') receipt.images.pop();
+        else if (mode === 'duplicate') receipt.images.push(receipt.images[0]!);
+        else if (mode === 'foreign-source')
+          receipt.images[0]!.revision = ELSEWHERE;
+        else receipt.images[0]!.digest = 'sha256:short';
+      });
+      expect((await judge(scenario)).report.state).toBe('blocked');
+    },
+  );
+});
+
+describe('bounded candidate archive reader', () => {
+  const makeArchive = async (
+    members: { name: string; text: string; mode?: number }[],
+  ) => {
+    const child = Bun.spawn(
+      [
+        'python3',
+        '-c',
+        `
+import io,json,sys,zipfile
+buffer=io.BytesIO()
+with zipfile.ZipFile(buffer, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+    for member in json.loads(sys.argv[1]):
+        entry=zipfile.ZipInfo(member['name'])
+        entry.external_attr=member.get('mode', 0o100644) << 16
+        entry.compress_type=zipfile.ZIP_DEFLATED
+        archive.writestr(entry, member['text'])
+sys.stdout.buffer.write(buffer.getvalue())
+`,
+        JSON.stringify(members),
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    const [code, bytes, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).arrayBuffer(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(code, stderr).toBe(0);
+    return new Uint8Array(bytes);
+  };
+  test.skipIf(process.platform === 'win32')(
+    'one regular bounded JSON member is decoded without extraction',
+    async () => {
+      const body = { schemaVersion: 1, padding: 'x'.repeat(60_000) };
+      expect(
+        await decodeCandidateArchive(
+          await makeArchive([
+            { name: 'release-candidate.json', text: JSON.stringify(body) },
+          ]),
+        ),
+      ).toEqual(body);
+    },
+  );
+  const unsafeMembers: { name: string; text: string; mode?: number }[][] = [
+    [
+      { name: 'release-candidate.json', text: '{}' },
+      { name: 'release-candidate.json', text: '{}' },
+    ],
+    [
+      { name: 'release-candidate.json', text: '{}' },
+      { name: 'unexpected.json', text: '{}' },
+    ],
+    [{ name: '../release-candidate.json', text: '{}' }],
+    [{ name: 'release-candidate.json', text: '/etc/passwd', mode: 0o120777 }],
+    [{ name: 'release-candidate.json/', text: '{}', mode: 0o40755 }],
+    [{ name: 'release-candidate.json', text: 'x'.repeat(65_537) }],
+    [{ name: 'release-candidate.json', text: '' }],
+  ];
+  test
+    .skipIf(process.platform === 'win32')
+    .each(unsafeMembers.map((members) => ({ members })))(
+    'refuses an unsafe archive member set %#',
+    async ({ members }) => {
+      await expect(
+        decodeCandidateArchive(await makeArchive(members)),
+      ).rejects.toThrow();
+    },
+  );
+  test('refuses a compressed archive beyond 1 MiB before parsing', async () => {
+    await expect(
+      decodeCandidateArchive(new Uint8Array(1_048_577)),
+    ).rejects.toThrow('exceeds 1 MiB');
+  });
+  test.skipIf(process.platform === 'win32')(
+    'refuses malformed ZIP bytes',
+    async () => {
+      await expect(
+        decodeCandidateArchive(new Uint8Array([1, 2, 3])),
+      ).rejects.toThrow('invalid candidate archive');
+    },
+  );
+});
+
 describe('release candidate gate', () => {
   test('a candidate whose validation and checks all passed may be tagged', async () => {
     const { report, calls } = await judge(passing());
@@ -290,17 +783,19 @@ describe('release candidate gate', () => {
     expect(report.state).toBe('eligible');
     expect(report.latestRelease).toEqual({ tag: 'v0.5.63', sha: PREVIOUS });
     expect(report.receipt).toEqual({
-      artifact: `release-candidate-${CANDIDATE}`,
+      artifact: candidateArtifactName(
+        '.github/workflows/build.yml',
+        CANDIDATE,
+        1,
+      ),
       id: 7,
     });
     expect(report.checks.map((check) => check.workflow)).toEqual([
       ...REQUIRED_WORKFLOWS,
-      ...REQUIRED_WHEN_RUN,
     ]);
-    // Security never ran for this commit; a path filter decided that.
-    expect(report.checks.at(-1)).toEqual({
+    expect(report.checks.at(-1)).toMatchObject({
       workflow: '.github/workflows/security.yml',
-      run: null,
+      run: { conclusion: 'success' },
     });
     // It only reads.
     expect(calls.every((call) => call.startsWith(API_ROOT))).toBe(true);
@@ -342,6 +837,13 @@ describe('release candidate gate', () => {
     async (change) => {
       const scenario = passing();
       Object.assign(scenario.candidateRuns[0]!, change);
+      if ('path' in change)
+        scenario.runPageOverrides = {
+          [`${runListPath('candidate')}&page=1`]: {
+            total_count: 1,
+            workflow_runs: scenario.candidateRuns,
+          },
+        };
       const { report, calls } = await judge(scenario);
       expect(report.state).toBe('blocked');
       expect(report.receipt).toBeNull();
@@ -922,10 +1424,18 @@ describe('release candidate gate command', () => {
               `actions/workflows/build.yml/runs?branch=main&event=${event}&per_page=100&page=${page + 1}`,
           ),
         ),
+        ...REQUIRED_WORKFLOWS.map(
+          (workflow) =>
+            `actions/workflows/${workflow.split('/').at(-1)}/runs?branch=main&event=repository_dispatch&per_page=100&page=1`,
+        ),
         ...scenario.candidateRuns.flatMap((entry) => [
-          `actions/runs/${entry.id}/jobs?filter=latest&per_page=100`,
+          `actions/runs/${entry.id}`,
+          `actions/runs/${entry.id}/attempts/${entry.run_attempt}/jobs?per_page=100`,
           `actions/runs/${entry.id}/artifacts?per_page=100`,
         ]),
+        ...Object.values(scenario.artifacts).flatMap((entries) =>
+          entries.map((entry) => `actions/artifacts/${entry.id}/zip`),
+        ),
         `actions/runs?head_sha=${CANDIDATE}&per_page=100`,
         ...Array.from(
           { length: Math.max(1, Math.ceil(scenario.commitRuns.length / 100)) },
@@ -936,10 +1446,20 @@ describe('release candidate gate command', () => {
       for (const path of paths) {
         const answer = await api(API_ROOT + path);
         if (answer === null) continue;
-        await writeFile(
-          join(fixtures, encodeURIComponent(API_ROOT + path)),
-          JSON.stringify(answer),
-        );
+        const destination = join(fixtures, encodeURIComponent(API_ROOT + path));
+        if (path.endsWith('/zip')) {
+          const child = Bun.spawn(
+            [
+              'python3',
+              '-c',
+              "import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1], 'w'); z.writestr('release-candidate.json', sys.argv[2]); z.close()",
+              destination,
+              JSON.stringify(answer),
+            ],
+            { stdout: 'pipe', stderr: 'pipe' },
+          );
+          expect(await child.exited).toBe(0);
+        } else await writeFile(destination, JSON.stringify(answer));
       }
     }
     await writeFile(
@@ -994,6 +1514,25 @@ exit 1
       expect(JSON.parse(blocked.stdout)).toMatchObject({
         state: 'blocked',
         validation: [],
+      });
+    },
+    30_000,
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'the native CLI validates all seven real ZIP receipts for C from main H',
+    async () => {
+      const result = await command(args, dispatchedSources());
+      expect(result.code, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        state: 'eligible',
+        checks: expect.arrayContaining([
+          {
+            workflow: '.github/workflows/e2e.yml',
+            run: expect.objectContaining({ headSha: WORKFLOW_SOURCE }),
+            receipt: expect.any(Object),
+          },
+        ]),
       });
     },
     30_000,

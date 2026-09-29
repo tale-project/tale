@@ -121,6 +121,8 @@ describe('release candidate validation', () => {
     needs?: string | string[];
     if?: string;
     permissions?: Record<string, string>;
+    uses?: string;
+    with?: Record<string, unknown>;
     strategy?: { matrix?: { service?: string[] } };
     steps: Step[];
   };
@@ -145,9 +147,18 @@ describe('release candidate validation', () => {
       await readFile(join(repository, '.github/workflows/build.yml'), 'utf8'),
     ) as Workflow;
   const step = (job: Job, name: string) => {
-    const found = job.steps.find((entry) => entry.name === name);
+    const found = (job.steps ?? []).find((entry) => entry.name === name);
     if (!found) throw new Error(`build.yml step "${name}" is missing`);
     return found;
+  };
+  const sourceStep = async () => {
+    const shared = parse(
+      await readFile(
+        join(repository, '.github/workflows/release-candidate-source.yml'),
+        'utf8',
+      ),
+    ) as Workflow;
+    return step(shared.jobs.source!, 'Resolve source');
   };
   /** The workflow context a script reads through `${{ … }}` text. */
   const expand = (script: string | undefined) =>
@@ -279,12 +290,13 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
   test.skipIf(process.platform === 'win32')(
     'a push or pull request builds its own commit and asks nothing of main',
     async () => {
-      const script = step((await workflow()).jobs.changes!, 'Resolve source');
+      const script = await sourceStep();
       for (const event of ['push', 'pull_request', 'merge_group']) {
         const tools = await standIns();
         const result = await execute(script.run, {
           PATH: tools.path,
           TEST_COMMAND_LOG: tools.log,
+          IS_CANDIDATE: 'false',
           EVENT_NAME: event,
           CANDIDATE_SHA: '',
           GITHUB_SHA: HEAD,
@@ -300,8 +312,11 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
   test.skipIf(process.platform === 'win32')(
     'a dispatched candidate must be a full SHA that main contains',
     async () => {
-      const script = step((await workflow()).jobs.changes!, 'Resolve source');
-      expect(script.env?.CANDIDATE_SHA).toBe(
+      const script = await sourceStep();
+      expect(script.env?.CANDIDATE_SHA).toBe('${{ inputs.candidate_sha }}');
+      expect(
+        (await workflow()).jobs['candidate-source']?.with?.candidate_sha,
+      ).toBe(
         '${{ inputs.candidate_sha || github.event.client_payload.candidate_sha }}',
       );
       const run = async (
@@ -315,6 +330,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           TEST_COMMAND_LOG: tools.log,
           TEST_COMPARE_STATUS: reply.status ?? 'ahead',
           TEST_GH_FAILS: reply.fails ? '1' : '',
+          IS_CANDIDATE: 'true',
           EVENT_NAME: event,
           CANDIDATE_SHA: candidate,
           GITHUB_SHA: HEAD,
@@ -380,7 +396,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         >,
       );
       expect(step(changes, 'Filter paths').if).toBe(
-        "steps.source.outputs.candidate_sha == ''",
+        "needs.candidate-source.outputs.candidate_sha == ''",
       );
       const matrix = step(changes, 'Compute service matrix').run;
       const candidate = outputs(
@@ -440,7 +456,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         'Compute image tag',
       );
       expect(script.env?.CANDIDATE_SHA).toBe(
-        '${{ steps.source.outputs.candidate_sha }}',
+        '${{ needs.candidate-source.outputs.candidate_sha }}',
       );
       for (const pr of ['', '913']) {
         const result = await execute(script.run, {
@@ -471,7 +487,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     const build = await workflow();
     const changes = build.jobs.changes!;
     const checkouts = Object.entries(build.jobs).flatMap(([id, job]) =>
-      job.steps
+      (job.steps ?? [])
         .filter((entry) => entry.uses?.startsWith('actions/checkout@'))
         .map((entry) => ({ id, job, entry })),
     );
@@ -479,10 +495,11 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     for (const { id, job, entry } of checkouts) {
       if (id === 'changes') {
         expect(entry.with?.ref).toBe(
-          '${{ steps.source.outputs.candidate_sha }}',
+          '${{ needs.candidate-source.outputs.candidate_sha }}',
         );
-        expect(job.steps.indexOf(step(changes, 'Resolve source'))).toBeLessThan(
-          job.steps.indexOf(entry),
+        expect(changes.needs).toBe('candidate-source');
+        expect(build.jobs['candidate-source']?.uses).toBe(
+          './.github/workflows/release-candidate-source.yml',
         );
         continue;
       }
@@ -820,7 +837,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         "always() && hashFiles('release-candidate.json') != ''",
       );
       expect(upload.with).toMatchObject({
-        name: 'release-candidate-${{ needs.changes.outputs.candidate_sha }}',
+        name: 'release-candidate-build-${{ needs.changes.outputs.candidate_sha }}-attempt-${{ github.run_attempt }}',
         path: 'release-candidate.json',
         'retention-days': 90,
       });
@@ -837,6 +854,8 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         const passed = await judge(jobs, directory);
         expect(passed.code, passed.stdout + passed.stderr).toBe(0);
         expect(passed.receipt).toEqual({
+          schemaVersion: 1,
+          workflow: '.github/workflows/build.yml',
           candidate: CANDIDATE,
           verdict: 'passed',
           run: {

@@ -5,7 +5,11 @@ name: SAST
 # (any target branch) whenever source changes, so feature branches can't slip
 # code past the gate. The ruleset and pinned engine live in tools/opengrep/.
 
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
 on:
+  repository_dispatch:
+    types: [release-candidate]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
@@ -16,14 +20,24 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 permissions:
   contents: read
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
   sast:
+    needs: candidate-source
     name: Opengrep
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -36,6 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
           persist-credentials: false
 
       - name: Cache Opengrep binary
@@ -60,7 +75,7 @@ jobs:
           bash tools/opengrep/run.sh
 
       - name: Upload SARIF
-        if: always() && hashFiles('opengrep.sarif') != ''
+        if: always() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''
         # Repos without code scanning (private plans lacking Advanced
         # Security) can't receive SARIF — the gate is the scan step above.
         continue-on-error: true
@@ -73,4 +88,15 @@ jobs:
         if: always()
         run: |
           echo "## Opengrep SAST" >> "$GITHUB_STEP_SUMMARY"
-          echo "Vendored ruleset (tools/opengrep/config.yml). Findings, if any, are in the Security tab under \`opengrep\` and fail this required check." >> "$GITHUB_STEP_SUMMARY"
+          echo "Vendored ruleset (tools/opengrep/config.yml). Findings fail this required check; normal runs also upload them to the Security tab under \`opengrep\`." >> "$GITHUB_STEP_SUMMARY"
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, sast]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/sast.yml
+      jobs: ${{ toJSON(needs) }}

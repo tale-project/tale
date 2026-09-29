@@ -84,10 +84,20 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch' }}
+      candidate_sha: ${{ inputs.candidate_sha || github.event.client_payload.candidate_sha }}
+
   # ---------------------------------------------------------------------------
   # Discover which services changed so matrix jobs only run for them.
   # ---------------------------------------------------------------------------
   changes:
+    needs: candidate-source
     name: Detect changes
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -103,52 +113,16 @@ jobs:
       # The commit every job builds and tests. `candidate_sha` is that same
       # commit in a release-candidate run and empty otherwise, so a checkout
       # given it as `ref` keeps its event's default everywhere else.
-      source_sha: ${{ steps.source.outputs.sha }}
-      candidate_sha: ${{ steps.source.outputs.candidate_sha }}
+      source_sha: ${{ needs.candidate-source.outputs.sha }}
+      candidate_sha: ${{ needs.candidate-source.outputs.candidate_sha }}
     steps:
-      # A candidate is the full SHA its dispatch names, and it must already be
-      # on main: never the dispatched ref's moving head, a branch or a pull
-      # request's commit. Every other event builds GITHUB_SHA.
-      - name: Resolve source
-        id: source
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          CANDIDATE_SHA: ${{ inputs.candidate_sha || github.event.client_payload.candidate_sha }}
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          case "$EVENT_NAME" in
-            workflow_dispatch | repository_dispatch)
-              if [[ ! "$CANDIDATE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
-                echo '::error::A release candidate must be a full 40-character commit SHA'; exit 1
-              fi
-              if ! STATUS=$(gh api "repos/${REPOSITORY}/compare/${CANDIDATE_SHA}...main?per_page=1" --jq .status); then
-                echo "::error::Could not compare release candidate ${CANDIDATE_SHA} with main"; exit 1
-              fi
-              if [ "$STATUS" != ahead ] && [ "$STATUS" != identical ]; then
-                echo "::error::Release candidate ${CANDIDATE_SHA} is not a commit on main (compare: ${STATUS:-unknown})"; exit 1
-              fi
-              {
-                echo "sha=${CANDIDATE_SHA}"
-                echo "candidate_sha=${CANDIDATE_SHA}"
-              } >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              {
-                echo "sha=${GITHUB_SHA}"
-                echo 'candidate_sha='
-              } >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: ${{ steps.source.outputs.candidate_sha }}
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Filter paths
-        if: steps.source.outputs.candidate_sha == ''
+        if: needs.candidate-source.outputs.candidate_sha == ''
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         with:
@@ -209,7 +183,7 @@ jobs:
       - name: Compute service matrix
         id: services
         env:
-          CANDIDATE_SHA: ${{ steps.source.outputs.candidate_sha }}
+          CANDIDATE_SHA: ${{ needs.candidate-source.outputs.candidate_sha }}
           CHANGES: ${{ steps.filter.outputs.changes }}
           CI_TESTS: ${{ steps.filter.outputs.ci_tests }}
           STORYBOOK: ${{ steps.filter.outputs.storybook }}
@@ -253,7 +227,7 @@ jobs:
         id: tag
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          CANDIDATE_SHA: ${{ steps.source.outputs.candidate_sha }}
+          CANDIDATE_SHA: ${{ needs.candidate-source.outputs.candidate_sha }}
         run: |
           set -euo pipefail
           if [[ ! "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]; then
@@ -1082,6 +1056,7 @@ jobs:
   candidate-gate:
     name: Candidate gate
     needs:
+      - candidate-source
       - changes
       - build
       - smoke-test
@@ -1146,7 +1121,7 @@ jobs:
             --arg id "$RUN_ID" --arg attempt "$RUN_ATTEMPT" --arg url "$RUN_URL" \
             --arg event "$EVENT_NAME" --arg workflow "$WORKFLOW_SHA" \
             --arg ref "$DISPATCH_REF" --arg sha "$DISPATCH_SHA" \
-            '{candidate: $candidate, verdict: $verdict,
+            '{schemaVersion: 1, workflow: ".github/workflows/build.yml", candidate: $candidate, verdict: $verdict,
               run: {id: $id, attempt: $attempt, url: $url, event: $event, workflowSha: $workflow, ref: $ref, sha: $sha},
               jobs: $jobs, images: $images}' > release-candidate.json
           {
@@ -1166,7 +1141,7 @@ jobs:
         if: always() && hashFiles('release-candidate.json') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: release-candidate-${{ needs.changes.outputs.candidate_sha }}
+          name: release-candidate-build-${{ needs.changes.outputs.candidate_sha }}-attempt-${{ github.run_attempt }}
           path: release-candidate.json
           retention-days: 90
           overwrite: true

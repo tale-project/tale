@@ -8,7 +8,7 @@ whose validation and gate have passed.
 | Step | What you do | What decides |
 | --- | --- | --- |
 | 1. Choose | Record the candidate SHA and the version. | You, explicitly. |
-| 2. Validate | Dispatch `build.yml` for the SHA. | The run's **Candidate gate** job. |
+| 2. Validate | Send one `release-candidate` repository dispatch for the SHA. | The seven existing workflows and their candidate receipts. |
 | 3. Gate | Run the release gate script. | Its state: only `eligible` proceeds. |
 | 4. Tag | Push `vX.Y.Z` at the SHA. | `release.yml`, as for every release. |
 | 5. Verify | Check the Release run, the GitHub release and the images. | Their recorded revision. |
@@ -29,60 +29,58 @@ it in everything you post about the release.
 
 ## 2. Validate the candidate
 
-Dispatch the Build workflow for the SHA. With permission to run workflows, use the Actions tab
-(**Build → Run workflow**, `candidate_sha`) or:
-
-```bash
-gh workflow run build.yml --repo tale-project/tale --ref main -f candidate_sha=<sha>
-```
-
-A token that can push but cannot run workflows (the release lane's) sends a repository dispatch
-instead:
+Send one repository dispatch with the recorded SHA. The existing release credential needs
+Contents-write permission; this does not require Actions-write or a new credential:
 
 ```bash
 gh api repos/tale-project/tale/dispatches -f event_type=release-candidate \
   -f 'client_payload[candidate_sha]=<sha>'
 ```
 
-Both start the same run, titled `Release candidate <sha>`. Follow it with:
+That event starts **Build, Checks, SAST, Commitlint, E2E, CLI and Security**, each titled
+`Release candidate <sha>`. It reuses their existing jobs, including all E2E shards and all five
+CLI build targets. Candidate validation never attaches CLI binaries to a release. Normal
+pull request, push, nightly and manual events keep their existing behavior.
+
+Follow the runs in Actions or list one workflow at a time:
 
 ```bash
-gh run list --repo tale-project/tale --workflow build.yml --branch main \
+gh run list --repo tale-project/tale --workflow e2e.yml --branch main \
   --json databaseId,displayTitle,status,conclusion \
   --jq '.[] | select(.displayTitle == "Release candidate <sha>")'
 gh run watch <run id> --repo tale-project/tale
 ```
 
-What the run does:
+The Build **Run workflow** action remains available for an individual Build validation; it
+does not start the other six workflows. Use the repository event for a complete candidate round.
 
-- **Its own concurrency group.** The group is `Build-candidate-<sha>`, and it is never cancelled.
-  Merges to `main`, pull request pushes and re-runs of old `main` builds use other groups, so
-  they cannot cancel it. That was the failure in
-  [#3951](https://github.com/tale-project/tale/issues/3951).
-- **Checks the candidate refuses.** The `changes` job refuses a SHA that is not full, or that is
-  not a commit on `main`.
-- **The same jobs as every push, all of them.** Every job checks out the candidate. It builds
-  the eight images as `candidate-sha-<sha>` and runs Smoke test and Validate images. It runs the
-  web, docs, ui-docs and ai-gateway container tests and the Storybook build, even when the
-  candidate's last commit did not touch them.
-- **One exception.** The advisory Trivy scan does not run for a candidate: its SARIF would be
-  filed against the head of `main`.
-- **Exact images.** Each build leg records the digest it pushed. Smoke test and Validate images
-  pull those digests, never a tag, and fail on an image whose revision label is not the
-  candidate. Candidate images stay in GHCR, like the `sha-<sha>` images of `main` pushes; no
-  workflow deletes them.
-- **The verdict.** The **Candidate gate** job runs last, whatever happened before it. It passes
-  only if every job it needs succeeded. A skipped or cancelled job fails it.
-- **The receipt.** The gate keeps the artifact `release-candidate-<sha>` for 90 days. Its
-  `release-candidate.json` holds the candidate, the verdict, the run and attempt, the dispatched
-  ref and workflow commit, every job's result and every image digest. The gate also writes it
-  as a table in the job summary.
+Each workflow has a separate `<workflow>-candidate-<sha>` concurrency group with cancellation
+disabled. Main merges cannot cancel these runs. The shared **Candidate source / Resolve source**
+job refuses a shortened, malformed or off-main SHA before any test job. Each existing checkout
+then uses that exact candidate **C**, including Commitlint's commit message. The trusted workflow
+comes from default-branch commit **H**, which may differ from C. Both full commits must still be
+on `main` when the release gate reads them; later merges do not invalidate an older H.
 
-The workflow definition comes from the ref you dispatch (`main`). The source, the Dockerfiles and
-the container test scripts come from the candidate. A test dispatch from another branch does not
-count as release validation, even if its title, jobs and artifact names match. The release gate
-checks the workflow path, the `main` dispatch branch and its full source SHA; that workflow commit
-must still be on `main` when the gate runs. Later merges may advance `main` without invalidating it.
+Build forces the complete image and container-test graph regardless of path filters. It builds
+eight `candidate-sha-<sha>` images, records each pushed digest, and tests those digests after
+checking their revision labels. It also runs the web, docs, ui-docs and ai-gateway container tests
+and Storybook. Candidate images remain in GHCR. Build's advisory image Trivy job stays skipped;
+SAST's Opengrep and Security's high/critical dependency and filesystem checks remain blocking.
+Candidate scans do not upload SARIF attributed to H.
+
+Each workflow's final **Candidate gate** records the results of every required dependency and
+fails if any is missing, failed, skipped or cancelled. Build's gate is a normal job; the other
+six call **Candidate gate / Record receipt**. The artifact name is
+`release-candidate-<workflow-stem>-<sha>-attempt-<attempt>`, retained for 90 days. Its sole file,
+`release-candidate.json`, records schema version 1, the workflow path, C, verdict, run id/URL/event,
+attempt, H, main ref and the exact dependency job results. Build also records all eight image
+identities and digests; the other receipts have an empty image list.
+
+A matching title alone is insufficient. The release gate checks the workflow path, main branch,
+full H and its ancestry, every expected current-attempt job (including matrix legs), the exact
+artifact name and its contents. It binds the receipt to C/H/run/attempt and rereads the run after
+verification to refuse evidence that changed during the read. Expired, historical, partial,
+duplicate or unexpected evidence cannot approve a release.
 
 ## 3. Run the release gate
 
@@ -90,14 +88,15 @@ must still be on `main` when the gate runs. Later merges may advance `main` with
 bun tools/cli/scripts/release-candidate-gate.ts --sha <sha> --version vX.Y.Z
 ```
 
-The gate only reads GitHub. It prints a JSON report and exits 0 only when the state is
-`eligible`.
+Run this with Bun, authenticated `gh` and Python 3 available. Python's standard ZIP reader
+validates receipts without extracting files into the checkout. The gate only reads GitHub. It
+prints a JSON report and exits 0 only when the state is `eligible`.
 
 | State | Meaning | Next |
 | --- | --- | --- |
 | `eligible` | Every check below passed. | Tag (step 4). |
 | `pending` | A required run is still going. | Wait, then run the gate again. |
-| `blocked` | A required run is missing, failed, skipped or was cancelled. | Validate again, or re-run what failed. |
+| `blocked` | Required evidence is missing, invalid, failed, skipped or cancelled. | Inspect the reason and dispatch the same candidate again when repaired. |
 | `allocated` | A version tag already points at the candidate. This does not prove publication succeeded. | Do not tag. Reconcile the Release run for the report's `tagName` (step 5). |
 | `conflict` | The version is taken or not newer, or the commit is not on `main` or does not advance beyond the latest release. | Choose a version or candidate explicitly. |
 
@@ -111,13 +110,18 @@ To be `eligible`, the candidate must pass all of these:
   release's source, and the version is newer than that release. An existing version allocation
   still returns `allocated` for recovery; this rule does not ask you to replace its tag.
 - **Its newest validation.** The newest `Release candidate <sha>` attempt dispatched from `main`
-  used the trusted Build workflow and succeeded, with a successful Candidate gate job and an
-  unexpired receipt. Earlier distinct candidate runs stay in the report; each entry describes
+  used the trusted Build workflow and succeeded, with every required job successful and a complete,
+  unexpired current-attempt receipt. Earlier distinct candidate runs stay in the report; each entry describes
   that run's current attempt. Each run records its attempt number, creation and current attempt
   start times, dispatch branch and workflow source SHA in the report.
-- **The other workflows.** The newest attempt of Checks, SAST, Commitlint and E2E on the commit
-  succeeded, and so did CLI and Security when they ran for it. The Build push run of the commit
-  does not count, because path filters skip checks there and later merges cancel it.
+- **The other workflows.** Checks, SAST, Commitlint, E2E, CLI and Security must all have passed.
+  Each workflow uses the newest attempt across its candidate receipts and normal exact-C runs.
+  A later valid candidate success can recover an older cancelled push; a later failed normal
+  run or rerun still blocks. Missing CLI or Security is blocked even if its normal path filter
+  would skip the commit. Repository dispatches only count through their C-bound receipts;
+  their GitHub `head_sha` describes H. CLI manual publication dispatches do not count as normal
+  source evidence because their input tag can differ from the workflow source. The Build push
+  run does not count: path filters skip checks there and later merges cancel it.
 
 "Newest" uses GitHub's `run_started_at`, not the run's original creation time or id. Re-running an
 older run after a newer success makes that rerun the deciding evidence: its failure blocks, an
@@ -132,11 +136,10 @@ Because GitHub caps these filtered searches at 1,000 results, a total of 1,000 o
 `blocked`: completeness cannot be proved at that boundary. Do not tag from that result; the
 release lane must obtain complete evidence through a reviewed change to its query strategy.
 
-Only Build has a candidate mode so far. The other workflows still run once per push to `main`,
-and a newer merge still cancels their older runs. E2E runs only when dispatched on the head of
-`main`. If one of them never finished on the candidate, the gate answers `blocked`, and
-re-running that old run only meets the next merge again. Choose a candidate whose runs finished
-instead, and record that you did.
+Job and artifact metadata must be complete, with unique ids and totals matching the returned
+records (at most 100 per list). Each receipt archive is limited to 1 MiB compressed and one
+regular `release-candidate.json` member of at most 64 KiB, including the actual decompressed
+read. Extra or duplicate files, directories, links and malformed archives are refused.
 
 ## 4. Tag the candidate
 
@@ -166,16 +169,25 @@ A version dispatch of `release.yml` builds the head of the ref it runs on. Run o
     ghcr.io/tale-project/tale/tale-platform:X.Y.Z
   ```
 
+CLI publication dispatched on a tag requires the exact `release_tag` input to match that ref,
+and its resolved commit (including annotated tags) to match the dispatch commit before building.
+Every manual publication resolves its input tag once in Prepare and passes that exact SHA to
+the build matrix, so a later tag change cannot change the binaries' source.
+The existing Release workflow supplies both together. Manual CLI publication from a branch or
+`main` may still build the specified tag, but it is not tag-bound deployment evidence; use the
+matching tag ref when recovering a publication for Ops verification.
+
 A published version is not a deployment. Deployments follow their own procedure.
 
 ## Failure, resume and idempotency
 
 - **Failures stay visible.** A failed candidate run keeps its logs and its receipt, with verdict
   `failed`. Open the failing job before you decide anything.
-- **Resume a flake.** Re-run the failed jobs (`gh run rerun <run id> --failed`, which needs
-  permission to run workflows), or dispatch the same SHA again. Either stays in the candidate's
-  own group. The newest attempt for the SHA decides, even when it belongs to an older run id,
-  and the gate still lists the earlier runs.
+- **Resume a flake.** Dispatch the same SHA again through the same repository event. An operator
+  with Actions-write may rerun all jobs of an individual run. Failed-job-only reruns may omit
+  required current-attempt job evidence and remain blocked; never substitute older job or
+  artifact results. The newest attempt decides even when it belongs to an older run id, and the
+  gate keeps the earlier Build runs in its report.
 - **A second dispatch waits.** Dispatching a SHA that is already running queues a run behind the
   current one, without cancelling it. GitHub keeps one waiting run per group, so a third dispatch
   replaces the waiting one. That cancellation shows on the replaced run; the running one

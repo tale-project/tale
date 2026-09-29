@@ -6,7 +6,11 @@ name: Checks
 # Repo-specific extra jobs append below the marked banner and never replace or
 # rename the standard six.
 
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
 on:
+  repository_dispatch:
+    types: [release-candidate]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -17,8 +21,8 @@ on:
   merge_group:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 env:
   TURBO_API: 'http://127.0.0.1:9080'
@@ -26,7 +30,17 @@ env:
   TURBO_TEAM: 'tale'
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
   format:
+    needs: candidate-source
     name: Format
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -36,6 +50,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -50,6 +66,7 @@ jobs:
         run: bun run format:check
 
   lint:
+    needs: candidate-source
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -59,6 +76,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -69,6 +88,7 @@ jobs:
         run: bunx turbo run lint
 
   typecheck:
+    needs: candidate-source
     name: Type check
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -78,6 +98,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -88,6 +110,7 @@ jobs:
         run: bunx turbo run typecheck
 
   build:
+    needs: candidate-source
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -97,6 +120,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -113,6 +138,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test:
+    needs: candidate-source
     name: Unit
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -132,6 +158,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -156,6 +184,7 @@ jobs:
         run: bunx turbo run test --concurrency=2
 
   test-ui:
+    needs: candidate-source
     name: UI
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -166,6 +195,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -180,6 +211,7 @@ jobs:
   # ===========================================================================
 
   knip:
+    needs: candidate-source
     name: Knip
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -189,6 +221,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -205,6 +239,7 @@ jobs:
   # real focus/breakpoints). Boots no backend, so it is far cheaper than a
   # Playwright E2E shard. Draft PRs skip.
   test-browser:
+    needs: candidate-source
     name: Browser
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -215,6 +250,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -247,3 +284,14 @@ jobs:
 
       - name: Run browser-mode component tests
         run: bunx turbo run test:browser
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, format, lint, typecheck, build, test, test-ui, knip, test-browser]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/checks.yml
+      jobs: ${{ toJSON(needs) }}

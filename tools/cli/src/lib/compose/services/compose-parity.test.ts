@@ -1036,7 +1036,7 @@ describe('release artifact identity', () => {
       step.uses?.startsWith('actions/checkout@'),
     )!;
     expect(checkout.with?.ref).toBe(
-      "${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.sha }}",
+      '${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}',
     );
   });
 
@@ -1056,14 +1056,21 @@ describe('release artifact identity', () => {
       const directory = mkdtempSync(resolve(tmpdir(), 'tale-cli-release-'));
       const output = resolve(directory, 'output');
       try {
-        const result = shell(step.run!, {
-          EVENT_NAME: 'workflow_dispatch',
-          RELEASE_TAG: String(tag),
-          GITHUB_OUTPUT: output,
-        });
+        const result = shell(
+          `gh() { printf '%s\\n' "$TEST_TAG_SOURCE"; };\n` + step.run!,
+          {
+            TEST_TAG_SOURCE: CI_SOURCE,
+            REPOSITORY: 'synthetic/tale',
+            EVENT_NAME: 'workflow_dispatch',
+            RELEASE_TAG: String(tag),
+            GITHUB_OUTPUT: output,
+          },
+        );
         expect(result.status).toBe(status);
         if (status === 0) {
-          expect(readFileSync(output, 'utf8')).toBe(`version=${version}\n`);
+          expect(readFileSync(output, 'utf8')).toBe(
+            `version=${version}\nsource_sha=${CI_SOURCE}\n`,
+          );
         }
       } finally {
         rmSync(directory, { recursive: true, force: true });
