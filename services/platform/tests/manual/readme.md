@@ -50,7 +50,7 @@ directory and greppable as one token.
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 30 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 18 |
-| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 53 |
+| [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 52 |
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 32 |
 | [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 96 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 21 |
