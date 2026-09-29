@@ -62,6 +62,7 @@ const paginatedMock = vi.hoisted(() => ({
   results: [] as unknown[],
   error: null as Error | null,
   retry: vi.fn(),
+  errorCount: 0,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -76,7 +77,7 @@ vi.mock('../hooks/queries', () => ({
     error: paginatedMock.error,
     retry: paginatedMock.retry,
     isRetrying: false,
-    errorCount: paginatedMock.error === null ? 0 : 1,
+    errorCount: paginatedMock.errorCount,
   }),
 }));
 
@@ -109,6 +110,7 @@ describe('DocumentsTable', () => {
     paginatedMock.status = 'CanLoadMore';
     paginatedMock.results = [];
     paginatedMock.error = null;
+    paginatedMock.errorCount = 0;
   });
 
   // Search/filters run client-side over loaded pages only; without this the
@@ -143,6 +145,7 @@ describe('DocumentsTable', () => {
       { id: 'doc-1', name: 'Contract.pdf', type: 'file', lastModified: 0 },
     ];
     paginatedMock.error = new Error('next page failed');
+    paginatedMock.errorCount = 1;
     const { user } = render(
       <DocumentsTable organizationId="test-org-id" searchQuery="contract" />,
     );
@@ -158,6 +161,34 @@ describe('DocumentsTable', () => {
     expect(
       screen.getByRole('region', { name: 'knowledge.documents' }),
     ).toHaveFocus();
+  });
+
+  // #3814 review: a refresh that fails again must not re-create a focused
+  // Try again; the failure is announced again inside the same alert.
+  it('keeps a focused Try again through another failure', () => {
+    paginatedMock.results = [
+      { id: 'doc-1', name: 'Contract.pdf', type: 'file', lastModified: 0 },
+    ];
+    paginatedMock.error = new Error('refresh failed');
+    paginatedMock.errorCount = 1;
+    const { rerender } = render(
+      <DocumentsTable organizationId="test-org-id" />,
+    );
+    const retry = within(screen.getByRole('alert')).getByRole('button', {
+      name: 'common.actions.tryAgain',
+    });
+    retry.focus();
+
+    paginatedMock.error = new Error('refresh failed again');
+    paginatedMock.errorCount = 2;
+    rerender(<DocumentsTable organizationId="test-org-id" />);
+
+    expect(
+      within(screen.getByRole('alert')).getByRole('button', {
+        name: 'common.actions.tryAgain',
+      }),
+    ).toBe(retry);
+    expect(retry).toHaveFocus();
   });
 
   it('renders the fixed frame every overview list uses', () => {

@@ -328,8 +328,12 @@ export function ProjectFilesTab({
     parentId?: string;
   } | null>(null);
   const treeRef = useRef<HTMLUListElement | null>(null);
-  // Where focus goes when a retry replaces the control that ran it.
+  // Where focus goes when a retry replaces the control that ran it, or a
+  // refresh that worked takes a focused alert away.
   const treeAreaRef = useRef<HTMLDivElement | null>(null);
+  const focusTreeArea = useCallback(() => {
+    treeAreaRef.current?.focus();
+  }, []);
   const unplacedLabelId = useId();
   const hydratedFolderIdRef = useRef<string | null>(null);
   const hydratedCreateFolderRef = useRef(false);
@@ -1163,7 +1167,7 @@ export function ProjectFilesTab({
   const retryTree = () => {
     // Onto the tree first: the alert that held focus goes once the reads
     // answer.
-    treeAreaRef.current?.focus();
+    focusTreeArea();
     if (documentsUnavailable || documentsRead.stale) documentsRead.retry();
     if (foldersUnavailable || foldersRead.stale) foldersRead.retry();
   };
@@ -1193,9 +1197,9 @@ export function ProjectFilesTab({
         >
           {readFailed ? (
             <CatalogLoadError
-              // A fresh alert for each failure, so a retry that fails again is
-              // announced again.
-              key={documentsRead.failureCount + foldersRead.failureCount}
+              // Each failure is announced again; Try again keeps its node.
+              failureKey={documentsRead.failureCount + foldersRead.failureCount}
+              onFocusLost={focusTreeArea}
               message={treeFailure}
               onRetry={retryTree}
               isRetrying={documentsRead.retrying || foldersRead.retrying}

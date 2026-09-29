@@ -240,6 +240,67 @@ describe(
       ).toBeVisible();
     });
 
+    // #3814 review: a background refresh that failed again re-created the
+    // alert, and a Try again the reader had focused (not pressed) lost focus
+    // to the dialog. The failure is announced again; the button stays.
+    it('keeps a focused Try again focused when a background refresh fails again', async () => {
+      backend.on(versionsOf('entry-v2'), () => serviceUnavailable());
+      renderDialog(CURRENT);
+      const alert = await within(history()).findByRole('alert');
+      const retry = within(alert).getByRole('button', { name: tryAgain() });
+      const firstMessage = within(alert).getByText(
+        t('viewDialog.historyLoadFailed'),
+      );
+      retry.focus();
+
+      void client.invalidateQueries();
+      await waitFor(() =>
+        expect(backend.count(versionsOf('entry-v2'))).toBe(8),
+      );
+      await waitFor(() =>
+        expect(
+          within(history()).getByText(t('viewDialog.historyLoadFailed')),
+        ).not.toBe(firstMessage),
+      );
+
+      expect(within(history()).getByRole('alert')).toBe(alert);
+      expect(within(alert).getByRole('button', { name: tryAgain() })).toBe(
+        retry,
+      );
+      expect(retry).toHaveFocus();
+    });
+
+    it('moves the focus to the history when a background refresh heals it behind a focused Try again', async () => {
+      backend.on(versionsOf('entry-v2'), () => serviceUnavailable());
+      renderDialog(CURRENT);
+      const alert = await within(history()).findByRole('alert');
+      within(alert).getByRole('button', { name: tryAgain() }).focus();
+
+      backend.on(versionsOf('entry-v2'), () => Response.json(CHAIN));
+      void client.invalidateQueries();
+      await within(history()).findByText(
+        t('viewDialog.versionCount', { count: 1 }),
+      );
+      await waitFor(() => expect(history()).toHaveFocus());
+    });
+
+    it('leaves the focus where the reader moved it during the refresh', async () => {
+      backend.on(versionsOf('entry-v2'), () => serviceUnavailable());
+      renderDialog(CURRENT);
+      const alert = await within(history()).findByRole('alert');
+      within(alert).getByRole('button', { name: tryAgain() }).focus();
+      const edit = screen.getByRole('button', { name: 'Edit' });
+      edit.focus();
+
+      backend.on(versionsOf('entry-v2'), () => Response.json(CHAIN));
+      void client.invalidateQueries();
+      await within(history()).findByText(
+        t('viewDialog.versionCount', { count: 1 }),
+      );
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      expect(edit).toHaveFocus();
+    });
+
     it("keeps a retry's answer to its own entry when the dialog moves on", async () => {
       backend.on(versionsOf('entry-v2'), () => serviceUnavailable());
       backend.on(versionsOf('entry-other'), () => Response.json(SINGLE));

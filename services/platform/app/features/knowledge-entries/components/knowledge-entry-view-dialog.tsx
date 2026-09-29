@@ -65,10 +65,13 @@ export function KnowledgeEntryViewDialog({
   // the versions once they are back), so focus moves onto the section first
   // instead of falling back to the dialog.
   const historyRef = useRef<HTMLElement>(null);
-  const retryHistory = useCallback(() => {
+  const focusHistory = useCallback(() => {
     historyRef.current?.focus();
+  }, []);
+  const retryHistory = useCallback(() => {
+    focusHistory();
     void refetchVersions();
-  }, [refetchVersions]);
+  }, [focusHistory, refetchVersions]);
 
   const facts = useMemo<StatGridItem[]>(
     () => [
@@ -149,9 +152,10 @@ export function KnowledgeEntryViewDialog({
       >
         {(historyRead.unavailable || historyRead.stale) && (
           <CatalogLoadError
-            // A fresh alert for each failure, so a retry that fails again is
-            // announced again.
-            key={historyRead.failureCount}
+            // Each failure is announced again; Try again keeps its node, and
+            // the focus on it, through a background refresh that fails again.
+            failureKey={historyRead.failureCount}
+            onFocusLost={focusHistory}
             message={t(
               historyRead.stale
                 ? 'viewDialog.historyRefreshFailed'

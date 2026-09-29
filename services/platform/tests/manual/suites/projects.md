@@ -514,7 +514,9 @@ projects-list row ⋯ menu.
   **Files** group above the tree — never to the page body; a screen reader
   announces the notice once per failure and reads **Files inside folders**
   as the name of the nested list; ↓/↑ still walk every row, those in the
-  group included.
+  group included. With focus on **Try again** (not pressed), a background
+  refresh that fails again leaves it there; one that works moves it to the
+  **Files** group.
 
 ## Performance
 

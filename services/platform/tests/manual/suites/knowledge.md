@@ -633,7 +633,11 @@ records and delete them after.
   or the **Version history** section — never to the page body; a screen
   reader announces each failure once (the notice is an alert), reads the
   retry as busy while it runs, and announces the notice again when a retry
-  fails again.
+  fails again. Tab to **Try again** without pressing it and let a background
+  refresh fail again (keep the read blocked, then make any write that
+  refreshes the list, or a hub upload for an open history) → focus stays on
+  that **Try again**; unblock and let the next refresh work → focus lands on
+  the region or the section, never on the page or the dialog frame.
 
 ## Performance
 

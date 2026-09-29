@@ -302,6 +302,38 @@ describe('ProjectFilesTab when a tree read fails', { timeout: 30_000 }, () => {
     ).toBeVisible();
   });
 
+  // #3814 review: the same keyed-notice focus loss, swept here.
+  it('keeps a focused Try again focused through another failed read, and hands focus to the files once they load', async () => {
+    backend.on(docsOf('proj-a'), () => Response.json({ documents: DOCS }));
+    backend.on(foldersOf('proj-a'), () => serviceUnavailable());
+    renderTab('proj-a', 'f-contracts');
+    const alert = await screen.findByRole('alert');
+    const retry = within(alert).getByRole('button', { name: tryAgain() });
+    retry.focus();
+
+    void client.invalidateQueries();
+    await waitFor(() => expect(backend.count(foldersOf('proj-a'))).toBe(8));
+    await waitFor(() =>
+      expect(
+        within(alert).getByRole('button', { name: tryAgain() }),
+      ).not.toHaveAttribute('aria-busy'),
+    );
+    expect(screen.getByRole('alert')).toBe(alert);
+    expect(within(alert).getByRole('button', { name: tryAgain() })).toBe(retry);
+    expect(retry).toHaveFocus();
+
+    backend.on(foldersOf('proj-a'), () => Response.json({ folders: FOLDERS }));
+    void client.invalidateQueries();
+    await waitFor(() =>
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('group', { name: t('files.title') }),
+      ).toHaveFocus(),
+    );
+  });
+
   describe.each(SHIPPED_LOCALES)('in %s', (locale) => {
     it('names the failed folder read and its retry in the reader language', async () => {
       saveLocale(locale);

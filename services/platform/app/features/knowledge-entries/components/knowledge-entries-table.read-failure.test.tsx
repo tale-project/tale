@@ -245,6 +245,42 @@ describe(
       expect(backend.count(NEXT_PAGE)).toBe(4);
     });
 
+    // #3814 review: a refresh that failed again re-created the notice, and
+    // a Try again the reader had focused lost its focus.
+    it('keeps a focused Try again focused through another failed refresh, and hands focus to the list once it heals', async () => {
+      backend.on(ANY_PAGE, pagedEntries(ENTRIES));
+      renderTable();
+      await screen.findByText('Synthetic fact 34');
+      backend.on(ANY_PAGE, () => serviceUnavailable());
+      void client.invalidateQueries();
+      const alert = await screen.findByRole('alert');
+      const retry = within(alert).getByRole('button', { name: tryAgain() });
+      retry.focus();
+
+      const before = backend.count(LIST);
+      void client.invalidateQueries();
+      await waitFor(() => expect(backend.count(LIST)).toBe(before + 4));
+      await waitFor(() =>
+        expect(
+          within(alert).getByRole('button', { name: tryAgain() }),
+        ).not.toHaveAttribute('aria-busy'),
+      );
+      expect(screen.getByRole('alert')).toBe(alert);
+      expect(within(alert).getByRole('button', { name: tryAgain() })).toBe(
+        retry,
+      );
+      expect(retry).toHaveFocus();
+
+      backend.on(ANY_PAGE, pagedEntries(ENTRIES));
+      void client.invalidateQueries();
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole('region', { name: t('title') })).toHaveFocus(),
+      );
+    });
+
     describe.each(SHIPPED_LOCALES)('in %s', (locale) => {
       it('names a failed refresh and its retry in the reader language', async () => {
         saveLocale(locale);

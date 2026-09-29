@@ -69,7 +69,7 @@ export function KnowledgeEntriesTable({
     [deleteEntry],
   );
 
-  const { regionRef, retryRead, failedWithRows } =
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
     useListReadRecovery(paginatedResult);
 
   const list = useListPage<KnowledgeEntryItem>({
@@ -110,9 +110,9 @@ export function KnowledgeEntriesTable({
       >
         {failedWithRows && (
           <CatalogLoadError
-            // A fresh alert for each failure, so a retry that fails again
-            // is announced again.
-            key={paginatedResult.errorCount}
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={paginatedResult.errorCount}
+            onFocusLost={focusRegion}
             message={t('refreshFailed')}
             onRetry={retryRead}
             isRetrying={paginatedResult.isRetrying}
