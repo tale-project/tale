@@ -60,7 +60,7 @@ const SIZE_BUDGETS: Record<string, number> = {
   //   - the builtin document skills' libraries, so they work without registry
   //     egress: the Python lock adds ~290 MB (pandas, numpy, onnxruntime for
   //     markitdown's file-type model, reportlab, pdfplumber/pypdfium2) and the
-  //     Node lock ~150 MB (react-icons alone ~85 MB, docx, pptxgenjs, sharp),
+  //     Node lock ~130 MB (react-icons alone ~85 MB, docx, pptxgenjs, sharp),
   //     taking amd64 from ~4.87 GB to an estimated ~5.3 GB.
   // ~10% headroom over the ~5.3 GB amd64 image.
   'sandbox-runtime': 5900,

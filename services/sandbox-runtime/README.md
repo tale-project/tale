@@ -33,9 +33,12 @@ requests, certifi, cryptography, packaging), so resolve the lock against its
 pins; the vision tool's isolated Pillow environment is separate. To update it,
 compile `hermes-agent==<HERMES_AGENT_VERSION>` for Python 3.12 into a constraints
 file, compile the direct libraries against it with
-`uv pip compile --python-version 3.12 --python-platform x86_64-manylinux_2_36 --only-binary :all: -c <constraints>`
+`uv pip compile --python-version 3.12 --python-platform x86_64-manylinux_2_36 --only-binary :all: --exclude-newer <date> -c <constraints>`
 (the aarch64 resolution must match), and hash every cp312 manylinux wheel of
-each pinned version for both architectures, one line per package.
+each pinned version for both architectures, one line per package. Versions
+added to either lock follow the repository's Renovate release-age policy:
+`<date>` lies 90 days back, and only a release that fixes a known advisory may
+be younger.
 
 The Node libraries the skills `require()` — docx, pptxgenjs, and react,
 react-dom, react-icons and sharp for the icon recipe in `pptxgenjs.md` — are
@@ -43,10 +46,14 @@ locked with integrity hashes in [`document-node/`](document-node/) and installed
 with `npm ci --ignore-scripts` into `/opt/tale/document-node`. The image's
 `NODE_PATH` names that directory, and a session puts its own npm prefix
 (`/agent/.runtime/deps/node`) in front of it, so a package an exec installs
-wins over the baked copy. Refresh the lock with
-`npm install --package-lock-only --ignore-scripts` in that directory after
-changing an exact version in its `package.json`, and check it with
-`npm audit --package-lock-only`: the repository's Trivy gate scans this lock.
+wins over the baked copy. Refresh the lock with npm 11, the major the image's
+Node 24 ships, which records each platform package's `libc` so the image skips
+the musl builds. After changing an exact version in its `package.json`, run
+`npx npm@11 install --package-lock-only --ignore-scripts --before <date>` in
+that directory; to take a younger security release, set it and run the same
+command without `--before`, which keeps the other locked versions. Check the
+result with `npm audit --package-lock-only`. The repository's Trivy gate
+scans this lock, and a change to it alone triggers the security workflow.
 The `overrides` entry lifts image-size, which pptxgenjs declares but never
 loads, to a release without its denial-of-service advisories. The skills' own
 `npm install -g` and `pip install` lines stay as they are: with registry access
