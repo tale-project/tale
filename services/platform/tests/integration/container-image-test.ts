@@ -57,8 +57,13 @@ const SIZE_BUDGETS: Record<string, number> = {
   //     opencode, cursor, gemini and hermes, pushing amd64 from ~4.3 GB to
   //     ~4.9 GB (their per-PR Build runs were concurrency-cancelled, so the
   //     over-budget check never surfaced before merge).
-  // ~10% headroom over the ~4.9 GB amd64 image.
-  'sandbox-runtime': 5400,
+  //   - the builtin document skills' libraries, so they work without registry
+  //     egress: the Python lock adds ~290 MB (pandas, numpy, onnxruntime for
+  //     markitdown's file-type model, reportlab, pdfplumber/pypdfium2) and the
+  //     Node lock ~130 MB (react-icons alone ~85 MB, docx, pptxgenjs, sharp),
+  //     taking amd64 from ~4.87 GB to an estimated ~5.3 GB.
+  // ~10% headroom over the ~5.3 GB amd64 image.
+  'sandbox-runtime': 5900,
 };
 
 const SERVICES = [

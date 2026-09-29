@@ -51,6 +51,8 @@ Der Connector-Broker hält gewöhnliche Connector-Zugangsdaten bei Tale und gibt
 
 Ausgehender Netzwerkzugriff erlaubt normalerweise Paketinstallationen und das Klonen von Repositorys, blockiert aber private Adressen und Cloud-Metadatenziele. Betreiber können die erlaubten Hosts weiter begrenzen. Prüfe bei einem unerreichbaren Dienst die Netzwerkregeln, statt unmittelbar falsche Zugangsdaten anzunehmen.
 
+Die integrierten Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf` finden die Bibliotheken, die sie aufrufen, in der Sandbox bereits installiert vor. Ein Agent, dem sie zugeordnet sind, erstellt und liest Word-, PowerPoint-, Excel- und PDF-Dateien deshalb auch dort, wo Paketinstallationen gesperrt sind. Ihre Anweisungen enthalten weiterhin Installationsbefehle wie `npm install -g docx`; ist die Registry gesperrt, schlägt dieser Schritt fehl, die vorinstallierte Bibliothek bleibt aber verfügbar. Texterkennung (OCR) für gescannte PDFs ist nicht enthalten.
+
 ## Das Ergebnis prüfen
 
 Die Laufzeit entscheidet, wann ihr Durchlauf fertig ist; Tale sammelt Bericht und Ausgabe. Lies beides, bevor du die Aufgabe abschließt. Prüfe, welche Tests tatsächlich liefen und welche Dienste in der Sandbox fehlten. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt die Prüfung von Projektarbeit; [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Ergebnisse einer Agent-Node.
