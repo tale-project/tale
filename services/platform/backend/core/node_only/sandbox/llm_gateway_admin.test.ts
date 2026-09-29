@@ -1283,6 +1283,84 @@ describe('revokeVirtualKey', () => {
   });
 });
 
+describe('setVirtualKeyBudget', () => {
+  /** A gateway holding one key whose one budget row is `budget-1`. */
+  function stubKey(options: { getStatus?: number; putStatus?: number } = {}) {
+    const calls: { method: string; url: string; body?: unknown }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        calls.push({
+          method,
+          url: String(url),
+          ...(typeof init?.body === 'string'
+            ? { body: JSON.parse(init.body) }
+            : {}),
+        });
+        if (method === 'GET') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                virtual_key: {
+                  id: 'vk-1',
+                  budgets: [
+                    { id: 'budget-1', max_limit: 5, current_usage: 1.2 },
+                  ],
+                },
+              }),
+              { status: options.getStatus ?? 200 },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response('{"error":{"message":"refused"}}', {
+            status: options.putStatus ?? 200,
+          }),
+        );
+      }),
+    );
+    return calls;
+  }
+
+  it("moves the key's one budget row to the new cap, in dollars", async () => {
+    const calls = stubKey();
+    const mod = await loadModule();
+    await expect(mod.setVirtualKeyBudget('vk-1', 350)).resolves.toBe('ok');
+    expect(calls[1]).toEqual({
+      method: 'PUT',
+      url: expect.stringContaining('/api/governance/virtual-keys/vk-1'),
+      // The row keeps its id — and with it the usage counted against it.
+      body: {
+        budgets: [{ id: 'budget-1', max_limit: 3.5, reset_duration: '1M' }],
+      },
+    });
+  });
+
+  it('never moves a cap below the smallest the gateway takes', async () => {
+    const calls = stubKey();
+    const mod = await loadModule();
+    await mod.setVirtualKeyBudget('vk-1', -20);
+    expect(calls[1]?.body).toEqual({
+      budgets: [{ id: 'budget-1', max_limit: 0.0001, reset_duration: '1M' }],
+    });
+  });
+
+  it('answers gone for a key the gateway no longer holds', async () => {
+    stubKey({ getStatus: 404 });
+    const mod = await loadModule();
+    await expect(mod.setVirtualKeyBudget('vk-1', 100)).resolves.toBe('gone');
+  });
+
+  it("throws with the gateway's reason when it refuses the update", async () => {
+    stubKey({ putStatus: 400 });
+    const mod = await loadModule();
+    await expect(mod.setVirtualKeyBudget('vk-1', 100)).rejects.toThrow(
+      'llm-gateway update key budget failed (400): {"error":{"message":"refused"}}',
+    );
+  });
+});
+
 describe('applyGatewayConfig', () => {
   it('GET-merges the full client_config, flips enforcement, clamps log retention', async () => {
     const calls = stubGateway({

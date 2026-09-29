@@ -5,7 +5,10 @@ import {
   isAutomationSubject,
 } from '../../../lib/shared/constants/usage.ts';
 import type { GatewaySpendReading } from '../../core/node_only/sandbox/gateway_key_settlement.ts';
-import { readVirtualKeySpend } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
+import {
+  readVirtualKeySpend,
+  setVirtualKeyBudget,
+} from '../../core/node_only/sandbox/llm_gateway_admin.ts';
 import { workflowAgentBudgetCents } from '../../core/sandbox/agent_deadline.ts';
 import {
   SANDBOX_IMAGE_CALL_STALE_MS,
@@ -48,6 +51,12 @@ import {
  * spend the key reports), a ceiling on the images one turn may create, and
  * the organization's budget caps — against which a generation in flight
  * holds its estimate like every other piece of work in flight.
+ *
+ * The allowance is shared both ways. Images must fit in what the model has
+ * left, and the model must not spend what the images took: the key's own
+ * cap gives up an image's hold when it is admitted and its cost when it is
+ * booked. Without that a turn whose images came first could still spend its
+ * whole allowance on the model — twice the allowance in all.
  */
 
 /** The billing subject of one generation, as the tool carries it. */
@@ -273,10 +282,12 @@ export async function admitImageGeneration(
   },
   deps: {
     readKeySpend?: (keyId: string) => Promise<GatewaySpendReading>;
+    setKeyBudget?: (keyId: string, cents: number) => Promise<'ok' | 'gone'>;
     now?: () => number;
   } = {},
 ): Promise<ImageAdmission> {
   const readKeySpend = deps.readKeySpend ?? readVirtualKeySpend;
+  const setKeyBudget = deps.setKeyBudget ?? setVirtualKeyBudget;
   const now = deps.now ?? Date.now;
   const ended = refused(
     'run_ended',
@@ -300,7 +311,7 @@ export async function admitImageGeneration(
     modelSpentCents = reading.cents;
   }
   const holdCents = args.images * SANDBOX_IMAGE_HOLD_CENTS;
-  return sql.begin(async (tx) => {
+  const decided = await sql.begin(async (tx) => {
     // The lock every budget admission of the organization takes (chat
     // turns, managed turns, other generations), before the op row's own.
     await lockBudgetAdmission(tx, args.organizationId);
@@ -359,8 +370,61 @@ export async function admitImageGeneration(
         user_id = coalesce(user_id, ${args.subject.userId === '' ? null : args.subject.userId})
       WHERE id = ${op.id}
     `;
-    return { admitted: true, callStartedAt: startedAt, holdCents };
+    const admission: ImageAdmission = {
+      admitted: true,
+      callStartedAt: startedAt,
+      holdCents,
+    };
+    return {
+      admission,
+      opId: op.id,
+      // What the model may still spend once these images are held.
+      keyCapCents: allowance - op.imageSpentCents - holdCents,
+    };
   });
+  if ('admitted' in decided) return decided;
+  const { admission, opId, keyCapCents } = decided;
+  if (before.mintedKeyId === null || !admission.admitted) return admission;
+  // The images' hold leaves the key's cap before any provider is called: a
+  // cap the gateway would not move could let the model spend it as well,
+  // so the images wait for a turn whose cap can be read and moved.
+  let moved: 'ok' | 'gone' | 'failed';
+  try {
+    moved = await setKeyBudget(before.mintedKeyId, keyCapCents);
+  } catch (error) {
+    console.warn(
+      `[image-generation] could not set the turn's key cap aside for its images (op ${opId}):`,
+      error,
+    );
+    moved = 'failed';
+  }
+  if (moved === 'ok') return admission;
+  await withdrawAdmission(sql, opId, admission.callStartedAt, args.images);
+  return moved === 'gone'
+    ? ended
+    : refused(
+        'spend_unknown',
+        "The platform could not set the images' cost aside from this turn's spend allowance, so it cannot generate them now.",
+      );
+}
+
+/** Take back an admission whose hold could not leave the key's cap: its
+ * mark, its hold, and the images it counted. A mark a newer call has taken
+ * over is left alone. */
+async function withdrawAdmission(
+  sql: Sql,
+  opId: string,
+  callStartedAt: number,
+  images: number,
+): Promise<void> {
+  await sql`
+    UPDATE app.sandbox_session_ops SET
+      image_call_started_at_ms = NULL,
+      image_hold_cents = 0,
+      image_hold_requests = 0,
+      images_admitted = greatest(0, images_admitted - ${images})
+    WHERE id = ${opId} AND image_call_started_at_ms = ${callStartedAt}
+  `;
 }
 
 /**
@@ -388,9 +452,13 @@ export async function settleImageGeneration(
     charges: number[];
     timestamp: number;
   },
+  deps: {
+    setKeyBudget?: (keyId: string, cents: number) => Promise<'ok' | 'gone'>;
+  } = {},
 ): Promise<void> {
+  const setKeyBudget = deps.setKeyBudget ?? setVirtualKeyBudget;
   const spent = args.charges.reduce((sum, charge) => sum + charge, 0);
-  await sql.begin(async (tx) => {
+  const settled = await sql.begin(async (tx) => {
     for (const costCents of args.charges) {
       await incrementUsageLedger(tx, {
         organizationId: args.organizationId,
@@ -409,7 +477,14 @@ export async function settleImageGeneration(
         timestamp: args.timestamp,
       });
     }
-    await tx`
+    return tx<
+      {
+        mintedKeyId: string | null;
+        budgetCents: number | null;
+        imageSpentCents: number;
+        imageHoldCents: number;
+      }[]
+    >`
       UPDATE app.sandbox_session_ops SET
         image_spent_cents = image_spent_cents + ${spent},
         image_hold_cents = CASE
@@ -424,8 +499,30 @@ export async function settleImageGeneration(
       WHERE org_id = ${args.organizationId}
         AND session_id = ${args.sessionId}
         AND exec_id = ${args.execId}
+      RETURNING minted_key_id AS "mintedKeyId",
+                budget_cents::float8 AS "budgetCents",
+                image_spent_cents::float8 AS "imageSpentCents",
+                image_hold_cents::float8 AS "imageHoldCents"
     `;
   });
+  const op = settled[0];
+  if (op === undefined || op.mintedKeyId === null) return;
+  // The booked cost takes the hold's place in the key's cap: what the model
+  // may still spend is the allowance less every image booked or still held.
+  const capCents =
+    (op.budgetCents ?? workflowAgentBudgetCents()) -
+    op.imageSpentCents -
+    op.imageHoldCents;
+  try {
+    await setKeyBudget(op.mintedKeyId, capCents);
+  } catch (error) {
+    // The images are paid and booked either way; the cap keeps the hold's
+    // figure, which a cost within the estimate never undercuts.
+    console.warn(
+      `[image-generation] could not move the turn's key cap to its booked image spend (exec ${args.execId}):`,
+      error,
+    );
+  }
 }
 
 /** The three seams, by the names the tool dispatch addresses them with. */
