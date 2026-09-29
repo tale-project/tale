@@ -125,17 +125,34 @@ describe('resolveAutoRetryBudget', () => {
     expect(
       resolveAutoRetryBudget([failed(), rotated(), failed(), failed()]),
     ).toEqual({ retry: true, attempt: AUTO_RETRY_MAX_ATTEMPTS });
+  });
+
+  it('stamps a free rotation with the attempts already spent — none after a clean run', () => {
+    // The card reads 0 as "resumed after a token refresh", not "1 of 3";
+    // the next counted failure is the first attempt.
     expect(resolveAutoRetryBudget([rotated()])).toEqual({
+      retry: true,
+      attempt: 0,
+    });
+    expect(resolveAutoRetryBudget([failed(), rotated()])).toEqual({
       retry: true,
       attempt: 1,
     });
+    expect(resolveAutoRetryBudget([rotated(), failed()])).toEqual({
+      retry: true,
+      attempt: 1,
+    });
+    // Work past the progress threshold refreshed the budget: none spent.
+    expect(resolveAutoRetryBudget([rotated(LONG), failed(), failed()])).toEqual(
+      { retry: true, attempt: 0 },
+    );
   });
 
   it('takes the third rotation in a row down the ordinary path, so a dead grant ends', () => {
     const streak = (length: number) => Array.from({ length }, () => rotated());
     expect(resolveAutoRetryBudget(streak(2))).toEqual({
       retry: true,
-      attempt: 1,
+      attempt: 0,
     });
     // The third is counted, like any failure.
     expect(resolveAutoRetryBudget(streak(3))).toEqual({

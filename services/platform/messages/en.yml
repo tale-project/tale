@@ -7164,6 +7164,9 @@ tasks:
     # Caption under the status line while a machine-kicked retry runs — the
     # user must be able to tell the platform's retry from their own.
     autoRetrying: 'Auto-retry {n} of {max}'
+    # Replaces the caption when the broker refreshed the account's token
+    # under the run and the platform resumed it — no attempt spent yet.
+    resumedAfterTokenRefresh: Resumed after a token refresh
     retry: Retry
     cancel: Cancel run
   automation:

@@ -7038,6 +7038,10 @@ tasks:
     # Zeile unter dem Status, während die Plattform einen fehlgeschlagenen
     # Lauf von selbst neu startet — damit klar ist, dass nicht du es warst.
     autoRetrying: 'Automatischer Versuch {n} von {max}'
+    # Ersetzt diese Zeile, wenn der Broker das Token des Kontos mitten im
+    # Lauf erneuert hat und die Plattform ihn fortsetzt — ohne verbrauchten
+    # Versuch.
+    resumedAfterTokenRefresh: Nach einer Token-Erneuerung fortgesetzt
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:

@@ -258,15 +258,20 @@ export function TaskAgentRunEntry({
       </Row>
       {/* A run the platform re-kicked by itself says so — otherwise a user
           who watched the run fail sees it silently "running" again and
-          cannot tell their Retry from the machine's. */}
+          cannot tell their Retry from the machine's. A resume after the
+          broker refreshed the token under the run spends no attempt: it
+          shows the count already spent, and with none spent (0) says what
+          happened instead. */}
       {live &&
       run.trigger === 'auto_retry' &&
       run.autoRetryAttempt !== undefined ? (
         <Text variant="caption" className="text-muted-foreground">
-          {t('agentRun.autoRetrying', {
-            n: run.autoRetryAttempt,
-            max: run.autoRetryMax,
-          })}
+          {run.autoRetryAttempt === 0
+            ? t('agentRun.resumedAfterTokenRefresh')
+            : t('agentRun.autoRetrying', {
+                n: run.autoRetryAttempt,
+                max: run.autoRetryMax,
+              })}
         </Text>
       ) : null}
       {run.status === 'failed' && run.error !== undefined ? (

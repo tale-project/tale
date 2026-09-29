@@ -59,7 +59,7 @@ Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich
 
 Bei behebbaren Fehlern folgen bis zu drei sofortige Wiederholungsversuche. Ein Lauf, der mindestens fünfzehn Minuten Fortschritt macht, erhält ein neues Versuchskontingent. So kann lange Arbeit Unterbrechungen überstehen. Die Richtigkeit des Ergebnisses musst du trotzdem prüfen.
 
-Ein Agent, der über einen Abo-Broker arbeitet, kann sein Token mitten in der Arbeit verlieren, wenn der Broker das Konto erneuert. Die Wiederholung setzt die Konversation dann mit einem neuen Token fort, ohne den Versuchszähler zu erhöhen. Nach zwei solchen Unterbrechungen in Folge zählt eine weitere wie jeder andere Fehler.
+Ein Agent, der über einen Abo-Broker arbeitet, kann sein Token mitten in der Arbeit verlieren, wenn der Broker das Konto erneuert. Die Wiederholung setzt die Konversation dann mit einem neuen Token fort, ohne den Versuchszähler zu erhöhen: Der Lauf zeigt weiter den erreichten Stand an. Hatte er noch keinen automatischen Versuch verbraucht, steht dort **Nach einer Token-Erneuerung fortgesetzt**. Nach zwei solchen Unterbrechungen in Folge zählt eine weitere wie jeder andere Fehler.
 
 ## Arbeit abbrechen oder pausieren
 

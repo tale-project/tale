@@ -7143,6 +7143,10 @@ tasks:
     # Ligne sous le statut pendant que la plateforme relance elle-même une
     # exécution échouée — pour distinguer sa relance de la tienne.
     autoRetrying: 'Tentative automatique {n} sur {max}'
+    # Remplace cette ligne quand le courtier a actualisé le jeton du compte
+    # en cours d'exécution et que la plateforme la reprend — sans tentative
+    # consommée.
+    resumedAfterTokenRefresh: Reprise après l'actualisation du jeton
     retry: Relancer
     cancel: Annuler l'exécution
   automation:

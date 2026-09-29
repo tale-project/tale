@@ -92,7 +92,9 @@ export interface KickAgentRunArgs {
    * as `feedback`; a description kick carries none, because the turn reads
    * the description as it stands when it starts (`buildKickPrompts`). */
   mentionSource?: MentionSource;
-  /** 1-based display stamp for `trigger: 'auto_retry'` kicks. */
+  /** Display stamp for `trigger: 'auto_retry'` kicks: the attempt of the
+   * budget the retry spends, 1-based, or 0 for a free credential rotation
+   * with none spent yet (`resolveAutoRetryBudget`). */
   autoRetryAttempt?: number;
 }
 

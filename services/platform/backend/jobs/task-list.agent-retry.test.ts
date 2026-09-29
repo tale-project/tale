@@ -148,6 +148,21 @@ describe('task.agent_retry', () => {
     expect(reads[0]?.values).toContain(AUTO_RETRY_HISTORY_LIMIT);
   });
 
+  it('stamps a resume after a clean run’s token refresh with no attempt spent', async () => {
+    const handler = createTaskList({
+      sql: sqlWith([failedRun('run-failed', 'credential_rotated')]),
+    })['task.agent_retry'];
+
+    await handler?.(PAYLOAD);
+
+    // 0, not "1 of 3": the card says the run resumed after a token refresh,
+    // and the next ordinary failure is the first counted attempt.
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ trigger: 'auto_retry', autoRetryAttempt: 0 }),
+    );
+  });
+
   it('stops a grant that answers 401 on every vend, once free retries and budget are spent', async () => {
     const handler = createTaskList({
       sql: sqlWith(

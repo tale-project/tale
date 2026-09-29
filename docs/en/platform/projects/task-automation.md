@@ -59,7 +59,7 @@ A task can have only one queued, running, or waiting run at a time, whichever au
 
 Recoverable failures get up to three immediate automatic retries. A run that makes sustained progress for at least fifteen minutes receives a fresh retry allowance. This helps long work recover from interruptions; it does not prove the resulting work is correct.
 
-An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance. After two such interruptions in a row, a further one counts like any other failure.
+An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance: the run keeps the count it had reached, or reads **Resumed after a token refresh** when it had not used an automatic retry yet. After two such interruptions in a row, a further one counts like any other failure.
 
 ## Cancel or pause work
 

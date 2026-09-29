@@ -117,7 +117,10 @@ export interface AutoRetryRunFacts {
 export interface AutoRetryBudget {
   /** Whether the just-failed run may be auto-retried. */
   readonly retry: boolean;
-  /** 1-based attempt number for the retry run's display stamp. */
+  /** The retry run's display stamp: the attempt of the budget it spends,
+   * 1-based. A free credential rotation spends none and shows the attempts
+   * already spent — 0 when there are none, which the task card reads as a
+   * resume after a token refresh. */
   readonly attempt: number;
 }
 
@@ -192,7 +195,11 @@ export function resolveAutoRetryBudget(
   }
   return {
     retry: free[0] || shortStreak <= AUTO_RETRY_MAX_ATTEMPTS,
-    // A free retry spends nothing: it shows the attempts already spent.
-    attempt: Math.min(Math.max(shortStreak, 1), AUTO_RETRY_MAX_ATTEMPTS),
+    // A free retry spends nothing: it shows the attempts already spent, so
+    // after a clean run it is no "1 of 3" — the next counted failure is.
+    attempt: Math.min(
+      free[0] ? shortStreak : Math.max(shortStreak, 1),
+      AUTO_RETRY_MAX_ATTEMPTS,
+    ),
   };
 }
