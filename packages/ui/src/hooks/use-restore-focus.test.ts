@@ -194,6 +194,148 @@ describe('useRestoreFocus', () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  /** A menu button and its open menu holding one item, as Radix renders
+   * them: the menu labelled by its button, the button declaring the popup. */
+  function openMenu(itemLabel = 'Edit') {
+    const trigger = document.createElement('button');
+    trigger.id = 'row-menu-trigger';
+    trigger.setAttribute('aria-haspopup', 'menu');
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-labelledby', trigger.id);
+    const item = document.createElement('div');
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = 0;
+    item.textContent = itemLabel;
+    menu.appendChild(item);
+    document.body.append(trigger, menu);
+    item.focus();
+    return { trigger, menu, item };
+  }
+
+  it("returns focus to the menu's button when a menu item opened it", () => {
+    // A row's actions menu → Edit: no restore ref at the call site. The menu
+    // names its button, and the button is still there once the menu is gone.
+    const { trigger, menu } = openMenu();
+
+    const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+      initialProps: { open: true },
+    });
+    menu.remove();
+
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('climbs a submenu to the outermost menu button', () => {
+    const { trigger, menu } = openMenu('More');
+    const subTrigger = menu.querySelector<HTMLElement>('[role="menuitem"]');
+    if (subTrigger === null) throw new Error('no item');
+    subTrigger.id = 'row-menu-more';
+    subTrigger.setAttribute('aria-haspopup', 'menu');
+    const submenu = document.createElement('div');
+    submenu.setAttribute('role', 'menu');
+    submenu.setAttribute('aria-labelledby', subTrigger.id);
+    const item = document.createElement('div');
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = 0;
+    submenu.appendChild(item);
+    document.body.appendChild(submenu);
+    item.focus();
+
+    const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+      initialProps: { open: true },
+    });
+    menu.remove();
+    submenu.remove();
+    result.current(new Event('close', { cancelable: true }));
+
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('finds the button that controls a menu naming no label', () => {
+    const trigger = document.createElement('button');
+    trigger.setAttribute('aria-haspopup', 'true');
+    trigger.setAttribute('aria-controls', 'actions-menu');
+    const menu = document.createElement('div');
+    menu.id = 'actions-menu';
+    menu.setAttribute('role', 'menu');
+    const item = document.createElement('div');
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = 0;
+    menu.appendChild(item);
+    document.body.append(trigger, menu);
+    item.focus();
+
+    const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+      initialProps: { open: true },
+    });
+    menu.remove();
+    result.current(new Event('close', { cancelable: true }));
+
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("prefers the caller's fallback over the menu's button", () => {
+    openMenu();
+    const toolbar = document.createElement('button');
+    document.body.appendChild(toolbar);
+    const fallbackRef = createRef<HTMLButtonElement>();
+    fallbackRef.current = toolbar;
+
+    const { result } = renderHook(
+      ({ open }) => useRestoreFocus(open, fallbackRef),
+      { initialProps: { open: true } },
+    );
+    result.current(new Event('close', { cancelable: true }));
+
+    expect(document.activeElement).toBe(toolbar);
+  });
+
+  it('never takes a label that opens nothing for the menu button', () => {
+    // A listbox labelled by its heading: the heading is no return point.
+    const heading = document.createElement('h2');
+    heading.id = 'picker-heading';
+    heading.tabIndex = -1;
+    const listbox = document.createElement('div');
+    listbox.setAttribute('role', 'listbox');
+    listbox.setAttribute('aria-labelledby', heading.id);
+    const option = document.createElement('div');
+    option.setAttribute('role', 'option');
+    option.tabIndex = 0;
+    listbox.appendChild(option);
+    document.body.append(heading, listbox);
+    option.focus();
+
+    const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+      initialProps: { open: true },
+    });
+    listbox.remove();
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).not.toBe(heading);
+  });
+
+  it('leaves Radix its default when the menu button is gone too', () => {
+    // The whole row went (another session deleted it): nothing to return to.
+    const { trigger, menu } = openMenu();
+
+    const { result } = renderHook(({ open }) => useRestoreFocus(open), {
+      initialProps: { open: true },
+    });
+    menu.remove();
+    trigger.remove();
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it('leaves an ordinary control that merely sits in a menu alone', () => {
     // The rule is the element's own role, not its ancestry: a button inside a
     // menu-labelled container is still a real control.

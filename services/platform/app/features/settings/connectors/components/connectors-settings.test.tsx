@@ -2,7 +2,7 @@ import { pickFilterOption } from '@tale/ui/testing/filters';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type {
   ConnectorSummary,
@@ -709,6 +709,48 @@ describe('ConnectorsSettings', () => {
         credentialId: 'cred-2',
       });
     });
+
+    // #3715: the menu item that opened the dialog is gone once it closes, so
+    // a keyboard user lands back on the row's menu button — never <body>.
+    it.each(['Edit credential', 'Replace token', 'Delete'])(
+      'returns keyboard focus to the row menu once %s closes',
+      async (item) => {
+        const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+        const trigger = screen.getByRole('button', {
+          name: 'Actions for Platform bot',
+        });
+        trigger.focus();
+        await user.keyboard('{Enter}');
+        const menu = within(await screen.findByRole('menu'));
+        const target = menu.getByRole('menuitem', { name: item });
+        for (
+          let step = 0;
+          step < 8 && document.activeElement !== target;
+          step++
+        ) {
+          await user.keyboard('{ArrowDown}');
+        }
+        expect(target).toHaveFocus();
+        await user.keyboard('{Enter}');
+        const dialog = await screen.findByRole('dialog');
+        await waitFor(() => {
+          expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+          expect(dialog).toContainElement(
+            document.activeElement as HTMLElement,
+          );
+        });
+
+        // Cancel from the keyboard; Escape is the real-browser suite's
+        // (`@tale/ui` dialog.browser.test.tsx), jsdom's layer stack needs two.
+        within(dialog).getByRole('button', { name: 'Cancel' }).focus();
+        await user.keyboard('{Enter}');
+
+        await waitFor(() => {
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+          expect(trigger).toHaveFocus();
+        });
+      },
+    );
 
     it('keeps make-default visible but inert on a disabled credential', async () => {
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
