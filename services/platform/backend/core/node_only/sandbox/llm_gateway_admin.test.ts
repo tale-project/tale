@@ -1346,6 +1346,32 @@ describe('applyGatewayConfig', () => {
     }
   });
 
+  it('names the gateway’s own reason when it refuses the config', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string | URL, init?: RequestInit) =>
+        Promise.resolve(
+          (init?.method ?? 'GET') === 'GET'
+            ? new Response(
+                JSON.stringify({
+                  client_config: {},
+                  auth_config: { is_enabled: false },
+                }),
+                { status: 200 },
+              )
+            : new Response(
+                '{"error":{"message":"auth password must include one special character"}}',
+                { status: 400 },
+              ),
+        ),
+      ),
+    );
+    const mod = await loadModule();
+    await expect(mod.applyGatewayConfig()).rejects.toThrow(
+      'llm-gateway apply config failed (400): {"error":{"message":"auth password must include one special character"}}',
+    );
+  });
+
   it('fails closed before touching the gateway when the admin password is unset', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);

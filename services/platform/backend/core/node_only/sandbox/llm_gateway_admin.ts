@@ -509,7 +509,9 @@ export async function revokeVirtualKey(keyId: string): Promise<void> {
     },
   );
   if (!res.ok && res.status !== 404) {
-    throw new Error(`llm-gateway revoke key failed (${res.status})`);
+    throw new Error(
+      `llm-gateway revoke key failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
   }
 }
 
@@ -1360,7 +1362,9 @@ export async function applyGatewayConfig(
     signal: AbortSignal.timeout(15_000),
   });
   if (!getRes.ok) {
-    throw new Error(`llm-gateway get config failed (${getRes.status})`);
+    throw new Error(
+      `llm-gateway get config failed (${getRes.status}): ${sanitizeError(await getRes.text())}`,
+    );
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const cfg = (await getRes.json()) as {
@@ -1416,7 +1420,11 @@ export async function applyGatewayConfig(
     signal: AbortSignal.timeout(15_000),
   });
   if (!putRes.ok) {
-    throw new Error(`llm-gateway apply config failed (${putRes.status})`);
+    // The gateway says why it refused (e.g. its admin-password policy on the
+    // first bootstrap); without its words an operator sees a bare 400.
+    throw new Error(
+      `llm-gateway apply config failed (${putRes.status}): ${sanitizeError(await putRes.text())}`,
+    );
   }
   gatewayConfigAppliedAt = Date.now();
 }
