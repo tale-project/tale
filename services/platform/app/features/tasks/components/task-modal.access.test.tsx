@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   ancestors: [] as Record<string, unknown>[],
   projectCanEdit: false,
   isAdmin: false,
+  ownedBy: null as Record<string, unknown> | null,
 }));
 
 const baseTask = {
@@ -118,6 +119,18 @@ vi.mock('./task-timeline', async (importOriginal) => ({
   TaskTimeline: () => null,
 }));
 vi.mock('./task-attachments', () => ({ TaskAttachments: () => null }));
+vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-subject-contract')
+  >()),
+  useTaskSubjectContract: () => state.ownedBy,
+}));
+vi.mock('./task-subject-panel', () => ({ TaskSubjectPanel: () => null }));
+vi.mock('./task-automation-badge', () => ({ TaskAutomationBadge: () => null }));
+vi.mock(
+  '@/app/features/automations/components/automation-settings-dialog',
+  () => ({ AutomationSettingsDialog: () => null }),
+);
 vi.mock('./task-dependencies', () => ({ TaskDependencies: () => null }));
 
 function openTask(task: Record<string, unknown>) {
@@ -150,6 +163,7 @@ beforeEach(() => {
   state.ancestors = [];
   state.projectCanEdit = false;
   state.isAdmin = false;
+  state.ownedBy = null;
 });
 
 describe('TaskModal — a member works their own task', () => {
@@ -235,6 +249,45 @@ describe('TaskModal — the create form', () => {
 
     expect(
       await screen.findByRole('button', { name: 'Manage labels' }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('TaskModal — the owning automation’s settings', () => {
+  // Saving them writes the project's files, which the server keeps with the
+  // project's editors — a member who works the task is not offered the door.
+  const automationOwned = {
+    automationSlug: 'document-verify-desk',
+    displayName: 'Document verification desk',
+    contract: { workflow: 'document-verify-desk', input: { kind: 'folder' } },
+    settings: {
+      forms: [
+        { file: 'settings.yml', fields: [{ key: 'region', type: 'text' }] },
+      ],
+    },
+  };
+  const settingsButton = {
+    name: 'Document verification desk — settings',
+  };
+
+  it('are not offered to a member working their own task', async () => {
+    state.ownedBy = automationOwned;
+    openTask({ ...baseTask, createdBy: 'u-member' });
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Title' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', settingsButton)).toBeNull();
+  });
+
+  it('open from the task for a project editor', async () => {
+    state.ownedBy = automationOwned;
+    state.access = { canEdit: true, canCreate: true };
+    state.projectCanEdit = true;
+    openTask(baseTask);
+
+    expect(
+      await screen.findByRole('button', settingsButton),
     ).toBeInTheDocument();
   });
 });

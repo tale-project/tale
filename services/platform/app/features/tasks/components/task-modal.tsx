@@ -1950,19 +1950,22 @@ export function EditTaskBody({
           />
           {/* The operator-owned configuration of the automation that
                     drives THIS task — reachable from the task, not only from
-                    the create dialog it was first set up in. */}
-          {ownedBy.settings !== null && settingsFolder !== null && (
-            <IconButton
-              icon={Settings2}
-              size="sm"
-              variant="ghost"
-              className="ml-auto shrink-0"
-              aria-label={tAutomations('settings.dialogTitle', {
-                name: ownedBy.displayName,
-              })}
-              onClick={() => setSettingsOpen(true)}
-            />
-          )}
+                    the create dialog it was first set up in. Saving writes
+                    the project's files, so only its editors see the door. */}
+          {ownedBy.settings !== null &&
+            settingsFolder !== null &&
+            canEditProject && (
+              <IconButton
+                icon={Settings2}
+                size="sm"
+                variant="ghost"
+                className="ml-auto shrink-0"
+                aria-label={tAutomations('settings.dialogTitle', {
+                  name: ownedBy.displayName,
+                })}
+                onClick={() => setSettingsOpen(true)}
+              />
+            )}
         </Row>
       )}
       {showProjectLink && project !== null && (
