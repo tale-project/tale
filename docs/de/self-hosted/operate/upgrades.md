@@ -90,3 +90,9 @@ Mit 0.5 ersetzte Postgres den früheren Convex-Anwendungsspeicher. Es gibt keine
 Erstelle Organisationen und Nutzer neu, prüfe und übertrage kompatible Konfiguration und importiere benötigte Dokumente erneut. Dateien in einem externen Bucket erhalten nicht automatisch Referenzen in der neuen Anwendungsdatenbank. Nimm die Ersatzumgebung ab, bevor du die alte stilllegst.
 
 Die CLI verweigert den nicht unterstützten Umstieg standardmäßig. Die Expertenoption `--accept-data-loss` ist kein Migrationswerkzeug und erhält keine alten Anwendungsdaten. Historische Volumes oder Datenbanken können nach früheren Upgrades verbleiben. Ihr Vorhandensein allein ist kein Grund, sie bei diesem Ablauf zu löschen.
+
+## 0.3 → 0.4: die OpenAI-kompatible API entfällt
+
+Von 0.2.10 bis 0.3 bot Tale unter `/api/v1` eine OpenAI-kompatible Schicht: `POST /api/v1/chat/completions` und `POST /api/v1/images/generations` mit Anfragen und Antworten im OpenAI-Format sowie ein `GET /api/v1/models` im OpenAI-Format. Ihr Feld `model` konnte einen Agenten nennen. Mit dem Neuaufbau in 0.4 ist diese Schicht entfallen, und keine spätere Version bringt sie zurück. Aufrufer dieser Routen, auch OpenAI-SDKs, die auf die Instanz zeigen, funktionieren danach nicht mehr: Chat Completions und Bildgenerierung antworten mit `404 NOT_FOUND`, und `GET /api/v1/models` antwortet mit der eigenen Liste von Tale, `{ "models": [...] }`.
+
+Finde diese Aufrufer vor dem Upgrade und plane ihren Ersatz. Fragen aus Skripten wandern zur asynchronen REST-Chat-API, die als eingebauter Assistent antwortet und nicht als reines Modell. Editor-Integrationen, die das Wissen von Tale brauchen, nutzen den MCP-Endpoint mit dem eigenen Modell des Editors. Arbeit, die mit den Modellen der Organisation laufen muss, geht an einen Projektagenten an einer Aufgabe. [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor) beschreibt jeden dieser Wege.

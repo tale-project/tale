@@ -90,3 +90,9 @@ The 0.5 application store replaced the earlier Convex database with Postgres. Th
 Recreate organizations and users, review and transfer compatible configuration, and reimport required documents. Files left in an external bucket do not automatically acquire references in the new application database. Accept the replacement environment before decommissioning the old one.
 
 The CLI refuses the unsupported cutover by default. Its expert `--accept-data-loss` override is not a migration tool and must not be used to preserve old application data. Historical volumes or databases can remain after earlier upgrades; their presence alone is not a reason to delete them during this procedure.
+
+## 0.3 → 0.4: the OpenAI-compatible API was removed
+
+From 0.2.10 through 0.3, Tale served an OpenAI-compatible layer under `/api/v1`: `POST /api/v1/chat/completions` and `POST /api/v1/images/generations` in the OpenAI request and response shapes, and an OpenAI-shaped `GET /api/v1/models`. Its `model` field could name an agent. The 0.4 rebuild removed this layer, and no later release restores it. Callers of these routes, including OpenAI SDKs pointed at the instance, stop working: chat completions and image generations answer `404 NOT_FOUND`, and `GET /api/v1/models` answers Tale's own `{ "models": [...] }` list.
+
+Find those callers before the upgrade and plan their replacement. Scripted questions move to the asynchronous REST chat API, which answers as the workspace assistant rather than as a bare model. Editor integrations that wanted Tale's knowledge use the MCP endpoint with the editor's own model, and work that must run on the organization's models goes to a project agent on a task. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) describes each path.
