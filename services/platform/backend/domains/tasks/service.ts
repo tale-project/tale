@@ -294,7 +294,7 @@ export type WorkableTask = TaskOwnership & { parentTaskId?: string | null };
  * {@link TASK_ANCESTRY_DEPTH_MAX} — one bounded recursive read, taken only
  * when the task itself does not settle the question.
  */
-export async function loadTaskAncestry(
+async function loadTaskAncestry(
   sql: Sql | TransactionSql,
   organizationId: string,
   parentTaskId: string,

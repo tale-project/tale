@@ -37,7 +37,7 @@ import {
 /** Whether the person a run's starter names may edit the project now: a
  * live member of the organization with the Editor role or higher and the
  * project's audience. A starter that names nobody usable may not. */
-export async function runStarterMayEditProject(
+async function runStarterMayEditProject(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string; startedBy: string },
 ): Promise<boolean> {

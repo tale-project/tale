@@ -36,7 +36,7 @@ async function deployedTaskContract(
 
 /** Whether the automation's deployed version declares a task contract —
  * it was built to be started on a task. */
-export async function automationTakesTasks(
+async function automationTakesTasks(
   sql: Sql | TransactionSql,
   organizationId: string,
   name: string,
@@ -76,7 +76,7 @@ export async function taskOwnedByAutomation(
  * Whether the caller may start the automation on the task, assign the task
  * to it, or create a task for it (`task` null: the task does not exist yet).
  */
-export async function mayPutAutomationOnTask(
+async function mayPutAutomationOnTask(
   sql: Sql | TransactionSql,
   args: {
     project: ProjectRow;
