@@ -24,8 +24,10 @@ import {
 } from '../domains/automations/store.ts';
 import {
   getProjectAuthContext,
+  loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../domains/projects/service.ts';
+import { assertAutomationForTask } from '../domains/tasks/automation-access.ts';
 import {
   addTaskComment,
   listTaskComments,
@@ -42,6 +44,8 @@ import {
 import { getPendingReviewForTask } from '../domains/tasks/reviews.ts';
 import {
   archiveTask,
+  assertTaskWorkable,
+  boardTaskAccess,
   loadTaskOrThrow,
   restoreTask,
   TASK_DESCRIPTION_MAX,
@@ -217,7 +221,10 @@ function runRef(runId: string | null): {
  * The project's task machine door: materialize an external item, read the
  * task, start its workflow, and join its discussion. Every operation names
  * its project in the path and rechecks the key holder's current visibility.
- * Intake and execution need project write access; comments stay read-level.
+ * Every reader of an active project may create a task and comment; a change
+ * to a task — its intake repeat, its archive toggle, a start, a review — is
+ * for whoever may work it (`assertTaskWorkable`: an editor of the project, or
+ * the task's own creator or person assignee).
  */
 export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
@@ -227,12 +234,15 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * or invisible → 404 `PROJECT_NOT_FOUND`, so a bad project id is blamed
    * on the project, never on the task), then the task, which the path
    * project must own even when the user can read both projects (404
-   * `TASK_NOT_FOUND`), and only then the write and active checks — so a
-   * task under the wrong project cannot be told apart through an
-   * editor/archive refusal. A mutation on an archived task is refused the
-   * way one on an archived project is (403 `TASK_ARCHIVED`): the contract
-   * promises "an active task". Only known visibility failures become
-   * 404; outages propagate.
+   * `TASK_NOT_FOUND`), and only then the work and active checks — so a
+   * task under the wrong project cannot be told apart through a
+   * permission or archive refusal. `write` is the task's work gate (403
+   * `RBAC_FORBIDDEN` for a member on someone else's task, then
+   * `PROJECT_ARCHIVED`); `active` alone is a read-level mutation's (a
+   * comment). A mutation on an archived task is refused the way one on an
+   * archived project is (403 `TASK_ARCHIVED`): the contract promises "an
+   * active task". Only known visibility failures become 404; outages
+   * propagate.
    */
   const loadVisibleTask = async (
     sql: Sql | TransactionSql,
@@ -241,16 +251,18 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     taskId: string,
     options: { write?: boolean; active?: boolean } = {},
   ): Promise<TaskRow> => {
-    await loadRestProject(sql, auth, projectId);
+    const project = await loadRestProject(sql, auth, projectId);
     const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
     if (task.projectId !== projectId) {
       throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
     }
-    if (options.write || options.active) {
-      await loadRestProject(sql, auth, projectId, options);
-      if (task.archivedAt !== null) {
-        throw new RestRefusal('Task is archived', 403, 'TASK_ARCHIVED');
-      }
+    if (options.write) {
+      await assertTaskWorkable(sql, project, task, auth);
+    } else if (options.active) {
+      await loadRestProject(sql, auth, projectId, { active: true });
+    }
+    if ((options.write || options.active) && task.archivedAt !== null) {
+      throw new RestRefusal('Task is archived', 403, 'TASK_ARCHIVED');
     }
     return task;
   };
@@ -398,6 +410,14 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const task = await loadVisibleTask(tx, auth, projectId, taskId, {
         write: true,
       });
+      // A member starts only an automation built for tasks, or the one that
+      // owns this task; an editor any.
+      await assertAutomationForTask(tx, {
+        project: await loadProjectOrThrow(tx, projectId),
+        auth,
+        task,
+        automation: workflowSlug,
+      });
       outcome = await startWorkflowForTaskInTx(tx, {
         organizationId: auth.organizationId,
         task,
@@ -416,7 +436,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const projectId = c.req.param('id');
-      await loadRestProject(deps.sql, auth, projectId, { write: true });
+      // Every reader of an active project may create a task; a repeat is a
+      // change to the task it names, judged in the transaction below.
+      await loadRestProject(deps.sql, auth, projectId, { active: true });
       // A rate refusal must precede the task commit. A retried request that
       // names a workflow is still a work-start attempt, even if it dedupes.
       if (body.runWorkflowSlug !== undefined) {
@@ -426,7 +448,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const { externalState, runWorkflowSlug, setupFolderName, ...intake } =
         body;
       const result = await transactSerializable(deps.sql, async (tx) => {
-        await loadRestProject(tx, auth, projectId, { write: true });
+        const project = await loadRestProject(tx, auth, projectId, {
+          active: true,
+        });
         // A repeat is a reconcile of the existing task, and the docs ask
         // for a stable payload on retry: the run workflow only ever starts
         // a CREATE, so only a create validates its project binding — a
@@ -440,14 +464,33 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           externalId: intake.externalId,
           dedupeScope: 'project',
         });
-        await assertIntakeAutomations(
-          tx,
-          auth,
-          projectId,
+        // Reconciling a task is a change to it: its creator's, its person
+        // assignee's or an editor's — never another member's intake.
+        if (existing !== null) {
+          await assertTaskWorkable(tx, project, existing, auth);
+        }
+        const namedAutomations: {
+          automationSlug?: string;
+          runWorkflowSlug?: string;
+        } =
           existing === null
             ? { ...intake, runWorkflowSlug }
-            : { automationSlug: intake.automationSlug },
-        );
+            : { automationSlug: intake.automationSlug };
+        await assertIntakeAutomations(tx, auth, projectId, namedAutomations);
+        // A member may hand a task only to an automation built for tasks
+        // (or the one already owning it); an editor to any.
+        for (const automation of new Set([
+          namedAutomations.automationSlug,
+          namedAutomations.runWorkflowSlug,
+        ])) {
+          if (automation === undefined) continue;
+          await assertAutomationForTask(tx, {
+            project,
+            auth,
+            task: existing,
+            automation,
+          });
+        }
         // A named Setup folder is resolved in this transaction on every
         // intake — a repeat keeps the binding fresh — and only its id
         // reaches the domain, as `externalUrl`; the name never does.
@@ -471,6 +514,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           externalState: externalState ?? 'open',
           creatorType: 'user',
           dedupeScope: 'project',
+          // A label the catalog lacks is created only for an editor of the
+          // project; anyone else names labels it already has.
+          mintLabels: boardTaskAccess(project, auth).canEdit,
         });
       });
       const taskId = result.taskId;
@@ -523,9 +569,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * stays readable, refuses comments and starts with `TASK_ARCHIVED`),
    * `false` restores it. Both idempotent: a task already in the requested
    * state is left as it is, so a mirror can settle a superseded task
-   * without first reading it. Write access to an ACTIVE project, like
-   * every task write — the archived-task refusal itself does not apply
-   * here, or the toggle could never turn a task back.
+   * without first reading it. An ACTIVE project and the task's work gate,
+   * like every task write — the archived-task refusal itself does not
+   * apply here, or the toggle could never turn a task back.
    */
   app.patch('/projects/:id/tasks/:taskId', async (c) => {
     const body = await parseBody(c, taskPatchBody);
@@ -535,14 +581,17 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const projectId = c.req.param('id');
       const taskId = c.req.param('taskId');
       await transactSerializable(deps.sql, async (tx) => {
-        // The project's write gate (an archived project answers
-        // PROJECT_ARCHIVED), the task's own project, and only then the
+        // The active project (an archived one answers PROJECT_ARCHIVED),
+        // the task's own project, the task's work gate, and only then the
         // toggle — inside the one transaction the domain writes in.
-        await loadRestProject(tx, auth, projectId, { write: true });
+        const project = await loadRestProject(tx, auth, projectId, {
+          active: true,
+        });
         const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
         if (task.projectId !== projectId) {
           throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
         }
+        await assertTaskWorkable(tx, project, task, auth);
         if (body.archived) await archiveTask(tx, auth, taskId);
         else await restoreTask(tx, auth, taskId);
       });
@@ -651,7 +700,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
-  /** Task-bound execution uses project write access, not the developer
+  /** Task-bound execution uses the task's work gate, not the developer
    * capability required for arbitrary automation input. */
   app.post('/projects/:id/tasks/:taskId/start', async (c) => {
     const body = await parseBody(c, taskStartBody);
@@ -660,7 +709,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const projectId = c.req.param('id');
       const taskId = c.req.param('taskId');
-      await loadVisibleTask(deps.sql, auth, projectId, taskId, { write: true });
+      const task = await loadVisibleTask(deps.sql, auth, projectId, taskId, {
+        write: true,
+      });
       // The workflow's two absences are the intake's two refusals (404 /
       // 409), judged before the execute budget is charged — a slug the
       // contract refuses spends nothing. `not_started` below is left for
@@ -672,6 +723,15 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         body.workflowSlug,
         'start',
       );
+      // So is an automation this key holder may not start on the task (a
+      // member starts only one built for tasks, or the task's owner); the
+      // start transaction asks again.
+      await assertAutomationForTask(deps.sql, {
+        project: await loadProjectOrThrow(deps.sql, projectId),
+        auth,
+        task,
+        automation: body.workflowSlug,
+      });
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
       const started = await startTaskWorkflow(
@@ -769,7 +829,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       );
       const result = await transactSerializable(deps.sql, async (tx) => {
         // The PERSON's access decides, not the key's: a relayed decision
-        // by someone who could not write this task on the board is refused
+        // by someone who could not work this task on the board is refused
         // the same way the board would refuse them.
         const task = await loadVisibleTask(tx, actorAuth, projectId, taskId, {
           write: true,
@@ -780,6 +840,16 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             409,
             'TASK_NOT_IN_REVIEW',
           );
+        }
+        // Requesting changes through an automation starts it — the person's
+        // own right to put that automation to work on the task.
+        if (body.decision === 'request_changes' && workflowSlug !== undefined) {
+          await assertAutomationForTask(tx, {
+            project: await loadProjectOrThrow(tx, projectId),
+            auth: actorAuth,
+            task,
+            automation: workflowSlug,
+          });
         }
         const review = await getPendingReviewForTask(
           tx,

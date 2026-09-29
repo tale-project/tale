@@ -167,3 +167,61 @@ describe('ConversationsList unread mark', () => {
     expect(dot.className).not.toMatch(/\bbg-blue-/);
   });
 });
+
+/**
+ * The phone list shows the same failed-read state as the Home panel's Inbox
+ * view: a read that gave up is never "No conversations in this tab", and
+ * **Try again** re-issues it (#3709).
+ */
+describe('ConversationsList read failure', () => {
+  it('says the list did not load instead of that the tab is empty', async () => {
+    const onRetry = vi.fn();
+    const { user } = render(
+      <ConversationsList
+        conversations={[]}
+        paginationStatus="Exhausted"
+        loadError={new Error('Request failed with status 403')}
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load conversations",
+    );
+    expect(
+      screen.queryByText('No conversations in this tab'),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('still reads empty for a tab that answered with no conversation', () => {
+    render(
+      <ConversationsList
+        conversations={[]}
+        paginationStatus="Exhausted"
+        loadError={null}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText('No conversations in this tab'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('keeps loaded rows when a later read fails', () => {
+    render(
+      <ConversationsList
+        conversations={[makeConversation()]}
+        paginationStatus="CanLoadMore"
+        loadError={new Error('Request failed with status 503')}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Re: Refund request')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});

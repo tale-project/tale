@@ -83,6 +83,17 @@ export function useMyBudgetUsage(organizationId: string) {
 }
 
 /**
+ * The reader's standing at the model endpoints for API keys — whether the
+ * organization turned them on, whether the reader may call them, and the
+ * models they may call there. Any member may read their own.
+ */
+export function useMyModelApiAccess(organizationId: string) {
+  return useBackendQuery('governance/queries:getMyModelApiAccess', {
+    organizationId,
+  });
+}
+
+/**
  * Resolved password policy for the given organization — an admin read: the
  * server refuses members, and this then returns the built-in defaults, as it
  * does while the query is loading, when no organizationId is available, or
@@ -321,6 +332,25 @@ export function useTranscriptionModelState(organizationId: string) {
       'transcription-model',
     ),
     'lib/providers/transcription_actions:getTranscriptionModelState',
+    { organizationId },
+  );
+}
+
+/**
+ * Whether agents may generate images, the image models a pin may name, and
+ * what a turn would use right now — all resolved by the server with the
+ * admission a turn applies, so the picker never offers a model the tool
+ * could not call. Keyed under the provider-credential entity: a credential
+ * or catalog change moves the answer.
+ */
+export function useImageGenerationState(organizationId: string) {
+  return useActionQuery(
+    backendKey(
+      organizationId,
+      PROVIDER_CREDENTIAL_HINT_ENTITY,
+      'image-generation-model',
+    ),
+    'lib/providers/image_generation_actions:getImageGenerationState',
     { organizationId },
   );
 }

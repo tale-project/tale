@@ -41,10 +41,12 @@ Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allei
 | **Admin** | Personen, Dienste, Richtlinien und die Arbeit des Teams verwalten | Voller Zugriff auf Organisationseinstellungen; keine Übertragung der Inhaberschaft. |
 | **Entwickler** | Agenten, Automatisierungen und Integrationen erstellen | Technische Einstellungen wie Anbieter, Connectors und API-Zugriff; keine Mitgliederverwaltung. |
 | **Redakteur** | Inhalte pflegen und die tägliche Arbeit bearbeiten | Inhalte bearbeiten; Workflow- und Connector-Ressourcen nur lesen. |
-| **Mitglied** | Chat nutzen und freigegebene Ressourcen lesen | Keine Organisationsverwaltung; darf Nachrichtenfeedback abgeben. |
+| **Mitglied** | Chat nutzen, freigegebene Ressourcen lesen und Projektaufgaben erstellen, die eigenen auch mit Projektagenten bearbeiten | Keine Organisationsverwaltung; darf Nachrichtenfeedback abgeben. |
 | **Deaktiviert** | Kein aktiver Zugriff | Der Mitgliedschaftseintrag bleibt bestehen, ohne Rechte zu gewähren. |
 
 Wer weder Inhaber noch Admin ist, kann **Einstellungen > Mitglieder** nicht öffnen und sieht die eigene Rolle unter [**Einstellungen > Konto > Deine Rolle**](/de/platform/member/preferences#role).
+
+Für Projektaufgaben gilt eine eigene Regel: Wer ein Projekt öffnen kann, erstellt darin Aufgaben und ändert die eigenen, also die selbst erstellten und die zugewiesenen. Redakteure und höhere Rollen ändern jede Aufgabe. Einstellungen, Agenten und Dateien des Projekts bleiben bei den Redakteuren. [Aufgaben auf dem Projektboard verwalten](/de/platform/projects/tasks#wer-aufgaben-erstellen-und-aendern-darf) zählt auf, was Mitglieder mit ihren eigenen Aufgaben tun können.
 
 Die Rolle beschreibt Befugnisse, nicht die Sichtbarkeit jedes Datensatzes. Konversationen folgen ihrer Zuweisung: Eine Person sieht Arbeit, die ihr oder ihren Teams zugewiesen ist. Nicht zugewiesene Konversationen bleiben Inhabern und Admins zur Sichtung vorbehalten. Siehe [Konversationen zuweisen](/de/platform/admin/governance/policies-and-limits#konversations-routing).
 

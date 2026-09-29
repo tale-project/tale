@@ -16,6 +16,24 @@ export const TASK_AGENT_OP_KIND: SandboxAgentOpKind = 'task-agent';
 /** The kind the automation agent host files its turn ops under. */
 export const WORKFLOW_AGENT_OP_KIND: SandboxAgentOpKind = 'workflow-agent';
 
+/**
+ * The kind one request through the model endpoints for API keys files its op
+ * under (`domains/model_api`). Deliberately NOT an agent-turn kind: the row
+ * belongs to no sandbox session (its `session_id` is `model-api:<key id>`,
+ * which names no session row) and runs no harness, so the run-card, metric
+ * and session reads above never see it. It borrows the op row for what the
+ * managed turns already keep there — the gateway allowance held against the
+ * budget caps, the minted key, and the settlement facts the reconcile sweep
+ * finishes.
+ */
+export const MODEL_API_OP_KIND = 'model-api';
+
+/** The `session_id` a model-endpoint request's op row carries — one per API
+ * key, so a key's requests read together. */
+export function modelApiOpSessionId(apiKeyId: string): string {
+  return `${MODEL_API_OP_KIND}:${apiKeyId}`;
+}
+
 /** Per-owner concurrent-session cap (org cap lives spawner-side too). */
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
@@ -41,3 +59,29 @@ export const SANDBOX_SESSION_LIVE_STATUSES = [
   // act on it, and the next turn resumes it in place (same createdAt).
   'stopped',
 ] as const;
+
+/**
+ * Images one managed agent turn may create through `generate_image`,
+ * whatever they cost: defense in depth under the turn's spend allowance, so
+ * a looping or misled agent stops even where images cost next to nothing.
+ */
+export const SANDBOX_TURN_MAX_GENERATED_IMAGES = 16;
+
+/**
+ * What one image is held at while its generation runs, in cents — measured
+ * against the turn's allowance and the budget caps before the provider is
+ * called, and replaced by the booked cost once the call ends. Generous on
+ * purpose: the curated image models cost 1–7 cents an image at the medium
+ * quality the platform asks for, and a pinned model priced higher can
+ * overshoot by its difference once at most, since the next call is measured
+ * against what the last one really cost.
+ */
+export const SANDBOX_IMAGE_HOLD_CENTS = 25;
+
+/**
+ * How long an admitted `generate_image` call may stay in flight before the
+ * next call of the same turn takes its place: longer than any live call
+ * runs (three minutes per provider request, plus reading and saving the
+ * files), so only a call whose process died is ever taken over.
+ */
+export const SANDBOX_IMAGE_CALL_STALE_MS = 10 * 60 * 1000;

@@ -16,7 +16,7 @@ import { partitionSubtasks } from '../lib/subtasks';
 import { BoardColumn } from './board-column';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { useTaskBoardContext } from './task-board-context';
-import { TaskCard, type TaskRow } from './task-card';
+import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
 
 /**
  * Kanban board. All drag mechanics (cross-column landing preview, within-column
@@ -32,13 +32,14 @@ export function KanbanBoard({
   tasks,
   onOpenTask,
   projectKey,
-  canEdit = false,
+  canWorkTask = readOnlyBoard,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
-  /** Caller may write to the project — gates drag-reorder and inline pickers. */
-  canEdit?: boolean;
+  /** Whether the viewer may work a task (`useTaskAccess`) — gates its
+   * drag-reorder and inline pickers. Absent, every card is read-only. */
+  canWorkTask?: (task: TaskRow) => boolean;
 }) {
   const { t } = useT('tasks');
   const { confirmCancel, dialog } = useRunCancelConfirm();
@@ -124,7 +125,7 @@ export function KanbanBoard({
             childrenByParent={childrenByParent}
             onOpenTask={onOpenTask}
             projectKey={projectKey}
-            canEdit={canEdit}
+            canWorkTask={canWorkTask}
             dropHint={dropHints?.get(status) ?? null}
           />
         ))}
@@ -140,7 +141,7 @@ export function KanbanBoard({
               subtasks={childrenByParent.get(dnd.activeTask._id)}
               dragging
               projectKey={projectKey}
-              canEdit={canEdit}
+              canWorkTask={canWorkTask}
             />
           </div>
         ) : null}

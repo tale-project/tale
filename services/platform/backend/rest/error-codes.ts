@@ -117,6 +117,29 @@ export const REST_ERROR_CODES = [
   'LEGAL_HOLD_ACTIVE',
   'MESSAGE_NOT_FOUND',
   'METHOD_NOT_ALLOWED',
+  // The model endpoints for API keys (`/api/v1/openai`, `/api/v1/anthropic`,
+  // rest/v1-model-api.ts), answered in each wire's own error shape: the
+  // organization has not turned them on; the key holder's role and grants do
+  // not admit them; a guardrail blocked the request, cannot be honoured on
+  // the lane (a tokenizing PII policy), or failed under a fail-closed
+  // policy; model access refuses the model, or nothing lists it; the model
+  // does not read images or take tools; the gateway cannot serve it; the
+  // vendor refused or the relay broke; the request names a tool the vendor
+  // would run.
+  'MODEL_API_CONCURRENCY_EXCEEDED',
+  'MODEL_API_DISABLED',
+  'MODEL_API_FORBIDDEN',
+  'MODEL_API_GUARDRAIL_BLOCKED',
+  'MODEL_API_GUARDRAIL_UNAVAILABLE',
+  'MODEL_API_GUARDRAIL_UNSUPPORTED',
+  'MODEL_API_MODEL_FORBIDDEN',
+  'MODEL_API_MODEL_UNKNOWN',
+  'MODEL_API_TEXT_TOO_LARGE',
+  'MODEL_API_TOOLS_UNSUPPORTED',
+  'MODEL_API_UNAVAILABLE',
+  'MODEL_API_UPSTREAM_ERROR',
+  'MODEL_API_VENDOR_TOOL_UNSUPPORTED',
+  'MODEL_API_VISION_UNSUPPORTED',
   'NOT_FOUND',
   'OBJECT_STORE_UNAVAILABLE',
   'OBJECT_STORE_UNCONFIGURED',
@@ -176,6 +199,9 @@ export const REST_ERROR_CODES = [
   'TASK_AUTOMATION_UNAVAILABLE',
   'TASK_HAS_LIVE_RUN',
   'TASK_HAS_OPEN_SUBTASKS',
+  // The task intake of a key holder who is not the project's editor names a
+  // label the project's catalog does not have.
+  'TASK_LABEL_UNKNOWN',
   'TASK_NOT_FOUND',
   'TASK_NOT_IN_REVIEW',
   'TEAM_ACCESS_DENIED',

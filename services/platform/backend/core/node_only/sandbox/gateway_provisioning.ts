@@ -25,6 +25,14 @@
  * rotate that key last-writer-wins. Isolation between organizations is the
  * invariant the key naming + VK binding enforce; credential choice within an
  * org is a routing preference.
+ *
+ * The model endpoints for API keys call the same entry point once per
+ * request (`requestScoped`): the credential still resolves every time, so a
+ * disabled or deleted one refuses at once, but the gateway round trips a
+ * session create repeats are taken from what this process verified moments
+ * ago (GatewayReuseOptions). A refusal says which side it came from —
+ * `gatewayProvisioningFailureStage` — so the caller can tell the person
+ * whether the credential or the gateway needs attention.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -47,6 +55,7 @@ import {
   requireGatewayAdminPassword,
   resolveGatewayRouting,
   type AllowedModelRef,
+  type GatewayReuseOptions,
   type ProviderProvision,
 } from './llm_gateway_admin';
 
@@ -54,6 +63,48 @@ import {
  * returns the full row as `v.any()`). */
 interface CredentialRowFacts {
   modelAllowlist?: string[];
+}
+
+/**
+ * Which side of the provisioning a refusal came from — what the person who
+ * hit it can do about it:
+ *
+ *  - `credential`: the provider's credential could not be resolved or used —
+ *    an unknown provider, a disabled or deleted credential, a secret that
+ *    could not be read, a credential the gateway cannot serve. An admin
+ *    fixes it in the provider's settings.
+ *  - `gateway`: everything after the credential resolved — pushing it into
+ *    the sandbox LLM gateway, the auth posture, a custom record's price, the
+ *    mint. The gateway is down or refusing; a later retry is the remedy.
+ */
+export type GatewayProvisioningFailureStage = 'credential' | 'gateway';
+
+/** A refusal this module raises, tagged with its stage. Its `message` is the
+ * sentence the hosts post as the reason a turn could not start, and its
+ * `cause` the failure underneath. */
+class GatewayProvisioningError extends Error {
+  readonly stage: GatewayProvisioningFailureStage;
+
+  constructor(
+    stage: GatewayProvisioningFailureStage,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'GatewayProvisioningError';
+    this.stage = stage;
+  }
+}
+
+/**
+ * The stage of whatever `provisionSessionGatewayKey` threw. Its own refusals
+ * carry theirs; anything else — the admin-password precondition, the
+ * auth-posture apply, the mint — failed on the gateway's side.
+ */
+export function gatewayProvisioningFailureStage(
+  error: unknown,
+): GatewayProvisioningFailureStage {
+  return error instanceof GatewayProvisioningError ? error.stage : 'gateway';
 }
 
 /**
@@ -205,7 +256,8 @@ async function pushModelPricing(
         // turn — the exact metering the cap promises. Refuse the session
         // rather than run it unmetered; a standard provider (priced by the
         // datasheet, the override only corrects drift) still runs.
-        throw new Error(
+        throw new GatewayProvisioningError(
+          'gateway',
           `Provider "${ref.providerSlug}" cannot serve this session: the price of ${ref.modelId} could not be pushed to the sandbox LLM gateway, and a custom upstream bills at 0 without it (${describeFailure(err)})`,
           { cause: err },
         );
@@ -243,6 +295,19 @@ export interface SessionGatewayArgs {
   credentialIds?: Partial<Record<string, Id<'providerCredentials'>>>;
   /** Hard spend cap for the minted key. */
   budgetCents: number;
+  /**
+   * The key serves one request the platform relays itself (the model
+   * endpoints for API keys mint one per request), not a sandbox session: the
+   * gateway round trips reuse what this process verified moments ago
+   * (GatewayReuseOptions), and a provider whose credential the gateway
+   * cannot serve refuses at once. A sandbox session leaves it unset — every
+   * create lists the org's keys and re-asserts the gateway's auth posture.
+   */
+  requestScoped?: boolean;
+  /** The request a request-scoped key serves; it ends the key's name, so
+   * two requests of one API key minting in the same millisecond do not
+   * collide on the gateway's unique key name. */
+  requestId?: string;
 }
 
 export interface SessionGatewayKey {
@@ -255,15 +320,17 @@ export interface SessionGatewayKey {
 }
 
 /**
- * Provision + mint for one sandbox session. FAIL-CLOSED end to end: every
- * provider the session's models need must resolve to a live credential NOW,
- * or nothing is minted. The gateway keeps the org's upstream key from the
- * last successful provision, so a mint that shrugged off a failed
- * credential resolve (disabled, deleted, rotated away) would bind a fresh
- * virtual key to that stale secret and keep serving a credential the admin
- * revoked. The auth-posture apply is fail-closed for the same reason —
- * swallowing its failure could leave the gateway accepting un-keyed or
- * model-unrestricted inference, defeating the whole per-session key model.
+ * Provision + mint for one sandbox session, or for one request-scoped key
+ * (`requestScoped`). FAIL-CLOSED end to end: every provider the session's
+ * models need must resolve to a live credential NOW, or nothing is minted.
+ * The gateway keeps the org's upstream key from the last successful
+ * provision, so a mint that shrugged off a failed credential resolve
+ * (disabled, deleted, rotated away) would bind a fresh virtual key to that
+ * stale secret and keep serving a credential the admin revoked. The
+ * auth-posture apply is fail-closed for the same reason — swallowing its
+ * failure could leave the gateway accepting un-keyed or model-unrestricted
+ * inference, defeating the whole per-session key model. What it throws
+ * tells its stage through `gatewayProvisioningFailureStage`.
  */
 export async function provisionSessionGatewayKey(
   ctx: ActionCtx,
@@ -274,6 +341,9 @@ export async function provisionSessionGatewayKey(
   // network, and every management call below would otherwise fail one by one
   // with the same root cause. Surface it once, clearly.
   requireGatewayAdminPassword();
+  const reuse: GatewayReuseOptions = {
+    reuseRecent: args.requestScoped === true,
+  };
 
   // One provision-build per unique connector (one credential resolve each),
   // then expand into the EXACT gateway records the mint will bind to. A
@@ -298,15 +368,30 @@ export async function provisionSessionGatewayKey(
     } catch (err) {
       // No stale-key fallback: the org's upstream key from an earlier
       // provision may still sit in the gateway, and continuing here is what
-      // let a disabled or deleted credential keep serving sandbox turns. A
-      // plain Error: the hosts post `message` on the run as the reason the
-      // turn could not start, so it carries the credential's own words.
-      throw new Error(
+      // let a disabled or deleted credential keep serving sandbox turns. An
+      // Error, never an AppError (whose message is its serialized payload):
+      // the hosts post `message` on the run as the reason the turn could not
+      // start, so it carries the credential's own words.
+      throw new GatewayProvisioningError(
+        'credential',
         `Provider "${providerSlug}" cannot serve this session: ${describeFailure(err)}`,
         { cause: err },
       );
     }
-    if (base) baseBySlug.set(providerSlug, base);
+    if (base) {
+      baseBySlug.set(providerSlug, base);
+    } else if (args.requestScoped === true) {
+      // A request-scoped key binds only records this call provisioned. The
+      // gateway may still hold the org's key from an api-key credential this
+      // provider no longer uses — and this process may still remember its
+      // id — so minting on regardless would serve the request on a
+      // credential the admin replaced. The model endpoints offer only
+      // credentials the gateway serves: this one changed under the request.
+      throw new GatewayProvisioningError(
+        'credential',
+        `Provider "${providerSlug}" cannot serve this session: its credential cannot be served through the sandbox LLM gateway (a subscription runs only in its vendor's harness, and a per-credential endpoint is not provisioned into the gateway)`,
+      );
+    }
   }
 
   const provisions: ProviderProvision[] = [];
@@ -351,7 +436,11 @@ export async function provisionSessionGatewayKey(
     slugByRecord.set(provision.name, ref.providerSlug);
     provisions.push(provision);
   }
-  const failures = await provisionProviders(args.organizationId, provisions);
+  const failures = await provisionProviders(
+    args.organizationId,
+    provisions,
+    reuse,
+  );
   // Every record here is one the mint below binds to, so a skipped push
   // never helps: the gateway keeps the org's key from the last successful
   // provision under the same stable name, and `mintVirtualKey` would resolve
@@ -361,22 +450,27 @@ export async function provisionSessionGatewayKey(
   const failed = failures[0];
   if (failed !== undefined) {
     const providerSlug = slugByRecord.get(failed.name) ?? failed.name;
-    throw new Error(
+    throw new GatewayProvisioningError(
+      'gateway',
       `Provider "${providerSlug}" cannot serve this session: its credential could not be pushed to the sandbox LLM gateway (${describeFailure(failed.error)})`,
       { cause: failed.error },
     );
   }
 
-  await applyGatewayConfig();
+  await applyGatewayConfig(reuse);
 
   await pushModelPricing(ctx, args);
 
-  const minted = await mintVirtualKey({
-    budgetCents: args.budgetCents,
-    allowedModels: args.allowedModels,
-    organizationId: args.organizationId,
-    sessionId: args.sessionId,
-  });
+  const minted = await mintVirtualKey(
+    {
+      budgetCents: args.budgetCents,
+      allowedModels: args.allowedModels,
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      ...(args.requestId !== undefined ? { requestId: args.requestId } : {}),
+    },
+    reuse,
+  );
   return {
     token: minted.key,
     keyId: minted.keyId,

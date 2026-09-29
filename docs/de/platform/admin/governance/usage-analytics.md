@@ -24,7 +24,9 @@ Unter den Assistentennamen können auch Hilfsaufgaben wie die Erzeugung von Chat
 
 ## Kosten zusammen mit Tokens lesen
 
-Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie die Sprachausgabe können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten.
+Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie die Sprachausgabe oder die Bildgenerierung können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten.
+
+Ein Bild, das ein Agent erstellt hat, erscheint unter seinem Bildmodell in **Top-Modelle** und unter dem Agenten oder der Automatisierung in **Top-Assistenten**, mit einer Anfrage pro Bild und ohne Tokens. Als Kosten gilt der Betrag, den OpenRouter gemeldet hat, bei OpenAI der Listenpreis der Bild-Tokens, die OpenAI gemeldet hat. Eine Anfrage, die der Anbieter berechnet hat, ohne ein brauchbares Bild zu liefern, zählt ebenso.
 
 Lies die Kosten als erfasste Anwendungsnutzung, nicht als Rechnung deines Anbieters. Preise, Abos, Guthaben und nicht erfasste Aufrufe können den Vergleich beeinflussen. Eine angezeigte Null beweist nicht, dass der Anbieter nichts berechnet hat.
 

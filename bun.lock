@@ -329,7 +329,7 @@
         "mammoth": "1.12.0",
         "micromark": "4.0.2",
         "mysql2": "3.23.1",
-        "nodemailer": "9.1.1",
+        "nodemailer": "10.0.2",
         "openai": "6.42.0",
         "p-queue": "9.3.0",
         "pdfjs-dist": "5.5.207",
@@ -352,7 +352,7 @@
         "swagger-ui-react": "5.32.15",
         "tailwindcss": "4.2.2",
         "typescript": "6.0.2",
-        "undici": "7.29.0",
+        "undici": "7.29.1",
         "validator": "13.15.35",
         "vite": "8.0.16",
         "vite-plugin-pwa": "1.3.0",
@@ -415,7 +415,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@kubernetes/client-node": "^1.4.0",
-        "ip-address": "10.4.0",
+        "ip-address": "10.5.1",
         "yaml": "2.8.3",
       },
       "devDependencies": {
@@ -542,14 +542,14 @@
     "hono": "4.13.5",
     "html-to-text": "10.0.1",
     "immutable": "5.1.9",
-    "ip-address": "10.4.0",
+    "ip-address": "10.5.1",
     "js-yaml": "4.3.2",
     "katex": "0.16.47",
     "kysely": "0.28.17",
     "lodash": "4.18.1",
     "lodash-es": "4.18.1",
     "magic-string": "0.30.21",
-    "nodemailer": "9.1.1",
+    "nodemailer": "10.0.2",
     "p-timeout": "7.0.1",
     "postcss": "8.5.23",
     "qs": "6.16.0",
@@ -557,7 +557,7 @@
     "seroval": "1.5.3",
     "sharp": "0.35.4",
     "tmp": "0.2.7",
-    "undici": "7.29.0",
+    "undici": "7.29.1",
     "uuid": "14.0.0",
     "vite": "8.0.16",
     "ws": "8.21.0",
@@ -3099,7 +3099,7 @@
 
     "invariant": ["invariant@2.2.4", "", { "dependencies": { "loose-envify": "^1.0.0" } }, "sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA=="],
 
-    "ip-address": ["ip-address@10.4.0", "", {}, "sha512-oSK96Grm3aP6OrS263xVxbNDGVL7rzBtYdpGqlDG8iQdoenDoTs/nkki+DflYbAEE8Xl6o5YxhxlrKvI3nqKXQ=="],
+    "ip-address": ["ip-address@10.5.1", "", {}, "sha512-EXujUp9jyOI/chPgtqk6uy7fDq8AeCB/WlfEuPg9LN0fN9lzKAKfuDYi60SMhHwgUiEhZvVYsbGZN+RUU1INiA=="],
 
     "ipaddr.js": ["ipaddr.js@1.9.1", "", {}, "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g=="],
 
@@ -3557,7 +3557,7 @@
 
     "node-releases": ["node-releases@2.0.53", "", {}, "sha512-D9UOmYG3UH1V+ENW56t5QXBwJw1YEY18ruVeus89Rw+SyIgjPkCO84bRzO3uNIYosJbNwiabWVn48o3uJLjxFQ=="],
 
-    "nodemailer": ["nodemailer@9.1.1", "", {}, "sha512-izw9mVKFix6YSnC9eLgV6g1opl9DUlRio9ZNcq+Wu9Ujn2UwF+8Nl0B8nz22kEC+CTZCvinkxwJ0DeFbb6NwcQ=="],
+    "nodemailer": ["nodemailer@10.0.2", "", {}, "sha512-83mO0TnWXySiJXdMAIUYmlXYdJ2KUq/w8EJgc4ogKU2UssaHf7ZPeuHcb4YCxeNiM0DDshnm291U0/ClrSZZsg=="],
 
     "non-error": ["non-error@0.1.0", "", {}, "sha512-TMB1uHiGsHRGv1uYclfhivcnf0/PdFp2pNqRxXjncaAsjYMoisaQJI+SSZCqRq+VliwRTC8tsMQfmrWjDMhkPQ=="],
 
@@ -4289,7 +4289,7 @@
 
     "underscore": ["underscore@1.13.8", "", {}, "sha512-DXtD3ZtEQzc7M8m4cXotyHR+FAS18C64asBYY5vqZexfYryNNnDc02W4hKg3rdQuqOYas1jkseX0+nZXjTXnvQ=="],
 
-    "undici": ["undici@7.29.0", "", {}, "sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw=="],
+    "undici": ["undici@7.29.1", "", {}, "sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q=="],
 
     "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 

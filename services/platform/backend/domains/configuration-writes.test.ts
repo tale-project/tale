@@ -32,8 +32,23 @@ import {
   saveProviderDefinition,
 } from './providers/config';
 
-const { audit } = vi.hoisted(() => ({ audit: vi.fn(async () => undefined) }));
+const { audit, readbackListing } = vi.hoisted(() => ({
+  audit: vi.fn(async () => undefined),
+  readbackListing: { refuse: false },
+}));
 vi.mock('./audit_logs/service', () => ({ createAuditLog: audit }));
+// A provider save reads its definition back through the org listing; a test
+// fails that readback by having the listing drop the organization's own.
+vi.mock('../core/lib/providers/org_providers', async (original) => {
+  const actual =
+    await original<typeof import('../core/lib/providers/org_providers')>();
+  return {
+    ...actual,
+    loadOrgCustomProviders: (
+      ...args: Parameters<typeof actual.loadOrgCustomProviders>
+    ) => (readbackListing.refuse ? [] : actual.loadOrgCustomProviders(...args)),
+  };
+});
 
 /** PostgreSQL advisory-lock fixture: queues the exact native lock key and
  * holds it to transaction completion. Real file readers/writers remain active. */
@@ -68,6 +83,21 @@ function lockedSql(): Sql {
   return Object.assign(tag, { begin }) as unknown as Sql;
 }
 
+/** The caller loses its next COMMIT acknowledgement after the transaction
+ * completes. The error cannot establish whether PostgreSQL committed.
+ * `meanwhile` models a later writer before the caller observes that error. */
+function failingCommit(sql: Sql, meanwhile?: () => Promise<void>): Sql {
+  let failed = false;
+  const begin = async (work: (tx: unknown) => Promise<unknown>) => {
+    if (failed) return sql.begin(work as never);
+    failed = true;
+    await sql.begin(work as never);
+    await meanwhile?.();
+    throw new Error('connection lost at COMMIT');
+  };
+  return Object.assign(async () => [], { begin }) as unknown as Sql;
+}
+
 let directory: string;
 const scope = { organizationId: 'org-a', orgSlug: 'north', userId: 'operator' };
 const provider = providerDefinitionSchema.parse({
@@ -89,6 +119,7 @@ beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'native-config-cas-'));
   vi.stubEnv('TALE_CONFIG_DIR', directory);
   audit.mockClear();
+  readbackListing.refuse = false;
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -187,6 +218,138 @@ describe('native file configuration preconditions', () => {
       ),
     ).rejects.toMatchObject({ code: 'PROVIDER_ENDPOINT_INVALID' });
     expect(audit).not.toHaveBeenCalled();
+  });
+
+  it('does not rewind a provider after losing its COMMIT acknowledgement', async () => {
+    const sql = lockedSql();
+    const first = await saveProviderDefinition(
+      sql,
+      scope,
+      provider.name,
+      provider,
+      null,
+    );
+    const changed = { ...provider, displayName: 'Changed' };
+    await expect(
+      saveProviderDefinition(
+        failingCommit(sql),
+        scope,
+        provider.name,
+        changed,
+        first.hash,
+      ),
+    ).rejects.toThrow('connection lost at COMMIT');
+    expect(
+      (await readProviderDefinition('north', provider.name)).config,
+    ).toEqual(changed);
+    const created = { ...provider, name: 'other-chat' };
+    await expect(
+      saveProviderDefinition(
+        failingCommit(sql),
+        scope,
+        created.name,
+        created,
+        null,
+      ),
+    ).rejects.toThrow('connection lost at COMMIT');
+    expect(
+      (await readProviderDefinition('north', created.name)).config,
+    ).toEqual(created);
+  });
+
+  it('never takes back a later writer after a failed commit', async () => {
+    const sql = lockedSql();
+    const first = await saveProviderDefinition(
+      sql,
+      scope,
+      provider.name,
+      provider,
+      null,
+    );
+    let later: { hash: string | null } | undefined;
+    await expect(
+      saveProviderDefinition(
+        failingCommit(sql, async () => {
+          const current = await readProviderDefinition('north', provider.name);
+          later = await saveProviderDefinition(
+            sql,
+            scope,
+            provider.name,
+            { ...provider, displayName: 'Later' },
+            current.hash,
+          );
+        }),
+        scope,
+        provider.name,
+        { ...provider, displayName: 'Changed' },
+        first.hash,
+      ),
+    ).rejects.toThrow('connection lost at COMMIT');
+    const readback = await readProviderDefinition('north', provider.name);
+    expect(readback.config?.displayName).toBe('Later');
+    expect(readback.hash).toBe(later?.hash);
+  });
+
+  it('does not undo a later successful save of the same provider bytes', async () => {
+    const sql = lockedSql();
+    const first = await saveProviderDefinition(
+      sql,
+      scope,
+      provider.name,
+      provider,
+      null,
+    );
+    const changed = { ...provider, displayName: 'Changed' };
+    let accepted: { hash: string | null } | undefined;
+    const alongside = vi.fn(async () => undefined);
+    await expect(
+      saveProviderDefinition(
+        failingCommit(sql, async () => {
+          const current = await readProviderDefinition('north', provider.name);
+          accepted = await saveProviderDefinition(
+            sql,
+            scope,
+            provider.name,
+            changed,
+            current.hash,
+            { alongside },
+          );
+        }),
+        scope,
+        provider.name,
+        changed,
+        first.hash,
+      ),
+    ).rejects.toThrow('connection lost at COMMIT');
+    expect(alongside).toHaveBeenCalledOnce();
+    expect(await readProviderDefinition('north', provider.name)).toEqual({
+      config: changed,
+      hash: accepted?.hash,
+    });
+  });
+
+  it('takes a provider back when it fails its readback', async () => {
+    const sql = lockedSql();
+    const file = join(directory, 'north/providers/local-chat.yml');
+    const first = await saveProviderDefinition(
+      sql,
+      scope,
+      provider.name,
+      provider,
+      null,
+    );
+    const original = await readFile(file, 'utf8');
+    readbackListing.refuse = true;
+    await expect(
+      saveProviderDefinition(
+        sql,
+        scope,
+        provider.name,
+        { ...provider, displayName: 'Changed' },
+        first.hash,
+      ),
+    ).rejects.toMatchObject({ code: 'CONFIG_READBACK_FAILED' });
+    expect(await readFile(file, 'utf8')).toBe(original);
   });
 
   it('allows one of two reviewed branding writers and holds stale plans after an ordinary UI save', async () => {

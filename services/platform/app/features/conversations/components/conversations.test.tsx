@@ -88,6 +88,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 vi.mock('../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     isBulkProcessing: false,
+    bulkProgress: null,
     bulkSendDialog: { isOpen: false, isSending: false },
     openBulkSendDialog: vi.fn(),
     closeBulkSendDialog: vi.fn(),

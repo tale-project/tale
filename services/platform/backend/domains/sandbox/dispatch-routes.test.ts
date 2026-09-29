@@ -111,3 +111,62 @@ describe('POST /api/tools/execute — request-body cap', () => {
     expect(getSessionTokenByHash).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /api/tools/execute — the turn a token serves', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
+  });
+
+  it('hands the token scope’s turnOp to the dispatch, never the body’s', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: {
+        toolGrants: ['generate_image'],
+        turnOp: { kind: 'task-agent', execId: 'exec_token' },
+      },
+    });
+    const res = await post(
+      JSON.stringify({
+        tool: 'generate_image',
+        args: { prompt: 'a cat' },
+        turnOp: { kind: 'task-agent', execId: 'exec_forged' },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const [, call] = dispatchWorkspaceToolImpl.mock.calls[0] as [
+      unknown,
+      { turn?: unknown; callArgs: unknown },
+    ];
+    expect(call.turn).toEqual({ kind: 'task-agent', execId: 'exec_token' });
+    expect(call.callArgs).toEqual({ prompt: 'a cat' });
+  });
+
+  it('passes no turn for a token that records none (or a malformed one)', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: {
+        toolGrants: ['generate_image'],
+        turnOp: { kind: 'chat', execId: 'exec_1' },
+      },
+    });
+    await post(JSON.stringify({ tool: 'generate_image', args: {} }));
+    const [, call] = dispatchWorkspaceToolImpl.mock.calls[0] as [
+      unknown,
+      Record<string, unknown>,
+    ];
+    expect(call).not.toHaveProperty('turn');
+  });
+
+  it('refuses generate_image when the token was not granted it', async () => {
+    getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
+    const res = await post(
+      JSON.stringify({ tool: 'generate_image', args: { prompt: 'a cat' } }),
+    );
+    expect(await res.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+  });
+});

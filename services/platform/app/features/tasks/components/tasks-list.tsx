@@ -24,7 +24,7 @@ import { PriorityPicker } from './priority-picker';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { useTaskBoardContext } from './task-board-context';
-import type { TaskRow } from './task-card';
+import { readOnlyBoard, type TaskRow } from './task-card';
 import {
   BlockedIndicator,
   CommentCountIndicator,
@@ -49,13 +49,14 @@ export function TasksList({
   tasks,
   onOpenTask,
   projectKey,
-  canEdit = false,
+  canWorkTask = readOnlyBoard,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
-  /** Caller may write to the project — gates drag-reorder and inline pickers. */
-  canEdit?: boolean;
+  /** Whether the viewer may work a task (`useTaskAccess`) — gates its
+   * drag-reorder and inline pickers. Absent, every row is read-only. */
+  canWorkTask?: (task: TaskRow) => boolean;
 }) {
   const { topLevel, childrenByParent } = useMemo(
     () => partitionSubtasks(tasks),
@@ -121,7 +122,7 @@ export function TasksList({
               onToggleCollapsed={toggleCollapsed}
               onOpenTask={onOpenTask}
               projectKey={projectKey}
-              canEdit={canEdit}
+              canWorkTask={canWorkTask}
             />
           );
         })}
@@ -133,7 +134,7 @@ export function TasksList({
             subtasks={childrenByParent.get(dnd.activeTask._id)}
             projectKey={projectKey}
             dragging
-            canEdit={canEdit}
+            canWorkTask={canWorkTask}
           />
         ) : null}
       </DragOverlay>
@@ -152,7 +153,7 @@ function ListSwimlane({
   onToggleCollapsed,
   onOpenTask,
   projectKey,
-  canEdit,
+  canWorkTask,
 }: {
   status: TaskStatus;
   rows: TaskRow[];
@@ -163,7 +164,7 @@ function ListSwimlane({
   onToggleCollapsed: (status: TaskStatus) => void;
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
-  canEdit: boolean;
+  canWorkTask: (task: TaskRow) => boolean;
 }) {
   const { t } = useT('tasks');
   const { setNodeRef, isOver } = useDroppable({
@@ -213,7 +214,7 @@ function ListSwimlane({
                     onToggleExpanded={onToggleExpanded}
                     onOpen={onOpenTask}
                     projectKey={projectKey}
-                    canEdit={canEdit}
+                    canWorkTask={canWorkTask}
                   />
                   {isExpanded &&
                     children?.map((child) => (
@@ -223,7 +224,7 @@ function ListSwimlane({
                         nested
                         onOpen={onOpenTask}
                         projectKey={projectKey}
-                        canEdit={canEdit}
+                        canWorkTask={canWorkTask}
                       />
                     ))}
                 </div>
@@ -250,7 +251,7 @@ function TaskListRow({
   dragging,
   nested,
   projectKey,
-  canEdit = false,
+  canWorkTask = readOnlyBoard,
 }: {
   task: TaskRow;
   subtasks?: TaskRow[];
@@ -261,8 +262,8 @@ function TaskListRow({
   /** Rendered as a nested subtask row (indented, non-draggable). */
   nested?: boolean;
   projectKey?: string | null;
-  /** Caller may write to the project — gates drag-reorder and inline pickers. */
-  canEdit?: boolean;
+  /** Whether the viewer may work the task — gates drag and the pickers. */
+  canWorkTask?: (task: TaskRow) => boolean;
 }) {
   const { t } = useT('tasks');
   const identifier = formatTaskIdentifier(
@@ -274,15 +275,16 @@ function TaskListRow({
   const blocked = useTaskBoardContext().isBlocked(task._id);
   const hasSubtasks = (subtasks?.length ?? 0) > 0;
   const { done, total } = subtaskProgress(subtasks);
-  const editable = canEdit && task.archivedAt == null;
+  // Drag and the inline pickers are for whoever may work this task.
+  const editable = canWorkTask(task) && task.archivedAt == null;
   const draggable = !nested && editable;
 
   // Subtask rows are not draggable; only top-level rows participate in the DnD
   // sortable context. `useSortable` is still called unconditionally to respect
   // the rules of hooks, but its wiring is ignored for nested rows.
-  // Nested rows never drag; top-level rows drag only when the caller can write
-  // (disabling the sortable drops its drag listeners — the server rejects the
-  // move anyway).
+  // Nested rows never drag; top-level rows drag only when the viewer may
+  // work the task (disabling the sortable drops its drag listeners — the
+  // server rejects the move anyway).
   const sortable = useSortable({
     id: task._id,
     data: { status: task.status },

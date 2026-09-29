@@ -3,7 +3,7 @@ title: Eine Aufgabe an einen Agenten delegieren
 description: Starte einen Agenten, prüfe sein Ergebnis, fordere Änderungen an und setze fehlgeschlagene Läufe fort oder brich sie ab.
 ---
 
-Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur Prüfung vor. Weise ihm die Arbeit zu, starte den Lauf und halte Rückmeldungen an der Aufgabe fest. Du brauchst Bearbeitungszugriff auf das Projekt; außerdem müssen Anbieter, passende Agent-Laufzeit und Sandbox-Kapazität verfügbar sein.
+Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur Prüfung vor. Weise ihm die Arbeit zu, starte den Lauf und halte Rückmeldungen an der Aufgabe fest. Du musst die Aufgabe ändern dürfen: Redakteure und höhere Rollen dürfen das bei jeder Aufgabe im Projekt, Mitglieder bei den Aufgaben, die sie erstellt haben oder die ihnen zugewiesen sind. Außerdem müssen Anbieter, passende Agent-Laufzeit und Sandbox-Kapazität verfügbar sein.
 
 <Frame caption="Agentenarbeit nutzt dasselbe Board wie menschliche Arbeit: Sie startet unter In Bearbeitung und wartet unter In Prüfung auf die Abnahme.">
 
@@ -15,10 +15,10 @@ Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur 
 
 1. Erstelle eine [Aufgabe](/de/platform/projects/tasks) mit gewünschtem Ergebnis, Abschlusskriterien und Eingabedateien.
 2. Wähle unter **Zuständig** einen [Projektagenten](/de/platform/projects/project-agents).
-3. Lege unter **Reviewer** fest, wer das Ergebnis prüfen soll. Ohne benannten Reviewer geht die Anfrage an den Ersteller der Aufgabe oder des Projekts.
+3. Lege unter **Reviewer** fest, wer das Ergebnis prüfen soll. Ohne benannten Reviewer geht die Anfrage an den Ersteller der Aufgabe oder des Projekts. Reviewer brauchen Bearbeitungszugriff auf das Projekt. Hat ein Mitglied die Aufgabe erstellt, erhält es deshalb keine Prüfanfrage; es verfolgt die Aufgabe, erfährt, wenn sie **In Prüfung** erreicht, und kann das Ergebnis selbst annehmen, es sei denn, deine Organisation verlangt ein unabhängiges Review und es hat den Lauf selbst gestartet.
 4. Klicke auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**.
 
-Die Zuweisung allein startet keinen Lauf. Eine bereits zugewiesene Aufgabe kann im **Backlog** bleiben, bis das Team ihren Start beschließt. Nach dem Start verwendet der Agent Beschreibung, Kommentare und Eingabedateien in seiner Sandbox. Die Laufanzeige zeigt, ob er wartet oder arbeitet.
+Die Zuweisung allein startet keinen Lauf. Eine bereits zugewiesene Aufgabe kann im **Backlog** bleiben, bis das Team ihren Start beschließt. Nach dem Start verwendet der Agent Beschreibung, Kommentare und Eingabedateien in seiner Sandbox. Die Laufanzeige zeigt, ob er wartet oder arbeitet. Ein Lauf, den ein Mitglied startet, bleibt bei seiner Aufgabe und kommt ohne die Secrets des Agenten aus; [Agentenläufe, die ein Mitglied startet](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet) zählt auf, was sich ändert.
 
 Agenten erhalten die Anweisung, Aktualisierungen, Berichte, zugehörige Aufgaben und Rückfragen in der Sprache von Titel und Beschreibung der Aufgabe zu verfassen. Ist daraus keine Sprache erkennbar, verwenden sie die Standardsprache der Organisation für Agenten. Eine Kennung, ein Quartal oder eine automatisch ausgefüllte Titelvorlage legt keine Sprache fest. Ein Wechsel deiner Oberflächensprache ändert die Sprache der Aufgabe nicht; du kannst den Agenten ausdrücklich um einen Sprachwechsel bitten.
 
@@ -32,7 +32,7 @@ Bereitgestellte oder übersprungene Dateien führt Tale in einem separaten Syste
 
 Lies den Bericht, öffne die Dateien und vergleiche sie mit den Abschlusskriterien. Setze die Aufgabe erst auf **Erledigt**, wenn du die Arbeit annimmst. Tale hält die menschliche Entscheidung fest. Ein Agent darf seine eigene Aufgabe nicht als erledigt markieren.
 
-**Reviewer** steuert Benachrichtigung und Prüfwarteschlange. Andere Projektmitglieder mit Bearbeitungsrechten dürfen das Ergebnis ebenfalls annehmen. Ein Wechsel des Reviewers ändert nicht die Zuständigkeit des Agenten.
+**Reviewer** steuert Benachrichtigung und Prüfwarteschlange. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Ein Wechsel des Reviewers ändert nicht die Zuständigkeit des Agenten. Verlangt deine Organisation ein unabhängiges Review, kann die Person, die den Lauf gestartet hat, sein Ergebnis nicht annehmen; einen Lauf, den ein Mitglied auf seiner eigenen Aufgabe gestartet hat, nimmt dann ein Redakteur oder eine höhere Rolle an. Einzelheiten stehen unter [Zuständigkeit und Prüfung festlegen](/de/platform/projects/tasks#zustaendigkeit-und-pruefung-festlegen).
 
 Wechselst du den **Reviewer**, solange die Aufgabe unter **In Prüfung** wartet, wandert die offene Anfrage mit: Sie verschwindet aus der Prüfwarteschlange des bisherigen Reviewers, und der neue erhält die Benachrichtigung und bei eingerichtetem E-Mail-Versand auch eine E-Mail. **Reviewer entfernen** gibt die Anfrage an den Ersteller der Aufgabe oder des Projekts zurück.
 
@@ -40,7 +40,9 @@ Wechselst du den **Reviewer**, solange die Aufgabe unter **In Prüfung** wartet,
 
 Beschreibe die nötige Änderung in einem Aufgabenkommentar und **erwähne den zuständigen Agenten mit @**. Die Erwähnung ist eine Anweisung: Ein aktiver Agent kann sie während seines Laufs erhalten. Ein wartender Agent beginnt einen Überarbeitungslauf, der das bisherige Gespräch fortsetzt. Das Ergebnis landet erneut unter **In Prüfung**.
 
-Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu starten. Die Erwähnungsauswahl zeigt an, wenn ein Agent nicht reagieren kann, etwa weil die Aufgabenautomatisierung ausgeschaltet oder pausiert ist.
+Hast du einen Lauf gestartet, lenken deine Erwähnungen ihn auch dann weiter, wenn die Aufgabe an den Agenten übergegangen ist, etwa weil deine Erwähnung ihm eine Aufgabe übergeben hat, die dir zugewiesen war. Startet die Laufzeit des Agenten neu, um einen Kommentar aufzunehmen, wie es alle Laufzeiten außer Claude Code tun, gehört der Rest des Laufs der Person, die den Kommentar geschrieben hat: Er zählt gegen ihre Limits, und seine Connector-Aufrufe erfolgen in ihrem Namen.
+
+Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu starten. Die Erwähnungsauswahl zeigt an, wenn ein Agent nicht reagieren kann, etwa weil die Aufgabenautomatisierung ausgeschaltet oder pausiert ist oder weil du die Aufgabe zwar kommentieren, aber nicht ändern darfst.
 
 Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisierung für einen weiteren Lauf. Die Erwähnung einer anderen Automatisierung überträgt weder die Zuständigkeit noch startet sie diese. [Automatisierungen](/de/platform/automations/concepts) erklärt Workflows mit mehreren Schritten.
 
@@ -65,12 +67,12 @@ Ein Lauf kann auch gar nicht erst starten, weil alle Konten seines Abo-Brokers n
 
 ## Arbeit abbrechen oder pausieren
 
-Mit **Lauf abbrechen** stoppst du den aktiven Agenten. Auch das Verschieben einer laufenden Agentenaufgabe aus **In Bearbeitung** kann den Lauf abbrechen. Lies die Bestätigung vorher. Pro Aufgabe kann nur ein Agentenlauf aktiv sein.
+Mit **Lauf abbrechen** stoppst du den aktiven Agenten. Abbrechen kann den Lauf, wer die Aufgabe ändern darf, und auch die Person, die ihn gestartet hat, selbst wenn die Aufgabe inzwischen beim Agenten liegt. Auch das Verschieben einer laufenden Agentenaufgabe aus **In Bearbeitung** kann den Lauf abbrechen. Lies die Bestätigung vorher. Pro Aufgabe kann nur ein Agentenlauf aktiv sein.
 
 Ein Admin kann die Aufgabenautomatisierung für die Organisation ausschalten. Neue Läufe starten dann nicht; bestehende Arbeit endet regulär. Organisationslimits und Budgets gelten weiterhin für jeden Lauf. Siehe [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
 
 ## Die passende Zuständigkeit wählen
 
-Weise einer Person Arbeit zu, die menschliches Urteilsvermögen oder Zugriff außerhalb der Agentenrechte braucht. Nutze einen Projektagenten für eine klar begrenzte Aufgabe mit seinen konfigurierten Dateien und Tools. Eine Automatisierung passt zu festen Abläufen mit mehreren Schritten, Auslösern oder Connector-Freigaben.
+Weise einer Person Arbeit zu, die menschliches Urteilsvermögen oder Zugriff außerhalb der Agentenrechte braucht. Nutze einen Projektagenten für eine klar begrenzte Aufgabe mit seinen konfigurierten Dateien und Tools. Eine Automatisierung passt zu festen Abläufen mit mehreren Schritten, Auslösern oder Connector-Freigaben. Mitglieder können nur eine für Aufgaben gebaute Automatisierung wählen, also einen der Einträge unter **Automatisierungen** bei **Zuständig**.
 
 Für den ersten Lauf folge [Deinen ersten Agenten erstellen](/de/tutorials/editor/first-agent-end-to-end). Halte die Aufgabe so klein, dass du ihr Ergebnis selbst prüfen kannst.

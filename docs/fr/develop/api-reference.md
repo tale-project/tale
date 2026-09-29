@@ -41,13 +41,13 @@ Les contacts et produits sont triés par `updatedAt`, puis `id`, dans l’ordre 
 
 ## Authentification
 
-Crée les clés dans **Paramètres > API > REST** avec un accès administrateur ou développeur ; [Clés API](/fr/platform/admin/api-keys) explique l'interface. Une clé n'apparaît qu'une fois et agit comme la personne qui l'a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
+Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué **Appeler les modèles par l'API** ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
 
 | En-tête | Règle |
 | --- | --- |
 | `Authorization: Bearer <key>` | Seul emplacement accepté ; conserver toute la chaîne opaque, y compris son préfixe `tale` |
 | `X-Organization-Slug: <slug>` | Sélectionner une appartenance actuelle ; toujours l'envoyer dans une intégration réutilisable |
-| `x-api-key` | Refusé avec `401`, même avec un Bearer valide ; ne transforme pas la clé en session applicative |
+| `x-api-key` | Refusé avec `401`, même avec un Bearer valide ; ne transforme pas la clé en session applicative. Sur l’[endpoint de modèles](#model-endpoints) compatible Anthropic, le refus indique la marche à suivre : passer la clé comme jeton d’authentification, avec `ANTHROPIC_AUTH_TOKEN` pour Claude Code ou `authToken` et `auth_token` pour les SDK Anthropic, et laisser `ANTHROPIC_API_KEY` non définie (contrat 3.6.0) |
 
 Une personne appartenant à une seule organisation peut omettre l'en-tête d'organisation. Avec plusieurs appartenances, il est nécessaire à chaque appel, lectures comprises. L'organisation ouverte dans le tableau de bord ne sélectionne jamais le périmètre API. La casse du slug est ignorée ; une valeur vide ou composée d'espaces compte comme absente.
 
@@ -62,7 +62,7 @@ Chacun de ces trois refus liste dans `data.organizations` les organisations que 
 
 `GET /api/v1/me` renvoie aussi les appartenances sous `organizations`. `key.expiresAt` est un horodatage Unix en millisecondes, ou `null` pour une clé sans expiration. Renouvelle les identifiants des traitements autonomes avant que l'expiration provoque `401`. `key.name` identifie la clé utilisée.
 
-Avant de proposer une opération, vérifie le rôle et l’accès à la ressource. Un lecteur de projet peut discuter et commenter ; les modifications et les démarrages de tâches demandent un accès en écriture.
+Avant de proposer une opération, vérifie le rôle et l’accès à la ressource. Un lecteur de projet peut discuter, commenter et créer des tâches, puis modifier et démarrer celles qu’il a créées ou qui lui sont attribuées ; les modifications des autres ressources et des tâches des autres demandent un accès en écriture.
 
 | Capacité renvoyée par `/me` | Autorisation |
 | --- | --- |
@@ -71,6 +71,7 @@ Avant de proposer une opération, vérifie le rôle et l’accès à la ressourc
 | `notificationExport` | La clé peut exporter les notifications des membres avec `GET /api/v1/notifications/sync`. Les Propriétaires et Admins disposent de cette capacité par leur rôle ; les autres membres seulement tant qu’une attribution `tale:notifications.export` accordée par un Admin est active. Voir [Déléguer l’export sans rôle Admin](#deleguer-lexport-sans-role-admin). Sinon, l’export renvoie `403 ROLE_FORBIDDEN`. |
 | `skillPublish` | La clé peut partager un skill avec toute l’organisation par `PUT /api/v1/skills/{slug}`. Sans politique de partage des skills, chaque membre le peut ; avec elle, seulement les rôles qu’elle admet et les membres qui détiennent une attribution `tale:skills.publish` active — voir [Enregistrer et synchroniser les bundles de skills](#enregistrer-et-synchroniser-les-bundles-de-skills). Sans ce droit, un tel enregistrement renvoie `403 SKILL_PUBLISH_FORBIDDEN`. |
 | `actAs` | La clé peut nommer un `actor` — le membre vérifié pour lequel un geste relayé est enregistré — sur `POST …/runs/{runId}/asks/{askId}` et `POST …/tasks/{taskId}/review`. Les Propriétaires et les Admins l’ont par leur rôle ; tout autre membre seulement tant qu’une attribution `tale:rest.act-as` faite par un Admin est active — voir [Nommer le membre pour lequel on agit](#nommer-le-membre-pour-lequel-on-agit). Sans ce droit, un `actor` envoyé donne `403 ROLE_FORBIDDEN`. |
+| `modelApi` | La clé peut appeler les [endpoints de modèles compatibles](#model-endpoints) : l’organisation les a activés et le détenteur de la clé peut les appeler. Les Propriétaires, Admins et Développeurs le peuvent par leur rôle ; tout autre membre seulement tant qu’une attribution `tale:models.api` faite par un Admin est active. Sinon, ces routes répondent `403 MODEL_API_DISABLED` ou `403 MODEL_API_FORBIDDEN` (contrat 3.6.0). |
 
 ## Ce que chaque requête doit respecter
 
@@ -96,6 +97,7 @@ Les opérations JSON renvoient du JSON quel que soit `Accept`, même si cet en-t
 | --- | --- |
 | Requête JSON ordinaire | 1 Mio |
 | Contenu de document intégré | 32 Mio |
+| Requête vers un endpoint de modèles | 32 Mio |
 | Import groupé de contacts | 8 Mio |
 | Instantané de conversation | 8 Mio |
 | Chargement préparé pour une conversation | 30 Mio |
@@ -257,6 +259,7 @@ Chaque **201** qui crée une ressource adressable porte `Location` — le chemin
 | Projets | `/api/v1/projects/...`<br>Lister les projets ou en chercher un par identifiant externe ; créer, archiver, restaurer ou supprimer un projet ; gérer ses dossiers et charger, télécharger, supprimer ou indexer ses fichiers. |
 | Tâches | `/api/v1/projects/{id}/tasks/...`<br>Créer une tâche depuis une référence externe sans doublon, lire son état, démarrer un workflow, commenter, et traiter sa relecture : `GET .../review` la lit, `POST .../review` la décide pour un membre. Le démarrage renvoie le `runId` à suivre. |
 | MCP | `POST /api/v1/mcp`<br>Appeler l’[endpoint MCP](/fr/develop/mcp-endpoint) avec la même clé, en JSON-RPC. |
+| Endpoints de modèles | `/api/v1/openai/...` et `/api/v1/anthropic/...`<br>Appels compatibles OpenAI et Anthropic aux modèles de l’organisation, désactivés tant qu’un admin ne les a pas activés ; voir [Endpoints de modèles compatibles](#model-endpoints). |
 | Déclencheur webhook | `POST /api/projects/{id}/automations/webhook/{token}` ou `POST /api/automations/webhook/{token}`<br>Démarrer une automatisation déployée avec son jeton ; voir [Webhooks](/fr/develop/webhooks) pour les URL avec ou sans projet. |
 
 **Exécutions.** `GET /api/v1/runs` liste les exécutions visibles de toutes les automatisations. Pour lire une exécution de projet, utilise `/api/v1/projects/{id}/runs/{runId}`, y compris pour l’annuler ou la supprimer. `/api/v1/runs/{runId}` expose uniquement une exécution sans projet.
@@ -818,11 +821,11 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 # → 200 { "task": { "id": "...", "status": "done" }, "decision": "approve", "approvalId": "...", "actorUserId": "<userId>" }
 ```
 
-`approve` correspond au passage en Terminé sur le tableau : l’accès au projet du membre et la `review_policy` de l’organisation s’appliquent exactement comme là (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` ou `REVIEW_COMPETENCE_REQUIRED` si la politique refuse la personne), la relecture est enregistrée comme approuvée par le membre et la tâche passe à `done` ; une tâche avec des sous-tâches ouvertes donne **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` exige `comment` et `workflowSlug` : la relecture est retirée, le commentaire est déposé sur la chronologie et le workflow redémarre sur la tâche en lisant ce commentaire comme retour ; la réponse contient le `runId` à suivre, avec `started: false` si une exécution en cours a été réutilisée. Une tâche qui n’est pas en relecture donne **409** `TASK_NOT_IN_REVIEW`. Chaque décision est auditée sous `task.review_relayed`, avec le membre et la clé qui a relayé pour lui.
+`approve` correspond au passage en Terminé sur le tableau : le droit du membre de modifier la tâche (en tant qu’Éditeur ou rôle supérieur, ou parce qu’il l’a créée ou qu’elle lui est attribuée) et la `review_policy` de l’organisation s’appliquent exactement comme là (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` ou `REVIEW_COMPETENCE_REQUIRED` si la politique refuse la personne), la relecture est enregistrée comme approuvée par le membre et la tâche passe à `done` ; une tâche avec des sous-tâches ouvertes donne **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` exige `comment` et `workflowSlug` : la relecture est retirée, le commentaire est déposé sur la chronologie et le workflow redémarre sur la tâche en lisant ce commentaire comme retour ; la réponse contient le `runId` à suivre, avec `started: false` si une exécution en cours a été réutilisée. Une tâche qui n’est pas en relecture donne **409** `TASK_NOT_IN_REVIEW`. Chaque décision est auditée sous `task.review_relayed`, avec le membre et la clé qui a relayé pour lui.
 
 ### Nommer le membre pour lequel on agit
 
-`actor.email` désigne le membre par son adresse e-mail. Tale la résout dans l’organisation selon la même règle que l’export des notifications : exactement une appartenance active dont l’adresse est vérifiée. Aucun membre correspondant donne **404** `ACTOR_NOT_FOUND`, deux membres **409** `ACTOR_AMBIGUOUS`, une adresse non vérifiée **403** `ACTOR_UNVERIFIED`, une appartenance désactivée **403** `ACTOR_DISABLED`. Chaque réponse renvoie l’`actorUserId` résolu ; fixe-le comme `actor.userId` lors des appels suivants. Une adresse passée depuis à un autre compte donne alors **409** `ACTOR_REBOUND` au lieu d’agir pour son nouveau titulaire. Un membre qui ne peut pas voir le projet – ou, sur la porte de revue, écrire sa tâche – donne **403** `ACTOR_FORBIDDEN` ; l’accès du détenteur de la clé est vérifié d’abord, ce code parle donc toujours de l’acteur.
+`actor.email` désigne le membre par son adresse e-mail. Tale la résout dans l’organisation selon la même règle que l’export des notifications : exactement une appartenance active dont l’adresse est vérifiée. Aucun membre correspondant donne **404** `ACTOR_NOT_FOUND`, deux membres **409** `ACTOR_AMBIGUOUS`, une adresse non vérifiée **403** `ACTOR_UNVERIFIED`, une appartenance désactivée **403** `ACTOR_DISABLED`. Chaque réponse renvoie l’`actorUserId` résolu ; fixe-le comme `actor.userId` lors des appels suivants. Une adresse passée depuis à un autre compte donne alors **409** `ACTOR_REBOUND` au lieu d’agir pour son nouveau titulaire. Un membre qui ne peut pas voir le projet – ou, sur la porte de revue, modifier sa tâche – donne **403** `ACTOR_FORBIDDEN` ; l’accès du détenteur de la clé est vérifié d’abord, ce code parle donc toujours de l’acteur.
 
 Nommer un `actor` est un droit à part entière. Une clé de Propriétaire ou d’Admin l’a par son rôle ; tout autre titulaire de clé a besoin de la capacité `tale:rest.act-as`, attribuée et révoquée exactement comme la capacité d’export dans [Déléguer l’export sans rôle Admin](#deleguer-lexport-sans-role-admin), avec `"competence":"tale:rest.act-as"` dans le corps de l’attribution. `GET /api/v1/me` la renvoie sous `capabilities.actAs` ; un `actor` envoyé sans ce droit donne **403** `ROLE_FORBIDDEN` avant toute recherche de membre. Ce que le geste relayé peut faire reste décidé par les propres droits du membre.
 
@@ -1007,6 +1010,56 @@ Un message d’assistant en échec contient un `error` lisible et, lorsqu’il e
 Base le traitement automatique sur `errorCode`, pas sur la phrase ni sur le seul statut HTTP du fournisseur. `error` reprend la réponse du fournisseur précédée de ce statut ; un **429** peut ainsi correspondre à `model_not_entitled` si le refus concerne le forfait. Ces deux codes ne sont pas `rate_limited` : attendre ne suffit pas. Choisis un autre modèle ou corrige le compte.
 
 Avant de traiter un envoi accepté, le worker vérifie à nouveau le fil et l’accès au projet. Si le fil a changé de projet ou si l’accès a été retiré pendant l’attente, il n’exécute pas le tour et n’ajoute pas d’erreur dans le nouveau contexte.
+
+## Endpoints de modèles compatibles {#model-endpoints}
+
+Trois routes répondent aux interfaces d’OpenAI et d’Anthropic pour les modèles de l’organisation : un SDK ou un outil de code qui parle l’une d’elles peut ainsi utiliser Tale comme fournisseur de modèles (contrat 3.7.0). Il s’agit d’un accès direct au modèle : la requête va au modèle qu’elle nomme et la réponse revient telle que le modèle l’a envoyée, sans assistant, fil ni outil de Tale entre les deux. Ces routes restent désactivées tant qu’un admin n’a pas activé **Endpoints de modèles pour les clés API**. Les propriétaires, admins et développeurs peuvent ensuite les appeler ; tout autre membre a besoin d’une attribution `tale:models.api` active. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor#model-endpoints) explique la configuration des clients.
+
+| Route | Sert |
+| --- | --- |
+| `POST /api/v1/openai/chat/completions` | OpenAI Chat Completions, en flux d’événements envoyés par le serveur (SSE) ou en réponse complète, avec outils et `tool_calls`, images et fichiers. Un flux se termine par `data: [DONE]` ; son dernier fragment, qui porte la consommation, n’arrive que si `stream_options.include_usage` le demande. |
+| `GET /api/v1/openai/models` | Les identifiants des modèles que le détenteur de la clé peut appeler, en liste OpenAI : `owned_by` est le slug du fournisseur, et `created` vaut toujours `0`. |
+| `POST /api/v1/anthropic/v1/messages` | Anthropic Messages, en flux ou en réponse complète, avec outils, images et documents. `anthropic-version` et `anthropic-beta` sont transmis. |
+
+L’authentification est la même que pour toute autre opération : `Authorization: Bearer <key>` et, pour un détenteur de plusieurs appartenances, `X-Organization-Slug`. Ces routes partagent le budget de débit général et répondent avec `X-Request-Id` comme les autres. Elles ignorent les paramètres de requête, y compris le `?beta=true` d’un SDK Anthropic, et acceptent des corps jusqu’à 32 Mio. Tale lit les champs qu’il encadre et relaie le reste du corps tel quel : les règles strictes de corps et de paramètres des autres opérations ne s’appliquent pas ici.
+
+`model` prend la forme `<providerSlug>/<modelId>` sur les deux interfaces : le slug du fournisseur, une barre oblique et l’identifiant du modèle dans le catalogue de ce fournisseur, par exemple `openrouter/anthropic/claude-sonnet-4.6`. Comme un identifiant de catalogue peut contenir des barres obliques, le fournisseur est la partie avant la première. Les réponses nomment l’identifiant envoyé par la requête. Le détenteur de la clé peut appeler les modèles de chat de l’organisation que servent des identifiants avec clé API ou variable d’environnement, restreints par les modèles autorisés de ces identifiants et par son accès aux modèles ; les modèles servis par des identifiants d’abonnement et les fournisseurs dont l’adresse est définie pour chaque identifiant, comme Azure, ne sont pas servis. `GET /api/v1/models` donne pour chacun de ces modèles sa fenêtre de contexte, ses capacités et ses prix, sous les mêmes `providerSlug` et `id`.
+
+Chaque requête est soumise à l’accès aux modèles du détenteur de la clé, vérifiée par rapport à chaque plafond de budget qui s’applique à lui, à ses équipes, à l’organisation et à la clé, puis imputée à la personne et à la clé. Les garde-fous d’entrée de l’organisation examinent chaque texte qu’elle porte avant qu’elle soit relayée ; les réponses ne sont pas filtrées. Une personne, et chaque clé, peuvent avoir huit requêtes en cours en même temps.
+
+### Lire un refus au format de l’interface
+
+Chaque refus sur ces routes, y compris ceux liés à l’authentification, à l’organisation, à la limite de débit et à la taille du corps, arrive au format d’erreur de l’interface, si bien qu’un SDK du fournisseur le lit comme le sien. `code` porte le code stable de Tale. Sur les routes OpenAI :
+
+```json
+{ "error": { "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "type": "permission_error", "param": null, "code": "MODEL_API_DISABLED" } }
+```
+
+Sur la route Anthropic, qui ajoute l’en-tête `request-id` :
+
+```json
+{ "type": "error", "error": { "type": "permission_error", "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "code": "MODEL_API_DISABLED" }, "request_id": "<X-Request-Id>" }
+```
+
+| Statut | `code` | Signification |
+| --- | --- | --- |
+| **403** | `MODEL_API_DISABLED` | L’organisation n’a pas activé les endpoints. |
+| **403** | `MODEL_API_FORBIDDEN` | Le rôle du détenteur de la clé ne peut pas les appeler, et il n’a pas d’attribution `tale:models.api` active. |
+| **403** | `MODEL_API_MODEL_FORBIDDEN` | L’accès aux modèles de l’organisation bloque ce modèle pour le détenteur de la clé. |
+| **404** | `MODEL_API_MODEL_UNKNOWN` | Aucun modèle que le détenteur peut appeler ne porte cet identifiant ; `GET /api/v1/openai/models` les liste. |
+| **400** | `MODEL_API_VISION_UNSUPPORTED` | La requête contient des images, et le modèle ne les lit pas. |
+| **400** | `MODEL_API_TOOLS_UNSUPPORTED` | La requête propose des outils, et le modèle n’en accepte pas. |
+| **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | La requête demande au fournisseur du modèle d’exécuter lui-même un outil : chez OpenAI, `web_search_options` ou un outil dont le type n’est ni `function` ni `custom` ; chez Anthropic, la recherche web, la récupération web, l’exécution de code, un ensemble d’outils MCP, `mcp_servers` ou `container`. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | Un garde-fou d’entrée a bloqué un texte de la requête ; rien n’a été envoyé au modèle. |
+| **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | La protection PII de l’organisation tokenise, ce qu’une réponse relayée ne permet pas de respecter. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | Une étape de modération a échoué sous une politique fail-closed, ou un réglage de garde-fou est illisible. Réessaie plus tard. |
+| **413** | `MODEL_API_TEXT_TOO_LARGE` | Un garde-fou est actif, et la requête porte plus de 2 Mo de texte. |
+| **429** | `BUDGET_EXCEEDED` | Un plafond de budget qui s’applique au détenteur de la clé ou à la clé est atteint, ou le pire cas de la requête, son prompt et son plafond de sortie au prix du modèle, ne tient pas dans ce qui reste ; un `max_tokens` plus bas passe plus facilement. Le message nomme le plafond, `Retry-After` indique le temps restant avant la réinitialisation d’un plafond atteint, et `x-should-retry: false` indique aux SDK de ne pas réessayer. |
+| **429** | `MODEL_API_CONCURRENCY_EXCEEDED` | Le détenteur de la clé, ou la clé, a déjà huit requêtes en cours. `Retry-After` demande d’attendre deux secondes. |
+| **503** | `MODEL_API_UNAVAILABLE` | Tale ne peut pas servir la requête pour le moment, par exemple parce que la passerelle de modèles ne peut pas servir ce modèle. Réessaie sous peu. |
+| **400**, **413**, **422**, **429**, **503**, **529** ou **502** | `MODEL_API_UPSTREAM_ERROR` | Le fournisseur du modèle a refusé la requête. Les six premiers statuts reprennent celui du fournisseur ; tout autre refus est renvoyé en **502**. |
+| **400** | `INVALID_BODY` | Le corps n’est pas une requête que la route peut relayer, par exemple avec de l’audio en entrée ou en sortie, un rôle qu’elle ne relaie pas, une URL d’image qui n’est ni `data:` ni `https:`, plus de huit réponses (`n`), un fichier stocké dans le compte du fournisseur (`file_id`, une source de type `file`), un `service_tier` autre que celui par défaut ou `store: true`. Le message nomme le champ, tout comme `param` au format OpenAI. |
+| **413** | `BODY_TOO_LARGE` | Le corps dépasse 32 Mio. |
 
 ## Rechercher dans les fichiers d’un projet
 
@@ -1363,7 +1416,7 @@ La combinaison `(projectId, externalSystem, externalId)` identifie la tâche de 
 
 Tale retire les espaces de début et de fin des deux identifiants externes et les normalise en NFC, comme l’`externalItemId` d’un projet. Des différences de normalisation ou d’espacement ne créent donc pas de doublon. Un identifiant devenu vide provoque **400**.
 
-Le `projectId` vient de l’URL : le répéter dans le corps provoque **400**. La création exige l’accès en édition à un projet actif.
+Le `projectId` vient de l’URL : le répéter dans le corps provoque **400**. Tout détenteur de clé qui peut lire un projet actif peut créer une tâche, Membres compris (contrat 3.6.0). Un nouvel appel modifie la tâche qu’il désigne et exige donc le droit de la modifier : en tant qu’Éditeur ou rôle supérieur, ou en tant que membre qui a créé la tâche ou à qui elle est attribuée. Les autres reçoivent **403**, `RBAC_FORBIDDEN`, et rien n’est écrit.
 
 Avec `externalSystem: "github"` ou `"glitchtip"`, `externalState` ne modifie jamais le statut de la tâche Tale. Les nouvelles tâches arrivent dans `backlog` ; fermer, résoudre ou rouvrir l’issue à la source ne change pas leur avancement local. Les automatisations d’import affichent l’état de la source séparément sur la tâche.
 
@@ -1399,7 +1452,7 @@ Si aucun dossier racine ne correspond au nom, Tale renvoie **400**, `SETUP_FOLDE
 
 Les noms de libellés sont nettoyés de leurs espaces de début et de fin, puis normalisés en NFC. La comparaison avec les libellés du projet ignore la casse. Un nouveau libellé conserve l’orthographe envoyée ; un libellé existant conserve celle déjà enregistrée.
 
-La réponse respecte l’ordre de ta liste. Ainsi, `["Bug", "P1"]` reste `["Bug", "P1"]`. Si le projet possède déjà `Bug`, envoyer `["bug"]` réutilise ce libellé au lieu d’en créer un second.
+La réponse respecte l’ordre de ta liste. Ainsi, `["Bug", "P1"]` reste `["Bug", "P1"]`. Si le projet possède déjà `Bug`, envoyer `["bug"]` réutilise ce libellé au lieu d’en créer un second. Seul un Éditeur ou un rôle supérieur du projet crée ainsi de nouveaux libellés ; les autres détenteurs de clé nomment des libellés que le catalogue possède déjà, et un nom nouveau donne **400**, `TASK_LABEL_UNKNOWN`, sans rien écrire.
 
 Envoie `automationSlug` pour attribuer la tâche à une automatisation. Cette attribution alimente le panneau de travail de la tâche : démarrage, progression de l’exécution et questions adressées à l’opérateur. Un appel ultérieur peut compléter une attribution manquante, mais ne remplace pas un responsable déjà défini.
 
@@ -1422,7 +1475,7 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 ### Vérifier si une exécution de tâche a démarré
 
-Le démarrage exige l’accès en édition à un projet actif et une tâche active. Une tâche archivée provoque **403**, `TASK_ARCHIVED`. La lecture de la tâche porte `archivedAt` tant qu’elle l’est ; `PATCH …/tasks/{taskId}` avec `{ "archived": false }` la restaure — voir ci-dessous.
+Le démarrage exige le droit de modifier la tâche — en tant qu’Éditeur ou rôle supérieur, ou en tant que membre qui l’a créée ou à qui elle est attribuée (sinon **403**, `RBAC_FORBIDDEN`) —, un projet actif et une tâche active. Une tâche archivée provoque **403**, `TASK_ARCHIVED`. La lecture de la tâche porte `archivedAt` tant qu’elle l’est ; `PATCH …/tasks/{taskId}` avec `{ "archived": false }` la restaure — voir ci-dessous.
 
 L’exécution reçoit la tâche dans `{task: ...}`. Aucune capacité développeur supplémentaire n’est requise pour ce démarrage. Le journal l’attribue à la clé utilisée. Suis ensuite `GET /api/v1/projects/{id}/runs/{runId}` avec `runId` ; `executionId` est son ancien alias déprécié.
 
@@ -1440,7 +1493,7 @@ Des démarrages simultanés de la même tâche avec la même automatisation retr
 
 ### Archiver ou restaurer une tâche
 
-`PATCH /api/v1/projects/{id}/tasks/{taskId}` avec `{ "archived": true }` archive la tâche — comme depuis le tableau : elle reste lisible ici et refuse les commentaires et les démarrages avec **403**, `TASK_ARCHIVED` — et `{ "archived": false }` la restaure. Les deux sont idempotents ; un miroir qui remplace une tâche (une nouvelle livraison qui en a ouvert une autre, un enregistrement source annulé) classe l’ancienne sans la lire d’abord. Il faut l’accès en édition à un projet **actif** (**403**, `PROJECT_ARCHIVED` ou `RBAC_FORBIDDEN`) ; la tâche elle-même peut être archivée, c’est à cela que sert la restauration. Le corps contient exactement `archived` ; le titre, la description et les libellés passent par la répétition de l’admission. La réponse est la tâche dans son nouvel état.
+`PATCH /api/v1/projects/{id}/tasks/{taskId}` avec `{ "archived": true }` archive la tâche — comme depuis le tableau : elle reste lisible ici et refuse les commentaires et les démarrages avec **403**, `TASK_ARCHIVED` — et `{ "archived": false }` la restaure. Les deux sont idempotents ; un miroir qui remplace une tâche (une nouvelle livraison qui en a ouvert une autre, un enregistrement source annulé) classe l’ancienne sans la lire d’abord. Il faut un projet **actif** et le droit de modifier la tâche, en tant qu’Éditeur ou rôle supérieur, ou en tant que membre qui l’a créée ou à qui elle est attribuée (**403**, `PROJECT_ARCHIVED` ou `RBAC_FORBIDDEN`) ; la tâche elle-même peut être archivée, c’est à cela que sert la restauration. Le corps contient exactement `archived` ; le titre, la description et les libellés passent par la répétition de l’admission. La réponse est la tâche dans son nouvel état.
 
 ```bash
 curl -sS --compressed -X PATCH "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
@@ -1519,6 +1572,8 @@ Les erreurs ordinaires produites par l’API utilisent un objet JSON plat :
 { "error": "Automation not found", "code": "AUTOMATION_NOT_FOUND" }
 ```
 
+Les [endpoints de modèles compatibles](#model-endpoints) font exception : sous `/api/v1/openai` et `/api/v1/anthropic`, chaque refus, y compris ceux liés à l’authentification et à la limite de débit, prend le format d’erreur d’OpenAI ou d’Anthropic et y porte le même `code`.
+
 `error` contient un message destiné à une personne. `code` fournit l’identifiant stable à utiliser dans ton programme. Les refus émis par l’API possèdent ce code ; OpenAPI en énumère les valeurs dans `Error.code`.
 
 De nouveaux codes peuvent être ajoutés dans une version mineure. Prévois donc un traitement générique selon le statut HTTP pour les codes inconnus. Certains refus ajoutent `data`, par exemple `issues` pour un corps invalide, `retryAfterMs` pour une limite de débit ou `providers` pour un modèle ambigu.
@@ -1539,7 +1594,7 @@ Les principaux statuts sont décrits ci-dessous. Utilise le `code` pour distingu
   - Un octet NUL dans l’URL, comme `%00` dans le chemin ou la chaîne de requête, donne `INVALID_URL` avant le routage et la vérification de la clé.
   - En HTTP/2, un corps terminé avant la longueur annoncée dans `Content-Length` donne `BODY_LENGTH_MISMATCH`. Cette réponse vient du serveur frontal, avec un nouveau `requestId` et sans `X-Tale-Api-Version`.
 - **401** — la clé API est absente ou invalide : `UNAUTHORIZED`, avec `WWW-Authenticate: Bearer`.
-- **403** — l’action dépasse les droits du compte : rôle insuffisant (`ROLE_FORBIDDEN`, `KNOWLEDGE_ENTRY_FORBIDDEN`), accès en édition manquant ou `teamIds` d’un document ou d’un projet désignant une équipe dont la personne n’est pas membre (`TEAM_ACCESS_DENIED`), ou enregistrement d’un skill partagé avec toute l’organisation alors que celle-ci le réserve (`SKILL_PUBLISH_FORBIDDEN`). Ce statut couvre aussi les écritures sur un projet ou une tâche archivé (`PROJECT_ARCHIVED`, `TASK_ARCHIVED`), y compris les `teamIds` d’un projet, une automatisation interdite dans le projet et un `X-Organization-Slug` désignant une organisation inaccessible (`ORG_FORBIDDEN`).
+- **403** — l’action dépasse les droits du compte : rôle insuffisant (`ROLE_FORBIDDEN`, `KNOWLEDGE_ENTRY_FORBIDDEN`), accès en édition manquant, tâche d’un autre membre que le compte ne peut pas modifier (`RBAC_FORBIDDEN`) ou `teamIds` d’un document ou d’un projet désignant une équipe dont la personne n’est pas membre (`TEAM_ACCESS_DENIED`), ou enregistrement d’un skill partagé avec toute l’organisation alors que celle-ci le réserve (`SKILL_PUBLISH_FORBIDDEN`). Ce statut couvre aussi les écritures sur un projet ou une tâche archivé (`PROJECT_ARCHIVED`, `TASK_ARCHIVED`), y compris les `teamIds` d’un projet, une automatisation interdite dans le projet et un `X-Organization-Slug` désignant une organisation inaccessible (`ORG_FORBIDDEN`).
 - **404** — la ressource est absente, inaccessible ou rattachée à un autre fil ou projet. Chaque famille utilise son code, par exemple `PROJECT_NOT_FOUND`, `DOCUMENT_NOT_FOUND` ou `THREAD_NOT_FOUND`. Un `X-Organization-Slug` inconnu donne `ORG_SLUG_INVALID`.
 
   Une route inconnue donne `NOT_FOUND` après vérification de la clé. Sans clé, **401** reste prioritaire : `/api/v1/openapi.json`, qui n’existe pas, répond **401** sans clé et **404** avec une clé valide. Le document public est disponible à `/openapi.json`, sans clé.
@@ -1610,4 +1665,4 @@ Les notes publiées sont disponibles sur [GitHub Releases](https://github.com/ta
 
 Utilise cette référence pour intégrer Tale depuis une application externe via REST. Le [point d’accès MCP](/fr/develop/mcp-endpoint) donne accès à la plateforme aux clients MCP et permet d’écrire les automatisations, une opération absente de REST.
 
-Les [webhooks](/fr/develop/webhooks) démarrent des exécutions entrantes sans clé API. Pour configurer le travail directement dans Tale, notamment les agents de projet et les automatisations, consulte la documentation [Plateforme](/fr/platform). Pour utiliser Tale dans opencode, Claude Code ou un script shell, et savoir ce qui remplace `/api/v1/chat/completions` compatible OpenAI, lis [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor).
+Les [webhooks](/fr/develop/webhooks) démarrent des exécutions entrantes sans clé API. Pour configurer le travail directement dans Tale, notamment les agents de projet et les automatisations, consulte la documentation [Plateforme](/fr/platform). Pour utiliser Tale dans opencode, Claude Code ou un script shell, comme fournisseur de modèles par les [endpoints de modèles compatibles](#model-endpoints) ou comme source de connaissances et d’outils, lis [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor).

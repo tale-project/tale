@@ -480,10 +480,13 @@ export function HomeConversationRow({
         // computer the contact's initials give way to a checkbox on hover or
         // keyboard focus, and every row keeps its checkbox once a selection
         // is under way; on a phone, where nothing hovers, the checkbox always
-        // stands in for them — or a selection could never start.
+        // stands in for them — or a selection could never start. It takes
+        // the link's own lift above the sliding highlight (`z-10`) and comes
+        // after it, so a click or tap ticks the box instead of opening the
+        // conversation, and it still passes under the sticky group heading.
         <span
           className={cn(
-            'absolute top-2 left-2 flex size-5 items-center justify-center transition-opacity duration-150',
+            'absolute top-2 left-2 z-10 flex size-5 items-center justify-center transition-opacity duration-150',
             showCheckbox
               ? 'opacity-100'
               : 'md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-has-[:focus-visible]:pointer-events-auto md:group-has-[:focus-visible]:opacity-100',

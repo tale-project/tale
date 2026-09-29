@@ -170,20 +170,30 @@ const projectRoute = (ctx: ShotContext, sub = ''): string => {
  * Sanitizer for pages that print the deployment's own origin (a redirect
  * URL, a connection URL, an API endpoint): swap the capture rig's origin
  * for a production-shaped host so no published image shows the rig. The rig
- * origin is the page's own, so a stack on another port (`E2E_BASE_URL`)
- * is sanitized too.
+ * origin is the page's own, so a stack on another port (`E2E_BASE_URL`) is
+ * sanitized too. It keeps swapping until the capture: a field a late query
+ * remounts prints the rig's origin again, after the one pass that ran when
+ * the shot was ready.
  */
 const replaceRigOrigin = async (page: Page): Promise<void> => {
   await page.evaluate(() => {
     const rigOrigin = `${window.location.origin}/`;
-    for (const el of document.querySelectorAll('td, span, div, code, p')) {
-      if (el.children.length === 0 && el.textContent?.includes(rigOrigin)) {
-        el.textContent = el.textContent.replace(
-          rigOrigin,
-          'https://tale.yourcompany.com/',
-        );
+    const swap = () => {
+      for (const el of document.querySelectorAll('td, span, div, code, p')) {
+        if (el.children.length === 0 && el.textContent?.includes(rigOrigin)) {
+          el.textContent = el.textContent.replace(
+            rigOrigin,
+            'https://tale.yourcompany.com/',
+          );
+        }
       }
-    }
+    };
+    swap();
+    new MutationObserver(swap).observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
   });
 };
 
@@ -422,21 +432,23 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) => page.getByText(DEMO_PROJECTS[0].tasks[0].title),
     // The board renders SIX columns (Backlog … Cancelled) beside the Home
-    // panel, which cannot fold on a project page, and they do not fit the
-    // standard 1440 frame — the last ones get sliced. Widen just this shot
-    // until Cancelled fits whole. Keep 1.6:1 (2240×1400): the README gallery
-    // tiles are straight downscales of these frames, and an off-ratio source
-    // would letterbox its tile.
+    // panel, which a project page never folds away, and they do not fit the
+    // standard 1440 frame — the last one gets sliced. Widen just this shot.
+    // Keep 1.6:1 (2240×1400): the README gallery tiles are straight downscales
+    // of these frames, and an off-ratio source would letterbox its tile.
     viewport: { width: 2240, height: 1400 },
   },
   {
     // The project's General tab — identity form, standing instructions, and
     // sharing. The whole page waits for the project record, and the sharing
-    // section then waits for the teams query (until it answers it holds a
-    // spinner in the Audience row) — so the Audience picker is the last
-    // thing to settle and the honest "loaded" marker.
+    // section then waits for the teams query (until it answers, the Audience
+    // row holds a spinner under the same label) — so the audience picker is
+    // the last thing to settle and the honest "loaded" marker.
     name: 'project-general-tab',
     section: 'platform',
+    // Taller than the default so the Sharing section clears the fold under
+    // the Project rows and the Instructions editor.
+    viewport: { width: 1440, height: 1200 },
     route: '/dashboard/:orgId/projects',
     prepare: async (page, ctx) => {
       await page.goto(projectRoute(ctx, '/overview'), {
@@ -448,9 +460,6 @@ export const SHOTS: readonly Shot[] = [
         name: t('projects.settings.audience'),
         exact: true,
       }),
-    // Taller than the default so the fold lands on the seam below Sharing
-    // (measured): the Audience row is what the General tab adds to identity.
-    viewport: { width: 1440, height: 1110 },
   },
   {
     // The project's Knowledge tab — attached files with their index state

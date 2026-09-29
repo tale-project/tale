@@ -85,9 +85,11 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
+import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
@@ -3048,9 +3050,10 @@ async function checkTasksOrgIsolation(
     `cancel=${crossCancel.status} (want 404), run=${runAfterCross[0]?.status} (want running), task=${taskAfterCross[0]?.status} (want todo)`,
   );
 
-  // A read-only MEMBER of the victim org (the harness member idiom): reads
-  // pass, but starting or cancelling a run is an EDIT and refuses BEFORE
-  // any side effect — the run must still be running afterwards.
+  // A MEMBER of the victim org (the harness member idiom) on a task someone
+  // else created: reads pass, but starting or cancelling a run is a change
+  // to the task — its work gate refuses BEFORE any side effect, and the run
+  // must still be running afterwards.
   const { cookie: viewerCookie, userId: viewerId } = await signUpOrgMember(
     sql,
     base,
@@ -3074,7 +3077,7 @@ async function checkTasksOrgIsolation(
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
   record(
-    'tasks: a read-only member reads the task but cannot start/cancel runs',
+    "tasks: a member reads someone else's task but cannot start/cancel its runs",
     viewerRead.status === 200 &&
       viewerStart.status === 403 &&
       viewerCancel.status === 403 &&
@@ -3086,9 +3089,9 @@ async function checkTasksOrgIsolation(
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
 
-  // Deciding a review is deciding the task: a read-only member's move to
-  // Done (the approve gesture) refuses on the project write gate and the
-  // gate stays pending.
+  // Deciding a review is deciding the task: a member's move to Done (the
+  // approve gesture) on someone else's task refuses on the task's work gate
+  // and the gate stays pending.
   const approvalRows = await sql<{ id: string }[]>`
     INSERT INTO app.approvals (
       org_id, status, resource_type, resource_id, priority, metadata,
@@ -3118,7 +3121,7 @@ async function checkTasksOrgIsolation(
     SELECT status FROM app.approvals WHERE id = ${approvalId}
   `;
   record(
-    'tasks: approving a review (the Done move) requires task-edit access',
+    'tasks: approving a review (the Done move) requires the right to work the task',
     respondOutcome === 'RBAC_FORBIDDEN' &&
       approvalAfter[0]?.status === 'pending',
     `done move → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
@@ -24974,6 +24977,7 @@ async function checkConversations(
     addMessageToConversation,
     listConversationsPage,
     countConversationsByStatus,
+    markConversationAsRead,
   } = await import('./domains/conversations/service.ts');
 
   // Seed: a contact + an inbound email conversation (the ingest shape).
@@ -25635,6 +25639,276 @@ async function checkConversations(
       editorPastGate.every((status) => status !== 403) &&
       editorDelete.status === 204,
     `member=${memberDoors.join(',')} (want 11x403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
+  );
+
+  // --- The assignment doors name their target (#3708, #3732) -------------
+  // `null` clears one dimension and keeps the other — what the Inbox's
+  // **Unassign** and **Remove team** send, which the door used to refuse.
+  // A body that states no target (truncated, empty, `{}`) changes nothing:
+  // the truncated one used to answer 200 and clear the person.
+  const assignProbe = await sql.begin((tx) =>
+    createConversation(tx, {
+      organizationId: orgId,
+      contactId,
+      subject: 'Assignment wire probe',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+    }),
+  );
+  const rawAssign = (
+    door: 'assign' | 'assign-team',
+    body: string,
+  ): Promise<Response> =>
+    fetch(
+      `${base}/api/app/conversations/${assignProbe}/${door}?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body,
+      },
+    );
+  const assignedPair = async () =>
+    (
+      await sql<{ user: string | null; team: string | null }[]>`
+        SELECT assignee_user_id AS "user", assignee_team_id AS "team"
+        FROM app.conversations WHERE id = ${assignProbe}
+      `
+    )[0];
+  const setPerson = await rawAssign(
+    'assign',
+    JSON.stringify({ assigneeUserId: memberId }),
+  );
+  const setTeam = await rawAssign(
+    'assign-team',
+    JSON.stringify({ assigneeTeamId: teamId }),
+  );
+  const bothSet = await assignedPair();
+  const refusals: string[] = [];
+  for (const [door, body] of [
+    ['assign', '{"assigneeUserId":'],
+    ['assign-team', '{"assigneeTeamId":'],
+    ['assign', ''],
+    ['assign', '{}'],
+    ['assign-team', '{}'],
+  ] as const) {
+    const res = await rawAssign(door, body);
+    const code = z
+      .object({ code: z.string().optional(), error: z.string() })
+      .safeParse(await res.json());
+    refusals.push(
+      `${door} ${JSON.stringify(body)}→${res.status}/${code.success ? (code.data.code ?? code.data.error) : 'ERR'}`,
+    );
+  }
+  const afterRefusals = await assignedPair();
+  const clearPerson = await rawAssign(
+    'assign',
+    JSON.stringify({ assigneeUserId: null }),
+  );
+  const afterPersonClear = await assignedPair();
+  await rawAssign('assign', JSON.stringify({ assigneeUserId: memberId }));
+  const clearTeam = await rawAssign(
+    'assign-team',
+    JSON.stringify({ assigneeTeamId: null }),
+  );
+  const afterTeamClear = await assignedPair();
+  await sql`DELETE FROM app.conversations WHERE id = ${assignProbe}`;
+  record(
+    'conversations: an assignment clears on null alone, and a body naming no target changes nothing',
+    setPerson.status === 200 &&
+      setTeam.status === 200 &&
+      bothSet?.user === memberId &&
+      bothSet.team === teamId &&
+      refusals.every((line) => line.includes('→400/')) &&
+      refusals.filter((line) => line.endsWith('/INVALID_JSON')).length === 3 &&
+      afterRefusals?.user === memberId &&
+      afterRefusals.team === teamId &&
+      clearPerson.status === 200 &&
+      afterPersonClear?.user === null &&
+      afterPersonClear.team === teamId &&
+      clearTeam.status === 200 &&
+      afterTeamClear?.team === null &&
+      afterTeamClear.user === memberId,
+    `set=${setPerson.status}/${setTeam.status}, refused=[${refusals.join('; ')}] kept=${afterRefusals?.user === memberId}/${afterRefusals?.team === teamId}, clearPerson=${clearPerson.status} → ${afterPersonClear?.user ?? 'null'}/${afterPersonClear?.team === teamId ? 'team kept' : 'team LOST'}, clearTeam=${clearTeam.status} → ${afterTeamClear?.team ?? 'null'}/${afterTeamClear?.user === memberId ? 'person kept' : 'person LOST'}`,
+  );
+
+  // --- Overlapping summary writes lose nothing (#3735) -------------------
+  // Writer A runs the production service in-process and is held just before
+  // its conversation UPDATE — having read the row and, for an append, stored
+  // its message; append B (a newer inbound message) goes through the native
+  // door meanwhile; then A is released. The hold only reorders: every read
+  // and write is the service's own. Read unlocked, B committed while A was
+  // held and A then wrote back its stale snapshot — one unread message, the
+  // older time. Locked, B waits for A (a blocked backend) and builds on it.
+  const holdAtSummaryUpdate = (
+    run: (tx: TransactionSql) => Promise<unknown>,
+  ): {
+    done: Promise<unknown>;
+    atUpdate: Promise<void>;
+    release: () => void;
+  } => {
+    let release = (): void => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reached = (): void => {};
+    const atUpdate = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const done = sql.begin((tx) =>
+      run(
+        new Proxy(tx, {
+          apply(target, thisArg, args: unknown[]) {
+            const strings = args[0];
+            if (
+              Array.isArray(strings) &&
+              strings.join('?').includes('UPDATE app.conversations SET')
+            ) {
+              reached();
+              return released.then(() => Reflect.apply(target, thisArg, args));
+            }
+            return Reflect.apply(target, thisArg, args);
+          },
+        }),
+      ),
+    );
+    return { done, atUpdate, release };
+  };
+  const blockedBackends = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pg_stat_activity
+          WHERE datname = current_database()
+            AND cardinality(pg_blocking_pids(pid)) > 0
+        `
+      )[0]?.count ?? '0',
+    );
+  const overlapWith = async (
+    label: string,
+    seedUnread: boolean,
+    writer: (tx: TransactionSql, id: string) => Promise<unknown>,
+  ) => {
+    const id = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject: `Overlap probe: ${label}`,
+        channel: 'email',
+        direction: 'inbound',
+        connectorName: 'imap-smtp',
+      }),
+    );
+    const older = Date.now() - 120_000;
+    const newer = older + 60_000;
+    if (seedUnread) {
+      await sql.begin((tx) =>
+        addMessageToConversation(tx, {
+          conversationId: id,
+          organizationId: orgId,
+          sender: 'customer@inbox.test',
+          content: 'The first question.',
+          isCustomer: true,
+          sentAt: older,
+        }),
+      );
+    }
+    const held = holdAtSummaryUpdate((tx) => writer(tx, id));
+    await held.atUpdate;
+    let bCommitted = false;
+    const appendB = api(`/${id}/messages`, {
+      body: { content: 'A newer question.', isCustomer: true, sentAt: newer },
+    }).then((res) => {
+      bCommitted = true;
+      return res.status;
+    });
+    const bWaited = await waitFor(
+      async () => bCommitted || (await blockedBackends()) >= 1,
+      10_000,
+    );
+    const committedWhileHeld = bCommitted;
+    held.release();
+    await held.done;
+    const bStatus = await appendB;
+    const stored = (
+      await sql<
+        {
+          unread: number | null;
+          metaLast: number | null;
+          indexedLast: number | null;
+          messages: number;
+        }[]
+      >`
+        SELECT (metadata->>'unread_count')::int AS unread,
+               (metadata->>'last_message_at')::float8 AS "metaLast",
+               last_message_at_ms::float8 AS "indexedLast",
+               (SELECT count(*)::int FROM app.conversation_messages m
+                 WHERE m.conversation_id = c.id) AS messages
+        FROM app.conversations c WHERE c.id = ${id}
+      `
+    )[0];
+    const projected = z
+      .object({
+        item: z.looseObject({
+          unread_count: z.number(),
+          last_message_at: z.string(),
+        }),
+      })
+      .loose()
+      .safeParse(await (await api(`/${id}`)).json());
+    await sql`DELETE FROM app.conversations WHERE id = ${id}`;
+    return {
+      bStatus,
+      bWaited: bWaited && !committedWhileHeld,
+      stored,
+      newer,
+      projectedUnread: projected.success
+        ? projected.data.item.unread_count
+        : null,
+      projectedLast: projected.success
+        ? Date.parse(projected.data.item.last_message_at)
+        : null,
+    };
+  };
+  const describeOverlap = (o: Awaited<ReturnType<typeof overlapWith>>) =>
+    `B=${o.bStatus} waited=${o.bWaited} stored unread=${o.stored?.unread} messages=${o.stored?.messages} last=${o.stored?.metaLast === o.newer ? 'newer' : o.stored?.metaLast}/${o.stored?.indexedLast === o.newer ? 'newer' : o.stored?.indexedLast} projected=${o.projectedUnread}/${o.projectedLast === o.newer ? 'newer' : o.projectedLast}`;
+  const olderAppend = await overlapWith('two appends', false, (tx, id) =>
+    addMessageToConversation(tx, {
+      conversationId: id,
+      organizationId: orgId,
+      sender: 'customer@inbox.test',
+      content: 'An older question.',
+      isCustomer: true,
+      sentAt: Date.now() - 120_000,
+    }),
+  );
+  record(
+    'conversations: two overlapping appends both count as unread, and the newer one dates the conversation',
+    olderAppend.bStatus === 201 &&
+      olderAppend.bWaited &&
+      olderAppend.stored?.messages === 2 &&
+      olderAppend.stored.unread === 2 &&
+      olderAppend.stored.metaLast === olderAppend.newer &&
+      olderAppend.stored.indexedLast === olderAppend.newer &&
+      olderAppend.projectedUnread === 2 &&
+      olderAppend.projectedLast === olderAppend.newer,
+    describeOverlap(olderAppend),
+  );
+  const readBeside = await overlapWith(
+    'read beside an append',
+    true,
+    (tx, id) => markConversationAsRead(tx, orgId, id),
+  );
+  record(
+    'conversations: a message landing while a reader marks the thread read stays unread and dates it',
+    readBeside.bStatus === 201 &&
+      readBeside.bWaited &&
+      readBeside.stored?.messages === 2 &&
+      readBeside.stored.unread === 1 &&
+      readBeside.stored.metaLast === readBeside.newer &&
+      readBeside.stored.indexedLast === readBeside.newer &&
+      readBeside.projectedUnread === 1,
+    describeOverlap(readBeside),
   );
 }
 
@@ -37013,10 +37287,13 @@ async function checkSandboxSessions(
     status: 'active',
   });
   await reserve(2, 'project_agent');
+  // One live session per workspace: a project agent owns several (its
+  // standing one and one per member who starts its runs), so the duplicate
+  // is a second live row for the same workspace.
   const dupOwner = await sessions
     .reserveSessionSlot(sql, {
       organizationId: orgId,
-      sessionId: 'itest-sb-1b',
+      sessionId: 'itest-sb-1',
       profile: {},
       ownerType: 'project_agent',
       ownerId: 'owner-1',
@@ -55387,6 +55664,10 @@ async function main(): Promise<void> {
         () => checkProviderCredentialConfiguration(sql, authCtx, record),
       ],
       [
+        'checkCustomProviderCredentialEdit',
+        () => checkCustomProviderCredentialEdit(sql, baseUrl, authCtx, record),
+      ],
+      [
         'checkBrokerAccountSelection',
         () => checkBrokerAccountSelection(sql, authCtx, record),
       ],
@@ -55976,6 +56257,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),
+      ],
+      [
+        'checkImageGenerationAdmission',
+        () => checkImageGenerationAdmission(sql, authCtx, record),
       ],
       [
         'checkSandboxDevices',

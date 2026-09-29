@@ -2,7 +2,8 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
-/** The editor owns send feedback; other callers keep the hook's default toast. */
+/** A caller that reports the outcome itself — the editor's sends, the bulk
+ * verbs — opts out of the hook's default failure toast. */
 interface ErrorFeedbackOptions {
   errorToast?: false;
 }
@@ -11,25 +12,38 @@ export function useGenerateUploadUrl(options?: ErrorFeedbackOptions) {
   return useBackendMutation('files/mutations:generateUploadUrl', options);
 }
 
-export function useBulkArchiveConversations() {
-  return useBackendMutation('conversations/mutations:bulkArchiveConversations');
+export function useBulkArchiveConversations(options?: ErrorFeedbackOptions) {
+  return useBackendMutation(
+    'conversations/mutations:bulkArchiveConversations',
+    options,
+  );
 }
 
-export function useBulkCloseConversations() {
-  return useBackendMutation('conversations/mutations:bulkCloseConversations');
+export function useBulkCloseConversations(options?: ErrorFeedbackOptions) {
+  return useBackendMutation(
+    'conversations/mutations:bulkCloseConversations',
+    options,
+  );
 }
 
-export function useBulkReopenConversations() {
-  return useBackendMutation('conversations/mutations:bulkReopenConversations');
+export function useBulkReopenConversations(options?: ErrorFeedbackOptions) {
+  return useBackendMutation(
+    'conversations/mutations:bulkReopenConversations',
+    options,
+  );
 }
 
-export function useBulkSpamConversations() {
-  return useBackendMutation('conversations/mutations:bulkSpamConversations');
+export function useBulkSpamConversations(options?: ErrorFeedbackOptions) {
+  return useBackendMutation(
+    'conversations/mutations:bulkSpamConversations',
+    options,
+  );
 }
 
-export function useBulkUnarchiveConversations() {
+export function useBulkUnarchiveConversations(options?: ErrorFeedbackOptions) {
   return useBackendMutation(
     'conversations/mutations:bulkUnarchiveConversations',
+    options,
   );
 }
 

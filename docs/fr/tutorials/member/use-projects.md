@@ -7,7 +7,7 @@ Crée un projet lorsque plusieurs chats ont besoin des mêmes documents. Dans ce
 
 ## Avant de commencer
 
-Il te faut le rôle **Membre** ou supérieur et un court document texte, un PDF dont le texte est sélectionnable ou un fichier Office récent. Choisis un contenu vérifiable, par exemple un brief qui nomme une personne responsable et une date de revue. Un admin doit avoir configuré le stockage documentaire et un modèle d’embedding pour rendre les fichiers consultables.
+Créer le projet, importer ses fichiers et enregistrer ses instructions demandent le rôle **Éditeur** ou supérieur. En tant que **Membre**, demande ces étapes à un Éditeur ou prends un projet que tu peux déjà ouvrir, puis commence à [Poser une question et vérifier la source](#poser-une-question-et-verifier-la-source). Il te faut un court document texte, un PDF dont le texte est sélectionnable ou un fichier Office récent. Choisis un contenu vérifiable, par exemple un brief qui nomme une personne responsable et une date de revue. Un admin doit avoir configuré le stockage documentaire et un modèle d’embedding pour rendre les fichiers consultables.
 
 Les nouveaux projets sont accessibles à **Toute l'organisation**. Utilise un document sans données sensibles pour ce parcours. Si ton projet doit être restreint, choisis son équipe propriétaire sous **Général > Partage** avant d’importer ses fichiers. Les chats du projet restent personnels tant que tu ne les partages pas.
 

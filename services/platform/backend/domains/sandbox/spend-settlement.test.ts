@@ -22,9 +22,11 @@ vi.mock('../governance/service.ts', () => ledger);
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
 const {
+  adjustSpendReading,
   reconcilePendingSessionOpKeys,
   reconcileSessionOpKey,
   settleSessionOpSpend,
+  ZERO_READING_GRACE_MS,
 } = await import('./spend-settlement.ts');
 
 interface Statement {
@@ -404,5 +406,153 @@ describe('reconcilePendingSessionOpKeys', () => {
     expect(select?.values).toContain(25);
     // An unavailable gateway deletes nothing.
     expect(gateway.revokeVirtualKey).not.toHaveBeenCalled();
+  });
+});
+
+describe('adjustSpendReading — the op’s own facts beside the gateway’s figure', () => {
+  const NONE = {
+    settleAfterMs: null,
+    floorCents: null,
+    expectedCents: null,
+    finalizedAtMs: null,
+  };
+  const NOW = 1_700_000_000_000;
+
+  it('passes a reading through when the op carries no facts', () => {
+    expect(adjustSpendReading({ status: 'ok', cents: 4 }, NONE, NOW)).toEqual({
+      status: 'ok',
+      cents: 4,
+    });
+    expect(adjustSpendReading({ status: 'gone' }, NONE, NOW)).toEqual({
+      status: 'gone',
+    });
+  });
+
+  it('reads nothing before a whole answer’s lifetime has passed', () => {
+    expect(
+      adjustSpendReading(
+        { status: 'ok', cents: 0 },
+        { ...NONE, settleAfterMs: NOW + 1 },
+        NOW,
+      ),
+    ).toEqual({ status: 'unavailable' });
+  });
+
+  it('raises a reading to the floor a stream that ended early counted', () => {
+    const facts = { ...NONE, floorCents: 7.5 };
+    expect(adjustSpendReading({ status: 'ok', cents: 0 }, facts, NOW)).toEqual({
+      status: 'ok',
+      cents: 7.5,
+    });
+    expect(adjustSpendReading({ status: 'ok', cents: 9 }, facts, NOW)).toEqual({
+      status: 'ok',
+      cents: 9,
+    });
+  });
+
+  it('takes a zero for "not booked yet" while a priced answer is inside the grace, then books the relay’s figure', () => {
+    const facts = { ...NONE, expectedCents: 2, finalizedAtMs: NOW - 1_000 };
+    expect(adjustSpendReading({ status: 'ok', cents: 0 }, facts, NOW)).toEqual({
+      status: 'unavailable',
+    });
+    expect(
+      adjustSpendReading(
+        { status: 'ok', cents: 0 },
+        facts,
+        NOW + ZERO_READING_GRACE_MS,
+      ),
+    ).toEqual({ status: 'ok', cents: 2 });
+    // A figure the gateway did book is the figure.
+    expect(
+      adjustSpendReading({ status: 'ok', cents: 1.5 }, facts, NOW),
+    ).toEqual({ status: 'ok', cents: 1.5 });
+  });
+
+  it('books what the relay saw for a key the gateway lost', () => {
+    expect(
+      adjustSpendReading({ status: 'gone' }, { ...NONE, floorCents: 3 }, NOW),
+    ).toEqual({ status: 'ok', cents: 3 });
+  });
+});
+
+describe('reconcileSessionOpKey — a model-endpoint request', () => {
+  it('leaves a whole answer’s key alone until its spend may be read', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'FROM app.sandbox_session_ops WHERE session_id',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'model-api',
+            mintedKeyId: 'vk-1',
+            finalizedAt: Date.now(),
+            spendSettledAt: null,
+            keyRevokedAt: null,
+            settleAfter: Date.now() + 60_000,
+            floorCents: null,
+            expectedCents: null,
+          },
+        ],
+      },
+    ]);
+    await expect(
+      reconcileSessionOpKey(sql, {
+        organizationId: 'org-1',
+        sessionId: 'model-api:key-1',
+        execId: 'req-1',
+      }),
+    ).resolves.toEqual({ spendSettled: false, keyRevoked: false });
+    expect(gateway.readVirtualKeySpend).not.toHaveBeenCalled();
+    expect(gateway.revokeVirtualKey).not.toHaveBeenCalled();
+  });
+
+  it('books the token counts the op row carries when the caller has none', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'model-api',
+            modelRef: 'deepseek/org-1__deepseek__x/x',
+            inputTokens: 1_200,
+            outputTokens: 80,
+          },
+        ],
+      },
+      {
+        match: 'SELECT user_id AS "userId", agent_slug AS "agentSlug"',
+        rows: [
+          { userId: 'user-1', agentSlug: '__direct_api__', apiKeyId: 'key-1' },
+        ],
+      },
+    ]);
+    await settleSessionOpSpend(sql, {
+      sessionId: 'model-api:key-1',
+      execId: 'req-1',
+      spentCents: 2,
+    });
+    expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: 'user-1',
+        apiKeyId: 'key-1',
+        agentSlug: '__direct_api__',
+        inputTokens: 1_200,
+        outputTokens: 80,
+        costEstimateCents: 2,
+      }),
+    );
+  });
+});
+
+describe('reconcilePendingSessionOpKeys — deferred settlements', () => {
+  it('skips an op whose spend may not be read yet', async () => {
+    const { sql, statements } = fakeSql([]);
+    await reconcilePendingSessionOpKeys(sql, { batch: 10, now: 5_000_000 });
+    expect(statements[0]?.text).toContain(
+      'AND (settle_after_ms IS NULL OR settle_after_ms <= ?)',
+    );
+    expect(statements[0]?.values).toContain(5_000_000);
   });
 });

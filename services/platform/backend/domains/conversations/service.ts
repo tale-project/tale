@@ -44,6 +44,15 @@ import {
  * Ledger (with the send/sync increment): outbound send + undo/retry lanes,
  * mailbox ingest (Message-ID idempotency + threading), attachments
  * materialization, address routing, the chat search leg.
+ *
+ * A conversation's summary — `metadata` (the unread count, the status
+ * stamps, the mirrored `last_message_at`) and `last_message_at_ms` — is
+ * rewritten from a read of the row by every writer: a message append, a
+ * send, an undo, mark as read, a status change. Each of them reads the row
+ * `FOR UPDATE` in the transaction that writes it back. Read without the
+ * lock, two writers in flight start from the same snapshot and the later
+ * commit erases the earlier one's work: an unread message counted once, the
+ * activity time put back to an older message's.
  */
 
 export type ConversationStatus = 'open' | 'closed' | 'spam' | 'archived';
@@ -288,6 +297,12 @@ const DELIVERY_STATES = new Set(['queued', 'sent', 'delivered', 'failed']);
  * sentAt-first contract, an inbound customer message bumping
  * `metadata.unread_count`, and a never-stamped conversation HEALED with the
  * first connector name a message carries.
+ *
+ * The unread count and the activity time are derived from the parent as
+ * read, so the parent is read under its row lock (the summary rule in the
+ * module doc): two messages landing together — a mail sync beside a logged
+ * reply — each count, and the later commit can no longer write back an
+ * older time.
  */
 export async function addMessageToConversation(
   tx: TransactionSql,
@@ -295,7 +310,7 @@ export async function addMessageToConversation(
 ): Promise<{ messageId: string; conversationId: string }> {
   const rows = await tx<ConversationRow[]>`
     SELECT ${tx.unsafe(CONVERSATION_COLUMNS)} FROM app.conversations
-    WHERE id = ${args.conversationId} LIMIT 1
+    WHERE id = ${args.conversationId} LIMIT 1 FOR UPDATE
   `;
   const conversation = rows[0];
   if (!conversation) {
@@ -877,7 +892,8 @@ export async function updateConversation(
     }[]
   >`
     SELECT id, status, metadata FROM app.conversations
-    WHERE id = ${conversationId} AND org_id = ${organizationId} LIMIT 1
+    WHERE id = ${conversationId} AND org_id = ${organizationId}
+    LIMIT 1 FOR UPDATE
   `;
   const row = rows[0];
   if (!row) {
@@ -945,7 +961,8 @@ export async function markConversationAsRead(
 ): Promise<void> {
   const rows = await tx<{ metadata: Record<string, unknown> | null }[]>`
     SELECT metadata FROM app.conversations
-    WHERE id = ${conversationId} AND org_id = ${organizationId} LIMIT 1
+    WHERE id = ${conversationId} AND org_id = ${organizationId}
+    LIMIT 1 FOR UPDATE
   `;
   const row = rows[0];
   if (!row) {
@@ -1279,7 +1296,7 @@ export async function bulkSetConversationStatus(
       >`
         SELECT status, metadata FROM app.conversations
         WHERE id = ${conversationId} AND org_id = ${args.organizationId}
-        LIMIT 1
+        LIMIT 1 FOR UPDATE
       `;
       const row = rows[0];
       if (!row) {

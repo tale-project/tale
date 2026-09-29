@@ -49,9 +49,45 @@ export function workflowExecutionOwnerId(executionId: string): string {
   return `${executionId}:@workflow`;
 }
 
-/** Owner key for a project agent's standing sandbox (sandboxSessions
- * `ownerId`, with `ownerType: 'project_agent'`). The session id itself is
- * derived by the run ledger (`sessionIdForProjectAgent`, tasks/agent-runs.ts). */
+/** Owner key for a project agent's sandboxes (sandboxSessions `ownerId`,
+ * with `ownerType: 'project_agent'`) — its standing workspace and the
+ * workspaces of runs members start alike, told apart by session id. */
 export function projectAgentOwnerId(agentId: string): string {
   return agentId;
+}
+
+/** The project agent's STANDING session: the workspace every run a project
+ * editor (or an automation) starts shares across tasks, persisting between
+ * runs so the agent keeps its working state. */
+export function standingSessionIdForProjectAgent(agentId: string): string {
+  return `pa-${agentId}`;
+}
+
+/**
+ * The session a project agent's runs work in when they were started by a
+ * member who may not edit the project — one per (agent, member). Such a run
+ * acts on its own task alone and holds none of the agent's secrets; its own
+ * workspace keeps anything it leaves behind away from the standing one,
+ * where a later run started by an editor would find it with the secrets and
+ * the project-wide tools in hand. The id stays inside the ≤64-char budget:
+ * an agent id too long to keep verbatim is folded into a hash.
+ */
+export function memberSessionIdForProjectAgent(
+  agentId: string,
+  memberKey: string,
+): string {
+  const member = `-m${fnv1a64Hex(`${agentId}:${memberKey}`)}`;
+  const standing = standingSessionIdForProjectAgent(agentId);
+  return standing.length + member.length <= 64
+    ? `${standing}${member}`
+    : `pa-${fnv1a64Hex(agentId)}${member}`;
+}
+
+/** Whether a project agent's run works in its standing session, rather than
+ * a workspace of runs a member started. */
+export function isStandingProjectAgentSession(
+  agentId: string,
+  sessionId: string,
+): boolean {
+  return sessionId === standingSessionIdForProjectAgent(agentId);
 }

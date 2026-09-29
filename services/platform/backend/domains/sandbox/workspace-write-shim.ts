@@ -131,6 +131,7 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
         priority?: TaskPriority;
         labels?: string[];
         parentTaskId?: string;
+        mintLabels?: boolean;
       };
       return coded(() =>
         transactSerializable(sql, (tx) => agentCreateTaskTrusted(tx, args)),

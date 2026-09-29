@@ -31,6 +31,17 @@ For chat, access is checked when a model is used, including an explicitly select
 Test both cases after changing access: an allowed model should work and a denied model should be refused for the affected member. Testing only as the admin does not prove a role-specific rule.
 </Tip>
 
+### Let API keys call the organization's models {#model-endpoints}
+
+**Model endpoints for API keys** lets people use the models this policy allows from their own tools, such as opencode, Claude Code, or scripts built on the OpenAI or Anthropic SDKs, with a personal API key over OpenAI- and Anthropic-compatible endpoints. It is off by default. Turn on the **Model endpoints for API keys** switch; the change saves at once.
+
+- **Who may call.** Owners, Admins, and Developers through their role. Any other member only with the competence **Call models over the API**, granted under [Competences](/platform/admin/governance/competences).
+- **Which models.** The chat models your provider credentials serve with an API key or an environment variable, narrowed by each credential's model allowlist. The access rules above apply to every call, for the person whose key sent it. The switch works independently of **Enable model access policy**: with that policy off, only the credentials' allowlists narrow the list.
+- **What each call passes.** The budgets under [Policies and limits](/platform/admin/governance/policies-and-limits) and the input guardrails under [Guardrails](/platform/admin/governance/guardrails#model-endpoints). The models' answers are not filtered.
+- **Where it shows.** Each call is booked under the person and the key, as **Direct API** in [Usage analytics](/platform/admin/governance/usage-analytics).
+
+Turning the switch off refuses the next call with `403 MODEL_API_DISABLED`. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor#model-endpoints) shows members how to connect their tools.
+
 ## Choose the image-reading model
 
 A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that describes it for the agent. An agent whose own model reads images reads them itself; the vision model still serves the image tools that scripts and coding agents call inside their sandbox, such as batch transcription of scanned pages, so every managed agent gets one when a reachable model exists.
@@ -38,6 +49,20 @@ A text-only agent needs help reading an image, such as a screenshot or scanned p
 Leave **Model that reads images** on **Automatic** to follow the available provider catalog. Tale prefers a recommended vision model and otherwise selects a reachable low-cost option. The text below the picker identifies the current choice and reason.
 
 Pin a model if you need a stable choice. The picker offers models that can read images. If a pin later becomes unavailable, restore its provider access or explicitly choose **Automatic** and save. Tale does not silently switch a pinned model. Review the current choice after rotating credentials or changing model availability.
+
+## Let agents generate images
+
+**Image generation** lets [project agents](/platform/projects/project-agents) working on tasks and agent nodes in [automations](/platform/automations/concepts) create images, such as a cover for a report or a visual for a campaign. It is off until you turn it on. Chat never creates images: a member who needs one assigns a task to a project agent.
+
+1. Turn on **Let agents generate images**. The switch saves at once.
+2. Leave **Image model** on **Automatic**, or select a model and save the page's pending changes in the header.
+3. Check the line below the picker. It names the model agents use.
+
+**Automatic** uses the first model of a short recommended list that your provider credentials reach: Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1, then FLUX.2 Pro. It considers OpenRouter and OpenAI credentials. The picker lists every image model your credentials can serve, including those of other compatible providers. A selected model stays fixed until you change it; if it becomes unavailable, Tale reports it and does not switch to another model. Turning image generation off keeps the selected model for the next time you turn it on.
+
+While image generation is on and a model is available, every agent turn that starts on a runtime with Tale's MCP channel gets an image tool. Agents on other runtimes, and every agent while image generation is off, do not see the tool at all; [Choose an agent runtime](/platform/agents/harnesses) shows which runtimes have the channel. Turning image generation off also stops a running agent's next image request. An agent saves its images among its files, so a task's images appear with its deliverables and an automation step's images with the step's output.
+
+Each image is billed to your organization and counts against the person who started the run, like the rest of the run. One agent turn creates at most 16 images, one request at a time, and its images draw on the same allowance as the turn's model use: once the turn has used it up, Tale refuses the next image. A budget limit that applies to that person refuses the image before the image model is called. Set cost or request limits for images under [Policies and limits](/platform/admin/governance/policies-and-limits); [How usage is counted](/platform/admin/governance/usage-attribution) explains who each image counts against. For the policy file and custom image endpoints, see the [self-hosted provider reference](/self-hosted/configuration/providers#configure-image-generation).
 
 ## Choose the audio transcription model
 

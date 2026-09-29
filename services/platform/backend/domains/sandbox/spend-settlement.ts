@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import {
   type GatewayKeySettlementOutcome,
   type GatewayKeySettlementPort,
+  type GatewaySpendReading,
   settleGatewayKey,
   settlementPending,
 } from '../../core/node_only/sandbox/gateway_key_settlement.ts';
@@ -31,6 +32,35 @@ import {
  * this long first. */
 const GATEWAY_KEY_RECONCILE_MIN_AGE_MS = 2 * 60_000;
 
+/** How long after an op ended a zero gateway reading is taken for "not
+ * booked yet" when the relay saw a priced answer (`expected_cents`): the
+ * gateway books a call's cost after the answer has left, and a reading that
+ * raced it would otherwise book nothing for good. Past this, the relay's own
+ * figure is booked instead. */
+export const ZERO_READING_GRACE_MS = 10 * 60_000;
+
+/**
+ * What an op's own row says about its spend beyond the gateway's figure —
+ * written by a model-endpoint request when it ends (`domains/model_api/
+ * metering.ts`; every other op leaves them NULL):
+ *
+ *  - `settleAfterMs`: no read before then — a whole answer whose caller
+ *    left may still be generating, and the gateway books it only when the
+ *    vendor answers;
+ *  - `floorCents`: the least to book — a stream that ended early, whose
+ *    partial usage the gateway drops;
+ *  - `expectedCents`: a finished answer's reported usage at the catalog
+ *    price — a zero reading while this is above zero is not final until
+ *    {@link ZERO_READING_GRACE_MS} after the op ended.
+ */
+export interface SpendHints {
+  settleAfterMs: number | null;
+  floorCents: number | null;
+  expectedCents: number | null;
+  /** When the op ended — the grace's start. */
+  finalizedAtMs: number | null;
+}
+
 export interface SessionOpSettlementRow {
   organizationId: string;
   kind: string;
@@ -38,6 +68,38 @@ export interface SessionOpSettlementRow {
   finalized: boolean;
   spendSettled: boolean;
   keyRevoked: boolean;
+  hints: SpendHints;
+}
+
+/**
+ * The gateway's reading as the op's own facts qualify it: not read yet
+ * while a whole answer may still be generating, raised to the floor a
+ * broken-off stream counted, held back while a priced answer reads 0 inside
+ * the grace (then the relay's figure), and a key the gateway lost booked at
+ * what the relay saw rather than at nothing.
+ */
+export function adjustSpendReading(
+  reading: GatewaySpendReading,
+  hints: SpendHints,
+  now: number = Date.now(),
+): GatewaySpendReading {
+  if (hints.settleAfterMs !== null && now < hints.settleAfterMs) {
+    return { status: 'unavailable' };
+  }
+  const floor = hints.floorCents ?? 0;
+  const expected = hints.expectedCents ?? 0;
+  if (reading.status === 'gone') {
+    const local = Math.max(floor, expected);
+    return local > 0 ? { status: 'ok', cents: local } : reading;
+  }
+  if (reading.status !== 'ok') return reading;
+  if (reading.cents === 0 && expected > 0) {
+    const endedAt = hints.finalizedAtMs ?? now;
+    if (now - endedAt < ZERO_READING_GRACE_MS) return { status: 'unavailable' };
+    return { status: 'ok', cents: Math.max(expected, floor) };
+  }
+  if (floor > reading.cents) return { status: 'ok', cents: floor };
+  return reading;
 }
 
 async function readSessionOpSettlement(
@@ -52,13 +114,19 @@ async function readSessionOpSettlement(
       finalizedAt: number | null;
       spendSettledAt: number | null;
       keyRevokedAt: number | null;
+      settleAfter: number | null;
+      floorCents: number | null;
+      expectedCents: number | null;
     }[]
   >`
     SELECT org_id AS "organizationId", kind,
            minted_key_id AS "mintedKeyId",
            finalized_at_ms::float8 AS "finalizedAt",
            spend_settled_at_ms::float8 AS "spendSettledAt",
-           key_revoked_at_ms::float8 AS "keyRevokedAt"
+           key_revoked_at_ms::float8 AS "keyRevokedAt",
+           settle_after_ms::float8 AS "settleAfter",
+           floor_cents::float8 AS "floorCents",
+           expected_cents::float8 AS "expectedCents"
     FROM app.sandbox_session_ops
     WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
     LIMIT 1
@@ -72,6 +140,12 @@ async function readSessionOpSettlement(
     finalized: row.finalizedAt !== null,
     spendSettled: row.spendSettledAt !== null,
     keyRevoked: row.keyRevokedAt !== null,
+    hints: {
+      settleAfterMs: row.settleAfter,
+      floorCents: row.floorCents,
+      expectedCents: row.expectedCents,
+      finalizedAtMs: row.finalizedAt,
+    },
   };
 }
 
@@ -82,7 +156,10 @@ async function readSessionOpSettlement(
  * automation sentinel) the run's starter names, the agent, and the API key
  * when a keyed door started it (`resolveSessionOpAttribution`). The stamp is
  * the idempotency gate — a replay (a burned finalize claim, a reconcile after
- * a partial attempt) finds the fact closed and books nothing twice.
+ * a partial attempt) finds the fact closed and books nothing twice. The
+ * token counts are the caller's, else the ones the op row carries (a
+ * model-endpoint request writes what its relay read when it ends, so the
+ * reconcile job and the sweep book them too).
  */
 export async function settleSessionOpSpend(
   sql: Sql,
@@ -102,6 +179,8 @@ export async function settleSessionOpSpend(
         organizationId: string;
         kind: string;
         modelRef: string | null;
+        inputTokens: number | null;
+        outputTokens: number | null;
       }[]
     >`
       UPDATE app.sandbox_session_ops SET
@@ -109,7 +188,9 @@ export async function settleSessionOpSpend(
         spend_settled_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         AND spend_settled_at_ms IS NULL
-      RETURNING org_id AS "organizationId", kind, model_ref AS "modelRef"
+      RETURNING org_id AS "organizationId", kind, model_ref AS "modelRef",
+        input_tokens::float8 AS "inputTokens",
+        output_tokens::float8 AS "outputTokens"
     `;
     const op = rows[0];
     if (op === undefined) {
@@ -120,7 +201,12 @@ export async function settleSessionOpSpend(
       `;
       return exists.length > 0 ? 'already_settled' : 'missing';
     }
-    if (args.spentCents === null && args.usage === undefined) return 'settled';
+    const usage = args.usage ?? {
+      inputTokens: op.inputTokens ?? 0,
+      outputTokens: op.outputTokens ?? 0,
+    };
+    const counted = usage.inputTokens > 0 || usage.outputTokens > 0;
+    if (args.spentCents === null && !counted) return 'settled';
     const attribution = await resolveSessionOpAttribution(tx, {
       organizationId: op.organizationId,
       sessionId: args.sessionId,
@@ -142,8 +228,8 @@ export async function settleSessionOpSpend(
       ...(attribution.apiKeyId !== undefined
         ? { apiKeyId: attribution.apiKeyId }
         : {}),
-      inputTokens: args.usage?.inputTokens ?? 0,
-      outputTokens: args.usage?.outputTokens ?? 0,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
       costEstimateCents: args.spentCents ?? 0,
       timestamp: now,
       ...(attribution.agentSlug !== undefined
@@ -177,13 +263,24 @@ export async function markSessionOpKeyRevoked(
   `;
 }
 
-/** The settlement port over `sql` + the gateway admin client. */
+/** The settlement port over `sql` + the gateway admin client — the reading
+ * qualified by the op's own facts when it has any ({@link
+ * adjustSpendReading}). */
 export function pgGatewayKeySettlementPort(
   sql: Sql,
-  args: { sessionId: string; execId: string; keyId: string },
+  args: {
+    sessionId: string;
+    execId: string;
+    keyId: string;
+    hints?: SpendHints;
+  },
 ): GatewayKeySettlementPort {
+  const hints = args.hints;
   return {
-    readSpend: () => readVirtualKeySpend(args.keyId),
+    readSpend: async () => {
+      const reading = await readVirtualKeySpend(args.keyId);
+      return hints === undefined ? reading : adjustSpendReading(reading, hints);
+    },
     recordSpend: async (cents) => {
       await settleSessionOpSpend(sql, {
         sessionId: args.sessionId,
@@ -211,6 +308,14 @@ export async function reconcileSessionOpKey(
 ): Promise<GatewayKeySettlementOutcome | null> {
   const op = await readSessionOpSettlement(sql, args);
   if (op === null || op.organizationId !== args.organizationId) return null;
+  if (
+    op.hints.settleAfterMs !== null &&
+    Date.now() < op.hints.settleAfterMs &&
+    op.mintedKeyId !== null
+  ) {
+    // Too early to read: the key stays, and a later attempt settles it.
+    return { spendSettled: op.spendSettled, keyRevoked: op.keyRevoked };
+  }
   if (op.mintedKeyId === null) {
     if (!op.spendSettled) {
       await sql`
@@ -228,6 +333,7 @@ export async function reconcileSessionOpKey(
       sessionId: args.sessionId,
       execId: args.execId,
       keyId,
+      hints: op.hints,
     }),
     (message, error) =>
       console.warn(
@@ -264,6 +370,7 @@ export async function reconcilePendingSessionOpKeys(
     WHERE finalized_at_ms IS NOT NULL AND finalized_at_ms < ${cutoff}
       AND (spend_settled_at_ms IS NULL
         OR (minted_key_id IS NOT NULL AND key_revoked_at_ms IS NULL))
+      AND (settle_after_ms IS NULL OR settle_after_ms <= ${options.now})
     ORDER BY finalized_at_ms ASC
     LIMIT ${options.batch}
   `;

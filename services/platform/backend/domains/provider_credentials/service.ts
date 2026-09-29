@@ -81,7 +81,7 @@ export interface CredentialScope {
   role: string;
 }
 
-function assertCredentialAdmin(scope: CredentialScope): void {
+export function assertCredentialAdmin(scope: CredentialScope): void {
   if (!isAdminOrDeveloperRole(scope.role)) {
     throw new CredentialAdminError(
       'FORBIDDEN_DEVELOPER_SETTINGS',

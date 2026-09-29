@@ -33,7 +33,7 @@ Der PII-Schutz erkennt konfigurierte Muster wie E-Mail-Adressen, Telefonnummern 
 
 Maskieren entfernt erkannte Werte aus dem weitergegebenen Text. Im Chat speichert und zeigt Tale auch den maskierten Text als Nachricht; der ursprüngliche Wortlaut bleibt nicht erhalten. Blockieren lehnt einen Treffer ab. Tokenisierung ersetzt die Werte für das Modell durch nummerierte Tokens und stellt sie in der Antwort wieder her. Sie kann die Verarbeitung mit weniger offengelegten Daten unterstützen, verspricht aber keine Antwort ohne personenbezogene Daten.
 
-Eine eingebaute Kennung, die nur aus Ziffern besteht, etwa eine schwedische Passnummer oder eine ukrainische Steuernummer, wird nur neben einem Wort erkannt, das sie benennt, zum Beispiel `passnummer` oder `ІПН`. Bestellnummern, kompakte Datumsangaben und Build-Nummern bleiben unverändert. Jede Erkennung unter **Letzte Ereignisse** nennt das ausgelöste Muster, etwa `se-passport`.
+Eine eingebaute Kennung, die nur aus Ziffern besteht, etwa eine schwedische Passnummer oder eine ukrainische Steuernummer, wird nur neben einem Wort erkannt, das sie benennt, zum Beispiel `passnummer` oder `ІПН`. Bestellnummern, kompakte Datumsangaben und Build-Nummern bleiben unverändert. Jede Erkennung unter **Aktuelle Ereignisse** nennt das ausgelöste Muster, etwa `se-passport`.
 
 Teste die tatsächlich verwendeten Formate mit erfundenen Werten. Muster können ungewöhnliche Formate übersehen oder normalen Text fälschlich markieren. Prüfe Eingabe und Ausgabe getrennt.
 
@@ -46,6 +46,18 @@ Lege das Verhalten bei Nichterreichbarkeit fest: Fail-open lässt die Nachricht 
 ## Organisationsanweisungen festlegen
 
 Benutzerdefinierte Organisationsanweisungen werden vor den Anweisungen des Chat-Assistenten und vor den eigenen Anweisungen jedes Agenten eingefügt: bei Projekt-Agenten, die Aufgaben bearbeiten, und bei Agent-Knoten in Automatisierungen. Mitglieder können diese Organisationsrichtlinie nicht bearbeiten. Nutze sie für gemeinsames Verhalten und Begriffe. Für unabhängig durchzusetzende Einschränkungen verwendest du Zugriffsregeln und Filter, statt dich auf die Befolgung von Textanweisungen zu verlassen.
+
+## Guardrails an den Modell-Endpunkten {#model-endpoints}
+
+Schaltet deine Organisation die [Modell-Endpunkte für API-Schlüssel](/de/platform/admin/governance/content-models#model-endpoints) ein, prüft die Eingabeseite dieser Guardrails auch jede Anfrage an sie. Inhaltssicherheit, PII-Schutz und Moderationsanbieter lesen jeden Text der Anfrage, bevor Tale sie an das Modell weitergibt: System- und Entwickleranweisungen, die Turns der Person und des Assistenten, Tool-Aufrufe, Tool-Ergebnisse und Tool-Definitionen sowie Dokumente, die als Text mitkommen. Alle davon schreibt der Aufrufer, deshalb ist keiner vertrauenswürdiger als ein anderer:
+
+- Blockieren lehnt die Anfrage mit `400 MODEL_API_GUARDRAIL_BLOCKED` ab, und beim Modell kommt nichts an.
+- Maskieren ersetzt den Treffer, und das Modell erhält den maskierten Text.
+- Tokenisierung lässt sich nicht umsetzen, weil Tale die Antwort des Modells unverändert weiterreicht und die Werte nicht darin wiederherstellen kann. Solange der PII-Schutz im Modus **Tokenisieren** aktiv ist, lehnt Tale jede Anfrage mit `403 MODEL_API_GUARDRAIL_UNSUPPORTED` ab; wähle **Maskieren** oder **Blockieren**, wenn Mitglieder die Modell-Endpunkte nutzen.
+- Fällt ein Moderationsanbieter unter Fail-closed aus, lehnt Tale die Anfrage mit `503 MODEL_API_GUARDRAIL_UNAVAILABLE` ab, ebenso wenn Tale eine Guardrail-Einstellung nicht lesen kann.
+- Solange eine Guardrail aktiv ist, lehnt Tale eine Anfrage mit mehr als 2 MB Text mit `413 MODEL_API_TEXT_TOO_LARGE` ab.
+
+Die Ausgabe wird dort nicht gefiltert: Regeln für die **Modell-Ausgabe** greifen nicht, und die Antworten des Modells, gestreamt oder nicht, passieren ungeprüft, ebenso Bilder und Dokumente, die kein Text sind. Benutzerdefinierte Anweisungen fügt Tale ebenfalls nicht hinzu; das Modell erhält die Anfrage so, wie das Tool des Aufrufers sie gesendet hat. Erkennungen erscheinen wie Chat-Erkennungen unter **Aktuelle Ereignisse**, jeweils erfasst unter `model-api:` gefolgt von Tales eigener Kennung der Anfrage, daneben die `X-Request-Id`, die der Aufrufer erhalten hat. Da Tools bei jeder Anfrage das ganze Gespräch erneut senden, übernimmt Tale für einen Text, den es vor wenigen Minuten geprüft hat, das damalige Ergebnis und erfasst eine Erkennung nur einmal statt bei jedem erneuten Senden.
 
 ## Prüfen und abstimmen
 

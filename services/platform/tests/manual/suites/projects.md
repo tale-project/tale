@@ -436,7 +436,7 @@ projects-list row ⋯ menu.
   archived-project sentence (backend `PROJECT_ARCHIVED` 403) and nothing
   lands; **Restore** → the same save goes through.
 - [ ] `PROJ-B9` · **Only an editor can be the reviewer** — On an org-wide
-  project with a member whose role is Member (read-only), and on a
+  project with a member whose role is Member, and on a
   team-restricted project with an editor outside its teams, open a task's
   **Reviewer** (`tasks.fields.reviewer`) → neither is listed, and the footer
   reads **Only members who can edit this project can be the reviewer.**

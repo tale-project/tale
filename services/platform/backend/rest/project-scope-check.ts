@@ -371,13 +371,18 @@ export async function checkProjectResourceRest(args: {
   try {
     await sql`UPDATE "member" SET role = 'member' WHERE "organizationId" = ${orgId} AND "userId" = ${userId}`;
     await expectStatus('GET', `${path}/tasks/${task.id}`, 200);
-    await expectStatus('POST', `${path}/tasks`, 403, {
+    // Every reader creates tasks, Members included.
+    await expectStatus('POST', `${path}/tasks`, 201, {
       ...intake,
       externalId: randomUUID(),
     });
+    // A change to a task someone else created stays an editor's: the proof's
+    // task is handed to another creator while the member tries to start it.
+    await sql`UPDATE app.tasks SET created_by = 'another-creator' WHERE id = ${task.id}`;
     await expectStatus('POST', `${path}/tasks/${task.id}/start`, 403, {
       workflowSlug: name,
     });
+    await sql`UPDATE app.tasks SET created_by = ${userId} WHERE id = ${task.id}`;
     await expectStatus('POST', `${path}/tasks/${task.id}/comments`, 201, {
       body: 'Member collaboration',
     });

@@ -34,6 +34,8 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { ContactError } from '../contacts/service.ts';
+import { readModelApiStanding } from '../model_api/access.ts';
+import { listModelApiModels } from '../model_api/models.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
 import { listOrgApiKeys } from './api-keys.ts';
 import {
@@ -129,7 +131,9 @@ export function createGovernanceRoutes(deps: {
       deps.sql,
       c.get('orgId'),
       policyType,
-      policyType === 'transcription_model' ? { strict: true } : {},
+      policyType === 'transcription_model' || policyType === 'image_generation'
+        ? { strict: true }
+        : {},
     );
     return c.json({
       policy: config === null ? null : { key: policyType, config },
@@ -261,7 +265,8 @@ export function createGovernanceRoutes(deps: {
       if (
         policyType === 'model_access' ||
         policyType === 'vision_model' ||
-        policyType === 'transcription_model'
+        policyType === 'transcription_model' ||
+        policyType === 'image_generation'
       ) {
         // The serving catalog and resolved picks are provider-derived reads.
         // Every open session must refresh them, not only the saving tab.
@@ -488,6 +493,42 @@ export function createGovernanceRoutes(deps: {
         warnings: named,
       },
     });
+  });
+
+  /**
+   * The caller's standing at the model endpoints for API keys: whether the
+   * organization turned them on (`modelApi.enabled` on its model-access
+   * policy) and whether this member may call them (owner, admin or
+   * developer by role, anyone else through a live `tale:models.api` grant).
+   * The verdict only — the policy itself stays admin-read — and, once both
+   * hold, the models the member may call there (the ids the endpoints take,
+   * the same listing `GET /api/v1/openai/models` answers). The API settings
+   * read it to show the Models tab's state and snippets, and to open the
+   * REST and Models tabs to a member who holds the grant.
+   */
+  app.get('/my/model-api', async (c) => {
+    const organizationId = c.get('orgId');
+    const userId = c.get('sessionBundle').user.id;
+    const standing = await readModelApiStanding(deps.sql, {
+      organizationId,
+      userId,
+      role: c.get('orgMember').role,
+    });
+    const orgSlug =
+      standing.enabled && standing.allowed
+        ? await resolveOrgSlug(deps.sql, organizationId)
+        : null;
+    const models =
+      orgSlug === null
+        ? []
+        : (
+            await listModelApiModels(deps.sql, {
+              organizationId,
+              orgSlug,
+              userId,
+            })
+          ).map((model) => ({ id: model.id, label: model.label }));
+    return c.json({ ...standing, models });
   });
 
   /**

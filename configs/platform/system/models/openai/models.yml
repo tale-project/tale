@@ -155,6 +155,39 @@
   supportsTools: false
   supportsVision: false
   contextWindow: 2000
+# Image generation: the models agents call through the generate_image tool,
+# over /v1/images/generations (and /v1/images/edits when the agent passes
+# reference images). They write images, never text, so they carry no chat
+# tag and every chat list skips them. Prices read from
+# developers.openai.com/api/docs/pricing on 2026-09-29 (Standard): `input` is
+# the text-input price, `imageInput` the reference-image input price and
+# `output` the image-output price, per million tokens — the ledger costs a
+# call from the token counts the response reports. The context window is
+# nominal: generation takes a prompt of at most 32,000 characters.
+- id: gpt-image-1
+  provider: openai
+  tags:
+    - image-generation
+  supportsTools: false
+  supportsVision: true
+  outputsMedia: true
+  contextWindow: 32000
+  pricing:
+    inputCentsPerMillion: 500
+    outputCentsPerMillion: 4000
+    imageInputCentsPerMillion: 1000
+- id: gpt-image-1-mini
+  provider: openai
+  tags:
+    - image-generation
+  supportsTools: false
+  supportsVision: true
+  outputsMedia: true
+  contextWindow: 32000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 800
+    imageInputCentsPerMillion: 250
 # Embedding model — the everyday knowledge-indexing workhorse. 1536 native
 # dimensions, under pgvector's HNSW index limit.
 - id: text-embedding-3-small

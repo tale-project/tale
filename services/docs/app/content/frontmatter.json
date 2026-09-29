@@ -134,7 +134,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale aus deinem Editor oder einem Skript nutzen",
-      "description": "Nutze den REST-Chat aus Skripten, verbinde opencode oder Claude Code mit dem MCP-Endpoint von Tale oder lass einen Projektagenten deine Skripte mit den Modellen deiner Organisation bearbeiten.",
+      "description": "Rufe die Modelle deiner Organisation aus opencode, Claude Code oder den OpenAI- und Anthropic-SDKs auf, nutze den REST-Chat oder die MCP-Tools von Tale.",
       "i18nLintExclude": ""
     }
   },
@@ -1295,7 +1295,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Use Tale from your editor or a script",
-      "description": "Script the REST chat, connect opencode or Claude Code to Tale's MCP endpoint, or let a project agent edit your scripts on your organization's models.",
+      "description": "Call your organization's models from opencode, Claude Code or the OpenAI and Anthropic SDKs, script the REST chat, or add Tale's MCP tools to your editor.",
       "i18nLintExclude": ""
     }
   },
@@ -2456,7 +2456,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Utiliser Tale depuis ton éditeur ou un script",
-      "description": "Interroge le chat REST depuis un script, connecte opencode ou Claude Code à l’endpoint MCP de Tale, ou confie la modification de tes scripts à un agent de projet qui utilise les modèles de ton organisation.",
+      "description": "Appelle les modèles de ton organisation depuis opencode, Claude Code ou les SDK OpenAI et Anthropic, interroge le chat REST ou ajoute les outils MCP de Tale.",
       "i18nLintExclude": ""
     }
   },

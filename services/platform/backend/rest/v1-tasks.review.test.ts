@@ -91,6 +91,8 @@ function mount(
     granted?: boolean;
     actorTeamIds?: string[];
     deployed?: boolean;
+    /** Who created the task — nobody's own (an import's) by default. */
+    taskCreatedBy?: string;
   } = {},
 ) {
   const queries: Captured[] = [];
@@ -114,7 +116,13 @@ function mount(
     }
     if (text.includes('FROM app.tasks WHERE id')) {
       return Promise.resolve([
-        { ...task, status: options.taskStatus ?? 'in_review' },
+        {
+          ...task,
+          status: options.taskStatus ?? 'in_review',
+          ...(options.taskCreatedBy !== undefined
+            ? { createdBy: options.taskCreatedBy, createdByType: 'user' }
+            : {}),
+        },
       ]);
     }
     if (text.includes('FROM app.projects WHERE id')) {
@@ -378,6 +386,32 @@ describe('POST /projects/{id}/tasks/{taskId}/review', () => {
     const res = await request('POST', { decision: 'approve', actor });
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ code: 'ACTOR_FORBIDDEN' });
+    expect(service.updateTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('decides for a member on the task they created, and names a member on anyone else’s', async () => {
+    // The work gate the board applies: a member decides the review of their
+    // own task, and a relayed decision on someone else's is the member's
+    // refusal, not the key's.
+    const reader = { ...member, role: 'member' };
+    const own = mount({ members: [reader], taskCreatedBy: 'user-9' });
+    const decided = await own.request('POST', { decision: 'approve', actor });
+    expect(decided.status).toBe(200);
+    expect(service.updateTaskStatus).toHaveBeenCalledWith(
+      own.tx,
+      expect.objectContaining({ userId: 'user-9', role: 'member' }),
+      't-1',
+      'done',
+    );
+
+    service.updateTaskStatus.mockClear();
+    const others = mount({ members: [reader], taskCreatedBy: 'user-2' });
+    const refused = await others.request('POST', {
+      decision: 'approve',
+      actor,
+    });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: 'ACTOR_FORBIDDEN' });
     expect(service.updateTaskStatus).not.toHaveBeenCalled();
   });
 

@@ -405,7 +405,7 @@ describe('stopping a series whose next task nobody has touched', () => {
     expect(deletion?.[1].metadata).not.toHaveProperty('repeatOf');
   });
 
-  it('stops every member but only reclaims copies after the selected task', async () => {
+  it('reclaims only the copies after the selected task and leaves the earlier ones as they are', async () => {
     const { tx, statements } = fakeTx({
       task: closedTask({ id: 't-2', repeatNextTaskId: 't-3' }),
       seriesPosition: 1,
@@ -419,7 +419,56 @@ describe('stopping a series whose next task nobody has touched', () => {
       tx,
       expect.objectContaining({ taskIds: ['t-3'] }),
     );
-    expect(ruleClears(statements)).toEqual(['t-1', 't-2']);
+    // The series' history keeps what it says.
+    expect(ruleClears(statements)).toEqual(['t-2']);
+  });
+});
+
+describe('a member stops their own series', () => {
+  const mine = { createdBy: 'u-stopper', createdByType: 'user' };
+
+  it('takes back their untouched next task, which is theirs too', async () => {
+    const { tx, statements } = fakeTx({
+      ...untouched,
+      task: closedTask(mine),
+      copies: [copy('t-2', mine)],
+    });
+    await expect(stopTaskRepeat(tx, auth('member'), 't-1')).resolves.toEqual({
+      removedNextTask: true,
+    });
+    expect(retireTasksInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ taskIds: ['t-2', 'c-1'] }),
+    );
+    expect(ruleClears(statements)).toEqual(['t-1']);
+  });
+
+  it('leaves a later copy that is someone else’s now — its rule included — and takes nothing back', async () => {
+    // The member works the series as its assignee; the newest copy was
+    // handed to a teammate since, so it is no longer the member's to stop.
+    const assigned = { assigneeType: 'user' as const, assigneeId: 'u-stopper' };
+    const { tx, statements } = fakeTx({
+      task: closedTask({ ...assigned, repeatNextTaskId: 't-2' }),
+      copies: [
+        copy('t-2', { ...assigned, repeatNextTaskId: 't-3' }),
+        copy('t-3', { assigneeType: 'user', assigneeId: 'u-teammate' }),
+      ],
+      tree: [treeRow('t-2', 't-2'), treeRow('t-3', 't-3')],
+    });
+    await expect(stopTaskRepeat(tx, auth('member'), 't-1')).resolves.toEqual({
+      removedNextTask: false,
+    });
+    expect(retireTasksInTx).not.toHaveBeenCalled();
+    expect(ruleClears(statements)).toEqual(['t-2', 't-1']);
+  });
+
+  it('refuses a member on a series that is not theirs', async () => {
+    const { tx, statements } = fakeTx(untouched);
+    await expect(
+      stopTaskRepeat(tx, auth('member'), 't-1'),
+    ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    expect(retireTasksInTx).not.toHaveBeenCalled();
+    expect(ruleClears(statements)).toEqual([]);
   });
 });
 

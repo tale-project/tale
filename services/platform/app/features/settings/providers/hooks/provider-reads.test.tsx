@@ -9,6 +9,7 @@ import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unp
 import { useEmbeddingRecommendations } from '@/app/features/settings/data-residency/hooks/queries';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import {
+  useImageGenerationState,
   useResolvedVisionModel,
   useTranscriptionModelState,
 } from '@/app/features/settings/governance/hooks/queries';
@@ -42,6 +43,7 @@ const PROVIDER_READS = [
   '/api/app/chat/composer/models',
   '/api/app/providers/vision-model',
   '/api/app/providers/transcription-model',
+  '/api/app/providers/image-generation-model',
   '/api/app/knowledge/embedding/recommendations',
   '/api/app/tasks/serving-preview',
 ] as const;
@@ -109,6 +111,8 @@ function backend(input: RequestInfo | URL, init?: RequestInit): Response {
       return json({ pick: null });
     case '/api/app/providers/transcription-model':
       return json({ models: [], pick: null });
+    case '/api/app/providers/image-generation-model':
+      return json({ enabled: false, models: [], pick: null });
     case '/api/app/knowledge/embedding/recommendations':
       return json(embeddingRecommendations);
     case '/api/app/tasks/serving-preview':
@@ -140,6 +144,7 @@ function useProviderReads(): void {
   useProjectHarnesses(ORG);
   useResolvedVisionModel(ORG);
   useTranscriptionModelState(ORG);
+  useImageGenerationState(ORG);
   useEmbeddingRecommendations(ORG);
   useUnpinnedServingPreview('task', {
     organizationId: ORG,
@@ -288,29 +293,31 @@ describe('provider-derived reads', () => {
     });
   });
 
-  it.each(['model_access', 'vision_model', 'transcription_model'])(
-    're-resolves them when the %s policy is saved',
-    async (policyType) => {
-      const { result } = renderHook(
-        () => {
-          useProviderReads();
-          return useUpsertGovernancePolicy();
-        },
-        { wrapper },
-      );
-      await waitFor(() => expectEachProviderReadFetched(1));
+  it.each([
+    'model_access',
+    'vision_model',
+    'transcription_model',
+    'image_generation',
+  ])('re-resolves them when the %s policy is saved', async (policyType) => {
+    const { result } = renderHook(
+      () => {
+        useProviderReads();
+        return useUpsertGovernancePolicy();
+      },
+      { wrapper },
+    );
+    await waitFor(() => expectEachProviderReadFetched(1));
 
-      await act(() =>
-        result.current.mutateAsync({
-          organizationId: ORG,
-          policyType,
-          config: {},
-        }),
-      );
+    await act(() =>
+      result.current.mutateAsync({
+        organizationId: ORG,
+        policyType,
+        config: {},
+      }),
+    );
 
-      await waitFor(() => expectEachProviderReadFetched(2));
-    },
-  );
+    await waitFor(() => expectEachProviderReadFetched(2));
+  });
 
   it('leaves them alone when a policy that picks no model is saved', async () => {
     const { result } = renderHook(

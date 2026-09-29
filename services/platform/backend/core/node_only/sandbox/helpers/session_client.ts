@@ -55,6 +55,18 @@ export class SessionNotFoundError extends Error {
   }
 }
 
+/** A workspace file larger than its reader's `maxBytes` — refused on its
+ * declared length before a byte is read, or at the first chunk past the
+ * cap, so the platform never holds more than the cap plus one chunk. */
+export class SessionFileTooLargeError extends Error {
+  readonly maxBytes: number;
+  constructor(filePath: string, maxBytes: number) {
+    super(`${filePath} is larger than ${maxBytes} bytes`);
+    this.name = 'SessionFileTooLargeError';
+    this.maxBytes = maxBytes;
+  }
+}
+
 /** The spawner answered an attach with its "exec <id> not found" error
  * event: the session is alive but knows no such exec. Distinguished so the
  * resilient drain can tell "the exec was never created" (re-POST it) from a
@@ -848,16 +860,68 @@ export async function sessionListFiles(
   return parsed.entries;
 }
 
+/** A response body read into memory, refusing past `maxBytes`: first on
+ * the declared length, then on the bytes as they arrive. */
+async function readBodyCapped(
+  res: Response,
+  filePath: string,
+  maxBytes: number,
+): Promise<ArrayBuffer> {
+  const declared = Number(res.headers.get('content-length') ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch((error: unknown) => {
+      console.warn(
+        '[session_client] cancelling an oversized read failed:',
+        error,
+      );
+    });
+    throw new SessionFileTooLargeError(filePath, maxBytes);
+  }
+  if (res.body === null) return new ArrayBuffer(0);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel().catch((error: unknown) => {
+          console.warn(
+            '[session_client] cancelling an oversized read failed:',
+            error,
+          );
+        });
+        throw new SessionFileTooLargeError(filePath, maxBytes);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out.buffer;
+}
+
 /** GET /v1/sessions/:id/files/content?path= — raw bytes of a single workspace
  * file. Returns null on 404, which the spawner emits for a missing/unsafe path
  * AND for an over-cap file (runnerd's /fs/read caps at 20 MB and returns null →
  * 404) — the two are indistinguishable here, so callers treat null as "can't
  * serve" (a 404/413 at the boundary). The spawner serves
  * `application/octet-stream`; the returned contentType reflects whatever the
- * response carried so the caller can fall back when it's the generic type. */
+ * response carried so the caller can fall back when it's the generic type.
+ * With `maxBytes`, a larger file throws {@link SessionFileTooLargeError}
+ * before more than the cap is held in memory. */
 export async function sessionReadFile(
   sessionId: string,
   filePath: string,
+  options: { maxBytes?: number } = {},
 ): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/content?path=${encodeURIComponent(filePath)}`;
   const res = await spawnerFetch('GET', path, {
@@ -867,7 +931,10 @@ export async function sessionReadFile(
   if (!res.ok) {
     throw new Error(`sandbox session file read failed (${res.status})`);
   }
-  const bytes = await res.arrayBuffer();
+  const bytes =
+    options.maxBytes === undefined
+      ? await res.arrayBuffer()
+      : await readBodyCapped(res, filePath, options.maxBytes);
   const contentType =
     res.headers.get('content-type') ?? 'application/octet-stream';
   return { bytes, contentType };

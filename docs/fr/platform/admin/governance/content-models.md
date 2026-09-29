@@ -31,6 +31,17 @@ Pour le chat, l’accès est vérifié à l’utilisation, même pour un modèle
 Après un changement, teste les deux cas pour le membre concerné : un modèle autorisé doit fonctionner et un modèle interdit doit être refusé. Tester uniquement avec un compte admin ne prouve pas une règle propre à un rôle.
 </Tip>
 
+### Ouvrir les modèles de l’organisation aux clés API {#model-endpoints}
+
+**Endpoints de modèles pour les clés API** permet aux personnes autorisées d’utiliser les modèles que cette politique autorise depuis leurs propres outils, comme opencode, Claude Code ou des scripts écrits avec les SDK OpenAI ou Anthropic, avec une clé API personnelle et via des endpoints compatibles OpenAI et Anthropic. Ce réglage est désactivé par défaut. Active l’interrupteur **Endpoints de modèles pour les clés API** ; la modification est enregistrée aussitôt.
+
+- **Qui peut appeler.** Les propriétaires, admins et développeurs par leur rôle. Tout autre membre seulement avec la compétence **Appeler les modèles par l'API**, attribuée dans [Compétences](/fr/platform/admin/governance/competences).
+- **Quels modèles.** Les modèles de chat que servent tes identifiants de fournisseur avec clé API ou variable d’environnement, restreints par les modèles autorisés de chaque identifiant. Les règles d’accès ci-dessus s’appliquent à chaque appel, pour la personne dont la clé l’a envoyé. L’interrupteur agit indépendamment de **Activer la politique d'accès aux modèles** : quand cette politique est désactivée, seuls les modèles autorisés des identifiants restreignent la liste.
+- **Ce que chaque appel traverse.** Les budgets de [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) et les garde-fous d’entrée de [Garde-fous](/fr/platform/admin/governance/guardrails#model-endpoints). Les réponses des modèles ne sont pas filtrées.
+- **Où il apparaît.** Chaque appel est imputé à la personne et à la clé, comme **Appel API direct** dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
+
+Désactiver l’interrupteur fait refuser l’appel suivant avec `403 MODEL_API_DISABLED`. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor#model-endpoints) montre aux membres comment connecter leurs outils.
+
 ## Choisir le modèle qui lit les images
 
 Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la décrit pour l’agent. Un agent dont le propre modèle lit les images les lit lui-même ; le modèle de vision sert encore les outils d’image que les scripts et agents de code appellent dans leur bac à sable, comme la transcription par lots de pages scannées. Chaque agent géré en reçoit donc un dès qu’un modèle accessible existe.
@@ -38,6 +49,20 @@ Un agent textuel a besoin d’aide pour lire une image, comme une capture d’é
 Laisse la sélection du modèle de lecture sur automatique pour suivre le catalogue disponible. Tale préfère un modèle de vision recommandé, puis une option accessible peu coûteuse. Le texte sous la sélection indique le choix actuel et sa raison.
 
 Fixe un modèle si tu souhaites un choix stable. La sélection propose des modèles capables de lire les images. Si le modèle fixé devient indisponible, rétablis son accès fournisseur ou choisis explicitement **Automatique**, puis enregistre. Tale ne remplace pas silencieusement un modèle fixé. Vérifie le choix après une rotation des identifiants ou un changement de disponibilité.
+
+## Laisser les agents générer des images {#let-agents-generate-images}
+
+La **génération d’images** permet aux [agents de projet](/fr/platform/projects/project-agents) qui traitent des tâches et aux nœuds agent des [automatisations](/fr/platform/automations/concepts) de créer des images, par exemple la couverture d’un rapport ou un visuel de campagne. Elle reste désactivée tant que tu ne l’actives pas. Le chat ne crée jamais d’images : un membre qui en a besoin confie une tâche à un agent de projet.
+
+1. Active **Laisser les agents générer des images**. L’interrupteur enregistre aussitôt.
+2. Laisse **Modèle d'images** sur **Automatique**, ou choisis un modèle et enregistre les modifications en attente dans l’en-tête de la page.
+3. Vérifie la ligne sous la sélection. Elle nomme le modèle avec lequel les agents créent les images.
+
+**Automatique** prend le premier modèle d’une courte liste recommandée que tes identifiants fournisseur atteignent : Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1, puis FLUX.2 Pro. Tale tient compte pour cela des identifiants OpenRouter et OpenAI. La sélection liste chaque modèle d’images que tes identifiants peuvent servir, y compris ceux d’autres fournisseurs compatibles. Un modèle choisi reste fixé jusqu’à ce que tu le changes ; s’il devient indisponible, Tale le signale et ne passe pas à un autre modèle. Désactiver la génération d’images conserve le modèle choisi pour la prochaine activation.
+
+Tant que la génération d’images est activée et qu’un modèle est disponible, chaque agent qui commence à travailler dans un environnement doté du canal MCP de Tale reçoit un outil pour les images. Les agents des autres environnements, et tous les agents quand la génération d’images est désactivée, ne voient pas du tout cet outil ; [Choisir un environnement d’agent](/fr/platform/agents/harnesses) indique quels environnements disposent de ce canal. La désactivation refuse aussi la prochaine demande d’image d’un agent déjà en cours. Un agent range ses images parmi ses fichiers : celles d’une tâche apparaissent dans ses fichiers produits, celles d’une étape d’automatisation dans la sortie de l’étape.
+
+Chaque image est facturée à ton organisation et compte, comme le reste de l’exécution, pour la personne qui l’a lancée. Un tour d’agent crée au plus 16 images, une requête à la fois, et ses images puisent dans la même enveloppe que l’usage du modèle pendant ce tour : une fois l’enveloppe épuisée, Tale refuse l’image suivante. Une limite de budget qui s’applique à cette personne refuse l’image avant l’appel au modèle d’images. Fixe des limites de coût ou de requêtes pour les images dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; [Comment l’usage est compté](/fr/platform/admin/governance/usage-attribution) explique pour qui chaque image compte. Le fichier de politique et les endpoints d’images personnalisés sont décrits dans la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configure-image-generation).
 
 ## Choisir le modèle de transcription audio
 

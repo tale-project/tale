@@ -276,6 +276,9 @@ export interface TasksContract {
     returns: null | {
       settledAt?: number;
       autoRetryMax: number;
+      /** Who started the run: the person who may stop and steer it even
+       * once the task is no longer theirs. */
+      startedBy?: string;
       startedAt: number;
       autoRetryAttempt?: number;
       trigger?: 'manual' | 'mention' | 'auto_retry';
@@ -375,8 +378,20 @@ export interface TasksContract {
         folderExists: boolean;
         hasFiles: boolean;
       };
+      /** An editor of the task's (active) project: may work every task. */
       canEdit: boolean;
+      /** A reader of the task's (active) project: may create tasks and work
+       * their own (`canWorkTask`). */
+      canCreate: boolean;
       canComment: boolean;
+      /** Whose the task's parents are, nearest first: a subtask under the
+       * viewer's own task is theirs to work too. */
+      ancestors: Array<{
+        createdBy: string;
+        createdByType: string;
+        assigneeType?: string | null;
+        assigneeId?: string | null;
+      }>;
     };
   };
   'tasks/queries:getTaskAgentRunSandboxOp': {
@@ -818,7 +833,11 @@ export interface TasksContract {
         }
       >;
       truncated: boolean;
+      /** An editor of the (active) project: may work every task on it. */
       canEdit: boolean;
+      /** A reader of the (active) project: may create tasks and work their
+       * own (`canWorkTask`). */
+      canCreate: boolean;
     };
   };
   'tasks/queries:listTasksForAccessibleProjects': {
@@ -913,7 +932,10 @@ export interface TasksContract {
         }
       >;
       truncated: boolean;
+      /** Role-level: an editor role works every task on the board. */
       canEdit: boolean;
+      /** Role-level: every member creates and works their own tasks. */
+      canCreate: boolean;
     };
   };
   'tasks/queries:mentionTriggerPreview': {
@@ -933,7 +955,8 @@ export interface TasksContract {
         | 'agent_not_live'
         | 'pack_disabled'
         | 'breaker_paused'
-        | 'budget_paused';
+        | 'budget_paused'
+        | 'not_permitted';
     }>;
   };
   'tasks/review_mutations:setTaskReviewer': {

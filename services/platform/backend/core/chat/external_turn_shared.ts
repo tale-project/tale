@@ -109,6 +109,16 @@ export function isManagedHarness(harness: string): boolean {
   return def?.credentialPolicy.managed === true;
 }
 
+/** Whether a harness mounts MCP servers — and so the platform bridge every
+ * workspace tool rides. A harness whose YAML declares `capabilities.mcp:
+ * false` (Pi, Hermes, Cursor) can call none of them, so a tool that exists
+ * only on the bridge is neither granted to nor mentioned on its turns. */
+export function harnessMountsMcp(harness: string): boolean {
+  if (!isHarnessSlug(harness)) return false;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  return def?.capabilities.mcp === true;
+}
+
 /** How a managed external turn authenticates: the session gateway virtual
  * key, or a redeemed vendor-subscription token the harness's YAML
  * `subscription` section injects (the vendor CLI authenticates directly).

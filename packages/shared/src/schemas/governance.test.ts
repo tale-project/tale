@@ -8,8 +8,11 @@ import {
   featureFlagRuleSchema,
   featureFlagsConfigSchema,
   frameAncestorsOf,
+  imageGenerationConfigSchema,
   isFrameAncestorOrigin,
   mergeStrictestPasswordPolicy,
+  modelAccessConfigSchema,
+  modelApiEnabledOf,
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
   POLICY_SCHEMAS,
@@ -26,6 +29,38 @@ describe('POLICY_TYPES', () => {
     expect(Object.keys(POLICY_SCHEMAS).toSorted()).toEqual(
       [...POLICY_TYPES].toSorted(),
     );
+  });
+});
+
+describe('modelAccessConfigSchema — the model endpoints switch', () => {
+  const rules = { enabled: false, mode: 'allowlist', rules: [] } as const;
+
+  it('reads a file written before the switch existed as off', () => {
+    const parsed = modelAccessConfigSchema.parse(rules);
+    expect(parsed.modelApi).toBeUndefined();
+    expect(modelApiEnabledOf(parsed)).toBe(false);
+    expect(modelApiEnabledOf(null)).toBe(false);
+  });
+
+  it('keeps the switch beside the rules, independent of their own flag', () => {
+    const parsed = modelAccessConfigSchema.parse({
+      ...rules,
+      modelApi: { enabled: true },
+    });
+    expect(parsed.enabled).toBe(false);
+    expect(modelApiEnabledOf(parsed)).toBe(true);
+    expect(modelApiEnabledOf({ ...parsed, modelApi: { enabled: false } })).toBe(
+      false,
+    );
+  });
+
+  it('refuses a switch that is not a boolean', () => {
+    expect(
+      modelAccessConfigSchema.safeParse({
+        ...rules,
+        modelApi: { enabled: 'yes' },
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -412,6 +447,47 @@ describe('transcriptionModelConfigSchema', () => {
       );
     },
   );
+});
+
+describe('imageGenerationConfigSchema', () => {
+  it('is registered as the image_generation policy schema', () => {
+    expect(POLICY_SCHEMAS.image_generation).toBe(imageGenerationConfigSchema);
+  });
+
+  it('reads off, on with automatic selection, and on with a pin', () => {
+    expect(imageGenerationConfigSchema.parse({ enabled: false })).toEqual({
+      enabled: false,
+    });
+    expect(imageGenerationConfigSchema.parse({ enabled: true })).toEqual({
+      enabled: true,
+    });
+    const pinned = {
+      enabled: true,
+      providerSlug: 'openai',
+      modelId: 'gpt-image-1',
+    };
+    expect(imageGenerationConfigSchema.parse(pinned)).toEqual(pinned);
+  });
+
+  it('keeps a pin while the policy is off, so turning it on restores it', () => {
+    const parked = {
+      enabled: false,
+      providerSlug: 'openrouter',
+      modelId: 'google/gemini-2.5-flash-image',
+    };
+    expect(imageGenerationConfigSchema.parse(parked)).toEqual(parked);
+  });
+
+  it.each([
+    {},
+    { enabled: 'yes' },
+    { enabled: true, providerSlug: 'openai' },
+    { enabled: true, modelId: 'gpt-image-1' },
+    { enabled: true, providerSlug: '', modelId: '' },
+    { enabled: true, provider: 'misspelled-pin' },
+  ])('refuses a config that cannot be routed or read: %j', (config) => {
+    expect(imageGenerationConfigSchema.safeParse(config).success).toBe(false);
+  });
 });
 
 describe('reviewPolicyConfigSchema', () => {

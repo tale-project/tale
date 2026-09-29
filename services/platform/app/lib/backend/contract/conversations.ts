@@ -22,14 +22,16 @@ export interface ConversationsContract {
     };
     returns: { improvedMessage: string };
   };
+  /** `assigneeUserId: null` unassigns the person; the team stays. */
   'conversations/mutations:assignConversation': {
     kind: 'mutation';
-    args: { assigneeUserId?: string; conversationId: string };
+    args: { assigneeUserId: string | null; conversationId: string };
     returns: null;
   };
+  /** `assigneeTeamId: null` removes the team; the person stays. */
   'conversations/mutations:assignConversationTeam': {
     kind: 'mutation';
-    args: { assigneeTeamId?: string; conversationId: string };
+    args: { assigneeTeamId: string | null; conversationId: string };
     returns: null;
   };
   'conversations/mutations:bulkArchiveConversations': {

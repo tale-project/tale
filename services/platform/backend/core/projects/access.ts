@@ -11,6 +11,8 @@
  * - Members of any team in the audience get canRead, and canEdit when their
  *   org role is an editor role (editor+ writes to any project they can read).
  * - Only admins/owners can administer (audience changes, delete, archive).
+ * - Tasks add one rule on top (`core/tasks/access.ts`): every reader creates
+ *   tasks and works the ones that are their own; canEdit works them all.
  *
  * The legacy pair `teamId` (owning team) + `sharedWithTeamIds` is the
  * previous spelling of the same audience; readers still accept it so a row

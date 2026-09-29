@@ -131,6 +131,67 @@ describe('resolveTurnAllowance', () => {
     }
   });
 
+  it('names the cap that refused — whose bucket, which limit, when it resets', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [{ scope: 'org', period: 'daily', maxRequests: 3 }],
+    };
+    const allowance = await resolveTurnAllowance(
+      ledger({ org: { totalTokens: 0, costEstimate: 0, requestCount: 2 } }),
+      {
+        ...SUBJECT,
+        defaultCents: 500,
+        // One request in flight fills the third slot.
+        reservations: {
+          org: { costCents: 0, tokens: 0, requests: 1 },
+          user: { costCents: 0, tokens: 0, requests: 0 },
+        },
+      },
+    );
+    expect(allowance.allowed).toBe(false);
+    if (!allowance.allowed) {
+      expect(allowance.violation).toMatchObject({
+        scope: 'org',
+        code: 'REQUEST_LIMIT',
+        period: 'daily',
+        limit: 3,
+      });
+      expect(allowance.violation?.resetsAt).toBeGreaterThan(Date.now());
+    }
+  });
+
+  it('names the personal cost cap a cent from its limit', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'user',
+          scopeId: 'user-1',
+          period: 'weekly',
+          maxCostCents: 1_000,
+        },
+        { scope: 'org', period: 'monthly', maxCostCents: 100_000 },
+      ],
+    };
+    const allowance = await resolveTurnAllowance(
+      ledger({
+        user: { totalTokens: 0, costEstimate: 998.6, requestCount: 9 },
+        org: { totalTokens: 0, costEstimate: 5_000, requestCount: 90 },
+      }),
+      { ...SUBJECT, defaultCents: 500, reservations: holds(0, 0.5) },
+    );
+    expect(allowance.allowed).toBe(false);
+    if (!allowance.allowed) {
+      expect(allowance.reason).toMatch(/Cost limit reached/);
+      expect(allowance.violation).toMatchObject({
+        scope: 'user',
+        code: 'COST_LIMIT',
+        period: 'weekly',
+        limit: 1_000,
+      });
+    }
+  });
+
   it('binds the personal cap against the user’s own spend and reservations', async () => {
     policy.config = {
       enabled: true,
@@ -157,6 +218,117 @@ describe('resolveTurnAllowance', () => {
     );
     // 2_000 − 1_500 − 200 = 300 (the org has 55_000 left).
     expect(allowance).toEqual({ allowed: true, budgetCents: 300 });
+  });
+
+  it('names whose cap a refusal is about', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [{ scope: 'org', period: 'monthly', maxCostCents: 1_000 }],
+    };
+    const allowance = await resolveTurnAllowance(
+      ledger({ org: { totalTokens: 0, costEstimate: 999.5, requestCount: 3 } }),
+      { ...SUBJECT, defaultCents: 500, reservations: holds(0, 0) },
+    );
+    expect(allowance.allowed ? '' : allowance.reason).toMatch(
+      /^Cost limit reached for this monthly period .*, under the organization’s cap$/,
+    );
+  });
+
+  describe('a whole admission (the model endpoints’ worst case)', () => {
+    const PERSONAL = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'user',
+          scopeId: 'user-1',
+          period: 'monthly',
+          maxCostCents: 2_000,
+          maxTokens: 1_000_000,
+        },
+        { scope: 'org', period: 'monthly', maxCostCents: 100_000 },
+      ],
+    };
+
+    it('admits the worst case whole when it fits under every cap', async () => {
+      policy.config = PERSONAL;
+      const allowance = await resolveTurnAllowance(
+        ledger({
+          user: { totalTokens: 10_000, costEstimate: 1_500, requestCount: 2 },
+        }),
+        {
+          ...SUBJECT,
+          defaultCents: 250,
+          reservations: holds(0, 200),
+          whole: { prospectiveTokens: 50_000 },
+        },
+      );
+      expect(allowance).toEqual({ allowed: true, budgetCents: 250 });
+    });
+
+    it('refuses a worst case over the room left, naming the tightest cap and the room', async () => {
+      policy.config = PERSONAL;
+      const allowance = await resolveTurnAllowance(
+        ledger({
+          user: { totalTokens: 10_000, costEstimate: 1_500, requestCount: 2 },
+        }),
+        {
+          ...SUBJECT,
+          defaultCents: 400,
+          reservations: holds(0, 200),
+          whole: { prospectiveTokens: 50_000 },
+        },
+      );
+      expect(allowance).toMatchObject({
+        allowed: false,
+        violation: {
+          scope: 'user',
+          code: 'COST_LIMIT',
+          period: 'monthly',
+          limit: 2_000,
+        },
+        room: { cents: 300, tokens: 990_000 },
+      });
+      expect(allowance.allowed ? '' : allowance.reason).toBe(
+        'Your monthly spend cap leaves too little for this request.',
+      );
+    });
+
+    it('refuses a worst case over the tokens a token cap leaves', async () => {
+      policy.config = PERSONAL;
+      const allowance = await resolveTurnAllowance(
+        ledger({
+          user: { totalTokens: 990_000, costEstimate: 0, requestCount: 2 },
+        }),
+        {
+          ...SUBJECT,
+          defaultCents: 10,
+          reservations: holds(0, 0),
+          whole: { prospectiveTokens: 20_000 },
+        },
+      );
+      expect(allowance).toMatchObject({
+        allowed: false,
+        violation: { code: 'TOKEN_LIMIT', limit: 1_000_000 },
+        room: { tokens: 10_000 },
+      });
+    });
+
+    it('admits the last request a request cap has room for', async () => {
+      policy.config = {
+        enabled: true,
+        rules: [{ scope: 'default', period: 'daily', maxRequests: 10 }],
+      };
+      const allowance = await resolveTurnAllowance(
+        ledger({ user: { totalTokens: 0, costEstimate: 0, requestCount: 9 } }),
+        {
+          ...SUBJECT,
+          defaultCents: 5,
+          reservations: holds(0, 0),
+          whole: { prospectiveTokens: 100 },
+        },
+      );
+      expect(allowance).toEqual({ allowed: true, budgetCents: 5 });
+    });
   });
 
   it('refuses outright once a request cap is reached', async () => {
