@@ -13,6 +13,7 @@ import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import {
+  TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
   TASK_PRIORITY_LABEL_KEY,
   TASK_RUN_REFUSAL_LABEL_KEY,
@@ -181,53 +182,50 @@ export function TaskTimelineEntry({
   const displayName = isWorkflowSentinel(entry.actorType, entry.actorId)
     ? (preview?.name ?? t('timeline.unresolvedWorkflow'))
     : actor.name;
+  // Each value reads as the field the action changed, never by what its text
+  // spells: a title renamed from `todo` to `done` stays those words.
+  const field = TASK_ACTIVITY_FIELD[entry.action];
   const formatActivityValue = (
     value: string | undefined,
   ): string | undefined => {
-    // A repeat change names both rules; a missing end is "Never",
-    // so setting and stopping a series each read as the change they were.
-    // A rule keeps when it creates its next task, so a change of that alone
-    // reads as one too.
-    if (entry.action === 'repeat.changed') {
-      if (!value) return repeatNever;
-      const rule = storedRepeatRule(value);
-      return rule ? repeatLabel(rule) : undefined;
+    // An empty side names the absence — the `''` a cleared field stores, or
+    // the end a writer leaves out for "nobody" and "does not repeat" — so
+    // setting, changing and clearing each read as the change they were.
+    if (value === '' || (value === undefined && field?.absentIsEmpty)) {
+      if (field?.kind === 'repeat') return repeatNever;
+      return field?.emptyKey ? t(field.emptyKey) : undefined;
     }
+    // An end the row never recorded: nothing is invented for it.
     if (value === undefined) return undefined;
-    // `priority.changed` uses the empty string as the "no priority" sentinel;
-    // map it before the generic empty-string pass-through below would
-    // otherwise drop the cleared case.
-    if (entry.action === 'priority.changed') {
-      const key = TASK_PRIORITY_LABEL_KEY[value];
-      return key ? t(key) : value;
-    }
-    if (!value) return undefined;
-    if (entry.action === 'assignee.changed') {
-      return resolveAssigneeId(value);
-    }
-    if (entry.action === 'reviewer.changed') {
-      return resolveAssigneeId(value);
-    }
-    if (
-      entry.action === 'startDate.changed' ||
-      entry.action === 'dueDate.changed'
-    ) {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) {
-        return formatDate(new Date(parsed), 'short');
+    switch (field?.kind) {
+      case 'status':
+        return isTaskStatus(value) ? t(`status.${value}`) : value;
+      case 'priority': {
+        const key = TASK_PRIORITY_LABEL_KEY[value];
+        return key ? t(key) : value;
       }
-      return value;
+      case 'person':
+        return resolveAssigneeId(value);
+      case 'date': {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return value;
+        // A stored day no `Date` can hold formats as nothing, and is left out.
+        return formatDate(new Date(parsed), 'short') || undefined;
+      }
+      case 'repeat': {
+        // A rule keeps when it creates its next task, so a change of that
+        // alone reads as one too.
+        const rule = storedRepeatRule(value);
+        return rule ? repeatLabel(rule) : undefined;
+      }
+      case 'refusal': {
+        const key = TASK_RUN_REFUSAL_LABEL_KEY[value];
+        return key ? t(key) : value;
+      }
+      default:
+        // Titles, descriptions, label and file names, task keys: as stored.
+        return value;
     }
-    if (isTaskStatus(value)) {
-      return t(`status.${value}`);
-    }
-    if (
-      entry.action === 'agent_run.refused' &&
-      TASK_RUN_REFUSAL_LABEL_KEY[value]
-    ) {
-      return t(TASK_RUN_REFUSAL_LABEL_KEY[value]);
-    }
-    return value;
   };
   const from = formatActivityValue(entry.fromValue);
   const to = formatActivityValue(entry.toValue);

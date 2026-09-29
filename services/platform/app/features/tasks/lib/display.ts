@@ -99,17 +99,85 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
 };
 
 /**
+ * What an activity row's stored values are: the history reads each one as the
+ * field its action changed, never by what the text happens to spell. A title,
+ * a description, a label or a file name that reads `done` stays `done`; only a
+ * status, a priority and a refusal code are codes the reader sees as words.
+ */
+export type TaskActivityValueKind =
+  /** A task status code (`todo`, `done`, …). */
+  | 'status'
+  /** A priority code (`p0` … `p3`). */
+  | 'priority'
+  /** A member's or an agent's id. */
+  | 'person'
+  /** A day, as epoch milliseconds. */
+  | 'date'
+  /** A repeat rule, as the JSON it is stored as. */
+  | 'repeat'
+  /** A run-admission refusal code. */
+  | 'refusal'
+  /** What someone typed or named, shown exactly as stored. */
+  | 'text';
+
+export interface TaskActivityField {
+  kind: TaskActivityValueKind;
+  /**
+   * The `tasks` i18n key naming an empty side — the `''` the editor stores
+   * for a field it cleared, or for one that was empty before it was set — so
+   * a cleared due date reads "Oct 1 → No due date", not the date it had.
+   */
+  emptyKey?: string;
+  /**
+   * The writer leaves an empty side out instead of storing `''` (an assignee
+   * change, a repeat change). For every other field, an end the row does not
+   * carry was never recorded, and the history invents nothing for it.
+   */
+  absentIsEmpty?: true;
+}
+
+/**
+ * How the history reads the values of each stored activity `action` (see
+ * `recordActivity` and `stringifyEditValue` in
+ * `backend/domains/tasks/service.ts`). An action missing here reads as text.
+ */
+export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
+  created: { kind: 'status' },
+  'status.changed': { kind: 'status' },
+  'priority.changed': { kind: 'priority', emptyKey: 'priority.none' },
+  'assignee.changed': {
+    kind: 'person',
+    emptyKey: 'assignee.unassigned',
+    absentIsEmpty: true,
+  },
+  'reviewer.changed': { kind: 'person', emptyKey: 'reviewer.none' },
+  'startDate.changed': { kind: 'date', emptyKey: 'activity.empty.startDate' },
+  'dueDate.changed': { kind: 'date', emptyKey: 'activity.empty.dueDate' },
+  'repeat.changed': { kind: 'repeat', absentIsEmpty: true },
+  'title.changed': { kind: 'text' },
+  'description.changed': {
+    kind: 'text',
+    emptyKey: 'activity.empty.description',
+  },
+  'labels.changed': { kind: 'text', emptyKey: 'activity.empty.labels' },
+  'attachments.changed': {
+    kind: 'text',
+    emptyKey: 'activity.empty.attachments',
+  },
+  'agent_run.refused': { kind: 'refusal' },
+};
+
+/**
  * Maps a stored priority code (a `priority.changed` row's `fromValue` /
- * `toValue`) to its `tasks` i18n key. An empty string stands for "priority
- * cleared" (the row's `priority` is now `null`); anything else is a raw
- * code we never want the reader to see.
+ * `toValue`) to its `tasks` i18n key; anything else is a raw code we never
+ * want the reader to see. The empty side ("no priority") is the field's
+ * `emptyKey` in {@link TASK_ACTIVITY_FIELD}.
  */
 export const TASK_PRIORITY_LABEL_KEY: Record<string, string> = {
   p0: 'priority.p0',
   p1: 'priority.p1',
   p2: 'priority.p2',
   p3: 'priority.p3',
-  '': 'priority.none',
 };
 
 /**
