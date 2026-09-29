@@ -1327,4 +1327,4 @@ Veröffentlichte Versionshinweise findest du auf [GitHub Releases](https://githu
 
 ## Wo das hingehört
 
-Über den [MCP-Endpoint](/de/develop/mcp-endpoint) greifen MCP-Clients auf Tale zu und erstellen oder bearbeiten Automatisierungen. Die [Webhooks-Anleitung](/de/develop/webhooks) beschreibt eingehende Trigger, die Läufe ohne API-Schlüssel starten. Für die Arbeit mit Projekt-Agenten und Automatisierungen in der App führt dich der Bereich [Plattform](/de/platform) weiter.
+Über den [MCP-Endpoint](/de/develop/mcp-endpoint) greifen MCP-Clients auf Tale zu und erstellen oder bearbeiten Automatisierungen. Die [Webhooks-Anleitung](/de/develop/webhooks) beschreibt eingehende Trigger, die Läufe ohne API-Schlüssel starten. Für die Arbeit mit Projekt-Agenten und Automatisierungen in der App führt dich der Bereich [Plattform](/de/platform) weiter. Wie du Tale in opencode, Claude Code oder ein Shell-Skript holst und was das OpenAI-kompatible `/api/v1/chat/completions` ersetzt, beschreibt [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor).
