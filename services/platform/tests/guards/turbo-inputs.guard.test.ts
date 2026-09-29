@@ -39,7 +39,8 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * in jsdom, `test:browser` in Chromium) render its components, stylesheet
  * and catalogs, and the automation editor's browser suite imports its test
  * helpers (`@tale/ui/testing/flow`), so a design-system change alone must
- * re-run them: both hash `packages/ui/src` whole, as `test` does.
+ * re-run them: both hash `packages/ui/src` whole, as `test` does. All three
+ * tasks hash the package's files outside `src/` too (`UI_PACKAGE_FILES`).
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -108,6 +109,27 @@ const OUTSIDE_READS = [
   },
 ];
 
+/**
+ * The `@tale/ui` files outside `packages/ui/src` that `test`, `test:ui` and
+ * `test:browser` all hash beside it, and why.
+ */
+const UI_PACKAGE_FILES = [
+  {
+    // Both vitest configs load `@tale/ui/vite/yaml`, and the suites import
+    // `@tale/ui/*` throughout (`@tale/ui/testing/flow` among them): an export
+    // renamed or dropped breaks them with no file under `src/` changed.
+    path: 'packages/ui/package.json',
+    why: 'its `exports` resolve every `@tale/ui/*` import',
+  },
+  {
+    // Tailwind 4 loads `tailwind.config.ts` only through an `@config` rule,
+    // which no stylesheet the suites import carries today. Hashed anyway, so
+    // the day one does, an edit to the preset alone still re-runs them.
+    path: 'packages/ui/tailwind-preset.ts',
+    why: 'the preset `tailwind.config.ts` names',
+  },
+];
+
 /** The slice of `turbo run --dry=json` this guard reads. */
 const dryRunSchema = z.object({
   tasks: z.array(
@@ -172,6 +194,21 @@ function trackedFiles(repoPath: string): string[] {
     .filter(Boolean);
 }
 
+/** A case per `UI_PACKAGE_FILES` entry, against what `hashed()` lists for `name`. */
+function itHashesUiPackageFiles(name: string, hashed: () => Set<string>) {
+  for (const { path: repoPath, why } of UI_PACKAGE_FILES) {
+    it(`hashes ${repoPath} (${why})`, () => {
+      expect(trackedFiles(repoPath), `${repoPath} is not tracked`).toEqual([
+        repoPath,
+      ]);
+      expect(
+        hashed().has(repoPath),
+        `@tale/platform#${name} does not hash ${repoPath} — list \`$TURBO_ROOT$/${repoPath}\` in services/platform/turbo.json tasks.${name}.inputs`,
+      ).toBe(true);
+    });
+  }
+}
+
 describe('@tale/platform#test turbo inputs', () => {
   let hashed: Set<string>;
 
@@ -224,6 +261,8 @@ describe('@tale/platform#test turbo inputs', () => {
       ).toEqual([]);
     });
   }
+
+  itHashesUiPackageFiles('test', () => hashed);
 });
 
 /** The tasks that run the component suites, which render `@tale/ui`. */
@@ -253,4 +292,6 @@ describe.each(COMPONENT_TASKS)('@tale/platform#%s turbo inputs', (name) => {
       `@tale/platform#${name} renders ${missing.length} @tale/ui file(s) that turbo does not hash — list \`$TURBO_ROOT$/packages/ui/src/**\` in services/platform/turbo.json tasks.${name}.inputs`,
     ).toEqual([]);
   });
+
+  itHashesUiPackageFiles(name, () => hashed);
 });

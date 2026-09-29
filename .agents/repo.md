@@ -153,8 +153,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
   knowledge-db migrations, `packages/ui/src` (two suites read it as text) and other outside
   files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
-  component suites render it. Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
+  component suites render it, and all three list `@tale/ui`'s `package.json` and
+  `tailwind-preset.ts`. Its guard is `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
@@ -176,11 +176,15 @@ Beyond such a declared file, an edit under `packages/` leaves every dependent wo
 `test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
 package change is judged only by that package's own tasks until the consumer's own files
 change. The platform's `test`, `test:ui` and `test:browser` are the exception for `@tale/ui`:
-they hash `packages/ui/src` whole, so a design-system change re-runs them — the i18n suite, and
-every component suite that renders the package or imports its test helpers
-(`@tale/ui/testing/flow`). The i18n suites of `services/web`, `services/ui-docs`,
-`services/ai-gateway` and `packages/marketing-ui` are still in that gap: they run `@tale/ui`'s
-i18n test framework (the first two also read the package catalogs) unhashed.
+they hash `packages/ui/src` whole and two files beside it — `package.json`, whose `exports`
+resolve every `@tale/ui/*` import, and `tailwind-preset.ts`, the preset the platform's
+`tailwind.config.ts` names (Tailwind 4 loads that config only through an `@config` rule, which
+no stylesheet has yet: the preset is hashed ahead of the day one does). So a design-system
+change re-runs them — the i18n suite, and every component suite that renders the package or
+imports its test helpers (`@tale/ui/testing/flow`). The i18n suites of `services/web`,
+`services/ui-docs`, `services/ai-gateway` and `packages/marketing-ui` are still in that gap:
+they run `@tale/ui`'s i18n test framework (the first two also read the package catalogs)
+unhashed.
 
 ## Skills index
 
