@@ -43,7 +43,7 @@ gh api repos/tale-project/tale/dispatches -f event_type=release-candidate \
 Both start the same run, titled `Release candidate <sha>`. Follow it with:
 
 ```bash
-gh run list --repo tale-project/tale --workflow build.yml \
+gh run list --repo tale-project/tale --workflow build.yml --branch main \
   --json databaseId,displayTitle,status,conclusion \
   --jq '.[] | select(.displayTitle == "Release candidate <sha>")'
 gh run watch <run id> --repo tale-project/tale
@@ -75,7 +75,10 @@ What the run does:
   as a table in the job summary.
 
 The workflow definition comes from the ref you dispatch (`main`). The source, the Dockerfiles and
-the container test scripts come from the candidate.
+the container test scripts come from the candidate. A test dispatch from another branch does not
+count as release validation, even if its title, jobs and artifact names match. The release gate
+checks the workflow path, the `main` dispatch branch and its full source SHA; that workflow commit
+must still be on `main` when the gate runs. Later merges may advance `main` without invalidating it.
 
 ## 3. Run the release gate
 
@@ -91,17 +94,22 @@ The gate only reads GitHub. It prints a JSON report and exits 0 only when the st
 | `eligible` | Every check below passed. | Tag (step 4). |
 | `pending` | A required run is still going. | Wait, then run the gate again. |
 | `blocked` | A required run is missing, failed, skipped or was cancelled. | Validate again, or re-run what failed. |
-| `published` | `vX.Y.Z` already points at the candidate. | Do not tag. Reconcile its Release run (step 5). |
+| `allocated` | A version tag already points at the candidate. This does not prove publication succeeded. | Do not tag. Reconcile the Release run for the report's `tagName` (step 5). |
 | `conflict` | The version is taken or not newer, or the commit is not on `main` or lacks the latest release. | Choose a version or candidate explicitly. |
 
 To be `eligible`, the candidate must pass all of these:
 
-- **The version tag.** No tag named for the version exists yet. A tag is never moved or reused.
+- **The version tag.** Neither `vX.Y.Z` nor `X.Y.Z` exists yet. Both tag spellings publish the
+  same image version, so either reserves it even while its Release run is pending or failed.
+  A tag is never moved or reused. If either spelling points at another commit, the state is
+  `conflict`, even if the other already points at the candidate.
 - **Its place on `main`.** The candidate is on `main`, contains the latest release, and the
   version is newer than that release.
-- **Its newest validation.** The newest `Release candidate <sha>` run succeeded, with a
-  successful Candidate gate job and an unexpired receipt. Earlier candidate runs stay in the
-  report, so a failure before a successful retry remains visible.
+- **Its newest validation.** The newest `Release candidate <sha>` run dispatched from `main`
+  used the trusted Build workflow and succeeded, with a successful Candidate gate job and an
+  unexpired receipt. Earlier candidate runs stay in the report, so a failure before a successful
+  retry remains visible. Each run records its dispatch branch and workflow source SHA in the
+  report.
 - **The other workflows.** The newest run of Checks, SAST, Commitlint and E2E on the commit
   succeeded, and so did CLI and Security when they ran for it. The Build push run of the commit
   does not count, because path filters skip checks there and later merges cancel it.
@@ -183,9 +191,10 @@ After expiry, the next holder takes the lease over only after reconciling the re
 
 1. **Candidate runs.** Run the gate for the leased candidate and version. If a candidate run is
    still going, wait for it.
-2. **The tag.** `published` means the tag exists at the candidate: verify its Release run.
-   `conflict` means someone else took the version, or chose another candidate: stop and hand
-   the decision to a person.
+2. **The tag.** `allocated` means a version tag exists at the candidate, not that publication
+   succeeded. The report's `tag` is its commit and `tagName` is its actual spelling: verify that
+   tag's Release run, without pushing the alternate spelling. `conflict` means someone else took
+   the version, or chose another candidate: stop and hand the decision to a person.
 3. **The Release run.** If the Release run for the tag is still going, wait for it. If it
    failed, follow the rule above; no tag moves.
 

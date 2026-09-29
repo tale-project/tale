@@ -15,6 +15,7 @@ import {
 const CANDIDATE = 'c'.repeat(40);
 const PREVIOUS = 'b'.repeat(40);
 const ELSEWHERE = 'e'.repeat(40);
+const WORKFLOW_SOURCE = 'd'.repeat(40);
 const REPOSITORY = 'synthetic/tale';
 const API_ROOT = `repos/${REPOSITORY}/`;
 
@@ -28,6 +29,8 @@ type Run = {
   html_url: string;
   run_attempt: number;
   created_at: string;
+  head_branch: string | null;
+  head_sha: string;
 };
 
 let nextRun = 100;
@@ -47,6 +50,8 @@ function run(
     html_url: `https://github.com/${REPOSITORY}/actions/runs/${id}`,
     run_attempt: 1,
     created_at: `2026-09-29T19:${String(id % 60).padStart(2, '0')}:00Z`,
+    head_branch: 'main',
+    head_sha: CANDIDATE,
     ...extra,
   };
 }
@@ -59,6 +64,7 @@ function candidateRun(
   return run('.github/workflows/build.yml', conclusion, {
     event: 'workflow_dispatch',
     display_title: `Release candidate ${CANDIDATE}`,
+    head_sha: WORKFLOW_SOURCE,
     ...extra,
   });
 }
@@ -82,6 +88,7 @@ function passing(): Scenario {
     compare: {
       [`${CANDIDATE}...main`]: 'ahead',
       [`${PREVIOUS}...${CANDIDATE}`]: 'ahead',
+      [`${WORKFLOW_SOURCE}...main`]: 'ahead',
     },
     candidateRuns: [validation],
     jobs: {
@@ -140,7 +147,7 @@ function fakeApi(scenario: Scenario) {
     }
     if (
       (match = rest.match(
-        /^actions\/workflows\/build\.yml\/runs\?event=(\w+)&per_page=100$/,
+        /^actions\/workflows\/build\.yml\/runs\?branch=main&event=(\w+)&per_page=100$/,
       ))
     ) {
       return {
@@ -235,9 +242,67 @@ describe('release candidate gate', () => {
     expect(report.state).toBe('blocked');
     expect(report.validation).toEqual([]);
     expect(report.reasons).toEqual([
-      `no Release candidate run validated ${CANDIDATE}: dispatch build.yml for it (.github/RELEASING.md)`,
+      `no main-branch Release candidate run validated ${CANDIDATE}: dispatch build.yml for it (.github/RELEASING.md)`,
     ]);
   });
+
+  test.each([
+    { head_branch: 'ci/unmerged-workflow' },
+    { head_branch: null },
+    { head_sha: WORKFLOW_SOURCE.slice(0, 7) },
+    { path: '.github/workflows/other.yml' },
+  ])(
+    'a matching title and successful job cannot replace main workflow provenance: %j',
+    async (change) => {
+      const scenario = passing();
+      Object.assign(scenario.candidateRuns[0]!, change);
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.receipt).toBeNull();
+      expect(report.reasons).toEqual([
+        `${scenario.candidateRuns[0]!.html_url} is not a candidate validation from the main Build workflow at a full source SHA`,
+      ]);
+      expect(calls.some((call) => call.includes('/artifacts?'))).toBe(false);
+    },
+  );
+
+  test.each(['behind', 'diverged', 'missing'])(
+    'workflow source no longer contained in main (%s) cannot validate the candidate',
+    async (status) => {
+      const scenario = passing();
+      if (status === 'missing')
+        delete scenario.compare[`${WORKFLOW_SOURCE}...main`];
+      else scenario.compare[`${WORKFLOW_SOURCE}...main`] = status;
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.reasons).toEqual([
+        `${scenario.candidateRuns[0]!.html_url} used workflow source ${WORKFLOW_SOURCE}, which is not a commit on main`,
+      ]);
+    },
+  );
+
+  test.each(['ahead', 'identical'])(
+    'a pinned main workflow source remains valid while main moves (%s)',
+    async (status) => {
+      const scenario = passing();
+      scenario.compare[`${WORKFLOW_SOURCE}...main`] = status;
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('eligible');
+      expect(report.validation[0]).toMatchObject({
+        headBranch: 'main',
+        headSha: WORKFLOW_SOURCE,
+      });
+      expect(calls).toContain(
+        `${API_ROOT}compare/${WORKFLOW_SOURCE}...main?per_page=1`,
+      );
+      expect(
+        calls.filter((call) => call.includes('/workflows/build.yml/runs?')),
+      ).toEqual([
+        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100`,
+        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100`,
+      ]);
+    },
+  );
 
   test.each(['cancelled', 'failure', 'skipped', 'timed_out'])(
     'a %s validation run blocks it',
@@ -389,12 +454,12 @@ describe('release candidate gate', () => {
     ['lightweight', false],
     ['annotated', true],
   ])(
-    'a %s version tag already at the candidate is published, never tagged again',
+    'a %s version tag already at the candidate is allocated, never tagged again',
     async (_kind, annotated) => {
       const scenario = passing();
       scenario.tags['v0.5.64'] = { sha: CANDIDATE, annotated };
       const { report, calls } = await judge(scenario);
-      expect(report.state).toBe('published');
+      expect(report.state).toBe('allocated');
       expect(report.tag).toBe(CANDIDATE);
       expect(report.reasons).toEqual([
         `v0.5.64 already points at ${CANDIDATE}: reconcile its Release run, never tag it again`,
@@ -412,6 +477,70 @@ describe('release candidate gate', () => {
     expect(report.reasons).toEqual([
       `v0.5.64 already points at ${ELSEWHERE}; a tag is never moved or reused`,
     ]);
+  });
+
+  test.each([
+    ['lightweight', false],
+    ['annotated', true],
+  ])(
+    'an existing %s unprefixed tag reserves the image version before its release completes',
+    async (_kind, annotated) => {
+      const scenario = passing();
+      scenario.tags['0.5.64'] = { sha: ELSEWHERE, annotated };
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('conflict');
+      expect(report.tag).toBe(ELSEWHERE);
+      expect(report.tagName).toBe('0.5.64');
+      expect(report.reasons).toEqual([
+        `0.5.64 already points at ${ELSEWHERE}; a tag is never moved or reused`,
+      ]);
+      expect(calls.some((call) => call.includes('/actions/'))).toBe(false);
+    },
+  );
+
+  test.each([
+    ['lightweight', false],
+    ['annotated', true],
+  ])(
+    'an existing %s unprefixed tag at the candidate is reconciled under its actual name',
+    async (_kind, annotated) => {
+      const scenario = passing();
+      scenario.tags['0.5.64'] = { sha: CANDIDATE, annotated };
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('allocated');
+      expect(report.tag).toBe(CANDIDATE);
+      expect(report.tagName).toBe('0.5.64');
+      expect(report.reasons).toEqual([
+        `0.5.64 already points at ${CANDIDATE}: reconcile its Release run, never tag it again`,
+      ]);
+      expect(calls.some((call) => call.includes('/actions/'))).toBe(false);
+    },
+  );
+
+  test.each([
+    [CANDIDATE, ELSEWHERE, '0.5.64'],
+    [ELSEWHERE, CANDIDATE, 'v0.5.64'],
+  ])(
+    'a conflicting pair of version tags never hides behind a same-candidate reservation',
+    async (prefixed, unprefixed, conflictingTag) => {
+      const scenario = passing();
+      scenario.tags['v0.5.64'] = { sha: prefixed, annotated: true };
+      scenario.tags['0.5.64'] = { sha: unprefixed, annotated: true };
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('conflict');
+      expect(report.tag).toBe(ELSEWHERE);
+      expect(report.tagName).toBe(conflictingTag);
+    },
+  );
+
+  test('both tag spellings at the same candidate reconcile the requested tag', async () => {
+    const scenario = passing();
+    scenario.tags['v0.5.64'] = { sha: CANDIDATE };
+    scenario.tags['0.5.64'] = { sha: CANDIDATE, annotated: true };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('allocated');
+    expect(report.tag).toBe(CANDIDATE);
+    expect(report.tagName).toBe('v0.5.64');
   });
 
   test.each([
@@ -438,7 +567,7 @@ describe('release candidate gate', () => {
     const { report } = await judge(scenario);
     expect(report.state).toBe('conflict');
     expect(report.reasons).toEqual([
-      'v0.5.64 is not newer than the latest release 0.5.64',
+      `0.5.64 already points at ${PREVIOUS}; a tag is never moved or reused`,
     ]);
   });
 
@@ -546,12 +675,14 @@ describe('release candidate gate command', () => {
       const { api } = fakeApi(scenario);
       const paths = [
         `git/ref/tags/v0.5.64`,
+        `git/ref/tags/0.5.64`,
         `compare/${CANDIDATE}...main?per_page=1`,
         `releases/latest`,
         `git/ref/tags/v0.5.63`,
         `compare/${PREVIOUS}...${CANDIDATE}?per_page=1`,
-        `actions/workflows/build.yml/runs?event=workflow_dispatch&per_page=100`,
-        `actions/workflows/build.yml/runs?event=repository_dispatch&per_page=100`,
+        `compare/${WORKFLOW_SOURCE}...main?per_page=1`,
+        `actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100`,
+        `actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100`,
         ...scenario.candidateRuns.flatMap((entry) => [
           `actions/runs/${entry.id}/jobs?filter=latest&per_page=100`,
           `actions/runs/${entry.id}/artifacts?per_page=100`,
@@ -619,6 +750,22 @@ exit 1
       expect(JSON.parse(blocked.stdout)).toMatchObject({
         state: 'blocked',
         validation: [],
+      });
+    },
+    30_000,
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'exits 1 when an unfinished unprefixed release already reserved the image version',
+    async () => {
+      const scenario = passing();
+      scenario.tags['0.5.64'] = { sha: ELSEWHERE };
+      const result = await command(args, scenario);
+      expect(result.code, result.stderr).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        state: 'conflict',
+        tag: ELSEWHERE,
+        tagName: '0.5.64',
       });
     },
     30_000,

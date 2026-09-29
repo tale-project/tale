@@ -22,8 +22,9 @@ export type GitHubApi = (path: string) => Promise<unknown>;
  * - `pending`: a required run is still going; ask again when it ends.
  * - `blocked`: a required run is missing, failed, skipped or was cancelled;
  *   validating again or re-running it can still clear it.
- * - `published`: the version already points at the candidate; reconcile its
- *   Release run instead of tagging again.
+ * - `allocated`: a version tag already points at the candidate; reconcile
+ *   that tag's Release run instead of tagging again. This says nothing about
+ *   whether its images or GitHub release were published successfully.
  * - `conflict`: this pair can never pass — the version is taken or not newer
  *   than the latest release, or the commit is not on main or does not
  *   contain that release. Choose again explicitly; never move a tag.
@@ -32,7 +33,7 @@ export type GateState =
   | 'eligible'
   | 'pending'
   | 'blocked'
-  | 'published'
+  | 'allocated'
   | 'conflict';
 
 /** Workflows whose latest run on the candidate commit must have succeeded:
@@ -54,6 +55,7 @@ export const REQUIRED_WHEN_RUN = [
  * is its verdict. The push run of the same commit does not count: path
  * filters skip checks there, and main merges cancel it. */
 const CANDIDATE_WORKFLOW = 'build.yml';
+const CANDIDATE_WORKFLOW_PATH = `.github/workflows/${CANDIDATE_WORKFLOW}`;
 const CANDIDATE_EVENTS = ['workflow_dispatch', 'repository_dispatch'];
 const CANDIDATE_GATE_JOB = 'Candidate gate';
 
@@ -71,6 +73,8 @@ const runSchema = z.object({
   html_url: z.string(),
   run_attempt: z.number().optional(),
   created_at: z.string(),
+  head_branch: z.string().nullable(),
+  head_sha: z.string(),
 });
 const runsSchema = z.object({ workflow_runs: z.array(runSchema) });
 const jobsSchema = z.object({
@@ -101,6 +105,8 @@ export type RunSummary = {
   status: string | null;
   conclusion: string | null;
   attempt: number | null;
+  headBranch: string | null;
+  headSha: string;
 };
 
 export type GateReport = {
@@ -108,7 +114,9 @@ export type GateReport = {
   repository: string;
   candidate: string;
   version: string;
+  /** The existing version reservation's commit and actual tag spelling. */
   tag: string | null;
+  tagName: string | null;
   latestRelease: { tag: string; sha: string | null } | null;
   /** Every candidate run for this SHA, newest first; the newest decides. */
   validation: RunSummary[];
@@ -126,6 +134,8 @@ function summary(run: Run): RunSummary {
     status: run.status,
     conclusion: run.conclusion,
     attempt: run.run_attempt ?? null,
+    headBranch: run.head_branch,
+    headSha: run.head_sha,
   };
 }
 
@@ -161,6 +171,34 @@ async function compare(
 
 const contains = (status: string) =>
   status === 'ahead' || status === 'identical';
+
+/** A matching title is not workflow provenance: a branch can carry a
+ * different Build definition and still use the same title and job names.
+ * Only the main workflow's full source commit counts, even after main moves. */
+async function trustedCandidateRun(
+  api: GitHubApi,
+  repo: string,
+  run: Run,
+  blocked: string[],
+): Promise<boolean> {
+  if (
+    run.path !== CANDIDATE_WORKFLOW_PATH ||
+    run.head_branch !== 'main' ||
+    !SHA.test(run.head_sha)
+  ) {
+    blocked.push(
+      `${run.html_url} is not a candidate validation from the main Build workflow at a full source SHA`,
+    );
+    return false;
+  }
+  if (!contains(await compare(api, repo, run.head_sha, 'main'))) {
+    blocked.push(
+      `${run.html_url} used workflow source ${run.head_sha}, which is not a commit on main`,
+    );
+    return false;
+  }
+  return true;
+}
 
 /** Judge one run the release needs: success passes, a run still going is
  * pending, and any other conclusion — skipped and cancelled included —
@@ -210,6 +248,7 @@ export async function gate({
     candidate: sha,
     version,
     tag: null,
+    tagName: null,
     latestRelease: null,
     validation: [],
     receipt: null,
@@ -217,20 +256,34 @@ export async function gate({
     reasons: [],
   };
 
-  // A version tag is final: at the candidate it is already published, and
-  // anywhere else it is taken.
-  report.tag = await tagCommit(api, repo, version);
-  if (report.tag === sha) {
-    report.state = 'published';
+  // Both accepted tag spellings publish the same image version. Check all
+  // reservations before reconciling one: a conflicting alias must not hide
+  // behind the requested tag already pointing at the candidate.
+  const reservations = await Promise.all(
+    [version, version.slice(1)].map(async (tag) => ({
+      tag,
+      sha: await tagCommit(api, repo, tag),
+    })),
+  );
+  const taken = reservations.find(
+    (entry) => entry.sha !== null && entry.sha !== sha,
+  );
+  if (taken) {
+    report.tag = taken.sha;
+    report.tagName = taken.tag;
+    report.state = 'conflict';
     report.reasons.push(
-      `${version} already points at ${sha}: reconcile its Release run, never tag it again`,
+      `${taken.tag} already points at ${taken.sha}; a tag is never moved or reused`,
     );
     return report;
   }
-  if (report.tag !== null) {
-    report.state = 'conflict';
+  const allocated = reservations.find((entry) => entry.sha === sha);
+  if (allocated) {
+    report.tag = allocated.sha;
+    report.tagName = allocated.tag;
+    report.state = 'allocated';
     report.reasons.push(
-      `${version} already points at ${report.tag}; a tag is never moved or reused`,
+      `${allocated.tag} already points at ${sha}: reconcile its Release run, never tag it again`,
     );
     return report;
   }
@@ -271,7 +324,7 @@ export async function gate({
   const candidates: Run[] = [];
   for (const event of CANDIDATE_EVENTS) {
     const page = await api(
-      `${repo}/actions/workflows/${CANDIDATE_WORKFLOW}/runs?event=${event}&per_page=100`,
+      `${repo}/actions/workflows/${CANDIDATE_WORKFLOW}/runs?branch=main&event=${event}&per_page=100`,
     );
     if (page === null) continue;
     candidates.push(
@@ -287,9 +340,12 @@ export async function gate({
   const validation = candidates[0];
   if (!validation) {
     reasons.blocked.push(
-      `no Release candidate run validated ${sha}: dispatch build.yml for it (.github/RELEASING.md)`,
+      `no main-branch Release candidate run validated ${sha}: dispatch build.yml for it (.github/RELEASING.md)`,
     );
-  } else if (judge(validation, 'the candidate validation', reasons)) {
+  } else if (
+    (await trustedCandidateRun(api, repo, validation, reasons.blocked)) &&
+    judge(validation, 'the candidate validation', reasons)
+  ) {
     const jobs = jobsSchema.parse(
       await api(
         `${repo}/actions/runs/${validation.id}/jobs?filter=latest&per_page=100`,
