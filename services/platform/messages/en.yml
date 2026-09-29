@@ -2278,6 +2278,7 @@ documents:
     fileTooLargeLimit: File exceeds the {limit} limit.
     uploadTimedOut: Upload timed out. Check your connection and try again.
     storedButNotIndexed: Stored and downloadable, but not indexed for search (legacy format).
+    storedButNotIndexedNoExtension: 'Stored and downloadable, but not indexed for search: the file name is only an extension.'
     filesCompletedSummary: '{completed} of {total} files completed'
     filesCompletedWithFailures: '{completed} of {total} files completed · {failed} failed'
     selectTeams: Assign to teams

@@ -806,12 +806,26 @@ export const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
  * The extension the indexer reads a file by: its extraction router decides
  * on the name alone (Node's `extname`, lower-cased), so a name with no dot
  * past its first character — `README`, `export`, a dotfile such as `.md` —
- * has none, whatever its content type says. Lowercase, no dot.
+ * has none, whatever its content type says, and neither has one that ends
+ * in its dot (`notes.`). Lowercase, no dot.
  */
 function indexedExtension(fileName: string): string | undefined {
   const baseName = fileName.slice(fileName.lastIndexOf('/') + 1);
   const dot = baseName.lastIndexOf('.');
-  return dot > 0 ? baseName.slice(dot + 1).toLowerCase() : undefined;
+  const extension = dot > 0 ? baseName.slice(dot + 1).toLowerCase() : '';
+  return extension.length > 0 ? extension : undefined;
+}
+
+/**
+ * Whether the indexer reads an extension from this name at all
+ * ({@link indexedExtension}). False for `README` and for a name that is only
+ * an extension, such as `.md`: the upload allowlist reads that one as `md`
+ * (`extractExtension`) and stores it, and the indexer refuses it. The upload
+ * dialogs say which of the two keeps a stored file out of the index — this,
+ * or a format no extractor reads.
+ */
+export function hasIndexedExtension(fileName: string): boolean {
+  return indexedExtension(fileName) !== undefined;
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   extractExtension,
   FALLBACK_MIME_TYPE,
   getDocumentPreviewKind,
+  hasIndexedExtension,
   isAllowedDocumentUpload,
   isAudioOrVideo,
   isRagIndexableFile,
@@ -512,6 +513,34 @@ describe('isRagIndexableFile', () => {
     'rejects %s, a name without an extension',
     (fileName) => {
       expect(isRagIndexableFile(fileName)).toBe(false);
+    },
+  );
+});
+
+describe('hasIndexedExtension', () => {
+  // A name that is only an extension passes the upload allowlist, which
+  // reads `.md` as `md`, while the indexer reads no extension from it. The
+  // upload dialogs name that as the reason the stored file is not indexed,
+  // never "(legacy format)".
+  it('reads no extension from `.md`, which the upload allowlist still admits', () => {
+    expect(isAllowedDocumentUpload('.md')).toBe(true);
+    expect(extractExtension('.md')).toBe('md');
+    expect(hasIndexedExtension('.md')).toBe(false);
+    expect(isRagIndexableFile('.md')).toBe(false);
+  });
+
+  it.each(['.pdf', '.docx', 'README', 'notes.', 'drafts/.txt'])(
+    'reads no extension from %s',
+    (fileName) => {
+      expect(hasIndexedExtension(fileName)).toBe(false);
+    },
+  );
+
+  // A legacy format has an extension: its hint stays "(legacy format)".
+  it.each(['notes.md', 'legacy.doc', 'standup.loop', '.eslintrc.json'])(
+    'reads an extension from %s',
+    (fileName) => {
+      expect(hasIndexedExtension(fileName)).toBe(true);
     },
   );
 });

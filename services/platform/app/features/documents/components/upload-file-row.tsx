@@ -7,7 +7,10 @@ import { memo } from 'react';
 
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { getDisplayExtension } from '@/lib/shared/file-types';
+import {
+  getDisplayExtension,
+  hasIndexedExtension,
+} from '@/lib/shared/file-types';
 import { formatBytes } from '@/lib/utils/format/number';
 
 import type { FileUploadStatus } from '../hooks/mutations';
@@ -44,8 +47,10 @@ interface UploadFileRowProps {
   bytesLoaded: number;
   bytesTotal: number;
   error?: string;
-  /** Legacy format (e.g. .doc/.ppt/.xls): uploads and is downloadable, but has
-   *  no text extractor so it won't be indexed for search. Shown as a hint. */
+  /** Uploads and is downloadable, but won't be indexed for search: a legacy
+   *  format (e.g. .doc/.ppt/.xls) with no text extractor, or a name that is
+   *  only an extension (`.md`), which the indexer reads no format from. Shown
+   *  as a hint naming which of the two. */
   notIndexable?: boolean;
   onRetry?: () => void;
   onRemove?: () => void;
@@ -262,11 +267,14 @@ export const UploadFileRow = memo(function UploadFileRow({
         </div>
       )}
 
-      {/* Legacy-format hint: stored but not searchable. Hidden once the row
-          fails (the error message takes over). */}
+      {/* Stored but not searchable: a legacy format, or a name that is only
+          an extension. Hidden once the row fails (the error message takes
+          over). */}
       {notIndexable && !isFailed && (
         <span className="text-muted-foreground text-[11px] leading-snug">
-          {t('upload.storedButNotIndexed')}
+          {hasIndexedExtension(fileName)
+            ? t('upload.storedButNotIndexed')
+            : t('upload.storedButNotIndexedNoExtension')}
         </span>
       )}
     </div>
