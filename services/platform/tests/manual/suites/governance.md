@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 56 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 57 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -21,11 +21,11 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
-| Content & Models      | `content-models`                          | Custom instructions (unified field, was prefix/suffix), Default Models, Model access        |
+| Content & Models      | `content-models`                          | Default models, Model access, Vision model, Audio transcription model                       |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
-| Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
+| Guardrails            | `guardrails`                              | Guardrails overview, Custom instructions, Content safety, PII protection, Moderation provider |
 | Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
 | Usage                 | `usage`                                   | Read-only org usage metrics (cards + chart + tables)                                        |
 | Legal hold            | `legal-hold`                              | Active holds + Release requests; **Place legal hold**                                       |
@@ -59,13 +59,20 @@ select lists every member's live key, read from
 
 - [ ] `GOV-F1` · **Index redirect** — Open `…/governance` → URL becomes
   `…/governance/content-models`
-- [ ] `GOV-F2` · **System prompt persist** — `content-models` → in the
+- [ ] `GOV-F2` · **System prompt persist** — `guardrails` → in the
   **Custom instructions** section (`governance.systemPrompt.title`) flip the
   section Switch ON (aria-label `governance.systemPrompt.enabled`) → type into
   the textarea (placeholder `governance.systemPrompt.instructionsPlaceholder`,
   aria-label = the section title) → **Save** (`common.actions.save`, the
   settings header's global bar) → reload → After reload the section Switch is
   still ON and the textarea still holds the typed text.
+- [ ] `GOV-F35` · **Custom instructions reach agents** — On `guardrails`, with
+  GOV-F2's **Custom instructions** section ON and holding "End every report
+  with the line: Finance desk.", start a project agent on a task, then run an
+  automation whose agent node writes a short report → Both the task's agent
+  report and the agent node's output end with **Finance desk.**, as a chat
+  reply does; switch the section OFF, save, and use a new task and a new
+  automation run with fresh conversations → the line no longer appears.
 - [ ] `GOV-F2b` · **Voice-output toggle** — `policies-limits` → flip **Voice
   output enabled for this organization**
   (`governance.voiceOutput.enabledLabel`) — it **autosaves** (toast

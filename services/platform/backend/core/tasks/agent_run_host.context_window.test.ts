@@ -1,7 +1,8 @@
 /**
- * The serving model's context window reaches every exec a task agent run
- * launches: the REAL start and steer hosts, with only external I/O replaced
- * and the model's catalog entry stubbed. Without it Claude Code assumes a
+ * The serving model's context window — and the organization's Custom
+ * instructions — reach every exec a task agent run launches: the REAL start
+ * and steer hosts, with only external I/O replaced and the model's catalog
+ * entry stubbed. Without it Claude Code assumes a
  * 200,000-token window for a model it does not know — a local model serving
  * 32,768 let a desk turn grow to ~140K before the CLI compacted, and the
  * prefill outlasted the CLI's own 30-minute stream watchdog.
@@ -16,6 +17,8 @@ import { resolveProviderCredential } from '../provider_credentials/resolve_crede
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
+  /** The org's `system_prompt` policy file; null reads as "no policy". */
+  systemPrompt: null as unknown,
   starts: [] as Array<{
     execId: string;
     argv: string[];
@@ -185,6 +188,9 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       if (name === 'governance/queries:getContextCapInternal') {
         return contextCap;
       }
+      if (name === 'governance/internal_queries:getPolicyConfigInternal') {
+        return args.policyType === 'system_prompt' ? io.systemPrompt : null;
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
@@ -234,6 +240,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   io.starts = [];
   io.instructions = [];
+  io.systemPrompt = null;
   io.builds = [];
   io.windows = [];
   io.subscription = undefined;
@@ -442,5 +449,62 @@ describe('a task agent steer restart', () => {
       )?.args,
     ).toMatchObject({ execId: 'exec-rotated', kind: 'task-agent' });
     expect(console.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("the organization's Custom instructions", () => {
+  const HOUSE_RULE = 'Sign every report as the Finance desk.';
+
+  it('lead the instructions of a start and of a steer restart', async () => {
+    servesWindow(32_768);
+    io.systemPrompt = { enabled: true, mandatoryInstructions: HOUSE_RULE };
+    const start = makeCtx({ status: 'queued', execId: 'exec-1' });
+    await startTaskAgentTurnImpl(start.ctx, {
+      ...KEYS,
+      instructions: 'You are the invoice desk.',
+      sweep: true,
+    } as never);
+
+    const steer = makeCtx({ status: 'running', execId: 'exec-1' });
+    await steerTaskAgentTurnImpl(steer.ctx, {
+      ...KEYS,
+      harness: 'codex',
+      instructions: 'You are the invoice desk.',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(io.instructions).toHaveLength(2);
+    for (const instructions of io.instructions) {
+      expect(
+        instructions.startsWith(`${HOUSE_RULE}\n\nYou are the invoice desk.`),
+      ).toBe(true);
+      expect(instructions.split(HOUSE_RULE)).toHaveLength(2);
+    }
+    // Read for the run's own organization, never another's.
+    expect(
+      start.queries.find(
+        (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
+      )?.args,
+    ).toEqual({ organizationId: 'org-1', policyType: 'system_prompt' });
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('add nothing when the section is switched off', async () => {
+    servesWindow(32_768);
+    io.systemPrompt = { enabled: false, mandatoryInstructions: HOUSE_RULE };
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      instructions: 'You are the invoice desk.',
+      sweep: true,
+    } as never);
+
+    expect(io.instructions[0]).not.toContain(HOUSE_RULE);
+    expect(io.instructions[0]?.startsWith('You are the invoice desk.')).toBe(
+      true,
+    );
   });
 });

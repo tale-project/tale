@@ -1,12 +1,13 @@
 // @vitest-environment node
 
 /**
- * The serving model's context window reaches every exec an automation agent
- * node launches — the kick's scheduled start and the answered-ask resume —
- * through the REAL hosts, with only external I/O replaced and the model's
- * catalog entry stubbed. Without it Claude Code assumes a 200,000-token
- * window for a model it does not know, and a turn on a local model serving
- * 32,768 grows far past what that model can prefill in time.
+ * The serving model's context window — and the organization's Custom
+ * instructions — reach every exec an automation agent node launches (the
+ * kick's scheduled start and the answered-ask resume) through the REAL
+ * hosts, with only external I/O replaced and the model's catalog entry
+ * stubbed. Without it Claude Code assumes a 200,000-token window for a model
+ * it does not know, and a turn on a local model serving 32,768 grows far past
+ * what that model can prefill in time.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -19,6 +20,8 @@ import { resolveProviderCredential } from '../provider_credentials/resolve_crede
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
+  /** The org's `system_prompt` policy file; null reads as "no policy". */
+  systemPrompt: null as unknown,
   starts: [] as Array<{
     execId: string;
     argv: string[];
@@ -159,6 +162,8 @@ function makeCtx(cursor: unknown) {
           return { userId: 'user-starter', agentSlug: 'invoice-desk' };
         case 'governance/queries:getContextCapInternal':
           return null;
+        case 'governance/internal_queries:getPolicyConfigInternal':
+          return args.policyType === 'system_prompt' ? io.systemPrompt : null;
         default:
           throw new Error(`unexpected query ${name}`);
       }
@@ -191,6 +196,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   io.starts = [];
   io.instructions = [];
+  io.systemPrompt = null;
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveProviderCredential).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -373,5 +379,83 @@ describe('an automation agent turn', () => {
       execId: resumed?.execId,
       kind: 'workflow-agent',
     });
+  });
+});
+
+describe("the organization's Custom instructions", () => {
+  const HOUSE_RULE = 'Sign every report as the Finance desk.';
+
+  it('lead the instructions of an agent node start and of its resume', async () => {
+    servesWindow(32_768);
+    io.systemPrompt = { enabled: true, mandatoryInstructions: HOUSE_RULE };
+    const start = makeCtx({ status: 'running' });
+    await startWorkflowAgentTurnImpl(start.ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: 'qwen3-32b',
+        prompt: 'Book the synthetic invoice.',
+        system: 'You are the invoice desk.',
+      },
+    } as never);
+
+    const resume = makeCtx(WAITING_CURSOR);
+    await resumeWorkflowAgentTurnWithAnswerImpl(resume.ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.instructions).toHaveLength(2);
+    expect(
+      io.instructions[0]?.startsWith(
+        `${HOUSE_RULE}\n\nYou are the invoice desk.`,
+      ),
+    ).toBe(true);
+    expect(io.instructions[1]?.startsWith(HOUSE_RULE)).toBe(true);
+    for (const instructions of io.instructions) {
+      expect(instructions.split(HOUSE_RULE)).toHaveLength(2);
+    }
+    expect(
+      start.queries.find(
+        (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
+      )?.args,
+    ).toEqual({ organizationId: 'org-1', policyType: 'system_prompt' });
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('add nothing when the organization has no Custom instructions', async () => {
+    servesWindow(32_768);
+    const { ctx } = makeCtx({ status: 'running' });
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: 'qwen3-32b',
+        prompt: 'Book the synthetic invoice.',
+        system: 'You are the invoice desk.',
+      },
+    } as never);
+
+    expect(io.instructions[0]?.startsWith('You are the invoice desk.')).toBe(
+      true,
+    );
   });
 });
