@@ -189,6 +189,30 @@ const declarationSchema = z
             'Transcription selection differs from its declared provider and catalog',
           );
       }
+      if (
+        resource.kind === 'governance' &&
+        resource.key === 'image_generation'
+      ) {
+        const image = POLICY_SCHEMAS.image_generation.parse(resource.config);
+        const provider = providers.find(
+          (entry) => entry.config.name === image.providerSlug,
+        );
+        // The same admission a turn applies: an OpenAI-format provider, and
+        // a pinned model its declared catalog lists as an image generator.
+        if (
+          provider &&
+          (provider.config.apiFormat !== 'openai' ||
+            (provider.expectedModels &&
+              !provider.expectedModels.some(
+                (model) =>
+                  model.id === image.modelId &&
+                  model.tags.includes('image-generation'),
+              )))
+        )
+          fail(
+            'Image generation selection differs from its declared provider and catalog',
+          );
+      }
     }
   });
 export type PlatformConfiguration = z.infer<typeof platformConfigurationSchema>;
