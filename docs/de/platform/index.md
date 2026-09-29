@@ -21,8 +21,8 @@ Die **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite 
 | Du möchtest … | So gehst du vor |
 | --- | --- |
 | Einen anderen Bereich öffnen | Wähle den Bereich in der Navigationsleiste oder auf dem Smartphone in der Tab-Leiste. |
-| Einen neuen Chat beginnen | Wähle **Neuer Chat** im Bereich **Start** oder wähle **Start** erneut, während du bereits dort bist. |
-| Ein Projekt öffnen | Wähle das Projekt im Bereich **Start** unter **Projekte**. |
+| Einen neuen Chat beginnen | Am Computer wählst du **Neuer Chat** im Bereich **Start** oder wählst **Start** erneut, während du bereits dort bist. Auf dem Smartphone öffnest du **Start**, wählst **Chats** und dann **Neuer Chat**. |
+| Ein Projekt öffnen | Am Computer wählst du das Projekt im Bereich **Start** unter **Projekte**. Auf dem Smartphone wählst du das Projekt und dann **Projekt öffnen**. |
 | Zur Projektliste zurückkehren | Wähle **Alle Projekte** im Bereich **Start** oder klicke oben im Projekt auf den Navigationspfad **Projekte**. |
 | Zur Dokumentenliste zurückkehren | Wähle **Wissen**. |
 
@@ -44,7 +44,13 @@ Unter den Projekten ordnet eine einzige Liste deine Arbeit nach **Angeheftet**, 
 - Die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, aus allen Projekten, die du lesen darfst.
 - In **Alle** außerdem die offenen Inbox-Konversationen, die du sehen darfst.
 
-Ist die Ansicht **Alle** oder **Chats** leer, bietet sie **Neuer Chat** an. Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste öffnet.
+Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste öffnet. Am Computer bietet auch eine leere Ansicht **Alle** oder **Chats** **Neuer Chat** an.
+
+Auf dem Smartphone unterscheidet sich die Liste in drei Punkten:
+
+- **Neuer Chat** steht oben in der Ansicht **Chats**, nicht in der Kopfzeile. **Neues Projekt** gibt es dort nicht, und das Menü eines Projekts bietet nur **Projekt anheften**.
+- Wählst du unter **Projekte** ein Projekt, zeigen **Alle**, **Chats** und **Aufgaben** nur die Chats dieses Projekts und deine offenen Aufgaben darin. Eine Leiste über der Liste nennt das Projekt. **Projekt öffnen** führt zu seiner Seite, **Alle anzeigen** hebt die Einschränkung auf. **Inbox** wird nie eingeschränkt, weil eine Konversation zu keinem Projekt gehört.
+- **Alle Projekte** ist ein beschrifteter Link neben der Überschrift **Projekte**, kein Symbol.
 
 Jede Zeile beginnt mit einer Sprechblase, einem farbigen Kreis für den Status der Aufgabe oder den Initialen des Kontakts. Es folgen der Titel mit der Zeit seit der letzten Änderung und darunter eine Zeile Kontext: bei einem Chat sein Projekt, bei einer Aufgabe Kennung und Status wie `WEB-2` **In Prüfung** oder **Wartet auf dein Review**, bei einer Konversation der Kontakt mit seiner letzten Nachricht. Ein Punkt in der Akzentfarbe markiert ungelesene Chats und Konversationen sowie Aufgaben, die auf dein Review warten. Ein Stift mit **Entwurf** am Anfang der Kontextzeile zeigt dir, wo du Text geschrieben, aber noch nicht gesendet hast – bei einem Chat, einer Aufgabe oder einer Konversation, nur nicht beim gerade geöffneten Eintrag. Entwürfe bleiben in dem Browser, in dem du sie geschrieben hast. Das Menü eines Chats bietet **Chat anheften**, **Als gelesen markieren** oder **Als ungelesen markieren**, **Umbenennen**, **In Projekt verschieben…**, **Teilen**, bei einem geteilten Chat **Teilen beenden**, **Archivieren** und **Löschen**. Archivierte Chats wandern unter **Archiviert** ans Ende der Liste.
 

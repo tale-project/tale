@@ -200,8 +200,14 @@ function projectList(count: number): ChatProjectSummary[] {
   }));
 }
 
-/** Loose chats, newest first, every one of them inside Today. */
-function chatList(count: number): ChatThreadSummary[] {
+/**
+ * Loose chats, newest first, every one of them inside Today. `filed` puts
+ * the first few of them in a project.
+ */
+function chatList(
+  count: number,
+  filed?: { projectId: string; count: number },
+): ChatThreadSummary[] {
   const now = Date.now();
   return Array.from({ length: count }, (_, index) => ({
     id: `chat-${index}`,
@@ -211,6 +217,9 @@ function chatList(count: number): ChatThreadSummary[] {
     updatedAt: now - index,
     archived: false,
     generating: false,
+    ...(filed !== undefined && index < filed.count
+      ? { projectId: filed.projectId }
+      : {}),
   }));
 }
 
@@ -227,6 +236,7 @@ function homeData(
     unread: unread.includes(thread.id),
     generating: false,
     shared: false,
+    ...(thread.projectId !== undefined ? { projectId: thread.projectId } : {}),
   }));
   return {
     items,
@@ -253,12 +263,18 @@ function renderHome({
   threads = [],
   openThreadId = 'chat-0',
   unread = [],
+  variant = 'panel',
+  width,
 }: {
   height?: number;
   projects?: ChatProjectSummary[];
   threads?: ChatThreadSummary[];
   openThreadId?: string;
   unread?: readonly string[];
+  /** `screen` is the phone's Home, as its route mounts it. */
+  variant?: 'panel' | 'screen';
+  /** Overrides the panel's column width, e.g. a phone's full width. */
+  width?: number;
 }) {
   backend.home = homeData(projects, threads, unread);
   backend.location = {
@@ -268,10 +284,10 @@ function renderHome({
   return render(
     <div
       data-testid="frame"
-      style={{ height }}
+      style={{ height, ...(width !== undefined ? { width } : {}) }}
       className="bg-background flex w-70 flex-col overflow-hidden"
     >
-      <HomeNavigator organizationId={ORG} />
+      <HomeNavigator organizationId={ORG} variant={variant} />
     </div>,
   );
 }
@@ -741,5 +757,63 @@ describe('desktop Home panel resizing', () => {
     await nextFrame();
     await resizeViewport(390, 800);
     expect(screen.queryByRole('separator')).toBeNull();
+  });
+});
+
+describe('Home screen on a phone', () => {
+  it('fits 390px wide when narrowed, with tappable scope controls', async () => {
+    await resizeViewport(390, 800);
+    // A name far wider than the bar: it has to give way, not push the
+    // buttons beside it off the screen.
+    const longName =
+      'Quarterly planning and launch readiness review for the whole organisation';
+    const projects = projectList(3);
+    projects[0] = { id: 'project-0', name: longName };
+    const threads = chatList(6, { projectId: 'project-0', count: 2 });
+    const { user } = renderHome({
+      variant: 'screen',
+      width: 390,
+      height: 760,
+      projects,
+      threads,
+      openThreadId: 'none',
+    });
+
+    await user.click(
+      screen.getByRole('button', { name: /^(?!Actions for).*Quarterly/ }),
+    );
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    await nextFrame();
+
+    // Only the project's two chats are left.
+    expect(
+      within(
+        screen.getByRole('list', {
+          name: 'Your chats, tasks and conversations',
+        }),
+      ).getAllByRole('link'),
+    ).toHaveLength(2);
+
+    const controls = [
+      screen.getByRole('link', { name: 'Open project' }),
+      screen.getByRole('button', { name: 'Show all' }),
+      screen.getByRole('link', { name: 'All projects' }),
+      screen.getByRole('link', { name: 'New chat' }),
+    ];
+    const frameBox = frame().getBoundingClientRect();
+    for (const control of controls) {
+      const controlBox = control.getBoundingClientRect();
+      // Inside the screen, and tall enough for a thumb: the 24px WCAG 2.2
+      // minimum with room to spare.
+      expect(controlBox.left).toBeGreaterThanOrEqual(frameBox.left - SUBPIXEL);
+      expect(controlBox.right).toBeLessThanOrEqual(frameBox.right + SUBPIXEL);
+      expect(controlBox.height).toBeGreaterThanOrEqual(28);
+    }
+    expect(frame().scrollWidth).toBeLessThanOrEqual(frame().clientWidth);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    // The scope bar still names the project, cut short rather than wrapped.
+    const bar = screen.getByText(/^Showing /);
+    expect(bar).toBeVisible();
+    expect(bar.getBoundingClientRect().height).toBeLessThan(24);
   });
 });

@@ -4156,6 +4156,12 @@ home:
     allProjects: All projects
     actions: 'Actions for {project}'
     empty: No projects yet
+  scope:
+    showing: 'Showing {project} only'
+    open: Open project
+    clear: Show all
+    emptyTitle: Nothing in this project yet
+    emptyHint: Chats filed in this project and your open tasks in it show up here.
   inbox:
     statusLabel: '{status}, conversation status'
     compose: New email

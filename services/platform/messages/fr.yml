@@ -4380,6 +4380,12 @@ home:
     allProjects: Tous les projets
     actions: 'Actions pour {project}'
     empty: Aucun projet pour le moment
+  scope:
+    showing: 'Affichage limité à {project}'
+    open: Ouvrir le projet
+    clear: Tout afficher
+    emptyTitle: Rien dans ce projet pour le moment
+    emptyHint: Les chats de ce projet et tes tâches ouvertes qui s’y trouvent apparaissent ici.
   inbox:
     statusLabel: '{status}, statut de la conversation'
     compose: Nouvel e-mail

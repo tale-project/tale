@@ -4313,6 +4313,12 @@ home:
     allProjects: Alle Projekte
     actions: 'Aktionen für {project}'
     empty: Noch keine Projekte
+  scope:
+    showing: 'Nur {project} wird angezeigt'
+    open: Projekt öffnen
+    clear: Alle anzeigen
+    emptyTitle: Noch nichts in diesem Projekt
+    emptyHint: Chats in diesem Projekt und deine offenen Aufgaben darin erscheinen hier.
   inbox:
     statusLabel: '{status}, Konversationsstatus'
     compose: Neue E-Mail

@@ -21,8 +21,8 @@ A section always opens on its own first page, whatever you did there last, so th
 | You want to… | Do this |
 | --- | --- |
 | Open another section | Choose that section in the rail or, on a phone, in the tab bar. |
-| Start a new chat | Choose **New chat** in Home, or choose **Home** while you are already there. |
-| Open a project | Choose the project under **Projects** in Home. |
+| Start a new chat | On a computer, choose **New chat** in Home, or choose **Home** while you are already there. On a phone, open **Home**, choose **Chats**, then **New chat**. |
+| Open a project | On a computer, choose the project under **Projects** in Home. On a phone, choose the project, then **Open project**. |
 | Return to the project list | Choose **All projects** in Home, or use the **Projects** breadcrumb above the project. |
 | Return to the Documents list | Choose **Knowledge**. |
 
@@ -44,7 +44,13 @@ Below the projects, one list groups your work under **Pinned**, **Today**, **Yes
 - The open tasks assigned to you or waiting for your review, from every project you can read.
 - In **All**, the open inbox conversations you can see.
 
-An empty **All** or **Chats** view offers **New chat**, and an empty **Tasks** view offers **All projects**, which opens the project list.
+An empty **Tasks** view offers **All projects**, which opens the project list. On a computer, an empty **All** or **Chats** view also offers **New chat**.
+
+On a phone, the same list differs in three ways:
+
+- **New chat** is at the top of the **Chats** view, not in the header. Home has no **New project** button, and a project's menu offers only **Pin project**.
+- Choosing a project under **Projects** narrows **All**, **Chats**, and **Tasks** to that project's chats and your open tasks in it. A bar above the list names the project. **Open project** goes to its page, and **Show all** removes the limit. **Inbox** is never narrowed, because a conversation belongs to no project.
+- **All projects** is a labelled link beside the **Projects** heading, not an icon.
 
 Each row starts with a chat bubble, a colored circle for the task's status, or the customer's initials. The title follows with how long ago the item last changed, and one line of context below: the chat's project, the task's key and status such as `WEB-2` **In review** or **Waiting for your review**, or the customer and their latest message. A dot in the accent color marks an unread chat or conversation and a task waiting for your review. **Draft** with a pencil at the start of the context line marks a chat, task, or conversation holding text you typed but have not sent, except the one you have open. Drafts stay in the browser you typed them in. A chat's menu offers **Pin chat**, **Mark as read** or **Mark as unread**, **Rename**, **Move to project…**, **Share**, **Stop sharing** for a shared chat, **Archive**, and **Delete**. Archived chats move to **Archived** at the bottom of the list.
 

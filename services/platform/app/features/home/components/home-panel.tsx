@@ -87,6 +87,7 @@ import {
   HomeDraftChatRow,
   HomeTaskRow,
 } from './home-rows';
+import { HomeScopeBar } from './home-scope-bar';
 import { HomeViewSwitcher } from './home-view-switcher';
 
 function isHomeView(value: unknown): value is HomeView {
@@ -230,11 +231,16 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
 export function HomeNavigator({
   organizationId,
   switcherAction,
+  variant = 'panel',
 }: {
   organizationId: string;
   /** Beside the view switcher: the desktop panel's New chat. A phone keeps
-   * New chat in its Home screen's header instead. */
+   * New chat inside its Chats view instead. */
   switcherAction?: ReactNode;
+  /** `panel` is the desktop navigator beside the page: projects open their
+   * page. `screen` is the phone's Home: projects narrow the stream, and
+   * New chat lives in the Chats view only. */
+  variant?: 'panel' | 'screen';
 }) {
   const { t } = useT('home');
   const { pathname, search } = useLocation();
@@ -275,7 +281,24 @@ export function HomeNavigator({
         ? storedInboxStatus
         : 'open';
 
+  // The project a phone's stream is narrowed to ('' = none). A project that
+  // has since been deleted stops narrowing, since storage may hold anything.
+  const [storedScope, setScope] = usePersistedState<string>(
+    `home-scope-${organizationId}`,
+    '',
+  );
+
   const data = useHomeData(organizationId);
+  const scopeProject =
+    variant === 'screen' && storedScope !== ''
+      ? data.projects.find((project) => project.id === storedScope)
+      : undefined;
+  // While the projects load, the stream already honours the remembered scope
+  // rather than flashing everything first.
+  const scopeId =
+    variant === 'screen' && storedScope !== '' && data.loading.projects
+      ? storedScope
+      : scopeProject?.id;
   const { data: me } = useCurrentUser();
   const myUserId = me?.userId;
   const view: HomeView =
@@ -313,15 +336,20 @@ export function HomeNavigator({
             viewIncludes(view, item.kind) &&
             // The stream keeps only the conversations still open — the
             // closed, spam and archived tabs live in the Inbox view.
-            (item.kind !== 'conversation' || item.status === 'open'),
+            (item.kind !== 'conversation' || item.status === 'open') &&
+            // A narrowed stream keeps the project's chats and tasks; a
+            // conversation belongs to no project.
+            (scopeId === undefined ||
+              (item.kind !== 'conversation' && item.projectId === scopeId)),
         ),
         now,
       ),
     // `now` moves every render; the bands only need to follow the data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.items, view],
+    [data.items, view, scopeId],
   );
 
+  const scoped = scopeProject !== undefined;
   const streamLoading =
     (viewIncludes(view, 'chat') && data.loading.chats) ||
     (viewIncludes(view, 'task') && data.loading.tasks) ||
@@ -500,7 +528,31 @@ export function HomeNavigator({
                 location.projectId !== undefined
                   ? { activeProjectId: location.projectId }
                   : {})}
+                {...(variant === 'screen'
+                  ? {
+                      scope: {
+                        projectId: scopeId,
+                        onChange: (projectId: string | undefined) =>
+                          setScope(projectId ?? ''),
+                      },
+                    }
+                  : {})}
               />
+
+              {scopeProject !== undefined && (
+                <HomeScopeBar
+                  organizationId={organizationId}
+                  project={scopeProject}
+                  onClear={() => setScope('')}
+                />
+              )}
+
+              {variant === 'screen' && view === 'chats' && (
+                <HomeNewChatRow
+                  organizationId={organizationId}
+                  {...(scopeId !== undefined ? { projectId: scopeId } : {})}
+                />
+              )}
 
               <HomeStreamScroller
                 scrollerRef={streamRef}
@@ -512,7 +564,12 @@ export function HomeNavigator({
                     <HomeRowsSkeleton />
                   </Skeletonize>
                 ) : groups.length === 0 && !draftingChat ? (
-                  <HomeEmpty view={view} organizationId={organizationId} />
+                  <HomeEmpty
+                    view={view}
+                    organizationId={organizationId}
+                    scoped={scoped}
+                    showCreate={variant === 'panel'}
+                  />
                 ) : (
                   <ol
                     // Re-keyed per view, so switching views fades the new
@@ -548,7 +605,9 @@ export function HomeNavigator({
                 )}
               </HomeStreamScroller>
 
-              {(view === 'all' || view === 'chats') && <ArchivedSection />}
+              {(view === 'all' || view === 'chats') && !scoped && (
+                <ArchivedSection />
+              )}
             </div>
           </ThreadDndProvider>
         </ThreadListFrameProvider>
@@ -637,6 +696,37 @@ function HomeNewChatButton({ organizationId }: { organizationId: string }) {
   );
 }
 
+/** The phone's New chat: a row at the top of the Chats view, filing the chat
+ * under the narrowed project when there is one. */
+function HomeNewChatRow({
+  organizationId,
+  projectId,
+}: {
+  organizationId: string;
+  projectId?: string;
+}) {
+  const { t } = useT('home');
+  return (
+    <div className="shrink-0 pt-2">
+      <Button
+        asChild
+        size="sm"
+        variant="secondary"
+        icon={SquarePen}
+        className="w-full"
+      >
+        <Link
+          to="/dashboard/$id/chat"
+          params={{ id: organizationId }}
+          search={projectId !== undefined ? { projectId } : { new: true }}
+        >
+          {t('newChat')}
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
 const EMPTY_ICON: Record<HomeView, ReactNode> = {
   all: <MessageSquareDashed className="size-7" />,
   chats: <MessageSquareDashed className="size-7" />,
@@ -647,11 +737,31 @@ const EMPTY_ICON: Record<HomeView, ReactNode> = {
 function HomeEmpty({
   view,
   organizationId,
+  scoped,
+  showCreate,
 }: {
   view: HomeView;
   organizationId: string;
+  /** The stream is narrowed to a project: say that, not "nothing yet". */
+  scoped: boolean;
+  /** The desktop panel offers a first chat here; the phone's Chats view
+   * already has New chat above the list. */
+  showCreate: boolean;
 }) {
   const { t } = useT('home');
+  if (scoped) {
+    return (
+      <div className="animate-in fade-in-0 slide-in-from-bottom-1 flex flex-col items-center gap-1 px-6 py-10 text-center duration-300 motion-reduce:animate-none">
+        <span aria-hidden className="text-muted-foreground/60 mb-1">
+          {EMPTY_ICON[view]}
+        </span>
+        <p className="text-foreground text-sm font-medium">
+          {t('scope.emptyTitle')}
+        </p>
+        <p className="text-muted-foreground text-xs">{t('scope.emptyHint')}</p>
+      </div>
+    );
+  }
   return (
     <div className="animate-in fade-in-0 slide-in-from-bottom-1 flex flex-col items-center gap-1 px-6 py-10 text-center duration-300 motion-reduce:animate-none">
       <span aria-hidden className="text-muted-foreground/60 mb-1">
@@ -669,7 +779,7 @@ function HomeEmpty({
             {t('projects.allProjects')}
           </Link>
         </Button>
-      ) : view === 'all' || view === 'chats' ? (
+      ) : showCreate && (view === 'all' || view === 'chats') ? (
         <Button
           asChild
           size="sm"
