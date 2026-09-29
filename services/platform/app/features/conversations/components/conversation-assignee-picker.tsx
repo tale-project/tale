@@ -6,7 +6,6 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@tale/ui/searchable-select';
-import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import { Settings, UserPlus, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -15,7 +14,6 @@ import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
-import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { mailboxSideAddress } from '@/lib/shared/conversations/reply-from';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -229,30 +227,17 @@ export function ConversationAssigneePicker({
 
   function handleValueChange(value: string) {
     setOpen(false);
-    const onError = {
-      onError: (error: Error) =>
-        toast({
-          title: t('header.assignError'),
-          description: failureDetail(error),
-          variant: 'destructive',
-        }),
-    };
+    // A refused pick raises the write's own toast (see `../hooks/mutations`).
     const conversationId = conversation._id;
 
     if (value === UNASSIGN_USER) {
       if (!assigneeUserId) return;
-      assignConversation(
-        { conversationId, assigneeUserId: undefined },
-        onError,
-      );
+      assignConversation({ conversationId, assigneeUserId: undefined });
       return;
     }
     if (value === UNASSIGN_TEAM) {
       if (!assigneeTeamId) return;
-      assignConversationTeam(
-        { conversationId, assigneeTeamId: undefined },
-        onError,
-      );
+      assignConversationTeam({ conversationId, assigneeTeamId: undefined });
       return;
     }
     // Re-picking the row that is already set clears that dimension, which is
@@ -260,25 +245,19 @@ export function ConversationAssigneePicker({
     if (value.startsWith(USER_PREFIX)) {
       const next = value.slice(USER_PREFIX.length);
       if ((assigneeUserId ?? undefined) === next) {
-        assignConversation(
-          { conversationId, assigneeUserId: undefined },
-          onError,
-        );
+        assignConversation({ conversationId, assigneeUserId: undefined });
         return;
       }
-      assignConversation({ conversationId, assigneeUserId: next }, onError);
+      assignConversation({ conversationId, assigneeUserId: next });
       return;
     }
     if (value.startsWith(TEAM_PREFIX)) {
       const next = value.slice(TEAM_PREFIX.length);
       if ((assigneeTeamId ?? undefined) === next) {
-        assignConversationTeam(
-          { conversationId, assigneeTeamId: undefined },
-          onError,
-        );
+        assignConversationTeam({ conversationId, assigneeTeamId: undefined });
         return;
       }
-      assignConversationTeam({ conversationId, assigneeTeamId: next }, onError);
+      assignConversationTeam({ conversationId, assigneeTeamId: next });
     }
   }
 

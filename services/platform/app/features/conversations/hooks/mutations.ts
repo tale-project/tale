@@ -1,4 +1,6 @@
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { useT } from '@/lib/i18n/client';
 
 /** The editor owns send feedback; other callers keep the hook's default toast. */
 interface ErrorFeedbackOptions {
@@ -47,32 +49,46 @@ export function useComposeEmailConversation(options?: ErrorFeedbackOptions) {
   );
 }
 
-// Each caller of the writes below that opt out of the default toast — the
-// conversation header, the panel and the assignee picker — reports a failure
-// in its own toast, under the verb's own title and with the refusal's words.
-// The default toast would report the same failure a second time.
+// A status, assignment or message write below raises its own failure toast:
+// the verb's title, and the refusal's words. Its callers — the conversation
+// header, the panel and the assignee picker — call `mutate` and add no
+// failure toast of their own: react-query drops a `mutate` call's own
+// `onError` once another call starts on the same hook (Retry on one failed
+// message, then on the next; a second pick) or once the caller unmounts
+// before the write settles, and the failure would go unreported. The write's
+// own toast fires for every call.
 
 export function useCloseConversation() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:closeConversation', {
-    errorToast: false,
+    errorToast: {
+      title: t('header.toast.closeFailed'),
+      description: failureDetail,
+    },
   });
 }
 
 export function useReopenConversation() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:reopenConversation', {
-    errorToast: false,
+    errorToast: {
+      title: t('header.toast.reopenFailed'),
+      description: failureDetail,
+    },
   });
 }
 
 export function useAssignConversation() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:assignConversation', {
-    errorToast: false,
+    errorToast: { title: t('header.assignError'), description: failureDetail },
   });
 }
 
 export function useAssignConversationTeam() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:assignConversationTeam', {
-    errorToast: false,
+    errorToast: { title: t('header.assignError'), description: failureDetail },
   });
 }
 
@@ -83,31 +99,51 @@ export function useMarkAsRead() {
 }
 
 export function useMarkAsSpam() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:markConversationAsSpam', {
-    errorToast: false,
+    errorToast: {
+      title: t('header.toast.markAsSpamFailed'),
+      description: failureDetail,
+    },
   });
 }
 
 export function useDeleteConversation() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:deleteConversation', {
-    errorToast: false,
+    errorToast: {
+      title: t('panel.deleteFailed'),
+      description: failureDetail,
+    },
   });
 }
 
 export function useUndoSendMessage() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:undoSendMessage', {
-    errorToast: false,
+    errorToast: {
+      title: t('panel.undoSendFailed'),
+      description: failureDetail,
+    },
   });
 }
 
 export function useRetrySendMessage() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:retrySendMessage', {
-    errorToast: false,
+    errorToast: {
+      title: t('panel.retrySendFailed'),
+      description: failureDetail,
+    },
   });
 }
 
 export function useDiscardOutboundMessage() {
+  const { t } = useT('conversations');
   return useBackendMutation('conversations/mutations:discardOutboundMessage', {
-    errorToast: false,
+    errorToast: {
+      title: t('panel.discardMessageFailed'),
+      description: failureDetail,
+    },
   });
 }

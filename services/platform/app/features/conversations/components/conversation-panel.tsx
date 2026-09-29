@@ -28,10 +28,7 @@ import {
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import {
-  backendErrorFromResponse,
-  failureDetail,
-} from '@/app/lib/backend/adapters';
+import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -369,48 +366,16 @@ export function ConversationPanel({
             }));
           }
         },
-        onError: (error) => {
-          console.error('Failed to undo send:', error);
-          toast({
-            title: tConversations('panel.undoSendFailed'),
-            description: failureDetail(error),
-            variant: 'destructive',
-          });
-        },
       },
     );
   };
 
   const handleRetrySend = (messageId: string) => {
-    retrySendMessage(
-      { messageId: messageId },
-      {
-        onError: (error) => {
-          console.error('Failed to retry send:', error);
-          toast({
-            title: tConversations('panel.retrySendFailed'),
-            description: failureDetail(error),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
+    retrySendMessage({ messageId: messageId });
   };
 
   const handleDiscardOutbound = (messageId: string) => {
-    discardOutboundMessage(
-      { messageId: messageId },
-      {
-        onError: (error) => {
-          console.error('Failed to discard message:', error);
-          toast({
-            title: tConversations('panel.discardMessageFailed'),
-            description: failureDetail(error),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
+    discardOutboundMessage({ messageId: messageId });
   };
 
   // No selection (and not force-loading) → real empty state, never masked.
@@ -749,14 +714,6 @@ export function ConversationPanel({
                           });
                           onSelectedConversationChange(null);
                         },
-                        onError: (error) => {
-                          console.error('Error reopening conversation:', error);
-                          toast({
-                            title: tConversations('header.toast.reopenFailed'),
-                            description: failureDetail(error),
-                            variant: 'destructive',
-                          });
-                        },
                       },
                     );
                   }}
@@ -796,14 +753,6 @@ export function ConversationPanel({
                             variant: 'success',
                           });
                           onSelectedConversationChange(null);
-                        },
-                        onError: (error) => {
-                          console.error('Error reopening conversation:', error);
-                          toast({
-                            title: tConversations('header.toast.reopenFailed'),
-                            description: failureDetail(error),
-                            variant: 'destructive',
-                          });
                         },
                       },
                     );
@@ -846,19 +795,6 @@ export function ConversationPanel({
                             });
                             onSelectedConversationChange(null);
                           },
-                          onError: (error) => {
-                            console.error(
-                              'Error reopening conversation:',
-                              error,
-                            );
-                            toast({
-                              title: tConversations(
-                                'header.toast.reopenFailed',
-                              ),
-                              description: failureDetail(error),
-                              variant: 'destructive',
-                            });
-                          },
                         },
                       );
                     }}
@@ -881,17 +817,6 @@ export function ConversationPanel({
                               variant: 'success',
                             });
                             onSelectedConversationChange(null);
-                          },
-                          onError: (error) => {
-                            console.error(
-                              'Error deleting conversation:',
-                              error,
-                            );
-                            toast({
-                              title: tConversations('panel.deleteFailed'),
-                              description: failureDetail(error),
-                              variant: 'destructive',
-                            });
                           },
                         },
                       );
