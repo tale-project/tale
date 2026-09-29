@@ -106,6 +106,17 @@ export interface ComposerModelOption {
   /** The catalog's capability tags (`chat`, `vision`, …) — open vocabulary. */
   tags: readonly string[];
 }
+/** Whether a listed model is served by a direct credential (api-key/env) —
+ * the only credentials a call outside a sandbox can use (the REST chat send,
+ * the model endpoints for API keys): a subscription model runs only inside
+ * its vendor's harness. */
+export function servedByDirectCredential(option: ComposerModelOption): boolean {
+  return (
+    option.credential.authMethod === 'api-key' ||
+    option.credential.authMethod === 'env'
+  );
+}
+
 /**
  * The per-hit projection behind the model picker — pure, so the 0.5 backend
  * runs it over its own catalog walk. Keyed by (provider, id), first-wins per

@@ -2,13 +2,9 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { readEvent, type StreamDecodeState } from './stream_decode';
 import { createStallGuard, type StallGuard } from './stream_stall';
-import {
-  chatToolContextForTurn,
-  readEvent,
-  streamSse,
-  type StreamDecodeState,
-} from './turn_action';
+import { chatToolContextForTurn, streamSse } from './turn_action';
 
 /**
  * The tools' scope boundary comes from the THREAD, never from the
