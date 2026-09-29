@@ -138,11 +138,11 @@ nodes:
       projectId: <the project's ID>
       externalSystem: github
       source: owner/repo
-      from: '{{ nodes.position.output.cursor }}'
+      revision: '{{ nodes.position.output.revision }}'
       next: '{{ nodes.issues.output.nextCursor ?? "" }}'
 ```
 
-`source` ist dein Name für die Liste; Automatisierungen, die dieselbe Quelle nennen, teilen sich einen Durchgang. Die Position rückt nur vor, wenn das Speichern noch den Cursor vorfindet, bei dem der Stapel begonnen hat. Ein fehlgeschlagener Import speichert nichts, also wiederholt der nächste Termin denselben Stapel, und ein überlappender Lauf kann den Durchgang nicht zurücksetzen. Nach drei Lesevorgängen einer Position ohne Speichern beginnt der nächste den Durchgang neu (`restarted`), statt eine Position zu wiederholen, die die Quelle immer wieder ablehnt, etwa nach der Umbenennung des Repositorys. Das Speichern meldet `batch` und `drained`, die ein Beleg angeben kann. Jeder Lauf aktualisiert außerdem bis zu 500 früher importierte Issues, die am längsten ungeprüften zuerst, sodass eine große Sammlung über mehrere Termine aktualisiert wird.
+`source` ist dein Name für die Liste; Automatisierungen, die dieselbe Quelle nennen, teilen sich einen Durchgang. Das Lesen liefert außerdem `revision`, das Vergleichsmerkmal der Position, und das Speichern gibt es zurück: Die Position rückt nur vor, solange sie noch auf dieser Revision steht. Jeder gespeicherte Stapel, jeder Abschluss eines Durchgangs und jeder Neubeginn setzt eine neue Revision, und keine Revision wiederholt sich, auch wenn der Cursor-Text es tut. Ein fehlgeschlagener Import speichert nichts, also wiederholt der nächste Termin denselben Stapel. Ein Speichern mit einer früheren Revision wird abgelehnt (`conflict`) und schreibt nichts, ob es von einem überlappenden Lauf stammt, von einem Lauf, der sich über das Ende seines Durchgangs hinaus verspätet hat, oder von einem Lauf, der noch eine Position von vor einem Neubeginn hält. Nach drei Lesevorgängen einer Position ohne Speichern beginnt der nächste den Durchgang neu (`restarted`), statt eine Position zu wiederholen, die die Quelle immer wieder ablehnt, etwa nach der Umbenennung des Repositorys. Das Speichern meldet `batch` und `drained`, die ein Beleg angeben kann. Jeder Lauf aktualisiert außerdem bis zu 500 früher importierte Issues, die am längsten ungeprüften zuerst, sodass eine große Sammlung über mehrere Termine aktualisiert wird.
 
 ## Einen ausgebliebenen Start untersuchen
 

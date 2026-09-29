@@ -138,11 +138,11 @@ nodes:
       projectId: <the project's ID>
       externalSystem: github
       source: owner/repo
-      from: '{{ nodes.position.output.cursor }}'
+      revision: '{{ nodes.position.output.revision }}'
       next: '{{ nodes.issues.output.nextCursor ?? "" }}'
 ```
 
-`source` is your name for the listing; automations that name the same source share one pass. The position advances only when the save still finds the cursor the batch started at. An import that fails saves nothing, so the next occurrence retries the same batch, and an overlapping run cannot move the pass backwards. After three reads of one position without a save, the next read starts the pass over (`restarted`) instead of retrying a position the source keeps refusing, for example after the repository was renamed. The save answers `batch` and `drained`, which a receipt can report. Each run also refreshes up to 500 issues imported earlier, the longest-unchecked first, so a large collection is refreshed over several occurrences.
+`source` is your name for the listing; automations that name the same source share one pass. The read also answers `revision`, the position's compare token, and the save hands it back: the position advances only while it is still at that revision. Every saved batch, every drain and every restart moves the revision on, and a revision never repeats, even when the cursor text does. An import that fails saves nothing, so the next occurrence retries the same batch. A save from any earlier revision is refused (`conflict`) and writes nothing, whether it comes from an overlapping run, from a run delayed past the end of its pass, or from a run that still holds a position from before a restart. After three reads of one position without a save, the next read starts the pass over (`restarted`) instead of retrying a position the source keeps refusing, for example after the repository was renamed. The save answers `batch` and `drained`, which a receipt can report. Each run also refreshes up to 500 issues imported earlier, the longest-unchecked first, so a large collection is refreshed over several occurrences.
 
 ## Diagnose a missing start
 

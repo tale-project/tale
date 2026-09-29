@@ -492,6 +492,7 @@ describe('task.get_import_cursor / task.save_import_cursor', () => {
   it('reads the position for the step, keyed by project, system and source', async () => {
     const read = {
       cursor: '{"page":6}',
+      revision: '41',
       batch: 2,
       resumed: true,
       restarted: false,
@@ -514,13 +515,19 @@ describe('task.get_import_cursor / task.save_import_cursor', () => {
     });
   });
 
-  it('saves from the cursor the batch started at to the next one', async () => {
-    const saved = { saved: true, drained: false, batch: 2, conflict: false };
+  it('saves from the revision the batch’s read answered to the next cursor', async () => {
+    const saved = {
+      saved: true,
+      drained: false,
+      batch: 2,
+      conflict: false,
+      revision: '42',
+    };
     const saveImportCursor = vi.fn().mockResolvedValue(saved);
     await expect(
       platformTaskNatives({ saveImportCursor } as never)[
         'task.save_import_cursor'
-      ]?.({ ...key, from: '{"page":6}', next: '{"page":11}' }, {
+      ]?.({ ...key, revision: '41', next: '{"page":11}' }, {
         organizationId: 'org-1',
         caller,
       } as never),
@@ -529,14 +536,14 @@ describe('task.get_import_cursor / task.save_import_cursor', () => {
       organizationId: 'org-1',
       caller,
       ...key,
-      from: '{"page":6}',
+      revision: '41',
       next: '{"page":11}',
     });
   });
 
   it.each([
     ['task.get_import_cursor', key],
-    ['task.save_import_cursor', { ...key, from: '', next: '' }],
+    ['task.save_import_cursor', { ...key, revision: '1', next: '' }],
   ])('%s runs only as an automation step', async (impl, input) => {
     const store = { getImportCursor: vi.fn(), saveImportCursor: vi.fn() };
     for (const ctx of [
@@ -556,9 +563,15 @@ describe('task.get_import_cursor / task.save_import_cursor', () => {
     ['task.get_import_cursor', { ...key, source: '' }],
     ['task.get_import_cursor', { ...key, source: 'x'.repeat(201) }],
     ['task.get_import_cursor', { ...key, cursor: 'c' }],
-    ['task.save_import_cursor', { ...key, from: '' }],
-    ['task.save_import_cursor', { ...key, from: '', next: null }],
-    ['task.save_import_cursor', { ...key, from: '', next: 'x'.repeat(12_001) }],
+    ['task.save_import_cursor', { ...key, revision: '1' }],
+    ['task.save_import_cursor', { ...key, next: '' }],
+    ['task.save_import_cursor', { ...key, revision: '', next: '' }],
+    ['task.save_import_cursor', { ...key, from: '', next: '' }],
+    ['task.save_import_cursor', { ...key, revision: '1', next: null }],
+    [
+      'task.save_import_cursor',
+      { ...key, revision: '1', next: 'x'.repeat(12_001) },
+    ],
   ])('%s refuses %o before touching the store', async (impl, input) => {
     const store = { getImportCursor: vi.fn(), saveImportCursor: vi.fn() };
     await expect(

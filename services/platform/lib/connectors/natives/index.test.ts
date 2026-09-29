@@ -157,7 +157,7 @@ const NATIVE_ACTIONS: Array<{
       projectId: 'proj_1',
       externalSystem: 'github',
       source: 'o/r',
-      from: '',
+      revision: '1',
       next: '',
     },
   },
@@ -372,6 +372,7 @@ const taskStore: WorkflowTaskStore = {
   getImportCursor: () =>
     Promise.resolve({
       cursor: '',
+      revision: '1',
       batch: 1,
       resumed: false,
       restarted: false,
@@ -384,6 +385,7 @@ const taskStore: WorkflowTaskStore = {
       drained: next === '',
       batch: 1,
       conflict: false,
+      revision: '2',
     }),
 };
 

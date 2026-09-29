@@ -16,7 +16,13 @@
  * not skipped, by the next occurrence; the pass after a drain starts over;
  * a position that fails three reads in a row is restarted instead of being
  * retried forever; an overlapping save cannot move the pass backwards; and
- * another project's position is out of reach. */
+ * another project's position is out of reach.
+ *
+ * And the compare token is the position's REVISION, not its cursor text:
+ * a delayed save from a completed pass is refused although the fresh pass is
+ * back at the same empty cursor; a save holding a position from before a
+ * restart is refused although the new pass reaches the same cursor again; a
+ * stale end-of-list cannot complete a running pass; and no revision repeats. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
@@ -268,7 +274,7 @@ export async function checkImportCursorContinuation(
             projectId: projectA,
             externalSystem: 'github',
             source,
-            from: '{{ nodes.cursor.output.cursor }}',
+            revision: '{{ nodes.cursor.output.revision }}',
             next: '{{ nodes.source.output.nextCursor ?? "" }}',
           },
         },
@@ -458,13 +464,14 @@ export async function checkImportCursorContinuation(
       runId: restarted.runId,
       nodeId: 'saved',
     };
+    const firstRevision = String(part(first, 'cursor').revision);
     const stale = await store.saveImportCursor({
       organizationId: orgId,
       caller,
       projectId: projectA,
       externalSystem: 'github',
       source,
-      from: '',
+      revision: firstRevision,
       next: JSON.stringify({ offset: 7 }),
     });
     const afterStale = await cursorRow();
@@ -472,9 +479,203 @@ export async function checkImportCursorContinuation(
       'import cursor: a save from a position the pass has already left is refused as a conflict and writes nothing',
       !stale.saved &&
         stale.conflict &&
+        stale.revision !== firstRevision &&
         afterStale?.cursor === JSON.stringify({ offset: LIMIT }) &&
         afterStale.batch === 1,
       `save=${JSON.stringify(stale)} row=${JSON.stringify(afterStale)}`,
+    );
+
+    // ---- the revision, not the cursor text, admits a save ----------------
+    // Store calls on a source of its own, as runs racing across passes
+    // would make them.
+    const aba = `${source}/aba`;
+    const at = {
+      organizationId: orgId,
+      caller,
+      projectId: projectA,
+      externalSystem: 'github' as const,
+      source: aba,
+    };
+    const offset = (n: number) => JSON.stringify({ offset: n });
+    const abaRow = async () => {
+      const rows = await sql<
+        { cursor: string | null; revision: string; batch: number }[]
+      >`
+        SELECT next_cursor AS "cursor", revision::text AS "revision", batch
+        FROM app.task_import_cursors
+        WHERE org_id = ${orgId} AND project_id = ${projectA}
+          AND external_system = 'github' AND source = ${aba}
+      `;
+      return rows[0];
+    };
+    // A and B read the empty position; B saves a batch, then drains the
+    // pass; C reads the fresh pass; A's delayed save must not move it.
+    const readA = await store.getImportCursor(at);
+    const readB = await store.getImportCursor(at);
+    const savedB = await store.saveImportCursor({
+      ...at,
+      revision: readB.revision,
+      next: offset(50),
+    });
+    const readB2 = await store.getImportCursor(at);
+    const drainedB = await store.saveImportCursor({
+      ...at,
+      revision: readB2.revision,
+      next: '',
+    });
+    const readC = await store.getImportCursor(at);
+    const lateA = await store.saveImportCursor({
+      ...at,
+      revision: readA.revision,
+      next: offset(50),
+    });
+    const afterLateA = await abaRow();
+    record(
+      'import cursor: a delayed save from a completed pass is refused although the fresh pass is back at the same empty cursor, so the fresh pass keeps its first batch',
+      readA.cursor === '' &&
+        readB.cursor === '' &&
+        readA.revision === readB.revision &&
+        savedB.saved &&
+        readB2.cursor === offset(50) &&
+        drainedB.saved &&
+        drainedB.drained &&
+        readC.cursor === '' &&
+        readC.revision === drainedB.revision &&
+        readC.revision !== readA.revision &&
+        !lateA.saved &&
+        lateA.conflict &&
+        !lateA.drained &&
+        afterLateA?.cursor === null &&
+        afterLateA.revision === readC.revision &&
+        afterLateA.batch === 0,
+      `A=${JSON.stringify(readA)} B=${JSON.stringify(savedB)} drain=${JSON.stringify(drainedB)} C=${JSON.stringify(readC)} late A=${JSON.stringify(lateA)} row=${JSON.stringify(afterLateA)}`,
+    );
+    const savedC = await store.saveImportCursor({
+      ...at,
+      revision: readC.revision,
+      next: offset(50),
+    });
+    const afterC = await abaRow();
+    record(
+      'import cursor: the fresh pass’s own reader still saves its first batch',
+      savedC.saved &&
+        !savedC.conflict &&
+        savedC.batch === 1 &&
+        afterC?.cursor === offset(50) &&
+        afterC.revision === savedC.revision,
+      `save=${JSON.stringify(savedC)} row=${JSON.stringify(afterC)}`,
+    );
+    // A holder of offset 50 stalls; three failed reads restart the pass; the
+    // new pass saves offset 50 again; the holder's save must be refused.
+    const holder = await store.getImportCursor(at);
+    for (let read = 1; read < IMPORT_CURSOR_MAX_ATTEMPTS; read++) {
+      await store.getImportCursor(at);
+    }
+    const restartRead = await store.getImportCursor(at);
+    const beforeAgain = await store.saveImportCursor({
+      ...at,
+      revision: holder.revision,
+      next: offset(100),
+    });
+    const again = await store.saveImportCursor({
+      ...at,
+      revision: restartRead.revision,
+      next: offset(50),
+    });
+    const staleHolder = await store.saveImportCursor({
+      ...at,
+      revision: holder.revision,
+      next: offset(100),
+    });
+    const afterHolder = await abaRow();
+    record(
+      'import cursor: a save still holding a position from before a restart is refused although the new pass reached the same cursor again',
+      holder.cursor === offset(50) &&
+        holder.revision === savedC.revision &&
+        restartRead.restarted &&
+        restartRead.cursor === '' &&
+        restartRead.revision !== holder.revision &&
+        !beforeAgain.saved &&
+        beforeAgain.conflict &&
+        again.saved &&
+        again.batch === 1 &&
+        !staleHolder.saved &&
+        staleHolder.conflict &&
+        afterHolder?.cursor === offset(50) &&
+        afterHolder.revision === again.revision,
+      `holder=${JSON.stringify(holder)} restart=${JSON.stringify(restartRead)} stale before=${JSON.stringify(beforeAgain)} again=${JSON.stringify(again)} stale after=${JSON.stringify(staleHolder)} row=${JSON.stringify(afterHolder)}`,
+    );
+    // A stale end-of-list: a drain from a spent revision cannot complete the
+    // pass that is still running.
+    const staleDrain = await store.saveImportCursor({
+      ...at,
+      revision: restartRead.revision,
+      next: '',
+    });
+    const afterStaleDrain = await abaRow();
+    const revisions = [
+      readA.revision,
+      savedB.revision,
+      drainedB.revision,
+      savedC.revision,
+      restartRead.revision,
+      again.revision,
+    ];
+    record(
+      'import cursor: a stale end-of-list save cannot complete a running pass, and no revision repeats across saves, drains and restarts',
+      !staleDrain.saved &&
+        staleDrain.conflict &&
+        !staleDrain.drained &&
+        afterStaleDrain?.cursor === offset(50) &&
+        afterStaleDrain.revision === again.revision &&
+        new Set(revisions).size === revisions.length,
+      `drain=${JSON.stringify(staleDrain)} row=${JSON.stringify(afterStaleDrain)} revisions=${JSON.stringify(revisions)}`,
+    );
+
+    // Two runs that read one position import the same batch: only the first
+    // save counts. And a reader of the last batch, delayed past the drain
+    // its twin made, cannot move the fresh pass.
+    const twinA = await store.getImportCursor(at);
+    const twinB = await store.getImportCursor(at);
+    const twinSaveA = await store.saveImportCursor({
+      ...at,
+      revision: twinA.revision,
+      next: offset(100),
+    });
+    const twinSaveB = await store.saveImportCursor({
+      ...at,
+      revision: twinB.revision,
+      next: offset(100),
+    });
+    const lastA = await store.getImportCursor(at);
+    const lastB = await store.getImportCursor(at);
+    const drainA = await store.saveImportCursor({
+      ...at,
+      revision: lastA.revision,
+      next: '',
+    });
+    const lateLastB = await store.saveImportCursor({
+      ...at,
+      revision: lastB.revision,
+      next: offset(150),
+    });
+    const afterTwins = await abaRow();
+    record(
+      'import cursor: of two runs that read one position only the first save counts, and a reader of the last batch delayed past the drain cannot move the fresh pass',
+      twinA.revision === twinB.revision &&
+        twinSaveA.saved &&
+        !twinSaveB.saved &&
+        twinSaveB.conflict &&
+        lastA.cursor === offset(100) &&
+        lastA.revision === lastB.revision &&
+        drainA.saved &&
+        drainA.drained &&
+        !lateLastB.saved &&
+        lateLastB.conflict &&
+        afterTwins?.cursor === null &&
+        afterTwins.batch === 0 &&
+        afterTwins.revision === drainA.revision,
+      `twins=${JSON.stringify([twinSaveA, twinSaveB])} last=${JSON.stringify([drainA, lateLastB])} row=${JSON.stringify(afterTwins)}`,
     );
 
     // ---- another project's position is out of reach ----------------------

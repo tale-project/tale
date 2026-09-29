@@ -156,10 +156,10 @@ export interface WorkflowTaskStore {
   getImportCursor(
     args: WorkflowImportCursorKey,
   ): Promise<WorkflowImportCursorRead>;
-  /** Advance the source's position, compare-and-set on the cursor the batch
-   * started at. */
+  /** Advance the source's position, compare-and-set on the revision the
+   * batch's read answered. */
   saveImportCursor(
-    args: WorkflowImportCursorKey & { from: string; next: string },
+    args: WorkflowImportCursorKey & { revision: string; next: string },
   ): Promise<WorkflowImportCursorSave>;
 }
 
@@ -176,6 +176,8 @@ interface WorkflowImportCursorKey {
 interface WorkflowImportCursorRead {
   /** Where this batch starts — `''` for the first batch of a pass. */
   cursor: string;
+  /** The position's opaque compare token, handed back to the save. */
+  revision: string;
   batch: number;
   resumed: boolean;
   /** The stored position failed repeatedly and this batch starts over. */
@@ -190,6 +192,7 @@ interface WorkflowImportCursorSave {
   drained: boolean;
   batch: number;
   conflict: boolean;
+  revision: string;
 }
 
 /** What `task.start_agent` answers: the run it started (or found), or why
@@ -311,7 +314,7 @@ const importCursorKeyInput = z
 
 const saveImportCursorInput = importCursorKeyInput
   .extend({
-    from: z.string().max(12000),
+    revision: z.string().min(1).max(40),
     next: z.string().max(12000),
   })
   .strict();

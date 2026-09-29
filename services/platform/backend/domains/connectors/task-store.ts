@@ -528,7 +528,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         return readImportCursor(tx, { organizationId, ...key });
       });
     },
-    async saveImportCursor({ organizationId, caller, from, next, ...key }) {
+    async saveImportCursor({ organizationId, caller, revision, next, ...key }) {
       if (caller.kind !== 'workflow') {
         throw new TaskError(
           'IMPORT_CURSOR_FORBIDDEN',
@@ -538,7 +538,11 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       }
       return sql.begin(async (tx) => {
         await authorizeProject(tx, organizationId, key.projectId, caller);
-        return saveImportCursor(tx, { organizationId, ...key }, { from, next });
+        return saveImportCursor(
+          tx,
+          { organizationId, ...key },
+          { revision, next },
+        );
       });
     },
     async listComments({ organizationId, taskId }) {
