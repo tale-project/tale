@@ -81,7 +81,7 @@ Click **Repeat** below **Due date**, in the task's details or in **Create task**
 
 <Frame caption="Choose a repeat in the task's details; the preview lists its next due dates.">
 
-![The Repeat menu of the task Sign off the launch checklist lists Never, Daily, Every weekday, Weekly on Monday (checked), Monthly on day 28, Yearly on Sep 28 and Custom, with the next due dates and the option to create the next task on the due date.](/images/platform/project-task-repeat.webp)
+![The Repeat menu of the task Sign off the launch checklist lists Never, Daily, Every weekday, weekly, monthly and yearly options named after the due date, with the weekly one checked, and Custom, above the next due dates and the option to create the next task on the due date.](/images/platform/project-task-repeat.webp)
 
 </Frame>
 

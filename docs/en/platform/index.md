@@ -50,6 +50,12 @@ Each row starts with a chat bubble, a colored circle for the task's status, or t
 
 The **Inbox** view lists the conversations of one status: choose **Open**, **Closed**, **Spam**, or **Archived** in its status menu. It also offers **New email**, a search field, and a **Filter** button for **Assignee**, **Read status**, and **Channel**. To act on several conversations at once, point to a conversation's initials and tick the checkbox that appears. The bar above the list then offers **Send messages**, **Close**, and **Mark as spam** for open conversations, or **Reopen** for closed and spam ones, together with **Archive** or **Unarchive** and **Clear selection**.
 
+<Frame caption="Home's Inbox view beside an open conversation: the status menu, New email, search, and Filter above the conversations, each with its customer's initials and latest message.">
+
+![Home in its Inbox view lists three open conversations: Copy of the August invoice from Léa Martin, Annual discount on the team plan from Hannah Weber, and Seat pricing for read-only members from Daniel Okafor. Beside the list, the conversation with Hannah Weber is open, showing her two messages, the team's reply between them, and the message field.](/images/platform/home-inbox.webp)
+
+</Frame>
+
 A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room, and **Show sidebar** brings it back; the button's tooltip shows the shortcut. In a conversation, the first action, **Copy link**, copies a link that opens the same conversation for a teammate.
 
 ### Keyboard shortcuts {#shortcuts}

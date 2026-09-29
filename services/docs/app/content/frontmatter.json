@@ -325,6 +325,14 @@
       "description": "Bewahre Daten einer Person oder Organisation, ordne Sperren einem Fall zu und prüfe Freigabeanträge."
     }
   },
+  "de:platform/admin/governance/operations-metrics": {
+    "slug": "platform/admin/governance/operations-metrics",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Betriebsmetriken",
+      "description": "Prüfe fehlgeschlagene und blockierte Chat-Antworten, Agentenarbeit in der Sandbox, die Ergebnisse von Automatisierungsläufen und den Fortschritt eines Projekts unter Einstellungen > Metriken."
+    }
+  },
   "de:platform/admin/governance/policies-and-limits": {
     "slug": "platform/admin/governance/policies-and-limits",
     "locale": "de",
@@ -1478,6 +1486,14 @@
       "description": "Preserve a person's or organization's data, organize holds by matter, and review release requests."
     }
   },
+  "en:platform/admin/governance/operations-metrics": {
+    "slug": "platform/admin/governance/operations-metrics",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Operations metrics",
+      "description": "Check failed and blocked chat replies, agent turns in the sandbox, automation run outcomes, and project delivery under Settings > Metrics."
+    }
+  },
   "en:platform/admin/governance/policies-and-limits": {
     "slug": "platform/admin/governance/policies-and-limits",
     "locale": "en",
@@ -2629,6 +2645,14 @@
     "frontmatter": {
       "title": "Conservation juridique",
       "description": "Préserve les données d’une personne ou de l’organisation, regroupe les gels par dossier et examine les demandes de libération."
+    }
+  },
+  "fr:platform/admin/governance/operations-metrics": {
+    "slug": "platform/admin/governance/operations-metrics",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Métriques d’exploitation",
+      "description": "Surveille les réponses de chat en échec ou bloquées, le travail des agents dans la sandbox, l’issue des exécutions d’automatisation et l’avancement d’un projet sous Paramètres > Métriques."
     }
   },
   "fr:platform/admin/governance/policies-and-limits": {

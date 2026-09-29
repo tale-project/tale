@@ -5,6 +5,12 @@ description: Configure horaires, webhooks et événements, adapte les données d
 
 La section **Déclencheur** de l’onglet **Général** d’une automatisation définit quand elle démarre seule. Chaque déclencheur utilise la version en service en mode réel. Avant de l’activer, teste le workflow avec les données qu’il recevra et vérifie que ses actions externes sont prêtes.
 
+<Frame caption="L’onglet Général d’un paquet fourni : son déclencheur de planification est activé, mais il ne lance rien tant qu’aucune version n’est en service.">
+
+![L’onglet Général de Triage the Gmail inbox avec un déclencheur Schedule activé, l’expression cron 0 */6 * * * décrite comme toutes les six heures et sans démarrage tant qu’aucune version n’est déployée, le fuseau horaire UTC et, en dessous, un sélecteur de projets vide.](/images/platform/automation-general-trigger.webp)
+
+</Frame>
+
 ## Choisir le mode de démarrage
 
 | Type de déclencheur | Usage | Données transmises à l’exécution |

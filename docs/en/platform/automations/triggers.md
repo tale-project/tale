@@ -5,6 +5,12 @@ description: Configure schedules, webhooks and platform events, match their inpu
 
 Use the **Trigger** section on the automation’s **General** tab when work should start on a schedule or in response to an event. Every trigger starts the deployed version in live mode. Before enabling one, test the workflow with the input shape it will receive and check that its external actions are ready.
 
+<Frame caption="The General tab of a shipped package: its schedule trigger is enabled, but it starts nothing until a version is deployed.">
+
+![The General tab of Triage the Gmail inbox with a Schedule trigger switched on, the cron expression 0 */6 * * * described as every six hours and not starting until a version is deployed, the UTC timezone, and an empty Projects selector below.](/images/platform/automation-general-trigger.webp)
+
+</Frame>
+
 ## Choose how the automation starts
 
 | Trigger type | Use it for | Input passed to the run |

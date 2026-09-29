@@ -50,6 +50,12 @@ Jede Zeile beginnt mit einer Sprechblase, einem farbigen Kreis für den Status d
 
 Die Ansicht **Inbox** zeigt die Konversationen eines Status. Im Statusmenü wählst du **Offen**, **Geschlossen**, **Spam** oder **Archiviert**. Dazu kommen **Neue E-Mail**, ein Suchfeld und die Schaltfläche **Filter** für **Zuständig**, **Lesestatus** und **Kanal**. Willst du mehrere Konversationen auf einmal bearbeiten, zeige auf die Initialen einer Konversation und setze das Häkchen, das dort erscheint. Die Leiste über der Liste bietet dann für offene Konversationen **Nachrichten senden**, **Schließen** und **Als Spam markieren**, für geschlossene und Spam-Konversationen **Erneut öffnen**, außerdem **Archivieren** oder **Dearchivieren** und **Auswahl aufheben**.
 
+<Frame caption="Die Ansicht Inbox neben einer geöffneten Konversation: Statusmenü, Neue E-Mail, Suche und Filter über den Konversationen, jede mit Initialen und letzter Nachricht.">
+
+![Start in der Ansicht Inbox mit drei offenen Konversationen — Copy of the August invoice von Léa Martin, Annual discount on the team plan von Hannah Weber und Seat pricing for read-only members von Daniel Okafor — neben der geöffneten Konversation mit Hannah Weber, die ihre zwei Nachrichten, die Antwort des Teams dazwischen und das Nachrichtenfeld zeigt.](/images/platform/home-inbox.webp)
+
+</Frame>
+
 Ein Chat, eine Aufgabe oder eine Konversation öffnet sich unter einer Kopfzeile mit Symbol, Titel, einer Zeile Kontext und den passenden Aktionen. **Seitenleiste ausblenden** am Anfang dieser Kopfzeile blendet die Seitenleiste von **Start** aus und schafft Platz; **Seitenleiste einblenden** holt sie zurück. Der Tooltip der Schaltfläche zeigt das Tastenkürzel. Bei einer Konversation steht **Link kopieren** an erster Stelle der Aktionen und kopiert einen Link, über den deine Kollegen dieselbe Konversation öffnen.
 
 ### Tastenkürzel {#shortcuts}

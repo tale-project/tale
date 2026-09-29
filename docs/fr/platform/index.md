@@ -50,6 +50,12 @@ Chaque ligne commence par une bulle de chat, un cercle coloré selon le statut d
 
 La vue **Réception** affiche les conversations d’un seul statut : choisis **Ouvert**, **Fermé**, **Spam** ou **Archivé** dans son menu de statut. Elle propose aussi **Nouvel e-mail**, un champ de recherche et un bouton **Filtre** pour **Responsable**, **Statut de lecture** et **Canal**. Pour traiter plusieurs conversations à la fois, survole les initiales d’une conversation et coche la case qui apparaît. La barre au-dessus de la liste propose alors **Envoyer les messages**, **Fermer** et **Marquer comme spam** pour les conversations ouvertes, ou **Rouvrir** pour les conversations fermées ou marquées comme spam, ainsi que **Archiver** ou **Désarchiver** et **Effacer la sélection**.
 
+<Frame caption="La vue Réception à côté d’une conversation ouverte : menu de statut, Nouvel e-mail, recherche et filtre au-dessus des conversations, chacune avec des initiales et son dernier message.">
+
+![L’accueil en vue Réception, avec trois conversations ouvertes — Copy of the August invoice de Léa Martin, Annual discount on the team plan de Hannah Weber et Seat pricing for read-only members de Daniel Okafor — à côté de la conversation ouverte avec Hannah Weber, qui montre ses deux messages, la réponse de l’équipe entre les deux et le champ de message.](/images/platform/home-inbox.webp)
+
+</Frame>
+
 Un chat, une tâche ou une conversation s’ouvre sous un en-tête qui affiche son icône, son titre, une ligne de contexte et ses actions. **Masquer le panneau latéral**, au début de cet en-tête, replie le panneau d’**Accueil** pour laisser plus de place ; **Afficher le panneau latéral** le fait revenir. L’infobulle du bouton indique le raccourci clavier. Dans une conversation, la première action, **Copier le lien**, copie un lien qui ouvre la même conversation pour un collègue.
 
 ### Raccourcis clavier {#shortcuts}

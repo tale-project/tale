@@ -81,7 +81,7 @@ Clique sur **Répéter**, sous **Échéance**, dans les détails de la tâche ou
 
 <Frame caption="Choisis la répétition dans les détails de la tâche ; l’aperçu indique les prochaines échéances.">
 
-![Le menu Repeat de la tâche Sign off the launch checklist propose Never, Daily, Every weekday, Weekly on Monday (sélectionné), Monthly on day 28, Yearly on Sep 28 et Custom, avec les prochaines échéances et l’option de créer la tâche suivante à l’échéance.](/images/platform/project-task-repeat.webp)
+![Le menu Repeat de la tâche Sign off the launch checklist propose Never, Daily, Every weekday, des options hebdomadaire, mensuelle et annuelle nommées d’après l’échéance, dont l’hebdomadaire est sélectionnée, et Custom, au-dessus des prochaines échéances et de l’option de créer la tâche suivante à l’échéance.](/images/platform/project-task-repeat.webp)
 
 </Frame>
 

@@ -30,6 +30,12 @@ Open **Settings > Sandboxes** and select **Add device** in the **Devices** secti
 
 The command works once, within an hour. It carries a single-use token that the machine trades for a credential of its own.
 
+<Frame caption="Add a device: the install-and-connect command, and the shorter one for a machine that already has the CLI. The token shown here is a placeholder.">
+
+![The Add a device dialog with the Install and connect command, which installs the Tale CLI and runs tale sandbox connect with the deployment's address and a single-use token, a Copy command button, the requirements, the note that the command works once within an hour, the shorter command for a machine that already has the CLI, and the status Waiting for the device to connect.](/images/platform/sandbox-add-device.webp)
+
+</Frame>
+
 </Step>
 
 <Step title="Run it on the machine">

@@ -7,7 +7,7 @@ Une équipe est une étiquette posée sur le travail, pas un espace dans lequel 
 
 <Frame caption="Paramètres > Équipes — chaque équipe de l’organisation avec son nombre de membres, à côté de l’action Créer une équipe.">
 
-![La page de paramètres Équipes listant trois équipes — Growth, Platform engineering et Customer success — chacune avec un membre et la date de son ajout, à côté d’un bouton Créer une équipe.](/images/platform/settings-teams.webp)
+![La page de paramètres Équipes listant trois équipes — Customer success, Growth et Platform engineering — chacune avec un membre et la date de son ajout, à côté d’un bouton Créer une équipe.](/images/platform/settings-teams.webp)
 
 </Frame>
 
