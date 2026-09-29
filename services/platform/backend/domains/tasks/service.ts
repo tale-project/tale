@@ -2,6 +2,7 @@ import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
@@ -11,6 +12,7 @@ import {
   sameTaskRepeat,
   type TaskRepeat,
 } from '../../../lib/shared/task-repeat.ts';
+import { findOrganizationMember } from '../../auth/membership.ts';
 import {
   checkProjectAccess,
   EDITOR_ROLES,
@@ -55,6 +57,7 @@ import {
 import { emitEvent } from '../events/emit.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
+  getProjectAuthContext,
   listProjects,
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -3877,6 +3880,64 @@ export async function startTaskAgentRunManual(
     return { started: false, reason: 'already_running' };
   }
   return { started: true };
+}
+
+/** Why a deferred agent kick may no longer start work. */
+export type DeferredAgentKickRefusal =
+  | 'project_unavailable'
+  | 'project_archived'
+  | 'not_permitted';
+
+/**
+ * The admission a DEFERRED agent kick passes before it creates a run: the
+ * auto-retry job continuing a failed run's kick, and the steer that missed
+ * its run and starts a fresh one. Both act long after the person asked, so
+ * they answer to the manual Start's gate ({@link assertTaskWorkable}) as it
+ * stands NOW, for the person whose kick they continue: the project still
+ * exists and is active, and that person may still work the task — an
+ * editor of the project, or a member whose own task it is. A start a
+ * trigger made names no person, so the project alone decides.
+ *
+ * Archiving, a sharing change and a delete all update the project row, so
+ * it stays share-locked until the caller's transaction commits: they order
+ * around the admission, and none lands between this check and the run.
+ * `null` admits. A refusal is final, so callers skip rather than throw — a
+ * retried job would only meet it again.
+ */
+export async function deferredAgentKickRefusal(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    task: WorkableTask;
+    startedBy: string;
+  },
+): Promise<DeferredAgentKickRefusal | null> {
+  const locked = await tx<{ id: string }[]>`
+    SELECT id FROM app.projects
+    WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
+    FOR SHARE
+  `;
+  if (locked.length === 0) return 'project_unavailable';
+  const project = await loadProjectOrThrow(tx, args.projectId);
+  if (project.archivedAt !== null) return 'project_archived';
+  const starter = parseRunStarter(args.startedBy);
+  if (starter.kind === 'trigger') return null;
+  if (starter.kind === 'unknown') return 'not_permitted';
+  const member = await findOrganizationMember(
+    tx,
+    args.organizationId,
+    starter.userId,
+  );
+  if (member === null) return 'not_permitted';
+  const auth = await getProjectAuthContext(tx, {
+    organizationId: args.organizationId,
+    userId: starter.userId,
+    role: member.role,
+  });
+  return (await mayWorkTask(tx, project, args.task, auth))
+    ? null
+    : 'not_permitted';
 }
 
 // ---------------------------------------------------------------------------

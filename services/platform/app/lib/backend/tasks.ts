@@ -1058,9 +1058,12 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);
       const taskId = requireString(args, 'taskId');
+      // The column a person moved the card to, and where in it, rides the
+      // stop; without one the task parks at Cancelled.
+      const { organizationId: _org, taskId: _task, ...body } = args;
       return backendFetch(
         `/tasks/${encodeURIComponent(taskId)}/workflow/cancel`,
-        { method: 'POST', body: {}, orgId },
+        { method: 'POST', body, orgId },
       );
     },
     invalidate: taskWriteInvalidate,

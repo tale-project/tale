@@ -49,15 +49,12 @@ describe('decideTaskStatusTransition', () => {
     });
   });
 
-  it('leaving a running in_progress cancels first — and only moves when the target is not cancelled', () => {
-    expect(decide('in_progress', 'done', { runActive: true })).toEqual({
-      kind: 'cancel',
-      alsoMove: true,
-    });
-    expect(decide('in_progress', 'cancelled', { runActive: true })).toEqual({
-      kind: 'cancel',
-      alsoMove: false,
-    });
+  it('leaving a running in_progress stops the run — whatever the target, one write lands it there', () => {
+    for (const to of ['backlog', 'todo', 'in_review', 'done', 'cancelled']) {
+      expect(decide('in_progress', to, { runActive: true })).toEqual({
+        kind: 'cancel',
+      });
+    }
     // No live run → nothing to cancel.
     expect(decide('in_progress', 'done')).toEqual({ kind: 'move' });
   });

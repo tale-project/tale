@@ -252,6 +252,14 @@ const moveSchema = z.object({
   afterTaskId: z.string().max(128).optional(),
 });
 
+/** Where a stopped workflow's task lands: Cancelled when nothing says
+ * otherwise (the run's own Cancel, a hand-off), else the column a person
+ * moved the card to, and where in it. In progress is the column a stop
+ * leaves, never one it lands in. */
+const workflowStopSchema = moveSchema.extend({
+  status: statusSchema.exclude(['in_progress']).default('cancelled'),
+});
+
 const assignSchema = z.object({
   assigneeType: assigneeTypeSchema.optional(),
   assigneeId: z.string().optional(),
@@ -1235,9 +1243,18 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  // Cancel the in-flight subject-linked run (if any), then park the task at
-  // `cancelled` so desk Start can re-trigger. Idempotent when idle.
+  // Cancel the in-flight subject-linked run (if any) and move the task where
+  // the body says: `cancelled` by default, so desk Start can re-trigger, or
+  // the column a person dragged it to. Idempotent when idle.
   app.post('/:taskId/workflow/cancel', async (c) => {
+    // No body is the default stop; the board's move names its column.
+    const body = workflowStopSchema.safeParse(
+      await c.req.json().catch(() => ({})),
+    );
+    if (!body.success) {
+      return invalidBodyResponse(c, body.error);
+    }
+    const { status, beforeTaskId, afterTaskId } = body.data;
     try {
       const auth = await authCtx(c);
       const task = await loadTaskOrThrow(
@@ -1246,18 +1263,21 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         auth.organizationId,
       );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      // The work gate must precede the run cancel: `updateTaskStatus` below
-      // asserts it too, but by then the live run would already be dead —
-      // someone who may not work the task is refused before any side effect.
+      // The work gate must precede the run cancel: the move below asserts
+      // it too, but by then the live run would already be dead — someone
+      // who may not work the task is refused before any side effect.
       await assertTaskWorkable(deps.sql, project, task, auth);
       const live = await findLiveAutomationRunForTask(deps.sql, {
         organizationId: auth.organizationId,
         projectId: task.projectId,
         taskId: task.id,
       });
-      // ONE transaction for the run cancel and the status flip: if the flip
-      // refuses (open subtasks, archived), the cancel rolls back with it —
-      // never a dead run behind a task that answered an error.
+      // ONE transaction for the run cancel and the move: if the move
+      // refuses (open subtasks under a closing move, archived), the cancel
+      // rolls back with it — never a dead run behind a task that answered an
+      // error. The move is the board's own (`moveTask`), straight to where
+      // the person put the card: passing through Cancelled on the way to an
+      // open column would meet the closure guard for a close nobody asked.
       const executionCancelled = await transactSerializable(
         deps.sql,
         async (tx) => {
@@ -1272,14 +1292,25 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                     auth.userId,
                   )
                 ).cancelled;
-          if (task.status !== 'cancelled') {
-            await updateTaskStatus(tx, auth, task.id, 'cancelled');
+          // A default stop on a task already where it lands writes nothing.
+          // A drop names its place between two cards: that place still
+          // applies when another session moved the task to the same column
+          // while this one confirmed the stop.
+          const placed =
+            beforeTaskId !== undefined || afterTaskId !== undefined;
+          if (task.status !== status || placed) {
+            await moveTask(tx, auth, {
+              taskId: task.id,
+              status,
+              ...(beforeTaskId !== undefined ? { beforeTaskId } : {}),
+              ...(afterTaskId !== undefined ? { afterTaskId } : {}),
+            });
           }
           return cancelled;
         },
       );
       return c.json({
-        taskCancelled: true,
+        taskCancelled: status === 'cancelled',
         executionCancelled,
         executionId: live?.runId ?? null,
       });

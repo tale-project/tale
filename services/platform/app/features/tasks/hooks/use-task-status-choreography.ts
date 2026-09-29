@@ -11,6 +11,8 @@ import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 
+import type { TaskStatus } from '../lib/display';
+import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { taskRunErrorMessage } from '../lib/task-run-error';
 import { useCancelTaskAgentRun, useStartTaskAgentRun } from './mutations';
 import {
@@ -31,8 +33,15 @@ export type TaskTransitionPlan =
   | { kind: 'move' }
   | { kind: 'start' }
   | { kind: 'request_changes' }
-  | { kind: 'cancel'; alsoMove: boolean }
+  | { kind: 'cancel' }
   | { kind: 'block'; reason: 'missing_input' };
+
+/** Where in the target column a board drop landed: the card above it and
+ * the card below it (the move door's own fields). */
+export interface TaskMovePlacement {
+  beforeTaskId?: string;
+  afterTaskId?: string;
+}
 
 /**
  * Map a status change on an automation-owned task onto the owning workflow's
@@ -41,9 +50,11 @@ export type TaskTransitionPlan =
  * In progress = request changes). Pure, so the whole matrix is unit-testable:
  *
  * - no contract / no-op move            → plain move
- * - leaving in_progress w/ active run   → cancel (+ plain move unless the
- *                                          target IS cancelled — cancel parks
- *                                          there itself)
+ * - leaving in_progress w/ active run   → cancel: ONE write stops the run
+ *                                          and lands the card on the target
+ *                                          (Cancelled only when that IS the
+ *                                          target — so only a close meets
+ *                                          the open-subtask guard)
  * - in_review → in_progress             → request changes (the run re-reads
  *                                          the timeline feedback)
  * - elsewhere → in_progress             → start when the contract's
@@ -64,7 +75,7 @@ export function decideTaskStatusTransition(args: {
   if (!contract || from === to) return { kind: 'move' };
 
   if (from === 'in_progress' && args.runActive) {
-    return { kind: 'cancel', alsoMove: to !== 'cancelled' };
+    return { kind: 'cancel' };
   }
 
   if (to !== 'in_progress') return { kind: 'move' };
@@ -129,7 +140,9 @@ export interface TaskStatusChoreographyOptions {
  * needs (active subject run; bound-folder files), run the plan's action, and
  * tell the caller whether it still owes the plain status write (`'move'`),
  * should revert its optimistic UI (`'blocked'`), or is done (`'handled'` —
- * the workflow's own ack step drives the status from here).
+ * the workflow's own ack step drives the status from here, or the stop
+ * already landed the card). A board drop passes its `placement`, so a stop
+ * lands the card where it was dropped.
  */
 export function useTaskStatusChoreography(
   organizationId: string,
@@ -158,7 +171,8 @@ export function useTaskStatusChoreography(
   return useCallback(
     async (
       task: ChoreographedTask,
-      to: string,
+      to: TaskStatus,
+      placement?: TaskMovePlacement,
     ): Promise<TaskTransitionOutcome> => {
       const ownership = resolveTaskOwnership(task, automations, locale);
 
@@ -303,16 +317,33 @@ export function useTaskStatusChoreography(
             return 'blocked';
           }
         case 'cancel':
+          // The plan stops a run only on the way OUT of In progress.
+          if (to === 'in_progress') return 'move';
           if (confirmCancel && !(await confirmCancel())) {
             return 'blocked';
           }
           try {
-            await cancelRun.mutateAsync({ organizationId, taskId: task._id });
+            // ONE write stops the run and lands the card where it was moved.
+            // A refused move — a close while subtasks are open — stops
+            // nothing: the run keeps running, and the card snaps back.
+            await cancelRun.mutateAsync({
+              organizationId,
+              taskId: task._id,
+              status: to,
+              ...placement,
+            });
             toast({ title: t('run.cancelled') });
-            return plan.alsoMove ? 'move' : 'handled';
+            return 'handled';
           } catch (error) {
             console.error('[tasks] status-choreographed cancel failed', error);
-            toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+            const refusal = parentCloseRefusal(error, t);
+            toast({
+              title: refusal ?? tCommon('errors.generic'),
+              // A refusal named above is the whole story; any other says why.
+              description:
+                refusal === undefined ? failureDetail(error) : undefined,
+              variant: 'destructive',
+            });
             return 'blocked';
           }
         default: {

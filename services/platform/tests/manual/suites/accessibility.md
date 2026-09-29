@@ -1,6 +1,6 @@
 # Accessibility (cross-cutting)
 
-> **Prefix** `A11Y-` · **Reset** none · **Cost** 27 boxes
+> **Prefix** `A11Y-` · **Reset** none · **Cost** 28 boxes
 
 A WCAG 2.1 **Level AA** sweep across the whole app. Tale's standard (root
 [`AGENTS.md`](../../../AGENTS.md) → Accessibility) is mandatory, not

@@ -232,8 +232,17 @@ export interface TasksContract {
   };
   'tasks/public_actions:cancelTaskWorkflow': {
     kind: 'action';
-    args: { organizationId: string; taskId: string };
+    args: {
+      organizationId: string;
+      taskId: string;
+      /** Where the task lands once its run stops, in the same write; absent
+       * parks it at Cancelled. In progress is the column a stop leaves. */
+      status?: 'cancelled' | 'done' | 'in_review' | 'backlog' | 'todo';
+      beforeTaskId?: string;
+      afterTaskId?: string;
+    };
     returns: {
+      /** Whether the task now sits at Cancelled. */
       taskCancelled: boolean;
       executionCancelled: boolean;
       executionId: null | string;

@@ -12,10 +12,8 @@ import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
-import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
-import { loadProjectOrThrow } from '../projects/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
@@ -46,8 +44,8 @@ import {
 import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
+  deferredAgentKickRefusal,
   handTaskToInProgressForKick,
-  mayWorkTask,
 } from './service.ts';
 
 /**
@@ -296,33 +294,27 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         return { started: false, reason: 'no_agent_assignee' };
       }
       // A run's starter may steer it on a task no longer theirs, but a new
-      // run is a change to the task: the work gate's, as at the comment.
-      const author = await authorizeActorRun(
-        sql,
-        args.organizationId,
-        args.authorId,
-        'membership',
-      ).catch((error: unknown) => {
-        console.warn('[task-agent] steer fallback author refused:', error);
-        return null;
-      });
-      const project = await loadProjectOrThrow(sql, task.projectId);
-      if (author === null || !(await mayWorkTask(sql, project, task, author))) {
-        return { started: false, reason: 'not_permitted' };
-      }
-      const agents = await sql<
-        { harness: string; model: string; modelProvider: string | null }[]
-      >`
-        SELECT harness, model, model_provider AS "modelProvider"
-        FROM app.project_agents
-        WHERE id = ${task.assigneeId} AND org_id = ${args.organizationId}
-        LIMIT 1
-      `;
-      const agent = agents[0];
-      if (agent === undefined) {
-        return { started: false, reason: 'agent_unavailable' };
-      }
+      // run is a change to the task: the work gate's, as at the comment —
+      // and as the project and the author's access stand when the kick
+      // lands, inside the kick's own transaction.
       const kicked = await transactSerializable(sql, async (tx) => {
+        const refusal = await deferredAgentKickRefusal(tx, {
+          organizationId: args.organizationId,
+          projectId: task.projectId,
+          task,
+          startedBy: args.authorId,
+        });
+        if (refusal !== null) return { refusal };
+        const agents = await tx<
+          { harness: string; model: string; modelProvider: string | null }[]
+        >`
+          SELECT harness, model, model_provider AS "modelProvider"
+          FROM app.project_agents
+          WHERE id = ${task.assigneeId} AND org_id = ${args.organizationId}
+          LIMIT 1
+        `;
+        const agent = agents[0];
+        if (agent === undefined) return { refusal: 'agent_unavailable' };
         const result = await kickAgentRun(tx, {
           organizationId: args.organizationId,
           projectId: task.projectId,
@@ -354,6 +346,14 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         });
         return result;
       });
+      if ('refusal' in kicked) {
+        if (kicked.refusal !== 'agent_unavailable') {
+          console.warn(
+            `[task-agent] steer-miss kick for task ${args.taskId} refused: ${kicked.refusal}`,
+          );
+        }
+        return { started: false, reason: kicked.refusal };
+      }
       // A reused live run means another turn is already carrying this work;
       // the comment rides that one rather than starting a second.
       return { started: !kicked.reused };
