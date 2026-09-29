@@ -194,11 +194,13 @@ const PLAYWRIGHT_VISION_ARGS = ['--image-responses', 'omit'] as const;
  * session key and therefore no bridge. */
 const BRIDGE_MCP_COMMAND = 'tale-connectors-mcp';
 
-/** How long Codex lets one bridge call run, in seconds. Codex gives up on an
- * MCP call after 60 s by default, and a platform-side image generation can
- * take minutes; this sits just past the bridge's own bound for its longest
- * tool (300 s), so the bridge's timeout sentence — not Codex's — reaches the
- * agent. Every other bridge call keeps the bridge's 30 s bound. */
+/** How long a CLI lets one bridge call run, in seconds, where its own
+ * default is shorter. Codex and OpenClaw give up on an MCP call after 60 s
+ * by default, without counting the bridge's progress reports, and a
+ * platform-side image generation can take minutes; this sits just past the
+ * bridge's own bound for its longest tool (300 s), so the bridge's timeout
+ * sentence — not the CLI's — reaches the agent. Every other bridge call keeps
+ * the bridge's 30 s bound. */
 const BRIDGE_TOOL_TIMEOUT_SEC = 330;
 
 // ---------------------------------------------------------------------------
@@ -439,6 +441,7 @@ export function buildHarnessExec(
     bridgeEnvField: string,
     bridgeEnv: Readonly<Record<string, string>>,
     visionOmitsImages: boolean,
+    bridgeCallTimeout?: { field: string; unit: 'ms' | 's' },
   ): DocTree | undefined => {
     const servers: DocTree = {};
     if (spec.mcp?.browser) {
@@ -459,14 +462,24 @@ export function buildHarnessExec(
     }
     if (spec.mcp?.bridgeUrl && managed) {
       const env = substituteMap(bridgeEnv, subs);
+      const timeout =
+        bridgeCallTimeout === undefined
+          ? {}
+          : {
+              [bridgeCallTimeout.field]:
+                bridgeCallTimeout.unit === 'ms'
+                  ? BRIDGE_TOOL_TIMEOUT_SEC * 1000
+                  : BRIDGE_TOOL_TIMEOUT_SEC,
+            };
       servers.connectors =
         serverShape === 'command-args'
-          ? { command: BRIDGE_MCP_COMMAND, [bridgeEnvField]: env }
+          ? { command: BRIDGE_MCP_COMMAND, [bridgeEnvField]: env, ...timeout }
           : {
               type: 'local',
               command: [BRIDGE_MCP_COMMAND],
               [bridgeEnvField]: env,
               enabled: true,
+              ...timeout,
             };
     }
     return Object.keys(servers).length > 0 ? servers : undefined;
@@ -490,6 +503,7 @@ export function buildHarnessExec(
           f.bridgeEnvField,
           f.bridgeEnv,
           false,
+          f.bridgeCallTimeout,
         );
         if (servers) setPath(doc, f.path, servers);
       } else if ('instructionsRef' in fragment) {
