@@ -27,7 +27,7 @@ Some connectors also require an instance address. For Confluence, use the Atlass
 
 ## Choose the default
 
-The table contains one row per credential. The **Default** badge marks the credential used when an action does not explicitly name one. Select **Make default** in a row's menu to change it; one default is allowed per connector.
+The table contains one row per credential and updates while it is open: a credential another admin adds, changes or deletes appears there without a reload. The **Default** badge marks the credential used when an action does not explicitly name one. Select **Make default** in a row's menu to change it; one default is allowed per connector.
 
 A connector with several credentials and no default can still serve callers that name a credential. Callers that omit the name need a default. Name accounts clearly before wiring automations so a future administrator can identify the intended account.
 

@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 38 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -232,6 +232,15 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   kept); the default row is byte-for-byte unchanged. A Reconnect on a
   **Disabled** row renews its grant but leaves it **Disabled** — **Enable**
   is what returns it.
+- [ ] `CONN-F21` · **Another session's writes reach an open page** — Two
+  signed-in admins, **A** with `/dashboard/{org}/settings/connectors` open.
+  **B**, in their own browser, adds a credential, renames one, disables one
+  and deletes one → A's table follows each within a few seconds, with no
+  reload, focus change or navigation: the new row appears, the renamed and
+  disabled rows show B's name and **Disabled** badge, the deleted row is
+  gone. An **Edit credential** dialog A holds open on another row stays open
+  through B's writes with what A typed; opening **Edit credential** after
+  B's rename shows B's name.
 
 ## Boundary & error tests
 
@@ -285,6 +294,14 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   → **Reconnect** → consent in a different workspace than the row's → The
   fixed page "That is a different workspace"; nothing was saved. Reconnect
   in the row's own workspace renews it.
+- [ ] `CONN-B11` · **Acting on a row another session deleted** — As in
+  CONN-F21, but block A's `…/events` request first (DevTools → Network →
+  block request URL), so A misses the hint; B deletes a credential A still
+  sees → On A, that row's menu → **Disable** answers one toast
+  `settings.credentials.updateFailed` naming "Credential not found." and the
+  row leaves A's table; on another such row, **Delete** → **Delete** answers
+  `settings.credentials.deleteFailed` once and the confirm closes with the
+  row. No second click can fail the same way.
 
 ## Accessibility (WCAG 2.1 AA)
 

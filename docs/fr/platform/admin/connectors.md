@@ -27,7 +27,7 @@ Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluenc
 
 ## Choisir les identifiants par défaut
 
-Le tableau contient une ligne par jeu d’identifiants. Le badge **Par défaut** indique ceux utilisés lorsqu’une action n’en nomme pas. **Définir par défaut**, dans le menu d’une ligne, change ce choix. Chaque connecteur a un seul choix par défaut.
+Le tableau contient une ligne par jeu d’identifiants et se met à jour sans rechargement tant qu’il est ouvert : ce qu’un autre admin ajoute, modifie ou supprime y apparaît aussitôt. Le badge **Par défaut** indique ceux utilisés lorsqu’une action n’en nomme pas. **Définir par défaut**, dans le menu d’une ligne, change ce choix. Chaque connecteur a un seul choix par défaut.
 
 Sans choix par défaut, un connecteur qui possède plusieurs identifiants peut toujours servir les appels qui les nomment explicitement. Les autres appels ont besoin d’un choix par défaut. Nomme les comptes clairement avant de les utiliser dans des automatisations, pour que leur destination reste compréhensible.
 

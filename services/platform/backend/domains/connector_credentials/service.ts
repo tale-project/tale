@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { CONNECTOR_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import {
   buildAuthHeader,
   buildSecretBindings,
@@ -27,6 +28,7 @@ import {
   type EncryptedSecret,
 } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   applyMicrosoftTenant,
@@ -48,6 +50,11 @@ import {
  * credential, its connector and auth method — never the secret and never
  * the config. The actor is the signed-in person a door hands in; a write
  * without one (a token renewal the callback runs) is the system's.
+ *
+ * Every write the listing shows also hints the organization's open tabs in
+ * the same transaction ({@link hintCredential}), so another admin's add,
+ * delete or disable reaches an open Settings > Connectors page — and the
+ * mailbox pickers built on the same listing — within a hint round trip.
  */
 
 type Db = Sql | TransactionSql;
@@ -478,6 +485,25 @@ async function clearOtherDefaults(
   `;
 }
 
+/**
+ * A credential the listing shows changed: tell every open tab of the
+ * organization. Org-wide on purpose — the listing is the organization's,
+ * not the writer's — and inside the write's own transaction, so a hint
+ * never announces a change that rolled back. The mail-sync cursor and a
+ * silent token renewal change nothing a listing shows, so they emit none.
+ */
+async function hintCredential(
+  tx: TransactionSql,
+  organizationId: string,
+  credentialId: string,
+): Promise<void> {
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: CONNECTOR_CREDENTIAL_HINT_ENTITY,
+    entityId: credentialId,
+  });
+}
+
 export interface MaskedCredential {
   id: string;
   connectorSlug: string;
@@ -690,6 +716,7 @@ async function insertPreparedCredential(
     },
     status: 'success',
   });
+  await hintCredential(tx, args.organizationId, credentialId);
   return { credentialId };
 }
 
@@ -818,6 +845,7 @@ export async function updateCredentialInTransaction(
     },
     status: 'success',
   });
+  await hintCredential(tx, args.organizationId, row.id);
 }
 
 /** Delete a credential; deleting the DEFAULT promotes the oldest remaining
@@ -866,6 +894,7 @@ export async function deleteCredential(
       },
       status: 'success',
     });
+    await hintCredential(tx, organizationId, row.id);
   });
 }
 
@@ -915,6 +944,7 @@ export async function setDefaultCredential(
       },
       status: 'success',
     });
+    await hintCredential(tx, organizationId, row.id);
   });
 }
 
@@ -1120,14 +1150,20 @@ async function markNeedsReauth(
   row: CredentialRow,
   statusDetail: string,
 ): Promise<boolean> {
-  const flipped = await sql<{ id: string }[]>`
-    UPDATE app.connector_credentials
-    SET status = 'needs-reauth', status_detail = ${statusDetail},
-        updated_at_ms = ${Date.now()}
-    WHERE id = ${row.id} AND org_id = ${row.organizationId}
-      AND updated_at_ms = ${row.updatedAt}
-    RETURNING id
-  `;
+  // The row turns orange on every open settings page: flip and hint commit
+  // together, and a lost compare-and-swap announces nothing.
+  const flipped = await sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.connector_credentials
+      SET status = 'needs-reauth', status_detail = ${statusDetail},
+          updated_at_ms = ${Date.now()}
+      WHERE id = ${row.id} AND org_id = ${row.organizationId}
+        AND updated_at_ms = ${row.updatedAt}
+      RETURNING id
+    `;
+    if (rows.length > 0) await hintCredential(tx, row.organizationId, row.id);
+    return rows;
+  });
   if (flipped.length === 0) {
     console.warn(
       `[connector-credentials] "${row.connectorSlug}" credential "${row.name}" changed under the refresh for organization ${row.organizationId}; not marking needs-reauth (${statusDetail})`,
@@ -1432,10 +1468,17 @@ export async function patchCredentialConfigInternal(
   credentialId: string,
   config: Record<string, string | number | boolean>,
 ): Promise<void> {
-  await sql`
-    UPDATE app.connector_credentials SET
-      config = ${sql.json(toJson(config))},
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${credentialId} AND org_id = ${organizationId}
-  `;
+  // The healed sender address is what the compose Inbox field names.
+  await sql.begin(async (tx) => {
+    const patched = await tx<{ id: string }[]>`
+      UPDATE app.connector_credentials SET
+        config = ${tx.json(toJson(config))},
+        updated_at_ms = ${Date.now()}
+      WHERE id = ${credentialId} AND org_id = ${organizationId}
+      RETURNING id
+    `;
+    if (patched.length > 0) {
+      await hintCredential(tx, organizationId, credentialId);
+    }
+  });
 }

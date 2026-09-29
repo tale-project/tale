@@ -27,7 +27,7 @@ Manche Connectors benötigen zusätzlich die Adresse der Instanz. Für Confluenc
 
 ## Einen Standard wählen
 
-Die Tabelle zeigt eine Zeile je Zugangsdaten-Eintrag. **Standard** kennzeichnet den Eintrag für Aktionen ohne ausdrückliche Auswahl. Mit **Zum Standard machen** im Zeilenmenü änderst du ihn. Pro Connector ist ein Standard möglich.
+Die Tabelle zeigt eine Zeile je Zugangsdaten-Eintrag und aktualisiert sich ohne Neuladen, solange sie geöffnet ist: Was andere Admins hinzufügen, ändern oder löschen, siehst du sofort. **Standard** kennzeichnet den Eintrag für Aktionen ohne ausdrückliche Auswahl. Mit **Zum Standard machen** im Zeilenmenü änderst du ihn. Pro Connector ist ein Standard möglich.
 
 Ein Connector mit mehreren Einträgen, aber ohne Standard funktioniert weiterhin für Aufrufer, die Zugangsdaten benennen. Ohne einen solchen Namen braucht der Aufruf einen Standard. Benenne Konten eindeutig, bevor du sie in Automatisierungen verwendest, damit später erkennbar bleibt, welches Konto gemeint ist.
 
