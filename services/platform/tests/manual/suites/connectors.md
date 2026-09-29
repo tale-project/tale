@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 39 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 40 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -331,6 +331,11 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   screen readers (visually hidden, `settings.credentials.columns.actions`);
   each row's 3-dot menu is named for its credential
   (`settings.credentials.actionsLabel`) and its items are keyboard reachable.
+- [ ] `CONN-A4` · **Row-menu dialogs return focus** → Keyboard only: Tab to a
+  row's **Actions for …** button (`settings.credentials.actionsLabel`), Enter,
+  arrow to **Edit credential**, **Replace …** or **Delete**, Enter → the
+  dialog takes focus; Escape, and once Tab to **Cancel** + Enter → focus is
+  back on that row's **Actions for …** button, never on the page body.
 
 ## Performance
 
