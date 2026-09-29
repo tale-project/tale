@@ -145,6 +145,18 @@
       "height": 348
     },
     {
+      "file": "images/platform/chat-create-task.webp",
+      "shot": "chat-create-task",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1536,
+      "height": 1000
+    },
+    {
       "file": "images/platform/chat-document-attachment.webp",
       "shot": "chat-document-attachment",
       "route": "/dashboard/:orgId/chat?new=true",
