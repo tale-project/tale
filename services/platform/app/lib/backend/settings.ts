@@ -81,6 +81,7 @@ type MyBudgetStatusResult = ReturnsOf<'governance/queries:getMyBudgetStatus'>;
 type MyBudgetUsageResult = ReturnsOf<'governance/queries:getMyBudgetUsage'>;
 type MyModelApiAccessResult =
   ReturnsOf<'governance/queries:getMyModelApiAccess'>;
+type MyApiKeyAccessResult = ReturnsOf<'governance/queries:getMyApiKeyAccess'>;
 type TrashListResult = ReturnsOf<'governance/queries:listTrashedRows'>;
 type LegalHoldItem = ItemOf<'governance/legal_hold_queries:listLegalHolds'>;
 type LegalMatterItem = ItemOf<'governance/legal_hold_queries:listLegalMatters'>;
@@ -347,6 +348,22 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       queryKey: backendKey(orgId, 'governance_policy', 'my-model-api'),
       queryFn: () =>
         backendFetch<MyModelApiAccessResult>('/governance/my/model-api', {
+          orgId,
+        }),
+      staleTime: 30_000,
+    };
+  },
+  'governance/queries:getMyApiKeyAccess': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Keyed under the API-key entity: creating or revoking a key hints it
+      // to every organization of the holder and the key dialogs invalidate
+      // it, so the REST tab follows the keys held at once. A role change or
+      // a grant arrives on the next read.
+      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'my-access'),
+      queryFn: () =>
+        backendFetch<MyApiKeyAccessResult>('/governance/my/api-keys', {
           orgId,
         }),
       staleTime: 30_000,

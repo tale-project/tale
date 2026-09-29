@@ -80,6 +80,11 @@ import { readGovernancePolicy } from '../lib/org-config.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
 import { emitHintInTx } from '../realtime/outbox.ts';
 import { ac, orgRoles } from './access.ts';
+import {
+  API_KEY_CREATE_FORBIDDEN_MESSAGE,
+  API_KEY_CREATE_PATH,
+  mayCreateApiKeys,
+} from './api-key-create-gate.ts';
 import { removeMembershipCascade } from './membership.ts';
 import { createOidcProvider, OIDC_DISABLED_PATHS } from './oidc.ts';
 import {
@@ -161,7 +166,6 @@ function sessionPayloadUser(
  * A key is a bearer credential valid in every organization of its holder,
  * so each event lands in every one of them — the second-factor posture.
  */
-const API_KEY_CREATE_PATH = '/api-key/create';
 const API_KEY_DELETE_PATH = '/api-key/delete';
 const API_KEY_UPDATE_PATH = '/api-key/update';
 /** Update-body fields that address the key rather than change it. */
@@ -894,6 +898,27 @@ export function createAuth(config: AuthConfig) {
                 });
               }
             }
+          }
+          return;
+        }
+        // API-key creation: owners, admins and developers, and a member
+        // granted a competence that is used with a key. The plugin itself
+        // lets every signed-in user create one. See api-key-create-gate.ts.
+        if (mw.path === API_KEY_CREATE_PATH) {
+          // The server's own call: nothing to decide.
+          if (mw.request === undefined) return;
+          const session = await getSessionFromCtx(mw);
+          // Without a session the endpoint answers 401 itself.
+          if (session && !(await mayCreateApiKeys(sql, session.user.id))) {
+            // A before-hook throw skips the after-hook, so this line is the
+            // only record an operator gets of the attempt.
+            console.warn(
+              '[api-key/create] refused: the caller holds no role or competence that uses a key',
+            );
+            throw new APIError('FORBIDDEN', {
+              message: API_KEY_CREATE_FORBIDDEN_MESSAGE,
+              code: 'API_KEY_CREATE_FORBIDDEN',
+            });
           }
           return;
         }

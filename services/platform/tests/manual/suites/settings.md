@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 108 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 109 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -964,9 +964,12 @@ run.
   reads the setup on `/dashboard/{org}/settings/api/models` (or its
   not-enabled state while the endpoints are off);
   `/dashboard/{org}/settings/api/mcp` and `/dashboard/{org}/settings/api/webdav`
-  by URL show the access-denied message (`accessDenied.apiKeys`). Revoke the
-  grant → the API row disappears, and `/dashboard/{org}/settings/api/models`
-  shows `accessDenied.apiKeys` too.
+  by URL show **This page is for Owners, Admins and Developers.**
+  (`accessDenied.apiTab`). Revoke the grant → **API** keeps **REST** alone
+  while the member holds the key, listing it with **Revoke key** but without
+  **Create API key**, and `/dashboard/{org}/settings/api/models` names the
+  competence it takes (`accessDenied.apiModels`); once the key is revoked too
+  the API row disappears.
 - [ ] `SET-B21` · **A custom provider's edit saves whole or not at all** —
   With a custom provider holding two credentials A and B (`SET-F43`), open
   A's **Edit credential** (`settings.credentials.edit`), change **Base URL**
@@ -980,6 +983,16 @@ run.
   `settings.providers.custom.errors.versionConflict`; reload the second
   tab → its **Base URL** stands; reopen the first dialog → it shows that
   **Base URL**, and the rename now saves.
+- [ ] `SET-B27` · **Only a role or competence that uses a key creates one** —
+  As a Member holding no competence, the settings rail shows no **API** row;
+  in DevTools run
+  `fetch('/api/auth/api-key/create', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({name: 'probe'})}).then((r) => r.json())`
+  → 403 with code `API_KEY_CREATE_FORBIDDEN`, and no key named `probe` exists.
+  Have an Admin grant **Export notifications** → after a reload **API** shows
+  **REST** alone, without **Models**, and **Create API key** there makes a key.
+  Revoke the grant → the key keeps working with the Member's role, and a
+  second create is refused again; **REST** stays, listing the key without
+  **Create API key**, until the Member revokes it.
 
 ## Accessibility (WCAG 2.1 AA)
 

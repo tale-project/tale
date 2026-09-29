@@ -2,9 +2,9 @@ accessDenied:
   title: Zugriff verweigert
   connectors: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
     Connector-Einstellungen zuzugreifen.
-  apiKeys:
-    Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu
-    verwalten.
+  apiKeys: API-Schlüssel nutzen Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
+  apiTab: Diese Seite ist Inhabern, Admins und Entwicklern vorbehalten.
+  apiModels: Die Einrichtung der Modell-Endpunkte ist Inhabern, Admins und Entwicklern vorbehalten und Mitgliedern mit der Kompetenz „Modelle über die API aufrufen“.
   organization: Du benötigst Admin-Berechtigungen, um auf die
     Organisationseinstellungen zuzugreifen.
   branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
@@ -2690,6 +2690,7 @@ emptyStates:
   apiKeys:
     title: Noch keine API-Schlüssel
     description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
+    descriptionNoCreate: Einen Schlüssel erstellen können Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
 governance:
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert
