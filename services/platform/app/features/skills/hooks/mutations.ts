@@ -58,31 +58,47 @@ function usePublishRefusalFeedback() {
  * Upsert a skill keyed by slug. Omitted optional fields mean "leave as-is" —
  * the server merges over the on-disk `SKILL.md`, so a partial save never
  * blanks frontmatter the editor doesn't carry.
+ *
+ * The detail pane toasts a failed save itself, naming a refused audience,
+ * and passes `errorToast: false`: spread last, it wins over the refusal
+ * feedback's toast, while the listing refresh still runs. The create pane
+ * keeps this hook's toast.
  */
-export function useSaveSkill() {
+export function useSaveSkill(options?: { errorToast?: false }) {
   const invalidate = useInvalidateSkills();
   return useBackendAction('skills/actions:saveSkill', {
     onSuccess: () => invalidate(),
     ...usePublishRefusalFeedback(),
+    ...options,
   });
 }
 
-/** Delete a skill's whole bundle (owner or org-admin; enforced server-side). */
+/** Delete a skill's whole bundle (owner or org-admin; enforced server-side).
+ * The detail pane toasts a failed delete itself, with the reason. */
 export function useDeleteSkill() {
   const invalidate = useInvalidateSkills();
   return useBackendAction('skills/actions:deleteSkill', {
+    errorToast: false,
     onSuccess: () => invalidate(),
   });
 }
 
+// The bundle upload's three hops below run through `useSkillBundleUpload`,
+// whose one caller, the upload pane, toasts a failed upload with the reason:
+// each hop keeps its own toast quiet.
+
 /** Presign hop of the bundle upload (any member). */
 export function useGenerateSkillUploadUrl() {
-  return useBackendMutation('skills/upload_mutations:generateSkillUploadUrl');
+  return useBackendMutation('skills/upload_mutations:generateSkillUploadUrl', {
+    errorToast: false,
+  });
 }
 
 /** Bind the POSTed blob to (org, user) — load-bearing before the action. */
 export function useRecordSkillUploadIntent() {
-  return useBackendMutation('skills/upload_mutations:recordSkillUploadIntent');
+  return useBackendMutation('skills/upload_mutations:recordSkillUploadIntent', {
+    errorToast: false,
+  });
 }
 
 /** The final upload hop: parse, gate the replace, swap onto disk. */
@@ -92,6 +108,7 @@ export function useUploadSkillBundle() {
   // is shared.
   const { onError } = usePublishRefusalFeedback();
   return useBackendAction('skills/actions:uploadSkillBundle', {
+    errorToast: false,
     onSuccess: () => invalidate(),
     onError,
   });

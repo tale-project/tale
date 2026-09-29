@@ -38,10 +38,12 @@ import {
 } from './mutations';
 
 interface CapturedOptions {
-  errorToast?: {
-    title: string;
-    description?: (error: Error) => string | undefined;
-  };
+  errorToast?:
+    | {
+        title: string;
+        description?: (error: Error) => string | undefined;
+      }
+    | false;
   onError?: (error: Error) => void;
 }
 
@@ -75,11 +77,10 @@ describe('useSaveSkill', () => {
   it('names the reason and refreshes the listing when the audience is refused', () => {
     const options = optionsOf(() => useSaveSkill());
     const error = refusal('SKILL_PUBLISH_FORBIDDEN');
+    const errorToast = options.errorToast || undefined;
 
-    expect(options.errorToast?.title).toBe('toast:error.generic.title');
-    expect(options.errorToast?.description?.(error)).toBe(
-      'skills:publishing.refused',
-    );
+    expect(errorToast?.title).toBe('toast:error.generic.title');
+    expect(errorToast?.description?.(error)).toBe('skills:publishing.refused');
     options.onError?.(error);
     expect(invalidateQueries).toHaveBeenCalledExactlyOnceWith({
       queryKey: configKeys.type('skills'),
@@ -89,18 +90,34 @@ describe('useSaveSkill', () => {
   it('keeps the generic feedback for any other failure', () => {
     const options = optionsOf(() => useSaveSkill());
     const error = refusal('SKILL_STALE');
+    const errorToast = options.errorToast || undefined;
 
-    expect(options.errorToast?.description?.(error)).toBeUndefined();
+    expect(errorToast?.description?.(error)).toBeUndefined();
     options.onError?.(error);
     expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  // The detail pane toasts a failed save itself: its opt-out must win over
+  // the refusal feedback's toast, or one failure raised two toasts, while
+  // the refusal still refreshes the listing.
+  it('lets a caller that reports the failure itself keep the toast quiet', () => {
+    const options = optionsOf(() => useSaveSkill({ errorToast: false }));
+
+    expect(options.errorToast).toBe(false);
+    options.onError?.(refusal('SKILL_PUBLISH_FORBIDDEN'));
+    expect(invalidateQueries).toHaveBeenCalledExactlyOnceWith({
+      queryKey: configKeys.type('skills'),
+    });
   });
 });
 
 describe('useUploadSkillBundle', () => {
-  it('refreshes the listing on a refused audience and leaves the reason to the pane', () => {
+  // The pane's toast is the upload's one report, naming a refused audience;
+  // the hop's own toast would report the same failure a second time.
+  it('refreshes the listing on a refused audience and leaves the report to the pane', () => {
     const options = optionsOf(() => useUploadSkillBundle());
 
-    expect(options.errorToast).toBeUndefined();
+    expect(options.errorToast).toBe(false);
     options.onError?.(refusal('SKILL_PUBLISH_FORBIDDEN'));
     expect(invalidateQueries).toHaveBeenCalledExactlyOnceWith({
       queryKey: configKeys.type('skills'),
