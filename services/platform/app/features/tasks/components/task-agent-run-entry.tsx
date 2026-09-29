@@ -29,6 +29,7 @@ import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -146,7 +147,9 @@ export function TaskAgentRunEntry({
     { organizationId, taskId },
   );
   const { mutateAsync: startRun } = useStartTaskAgentRun();
-  const { mutateAsync: cancelRun } = useCancelTaskAgentRun();
+  const { mutateAsync: cancelRun } = useCancelTaskAgentRun({
+    errorToast: false,
+  });
   const [busy, setBusy] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -172,8 +175,11 @@ export function TaskAgentRunEntry({
       }
     } catch (error) {
       console.error('startTaskAgentRun failed', error);
+      const known = taskRunErrorMessage(error, t);
       toast({
-        title: taskRunErrorMessage(error, t) ?? t('agentRun.notStarted'),
+        title: known ?? t('agentRun.notStarted'),
+        // A refusal named above is the whole story; any other says why.
+        description: known === undefined ? failureDetail(error) : undefined,
         variant: 'destructive',
       });
     } finally {
@@ -188,7 +194,11 @@ export function TaskAgentRunEntry({
       toast({ title: t('agentRun.cancelled') });
     } catch (error) {
       console.error('cancelTaskAgentRun failed', error);
-      toast({ title: t('agentRun.notStarted'), variant: 'destructive' });
+      toast({
+        title: t('agentRun.notStarted'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
     }
