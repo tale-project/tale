@@ -8,8 +8,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import { getRun, resolveRunProject } from '../automations/store.ts';
-import { assertWritable, loadProjectOrThrow } from '../projects/service.ts';
+import { loadProjectOrThrow } from '../projects/service.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
+import type { TaskRow } from '../tasks/service.ts';
 import { pgTaskStore } from './task-store.ts';
 
 vi.mock('../automations/dispatch-store.ts', () => ({
@@ -20,7 +21,6 @@ vi.mock('../automations/store.ts', () => ({
   resolveRunProject: vi.fn(),
 }));
 vi.mock('../projects/service.ts', () => ({
-  assertWritable: vi.fn(),
   loadProjectOrThrow: vi.fn(),
   getProjectAuthContext: vi.fn(),
 }));
@@ -48,15 +48,26 @@ const input = {
   title: 'Issue',
 };
 const workflow = { kind: 'workflow' as const, runId: 'run-1', nodeId: 'tasks' };
+const project = {
+  id: 'project-1',
+  organizationId: 'org-1',
+  archivedAt: null,
+  teamId: null,
+  sharedWithTeamIds: [],
+  teamIds: [],
+};
+const person = (role: string, teamIds: string[] = []) => ({
+  organizationId: 'org-1',
+  userId: 'user-1',
+  role,
+  teamIds,
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
   tx.mockResolvedValue([]);
-  vi.mocked(loadProjectOrThrow).mockResolvedValue({
-    id: 'project-1',
-    organizationId: 'org-1',
-    archivedAt: null,
-  } as never);
+  vi.mocked(loadProjectOrThrow).mockResolvedValue(project as never);
+  vi.mocked(authorizeActorRun).mockResolvedValue(person('editor') as never);
   vi.mocked(getRun).mockResolvedValue({
     name: 'github/import-issues',
     projectId: null,
@@ -94,8 +105,8 @@ describe('task import authorization and reconciliation policy', () => {
   it.each([
     { organizationId: 'foreign', archivedAt: null },
     { organizationId: 'org-1', archivedAt: 1 },
-  ])('rejects a foreign or archived target before writing', async (project) => {
-    vi.mocked(loadProjectOrThrow).mockResolvedValue(project as never);
+  ])('rejects a foreign or archived target before writing', async (target) => {
+    vi.mocked(loadProjectOrThrow).mockResolvedValue(target as never);
     await expect(
       pgTaskStore(sql).upsert({ ...input, caller: workflow }),
     ).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
@@ -147,8 +158,6 @@ describe('task import authorization and reconciliation policy', () => {
   });
 
   it('checks human membership and project access and attributes the creator', async () => {
-    const auth = { userId: 'user-1' };
-    vi.mocked(authorizeActorRun).mockResolvedValue(auth as never);
     await pgTaskStore(sql).upsert({
       ...input,
       caller: { kind: 'user', userId: 'user-1' },
@@ -159,7 +168,7 @@ describe('task import authorization and reconciliation policy', () => {
       'user-1',
       'membership',
     );
-    expect(assertWritable).toHaveBeenCalledWith(expect.anything(), auth);
+    // An editor's call reaches every task and grows the label catalog.
     expect(upsertTaskByExternalRef).toHaveBeenCalledWith(tx, {
       ...input,
       actorId: 'user-1',
@@ -170,13 +179,15 @@ describe('task import authorization and reconciliation policy', () => {
   });
 
   it('checks an org-wide run starter before writing to a private project', async () => {
-    const refusal = new Error('project write access denied');
-    vi.mocked(assertWritable).mockImplementation(() => {
-      throw refusal;
-    });
+    vi.mocked(loadProjectOrThrow).mockResolvedValue({
+      ...project,
+      teamId: 'team-1',
+      teamIds: ['team-1'],
+    } as never);
+    vi.mocked(authorizeActorRun).mockResolvedValue(person('member') as never);
     await expect(
       pgTaskStore(sql).upsert({ ...input, caller: workflow }),
-    ).rejects.toBe(refusal);
+    ).rejects.toMatchObject({ code: 'TASK_FORBIDDEN' });
     expect(authorizeActorRun).toHaveBeenCalledWith(
       tx,
       'org-1',
@@ -184,6 +195,45 @@ describe('task import authorization and reconciliation policy', () => {
       'membership',
     );
     expect(upsertTaskByExternalRef).not.toHaveBeenCalled();
+  });
+
+  it("a member's run works within the member's reach instead of dying on an editor check", async () => {
+    // A member may start an automation built for their task; its task
+    // natives create in the project and change only what the member may
+    // work, naming only labels the catalog already has.
+    vi.mocked(authorizeActorRun).mockResolvedValue(person('member') as never);
+    await expect(
+      pgTaskStore(sql).upsert({ ...input, caller: workflow }),
+    ).resolves.toEqual({ taskId: 'task-1', created: true, title: 'Issue' });
+    const sent = vi.mocked(upsertTaskByExternalRef).mock.calls[0]?.[1];
+    expect(sent).toMatchObject({ mintLabels: false });
+    const authorize = sent?.authorizeReconcile;
+    if (authorize === undefined) throw new Error('expected a reconcile gate');
+    const row = (createdBy: string) =>
+      ({
+        createdBy,
+        createdByType: 'user',
+        assigneeType: null,
+        assigneeId: null,
+        parentTaskId: null,
+      }) as unknown as TaskRow;
+    await expect(authorize(row('user-1'))).resolves.toBeUndefined();
+    await expect(authorize(row('user-2'))).rejects.toMatchObject({
+      code: 'RBAC_FORBIDDEN',
+    });
+  });
+
+  it('a run a schedule fired keeps the automation reach', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      name: 'github/import-issues',
+      projectId: null,
+      startedBy: 'trigger:trigger-1',
+    } as never);
+    await pgTaskStore(sql).upsert({ ...input, caller: workflow });
+    expect(authorizeActorRun).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(upsertTaskByExternalRef).mock.calls[0]?.[1],
+    ).not.toHaveProperty('authorizeReconcile');
   });
 
   it('does not turn a database failure into a successful empty import', async () => {
@@ -242,11 +292,7 @@ describe('task import authorization and reconciliation policy', () => {
         RETRY_QUEUE_LOCK_CLASS,
         'task-issue-import:org-1:project-1',
       );
-      return {
-        id: 'project-1',
-        organizationId: 'org-1',
-        archivedAt: null,
-      } as never;
+      return project as never;
     });
     await pgTaskStore(sql).upsertIssues({
       organizationId: 'org-1',

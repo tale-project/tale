@@ -1,6 +1,7 @@
 import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
 import { closePendingTaskReviewOnStatusLeave } from './reviews.ts';
@@ -12,6 +13,9 @@ import {
   deleteTask,
   dispatchMentionedProjectAgent,
   mentionTriggerPreview,
+  moveTask,
+  removeTaskDependency,
+  restoreTask,
   startTaskAgentRunManual,
   type TaskRow,
   updateTask,
@@ -164,7 +168,18 @@ const OTHERS = taskRow({ id: 't-others', createdBy: 'u-editor' });
  * written nothing. */
 let statements: string[] = [];
 
-function fakeTx(tasks: readonly TaskRow[]): TransactionSql {
+/** The task's live agent run, when a case has one. */
+interface LiveRun {
+  id: string;
+  agentId: string;
+  status: 'queued' | 'running';
+  startedBy: string;
+}
+
+function fakeTx(
+  tasks: readonly TaskRow[],
+  options: { liveRun?: LiveRun } = {},
+): TransactionSql {
   const byId = new Map(tasks.map((task) => [task.id, task]));
   const tag = (
     strings: TemplateStringsArray,
@@ -177,6 +192,34 @@ function fakeTx(tasks: readonly TaskRow[]): TransactionSql {
         .map((value) => (typeof value === 'string' ? byId.get(value) : null))
         .find((row) => row != null);
       return Promise.resolve(task ? [task] : []);
+    }
+    if (text.startsWith('WITH RECURSIVE up AS')) {
+      // The owners up the subtask tree, nearest parent first.
+      const chain: TaskRow[] = [];
+      let next = typeof values[0] === 'string' ? byId.get(values[0]) : null;
+      while (next != null) {
+        chain.push(next);
+        next = next.parentTaskId === null ? null : byId.get(next.parentTaskId);
+      }
+      return Promise.resolve(chain);
+    }
+    if (text.includes('FROM app.project_agent_runs')) {
+      const run = options.liveRun;
+      return Promise.resolve(
+        run === undefined
+          ? []
+          : [
+              {
+                ...run,
+                execId: 'exec-1',
+                sessionId: 'pa-agent-1',
+                harness: 'claude-code',
+                model: 'anthropic/claude-sonnet',
+                modelProvider: null,
+                deadlineAt: 9_999_999_999_999,
+              },
+            ],
+      );
     }
     if (text.includes('FROM app.project_agents')) {
       return Promise.resolve([agent]);
@@ -207,6 +250,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ runId: 'r-1', execId: 'e-1', reused: false });
   vi.mocked(closePendingTaskReviewOnStatusLeave).mockReset();
+  vi.mocked(addJobInTx).mockReset();
 });
 
 describe('a member creates a task', () => {
@@ -388,6 +432,110 @@ describe('a member works their own task', () => {
       deleteTask(fakeTx([OWN]), member, 't-own'),
     ).rejects.toMatchObject({ code: 'ROLE_FORBIDDEN', status: 403 });
   });
+
+  it('works the subtasks an agent or an editor added under it, so they never keep it open', async () => {
+    const subtask = taskRow({
+      id: 't-sub',
+      parentTaskId: 't-own',
+      createdBy: 'agent-1',
+      createdByType: 'agent',
+    });
+    await updateTaskStatus(fakeTx([OWN, subtask]), member, 't-sub', 'done');
+    expect(wrote('UPDATE app.tasks SET status')).toBe(true);
+
+    // Under someone else's task, a subtask stays theirs.
+    statements = [];
+    const theirs = taskRow({
+      id: 't-sub',
+      parentTaskId: 't-others',
+      createdBy: 'agent-1',
+      createdByType: 'agent',
+    });
+    await expect(
+      updateTaskStatus(fakeTx([OTHERS, theirs]), member, 't-sub', 'done'),
+    ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    expect(wrote('UPDATE app.tasks')).toBe(false);
+  });
+});
+
+describe('a member who handed their task to an agent', () => {
+  // Assigned to the member, the task became the agent's when the member
+  // put it to work with an @mention; the run is still theirs.
+  const handedOver = taskRow({
+    id: 't-handed',
+    createdBy: 'u-editor',
+    assigneeType: 'agent',
+    assigneeId: 'agent-1',
+    status: 'in_progress',
+  });
+  const theirRun: LiveRun = {
+    id: 'r-live',
+    agentId: 'agent-1',
+    status: 'running',
+    startedBy: 'u-member',
+  };
+
+  it('steers the run they started with another @mention', async () => {
+    await dispatchMentionedProjectAgent(
+      fakeTx([handedOver], { liveRun: theirRun }),
+      {
+        auth: member,
+        task: handedOver,
+        project,
+        mentions: [{ type: 'agent', id: 'agent-1' }],
+        authorType: 'user',
+        authorId: 'u-member',
+        text: '@contract.reviewer use the signed copies only',
+        source: 'comment',
+      },
+    );
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'task.agent_steer',
+      expect.objectContaining({ runId: 'r-live', authorId: 'u-member' }),
+    );
+    expect(
+      await mentionTriggerPreview(
+        fakeTx([handedOver], { liveRun: theirRun }) as never,
+        member,
+        { taskId: 't-handed', slugs: ['agent-1'] },
+      ),
+    ).toEqual([{ slug: 'agent-1', willTrigger: true, reason: 'ok' }]);
+  });
+
+  it("does not steer someone else's run on a task that is not theirs", async () => {
+    await dispatchMentionedProjectAgent(
+      fakeTx([handedOver], {
+        liveRun: { ...theirRun, startedBy: 'u-editor' },
+      }),
+      {
+        auth: member,
+        task: handedOver,
+        project,
+        mentions: [{ type: 'agent', id: 'agent-1' }],
+        authorType: 'user',
+        authorId: 'u-member',
+        text: '@contract.reviewer stop',
+        source: 'comment',
+      },
+    );
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('a member decides the review of their own task only', () => {
+  it("cannot accept the review of someone else's task", async () => {
+    const theirs = taskRow({
+      id: 't-others',
+      createdBy: 'u-editor',
+      status: 'in_review',
+    });
+    await expect(
+      updateTaskStatus(fakeTx([theirs]), member, 't-others', 'done'),
+    ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
+    expect(wrote('UPDATE app.tasks')).toBe(false);
+  });
 });
 
 describe("a member on someone else's task", () => {
@@ -413,6 +561,18 @@ describe("a member on someone else's task", () => {
           assigneeId: 'u-member',
         }),
       () => archiveTask(fakeTx([OTHERS]), member, 't-others'),
+      () =>
+        restoreTask(fakeTx([{ ...OTHERS, archivedAt: 5 }]), member, 't-others'),
+      () =>
+        moveTask(fakeTx([OTHERS]), member, {
+          taskId: 't-others',
+          status: 'done',
+        }),
+      () =>
+        removeTaskDependency(fakeTx([OWN, OTHERS]), member, {
+          blockerTaskId: 't-own',
+          blockedTaskId: 't-others',
+        }),
     ];
     for (const attempt of attempts) {
       await expect(attempt()).rejects.toMatchObject({

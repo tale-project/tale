@@ -90,10 +90,18 @@ async function listTaskReviewApprovals(
 export type ReviewerEligibility = 'eligible' | 'not_member' | 'cannot_edit';
 
 /**
- * Whether a person can take a review in a project: a live member of the
- * organization who holds project canEdit. The ONE rule — the gate resolves
- * its reviewer by it, and a designation is held to it, so a designee the
- * gate would route past is refused up front instead of silently skipped.
+ * Whether a person can be SENT a review in a project: a live member of the
+ * organization who holds project canEdit. The ONE routing rule — the gate
+ * resolves its reviewer by it, and a designation is held to it, so a
+ * designee the gate would route past is refused up front instead of
+ * silently skipped.
+ *
+ * Deciding a review is a different question: the decision IS the status
+ * move, so whoever may work the task may take it — the project's editors,
+ * and the member whose own task it is (`core/tasks/access.ts`) — under the
+ * organization's `review_policy` ({@link checkReviewPolicyForResponder}):
+ * where an independent reviewer is required, the person who started the run
+ * cannot accept its work, which leaves a member's own run to an editor.
  */
 export async function reviewerEligibility(
   tx: TransactionSql | Sql,

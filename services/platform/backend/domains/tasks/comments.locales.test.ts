@@ -11,9 +11,13 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../projects/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../projects/service.ts')>()),
-  loadProjectOrThrow: vi
-    .fn()
-    .mockResolvedValue({ id: 'p-1', organizationId: 'org-1' }),
+  loadProjectOrThrow: vi.fn().mockResolvedValue({
+    id: 'p-1',
+    organizationId: 'org-1',
+    teamId: null,
+    sharedWithTeamIds: [],
+    archivedAt: null,
+  }),
 }));
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),

@@ -228,6 +228,10 @@ export interface UpsertTaskByExternalRefArgs {
    * administer the catalog — a member who is not the project's editor.
    * Default `true`: an import, an agent or a workflow mints what it names. */
   mintLabels?: boolean;
+  /** Asked before the upsert changes a task that already exists (the
+   * reconcile), and throws to refuse it: a sync a person drives changes
+   * only the tasks that person may work. */
+  authorizeReconcile?: (task: TaskRow) => Promise<void>;
 }
 
 /** What {@link upsertTaskByExternalRef} answers. */
@@ -574,6 +578,7 @@ export async function upsertTaskByExternalRef(
 
   const existing = await findExisting();
   if (existing) {
+    await args.authorizeReconcile?.(existing);
     return {
       taskId: existing.id,
       created: false,
@@ -671,6 +676,7 @@ export async function upsertTaskByExternalRef(
       }
       throw new Error('TASK_CREATE_FAILED: the insert answered no row');
     }
+    await args.authorizeReconcile?.(winner);
     return {
       taskId: winner.id,
       created: false,

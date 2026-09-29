@@ -42,6 +42,7 @@ import {
   getLatestAgentRunCardForTask,
   listAgentRunsForTask,
 } from './agent-runs.ts';
+import { assertAutomationForTask } from './automation-access.ts';
 import {
   addTaskComment,
   deleteTaskComment,
@@ -56,6 +57,7 @@ import {
   findTaskByExternalRef,
   resolveSetupFolderId,
   startWorkflowForTask,
+  startWorkflowForTaskInTx,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
@@ -95,7 +97,10 @@ import {
   updateTask,
   updateTaskStatus,
   assertTaskReadable,
+  assertTaskNotArchived,
+  liveAgentRunOfTask,
   loadTaskOrThrow,
+  mayWorkTask,
 } from './service.ts';
 
 const statusSchema = z.enum([
@@ -612,13 +617,34 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         if (existing !== null) {
           // An organization-wide reference can name a task in another
           // project, which is judged on its own project.
-          assertTaskWorkable(
+          const existingProject =
             existing.projectId === project.id
               ? project
-              : await loadProjectOrThrow(tx, existing.projectId),
-            existing,
+              : await loadProjectOrThrow(tx, existing.projectId);
+          if (!(await mayWorkTask(tx, existingProject, existing, auth))) {
+            // Someone else's subject: picking it again opens it, as it is.
+            // Reconciling it would be a change to their task, so nothing
+            // is written and nothing starts.
+            assertTaskReadable(existingProject, auth);
+            return {
+              upserted: { taskId: existing.id, created: false },
+              ensuredFolderId,
+            };
+          }
+        }
+        // The automation a member names must be built for tasks (or own
+        // the task being reconciled); editors may name any.
+        for (const automation of new Set([
+          args.automationSlug,
+          args.runWorkflowSlug,
+        ])) {
+          if (automation === undefined || automation === '') continue;
+          await assertAutomationForTask(tx, {
+            project,
             auth,
-          );
+            task: existing,
+            automation,
+          });
         }
         const upserted = await upsertTaskByExternalRef(tx, {
           organizationId: auth.organizationId,
@@ -1153,21 +1179,38 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(
-        deps.sql,
-        c.req.param('taskId'),
-        auth.organizationId,
-      );
-      const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      // Starting a run is a change to the task (it spends budget and moves
-      // the card) — the manual agent-run kick's gate, not the read-level
-      // banner's.
-      assertTaskWorkable(project, task, auth);
-      const started = await startWorkflowForTask(deps.sql, {
-        organizationId: auth.organizationId,
-        task,
-        workflowSlug: body.data.workflowSlug,
-        startedByUserId: auth.userId,
+      const workflowSlug = body.data.workflowSlug;
+      // READ COMMITTED, as the REST start door: the start's guard takes an
+      // advisory lock and then reads the live runs, and only a fresh
+      // statement snapshot sees a racing door's committed run. The task is
+      // reloaded and judged inside the same transaction that starts the run.
+      let started = null as Awaited<
+        ReturnType<typeof startWorkflowForTaskInTx>
+      >;
+      await deps.sql.begin('isolation level read committed', async (tx) => {
+        const task = await loadTaskOrThrow(
+          tx,
+          c.req.param('taskId'),
+          auth.organizationId,
+        );
+        const project = await loadProjectOrThrow(tx, task.projectId);
+        // Starting a run is a change to the task (it spends budget and
+        // moves the card) — the manual agent-run kick's gate, not the
+        // read-level banner's — and an archived task starts nothing.
+        await assertTaskWorkable(tx, project, task, auth);
+        assertTaskNotArchived(task);
+        await assertAutomationForTask(tx, {
+          project,
+          auth,
+          task,
+          automation: workflowSlug,
+        });
+        started = await startWorkflowForTaskInTx(tx, {
+          organizationId: auth.organizationId,
+          task,
+          workflowSlug,
+          startedByUserId: auth.userId,
+        });
       });
       if (started === null) {
         return c.json({
@@ -1203,7 +1246,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       // The work gate must precede the run cancel: `updateTaskStatus` below
       // asserts it too, but by then the live run would already be dead —
       // someone who may not work the task is refused before any side effect.
-      assertTaskWorkable(project, task, auth);
+      await assertTaskWorkable(deps.sql, project, task, auth);
       const live = await findLiveAutomationRunForTask(deps.sql, {
         organizationId: auth.organizationId,
         projectId: task.projectId,
@@ -1252,14 +1295,16 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         auth.organizationId,
       );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskWorkable(project, task, auth);
-      const live = await deps.sql<{ id: string }[]>`
-        SELECT id FROM app.project_agent_runs
-        WHERE task_id = ${task.id} AND status IN ('queued', 'running')
-        ORDER BY started_at_ms DESC
-        LIMIT 1
-      `;
-      const runId = live[0]?.id;
+      const live = await liveAgentRunOfTask(deps.sql, task.id);
+      // Whoever may work the task stops its run — and so does the person
+      // who started the run, once the task is no longer theirs (handing an
+      // assigned task to an agent makes the agent its assignee).
+      if (live === undefined || live.startedBy !== auth.userId) {
+        await assertTaskWorkable(deps.sql, project, task, auth);
+      } else {
+        assertTaskReadable(project, auth);
+      }
+      const runId = live?.id;
       const cancelled =
         runId === undefined
           ? false

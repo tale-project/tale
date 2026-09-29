@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { checkProjectAccess } from '../projects/access.ts';
 import {
+  canControlLiveRun,
   canWorkTask,
   isOwnTask,
   type TaskOwnership,
@@ -82,6 +83,49 @@ describe('the task access rule', () => {
         { canEdit: false, canCreate: true },
         task({ createdBy: 'user-1' }),
         undefined,
+      ),
+    ).toBe(false);
+  });
+
+  it('work rights run down the subtask tree', () => {
+    const reader = { canEdit: false, canCreate: true };
+    // An agent broke the member's task down: the subtask is nobody's own,
+    // but it sits under the member's task, at any depth.
+    const subtask = task({ createdBy: 'agent-1', createdByType: 'agent' });
+    const own = task({ createdBy: 'user-1' });
+    expect(canWorkTask(reader, subtask, 'user-1')).toBe(false);
+    expect(canWorkTask(reader, subtask, 'user-1', [own])).toBe(true);
+    expect(canWorkTask(reader, subtask, 'user-1', [task(), own])).toBe(true);
+    // Someone else's parent passes nothing down.
+    expect(canWorkTask(reader, subtask, 'user-1', [task()])).toBe(false);
+    // Nor does the tree widen what a stranger to the project may do.
+    expect(
+      canWorkTask({ canEdit: false, canCreate: false }, subtask, 'user-1', [
+        own,
+      ]),
+    ).toBe(false);
+  });
+
+  it('the starter of a live run may stop and steer it on a task no longer theirs', () => {
+    const reader = { canEdit: false, canCreate: true };
+    // The member handed their assigned task to an agent: it is the agent's
+    // now, but the run is theirs.
+    const handedOver = task({ assigneeType: 'agent', assigneeId: 'agent-1' });
+    expect(canWorkTask(reader, handedOver, 'user-1')).toBe(false);
+    expect(canControlLiveRun(reader, handedOver, 'user-1', 'user-1')).toBe(
+      true,
+    );
+    expect(canControlLiveRun(reader, handedOver, 'user-1', 'user-2')).toBe(
+      false,
+    );
+    expect(canControlLiveRun(reader, handedOver, 'user-1', null)).toBe(false);
+    // Losing read access ends it.
+    expect(
+      canControlLiveRun(
+        { canEdit: false, canCreate: false },
+        handedOver,
+        'user-1',
+        'user-1',
       ),
     ).toBe(false);
   });

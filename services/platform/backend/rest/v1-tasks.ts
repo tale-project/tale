@@ -24,8 +24,10 @@ import {
 } from '../domains/automations/store.ts';
 import {
   getProjectAuthContext,
+  loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../domains/projects/service.ts';
+import { assertAutomationForTask } from '../domains/tasks/automation-access.ts';
 import {
   addTaskComment,
   listTaskComments,
@@ -255,7 +257,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
     }
     if (options.write) {
-      assertTaskWorkable(project, task, auth);
+      await assertTaskWorkable(sql, project, task, auth);
     } else if (options.active) {
       await loadRestProject(sql, auth, projectId, { active: true });
     }
@@ -408,6 +410,14 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const task = await loadVisibleTask(tx, auth, projectId, taskId, {
         write: true,
       });
+      // A member starts only an automation built for tasks, or the one that
+      // owns this task; an editor any.
+      await assertAutomationForTask(tx, {
+        project: await loadProjectOrThrow(tx, projectId),
+        auth,
+        task,
+        automation: workflowSlug,
+      });
       outcome = await startWorkflowForTaskInTx(tx, {
         organizationId: auth.organizationId,
         task,
@@ -456,15 +466,31 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         });
         // Reconciling a task is a change to it: its creator's, its person
         // assignee's or an editor's — never another member's intake.
-        if (existing !== null) assertTaskWorkable(project, existing, auth);
-        await assertIntakeAutomations(
-          tx,
-          auth,
-          projectId,
+        if (existing !== null) {
+          await assertTaskWorkable(tx, project, existing, auth);
+        }
+        const namedAutomations: {
+          automationSlug?: string;
+          runWorkflowSlug?: string;
+        } =
           existing === null
             ? { ...intake, runWorkflowSlug }
-            : { automationSlug: intake.automationSlug },
-        );
+            : { automationSlug: intake.automationSlug };
+        await assertIntakeAutomations(tx, auth, projectId, namedAutomations);
+        // A member may hand a task only to an automation built for tasks
+        // (or the one already owning it); an editor to any.
+        for (const automation of new Set([
+          namedAutomations.automationSlug,
+          namedAutomations.runWorkflowSlug,
+        ])) {
+          if (automation === undefined) continue;
+          await assertAutomationForTask(tx, {
+            project,
+            auth,
+            task: existing,
+            automation,
+          });
+        }
         // A named Setup folder is resolved in this transaction on every
         // intake — a repeat keeps the binding fresh — and only its id
         // reaches the domain, as `externalUrl`; the name never does.
@@ -565,7 +591,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         if (task.projectId !== projectId) {
           throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
         }
-        assertTaskWorkable(project, task, auth);
+        await assertTaskWorkable(tx, project, task, auth);
         if (body.archived) await archiveTask(tx, auth, taskId);
         else await restoreTask(tx, auth, taskId);
       });
@@ -683,7 +709,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const auth = await restProjectAuth(deps.sql, c);
       const projectId = c.req.param('id');
       const taskId = c.req.param('taskId');
-      await loadVisibleTask(deps.sql, auth, projectId, taskId, { write: true });
+      const task = await loadVisibleTask(deps.sql, auth, projectId, taskId, {
+        write: true,
+      });
       // The workflow's two absences are the intake's two refusals (404 /
       // 409), judged before the execute budget is charged — a slug the
       // contract refuses spends nothing. `not_started` below is left for
@@ -695,6 +723,15 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         body.workflowSlug,
         'start',
       );
+      // So is an automation this key holder may not start on the task (a
+      // member starts only one built for tasks, or the task's owner); the
+      // start transaction asks again.
+      await assertAutomationForTask(deps.sql, {
+        project: await loadProjectOrThrow(deps.sql, projectId),
+        auth,
+        task,
+        automation: body.workflowSlug,
+      });
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
       const started = await startTaskWorkflow(
@@ -803,6 +840,16 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             409,
             'TASK_NOT_IN_REVIEW',
           );
+        }
+        // Requesting changes through an automation starts it — the person's
+        // own right to put that automation to work on the task.
+        if (body.decision === 'request_changes' && workflowSlug !== undefined) {
+          await assertAutomationForTask(tx, {
+            project: await loadProjectOrThrow(tx, projectId),
+            auth: actorAuth,
+            task,
+            automation: workflowSlug,
+          });
         }
         const review = await getPendingReviewForTask(
           tx,

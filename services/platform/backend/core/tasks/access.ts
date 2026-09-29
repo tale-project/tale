@@ -9,6 +9,13 @@
  *   agent, archiving it — is open to the project's editors (an Editor role or
  *   higher, `checkProjectAccess`'s `canEdit`), and to any reader for whom the
  *   task is their own: they created it, or they are its person assignee.
+ *   Work rights run down the subtask tree: a subtask under a task someone
+ *   may work is theirs to work too, whoever added it (an agent breaking the
+ *   work down, an editor helping), so it never blocks them from closing
+ *   their own task.
+ * - **Stopping or steering a live agent run** is also open to the person
+ *   who started that run, even once the task is no longer theirs (handing
+ *   an assigned task to an agent makes the agent its assignee).
  *
  * Both need an active project: an archived one is read-only for everyone, and
  * each door answers that with its own code, so the flags below leave the
@@ -53,14 +60,51 @@ export function isOwnTask(task: TaskOwnership, userId: string): boolean {
 }
 
 /**
- * Whether the viewer may work the task. `userId` is optional so a view that
- * has not resolved the signed-in person yet answers as a stranger's task.
+ * How far up the subtask tree the rule looks for an owner. Real trees are
+ * a level or two deep; the bound keeps a corrupt parent chain from turning
+ * one check into an unbounded walk.
+ */
+export const TASK_ANCESTRY_DEPTH_MAX = 16;
+
+/**
+ * Whether the viewer may work the task. `ancestors` are the task's parents,
+ * nearest first (the caller walks up to {@link TASK_ANCESTRY_DEPTH_MAX});
+ * a task under one of the viewer's own tasks is theirs to work too. `userId`
+ * is optional so a view that has not resolved the signed-in person yet
+ * answers as a stranger's task.
  */
 export function canWorkTask(
   access: TaskAccess,
   task: TaskOwnership,
   userId: string | undefined,
+  ancestors: readonly TaskOwnership[] = [],
 ): boolean {
   if (access.canEdit) return true;
-  return access.canCreate && userId !== undefined && isOwnTask(task, userId);
+  if (!access.canCreate || userId === undefined) return false;
+  return (
+    isOwnTask(task, userId) ||
+    ancestors.some((ancestor) => isOwnTask(ancestor, userId))
+  );
+}
+
+/**
+ * Whether the viewer may stop or steer the task's live agent run: whoever
+ * may work the task, and the person who started that run while they can
+ * still read the project. `liveRunStartedBy` is the live run's starter, or
+ * absent when no run is live.
+ */
+export function canControlLiveRun(
+  access: TaskAccess,
+  task: TaskOwnership,
+  userId: string | undefined,
+  liveRunStartedBy: string | null | undefined,
+  ancestors: readonly TaskOwnership[] = [],
+): boolean {
+  if (canWorkTask(access, task, userId, ancestors)) return true;
+  return (
+    access.canCreate &&
+    userId !== undefined &&
+    liveRunStartedBy != null &&
+    liveRunStartedBy === userId
+  );
 }

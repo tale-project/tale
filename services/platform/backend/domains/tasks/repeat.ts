@@ -40,6 +40,7 @@ import {
   assertTaskWorkable,
   computeEndRank,
   loadTaskOrThrow,
+  mayWorkTask,
   nextTaskNumber,
   parseTaskAttachments,
   recordActivity,
@@ -980,6 +981,11 @@ interface ChainTask {
   commentCount: number;
   agentRunCount: number;
   archivedAt: number | null;
+  createdBy: string;
+  createdByType: string;
+  assigneeType: string | null;
+  assigneeId: string | null;
+  parentTaskId: string | null;
 }
 
 /** One task of a copy's subtree (the copy itself included). */
@@ -1010,6 +1016,12 @@ interface ChainTreeRow {
  * anyone's work — it is untouched by definition — so whoever may work the
  * task may do it (an editor, or the task's own creator or assignee), where
  * deleting a task takes an owner or an admin.
+ *
+ * It reaches only what the caller may work: the task they named and the
+ * copies after it that are theirs to work too. The copies before it are the
+ * series' history and keep what they say, and a later copy someone else
+ * owns now is left as it is — its rule included — and keeps the copies
+ * from being taken back.
  */
 export async function stopTaskRepeat(
   tx: TransactionSql,
@@ -1018,7 +1030,7 @@ export async function stopTaskRepeat(
 ): Promise<{ removedNextTask: boolean }> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWorkable(project, task, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
   const lockedRows = await tx<
     {
@@ -1039,20 +1051,22 @@ export async function stopTaskRepeat(
   const chain = members.filter(
     (member) => member.seriesPosition > (locked?.seriesPosition ?? 0),
   );
+  // The later copies the caller may work; the others stay as they are.
+  const workable: ChainTask[] = [];
+  for (const copy of chain) {
+    if (await mayWorkTask(tx, project, copy, auth)) workable.push(copy);
+  }
   let removedNextTask = false;
-  if (chain.length > 0) {
+  if (chain.length > 0 && workable.length === chain.length) {
     const tree = await loadChainTrees(tx, task, chain);
     if (await chainUntouched(tx, task, chain, tree)) {
       await takeBackCopies(tx, auth, task, chain, tree);
       removedNextTask = true;
     }
   }
-  for (const member of members) {
-    if (
-      !removedNextTask ||
-      member.seriesPosition <= (locked?.seriesPosition ?? 0)
-    ) {
-      await clearSeriesRule(tx, auth, member);
+  if (!removedNextTask) {
+    for (const copy of workable) {
+      await clearSeriesRule(tx, auth, copy);
     }
   }
   await clearSeriesRule(tx, auth, {
@@ -1079,7 +1093,10 @@ async function loadSeriesMembers(
            updated_at_ms::float8 AS "updatedAt",
            comment_count AS "commentCount",
            agent_run_count AS "agentRunCount",
-           archived_at_ms::float8 AS "archivedAt"
+           archived_at_ms::float8 AS "archivedAt",
+           created_by AS "createdBy", created_by_type AS "createdByType",
+           assignee_type AS "assigneeType", assignee_id AS "assigneeId",
+           parent_task_id AS "parentTaskId"
     FROM app.tasks
     WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
       AND repeat_series_id = ${seriesId} AND id <> ${task.id}

@@ -71,7 +71,12 @@ const EXISTING = {
   archivedAt: null,
 };
 
-function stubSql(options: { archived?: boolean; existingCreatedBy?: string }): {
+function stubSql(options: {
+  archived?: boolean;
+  existingCreatedBy?: string;
+  /** The deployed automation's task contract; absent = it declares none. */
+  contract?: unknown;
+}): {
   sql: Sql;
   statements: string[];
 } {
@@ -79,6 +84,21 @@ function stubSql(options: { archived?: boolean; existingCreatedBy?: string }): {
   const tag = (strings: TemplateStringsArray) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push(text);
+    if (text.startsWith('SELECT version FROM app.automation_deployments')) {
+      return Promise.resolve([{ version: 1 }]);
+    }
+    if (text.startsWith('SELECT name FROM app.automation_deployments')) {
+      return Promise.resolve([{ name: 'contracts/review' }]);
+    }
+    if (text.startsWith('SELECT name, version, document')) {
+      return Promise.resolve([
+        {
+          name: 'contracts/review',
+          version: 1,
+          taskContract: options.contract,
+        },
+      ]);
+    }
     if (text.startsWith('SELECT ? FROM app.projects WHERE id = ?')) {
       return Promise.resolve([
         { ...PROJECT, archivedAt: options.archived === true ? 1 : null },
@@ -166,10 +186,12 @@ describe('the external-issue intake under the task rule', () => {
     expect(sent.writes).toEqual([]);
   });
 
-  it("refuses a member's reconcile of someone else's task, writing nothing", async () => {
+  it("opens someone else's task as it is when a member picks its subject again, writing nothing", async () => {
+    // Reconciling it would be a change to their task; picking the subject
+    // a teammate created takes the member to it instead of refusing.
     const sent = await intake({}, { existingCreatedBy: 'u-editor' });
-    expect(sent.status).toBe(403);
-    expect(sent.json).toMatchObject({ error: 'RBAC_FORBIDDEN' });
+    expect(sent.status).toBe(200);
+    expect(sent.json).toEqual({ taskId: 't1', created: false });
     expect(sent.writes).toEqual([]);
   });
 
@@ -177,6 +199,24 @@ describe('the external-issue intake under the task rule', () => {
     const sent = await intake({}, { existingCreatedBy: 'u-member' });
     expect(sent.status).toBe(200);
     expect(sent.json).toEqual({ taskId: 't1', created: false });
+  });
+
+  it('hands a member’s task only to an automation built for tasks', async () => {
+    const refused = await intake({ automationSlug: 'contracts/review' });
+    expect(refused.status).toBe(403);
+    expect(refused.json).toMatchObject({ error: 'RBAC_FORBIDDEN' });
+    expect(refused.writes).toEqual([]);
+
+    const handed = await intake(
+      { automationSlug: 'contracts/review' },
+      { contract: { workflow: 'contracts/review' } },
+    );
+    expect(handed.status).toBe(200);
+    expect(handed.json).toEqual({ taskId: 't-new', created: true });
+
+    viewer.role = 'editor';
+    const editor = await intake({ automationSlug: 'contracts/review' });
+    expect(editor.status).toBe(200);
   });
 
   it('names only labels the catalog has for a member, and mints them for an editor', async () => {

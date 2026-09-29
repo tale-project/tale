@@ -274,6 +274,10 @@
  * `RBAC_FORBIDDEN` (`ACTOR_FORBIDDEN` for the actor). The intake of a key
  * holder who is not the project's editor creates no label: a name the
  * project's catalog lacks answers the new 400 `TASK_LABEL_UNKNOWN`, nothing
- * written.
+ * written. Such a key holder also names, in the intake's `automationSlug`
+ * and `runWorkflowSlug`, `…/start`'s and a review's `workflowSlug`, only an
+ * automation built for tasks (its deployed version declares a task
+ * contract) or the automation that owns the task: 403 `RBAC_FORBIDDEN`
+ * otherwise.
  */
 export const API_CONTRACT_VERSION = '3.6.0';

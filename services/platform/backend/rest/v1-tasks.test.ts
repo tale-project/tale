@@ -103,6 +103,9 @@ function mount(
     boundProjectIds?: string[];
     /** The root folder a `setupFolderName` lookup finds — `null` for none. */
     setupFolderId?: string | null;
+    /** The deployed automation's task contract — none unless the case
+     * says (a member starts only an automation built for tasks). */
+    taskContract?: unknown;
     /** Whose the task is — nobody's (an import's) unless the case says. */
     taskOwner?: {
       createdBy?: string;
@@ -171,6 +174,19 @@ function mount(
         options.setupFolderId === null
           ? []
           : [{ id: options.setupFolderId ?? 'folder-setup' }],
+      );
+    }
+    if (text.includes('task_contract AS "taskContract"')) {
+      return Promise.resolve(
+        options.exists === false
+          ? []
+          : [
+              {
+                name: 'triage',
+                version: 1,
+                taskContract: options.taskContract,
+              },
+            ],
       );
     }
     if (text.includes('FROM app.automations WHERE')) {
@@ -535,10 +551,11 @@ describe('project-scoped task intake', () => {
     );
   });
 
-  it('lets a member start a workflow on the task they just created', async () => {
+  it('lets a member start a workflow built for tasks on the task they just created', async () => {
     const { request } = mount({
       role: 'member',
       taskOwner: { createdBy: 'user-1', createdByType: 'user' },
+      taskContract: { workflow: 'triage' },
     });
     const res = await request(collection, 'POST', {
       ...input,
@@ -549,6 +566,25 @@ describe('project-scoped task intake', () => {
       expect.anything(),
       expect.objectContaining({ startedByUserId: 'user-1' }),
     );
+  });
+
+  it('refuses a member an automation not built for tasks, before any write', async () => {
+    // It would run as itself — the organization's credentials, no
+    // approvals — so naming it on a task stays with the editors.
+    const { request } = mount({
+      role: 'member',
+      taskOwner: { createdBy: 'user-1', createdByType: 'user' },
+    });
+    for (const named of [
+      { runWorkflowSlug: 'triage' },
+      { automationSlug: 'triage' },
+    ]) {
+      const res = await request(collection, 'POST', { ...input, ...named });
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    }
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
   });
 
   it("refuses a member's repeat of someone else's task before any write or run", async () => {
@@ -1018,13 +1054,17 @@ describe('project-scoped task reads and operations', () => {
     expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
   });
 
-  it('starts a workflow on the task a member created or is assigned to', async () => {
+  it('starts a workflow built for tasks on the task a member created or is assigned to', async () => {
     for (const taskOwner of [
       { createdBy: 'user-1', createdByType: 'user' },
       { createdBy: 'user-2', assigneeType: 'user', assigneeId: 'user-1' },
     ]) {
       service.startWorkflowForTaskInTx.mockClear();
-      const { request } = mount({ role: 'member', taskOwner });
+      const { request } = mount({
+        role: 'member',
+        taskOwner,
+        taskContract: { workflow: 'triage' },
+      });
       const res = await request(`${item}/start`, 'POST', {
         workflowSlug: 'triage',
       });
@@ -1034,6 +1074,33 @@ describe('project-scoped task reads and operations', () => {
         expect.objectContaining({ startedByUserId: 'user-1' }),
       );
     }
+  });
+
+  it('starts, for a member, only an automation built for tasks or the one that owns the task', async () => {
+    const own = { createdBy: 'user-1', createdByType: 'user' };
+    const refused = mount({ role: 'member', taskOwner: own });
+    const res = await refused.request(`${item}/start`, 'POST', {
+      workflowSlug: 'triage',
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+    // Refused before the execution budget is charged.
+    expect(
+      refused.queries.some((q) =>
+        q.text.includes('INSERT INTO app.rate_limits'),
+      ),
+    ).toBe(false);
+
+    // The automation the task is handed to owns it.
+    const owned = mount({
+      role: 'member',
+      taskOwner: { ...own, assigneeType: 'app', assigneeId: 'triage' },
+    });
+    const started = await owned.request(`${item}/start`, 'POST', {
+      workflowSlug: 'triage',
+    });
+    expect(started.status).toBe(200);
   });
 
   it.each([
