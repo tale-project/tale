@@ -79,8 +79,15 @@ describe('Inbox editor height (real layout)', () => {
       // oxlint-disable-next-line testing-library/no-node-access -- the sized box is structural, not a queryable role
       .closest('.overflow-y-auto');
     if (!(box instanceof HTMLElement)) throw new Error('no editor box');
-    // the height eases in over 300ms
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // Focus eases the box from 5rem to 20rem over 300ms, and on a loaded
+    // runner that ease can start late. Measure once the focused height is
+    // set and its transition has run out, not after a guessed pause
+    // (`getAnimations()` flushes style, so it holds a transition the class
+    // has only just started).
+    await waitFor(() => expect(box).toHaveClass('h-[20rem]'));
+    await Promise.all(
+      box.getAnimations().map((animation) => animation.finished),
+    );
     return box.getBoundingClientRect().height;
   }
 
