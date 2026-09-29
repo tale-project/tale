@@ -26,7 +26,6 @@ import {
   liveProgressSink,
   releaseTurnKey,
   stageWorkflowSkills,
-  workflowAgentBudgetCents,
 } from '../automations/agent_host';
 import {
   buildExternalTurnExec,
@@ -83,7 +82,10 @@ import {
   resolveProviderCredential,
   runFailureMessage,
 } from '../provider_credentials/resolve_credential';
-import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
+import {
+  agentWorkTurnDeadlineMs,
+  workflowAgentBudgetCents,
+} from '../sandbox/agent_deadline';
 import {
   grantedToolsGuidance,
   IMAGE_GENERATION_TOOL,

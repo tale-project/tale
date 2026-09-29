@@ -98,6 +98,10 @@ describe('image generation', () => {
     expect(line).toContain(`tool: "${IMAGE_GENERATION_TOOL}"`);
     expect(line).toContain('/agent/output/task_1/');
     expect(line).toContain('billed to the organization');
+    // The box delivers only its top level, and a turn's images are bounded.
+    expect(line).toContain('no subfolders');
+    expect(line).toContain("counts against this turn's spend allowance");
+    expect(line).toContain('at most 16 images a turn');
   });
 
   it.each([

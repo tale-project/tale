@@ -15,11 +15,11 @@
  *    models (FLUX, the GPT image models) that write no chat message at all.
  *  - `openai-images` — OpenAI's images API
  *    (https://developers.openai.com/api/reference/resources/images):
- *    `POST {base}/images/generations` with JSON `{model, prompt, n, size}`,
- *    or `POST {base}/images/edits` as multipart form data with the reference
- *    images as `image` / `image[]` parts. The reply carries `data:
- *    [{b64_json}]` and token counts — no cost, which the ledger computes from
- *    the catalog's prices.
+ *    `POST {base}/images/generations` with JSON `{model, prompt, n, size,
+ *    quality?}`, or `POST {base}/images/edits` as multipart form data with
+ *    the reference images as `image` / `image[]` parts. The reply carries
+ *    `data: [{b64_json}]` and token counts — no cost, which the ledger
+ *    computes from the catalog's prices.
  *
  * Every request asks for ONE image: several models serve only `n: 1`, so a
  * caller that wants more runs several requests.
@@ -43,6 +43,21 @@ export const RASTER_MEDIA_TYPES = [
 ] as const;
 export type RasterMediaType = (typeof RASTER_MEDIA_TYPES)[number];
 
+/** The formats a reference image may have: what both APIs take as an
+ * input image (OpenAI's edits accept exactly these three). */
+export const REFERENCE_MEDIA_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+] as const;
+export type ReferenceMediaType = (typeof REFERENCE_MEDIA_TYPES)[number];
+
+export function isReferenceMediaType(
+  mediaType: RasterMediaType,
+): mediaType is ReferenceMediaType {
+  return REFERENCE_MEDIA_TYPES.some((allowed) => allowed === mediaType);
+}
+
 /** The file extension each stored format is saved under. */
 export const RASTER_EXTENSIONS: Record<RasterMediaType, string> = {
   'image/png': 'png',
@@ -58,19 +73,28 @@ const OPENAI_SIZES: Record<ImageSize, string> = {
   portrait: '1024x1536',
 };
 
-/** OpenRouter aspect ratios every curated image model supports; square is
- * left to the model's own default, which is square for every model listed,
- * so a model that takes no aspect ratio at all still serves it. */
-const OPENROUTER_ASPECT_RATIOS: Record<ImageSize, string | undefined> = {
-  square: undefined,
+/** OpenRouter aspect ratios every curated image model supports. */
+const OPENROUTER_ASPECT_RATIOS: Record<ImageSize, string> = {
+  square: '1:1',
   landscape: '3:2',
   portrait: '2:3',
 };
 
+/** The quality a GPT image model is asked for: its default, `auto`, may
+ * pick `high`, which costs about four times as much an image. */
+const OPENAI_IMAGE_QUALITY = 'medium';
+
+/** Whether `modelId` is one of OpenAI's GPT image models — the models that
+ * take `quality` as `low`/`medium`/`high` (older and other models spell it
+ * differently or not at all, so they keep their own default). */
+function takesGptImageQuality(modelId: string): boolean {
+  return /(^|\/)gpt-image/i.test(modelId);
+}
+
 /** A reference image an edit or a variation starts from. */
 export interface ReferenceImage {
   bytes: Uint8Array;
-  mediaType: RasterMediaType;
+  mediaType: ReferenceMediaType;
   fileName: string;
 }
 
@@ -116,12 +140,22 @@ export interface ImageReply {
   refusedFormats: number;
 }
 
+/** What a reply says it cost, read before anything else in it. */
+export interface ImageReplyCharge {
+  costUsd?: number;
+  usage?: ImageTokenUsage;
+}
+
 /** A reply that carries no usable image, or a provider refusal. The message
- * is the provider's own words where it gave any — never the payload. */
+ * is the provider's own words where it gave any — never the payload. The
+ * charge is what the same reply reported it cost: a provider bills a request
+ * it answered, whether or not the image it returned can be stored. */
 export class ImageReplyError extends Error {
-  constructor(message: string) {
+  readonly charge: ImageReplyCharge;
+  constructor(message: string, charge: ImageReplyCharge = {}) {
     super(message);
     this.name = 'ImageReplyError';
+    this.charge = charge;
   }
 }
 
@@ -137,12 +171,15 @@ function dataUrl(image: ReferenceImage): string {
   return `data:${image.mediaType};base64,${Buffer.from(image.bytes).toString('base64')}`;
 }
 
-/** One request for one image, in the provider's dialect. */
+/**
+ * One request for one image, in the provider's dialect. Built once per call
+ * and sent as often as the call asks for images: the reference images are
+ * encoded into it once, not once per image.
+ */
 export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
   const base = stripTrailingSlash(args.baseUrl);
   const auth = { authorization: `Bearer ${args.apiKey}` };
   if (args.wire === 'openrouter-images') {
-    const aspectRatio = OPENROUTER_ASPECT_RATIOS[args.size];
     return {
       url: `${base}/images`,
       headers: {
@@ -154,7 +191,7 @@ export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
         model: args.modelId,
         prompt: args.prompt,
         n: 1,
-        ...(aspectRatio !== undefined ? { aspect_ratio: aspectRatio } : {}),
+        aspect_ratio: OPENROUTER_ASPECT_RATIOS[args.size],
         ...(args.references.length > 0
           ? {
               input_references: args.references.map((image) => ({
@@ -166,6 +203,9 @@ export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
       }),
     };
   }
+  const quality = takesGptImageQuality(args.modelId)
+    ? OPENAI_IMAGE_QUALITY
+    : undefined;
   if (args.references.length === 0) {
     return {
       url: `${base}/images/generations`,
@@ -179,6 +219,7 @@ export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
         prompt: args.prompt,
         n: 1,
         size: OPENAI_SIZES[args.size],
+        ...(quality !== undefined ? { quality } : {}),
       }),
     };
   }
@@ -187,6 +228,7 @@ export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
   form.append('prompt', args.prompt);
   form.append('n', '1');
   form.append('size', OPENAI_SIZES[args.size]);
+  if (quality !== undefined) form.append('quality', quality);
   // One reference is the `image` part; several repeat `image[]` — the
   // encoding OpenAI's own SDK and reference examples use.
   const field = args.references.length === 1 ? 'image' : 'image[]';
@@ -276,18 +318,39 @@ function decodeBase64Image(raw: string): Uint8Array | null {
   return bytes.length > 0 ? new Uint8Array(bytes) : null;
 }
 
+/** What a reply reports it cost, in its dialect: OpenRouter's charge in
+ * US dollars, OpenAI's token counts. */
+function readCharge(
+  wire: ImageGenerationWire,
+  payload: unknown,
+): ImageReplyCharge {
+  const usage =
+    isRecord(payload) && isRecord(payload.usage) ? payload.usage : undefined;
+  if (wire === 'openrouter-images') {
+    const costUsd = nonNegativeNumber(usage?.cost);
+    return costUsd !== undefined ? { costUsd } : {};
+  }
+  const tokens = readTokenUsage(usage);
+  return tokens !== undefined ? { usage: tokens } : {};
+}
+
 /**
  * The images and usage of one reply. Throws {@link ImageReplyError} when the
- * reply is a refusal or carries no image the platform can store.
+ * reply is a refusal or carries no image the platform can store — carrying
+ * what the reply said it cost, which is read first.
  */
 export function parseImageReply(
   wire: ImageGenerationWire,
   payload: unknown,
 ): ImageReply {
+  const charge = readCharge(wire, payload);
   const refusal = providerErrorMessage(payload);
-  if (refusal !== undefined) throw new ImageReplyError(refusal);
+  if (refusal !== undefined) throw new ImageReplyError(refusal, charge);
   if (!isRecord(payload) || !Array.isArray(payload.data)) {
-    throw new ImageReplyError('the provider answered without an image list');
+    throw new ImageReplyError(
+      'the provider answered without an image list',
+      charge,
+    );
   }
   const images: GeneratedImage[] = [];
   let refusedFormats = 0;
@@ -307,21 +370,8 @@ export function parseImageReply(
       refusedFormats > 0
         ? 'the model returned an image format the platform does not store (PNG, JPEG, WebP and GIF are); pick a raster image model'
         : 'the provider answered without an image',
+      charge,
     );
   }
-  const usage = isRecord(payload.usage) ? payload.usage : undefined;
-  if (wire === 'openrouter-images') {
-    const costUsd = nonNegativeNumber(usage?.cost);
-    return {
-      images,
-      refusedFormats,
-      ...(costUsd !== undefined ? { costUsd } : {}),
-    };
-  }
-  const tokens = readTokenUsage(usage);
-  return {
-    images,
-    refusedFormats,
-    ...(tokens !== undefined ? { usage: tokens } : {}),
-  };
+  return { images, refusedFormats, ...charge };
 }

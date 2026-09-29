@@ -60,7 +60,6 @@ vi.mock('../automations/agent_host', () => ({
   }),
   releaseTurnKey: async () => ({ won: true }),
   stageWorkflowSkills: async () => '',
-  workflowAgentBudgetCents: () => 500,
 }));
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
   const actual =

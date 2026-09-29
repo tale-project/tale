@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildImageRequest,
   ImageReplyError,
+  isReferenceMediaType,
   parseImageReply,
   providerErrorMessage,
   sniffRasterMediaType,
@@ -65,12 +66,12 @@ describe('buildImageRequest — OpenRouter Image API', () => {
       authorization: 'Bearer sk-or',
       'content-type': 'application/json',
     });
-    // Square is the model's own default: no aspect ratio a model might not
-    // take rides the request.
+    // Every shape is spelled out, square included.
     expect(jsonBody(request)).toEqual({
       model: 'google/gemini-2.5-flash-image',
       prompt: 'A lighthouse at dawn',
       n: 1,
+      aspect_ratio: '1:1',
     });
   });
 
@@ -127,12 +128,28 @@ describe('buildImageRequest — OpenAI images API', () => {
       authorization: 'Bearer sk-oa',
       'content-type': 'application/json',
     });
+    // Medium, spelled out: the model's own default may pick `high`, at
+    // about four times the price an image.
     expect(jsonBody(request)).toEqual({
       model: 'gpt-image-1',
       prompt: 'A lighthouse at dawn',
       n: 1,
       size: '1024x1536',
+      quality: 'medium',
     });
+  });
+
+  it('leaves the quality to a model that is not a GPT image model', () => {
+    const request = buildImageRequest({
+      wire: 'openai-images',
+      baseUrl: 'https://images.example.com/v1',
+      apiKey: 'sk-x',
+      modelId: 'flux-schnell',
+      prompt: 'A lighthouse at dawn',
+      size: 'square',
+      references: [],
+    });
+    expect(jsonBody(request)).not.toHaveProperty('quality');
   });
 
   it('edits through /images/edits as form data, one reference as `image`', async () => {
@@ -154,6 +171,7 @@ describe('buildImageRequest — OpenAI images API', () => {
     expect(form.get('prompt')).toBe('Make it night');
     expect(form.get('n')).toBe('1');
     expect(form.get('size')).toBe('1536x1024');
+    expect(form.get('quality')).toBe('medium');
     const file = form.get('image');
     expect(file).toBeInstanceOf(Blob);
     expect((file as File).name).toBe('logo.png');
@@ -246,6 +264,37 @@ describe('parseImageReply', () => {
     ).toThrow(new ImageReplyError('Content policy violation'));
   });
 
+  it('carries what an unusable reply cost on its error', () => {
+    const refusal = (() => {
+      try {
+        parseImageReply('openrouter-images', {
+          error: { code: 502, message: 'Upstream model failed' },
+          usage: { cost: 0.02 },
+        });
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    })();
+    expect(refusal).toBeInstanceOf(ImageReplyError);
+    expect((refusal as ImageReplyError).charge).toEqual({ costUsd: 0.02 });
+
+    const vector = (() => {
+      try {
+        parseImageReply('openai-images', {
+          data: [{ b64_json: b64(SVG) }],
+          usage: { input_tokens: 40, output_tokens: 1000 },
+        });
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    })();
+    expect((vector as ImageReplyError).charge).toEqual({
+      usage: { textInputTokens: 40, imageInputTokens: 0, outputTokens: 1000 },
+    });
+  });
+
   it.each([
     [{}],
     [{ data: [] }],
@@ -283,5 +332,12 @@ describe('providerErrorMessage and sniffRasterMediaType', () => {
     );
     expect(sniffRasterMediaType(SVG)).toBeNull();
     expect(sniffRasterMediaType(new Uint8Array())).toBeNull();
+  });
+
+  it('takes PNG, JPEG and WebP as reference images, never GIF', () => {
+    expect(isReferenceMediaType('image/png')).toBe(true);
+    expect(isReferenceMediaType('image/jpeg')).toBe(true);
+    expect(isReferenceMediaType('image/webp')).toBe(true);
+    expect(isReferenceMediaType('image/gif')).toBe(false);
   });
 });

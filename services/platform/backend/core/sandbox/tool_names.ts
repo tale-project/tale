@@ -5,6 +5,8 @@
  * either.
  */
 
+import { SANDBOX_TURN_MAX_GENERATED_IMAGES } from './session_constants';
+
 /**
  * The ask-a-human tool of an automation agent turn: registers a question for
  * the run's operator, then the agent ends its turn and is resumed with the
@@ -58,10 +60,13 @@ export function imageGenerationGuidance(outputDir: string): string {
     `{tool: "${IMAGE_GENERATION_TOOL}", args: {prompt, path?, size?, ` +
     'count?, inputImages?}}. The platform generates them with the ' +
     "organization's image model and saves them into " +
-    `${outputDir}/ (or a path you name there or under /agent/workspace/), ` +
-    'answering with the saved paths; call workspace_status for the ' +
-    'argument details. Every image is billed to the organization — create ' +
-    'what the task needs, not variations for their own sake.'
+    `${outputDir}/ — name a file there (no subfolders: only the box's top ` +
+    'level is delivered) or a path under /agent/workspace/ — answering ' +
+    'with the saved paths; call workspace_status for the argument details. ' +
+    'Every image is billed to the organization and counts against this ' +
+    `turn's spend allowance, at most ${SANDBOX_TURN_MAX_GENERATED_IMAGES} ` +
+    'images a turn — create what the task needs, not variations for their ' +
+    'own sake.'
   );
 }
 

@@ -269,9 +269,9 @@ interface HandlerNames {
       reconcileSessionOpKey: FunctionRef;
     };
     image_generation: FunctionRef & {
-      checkImageGenerationBudget: FunctionRef;
+      admitImageGeneration: FunctionRef;
       getImageTurnContext: FunctionRef;
-      recordImageGenerationUsage: FunctionRef;
+      settleImageGeneration: FunctionRef;
     };
     session_mutations: FunctionRef & {
       bumpSessionOpHeartbeat: FunctionRef;

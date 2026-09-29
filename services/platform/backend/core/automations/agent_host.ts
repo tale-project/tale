@@ -89,7 +89,10 @@ import {
   resolveProviderCredential,
   runFailureMessage,
 } from '../provider_credentials/resolve_credential';
-import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
+import {
+  agentWorkTurnDeadlineMs,
+  workflowAgentBudgetCents,
+} from '../sandbox/agent_deadline';
 import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
   ASK_HUMAN_TOOL,
@@ -128,16 +131,6 @@ interface SkillBundleFile {
 // The turn's wall-clock deadline is the shared work-turn knob
 // (`agentWorkTurnDeadlineMs`) — the exec's own `timeoutMs` is only a sliding
 // orphan reaper, so this deadline is the sole absolute cap on the turn.
-
-/** Gateway budget for one agent turn, in cents — the chat turn's default. */
-const DEFAULT_AGENT_BUDGET_CENTS = 500;
-
-export function workflowAgentBudgetCents(): number {
-  const configured = Number(process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS);
-  return Number.isFinite(configured) && configured > 0
-    ? configured
-    : DEFAULT_AGENT_BUDGET_CENTS;
-}
 
 /** What one agent node asks for, templates already resolved. */
 export interface WorkflowAgentRequest {

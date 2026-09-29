@@ -12,7 +12,11 @@
  */
 
 import { privateProviderHostsAllowed } from '../../../../lib/net/host-policy';
-import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
+import {
+  safeFetch,
+  SafeFetchError,
+  type SafeFetchErrorKind,
+} from '../../../../lib/net/safe-fetch';
 import { estimateImageGenerationCostCents } from '../../governance/cost_estimation';
 import { sanitizeError } from '../utils/sanitize_secrets';
 import {
@@ -21,7 +25,9 @@ import {
   parseImageReply,
   providerErrorMessage,
   type GeneratedImage,
+  type ImageReplyCharge,
   type ImageSize,
+  type ImageWireRequest,
   type ReferenceImage,
 } from './image_wire';
 import type { ResolvedImageModel } from './resolve_image_model';
@@ -40,8 +46,6 @@ export interface ImageCallResult {
   /** The ledger's figure for this call: the provider's reported charge, or
    * the catalog price of the tokens it reported, else 0. */
   costCents: number;
-  inputTokens: number;
-  outputTokens: number;
 }
 
 /** Provider text as the agent may read it: the shared secret redaction,
@@ -54,26 +58,62 @@ function redacted(model: ResolvedImageModel, text: unknown): string {
     : clean;
 }
 
-/** A call the provider refused or could not complete. The message is the
- * provider's own sentence (redacted), fit to relay to the agent. */
+/** A call the provider refused or could not complete. The message is fit to
+ * relay to the agent: the provider's own sentence (redacted), or a plain
+ * account of a transport failure that names no host. `charge` is set when
+ * the provider answered the request — and so billed it — without an image
+ * the platform can store. */
 export class ImageProviderError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
+  readonly charge?: { costCents: number };
+  constructor(
+    message: string,
+    options?: { cause?: unknown; charge?: { costCents: number } },
+  ) {
     super(message, options);
     this.name = 'ImageProviderError';
+    if (options?.charge !== undefined) this.charge = options.charge;
   }
 }
 
-/** Generate ONE image. */
-export async function generateOneImage(
+/** What a transport failure is told as. The detail — an address, a host
+ * the network policy refused — stays in the platform's log: it describes
+ * the deployment's network, not the provider's answer. */
+function transportFailure(kind: SafeFetchErrorKind): string {
+  switch (kind) {
+    case 'timeout':
+      return `did not answer within ${REQUEST_TIMEOUT_MS / 60_000} minutes`;
+    case 'aborted':
+      return 'was cancelled before it answered';
+    case 'response_too_large':
+      return 'answered with more data than the platform accepts for one image';
+    default:
+      return 'could not be reached';
+  }
+}
+
+/** The ledger's figure for a reply's reported charge. */
+function costCentsOf(
+  model: ResolvedImageModel,
+  charge: ImageReplyCharge,
+): number {
+  return estimateImageGenerationCostCents({
+    ...(charge.costUsd !== undefined ? { reportedUsd: charge.costUsd } : {}),
+    ...(charge.usage !== undefined ? { usage: charge.usage } : {}),
+    ...(model.pricing !== undefined ? { pricing: model.pricing } : {}),
+  });
+}
+
+/** The one request a call sends for each image it asks for — built once,
+ * so the reference images are encoded once whatever the count. */
+export function prepareImageRequest(
   model: ResolvedImageModel,
   args: {
     prompt: string;
     size: ImageSize;
     references: readonly ReferenceImage[];
-    signal?: AbortSignal;
   },
-): Promise<ImageCallResult> {
-  const request = buildImageRequest({
+): ImageWireRequest {
+  return buildImageRequest({
     wire: model.wire,
     baseUrl: model.baseUrl,
     apiKey: model.apiKey,
@@ -83,7 +123,14 @@ export async function generateOneImage(
     references: args.references,
     extraHeaders: model.attribution,
   });
+}
 
+/** Send one prepared request: ONE image. */
+export async function generateOneImage(
+  model: ResolvedImageModel,
+  request: ImageWireRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<ImageCallResult> {
   let response;
   try {
     response = await safeFetch(request.url, {
@@ -93,12 +140,15 @@ export async function generateOneImage(
       body: request.body,
       timeoutMs: REQUEST_TIMEOUT_MS,
       maxResponseBytes: MAX_RESPONSE_BYTES,
-      ...(args.signal !== undefined ? { signal: args.signal } : {}),
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
     });
   } catch (error) {
     if (error instanceof SafeFetchError) {
+      console.warn(
+        `[image-generation] ${model.providerSlug}/${model.modelId} request failed (${error.kind}): ${redacted(model, error)}`,
+      );
       throw new ImageProviderError(
-        `${model.providerDisplayName} could not be reached (${error.kind}): ${redacted(model, error)}`,
+        `${model.providerDisplayName} ${transportFailure(error.kind)}`,
         { cause: error },
       );
     }
@@ -118,10 +168,12 @@ export async function generateOneImage(
       `${model.providerDisplayName} refused the image request (${response.status})${said !== undefined ? `: ${redacted(model, said)}` : ''}`,
     );
   }
+  // From here on the provider has answered the request: whatever the reply
+  // is worth, the request is billed.
   if (parseError !== undefined) {
     throw new ImageProviderError(
       `${model.providerDisplayName} answered with a body that is not JSON`,
-      { cause: parseError },
+      { cause: parseError, charge: { costCents: 0 } },
     );
   }
 
@@ -132,7 +184,10 @@ export async function generateOneImage(
     if (error instanceof ImageReplyError) {
       throw new ImageProviderError(
         `${model.providerDisplayName} returned no usable image: ${redacted(model, error)}`,
-        { cause: error },
+        {
+          cause: error,
+          charge: { costCents: costCentsOf(model, error.charge) },
+        },
       );
     }
     throw error;
@@ -142,16 +197,5 @@ export async function generateOneImage(
       `[image-generation] ${model.providerSlug}/${model.modelId} returned ${reply.refusedFormats} image(s) in a format the platform does not store`,
     );
   }
-  const usage = reply.usage;
-  return {
-    images: reply.images,
-    costCents: estimateImageGenerationCostCents({
-      ...(reply.costUsd !== undefined ? { reportedUsd: reply.costUsd } : {}),
-      ...(usage !== undefined ? { usage } : {}),
-      ...(model.pricing !== undefined ? { pricing: model.pricing } : {}),
-    }),
-    inputTokens:
-      usage !== undefined ? usage.textInputTokens + usage.imageInputTokens : 0,
-    outputTokens: usage?.outputTokens ?? 0,
-  };
+  return { images: reply.images, costCents: costCentsOf(model, reply) };
 }

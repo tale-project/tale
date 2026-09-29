@@ -11,17 +11,22 @@
  * the agent's workspace — so no provider key ever enters the container.
  *
  * Every call, in order:
- *  1. The arguments are read and bounded (prompt, count, size, paths).
+ *  1. The arguments are read and bounded (prompt, count, size, paths), and
+ *     the reference images read from the workspace under their size caps.
  *  2. The turn the token serves must still be live; its run names the
  *     person the spend is booked under and the delivery box the files go to.
  *  3. The policy is re-read: an admin who turned image generation off
  *     mid-turn stops the next call, not the next turn.
- *  4. The budget gate measures the person (or, for a run a trigger started,
- *     the organization) BEFORE the provider is called, and refuses with the
- *     cap's own words once a cap that applies is reached.
- *  5. The images are generated — one request per image, concurrently.
- *  6. Every image the provider produced is booked in the usage ledger, even
- *     when saving it fails: the spend happened.
+ *  4. The admission (`domains/sandbox/image-generation.ts`) runs BEFORE the
+ *     provider is called: one generation in flight per turn, a ceiling on
+ *     the images one turn may create, the turn's spend allowance (shared
+ *     with its model spend), and the budget caps — refusing with the reason
+ *     in words. An admitted call holds its estimate until it is settled.
+ *  5. The images are generated — one request per image, concurrently, all
+ *     sent from one request built once.
+ *  6. Every request the provider billed is booked in the usage ledger and
+ *     the hold released, even when a reply had no usable image or saving
+ *     fails: the spend happened.
  *  7. The images are staged into the session at the resolved paths.
  *
  * An identical call from the same turn within {@link REPEAT_WINDOW_MS}
@@ -38,10 +43,12 @@ import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import {
   generateOneImage,
   ImageProviderError,
+  prepareImageRequest,
   type ImageCallResult,
 } from '../../lib/providers/image_generation';
 import {
   IMAGE_SIZES,
+  isReferenceMediaType,
   RASTER_EXTENSIONS,
   sniffRasterMediaType,
   type GeneratedImage,
@@ -54,11 +61,13 @@ import {
   type ResolvedImageModel,
 } from '../../lib/providers/resolve_image_model';
 import { deleteBlob, putBlob } from '../../lib/storage/blob_access';
+import { SANDBOX_TURN_MAX_GENERATED_IMAGES } from '../../sandbox/session_constants';
 import {
   IMAGE_GENERATION_TOOL,
   type TurnOpRef,
 } from '../../sandbox/tool_names';
 import {
+  SessionFileTooLargeError,
   sessionReadFile,
   sessionStageFiles,
   type SessionStageFile,
@@ -73,9 +82,11 @@ const REFERENCE_IMAGES_MAX = 4;
 /** Long enough for any image brief; image models read the start of a very
  * long prompt and ignore the rest, so a cap here costs nothing. */
 const IMAGE_PROMPT_MAX_CHARS = 4_000;
-/** A reference image's size cap: large enough for a photo, small enough to
- * ride a provider request. */
-const REFERENCE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+/** A reference image's size cap: a photo at a size an image model reads,
+ * small enough to ride a provider request base64-encoded. */
+const REFERENCE_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+/** All of one call's reference images together. */
+const REFERENCE_IMAGES_TOTAL_MAX_BYTES = 20 * 1024 * 1024;
 /** A generated image above this is refused rather than staged. */
 const GENERATED_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 /** Up to this size an image rides the stage request inline: the sandbox
@@ -92,26 +103,31 @@ const REPEAT_ENTRIES_MAX = 500;
 const WORKSPACE_DIR = '/agent/workspace';
 const AGENT_ROOT = '/agent';
 const IMAGE_EXTENSION = /\.(png|jpe?g|webp|gif)$/i;
+const MIB = 1024 * 1024;
 
 /** The tool's description, as the status listing relays it to the model. */
 export const IMAGE_GENERATION_TOOL_DESCRIPTION =
   "Create images with the organization's image model and save them into " +
   'your workspace. Args: {prompt: string (what to draw — subject, style, ' +
   `composition, any text to render; at most ${IMAGE_PROMPT_MAX_CHARS} ` +
-  'characters), path?: string (the file to save, e.g. "cover.png" — a ' +
-  "relative path lands in this turn's delivery box, an absolute one must " +
-  'be inside the delivery box or /agent/workspace/; the extension follows ' +
-  'the format the model returns; default: a timestamped name in the ' +
-  'delivery box), size?: "square"|"landscape"|"portrait" (default square; ' +
-  'a pixel size such as "1536x1024" is read by its orientation), ' +
+  'characters), path?: string (the file to save — a bare name such as ' +
+  '"cover.png" lands in the delivery box of this turn, which delivers only ' +
+  'its top level, so no subfolders there; an absolute path may also name a ' +
+  'file anywhere under /agent/workspace/; the extension follows the ' +
+  'format the model returns; default: a timestamped name in the delivery ' +
+  'box), size?: "square"|"landscape"|"portrait" (default square; a pixel ' +
+  'size such as "1536x1024" is read by its orientation), ' +
   `count?: 1-${IMAGE_COUNT_MAX} (default 1; several are saved as ` +
   '<name>-1, <name>-2, …), inputImages?: string[] (up to ' +
-  `${REFERENCE_IMAGES_MAX} workspace image paths to edit or take as ` +
+  `${REFERENCE_IMAGES_MAX} workspace PNG, JPEG or WebP images of at most ` +
+  `${REFERENCE_IMAGE_MAX_BYTES / MIB} MB each, to edit or take as ` +
   'reference, when the model accepts images)}. Answers with the saved ' +
-  'paths and the model used. Generation can take a minute or two; if the ' +
-  'call times out, call it again with exactly the same arguments — it ' +
-  'collects the images the platform finished instead of paying for new ' +
-  'ones. Change the prompt or the path to get a new image.';
+  'paths and the model used. One call at a time, and at most ' +
+  `${SANDBOX_TURN_MAX_GENERATED_IMAGES} images a turn, within the turn's ` +
+  'spend allowance. Generation can take a minute or two; if the call times ' +
+  'out, call it again with exactly the same arguments — it collects the ' +
+  'images the platform finished instead of paying for new ones. Change the ' +
+  'prompt or the path to get a new image.';
 
 interface ImageTurnSubject {
   userId: string;
@@ -259,9 +275,12 @@ function isInside(path: string, dir: string): boolean {
 }
 
 /** Where the images go: a directory and a base name (the returned format
- * decides the extension). `null` when `path` leaves both allowed roots.
- * Without a path the name is the moment plus `unique`, so two calls in one
- * second never write over each other's image. */
+ * decides the extension). `null` when `path` leaves both allowed places: a
+ * file directly in the delivery box — which delivers only its top level, so
+ * an image in a subfolder of it would be paid for and never delivered — or
+ * a file anywhere under the workspace. Without a path the name is the
+ * moment plus `unique`, so two calls in one second never write over each
+ * other's image. */
 export function resolveImageTarget(
   path: string | undefined,
   outputDir: string,
@@ -273,16 +292,13 @@ export function resolveImageTarget(
     return { dir: outputDir, base: `image-${stamp}-${unique}` };
   }
   const resolved = agentPath(path, outputDir);
-  if (
-    resolved === null ||
-    !(isInside(resolved, outputDir) || isInside(resolved, WORKSPACE_DIR))
-  ) {
-    return null;
-  }
+  if (resolved === null) return null;
   const slash = resolved.lastIndexOf('/');
+  const dir = resolved.slice(0, slash);
+  if (!(dir === outputDir || isInside(resolved, WORKSPACE_DIR))) return null;
   const base = resolved.slice(slash + 1).replace(IMAGE_EXTENSION, '');
   if (base === '' || base.length > 120) return null;
-  return { dir: resolved.slice(0, slash), base };
+  return { dir, base };
 }
 
 /** The saved file name of image `index` (0-based) of `count`. */
@@ -299,12 +315,15 @@ function imageFileName(
 }
 
 /** Read the reference images from the session, or the tool result that
- * says why one cannot be used. */
+ * says why one cannot be used. Each read is capped where it happens — the
+ * platform never holds more of a file than the cap allows, one image's cap
+ * or what is left of the call's total. */
 async function readReferenceImages(
   sessionId: string,
   paths: readonly string[],
 ): Promise<ReferenceImage[] | ToolResult> {
   const references: ReferenceImage[] = [];
+  let total = 0;
   for (const raw of paths) {
     const path = agentPath(raw, WORKSPACE_DIR);
     if (path === null) {
@@ -313,7 +332,23 @@ async function readReferenceImages(
         message: `"${raw}" is not a path inside /agent/ — pass the workspace path of an image file.`,
       };
     }
-    const file = await sessionReadFile(sessionId, path);
+    const maxBytes = Math.min(
+      REFERENCE_IMAGE_MAX_BYTES,
+      REFERENCE_IMAGES_TOTAL_MAX_BYTES - total,
+    );
+    let file: Awaited<ReturnType<typeof sessionReadFile>>;
+    try {
+      file = await sessionReadFile(sessionId, path, { maxBytes });
+    } catch (error) {
+      if (!(error instanceof SessionFileTooLargeError)) throw error;
+      return {
+        status: 'invalid_args',
+        message:
+          maxBytes < REFERENCE_IMAGE_MAX_BYTES
+            ? `${path} does not fit: the reference images of one call may be at most ${REFERENCE_IMAGES_TOTAL_MAX_BYTES / MIB} MB together.`
+            : `${path} is larger than ${REFERENCE_IMAGE_MAX_BYTES / MIB} MB, the most a reference image may be. Pass a smaller copy.`,
+      };
+    }
     if (file === null) {
       return {
         status: 'not_found',
@@ -321,17 +356,12 @@ async function readReferenceImages(
       };
     }
     const bytes = new Uint8Array(file.bytes);
-    if (bytes.byteLength > REFERENCE_IMAGE_MAX_BYTES) {
-      return {
-        status: 'invalid_args',
-        message: `${path} is ${Math.round(bytes.byteLength / (1024 * 1024))} MB; a reference image may be at most ${REFERENCE_IMAGE_MAX_BYTES / (1024 * 1024)} MB.`,
-      };
-    }
+    total += bytes.byteLength;
     const mediaType = sniffRasterMediaType(bytes);
-    if (mediaType === null) {
+    if (mediaType === null || !isReferenceMediaType(mediaType)) {
       return {
         status: 'invalid_args',
-        message: `${path} is not a PNG, JPEG, WebP or GIF image.`,
+        message: `${path} is not a PNG, JPEG or WebP image — the formats a reference image may have.`,
       };
     }
     references.push({
@@ -341,6 +371,14 @@ async function readReferenceImages(
     });
   }
   return references;
+}
+
+/** The digests of a call's reference images, so an identical retry is told
+ * apart from a call that names the same paths after the files changed. */
+function referencesDigest(references: readonly ReferenceImage[]): string[] {
+  return references.map((image) =>
+    createHash('sha256').update(image.bytes).digest('hex'),
+  );
 }
 
 /**
@@ -401,6 +439,55 @@ function unavailable(code: string, guidance: string): ToolResult {
   return { status: 'unavailable', blockers: [{ code, guidance }] };
 }
 
+/** Why the admission refused — the answer `admitImageGeneration`
+ * (`domains/sandbox/image-generation.ts`) sends across the shim. */
+type ImageRefusal = {
+  admitted: false;
+  code:
+    | 'run_ended'
+    | 'generation_in_progress'
+    | 'turn_image_limit'
+    | 'turn_allowance'
+    | 'spend_unknown'
+    | 'budget_exceeded';
+  message: string;
+};
+
+type ImageAdmission =
+  | { admitted: true; callStartedAt: number; holdCents: number }
+  | ImageRefusal;
+
+function runEnded(): ToolResult {
+  return unavailable(
+    'run_ended',
+    'The run this turn belongs to is no longer running, so it cannot generate images. Do not retry.',
+  );
+}
+
+/** What an agent should do after each refusal but a run that ended. */
+const REFUSAL_ADVICE: Record<
+  Exclude<ImageRefusal['code'], 'run_ended'>,
+  string
+> = {
+  generation_in_progress:
+    'Wait for its answer, then call again if you still need more images.',
+  turn_image_limit:
+    'No image was generated. Ask for fewer images, or tell the user the limit is reached; do not retry the same call.',
+  spend_unknown:
+    'No image was generated. Try once more in a minute; if it fails again, tell the user.',
+  turn_allowance: 'No image was generated. Tell the user; do not retry.',
+  budget_exceeded: 'No image was generated. Tell the user; do not retry.',
+};
+
+/** A refusal as the agent reads it: the reason, then what to do. */
+function refusalResult(refusal: ImageRefusal): ToolResult {
+  if (refusal.code === 'run_ended') return runEnded();
+  return unavailable(
+    refusal.code,
+    `${refusal.message} ${REFUSAL_ADVICE[refusal.code]}`,
+  );
+}
+
 /** Remembered calls: the in-flight promise, and when it settled. */
 const recentCalls = new Map<
   string,
@@ -455,10 +542,25 @@ export async function runGenerateImage(
     );
   }
   const turn = args.turn;
+  let references: ReferenceImage[] = [];
+  if (parsed.inputImages.length > 0) {
+    const read = await readReferenceImages(args.sessionId, parsed.inputImages);
+    if (!Array.isArray(read)) return read;
+    references = read;
+  }
+  // The same call, byte for byte — its arguments and the content of the
+  // images it starts from. Remembered in this process only: a retry that
+  // reaches another replica runs as a new call, which the turn's in-flight
+  // mark refuses while the first still runs, and which the per-turn ceiling
+  // and allowance bound after that.
   const key = [
     args.sessionId,
     turn.execId,
-    createHash('sha256').update(JSON.stringify(parsed)).digest('hex'),
+    createHash('sha256')
+      .update(
+        JSON.stringify({ ...parsed, references: referencesDigest(references) }),
+      )
+      .digest('hex'),
   ].join('\0');
   const now = Date.now();
   forgetStaleCalls(now);
@@ -471,6 +573,7 @@ export async function runGenerateImage(
       sessionId: args.sessionId,
       turn,
       request: parsed,
+      references,
     }),
   };
   recentCalls.set(key, entry);
@@ -487,6 +590,56 @@ export async function runGenerateImage(
   }
 }
 
+/** What the provider returned and billed for one admitted call. */
+interface GenerationOutcome {
+  produced: ImageCallResult[];
+  /** One entry per request the provider billed: its cost in cents. */
+  charges: number[];
+  failures: string[];
+}
+
+async function generateImages(
+  model: ResolvedImageModel,
+  request: ImageToolArgs,
+  references: readonly ReferenceImage[],
+): Promise<GenerationOutcome> {
+  // One request, built once: the reference images are encoded once
+  // whatever the count.
+  const wireRequest = prepareImageRequest(model, {
+    prompt: request.prompt,
+    size: request.size,
+    references,
+  });
+  const calls = await Promise.allSettled(
+    Array.from({ length: request.count }, () =>
+      generateOneImage(model, wireRequest),
+    ),
+  );
+  const outcome: GenerationOutcome = {
+    produced: [],
+    charges: [],
+    failures: [],
+  };
+  for (const call of calls) {
+    if (call.status === 'fulfilled') {
+      outcome.produced.push(call.value);
+      outcome.charges.push(call.value.costCents);
+      continue;
+    }
+    if (call.reason instanceof ImageProviderError) {
+      outcome.failures.push(call.reason.message);
+      // Answered but unusable: billed all the same.
+      if (call.reason.charge !== undefined) {
+        outcome.charges.push(call.reason.charge.costCents);
+      }
+    } else {
+      outcome.failures.push('the image request failed');
+      console.warn('[image-generation] image request failed:', call.reason);
+    }
+  }
+  return outcome;
+}
+
 async function generateForTurn(
   ctx: ActionCtx,
   args: {
@@ -494,6 +647,7 @@ async function generateForTurn(
     sessionId: string;
     turn: TurnOpRef;
     request: ImageToolArgs;
+    references: readonly ReferenceImage[];
   },
 ): Promise<ToolResult> {
   const { request, turn } = args;
@@ -506,12 +660,7 @@ async function generateForTurn(
       execId: turn.execId,
     },
   );
-  if (context.status !== 'live') {
-    return unavailable(
-      'run_ended',
-      'The run this turn belongs to is no longer running, so it cannot generate images. Do not retry.',
-    );
-  }
+  if (context.status !== 'live') return runEnded();
 
   const target = resolveImageTarget(
     request.path,
@@ -522,7 +671,7 @@ async function generateForTurn(
   if (target === null) {
     return {
       status: 'invalid_args',
-      message: `"path" must name a file inside ${context.outputDir}/ or ${WORKSPACE_DIR}/ (a relative path lands in ${context.outputDir}/), without "." or ".." segments.`,
+      message: `"path" must be a file name in ${context.outputDir}/ (no subfolders: only its top level is delivered) or a file under ${WORKSPACE_DIR}/, without "." or ".." segments.`,
     };
   }
 
@@ -544,88 +693,49 @@ async function generateForTurn(
       'An administrator has turned image generation off for this organization. Tell the user; do not retry.',
     );
   }
-
-  let references: ReferenceImage[] = [];
-  if (request.inputImages.length > 0) {
-    if (!model.acceptsImageInput) {
-      return {
-        status: 'invalid_args',
-        message: `The organization's image model (${model.modelId}) does not take reference images. Describe the image in the prompt instead, without "inputImages".`,
-      };
-    }
-    const read = await readReferenceImages(args.sessionId, request.inputImages);
-    if (!Array.isArray(read)) return read;
-    references = read;
+  if (args.references.length > 0 && !model.acceptsImageInput) {
+    return {
+      status: 'invalid_args',
+      message: `The organization's image model (${model.modelId}) does not take reference images. Describe the image in the prompt instead, without "inputImages".`,
+    };
   }
 
-  const budget: { allowed: true } | { allowed: false; message: string } =
-    await ctx.runQuery(
-      internal.sandbox.image_generation.checkImageGenerationBudget,
-      {
+  const admission: ImageAdmission = await ctx.runMutation(
+    internal.sandbox.image_generation.admitImageGeneration,
+    {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: turn.execId,
+      subject: context.subject,
+      images: request.count,
+    },
+  );
+  if (!admission.admitted) return refusalResult(admission);
+
+  const startedAt = Date.now();
+  let outcome: GenerationOutcome = { produced: [], charges: [], failures: [] };
+  try {
+    outcome = await generateImages(model, request, args.references);
+  } finally {
+    // Book what the provider billed and release the hold, whatever
+    // happened after the admission — before anything else can fail.
+    await ctx
+      .runMutation(internal.sandbox.image_generation.settleImageGeneration, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         execId: turn.execId,
+        callStartedAt: admission.callStartedAt,
         subject: context.subject,
-        images: request.count,
-      },
-    );
-  if (!budget.allowed) {
-    return unavailable(
-      'budget_exceeded',
-      `${budget.message} No image was generated. Tell the user; do not retry.`,
-    );
-  }
-
-  const startedAt = Date.now();
-  const calls = await Promise.allSettled(
-    Array.from({ length: request.count }, () =>
-      generateOneImage(model, {
-        prompt: request.prompt,
-        size: request.size,
-        references,
-      }),
-    ),
-  );
-  const produced: ImageCallResult[] = [];
-  const failures: string[] = [];
-  for (const call of calls) {
-    if (call.status === 'fulfilled') {
-      produced.push(call.value);
-    } else {
-      failures.push(
-        call.reason instanceof ImageProviderError
-          ? call.reason.message
-          : 'the image request failed',
-      );
-      if (!(call.reason instanceof ImageProviderError)) {
-        console.warn('[image-generation] image request failed:', call.reason);
-      }
-    }
-  }
-
-  // Book what was produced before anything else can fail: the provider
-  // has charged for it whether or not it reaches the workspace.
-  let costCents = 0;
-  for (const call of produced) {
-    costCents += call.costCents;
-    await ctx
-      .runMutation(
-        internal.sandbox.image_generation.recordImageGenerationUsage,
-        {
-          organizationId: args.organizationId,
-          subject: context.subject,
-          provider: model.providerSlug,
-          model: model.modelId,
-          inputTokens: call.inputTokens,
-          outputTokens: call.outputTokens,
-          costCents: call.costCents,
-          timestamp: Date.now(),
-        },
-      )
+        provider: model.providerSlug,
+        model: model.modelId,
+        charges: outcome.charges,
+        timestamp: Date.now(),
+      })
       .catch((error: unknown) =>
         console.error('[image-generation] usage booking failed:', error),
       );
   }
+  const { produced, charges, failures } = outcome;
 
   const images = produced
     .flatMap((call) => call.images)
@@ -649,8 +759,9 @@ async function generateForTurn(
     requested: request.count,
     images: images.length,
     failed: request.count - produced.length,
+    charged: charges.length,
     bytes,
-    costCents,
+    costCents: charges.reduce((sum, charge) => sum + charge, 0),
     durationMs: Date.now() - startedAt,
   });
 
