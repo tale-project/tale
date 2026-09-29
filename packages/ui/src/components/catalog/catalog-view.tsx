@@ -6,7 +6,15 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { useT } from '@tale/ui/i18n/client';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Loader2, SearchX } from 'lucide-react';
-import { Fragment, type ComponentType, type ReactNode } from 'react';
+import {
+  Fragment,
+  type ComponentType,
+  type Key,
+  type ReactNode,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { CatalogGridSkeleton } from './catalog-card-skeleton';
 import { CatalogGrid } from './catalog-grid';
@@ -74,24 +82,57 @@ interface CatalogViewProps<T> {
  * `isRetrying` marks the retry busy while it runs, for a host that keeps
  * the alert up until the request settles — a refresh of rows that stay on
  * screen, rather than a first read that goes back to its loading state.
+ *
+ * A host whose read can fail again under the alert (a background refresh)
+ * passes a new `failureKey` for each failure: the message is written afresh
+ * inside the same live region, so the failure is announced again, while
+ * **Try again** keeps its node — and the focus a reader may have put on it.
+ * When a refresh that worked takes the alert away while it holds focus,
+ * `onFocusLost` gets the focus instead of the page; focus the reader moved
+ * elsewhere in the meantime stays where it is.
  */
 export function CatalogLoadError({
   message,
   onRetry,
   isRetrying = false,
+  failureKey,
+  onFocusLost,
 }: {
   message: string;
   onRetry?: () => void;
   isRetrying?: boolean;
+  failureKey?: Key;
+  onFocusLost?: () => void;
 }) {
   const { t } = useT('common');
+  const [retryRow, setRetryRow] = useState<HTMLSpanElement | null>(null);
+  // Read as the alert leaves, so a host re-rendering with a new callback
+  // is never mistaken for the alert going away.
+  const onFocusLostRef = useRef(onFocusLost);
+  useLayoutEffect(() => {
+    onFocusLostRef.current = onFocusLost;
+  });
+  // The cleanup runs before React detaches the alert, while the focus is
+  // still inside it; the host's target takes it a frame later.
+  useLayoutEffect(() => {
+    if (retryRow === null) return undefined;
+    return () => {
+      const handoff = onFocusLostRef.current;
+      if (handoff !== undefined && retryRow.contains(document.activeElement)) {
+        requestAnimationFrame(handoff);
+      }
+    };
+  }, [retryRow]);
   return (
     <Alert
       variant="destructive"
       description={
         onRetry ? (
-          <span className="inline-flex flex-wrap items-baseline gap-x-2">
-            <span>{message}</span>
+          <span
+            ref={setRetryRow}
+            className="inline-flex flex-wrap items-baseline gap-x-2"
+          >
+            <span key={failureKey}>{message}</span>
             <Button
               type="button"
               variant="link"
@@ -110,7 +151,7 @@ export function CatalogLoadError({
             </Button>
           </span>
         ) : (
-          message
+          <span key={failureKey}>{message}</span>
         )
       }
     />
