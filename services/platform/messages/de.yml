@@ -2368,6 +2368,9 @@ documents:
     storedButNotIndexed:
       Gespeichert und herunterladbar, aber nicht für die Suche
       indexiert (Altformat).
+    storedButNotIndexedNoExtension:
+      'Gespeichert und herunterladbar, aber nicht für die Suche indexiert:
+      Der Dateiname besteht nur aus einer Dateiendung.'
     filesCompletedSummary: '{completed} von {total} Dateien abgeschlossen'
     filesCompletedWithFailures: '{completed} von {total} Dateien abgeschlossen - {failed} fehlgeschlagen'
     selectTeams: Teams zuweisen

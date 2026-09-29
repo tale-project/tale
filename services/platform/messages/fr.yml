@@ -2379,6 +2379,9 @@ documents:
     storedButNotIndexed:
       Stocké et téléchargeable, mais non indexé pour la recherche
       (ancien format).
+    storedButNotIndexedNoExtension:
+      "Stocké et téléchargeable, mais non indexé pour la recherche : le nom
+      du fichier n'est qu'une extension."
     filesCompletedSummary: '{completed} sur {total} fichiers terminés'
     filesCompletedWithFailures: '{completed} sur {total} fichiers terminés · {failed} échoués'
     selectTeams: Assigner aux équipes
