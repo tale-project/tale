@@ -47,7 +47,7 @@ Confluence et Shopify demandent une **URL de l'instance** pour chaque compte. Ut
 
 ## Déterminer le compte utilisé
 
-Une action utilise les identifiants explicitement nommés, ou ceux par défaut du connector en l’absence de nom. Un seul compte par connector peut être défini comme compte par défaut. Sans compte par défaut, un appel sans nom échoue même si d’autres identifiants existent.
+Une action utilise les identifiants explicitement nommés, ou ceux par défaut du connector en l’absence de nom. Un seul compte par connector peut être défini comme compte par défaut. Sans compte par défaut, un appel sans nom échoue même si d’autres identifiants existent. Si tu supprimes le compte par défaut, les plus anciens identifiants actifs restants de ce connector deviennent le compte par défaut ; la confirmation de suppression les nomme d’abord.
 
 Deux boîtes support correspondent par exemple à deux lignes. Donne-leur des noms distincts et examine les données résolues du workflow avant une exécution réelle. Le compte par défaut est utilisé lorsque l’action ne nomme pas un autre compte. Les opérations de courrier conçues pour parcourir tous les comptes actifs constituent un cas séparé.
 

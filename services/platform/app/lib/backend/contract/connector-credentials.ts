@@ -171,6 +171,8 @@ export interface ConnectorCredentialsContract {
       connectorSlug: string;
       authMethod: 'oauth2' | 'api-key' | 'bearer' | 'basic';
       name: string;
+      /** On the default only: who deleting it makes the default, or null. */
+      defaultSuccessor?: { id: string; name: string } | null;
     }>;
   };
 }

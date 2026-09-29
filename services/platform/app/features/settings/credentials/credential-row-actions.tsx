@@ -229,6 +229,9 @@ export function CredentialRowActions<
           // delete will be refused.
           [
             dependencyWarning,
+            // A surface whose server hands the default on (connectors) says
+            // so through its own warning; the shared sentence is the
+            // no-promotion rule.
             adapter.deleteWarning?.(t, credential, vendor, siblingCount) ??
               (credential.isDefault
                 ? t('credentials.deleteDefaultWarning')

@@ -42,8 +42,8 @@ import {
  * (this module's decrypt seam). The validation, payload, masking, and
  * auth-injection pieces are the 0.4 PURE modules reused verbatim; the
  * transactional invariants (case-insensitive name uniqueness, at most one
- * default per pair, delete-promotes-oldest-active) run here, backed by the
- * table's own unique indexes.
+ * default per pair, delete-promotes-oldest-active through
+ * `defaultSuccessor`) run here, backed by the table's own unique indexes.
  *
  * Every write leaves a `connector` audit row in its own transaction
  * (`connector_credential.created` / `.updated` / `.deleted`) naming the
@@ -517,6 +517,12 @@ export interface MaskedCredential {
   statusDetail?: string;
   createdAt: number;
   updatedAt: number;
+  /**
+   * On the pair's default, in the listing: the credential deleting this one
+   * makes the default ({@link defaultSuccessor}), or null when none would —
+   * so the delete confirm can name the account that takes over.
+   */
+  defaultSuccessor?: { id: string; name: string } | null;
 }
 
 function toMasked(row: CredentialRow): MaskedCredential {
@@ -549,7 +555,24 @@ export async function listCredentials(
         OR connector_slug = ${connectorSlug ?? null})
     ORDER BY connector_slug ASC, name ASC
   `;
-  return rows.map(toMasked);
+  const byConnector = new Map<string, CredentialRow[]>();
+  for (const row of rows) {
+    const pair = byConnector.get(row.connectorSlug);
+    if (pair === undefined) byConnector.set(row.connectorSlug, [row]);
+    else pair.push(row);
+  }
+  return rows.map((row) => {
+    const masked = toMasked(row);
+    if (row.isDefault) {
+      const successor = defaultSuccessor(
+        byConnector.get(row.connectorSlug) ?? [],
+        row.id,
+      );
+      masked.defaultSuccessor =
+        successor === null ? null : { id: successor.id, name: successor.name };
+    }
+    return masked;
+  });
 }
 
 export async function getCredential(
@@ -848,8 +871,37 @@ export async function updateCredentialInTransaction(
   await hintCredential(tx, args.organizationId, row.id);
 }
 
-/** Delete a credential; deleting the DEFAULT promotes the oldest remaining
- * ACTIVE row of the pair (never a disabled one). */
+/**
+ * Who becomes the pair's default when its default, `deletedId`, is deleted:
+ * the oldest remaining ACTIVE credential. An invocation that names no
+ * credential resolves through the default, so leaving the connector without
+ * one would break every automation step that relied on it, not just the
+ * deleted account. Never a disabled row or a dead grant (`needs-reauth`):
+ * handing the default to a credential that cannot serve would be worse.
+ * Null when no active sibling remains.
+ *
+ * The one copy of the rule: the delete applies it and the listing names its
+ * answer, so the delete confirm can say which account takes over.
+ */
+export function defaultSuccessor<
+  R extends { id: string; status: CredentialStatus; createdAt: number },
+>(siblings: readonly R[], deletedId: string): R | null {
+  let successor: R | null = null;
+  for (const row of siblings) {
+    if (row.id === deletedId || row.status !== 'active') continue;
+    if (
+      successor === null ||
+      row.createdAt < successor.createdAt ||
+      (row.createdAt === successor.createdAt && row.id < successor.id)
+    ) {
+      successor = row;
+    }
+  }
+  return successor;
+}
+
+/** Delete a credential; deleting the DEFAULT hands it to
+ * {@link defaultSuccessor}. */
 export async function deleteCredential(
   sql: Sql,
   organizationId: string,
@@ -857,26 +909,29 @@ export async function deleteCredential(
   actor?: CredentialActor,
 ): Promise<void> {
   await sql.begin(async (tx) => {
-    const row = await requireOwnRow(tx, organizationId, credentialId);
+    const found = await requireOwnRow(tx, organizationId, credentialId);
+    // The successor is decided from the sibling list, like a new
+    // credential's default flag: under the same pair lock, so a concurrent
+    // add cannot read the pair while its default is leaving.
+    await lockCredentialPair(tx, organizationId, found.connectorSlug);
+    const siblings = await rowsForConnector(
+      tx,
+      organizationId,
+      found.connectorSlug,
+    );
+    const row =
+      siblings.find((sibling) => sibling.id === found.id) ??
+      (await requireOwnRow(tx, organizationId, credentialId));
     await tx`DELETE FROM app.connector_credentials WHERE id = ${row.id}`;
     let promotedId: string | null = null;
-    if (row.isDefault) {
-      const successors = await tx<{ id: string }[]>`
-        SELECT id FROM app.connector_credentials
-        WHERE org_id = ${organizationId}
-          AND connector_slug = ${row.connectorSlug} AND status = 'active'
-        ORDER BY created_at_ms ASC, id ASC
-        LIMIT 1
+    const successor = row.isDefault ? defaultSuccessor(siblings, row.id) : null;
+    if (successor !== null) {
+      await tx`
+        UPDATE app.connector_credentials
+        SET is_default = true, updated_at_ms = ${Date.now()}
+        WHERE id = ${successor.id}
       `;
-      const successor = successors[0];
-      if (successor) {
-        await tx`
-          UPDATE app.connector_credentials
-          SET is_default = true, updated_at_ms = ${Date.now()}
-          WHERE id = ${successor.id}
-        `;
-        promotedId = successor.id;
-      }
+      promotedId = successor.id;
     }
     await createAuditLog(tx, {
       organizationId,

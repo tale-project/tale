@@ -193,8 +193,8 @@ describe('connector credential writes — realtime hints', () => {
   it('hints a delete — and with it the default it handed on', async () => {
     const { sql, statements } = fakeSql(
       ownRow(ROW, (s) =>
-        s.text.includes("status = 'active' ORDER BY created_at_ms ASC")
-          ? [{ id: 'cred-2' }]
+        s.text.includes('WHERE org_id = ? AND connector_slug = ?')
+          ? [ROW, { ...ROW, id: 'cred-2', isDefault: false, createdAt: 2 }]
           : undefined,
       ),
     );

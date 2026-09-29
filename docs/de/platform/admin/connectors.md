@@ -41,7 +41,7 @@ Nutze die Ersetzen-Aktion der jeweiligen Methode, etwa **API-Schlüssel ersetzen
 
 <Warning>
 
-Das Löschen von Zugangsdaten entzieht abhängigen Automatisierungen und Agenten den Zugriff. Stelle die Aufrufer vorher um und wähle bei Bedarf einen neuen Standard. Ein gelöschter Eintrag lässt sich nicht durch erneutes Öffnen wiederherstellen.
+Das Löschen von Zugangsdaten entzieht abhängigen Automatisierungen und Agenten den Zugriff. Stelle die Aufrufer vorher um. Löschst du den Standard eines Connectors, wird sein ältester verbleibender aktiver Eintrag zum Standard; die Bestätigung nennt diesen Eintrag, bevor du löschst. Ein deaktivierter Eintrag oder einer, der neu verbunden werden muss, übernimmt nie. Bleibt kein aktiver Eintrag übrig, hat der Connector keinen Standard, bis du einen wählst. Ein gelöschter Eintrag lässt sich nicht durch erneutes Öffnen wiederherstellen.
 
 </Warning>
 

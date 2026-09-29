@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 39 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -174,11 +174,11 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   action at all.
 - [ ] `CONN-F13` · **Delete with confirm** — Row menu → **Delete** → A confirm
   dialog (`settings.credentials.deleteTitle`, body naming the credential
-  `settings.credentials.deleteBody`); deleting the default additionally warns
-  (`settings.credentials.deleteDefaultWarning`). Confirm → toast
+  `settings.credentials.deleteBody`); deleting the default additionally says
+  what happens to the default (CONN-F22). Confirm → toast
   `settings.credentials.deletedToast`; the row is gone after reload.
 - [ ] `CONN-F14` · **No-default warning** — Leave a connector holding only
-  non-default active credentials (delete its default, or disable it) → A
+  non-default credentials that are not disabled (disable its default) → A
   warning alert above the table names the vendor(s):
   `settings.credentials.noDefault`. Surfaced, never auto-fixed; it clears once
   a default is picked.
@@ -241,6 +241,17 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   gone. An **Edit credential** dialog A holds open on another row stays open
   through B's writes with what A typed; opening **Edit credential** after
   B's rename shows B's name.
+- [ ] `CONN-F22` · **Deleting the default hands it on** — GitHub holding
+  **Support bot** (default), **Release bot** and a disabled **Paused bot**, all
+  created in that order → **Support bot**'s menu → **Delete** → the confirm
+  names **Release bot** as the new default
+  (`settings.connectors.credential.deleteDefaultHandsOn`); confirm → after a
+  reload **Release bot** carries **Default** and no no-default alert shows.
+  With only the disabled **Paused bot** left beside the default, the confirm
+  says no active credential can take over
+  (`settings.connectors.credential.deleteDefaultLeavesNone`), and after the
+  delete **Paused bot** stays **Disabled** and not the default. Deleting a
+  credential that is not the default says nothing about the default.
 
 ## Boundary & error tests
 

@@ -41,7 +41,7 @@ Use the row's replacement action for its method, such as **Replace API key** or 
 
 <Warning>
 
-Deleting credentials removes access for automations and agents that depend on them. Move callers first and select a new default when needed. Deletion cannot be undone by reopening the same row.
+Deleting credentials removes access for automations and agents that depend on them. Move callers first. Deleting a connector's default makes its oldest remaining active credential the default, and the confirmation names that credential before you delete. A disabled credential or one that needs Reconnect never takes over, so with no active credential left the connector has no default until you choose one. Deletion cannot be undone by reopening the same row.
 
 </Warning>
 

@@ -5812,6 +5812,17 @@ settings:
         accorder le consentement à nouveau.
       needsReauthDetail: '{detail} Reconnecte-toi pour accorder le consentement à nouveau.'
       reconnect: Reconnecter
+      deleteDefaultHandsOn: >-
+        Ce sont les identifiants par défaut. Si tu les supprimes, « {name} »
+        devient le choix par défaut des appels qui n'en nomment aucun.
+      deleteDefaultLeavesNone: >-
+        Ce sont les identifiants par défaut, et aucun autre identifiant actif
+        ne peut prendre le relais : les appels qui n'en nomment aucun échouent
+        jusqu'à ce que tu en définisses d'autres par défaut.
+      deleteDefaultHandsOnOldest: >-
+        Ce sont les identifiants par défaut. Si tu les supprimes, les plus
+        anciens identifiants actifs de ce connecteur deviennent le choix par
+        défaut, s'il y en a.
     replace:
       apiKeyTitle: Remplacer la clé API
       tokenTitle: Remplacer le jeton

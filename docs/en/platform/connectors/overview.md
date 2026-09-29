@@ -47,7 +47,7 @@ Confluence and Shopify require an **Instance URL** per credential. Use the Atlas
 
 ## Choose which account an action uses
 
-An action uses the credential it explicitly names, or the connector’s default when no name is supplied. Only one credential per connector is the default. With no default, an unnamed call fails even if other credentials exist.
+An action uses the credential it explicitly names, or the connector’s default when no name is supplied. Only one credential per connector is the default. With no default, an unnamed call fails even if other credentials exist. Deleting the default makes the oldest remaining active credential of that connector the default; the delete confirmation names it first.
 
 For example, two support mailboxes are two credential rows. Choose names that distinguish them and inspect a workflow’s resolved input before running it live. A default is a fallback for selection, not proof that every job should use that account. Mailbox operations designed to inspect all active accounts are a separate case.
 

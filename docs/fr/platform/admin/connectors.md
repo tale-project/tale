@@ -41,7 +41,7 @@ Utilise l’action de remplacement adaptée à la méthode, par exemple **Rempla
 
 <Warning>
 
-Supprimer des identifiants retire l’accès aux automatisations et agents qui en dépendent. Migre les appelants et choisis un nouveau défaut si nécessaire. Rouvrir la même ligne ne permet pas d’annuler la suppression.
+Supprimer des identifiants retire l’accès aux automatisations et agents qui en dépendent. Migre d’abord les appelants. Si tu supprimes les identifiants par défaut d’un connecteur, ses plus anciens identifiants actifs restants deviennent le choix par défaut, et la confirmation les nomme avant la suppression. Des identifiants désactivés ou à reconnecter ne prennent jamais le relais : s’il ne reste aucun identifiant actif, le connecteur n’a pas de choix par défaut tant que tu n’en choisis pas. Rouvrir la même ligne ne permet pas d’annuler la suppression.
 
 </Warning>
 

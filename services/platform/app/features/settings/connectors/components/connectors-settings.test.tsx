@@ -818,6 +818,67 @@ describe('ConnectorsSettings', () => {
       expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
     });
 
+    // #3713: the server hands a deleted default to the oldest active
+    // credential left, and the listing names it on the default's row.
+    it.each([
+      [
+        'names the credential that takes the default over',
+        { id: 'cred-3', name: 'Ops bot' },
+        'This is the default credential. Deleting it makes "Ops bot" the default for calls that name no credential.',
+      ],
+      [
+        'says no default remains when no active credential can take over',
+        null,
+        'This is the default credential, and no other active credential can take over: calls that name no credential fail until you make one the default.',
+      ],
+    ] as const)(
+      'the delete confirm of the default %s',
+      async (_case, successor, sentence) => {
+        fixtures.credentials = [
+          credential({
+            id: 'cred-1',
+            name: 'Platform bot',
+            isDefault: true,
+            defaultSuccessor: successor,
+          }),
+          ...defaultCredentials.slice(1),
+        ];
+        const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+        await user.click(
+          screen.getByRole('button', { name: 'Actions for Platform bot' }),
+        );
+        await user.click(
+          within(await screen.findByRole('menu')).getByRole('menuitem', {
+            name: 'Delete',
+          }),
+        );
+        const confirm = within(
+          await screen.findByRole('dialog', { name: 'Delete credential' }),
+        );
+        expect(confirm.getByText(sentence)).toBeInTheDocument();
+        // Never the AI providers' rule, which promotes nobody.
+        expect(
+          confirm.queryByText(/leaves no default until you pick another one/),
+        ).not.toBeInTheDocument();
+      },
+    );
+
+    it('says nothing about the default when deleting another credential', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Release bot' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Delete',
+        }),
+      );
+      const confirm = within(
+        await screen.findByRole('dialog', { name: 'Delete credential' }),
+      );
+      expect(confirm.queryByText(/default credential/)).not.toBeInTheDocument();
+    });
+
     it('keeps make-default visible but inert on a disabled credential', async () => {
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
       await user.click(

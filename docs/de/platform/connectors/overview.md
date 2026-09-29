@@ -47,7 +47,7 @@ Confluence und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den U
 
 ## Das Konto für eine Aktion bestimmen
 
-Eine Aktion verwendet den ausdrücklich genannten Eintrag oder, ohne Angabe, den Standard des Connectors. Nur ein Eintrag pro Connector kann Standard sein. Ohne Standard schlägt ein Aufruf ohne Namen fehl, selbst wenn andere Zugangsdaten vorhanden sind.
+Eine Aktion verwendet den ausdrücklich genannten Eintrag oder, ohne Angabe, den Standard des Connectors. Nur ein Eintrag pro Connector kann Standard sein. Ohne Standard schlägt ein Aufruf ohne Namen fehl, selbst wenn andere Zugangsdaten vorhanden sind. Löschst du den Standard, wird der älteste verbleibende aktive Eintrag dieses Connectors zum Standard; die Löschbestätigung nennt ihn vorher.
 
 Zwei Support-Postfächer sind beispielsweise zwei Einträge. Vergib unterscheidbare Namen und prüfe die aufgelöste Eingabe eines Workflows vor dem Live-Lauf. Der Standard wird verwendet, wenn die Aktion keinen bestimmten Eintrag nennt. Postfachoperationen, die alle aktiven Konten auslesen, sind ein eigener Fall.
 
