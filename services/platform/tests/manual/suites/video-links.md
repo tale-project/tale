@@ -1,6 +1,6 @@
 # Video-link ingestion
 
-> **Prefix** `VID-` · **Reset** none · **Cost** 13 boxes
+> **Prefix** `VID-` · **Reset** none · **Cost** 15 boxes
 
 Pasting a supported video URL into the chat composer starts ingestion and
 shows an attachment chip. Typing the same URL leaves ordinary message text;
@@ -73,6 +73,11 @@ provider/configuration refusals from browser failures.
   from `services/platform` with network access → The suite retrieves real
   metadata and a non-empty transcript, or explicitly skips a bot-wall/rate-limit
   outcome. Other failures are investigated as regressions.
+- [ ] `VID-F8` · **Deduplication across chats** — In chat A paste the
+  captioned URL, open chat B and paste it there, then return to chat A and
+  paste it again → Chat A still shows one chip for the video and chat B its
+  own; the third `POST /api/app/video-links/ingest` answers the `jobId` of the
+  first paste in chat A. Reload chat A → still one chip.
 
 ## Boundary & error tests
 
@@ -95,6 +100,18 @@ provider/configuration refusals from browser failures.
   complete the job. Repeat a caption-less URL with an unavailable saved pin
   → Audio fallback explains the refusal and does not switch models. Count a
   completed caption transcript only after observing the worker result.
+- [ ] `VID-B5` · **A refused Remove says why** — In DevTools, block requests
+  matching `*/api/app/video-links/*/cancel`, then click **Remove**
+  (`chat.videoLink.actions.removeLink`) on a chip → The chip leaves, comes
+  back, and a destructive toast reads **Couldn't remove this video**
+  (`chat.videoLink.toast.removeFailedTitle`) with the reason under it
+  (`common.errors.connectionLost` for a blocked request). Reload → the chip is
+  still there. Unblock and click **Remove** again → the chip goes away with no
+  toast, and stays away after a reload. Block `*/retry` instead and click
+  **Try again** (`chat.videoLink.actions.retry`) on a failed chip, in the
+  composer and in a queued message's row → each shows **Couldn't retry this
+  video** (`chat.videoLink.toast.retryFailedTitle`) with the reason and keeps
+  the failed chip.
 
 ## Accessibility (WCAG 2.1 AA)
 
