@@ -1311,6 +1311,7 @@ chat:
       notFound: Lien vidéo introuvable — il a peut-être été supprimé
       notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
       notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
+      threadNotFound: Ce chat n'est plus disponible
     actions:
       removeLink: Retirer
       retry: Réessayer
@@ -1321,6 +1322,8 @@ chat:
     toast:
       ingestFailedTitle: Impossible d'ajouter cette vidéo
       retryFailedTitle: Impossible de réessayer cette vidéo
+      removeFailedTitle: Impossible de retirer cette vidéo
+      removeFailedDescription: Elle est toujours jointe à ton message — réessaie de la retirer
   fallback:
     image: Image
   loadingConversation: Chargement de la conversation…
@@ -1817,6 +1820,7 @@ conversations:
   updating: Mise à jour des conversations...
   bulk:
     progress: 'Mise à jour des conversations... {settled} sur {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Envoyer les messages
     close: Fermer
     reopen: Rouvrir

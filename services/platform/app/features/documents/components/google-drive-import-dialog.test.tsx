@@ -179,20 +179,50 @@ describe('GoogleDriveImportDialog', () => {
   });
 
   // Regression: a sub-folder that failed to list used to toast and the
-  // import went on with the rest, calling that a success.
+  // import went on with the rest, calling that a success. The provider's
+  // own answer then stood under the title, in English.
   it('stops the import when a folder cannot be listed at all', async () => {
-    mockListFiles.mockResolvedValue({ success: false, error: 'Drive 503' });
+    mockListFiles.mockResolvedValue({
+      success: false,
+      error: 'Google Drive API error: 429 {"error":{"code":429}}',
+    });
     const user = userEvent.setup();
     render(<GoogleDriveImportDialog {...defaultProps} />);
 
     await selectMeetingsAndImport(user);
 
     expect(mockImportFiles).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: 'documents.googledrive.importFailed',
+      description: 'common.errors.generic',
+    });
+  });
+
+  // The import's own `error` is the backend's English — the grant check's
+  // sentence when the token could not be had.
+  it("keeps an unsuccessful import answer's own words out of the toast", async () => {
+    mockImportFiles.mockResolvedValueOnce({
+      success: false,
+      results: [],
+      totalFiles: 0,
+      successCount: 0,
+      failedCount: 0,
+      skippedCount: 0,
+      error:
+        'Google Drive is not authorized for importing. Connect Google Drive from Documents.',
+    });
+    const user = userEvent.setup();
+    render(<GoogleDriveImportDialog {...defaultProps} />);
+
+    await selectMeetingsAndImport(user);
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
         variant: 'destructive',
         title: 'documents.googledrive.importFailed',
-        description: 'Drive 503',
+        description: 'common.errors.generic',
       }),
     );
   });
