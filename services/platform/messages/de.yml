@@ -1807,6 +1807,7 @@ conversations:
   updating: Konversationen werden aktualisiert...
   bulk:
     progress: 'Konversationen werden aktualisiert... {settled} von {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Nachrichten senden
     close: Schließen
     reopen: Erneut öffnen

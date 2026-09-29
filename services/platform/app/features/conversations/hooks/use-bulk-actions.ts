@@ -1,7 +1,8 @@
 import { toast } from '@tale/ui/use-toast';
+import type { TFunction } from 'i18next';
 import { useState, useCallback } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
+import { failureDetail, firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { bulkConversationBatches } from '@/lib/shared/conversations/bulk-limit';
@@ -116,6 +117,21 @@ interface UseBulkActionsOptions {
   onComplete: (unsettledIds: readonly string[]) => void;
 }
 
+/**
+ * A bulk summary's counts, and why the first refused request was refused
+ * when the refusal says. Each request stays quiet at its hook, so the
+ * summary is the batch's only report of the reason.
+ */
+function withReason(
+  tConversations: TFunction,
+  outcome: string,
+  reason: string | undefined,
+): string {
+  return reason === undefined
+    ? outcome
+    : tConversations('bulk.outcomeWithReason', { outcome, reason });
+}
+
 /** The copy one status verb's outcome reads in: title on success, the
  * description with its counts, and the title when nothing changed. */
 interface VerbCopy {
@@ -197,19 +213,23 @@ export function useBulkActions({
           }),
         );
 
-        const successCount = results.filter(
-          (r) => r.status === 'fulfilled',
-        ).length;
-        const failedCount = results.filter(
-          (r) => r.status === 'rejected',
-        ).length;
+        // In selection order, so the summary names the first refusal.
+        const reasons = results
+          .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+          .map((r) => r.reason);
+        const failedCount = reasons.length;
+        const successCount = results.length - failedCount;
 
         toast({
           title: tConversations('bulk.messagesSent'),
-          description: tConversations('bulk.messagesSentDescription', {
-            successCount,
-            failedCount,
-          }),
+          description: withReason(
+            tConversations,
+            tConversations('bulk.messagesSentDescription', {
+              successCount,
+              failedCount,
+            }),
+            failedCount > 0 ? firstFailureDetail(reasons) : undefined,
+          ),
           variant: successCount > 0 ? 'default' : 'destructive',
         });
 
@@ -240,9 +260,10 @@ export function useBulkActions({
   /**
    * The five status verbs, one way: the selection goes out in batches the
    * door takes, the busy state and the progress hold until the last one
-   * settles, and the toast states what the whole selection came to. A
-   * refused batch keeps its conversations selected; when nothing changed at
-   * all, the selection stays as it was.
+   * settles, and the toast states what the whole selection came to and why
+   * the first refused batch was refused. A refused batch keeps its
+   * conversations selected; when nothing changed at all, the selection stays
+   * as it was.
    */
   const runStatusVerb = useCallback(
     async (
@@ -270,10 +291,14 @@ export function useBulkActions({
 
         toast({
           title: tConversations(copy.done),
-          description: tConversations(copy.description, {
-            successCount: outcome.successCount,
-            failedCount: outcome.failedCount,
-          }),
+          description: withReason(
+            tConversations,
+            tConversations(copy.description, {
+              successCount: outcome.successCount,
+              failedCount: outcome.failedCount,
+            }),
+            failureDetail(outcome.firstError),
+          ),
           variant: outcome.successCount > 0 ? 'default' : 'destructive',
         });
         // The requests name rows by `_id`; the selection keeps their `id`.
