@@ -880,8 +880,9 @@ function AutomationEditorScope({
           mounted for as long as the viewport stays compact, `open` toggling
           with the selection, so a deselect plays the sheet's own close
           animation instead of the content vanishing under it. Save/Discard
-          sit at the top of the sheet — right where the edit they report on
-          happens — instead of in a toolbar the sheet now covers. */}
+          sit in a sticky bar under the fields — the usual dialog placement —
+          rather than at the top, so they stay reachable however far the
+          sheet is scrolled. */}
       {isWorkbenchCompact && (
         <ResponsiveDialog
           open={selectedNode !== null}
@@ -901,11 +902,6 @@ function AutomationEditorScope({
                 <ResponsiveDialogDescription className="sr-only">
                   {t('editor.nodeSheetDescription')}
                 </ResponsiveDialogDescription>
-                {canAuthor && (
-                  <div className="flex items-center justify-end gap-2 pb-3">
-                    <AutomationEditorActions />
-                  </div>
-                )}
                 <NodeFields
                   headingId={inspectorId}
                   node={selectedNode}
@@ -924,6 +920,11 @@ function AutomationEditorScope({
                   {...(projectId !== undefined && { projectId })}
                   onDeselect={deselectNode}
                 />
+                {canAuthor && (
+                  <div className="bg-background border-border sticky bottom-0 z-10 -mb-6 flex items-center justify-end gap-2 border-t pt-3 pb-6">
+                    <AutomationEditorActions />
+                  </div>
+                )}
               </>
             )}
           </ResponsiveDialogContent>
