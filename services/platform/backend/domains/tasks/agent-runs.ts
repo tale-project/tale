@@ -60,6 +60,13 @@ export interface AgentRunRow {
   launchedAt: number | null;
   deadlineAt: number;
   settledAt: number | null;
+  /** Who put the agent to work when no person pressed Start (0139). */
+  startedVia: 'automation' | 'agent' | null;
+  /** The automation run, or the delegating agent run. */
+  startedViaRunId: string | null;
+  startedViaNodeId: string | null;
+  startedViaAutomation: string | null;
+  startedViaAgentId: string | null;
 }
 
 const RUN_COLUMNS = `
@@ -71,8 +78,44 @@ const RUN_COLUMNS = `
   waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
   agent_session_id AS "agentSessionId", started_by AS "startedBy",
   started_at_ms::float8 AS "startedAt", launched_at_ms::float8 AS "launchedAt",
-  deadline_at_ms::float8 AS "deadlineAt", settled_at_ms::float8 AS "settledAt"
+  deadline_at_ms::float8 AS "deadlineAt", settled_at_ms::float8 AS "settledAt",
+  started_via AS "startedVia", started_via_run_id AS "startedViaRunId",
+  started_via_node_id AS "startedViaNodeId",
+  started_via_automation AS "startedViaAutomation",
+  started_via_agent_id AS "startedViaAgentId"
 `;
+
+/** How a run was kicked — the `trigger` column (migrations 0021, 0139). */
+export type TaskAgentRunTrigger =
+  | 'manual'
+  | 'mention'
+  | 'auto_retry'
+  | 'automation'
+  | 'delegated';
+
+/**
+ * Who put a project agent to work when no person pressed Start (0139): an
+ * automation run's `task.start_agent` step, or another project agent's run
+ * through the `task_start_agent` tool. Kept on the run and on its
+ * auto-retries, never on a person's own later kick.
+ */
+export type StartedVia =
+  | {
+      kind: 'automation';
+      /** The automation run whose step started it. */
+      runId: string;
+      /** The step (node) id — with the run and the task, the slot receipt. */
+      nodeId: string;
+      /** The automation's name, kept for display once the run is gone. */
+      automation: string;
+    }
+  | {
+      kind: 'agent';
+      /** The delegating agent's run. */
+      runId: string;
+      /** The delegating project agent. */
+      agentId: string;
+    };
 
 export interface KickAgentRunArgs {
   organizationId: string;
@@ -83,7 +126,11 @@ export interface KickAgentRunArgs {
   model: string;
   modelProvider?: string;
   startedBy: string;
-  trigger?: 'manual' | 'mention' | 'auto_retry';
+  trigger?: TaskAgentRunTrigger;
+  /** Who put the agent to work when no person pressed Start: an automation
+   * step or another agent's run (`delegated-start.ts`). An `automation` or
+   * `delegated` kick names it; an auto-retry carries its predecessor's. */
+  startedVia?: StartedVia;
   feedback?: string;
   /** Which text named the agent on a `mention` kick. A comment's body rides
    * as `feedback`; a description kick carries none, because the turn reads
@@ -153,12 +200,14 @@ export async function kickAgentRun(
   // conflicting row invisible to the snapshot makes the ON CONFLICT raise
   // 40001 instead, which `transactSerializable` retries — that throw path is
   // by design, not a gap.
+  const via = args.startedVia;
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
       harness, model, model_provider, trigger, feedback, mention_source,
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
-      updated_at_ms
+      updated_at_ms, started_via, started_via_run_id, started_via_node_id,
+      started_via_automation, started_via_agent_id
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
@@ -167,7 +216,11 @@ export async function kickAgentRun(
       ${args.feedback ?? null}, ${args.mentionSource ?? null},
       ${args.autoRetryAttempt ?? null},
       ${args.startedBy}, ${now},
-      ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now}
+      ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now},
+      ${via?.kind ?? null}, ${via?.runId ?? null},
+      ${via?.kind === 'automation' ? via.nodeId : null},
+      ${via?.kind === 'automation' ? via.automation : null},
+      ${via?.kind === 'agent' ? via.agentId : null}
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id
@@ -187,6 +240,48 @@ export async function kickAgentRun(
       : {},
   );
   return { runId, execId, reused: false };
+}
+
+/** The provenance a run carries when an automation step or another agent
+ * started it (or started the run it retries) — what an auto-retry copies,
+ * so a retried run keeps its lane. `undefined` for a person's own kick. */
+export async function startedViaOfRun(
+  sql: Sql | TransactionSql,
+  runId: string,
+): Promise<StartedVia | undefined> {
+  const rows = await sql<
+    {
+      kind: string | null;
+      runId: string | null;
+      nodeId: string | null;
+      automation: string | null;
+      agentId: string | null;
+    }[]
+  >`
+    SELECT started_via AS kind, started_via_run_id AS "runId",
+           started_via_node_id AS "nodeId",
+           started_via_automation AS automation,
+           started_via_agent_id AS "agentId"
+    FROM app.project_agent_runs WHERE id = ${runId} LIMIT 1
+  `;
+  const row = rows[0];
+  if (row === undefined || row.runId === null) return undefined;
+  if (
+    row.kind === 'automation' &&
+    row.nodeId !== null &&
+    row.automation !== null
+  ) {
+    return {
+      kind: 'automation',
+      runId: row.runId,
+      nodeId: row.nodeId,
+      automation: row.automation,
+    };
+  }
+  if (row.kind === 'agent' && row.agentId !== null) {
+    return { kind: 'agent', runId: row.runId, agentId: row.agentId };
+  }
+  return undefined;
 }
 
 export async function getAgentRun(

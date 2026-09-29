@@ -7,11 +7,18 @@ import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issu
 import type { Sql, TransactionSql } from 'postgres';
 
 import type { ConnectorCaller } from '../../../lib/connectors/dispatcher.ts';
-import type { WorkflowTaskStore } from '../../../lib/connectors/natives/index.ts';
+import type {
+  WorkflowAgentStart,
+  WorkflowTaskStore,
+} from '../../../lib/connectors/natives/index.ts';
 import type { WorkflowIssueInput } from '../../../lib/connectors/natives/platform-tasks.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { authorizeActorRun } from '../automations/dispatch-store.ts';
-import { getRun, resolveRunProject } from '../automations/store.ts';
+import {
+  bindingProjectIds,
+  getRun,
+  resolveRunProject,
+} from '../automations/store.ts';
 import {
   getProjectAuthContext,
   loadProjectOrThrow,
@@ -23,6 +30,10 @@ import {
   listTaskComments,
   TASK_COMMENT_PAGE_MAX,
 } from '../tasks/comments.ts';
+import {
+  type DelegatedAgentStart,
+  startDelegatedAgentRun,
+} from '../tasks/delegated-start.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
 import {
   agentUpdateTaskStatusTrusted,
@@ -46,6 +57,97 @@ async function lockIssueImportQueue(
   key: string,
 ): Promise<void> {
   await tx`SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))`;
+}
+
+/**
+ * The door a project agent an automation step starts answers to: the person
+ * who started the automation run (a bare id, as project-agent runs carry
+ * it), or the schedule that fired it (`trigger:<id>`). A webhook or event
+ * run answers to nobody who may put an agent to work: a URL holder or a
+ * platform event is not a grant to spend an agent's equipment.
+ */
+async function automationRunStarter(
+  tx: TransactionSql,
+  args: { organizationId: string; startedBy: string },
+): Promise<string> {
+  const starter = parseRunStarter(args.startedBy);
+  if (starter.kind === 'user' || starter.kind === 'api-key') {
+    return starter.userId;
+  }
+  if (starter.kind === 'trigger') {
+    const triggers = await tx<{ kind: string }[]>`
+      SELECT kind FROM app.automation_triggers
+      WHERE id = ${starter.triggerId} AND org_id = ${args.organizationId}
+      LIMIT 1
+    `;
+    if (triggers[0]?.kind === 'schedule') return args.startedBy;
+    throw new TaskError(
+      'AGENT_START_FORBIDDEN',
+      'Only a schedule or a person can start a project agent; a webhook or platform-event run cannot',
+      403,
+    );
+  }
+  throw new TaskError(
+    'AGENT_START_FORBIDDEN',
+    'This automation run answers to nobody who may start agents',
+    403,
+  );
+}
+
+/** The native's answer: the run it started or found, or why none. */
+function workflowAgentStartOf(
+  outcome: DelegatedAgentStart,
+): WorkflowAgentStart {
+  switch (outcome.outcome) {
+    case 'started':
+      return {
+        started: true,
+        runId: outcome.runId,
+        taskId: outcome.taskId,
+        agentId: outcome.agentId,
+        ...(outcome.replayed === true ? { replayed: true } : {}),
+      };
+    case 'already_running':
+      return {
+        started: false,
+        reason: 'already_running',
+        runId: outcome.runId,
+        taskId: outcome.taskId,
+        agentId: outcome.agentId,
+      };
+    case 'agent_busy':
+      return {
+        started: false,
+        reason: 'agent_busy',
+        runId: outcome.runId,
+        busyTaskId: outcome.busyTaskId,
+        taskId: outcome.taskId,
+        agentId: outcome.agentId,
+      };
+    case 'blocked':
+      return {
+        started: false,
+        reason: 'blocked',
+        runId: null,
+        blockedBy: outcome.blockedBy,
+        taskId: outcome.taskId,
+        agentId: outcome.agentId,
+      };
+    case 'paused':
+      return {
+        started: false,
+        reason: 'paused',
+        runId: null,
+        retryAfter: outcome.retryAfter,
+        taskId: outcome.taskId,
+        agentId: outcome.agentId,
+      };
+    default: {
+      // Exhaustiveness: a new outcome must say what the native answers.
+      const unknown: never = outcome;
+      throw new Error(`unknown start outcome ${JSON.stringify(unknown)}`);
+    }
+  }
 }
 
 /** The task natives over the 0.5 tasks domain — trusted writes (the
@@ -339,6 +441,59 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         }),
       );
       return { messageId: result.messageId };
+    },
+    async startAgent({
+      organizationId,
+      caller,
+      taskId,
+      agentId,
+      feedback,
+      moveToInProgress,
+    }) {
+      if (caller.kind !== 'workflow') {
+        throw new TaskError(
+          'AGENT_START_FORBIDDEN',
+          'Only an automation step starts a project agent through this action',
+          403,
+        );
+      }
+      return transactSerializable(sql, async (tx) => {
+        const run = await getRun(tx, organizationId, caller.runId);
+        if (run === null) {
+          throw new TaskError(
+            'AGENT_START_FORBIDDEN',
+            'The automation run asking to start an agent no longer exists',
+            403,
+          );
+        }
+        const startedBy = await automationRunStarter(tx, {
+          organizationId,
+          startedBy: run.startedBy,
+        });
+        // Explicitly project-scoped: the run's own project, or the projects
+        // its automation is bound to — an automation bound nowhere reaches no
+        // project's agents.
+        const scopeProjectIds =
+          run.projectId !== null
+            ? [run.projectId]
+            : await bindingProjectIds(tx, organizationId, run.name);
+        const outcome = await startDelegatedAgentRun(tx, {
+          organizationId,
+          scopeProjectIds,
+          taskId,
+          startedBy,
+          via: {
+            kind: 'automation',
+            runId: run.id,
+            nodeId: caller.nodeId,
+            automation: run.name,
+          },
+          ...(agentId !== undefined ? { agentId } : {}),
+          ...(feedback !== undefined ? { feedback } : {}),
+          ...(moveToInProgress !== undefined ? { moveToInProgress } : {}),
+        });
+        return workflowAgentStartOf(outcome);
+      });
     },
     async listComments({ organizationId, taskId }) {
       const auth = await systemAuth(organizationId);

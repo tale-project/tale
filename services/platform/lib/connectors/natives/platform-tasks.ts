@@ -1,7 +1,7 @@
 /**
  * Native backend for the `task` platform connector — the task lifecycle as
  * automation capabilities: read a task, move its status, write and read its
- * discussion comments.
+ * discussion comments, and put the task's project agent to work.
  *
  * The thin rim: input narrowing and the marker-window semantics. The store
  * fronts the task domain's own trusted writers, so actor attribution, the
@@ -140,6 +140,36 @@ export interface WorkflowTaskStore {
     organizationId: string;
     taskId: string;
   }): Promise<{ comments: WorkflowTaskComment[]; truncated: boolean }>;
+  /** Put the task's project agent (or the named one) to work, answering to
+   * whoever the calling automation run answers to. */
+  startAgent(args: {
+    organizationId: string;
+    caller: ConnectorCaller;
+    taskId: string;
+    agentId?: string;
+    feedback?: string;
+    moveToInProgress?: boolean;
+  }): Promise<WorkflowAgentStart>;
+}
+
+/** What `task.start_agent` answers: the run it started (or found), or why
+ * it started none without failing — the task's live run already carries the
+ * work, the agent is busy on another task, an open dependency blocks the
+ * task, or the task's circuit breaker is open. */
+export interface WorkflowAgentStart {
+  started: boolean;
+  /** The run started, the one already working the task, or the agent's
+   * run on the other task (`agent_busy`); null when none applies. */
+  runId: string | null;
+  taskId: string;
+  agentId: string;
+  reason?: 'already_running' | 'agent_busy' | 'blocked' | 'paused';
+  /** The step's first delivery started this run; this delivery found it. */
+  replayed?: boolean;
+  busyTaskId?: string;
+  blockedBy?: string[];
+  /** When the circuit breaker admits the next start (epoch ms). */
+  retryAfter?: number;
 }
 
 const taskRef = z.object({ taskId: z.string().min(1) });
@@ -210,6 +240,17 @@ function refusalSentence(reason: string | undefined): string {
       return reason ?? 'the transition is not allowed';
   }
 }
+
+/** The longest message a start hands the agent — the comment ceiling. */
+const START_FEEDBACK_MAX = 10_000;
+
+const startAgentInput = taskRef
+  .extend({
+    agentId: z.string().min(1).max(200).optional(),
+    feedback: z.string().max(START_FEEDBACK_MAX).optional(),
+    moveToInProgress: z.boolean().optional(),
+  })
+  .strict();
 
 const commentInput = taskRef
   .extend({
@@ -442,7 +483,37 @@ export function platformTaskNatives(
     };
   };
 
+  const startAgent: NativeConnectorImpl = async (
+    input: unknown,
+    ctx: NativeConnectorContext,
+  ) => {
+    const parsed = startAgentInput.safeParse(input);
+    if (!parsed.success) refuse('start_agent', parsed.error);
+    if (ctx.caller?.kind !== 'workflow') {
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'task.start_agent runs only as an automation step',
+        {},
+      );
+    }
+    return store.startAgent({
+      organizationId: ctx.organizationId,
+      caller: ctx.caller,
+      taskId: parsed.data.taskId,
+      ...(parsed.data.agentId !== undefined
+        ? { agentId: parsed.data.agentId }
+        : {}),
+      ...(parsed.data.feedback !== undefined
+        ? { feedback: parsed.data.feedback }
+        : {}),
+      ...(parsed.data.moveToInProgress !== undefined
+        ? { moveToInProgress: parsed.data.moveToInProgress }
+        : {}),
+    });
+  };
+
   return {
+    'task.start_agent': startAgent,
     'task.upsert': upsert,
     'task.upsert_issues': upsertIssues,
     'task.list_external_issues': listExternal,

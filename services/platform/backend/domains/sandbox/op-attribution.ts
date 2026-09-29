@@ -10,7 +10,8 @@ import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
  * `domains/governance/README.md`; in short:
  *
  *  - a task-agent op is one project-agent run: the person who started the
- *    run (a retry continues its starter's kick), under the agent's ID;
+ *    run (a retry continues its starter's kick), under the agent's ID — or
+ *    `__automation__` when a schedule began it (`trigger:<id>`);
  *  - a workflow-agent op runs in a per-execution session whose owner is the
  *    automation run: the person the run's starter names, under the
  *    automation's name, plus the API key when a keyed door started it; a run
@@ -50,6 +51,12 @@ export async function resolveSessionOpAttribution(
       const starter = parseRunStarter(row.startedBy);
       if (starter.kind === 'user' || starter.kind === 'api-key') {
         return { userId: starter.userId, agentSlug: row.agentId };
+      }
+      // A run a schedule began (an automation's start step, or an agent
+      // that run delegated to) names no person: like every run a trigger
+      // starts, it books under the automation subject.
+      if (starter.kind === 'trigger') {
+        return { userId: AUTOMATION_SUBJECT_ID, agentSlug: row.agentId };
       }
     }
   } else if (args.kind === 'workflow-agent') {

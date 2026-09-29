@@ -11,11 +11,17 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { kickAgentRun } = vi.hoisted(() => ({
+const { kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
   kickAgentRun: vi.fn(async () => ({ runId: 'run-retry' })),
+  startedViaOfRun: vi.fn(
+    async (): Promise<Record<string, string> | undefined> => undefined,
+  ),
 }));
 
-vi.mock('../domains/tasks/agent-runs.ts', () => ({ kickAgentRun }));
+vi.mock('../domains/tasks/agent-runs.ts', () => ({
+  kickAgentRun,
+  startedViaOfRun,
+}));
 
 import {
   AUTO_RETRY_HISTORY_LIMIT,
@@ -44,6 +50,9 @@ interface World {
   teams?: string[];
   /** Who created the task (default: someone other than the starter). */
   createdBy?: string;
+  /** Whether the schedule a `trigger:` starter names may still act in the
+   * project — enabled, its automation bound there (default: it may). */
+  schedule?: boolean;
 }
 
 /** A transaction that answers the job's reads: the task, its runs newest
@@ -109,6 +118,11 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
     }
     if (text.includes('FROM "teamMember"')) {
       return Promise.resolve((world.teams ?? []).map((teamId) => ({ teamId })));
+    }
+    if (text.includes('FROM app.automation_triggers')) {
+      return Promise.resolve(
+        world.schedule === false ? [] : [{ id: 'schedule-1' }],
+      );
     }
     throw new Error(`unexpected query: ${text}`);
   };
@@ -358,7 +372,7 @@ describe('task.agent_retry admission', () => {
     expect(kickAgentRun).toHaveBeenCalledTimes(1);
   });
 
-  it('lets the project alone decide for a run a trigger started', async () => {
+  it('retries a run a schedule began while that schedule may act in the project', async () => {
     const archived = await deliver(
       { project: { archivedAt: 1_700_000_000_000, teamIds: [] }, member: null },
       'trigger:schedule-1',
@@ -370,6 +384,35 @@ describe('task.agent_retry admission', () => {
 
     await deliver({ member: null }, 'trigger:schedule-1');
     expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    const probe = statements.find((text) =>
+      text.includes('FROM app.automation_triggers'),
+    );
+    expect(probe).toContain("t.kind = 'schedule'");
+    expect(probe).toContain('t.enabled = true');
+    expect(probe).toContain('app.automation_project_bindings');
+  });
+
+  it('starts nothing for a run whose schedule was paused, removed or unbound since', async () => {
+    const lines = await deliver({ schedule: false }, 'trigger:schedule-1');
+
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(lines).toEqual(['[task-agent] auto-retry skipped: not_permitted']);
+  });
+
+  it('keeps the lane of a run an automation step or another agent started', async () => {
+    const via = { kind: 'agent', runId: 'run-manager', agentId: 'agent-9' };
+    startedViaOfRun.mockResolvedValueOnce(via);
+
+    await deliver({});
+
+    expect(startedViaOfRun).toHaveBeenCalledWith(
+      expect.anything(),
+      'run-failed',
+    );
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ trigger: 'auto_retry', startedVia: via }),
+    );
   });
 
   it('refuses a starter that names nobody', async () => {

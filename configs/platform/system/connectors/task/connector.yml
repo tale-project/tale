@@ -6,8 +6,9 @@
 name: task
 displayName: Tasks
 description: >-
-  Read a task, move its status, and write or read its discussion comments —
-  the platform's own task board as automation steps.
+  Read a task, move its status, write or read its discussion comments, and
+  put its project agent to work — the platform's own task board as
+  automation steps.
 tags:
   - Platform
 auth:
@@ -122,6 +123,52 @@ actions:
       kind: native
       impl: task.list_comments
     exampleInput: { taskId: 'tsk_1', authorTypes: [user], limit: 20 }
+  - name: start_agent
+    description: >-
+      Put the task's project agent to work, or first assign it to the agent
+      named by agentId (an agent of the same project), and answer the run it
+      started. The automation must be bound to the task's project, and its
+      run must be started by a person who can edit that project or by an
+      enabled schedule; webhook and event runs cannot start agents. The run
+      answers to that person, or to the schedule (booked as automation spend,
+      with no person's connector access). feedback is what the run addresses
+      first. moveToInProgress (default true) moves the card to In progress and
+      the finished work waits at In review; false leaves the card where it is
+      and asks for no review, for a standing task that reports on every
+      occurrence. Starts nothing, without failing, when the task's live run
+      already carries the work (already_running), the agent is working another
+      task (agent_busy), an open task blocks this one (blocked), or the task
+      took three starts by automations and agents in the last hour (paused).
+      A step delivered again answers the run its first delivery started.
+    effects: write
+    input:
+      type: object
+      required: [taskId]
+      additionalProperties: false
+      properties:
+        taskId: { type: string, description: The task to work on. }
+        agentId:
+          type: string
+          description: The project agent to assign and start; the task's agent assignee when omitted.
+        feedback:
+          type: string
+          maxLength: 10000
+          description: What the run addresses first, such as the occurrence it serves or the receipts of earlier steps.
+        moveToInProgress:
+          type: boolean
+          description: Move the card to In progress and park the result at In review (default), or leave it where it is.
+    output: '{ started: boolean, runId: string | null, taskId: string, agentId: string, reason?: "already_running" | "agent_busy" | "blocked" | "paused", replayed?: boolean, busyTaskId?: string, blockedBy?: string[], retryAfter?: number }'
+    mock: |
+      return {
+        started: true,
+        runId: 'run_mock',
+        taskId: String(input.taskId),
+        agentId: String(input.agentId ?? 'agent_mock'),
+      };
+    backend:
+      kind: native
+      impl: task.start_agent
+    exampleInput: { taskId: 'tsk_1', feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.' }
   - name: upsert
     description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. A title over 200 or a description over 20,000 UTF-16 code units is cut to that length, ending in "…"; a blank title is refused. Returns the title the task carries. Does not start an agent.
     effects: write

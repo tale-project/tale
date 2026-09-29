@@ -2040,6 +2040,283 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
   });
 });
 
+describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const PROJECT_CTX = {
+    allowed: true,
+    actorId: 'agent_manager',
+    scope: { kind: 'project', projectId: 'proj_1' },
+  };
+  const TASK_RUN = { taskRunExecId: 'exec_manager' };
+  const START_FN = 'tasks/internal_mutations:agentStartTaskAgent';
+
+  /** A ctx whose task read answers a task of `projectId` and whose start
+   * mutation answers `answer` (or throws it). */
+  function startCtx(
+    options: {
+      actionContext?: Record<string, unknown>;
+      projectId?: string;
+      answer?: unknown;
+      refusal?: unknown;
+    } = {},
+  ) {
+    const start = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      options.refusal !== undefined
+        ? Promise.reject(options.refusal)
+        : Promise.resolve(
+            options.answer ?? {
+              outcome: 'started',
+              runId: 'run_9',
+              taskId: 'task_1',
+              agentId: 'agent_worker',
+            },
+          ),
+    );
+    const created = createCtx({
+      actionContext: options.actionContext ?? PROJECT_CTX,
+      readQuery: vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve({
+          _id: 'task_1',
+          projectId: options.projectId ?? 'proj_1',
+          title: 'Fix it',
+          status: 'todo',
+        }),
+      ),
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref) === START_FN ? start(ref, args) : Promise.resolve(null),
+      ),
+    });
+    return { ...created, start };
+  }
+
+  it('starts through the session and its task run, passing the arguments as they were given', async () => {
+    const { dispatch } = await getActions();
+    const { ctx, start, actionContextQuery } = startCtx();
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: {
+        taskId: 'task_1',
+        agentId: 'agent_worker',
+        feedback: 'Answer: yes, keep the German label.',
+        moveToInProgress: false,
+      },
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      output: {
+        started: true,
+        runId: 'run_9',
+        taskId: 'task_1',
+        agentId: 'agent_worker',
+      },
+    });
+    const gate = actionContextQuery.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(gate.effect).toBe('write');
+    expect(gate.taskRunExecId).toBe('exec_manager');
+    expect(start.mock.calls[0]?.[1]).toEqual({
+      organizationId: 'org_1',
+      sessionId: 'sid_1',
+      taskRunExecId: 'exec_manager',
+      taskId: 'task_1',
+      agentId: 'agent_worker',
+      feedback: 'Answer: yes, keep the German label.',
+      moveToInProgress: false,
+    });
+  });
+
+  it.each([
+    ['already_running', { runId: 'run_live' }],
+    ['agent_busy', { runId: 'run_other', busyTaskId: 'task_2' }],
+    ['blocked', { blockedBy: ['task_3'] }],
+    ['paused', { retryAfter: 1_790_000_000_000 }],
+  ])(
+    'answers %s as data the model can act on, not as a failure',
+    async (outcome, extra) => {
+      const { dispatch } = await getActions();
+      const { ctx } = startCtx({
+        answer: {
+          outcome,
+          taskId: 'task_1',
+          agentId: 'agent_worker',
+          ...extra,
+        },
+      });
+      const result = await dispatch(ctx, {
+        ...BASE,
+        ...TASK_RUN,
+        tool: 'task_start_agent',
+        callArgs: { taskId: 'task_1' },
+      });
+      expect(result.status).toBe('ok');
+      const output = result.output as Record<string, unknown>;
+      expect(output).toMatchObject({
+        started: false,
+        reason: outcome,
+        ...extra,
+      });
+      expect(String(output.guidance)).not.toBe('');
+    },
+  );
+
+  it('refuses a run a member started before anything is read or started', async () => {
+    const { dispatch } = await getActions();
+    const { ctx, start, readQuery } = startCtx({
+      actionContext: { ...PROJECT_CTX, confinedToTaskId: 'task_own' },
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1' },
+    });
+    expect(result.status).toBe('unavailable');
+    expect((result.blockers as { code: string }[])[0]?.code).toBe('member_run');
+    expect(readQuery).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'an automation run',
+      { allowed: true, actorId: 'automation:x', scope: { kind: 'org' } },
+      TASK_RUN,
+    ],
+    ['a turn that names no task run', PROJECT_CTX, {}],
+  ])('is no door for %s', async (_label, actionContext, run) => {
+    const { dispatch } = await getActions();
+    const { ctx, start } = startCtx({ actionContext });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...run,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1' },
+    });
+    expect(result.status).toBe('unavailable');
+    expect((result.blockers as { code: string }[])[0]?.code).toBe(
+      'not_a_project_agent_run',
+    );
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('refuses a revoked schedule’s run, saying why', async () => {
+    const { dispatch } = await getActions();
+    const { ctx, start } = startCtx({
+      actionContext: { allowed: false, reason: 'schedule_revoked' },
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1' },
+    });
+    expect(result.status).toBe('unavailable');
+    const blocker = (
+      result.blockers as { code: string; guidance: string }[]
+    )[0];
+    expect(blocker?.code).toBe('schedule_revoked');
+    expect(blocker?.guidance).toContain('schedule that started this run');
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{}],
+    [{ taskId: 'task_1', agentId: 42 }],
+    [{ taskId: 'task_1', feedback: 7 }],
+    [{ taskId: 'task_1', moveToInProgress: 'no' }],
+  ])('refuses malformed arguments %j', async (callArgs) => {
+    const { dispatch } = await getActions();
+    const { ctx, start } = startCtx();
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs,
+    });
+    expect(result.status).toBe('invalid_args');
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('refuses a message over the comment limit, naming it', async () => {
+    const { dispatch } = await getActions();
+    const { ctx, start } = startCtx();
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: {
+        taskId: 'task_1',
+        feedback: 'x'.repeat(TASK_COMMENT_MAX + 1),
+      },
+    });
+    expect(result.status).toBe('invalid_args');
+    expect((result as { message: string }).message).toContain(
+      `capped at ${taskLimitText(TASK_COMMENT_MAX)}`,
+    );
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('answers a task of another project like a missing one, starting nothing', async () => {
+    const { dispatch } = await getActions();
+    const { ctx, start } = startCtx({ projectId: 'proj_2' });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1' },
+    });
+    expect(result).toEqual({
+      status: 'not_found',
+      message: 'No task with that id is available to this run.',
+    });
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'AGENT_START_FORBIDDEN',
+      'An agent another agent started cannot put further agents to work',
+      'invalid_args',
+    ],
+    [
+      'AGENT_NOT_FOUND',
+      'No agent with that id works in this project',
+      'not_found',
+    ],
+  ])('relays the domain’s %s refusal', async (code, message, status) => {
+    const { dispatch } = await getActions();
+    const { ctx } = startCtx({ refusal: new AppError({ code, message }) });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1' },
+    });
+    expect(result.status).toBe(status);
+    expect(JSON.stringify(result)).toContain(code);
+  });
+
+  it('describes the tool as a write that answers the busy and blocked cases', async () => {
+    const { status } = await getActions();
+    const result = status(['task_start_agent']);
+    const tools = result.tools as {
+      name: string;
+      readOnly: boolean;
+      description: string;
+    }[];
+    expect(tools[0]?.name).toBe('task_start_agent');
+    expect(tools[0]?.readOnly).toBe(false);
+    for (const word of ['agent_busy', 'blocked', 'already_running', 'paused']) {
+      expect(tools[0]?.description).toContain(word);
+    }
+  });
+});
+
 describe('workspaceToolStatusImpl', () => {
   it('lists granted tools with descriptions', async () => {
     const { status } = await getActions();

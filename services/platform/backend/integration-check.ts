@@ -102,6 +102,10 @@ import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
 } from './domains/tasks/credential-rotation.integration.ts';
+import {
+  checkDelegatedAgentStartTool,
+  checkScheduledAgentStarts,
+} from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
@@ -56026,6 +56030,14 @@ async function main(): Promise<void> {
       [
         'checkTaskRetryProjectEligibility',
         () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkScheduledAgentStarts',
+        () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkDelegatedAgentStartTool',
+        () => checkDelegatedAgentStartTool(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskWorkflowParentMoves',

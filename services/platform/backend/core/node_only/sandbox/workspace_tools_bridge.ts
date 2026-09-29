@@ -193,6 +193,21 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
     'set done — finished work parks at in_review for a human.',
+  task_start_agent:
+    'Put a project agent of this project to work on a task: its agent ' +
+    'assignee, or first assign it to agentId. Args: {taskId: string, ' +
+    'agentId?: string, feedback?: string (what the run addresses first — ' +
+    `your answer to its question, or its brief; ${atMost(TASK_COMMENT_MAX)}), ` +
+    'moveToInProgress?: boolean (default true: the card moves to ' +
+    'in_progress and the result waits at in_review for a human; false ' +
+    'leaves the card where it is)}. Answers {started, runId, reason?}: ' +
+    'reason already_running (the task is being worked), agent_busy (that ' +
+    'agent is working another task — pick another or wait), blocked (an ' +
+    'open task blocks it) or paused (three automated starts on this task ' +
+    'within the hour) start nothing. The run answers to whoever your run ' +
+    'answers to and names you as the agent that started it; an agent you ' +
+    'start cannot start further agents. Keep the run id in your report. ' +
+    LENGTH_UNIT_NOTE,
   task_upsert_by_external_ref:
     'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
     'task, keyed by (externalSystem, externalId) — a re-run updates the ' +
@@ -219,7 +234,12 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
  * the data domain in the role-denied case, so the model can tell the user
  * exactly what their role cannot reach. */
 function actionContextBlocker(
-  reason: 'no_access_context' | 'not_a_member' | 'read_denied' | 'run_ended',
+  reason:
+    | 'no_access_context'
+    | 'not_a_member'
+    | 'read_denied'
+    | 'run_ended'
+    | 'schedule_revoked',
   subject?: string,
 ): BridgeBlocker {
   if (reason === 'run_ended') {
@@ -228,6 +248,16 @@ function actionContextBlocker(
       guidance:
         'The task run this session served has ended, so its workspace tools ' +
         'act for nobody any more. Stop; do not retry.',
+    };
+  }
+  if (reason === 'schedule_revoked') {
+    return {
+      code: 'schedule_revoked',
+      guidance:
+        'The schedule that started this run was paused or removed, or its ' +
+        'automation is no longer bound to this project, so the run’s ' +
+        'workspace tools act for nobody. Stop and report what is left; the ' +
+        'schedule’s next occurrence starts the work again once it is back.',
     };
   }
   if (reason === 'no_access_context') {
@@ -437,6 +467,12 @@ async function runWorkspaceTool(
       tool: args.tool,
       callArgs,
       authority,
+      session: {
+        sessionId: args.sessionId,
+        ...(args.taskRunExecId !== undefined
+          ? { taskRunExecId: args.taskRunExecId }
+          : {}),
+      },
     });
   }
 

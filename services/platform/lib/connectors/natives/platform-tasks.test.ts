@@ -341,3 +341,135 @@ describe('the task connector mocks mirror the import domain', () => {
     ).rejects.toThrow(`issues.1: ${sentence ?? ''}`);
   });
 });
+
+/**
+ * `task.start_agent`: an automation step puts the task's project agent to
+ * work. The rim narrows the input and insists on the workflow caller; the
+ * store (`backend/domains/connectors/task-store.ts`) decides who the run
+ * answers to and whether it may start — its lanes prove that natively.
+ */
+describe('task.start_agent', () => {
+  const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'start' };
+  const started = {
+    started: true,
+    runId: 'agent-run-1',
+    taskId: 'task-1',
+    agentId: 'agent-1',
+  };
+
+  it('hands the store the step, the task and what the run addresses first', async () => {
+    const startAgent = vi.fn().mockResolvedValue(started);
+    const native = platformTaskNatives({ startAgent } as never)[
+      'task.start_agent'
+    ];
+    await expect(
+      native?.(
+        {
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.',
+          moveToInProgress: false,
+        },
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).resolves.toEqual(started);
+    expect(startAgent).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller,
+      taskId: 'task-1',
+      agentId: 'agent-1',
+      feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.',
+      moveToInProgress: false,
+    });
+  });
+
+  it('passes a start that started nothing through as data', async () => {
+    const busy = {
+      started: false,
+      reason: 'agent_busy',
+      runId: 'agent-run-2',
+      busyTaskId: 'task-2',
+      taskId: 'task-1',
+      agentId: 'agent-1',
+    };
+    const startAgent = vi.fn().mockResolvedValue(busy);
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        { taskId: 'task-1' },
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).resolves.toEqual(busy);
+  });
+
+  it.each([
+    [{ organizationId: 'org-1' }],
+    [{ organizationId: 'org-1', caller: { kind: 'user', userId: 'user-1' } }],
+    [
+      {
+        organizationId: 'org-1',
+        caller: { kind: 'system', reason: 'itest' },
+      },
+    ],
+  ])('runs only as an automation step (%o)', async (ctx) => {
+    const startAgent = vi.fn();
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        { taskId: 'task-1' },
+        ctx as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(startAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {},
+    { taskId: '' },
+    { taskId: 'task-1', feedback: 'x'.repeat(10_001) },
+    { taskId: 'task-1', moveToInProgress: 'no' },
+    { taskId: 'task-1', projectId: 'project-2' },
+  ])('refuses %o before starting anything', async (input) => {
+    const startAgent = vi.fn();
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        input,
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(startAgent).not.toHaveBeenCalled();
+  });
+
+  it('answers a test run from its mock, in the shape a live run answers', async () => {
+    const connector = connectorSchema.parse(
+      parseYamlOrThrow(
+        readFileSync(
+          path.join(
+            path.dirname(new URL(import.meta.url).pathname),
+            '../../../../../configs/platform/system/connectors/task/connector.yml',
+          ),
+          'utf8',
+        ),
+        { maxBytes: 1024 * 1024 },
+      ),
+    );
+    const action = connector.actions.find(
+      (entry) => entry.name === 'start_agent',
+    );
+    expect(action?.effects).toBe('write');
+    expect(action?.backend).toEqual({
+      kind: 'native',
+      impl: 'task.start_agent',
+    });
+    await expect(
+      nodeVmRunner().runBody(
+        action?.mock ?? '',
+        { input: { taskId: 'task-1', agentId: 'agent-1' } },
+        { timeoutMs: 2000 },
+      ),
+    ).resolves.toEqual({
+      started: true,
+      runId: 'run_mock',
+      taskId: 'task-1',
+      agentId: 'agent-1',
+    });
+  });
+});
