@@ -81,7 +81,7 @@ A sticky frame is still only as tall as its rows, so a short list ends high on t
 
 Set `isLoading` while fetching the initial data. `approxRowCount` helps reserve space: an unknown count gives the default skeleton; a positive estimate gives skeleton rows up to the component's cap; zero allows the supplied initial empty state. Do not pass zero merely because a request has not returned yet.
 
-Pass `error` and `onRetry` for a failed query. A load failure should explain recovery rather than masquerade as an empty collection. Keep filter state when retrying so the request still matches what the reader sees.
+Pass `error` and `onRetry` for a failed query. A load failure should explain recovery rather than masquerade as an empty collection. Keep filter state when retrying so the request still matches what the reader sees. A refresh the reader did not start, such as the tab regaining focus or another session's change, replaces the error state with the loading state while it runs. Pass `onErrorFocusLost` a stable, named target around the table, such as the list's region, so that the focus **Try again** held lands there instead of on the page. Focus the reader moved elsewhere stays where it is.
 
 Rows already on screen stay through a failed refetch, and the host names that failure above the table with the same retry. When a cursor source fails while more rows may exist, set `infiniteScroll.loadFailed` until the retry: the table stops asking for more on scroll, a search that matches none of the loaded rows says it searched only those instead of showing a skeleton, and the count footer says the rest could not be loaded. [`useListPage`](/docs/patterns/list-page) sets the flag from its data source.
 

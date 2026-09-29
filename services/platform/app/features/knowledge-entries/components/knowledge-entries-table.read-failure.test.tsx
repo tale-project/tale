@@ -281,6 +281,62 @@ describe(
       );
     });
 
+    // #3814 review, swept: with nothing loaded the failure is the table's
+    // error state, which a refresh the reader did not start (the tab
+    // regaining focus, another session's change) swaps for the loading
+    // state. A focused Try again dropped the focus to the page.
+    it('hands a focused Try again in the error state to the list while a background refresh runs, fails again and heals', async () => {
+      backend.on(ANY_PAGE, () => serviceUnavailable());
+      renderTable();
+      const errorRetry = () =>
+        screen.findByRole(
+          'button',
+          { name: i18n.t('errors.tryAgain', { ns: 'common' }) },
+          { timeout: 5000 },
+        );
+      (await errorRetry()).focus();
+      const region = screen.getByRole('region', { name: t('title') });
+
+      const before = backend.count(LIST);
+      void client.invalidateQueries();
+      await waitFor(() => expect(region).toHaveFocus());
+
+      // It fails again: the error state is back, the focus still on the list.
+      await waitFor(() => expect(backend.count(LIST)).toBe(before + 4));
+      expect(await errorRetry()).toBeInTheDocument();
+      expect(region).toHaveFocus();
+
+      backend.on(ANY_PAGE, pagedEntries(ENTRIES));
+      void client.invalidateQueries();
+      expect(await screen.findByText('Synthetic fact 34')).toBeInTheDocument();
+      expect(region).toHaveFocus();
+    });
+
+    it('leaves focus the reader moved away from the error state where it is', async () => {
+      backend.on(ANY_PAGE, () => serviceUnavailable());
+      renderTable();
+      const retry = await screen.findByRole(
+        'button',
+        { name: i18n.t('errors.tryAgain', { ns: 'common' }) },
+        { timeout: 5000 },
+      );
+      const elsewhere = document.createElement('button');
+      elsewhere.textContent = 'Elsewhere';
+      document.body.append(elsewhere);
+      try {
+        retry.focus();
+        elsewhere.focus();
+
+        const before = backend.count(LIST);
+        void client.invalidateQueries();
+        await waitFor(() => expect(backend.count(LIST)).toBe(before + 4));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        expect(elsewhere).toHaveFocus();
+      } finally {
+        elsewhere.remove();
+      }
+    });
+
     describe.each(SHIPPED_LOCALES)('in %s', (locale) => {
       it('names a failed refresh and its retry in the reader language', async () => {
         saveLocale(locale);

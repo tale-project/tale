@@ -1154,4 +1154,32 @@ describe('DataTable — error state', () => {
     retry.click();
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  // #3814: a refresh the reader did not start swaps the error state for the
+  // loading state, and a focused Try again went with it.
+  it('hands the focus its error state held to onErrorFocusLost when the loading state replaces it', async () => {
+    const onErrorFocusLost = vi.fn();
+    const { rerender } = render(
+      <DataTable
+        columns={columnsWithSize}
+        data={[]}
+        error={new Error('overview failed')}
+        onRetry={vi.fn()}
+        onErrorFocusLost={onErrorFocusLost}
+      />,
+    );
+    screen.getByRole('button', { name: /try ?again/i }).focus();
+
+    rerender(
+      <DataTable
+        columns={columnsWithSize}
+        data={[]}
+        isLoading
+        onRetry={vi.fn()}
+        onErrorFocusLost={onErrorFocusLost}
+      />,
+    );
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(onErrorFocusLost).toHaveBeenCalledTimes(1);
+  });
 });
