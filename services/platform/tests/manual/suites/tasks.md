@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 86 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 88 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -320,6 +320,20 @@ whose credential is a subscription broker on a local Tale AI gateway
   that `require('docx')` and `require('pptxgenjs')` run anyway; remove the
   allowlist afterwards — env-gated: mark **ENVIRONMENT** without a runnable
   harness.
+- [ ] `TASK-F48` · **An agent creates an image into the task's deliverables**
+  — With **Image generation** on ([governance.md](governance.md) GOV-F38) and
+  an OpenRouter or OpenAI credential, signed in as a second member with
+  project edit access, **Start agent** (`tasks.agentRun.start`) on a task that
+  asks for "a square cover image for the launch post, saved as cover.png" →
+  **Details** (`tasks.run.details`) shows the agent's `workspace_tool` call to
+  `generate_image` answering `ok` with the saved path; when the run settles,
+  **Deliverables** (`tasks.outputs.label`) lists `cover.png` (or the same name
+  ending in .jpg or .webp, whichever format the model returned) and it opens
+  as the image; on `/dashboard/{org}/settings/metrics/usage` the image model appears
+  under **Top models** (`analytics.usage.tables.topModels.title`) with one
+  request per image, and **Per-user usage** books it to the member who started
+  the run, not to the task's creator — env-gated: mark **ENVIRONMENT** without
+  a runnable harness and an image-capable credential.
 
 ### The task page
 
@@ -846,6 +860,20 @@ whose credential is a subscription broker on a local Tale AI gateway
   its card shows no repeat icon, and its **Repeat**, still reading its rule, is
   locked with the same reason — and its close creates nothing and no toast —
   each also after a reload.
+- [ ] `TASK-B25` · **A reached spend cap refuses the image, not the run** —
+  With **Image generation** on, **Start agent** (`tasks.agentRun.start`) on a
+  task that asks the agent to research for a minute and then create an image
+  for the result; while it researches, add a monthly cost rule on
+  `/dashboard/{org}/settings/governance/policies-limits` (**Budget rules**,
+  `governance.budgets.title`) that caps the starting member below what they
+  have already spent → The agent's `generate_image` call answers
+  `unavailable` with `budget_exceeded` and the cap's own sentence ("Usage
+  limit reached. Your monthly cost limit is used up until …"), the agent's
+  report says no image was generated, no image lands under **Deliverables**
+  (`tasks.outputs.label`), and the usage page shows no new request for the
+  image model; the run itself still settles. Restore: delete the rule —
+  env-gated: mark **ENVIRONMENT** without a runnable harness and an
+  image-capable credential.
 
 ## Accessibility (WCAG 2.1 AA)
 

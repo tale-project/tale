@@ -8,6 +8,7 @@ import {
   featureFlagRuleSchema,
   featureFlagsConfigSchema,
   frameAncestorsOf,
+  imageGenerationConfigSchema,
   isFrameAncestorOrigin,
   mergeStrictestPasswordPolicy,
   moderationProviderConfigSchema,
@@ -412,6 +413,47 @@ describe('transcriptionModelConfigSchema', () => {
       );
     },
   );
+});
+
+describe('imageGenerationConfigSchema', () => {
+  it('is registered as the image_generation policy schema', () => {
+    expect(POLICY_SCHEMAS.image_generation).toBe(imageGenerationConfigSchema);
+  });
+
+  it('reads off, on with automatic selection, and on with a pin', () => {
+    expect(imageGenerationConfigSchema.parse({ enabled: false })).toEqual({
+      enabled: false,
+    });
+    expect(imageGenerationConfigSchema.parse({ enabled: true })).toEqual({
+      enabled: true,
+    });
+    const pinned = {
+      enabled: true,
+      providerSlug: 'openai',
+      modelId: 'gpt-image-1',
+    };
+    expect(imageGenerationConfigSchema.parse(pinned)).toEqual(pinned);
+  });
+
+  it('keeps a pin while the policy is off, so turning it on restores it', () => {
+    const parked = {
+      enabled: false,
+      providerSlug: 'openrouter',
+      modelId: 'google/gemini-2.5-flash-image',
+    };
+    expect(imageGenerationConfigSchema.parse(parked)).toEqual(parked);
+  });
+
+  it.each([
+    {},
+    { enabled: 'yes' },
+    { enabled: true, providerSlug: 'openai' },
+    { enabled: true, modelId: 'gpt-image-1' },
+    { enabled: true, providerSlug: '', modelId: '' },
+    { enabled: true, provider: 'misspelled-pin' },
+  ])('refuses a config that cannot be routed or read: %j', (config) => {
+    expect(imageGenerationConfigSchema.safeParse(config).success).toBe(false);
+  });
 });
 
 describe('reviewPolicyConfigSchema', () => {

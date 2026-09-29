@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  IMAGE_GENERATION_TAG,
   normalizeCatalogModel,
   normalizeCatalogPayload,
 } from './catalog_normalize';
@@ -377,6 +378,53 @@ describe('normalizeCatalogModel', () => {
       'p',
     );
     expect(textOut?.outputsMedia).toBeUndefined();
+  });
+
+  it('tags image generators, whether or not they also write text', () => {
+    // Abridged real entries from OpenRouter `/api/v1/models?output_modalities=image`
+    // (2026-09-29): FLUX writes only images, Gemini's image model writes both.
+    const flux = normalizeCatalogModel(
+      {
+        id: 'black-forest-labs/flux.2-pro',
+        context_length: 46_864,
+        architecture: {
+          input_modalities: ['text', 'image'],
+          output_modalities: ['image'],
+        },
+        pricing: { image_output: '0.00000732421875' },
+        supported_parameters: ['seed'],
+      },
+      'openrouter',
+    );
+    expect(flux?.tags).toEqual(['vision', IMAGE_GENERATION_TAG]);
+    expect(flux?.outputsMedia).toBe(true);
+    const gemini = normalizeCatalogModel(
+      {
+        id: 'google/gemini-2.5-flash-image',
+        context_length: 32_768,
+        architecture: {
+          input_modalities: ['image', 'text'],
+          output_modalities: ['image', 'text'],
+        },
+        pricing: { prompt: '0.0000003', completion: '0.0000025' },
+      },
+      'openrouter',
+    );
+    expect(gemini?.tags).toEqual(['chat', 'vision', IMAGE_GENERATION_TAG]);
+    expect(gemini?.outputsMedia).toBe(true);
+    // A music generator is media too, but not an image generator.
+    const music = normalizeCatalogModel(
+      {
+        id: 'google/lyria-3-clip-preview',
+        context_length: 1_048_576,
+        architecture: {
+          input_modalities: ['text', 'image'],
+          output_modalities: ['text', 'audio'],
+        },
+      },
+      'openrouter',
+    );
+    expect(music?.tags).not.toContain(IMAGE_GENERATION_TAG);
   });
 });
 

@@ -6,6 +6,10 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../../core/lib/ctx.ts';
+import {
+  inspectImageGenerationModels,
+  resolveTurnImageGeneration,
+} from '../../core/lib/providers/resolve_image_model.ts';
 import { resolveTranscriptionModel } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { resolveTurnVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import {
@@ -77,6 +81,57 @@ describe('native vision policy file admission', () => {
     });
     await writeFile(file, '{}\n');
     await expect(read('transcription_model')).resolves.toEqual({});
+  });
+
+  it('reads image generation strictly: absent and off offer no tool, a corrupt file is named, never read as on', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const handler =
+      governanceShimHandlers(sql)[
+        'governance/internal_queries:getPolicyConfigInternal'
+      ];
+    if (!handler) throw new Error('missing governance shim');
+    // Only the policy is served: any provider walk would be un-shimmed and
+    // throw, so an "off" that touched a provider fails this test.
+    const runQuery = vi.fn(async (_ref: unknown, args: unknown) => {
+      if (typeof args === 'object' && args !== null && 'policyType' in args) {
+        return handler(args);
+      }
+      throw new Error('un-shimmed provider read');
+    });
+    const ctx = { runQuery } as unknown as ActionCtx;
+    await expect(read('image_generation')).resolves.toBeNull();
+    await expect(resolveTurnImageGeneration(ctx, 'synthetic-id')).resolves.toBe(
+      null,
+    );
+
+    const file = path.join(directory, 'image-generation.yml');
+    await writeFile(
+      file,
+      'enabled: false\nproviderSlug: openai\nmodelId: gpt-image-1\n',
+    );
+    await expect(read('image_generation')).resolves.toEqual({
+      enabled: false,
+      providerSlug: 'openai',
+      modelId: 'gpt-image-1',
+    });
+    await expect(resolveTurnImageGeneration(ctx, 'synthetic-id')).resolves.toBe(
+      null,
+    );
+
+    await writeFile(file, 'enabled: true\nprovider: misspelled-pin\n');
+    await expect(read('image_generation')).rejects.toThrow('Governance policy');
+    await expect(resolveTurnImageGeneration(ctx, 'synthetic-id')).resolves.toBe(
+      null,
+    );
+    const status = await inspectImageGenerationModels(
+      ctx,
+      'synthetic-id',
+    ).catch((error: unknown) => error);
+    expect(status).toMatchObject({
+      enabled: false,
+      pick: null,
+      error: { code: 'IMAGE_GENERATION_POLICY_INVALID' },
+    });
   });
 
   it('carries a real corrupt policy through the shim to a safe managed-turn failure', async () => {

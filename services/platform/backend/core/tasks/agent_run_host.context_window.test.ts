@@ -73,7 +73,6 @@ vi.mock('../automations/agent_host', () => ({
   }),
   releaseTurnKey: async () => ({ won: true }),
   stageWorkflowSkills: async () => '',
-  workflowAgentBudgetCents: () => 500,
 }));
 vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
   const actual =
@@ -577,11 +576,18 @@ describe("the organization's Custom instructions", () => {
       expect(instructions.split(HOUSE_RULE)).toHaveLength(2);
     }
     // Read for the run's own organization, never another's.
-    expect(
-      start.queries.find(
-        (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
-      )?.args,
-    ).toEqual({ organizationId: 'org-1', policyType: 'system_prompt' });
+    // Every policy the start reads (the Custom instructions, the image
+    // generation switch) is the run's own organization's, never another's.
+    const policyReads = start.queries.filter(
+      (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
+    );
+    expect(policyReads.map((q) => q.args)).toContainEqual({
+      organizationId: 'org-1',
+      policyType: 'system_prompt',
+    });
+    for (const read of policyReads) {
+      expect(read.args).toMatchObject({ organizationId: 'org-1' });
+    }
     expect(console.error).not.toHaveBeenCalled();
   });
 

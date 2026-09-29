@@ -67,7 +67,7 @@ Select **Create agent**. Check the new row’s runtime, provider and model, then
 
 Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting.
 
-The agent’s report appears in task comments and collected files appear as deliverables. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
+The agent’s report appears in task comments and collected files appear as deliverables. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), the agent can also create images for the task; they appear among the deliverables and count against the member who started the run. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
 
 [Task automation](/platform/projects/task-automation) explains progress, stopping and review. The ordinary Chat assistant remains separate, even when a chat has project context.
 

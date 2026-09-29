@@ -56,6 +56,30 @@ Pour un endpoint personnalisé compatible OpenAI, utilise `catalog.source: model
 
 Tale envoie les champs multipart `file` et `model` à `POST <baseUrl>/audio/transcriptions`, avec une authentification Bearer. Pour OpenRouter, Tale demande `response_format: json`, car certains de ses modèles refusent `verbose_json`. Les autres endpoints compatibles doivent accepter `response_format: verbose_json`. La réponse JSON fournit la transcription dans `text`. Pour la durée, Tale privilégie une valeur `duration` valide, sinon une valeur `usage.seconds` valide. Si aucune ne convient, Tale utilise la durée mesurée localement lorsqu’elle est disponible. Des `segments` horodatés peuvent fournir les horodatages vidéo ; sans eux, la transcription reste du texte brut. La présence au catalogue ne prouve pas que cette API fonctionne. Actualise le catalogue, sélectionne le modèle, puis teste un court enregistrement et vérifie la requête dans les journaux de cet endpoint.
 
+## Configurer la génération d’images {#configure-image-generation}
+
+La politique de l’organisation se trouve dans `TALE_CONFIG_DIR/<org>/governance/image-generation.yml`, sous le type `image_generation`. La page [Modèles](/fr/platform/admin/governance/content-models#let-agents-generate-images) modifie les mêmes réglages. Une nouvelle organisation démarre avec la génération d’images désactivée, et un fichier absent signifie aussi désactivée :
+
+```yaml
+enabled: false
+```
+
+Indique `enabled: true` pour la sélection automatique, ou fixe un modèle en renseignant les deux champs :
+
+```yaml
+enabled: true
+providerSlug: openai
+modelId: gpt-image-1
+```
+
+Un modèle fixé à moitié ou un champ inconnu est invalide. Un fichier invalide ou illisible laisse la génération d’images désactivée, et la page Modèles nomme le problème. La sélection automatique essaie `google/gemini-2.5-flash-image`, `gpt-image-1-mini`, `gpt-image-1` et `black-forest-labs/flux.2-pro`, dans cet ordre, via un identifiant par défaut OpenRouter ou OpenAI. Si le modèle fixé est indisponible, Tale ne passe jamais à un autre modèle. Un modèle fixé peut rester dans le fichier tant que `enabled` vaut `false`.
+
+Le backend appelle le modèle d’images avec l’identifiant de l’organisation ; aucune clé n’entre dans la sandbox. Pour OpenRouter, il envoie `POST <baseUrl>/images`, l’API d’images d’OpenRouter, avec un format `1:1`, `3:2` ou `2:3`, et enregistre le coût que la réponse indique. Pour tout autre fournisseur, il utilise l’API d’images d’OpenAI : `POST <baseUrl>/images/generations`, ou `POST <baseUrl>/images/edits` en formulaire multipart quand l’agent transmet des images de référence ; il demande alors à un modèle d’images GPT la qualité `medium`. Tale évalue ensuite les tokens indiqués par la réponse avec les tarifs de l’entrée du modèle dans le catalogue. Tale découvre les modèles d’images d’OpenRouter via `/models?output_modalities=image`, et le catalogue OpenAI fourni contient `gpt-image-1` et `gpt-image-1-mini`.
+
+La réponse `/models` d’un endpoint personnalisé compatible OpenAI doit déclarer un modèle d’images avec `image` parmi `architecture.output_modalities` ou `modalities.output`, et un `context_length` ou `context_window` positif. Tale n’enregistre que des images matricielles (PNG, JPEG, WebP, GIF) et refuse le SVG d’un modèle ; une image de référence transmise par un agent doit être un fichier PNG, JPEG ou WebP de 4 Mo au plus. Une entrée de catalogue ne prouve pas que l’endpoint fonctionne : active la génération d’images, fixe le modèle, fais créer une image de test par un agent, puis vérifie la requête dans les journaux de l’endpoint.
+
+Un tour d’agent crée au plus 16 images et n’exécute qu’une génération à la fois. Avant chaque appel, Tale réserve 0,25 USD par image sur l’enveloppe du tour et les plafonds de budget, puis enregistre le coût indiqué à la place de cette réserve à la fin de l’appel. Un tour qui passe par un abonnement fournisseur n’a pas d’enveloppe de passerelle : ses images sont mesurées par rapport à l’enveloppe que l’installation accorde par défaut à un tour.
+
 ## Vérifier l’accès aux modèles depuis la sandbox
 
 Le chat appelle un fournisseur depuis le backend. Les agents de programmation passent par `sandbox-llm-gateway` : un chat réussi ne valide donc pas leur connexion. L’endpoint doit être résolvable et joignable depuis le backend et la passerelle. Chaque client HTTPS doit faire confiance à son certificat. Un nom comme `https://models.internal/v1` exige lui aussi l’autorisation des fournisseurs privés lorsque le DNS renvoie une adresse privée. HTTP reste limité aux formes d’hôtes acceptées par le schéma, comme une IP privée, `localhost` ou `.local`.

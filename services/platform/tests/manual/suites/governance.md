@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 61 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -21,7 +21,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
-| Content & Models      | `content-models`                          | Default models, Model access, Vision model, Audio transcription model                       |
+| Content & Models      | `content-models`                          | Default models, Model access, Vision model, Image generation, Audio transcription model     |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
@@ -436,6 +436,29 @@ select lists every member's live key, read from
   `governance_policy.created` then `governance_policy.updated` row for
   `skill_sharing`; a Member never reaches the page. What each mode does to
   skills is `SKILL-B5` / `SKILL-B6`.
+- [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
+  `content-models` in a fresh organization, find **Image generation**
+  (`governance.imageGeneration.title`), then **Start agent**
+  (`tasks.agentRun.start`) on a task whose description asks the agent to call
+  `workspace_status` and list the workspace tools it was granted → The
+  section's switch (`governance.imageGeneration.enabledLabel`) is off, no
+  **Image model** row (`governance.imageGeneration.label`) shows, and the
+  agent's report lists no `generate_image`. Turn the switch on and reload → it
+  is still on; **Image model** reads **Automatic**
+  (`governance.imageGeneration.automaticLabel`) and the line below names the
+  model a turn would use (`governance.imageGeneration.currentModel.preferred`),
+  or, with neither an OpenRouter nor an OpenAI credential, the warning
+  `governance.imageGeneration.noAvailable` shows; a new run's report now lists
+  `generate_image`. Restore: switch it off — env-gated: mark the two runs
+  **ENVIRONMENT** without a runnable harness.
+- [ ] `GOV-F39` · **Pin an image model** — With **Image generation** on, open
+  **Image model** (`governance.imageGeneration.label`), pick a listed model
+  (e.g. `OpenAI · gpt-image-1`), **Save** (`common.actions.save`) and reload →
+  The list offers only image models the organization's credentials reach,
+  never a chat model; the pin survives the reload and
+  `governance.imageGeneration.currentModel.pinned` names it. Switch image
+  generation off and on again → the same pin is still selected. Restore: pick
+  **Automatic**, **Save**, and switch image generation off.
 
 ## Boundary & error tests
 
@@ -504,13 +527,24 @@ select lists every member's live key, read from
   message (`accessDenied.organization`) renders, and no request names
   `budgets`, `retention_policy`, `voice_output`, `conversation_routing`,
   `login_policy`, `password_policy`, `two_factor_policy`, `model_access`,
-  `vision_model` or `transcription_model`; no `governance/policies` request
+  `vision_model`, `image_generation` or `transcription_model`; no
+  `governance/policies` request
   answers 403. As an **admin** in the other profile, open `policies-limits`
   by URL the same way → **Budget rules** (`governance.budgets.title`),
   **Retention policy** (`governance.retentionPolicy.title`), **Voice output**
   (`governance.voiceOutput.title`) and **Conversation routing**
   (`governance.conversationRouting.title`) paint their saved state, and every
   policy read answers 200.
+- [ ] `GOV-B14` · **An unavailable image model refuses, never falls back** —
+  With **Image generation** on and a model pinned (GOV-F39), disable the
+  default credential of the pinned model's provider on
+  `/dashboard/{org}/settings/providers`, reload `content-models`, then **Start
+  agent** (`tasks.agentRun.start`) on a task that asks the agent to list its
+  workspace tools → The picker still shows the saved pin, marked
+  `governance.imageGeneration.savedUnavailable`, above the warning
+  `governance.imageGeneration.unavailable`; the run's report lists no
+  `generate_image`, and no other model stands in. Restore the credential —
+  env-gated: mark the run **ENVIRONMENT** without a runnable harness.
 
 ## Accessibility (WCAG 2.1 AA)
 

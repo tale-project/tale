@@ -26,7 +26,6 @@ import {
   liveProgressSink,
   releaseTurnKey,
   stageWorkflowSkills,
-  workflowAgentBudgetCents,
 } from '../automations/agent_host';
 import {
   buildExternalTurnExec,
@@ -36,6 +35,7 @@ import {
   spendRefusalReason,
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
+  harnessMountsMcp,
   resolveHarnessTurnContextWindow,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
@@ -43,6 +43,7 @@ import { readMandatoryInstructions } from '../chat/guardrails';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
+import { resolveTurnImageGeneration } from '../lib/providers/resolve_image_model';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import {
   refuseBlindImageTurn,
@@ -82,9 +83,14 @@ import {
   resolveProviderCredential,
   runFailureMessage,
 } from '../provider_credentials/resolve_credential';
-import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
+import {
+  agentWorkTurnDeadlineMs,
+  workflowAgentBudgetCents,
+} from '../sandbox/agent_deadline';
 import {
   grantedToolsGuidance,
+  IMAGE_GENERATION_TOOL,
+  imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
   KNOWLEDGE_TOOLS_GUIDANCE,
   normalizeToolGrants,
@@ -707,8 +713,11 @@ async function mintTurnServing(
  * authenticate. It carries the connectors and tools the agent was EQUIPPED
  * with and, when it has connectors, the exec whose task run its connector
  * calls act through: the bridge acts for that run's starter while the run is
- * live. The first start and a steer restart both write through here, so a
- * restarted turn can never lose what its first exec could do.
+ * live. A turn the organization lets generate images also gets
+ * `generate_image` and the op it serves (`turnOp`), which books the images
+ * under the run's starter and delivers them into this task's box. The first
+ * start and a steer restart both write through here, so a restarted turn can
+ * never lose what its first exec could do.
  */
 export async function insertTaskTurnSessionToken(
   ctx: ActionCtx,
@@ -720,6 +729,8 @@ export async function insertTaskTurnSessionToken(
     harness: string;
     connectors: readonly string[];
     tools: readonly string[];
+    /** The organization's image generation is on and a model resolved. */
+    imageGeneration: boolean;
     deadlineAt: number;
     prepared: Pick<
       PreparedServing,
@@ -748,13 +759,22 @@ export async function insertTaskTurnSessionToken(
       // session's project binding at dispatch, so the grant alone never
       // widens what the run can read) PLUS the agent's configured tool
       // grants — writes included, since an explicit grant IS the
-      // standing authorization on this async lane.
-      toolGrants: [...KNOWLEDGE_READ_TOOLS, ...normalizeToolGrants(args.tools)],
+      // standing authorization on this async lane — PLUS image generation
+      // while the organization's policy offers it.
+      toolGrants: [
+        ...KNOWLEDGE_READ_TOOLS,
+        ...normalizeToolGrants(args.tools),
+        ...(args.imageGeneration ? [IMAGE_GENERATION_TOOL] : []),
+      ],
       // Read by the connectors bridge alone, and it names the exec, never
       // the person. It is not `userId`: the workspace tools read that one as
       // a user-keyed session, and would fall back to reading org-wide as the
       // starter wherever this session's project binding stops resolving.
       ...(connectorCaller !== undefined ? { connectorCaller } : {}),
+      // Read by `generate_image` alone; names the exec, never the person.
+      ...(args.imageGeneration
+        ? { turnOp: { kind: 'task-agent' as const, execId: args.execId } }
+        : {}),
     },
     expiresAt: args.deadlineAt,
   });
@@ -1028,6 +1048,12 @@ export async function startTaskAgentTurnImpl(
           brokerTokenHash: prepared.brokerTokenHash ?? null,
         },
       );
+      // Offered only on a harness that mounts the bridge, while the
+      // organization's policy is on AND a model resolves — an absent tool,
+      // not a dead instruction, otherwise.
+      const imageModel = harnessMountsMcp(args.harness)
+        ? await resolveTurnImageGeneration(ctx, args.organizationId)
+        : null;
       await insertTaskTurnSessionToken(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
@@ -1035,6 +1061,7 @@ export async function startTaskAgentTurnImpl(
         harness: args.harness,
         connectors: args.connectors,
         tools: args.tools,
+        imageGeneration: imageModel !== null,
         deadlineAt: args.deadlineAt,
         prepared,
       });
@@ -1124,6 +1151,7 @@ export async function startTaskAgentTurnImpl(
         `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(imageModel !== null ? [imageGenerationGuidance(outputDir)] : []),
         ...(visionGuidance !== '' ? [visionGuidance] : []),
         ...secretsGuidance(args.secrets),
       ].join('\n\n');
@@ -2163,7 +2191,11 @@ export async function steerTaskAgentTurnImpl(
         brokerTokenHash: prepared.brokerTokenHash ?? null,
       },
     );
-    // The same grant set and caller as the first start, for the rotated exec.
+    // The same grant set and caller as the first start, for the rotated exec
+    // — image generation re-decided against the policy as it is now.
+    const imageModel = harnessMountsMcp(args.harness)
+      ? await resolveTurnImageGeneration(ctx, args.organizationId)
+      : null;
     await insertTaskTurnSessionToken(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
@@ -2171,6 +2203,7 @@ export async function steerTaskAgentTurnImpl(
       harness: args.harness,
       connectors: args.connectors,
       tools: args.tools,
+      imageGeneration: imageModel !== null,
       deadlineAt: args.deadlineAt,
       prepared,
     });
@@ -2274,6 +2307,7 @@ export async function steerTaskAgentTurnImpl(
       `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
       KNOWLEDGE_TOOLS_GUIDANCE,
       ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+      ...(imageModel !== null ? [imageGenerationGuidance(outputDir)] : []),
       ...(visionGuidance !== '' ? [visionGuidance] : []),
       ...secretsGuidance(args.secrets),
     ].join('\n\n');

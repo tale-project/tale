@@ -56,6 +56,30 @@ Für einen eigenen OpenAI-kompatiblen Endpunkt verwende `catalog.source: models-
 
 Tale sendet die Multipart-Felder `file` und `model` mit Bearer-Authentifizierung an `POST <baseUrl>/audio/transcriptions`. Bei OpenRouter fordert Tale `response_format: json` an, weil einige der dort verfügbaren Modelle `verbose_json` ablehnen. Andere kompatible Endpunkte müssen `response_format: verbose_json` unterstützen. Die JSON-Antwort liefert das Transkript als `text`. Tale verwendet zuerst eine gültige `duration`, ersatzweise eine gültige `usage.seconds`. Ist keiner der Werte nutzbar, verwendet Tale eine lokal gemessene Dauer, soweit verfügbar. Zeitangaben in `segments` können Videozeitstempel liefern; ohne sie bleibt das Transkript reiner Text. Ein Katalogeintrag beweist nicht, dass diese API funktioniert. Aktualisiere den Katalog, wähle das Modell, teste eine kurze Aufnahme und prüfe die Anfrage in den Logs dieses Endpunkts.
 
+## Bildgenerierung konfigurieren {#configure-image-generation}
+
+Die Organisationsrichtlinie liegt unter `TALE_CONFIG_DIR/<org>/governance/image-generation.yml` und hat den Richtlinientyp `image_generation`. Die Seite [Modelle](/de/platform/admin/governance/content-models#let-agents-generate-images) bearbeitet dieselben Einstellungen. Eine neue Organisation startet mit ausgeschalteter Bildgenerierung, und auch eine fehlende Datei bedeutet aus:
+
+```yaml
+enabled: false
+```
+
+Setze `enabled: true` für die automatische Auswahl, oder lege ein Modell fest, indem du beide Felder angibst:
+
+```yaml
+enabled: true
+providerSlug: openai
+modelId: gpt-image-1
+```
+
+Eine unvollständige Festlegung oder ein unbekanntes Feld ist ungültig. Bei einer ungültigen oder nicht lesbaren Datei bleibt die Bildgenerierung aus, und die Seite Modelle nennt das Problem. Die automatische Auswahl versucht `google/gemini-2.5-flash-image`, `gpt-image-1-mini`, `gpt-image-1` und `black-forest-labs/flux.2-pro` in dieser Reihenfolge, jeweils über einen Standardzugang für OpenRouter oder OpenAI. Ist das festgelegte Modell nicht verfügbar, wechselt Tale nie zu einem anderen Modell. Eine Festlegung darf in der Datei bleiben, während `enabled` auf `false` steht.
+
+Das Backend ruft das Bildmodell mit dem Zugang der Organisation auf; kein Schlüssel gelangt in die Sandbox. Bei OpenRouter sendet es `POST <baseUrl>/images` mit dem Seitenverhältnis `1:1`, `3:2` oder `2:3` an OpenRouters Image-API und erfasst die Kosten, die die Antwort meldet. Bei jedem anderen Anbieter nutzt es die Bild-API von OpenAI: `POST <baseUrl>/images/generations`, oder `POST <baseUrl>/images/edits` als Multipart-Formular, wenn der Agent Referenzbilder mitgibt; ein GPT-Bildmodell fragt es dabei in der Qualität `medium` an. Die gemeldeten Tokens bewertet Tale dann mit den Preisen aus dem Katalogeintrag des Modells. Die Bildmodelle von OpenRouter findet Tale unter `/models?output_modalities=image`, und der mitgelieferte OpenAI-Katalog enthält `gpt-image-1` und `gpt-image-1-mini`.
+
+Die Antwort eines eigenen OpenAI-kompatiblen Endpunkts auf `/models` muss ein Bildmodell mit `image` unter `architecture.output_modalities` oder `modalities.output` und einem positiven `context_length` oder `context_window` ausweisen. Tale speichert nur Rasterbilder (PNG, JPEG, WebP, GIF) und lehnt SVG-Ausgaben eines Modells ab; ein Referenzbild, das ein Agent mitgibt, muss eine PNG-, JPEG- oder WebP-Datei von höchstens 4 MB sein. Ein Katalogeintrag beweist nicht, dass der Endpunkt funktioniert: Schalte die Bildgenerierung ein, lege das Modell fest, lass einen Agenten ein Testbild erstellen und prüfe die Anfrage in den Logs des Endpunkts.
+
+Ein Zug eines Agenten erstellt höchstens 16 Bilder und führt jeweils nur eine Generierung aus. Vor jedem Aufruf hält Tale 0,25 USD pro Bild gegen den Rahmen des Zugs und die Budgetgrenzen fest und bucht nach dem Aufruf die gemeldeten Kosten an ihrer Stelle. Ein Zug über ein Anbieter-Abonnement hat keinen Gateway-Rahmen; seine Bilder werden an dem Rahmen gemessen, den die Installation einem Zug standardmäßig gibt.
+
 ## Modellzugriff aus der Sandbox prüfen
 
 Chats rufen einen Anbieter aus dem Backend auf. Coding-Agenten verwenden `sandbox-llm-gateway`; ein erfolgreicher Chat belegt daher nicht den Agentenpfad. Der Endpunkt muss aus Backend und Gateway auflösbar und erreichbar sein. Beide HTTPS-Clients müssen seinem Zertifikat vertrauen. Auch ein Name wie `https://models.internal/v1` braucht die Freigabe privater Anbieter, wenn DNS ihn zu einer privaten Adresse auflöst. HTTP bleibt auf die vom Anbieterschema akzeptierten Hostformen begrenzt, etwa private IP-Adressen, `localhost` und `.local`.

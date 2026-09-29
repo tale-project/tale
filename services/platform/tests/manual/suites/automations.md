@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 75 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 76 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -581,6 +581,19 @@ output:
       Member's project tab strip has no **Automations** tab while the author's
       does; once that automation is deployed the tab appears for the Member
       and lists it.
+- [ ] `AUTO-F54` · **An agent node creates an image into its output** — With
+      **Image generation** on ([governance.md](governance.md) GOV-F38), test-run
+      an automation whose `agent` node asks for "a landscape banner saved as
+      banner.png" → The run detail's **Agent log**
+      (`automations.runs.agentLog.title`) shows the `generate_image` call
+      answering `ok` with a path in the run's output folder (/agent/output),
+      the node's output lists `banner.png` (or the format the model returned)
+      among its `files`, and the usage page books the image under the person
+      who started the run and the automation's name; turn image generation off
+      and run it again →
+      the agent reports it has no image tool and the node's `files` hold no
+      image — env-gated: mark **ENVIRONMENT** without a runnable harness and an
+      image-capable credential.
 
 ## Boundary & error tests
 

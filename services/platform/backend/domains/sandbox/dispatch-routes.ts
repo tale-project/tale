@@ -7,6 +7,10 @@ import {
   dispatchWorkspaceToolImpl,
   workspaceToolStatusImpl,
 } from '../../core/node_only/sandbox/workspace_tools_bridge.ts';
+import {
+  readTurnOpRef,
+  type TurnOpRef,
+} from '../../core/sandbox/tool_names.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { sandboxDoorBodyLimit, toolResultTooLarge } from './door-body-limit.ts';
 import { getSessionTokenByHash } from './sessions.ts';
@@ -36,6 +40,8 @@ interface DispatchAuth {
   toolGrants: string[];
   userId?: string;
   mintedKeyId?: string;
+  /** The turn the token serves (`scope.turnOp`), when it records one. */
+  turn?: TurnOpRef;
 }
 
 async function authSessionToken(
@@ -49,6 +55,7 @@ async function authSessionToken(
   const tokenHash = createHash('sha256').update(token).digest('hex');
   const row = await getSessionTokenByHash(sql, tokenHash);
   if (row === null) return null;
+  const turn = readTurnOpRef(row.scope.turnOp);
   return {
     organizationId: row.organizationId,
     sessionId: row.sessionId,
@@ -57,6 +64,7 @@ async function authSessionToken(
     ...(row.llmGatewayKeyId !== null
       ? { mintedKeyId: row.llmGatewayKeyId }
       : {}),
+    ...(turn !== undefined ? { turn } : {}),
   };
 }
 
@@ -115,6 +123,7 @@ export function createToolDispatchRoutes(deps: { sql: Sql }): Hono {
         ...(auth.mintedKeyId !== undefined
           ? { mintedKeyId: auth.mintedKeyId }
           : {}),
+        ...(auth.turn !== undefined ? { turn: auth.turn } : {}),
         tool,
         callArgs,
       },

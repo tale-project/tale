@@ -40,6 +40,8 @@ describe('CHAT_ASSISTANT', () => {
   it('keeps persona, honesty, the Task boundary, and the format ban', () => {
     expect(instructions).toMatch(/never invent facts/i);
     expect(instructions).toContain('DELIVERABLES GO TO TASKS');
+    // An image is agent work too: chat never generates one.
+    expect(instructions).toMatch(/a generated file, an image, a data export/);
     expect(instructions).toMatch(/internal formats/i);
     expect(instructions).toMatch(/cite the documents and pages/i);
   });

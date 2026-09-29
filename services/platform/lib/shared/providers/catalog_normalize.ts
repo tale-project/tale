@@ -42,6 +42,13 @@ import {
   type ModelCatalogEntry,
 } from '@tale/shared/schemas/providers';
 
+/**
+ * The catalog tag of a model that GENERATES images — derived here from a
+ * live listing's output modalities, declared by hand in a static catalog
+ * (`configs/platform/system/models/<provider>/models.yml`).
+ */
+export const IMAGE_GENERATION_TAG = 'image-generation';
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -88,6 +95,10 @@ function deriveTags(args: {
   isTranscription: boolean;
 }): string[] {
   if (args.isTranscription) return ['transcription'];
+  // An image GENERATOR — the fact the image-generation resolver and its
+  // settings picker select on. Additive: a model that also writes text keeps
+  // its chat tag below, and the chat lists still skip it on `outputsMedia`.
+  const generatesImages = args.outputModalities.includes('image');
   const tags: string[] = [];
   // OpenRouter spells the output modality PLURAL ('embeddings'); other
   // sources and the entry-type vocabulary use the singular. Accept both —
@@ -107,6 +118,7 @@ function deriveTags(args: {
     tags.push('chat');
   }
   if (args.supportsVision) tags.push('vision');
+  if (generatesImages) tags.push(IMAGE_GENERATION_TAG);
   return tags;
 }
 

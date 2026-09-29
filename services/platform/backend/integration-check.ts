@@ -88,6 +88,7 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
@@ -55976,6 +55977,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),
+      ],
+      [
+        'checkImageGenerationAdmission',
+        () => checkImageGenerationAdmission(sql, authCtx, record),
       ],
       [
         'checkSandboxDevices',
