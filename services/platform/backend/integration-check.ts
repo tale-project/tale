@@ -69,6 +69,7 @@ import { checkAutomationProjectVisibility } from './domains/automations/project-
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
@@ -55962,6 +55963,10 @@ async function main(): Promise<void> {
       [
         'checkConnectorOauthIntent',
         () => checkConnectorOauthIntent(sql, baseUrl, record),
+      ],
+      [
+        'checkConnectorCredentialLiveListing',
+        () => checkConnectorCredentialLiveListing(sql, baseUrl, record),
       ],
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
