@@ -64,6 +64,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
@@ -55509,6 +55510,23 @@ async function main(): Promise<void> {
       [
         'checkAutomationsDeadSchemaDropped',
         () => checkAutomationsDeadSchemaDropped(sql),
+      ],
+      [
+        'checkAutomationProjectVisibility',
+        async () =>
+          checkAutomationProjectVisibility(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'automation-project-reader',
+              'member',
+            ),
+            record,
+          ),
       ],
       [
         'checkAutomationRunLifecycle',

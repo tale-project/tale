@@ -49,7 +49,7 @@ describe('answerAsk', () => {
     expect(read?.values).toContain('ask-1');
   });
 
-  it('reads without a run predicate when no run is named (the app door)', async () => {
+  it('keeps the unscoped internal caller contract when no run is named', async () => {
     const { sql, statements } = fakeSql();
     await expect(answerAsk(sql, args)).rejects.toMatchObject({
       code: 'HUMAN_ASK_NOT_FOUND',
