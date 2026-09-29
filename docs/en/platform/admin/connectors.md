@@ -18,12 +18,12 @@ The connector determines which fields appear. Use the account's actual credentia
 
 | Method | Required information |
 | --- | --- |
-| API key | The key issued by the service, such as Tavily or Shopify. |
-| Token | A service token, such as a GitHub personal access token or Discord bot token. |
+| API key | The key issued by the service, such as Tavily or Shopify. Jev decisions takes an OpenRouter API key. |
+| Token | A service token, such as a GitHub personal access token, a Discord bot token, or a GlitchTip API token with `project:read` and `event:read`. |
 | Username and password | The service's expected pair. This can be a login and app password, or a vendor-specific ID and token. |
 | OAuth | Authorization in the vendor's browser flow; Tale stores the returned authorization. |
 
-Some connectors also require an instance address. For Confluence, use the Atlassian site origin. For Shopify, use the store's `myshopify.com` origin, not the customer-facing storefront domain.
+Some connectors also require an instance address. For Confluence, use the Atlassian site origin. For GlitchTip, use the instance origin, such as `https://app.glitchtip.com`; a self-hosted instance must also be allowed by the deployment's connector host policy. For Shopify, use the store's `myshopify.com` origin, not the customer-facing storefront domain.
 
 ## Choose the default
 

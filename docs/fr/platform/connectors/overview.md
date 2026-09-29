@@ -16,9 +16,11 @@ Utilise un connector lorsque Tale doit lire ou modifier les données d’un serv
 | Confluence | Importer des pages Confluence Cloud dans les connaissances. | Nom d’utilisateur avec mot de passe ou jeton. |
 | Discord | Travailler avec les messages et canaux. | Jeton. |
 | GitHub | Lire ou gérer dépôts, issues et pull requests. | Jeton. |
+| GlitchTip | Lire les issues d’un projet pour que l’import GlitchTip en fasse des tâches. | Jeton et une URL de l'instance. |
 | Gmail | Lire, envoyer et organiser le courrier. | OAuth. |
 | Google Drive | Importer des fichiers dans les connaissances. | OAuth. |
 | IMAP / SMTP Mailbox | Lire ou envoyer du courrier via un service privé. | Nom d’utilisateur et mot de passe. |
+| Jev decisions | Répondre à des questions typées sur les données d’un workflow avec des probabilités calibrées, pour décider s’il faut agir. | Clé API (une clé OpenRouter). |
 | Microsoft Outlook | Travailler avec courrier, calendriers et contacts. | OAuth. |
 | Shopify | Travailler avec produits, clients et commandes. | Clé API. |
 | Slack | Travailler avec les messages et canaux. | OAuth. |
@@ -35,7 +37,7 @@ Les imports de connaissances utilisent l’[indexation des documents](/fr/platfo
 
 Choisis **Ajouter des identifiants**, recherche le service et ouvre sa carte. Les connectors déjà configurés apparaissent en premier, mais tu peux ajouter un autre compte pour le même service. Le formulaire demande l’authentification prise en charge.
 
-<Frame caption="Ajouter des identifiants s’ouvre sur le catalogue — les treize connecteurs livrés, ceux qui ont déjà un identifiant en premier.">
+<Frame caption="Ajouter des identifiants s’ouvre sur le catalogue — les connecteurs livrés, ceux qui ont déjà un identifiant en premier.">
 
 ![La boîte de dialogue Ajouter des identifiants par-dessus la table de Paramètres > Connectors, qui liste les connecteurs livrés sous forme de cartes avec leurs catégories et leur nombre d’actions, un champ de recherche en haut et le connecteur Tavily déjà configuré en tête de liste.](/images/platform/connectors-add-credential.webp)
 
@@ -43,7 +45,7 @@ Choisis **Ajouter des identifiants**, recherche le service et ouvre sa carte. Le
 
 Le champ **Nom** est prérempli avec le nom du connecteur. Si tu ajoutes plusieurs comptes pour le même service, remplace-le par un nom qui indique l’usage, par exemple `Boîte support` ou `Bot de publication`. Utilise ceux du service externe, pas une clé API Tale. Pour OAuth, connecte-toi chez le fournisseur avec le compte à ajouter et termine le consentement. Chaque connexion ajoute de nouveaux identifiants, nommés d’après le connecteur puis numérotés (`Gmail`, puis `Gmail 2`) ; Slack en garde un seul jeu par espace. Renomme les nouveaux identifiants pour distinguer les comptes. Si le parcours ne démarre pas, un administrateur doit peut-être configurer l’app OAuth d’abord.
 
-Confluence et Shopify demandent une **URL de l'instance** pour chaque compte. Utilise l’origine du site Atlassian ou l’adresse `myshopify.com` de la boutique, pas une page quelconque ni le domaine destiné aux clients. [Identifiants des connectors](/fr/platform/admin/connectors) explique les champs, la reconnexion et le renouvellement des secrets.
+Confluence, GlitchTip et Shopify demandent une **URL de l'instance** pour chaque compte. Utilise l’origine du site Atlassian, l’origine de l’instance GlitchTip comme `https://app.glitchtip.com` ou l’adresse `myshopify.com` de la boutique, pas une page quelconque ni le domaine destiné aux clients. Une instance GlitchTip auto-hébergée doit aussi être autorisée par la politique d’hôtes des connectors du déploiement. [Identifiants des connectors](/fr/platform/admin/connectors) explique les champs, la reconnexion et le renouvellement des secrets.
 
 ## Déterminer le compte utilisé
 
@@ -55,7 +57,7 @@ Désactiver des identifiants conserve leur configuration mais empêche leur usag
 
 ## Distinguer lectures et écritures
 
-Les automatisations utilisent les actions comme nœuds de workflow. Chaque action définit son schéma d’entrée, sa sortie et son effet de lecture ou d’écriture. Les essais simulent les réponses. Lors d’une exécution réelle, une écriture peut envoyer un message ou modifier des données externes et suit la politique d’approbation de l’organisation.
+Les automatisations utilisent les actions comme nœuds de workflow. Chaque action définit son schéma d’entrée, sa sortie et son effet de lecture ou d’écriture. GlitchTip et Jev decisions ne font que lire : l’import GlitchTip crée des tâches Tale sans jamais modifier l’issue d’origine, et une décision Jev répond à chaque question avec ses probabilités sans rien écrire. Chaque décision est facturée au compte OpenRouter dont la clé figure dans les identifiants. Les essais simulent les réponses. Lors d’une exécution réelle, une écriture peut envoyer un message ou modifier des données externes et suit la politique d’approbation de l’organisation.
 
 Les agents de projet dont les connectors sont configurés reçoivent les actions de lecture prises en charge via le broker de Tale. Il conserve ces identifiants hors de la sandbox et renvoie les résultats. Il refuse les écritures des connectors. Les outils GitHub directs et les secrets explicitement accordés suivent d’autres voies et demandent une vérification distincte.
 

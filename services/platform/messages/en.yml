@@ -5982,6 +5982,9 @@ settings:
       endpointHelpShopify:
         Your store's myshopify.com origin — the admin address, not the
         storefront domain.
+      endpointHelpGlitchtip:
+        Your GlitchTip instance origin, such as https://app.glitchtip.com. A
+        self-hosted instance works once the deployment allows its host.
       endpointHelpGeneric: The https origin of the instance this credential belongs to.
   enterpriseSso:
     connected: Sign-in is enabled.

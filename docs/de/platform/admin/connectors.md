@@ -18,12 +18,12 @@ Der Connector bestimmt die Felder. Verwende die tatsächlichen Zugangsdaten des 
 
 | Methode | Benötigte Angaben |
 | --- | --- |
-| API-Schlüssel | Der vom Dienst ausgegebene Schlüssel, etwa für Tavily oder Shopify. |
-| Token | Ein Dienst-Token, etwa ein persönlicher GitHub-Zugangstoken oder ein Discord-Bot-Token. |
+| API-Schlüssel | Der vom Dienst ausgegebene Schlüssel, etwa für Tavily oder Shopify. Jev decisions braucht einen OpenRouter-API-Schlüssel. |
+| Token | Ein Dienst-Token, etwa ein persönlicher GitHub-Zugangstoken, ein Discord-Bot-Token oder ein GlitchTip-API-Token mit `project:read` und `event:read`. |
 | Benutzername und Passwort | Das vom Dienst erwartete Paar, etwa Anmeldung und App-Passwort oder eine anbieterspezifische ID mit Token. |
 | OAuth | Die Freigabe im Browser beim Anbieter. Tale speichert die zurückgegebene Berechtigung. |
 
-Manche Connectors benötigen zusätzlich die Adresse der Instanz. Für Confluence ist das die Basisadresse der Atlassian-Site. Für Shopify verwendest du die `myshopify.com`-Adresse des Shops, nicht die öffentliche Shop-Domain.
+Manche Connectors benötigen zusätzlich die Adresse der Instanz. Für Confluence ist das die Basisadresse der Atlassian-Site. Für GlitchTip ist das der Ursprung der Instanz, etwa `https://app.glitchtip.com`; eine selbst betriebene Instanz muss zusätzlich in der Host-Richtlinie der Bereitstellung für Connectors erlaubt sein. Für Shopify verwendest du die `myshopify.com`-Adresse des Shops, nicht die öffentliche Shop-Domain.
 
 ## Einen Standard wählen
 

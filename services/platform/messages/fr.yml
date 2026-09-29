@@ -5898,6 +5898,10 @@ settings:
       endpointHelpShopify:
         L'adresse myshopify.com de ta boutique — l'adresse d'administration,
         pas le domaine de la vitrine.
+      endpointHelpGlitchtip:
+        L'adresse de ton instance GlitchTip, par exemple
+        https://app.glitchtip.com. Une instance auto-hébergée fonctionne dès
+        que le déploiement autorise son hôte.
       endpointHelpGeneric: L'origine https de l'instance à laquelle appartiennent ces identifiants.
   enterpriseSso:
     connected: La connexion est activée.

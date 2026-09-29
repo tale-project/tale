@@ -18,12 +18,12 @@ Le connecteur détermine les champs. Utilise les identifiants du compte externe,
 
 | Méthode | Informations nécessaires |
 | --- | --- |
-| Clé API | La clé fournie par le service, par exemple Tavily ou Shopify. |
-| Token | Un jeton du service, comme un token d’accès personnel GitHub ou un token de bot Discord. |
+| Clé API | La clé fournie par le service, par exemple Tavily ou Shopify. Jev decisions demande une clé API OpenRouter. |
+| Token | Un jeton du service, comme un token d’accès personnel GitHub, un token de bot Discord ou un token d’API GlitchTip avec `project:read` et `event:read`. |
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 
-Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
+Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour GlitchTip, utilise l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance auto-hébergée doit aussi être autorisée par la politique d’hôtes des connectors du déploiement. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
 ## Choisir les identifiants par défaut
 

@@ -93,8 +93,8 @@ export function toConnectorVendor(summary: ConnectorSummary): ConnectorVendor {
     key: summary.slug,
     displayName: summary.displayName,
     iconUrl: summary.iconUrl,
-    // Confluence and Shopify name their own instance per credential; the
-    // others talk to one fixed vendor host.
+    // Confluence, GlitchTip and Shopify name their own instance per
+    // credential; the others talk to one fixed vendor host.
     needsEndpoint: summary.endpointMode === 'per-credential',
     summary,
   };
