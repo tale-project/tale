@@ -36,10 +36,10 @@ import {
  *
  * Writing a hub folder — creating, renaming, re-teaming — takes the
  * documents write role on top of seeing the folder
- * (`assertHubFolderWriteRole`): a folder's scope is its documents' scope,
- * so a read-only member who could re-team one would publish documents
- * they may not change themselves. A project folder answers to the project
- * matrix instead (`assertProjectFolderWrite`).
+ * (`assertHubFolderWriteRole`): a re-team rewrites the audience of every
+ * folder and document below it, so a read-only member who could re-team
+ * one would publish documents they may not change themselves. A project
+ * folder answers to the project matrix instead (`assertProjectFolderWrite`).
  *
  * Deletion lives with the documents domain: `DELETE /folders/:folderId`
  * runs `documents/service.ts` `deleteFolderCascade` (subtree trash with the

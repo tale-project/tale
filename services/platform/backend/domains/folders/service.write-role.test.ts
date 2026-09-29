@@ -1,13 +1,13 @@
 // @vitest-environment node
 
 /**
- * The hub folder doors take the documents write role (#3592). A folder's
- * scope is its documents' scope: `updateFolderTeams` rewrites the audience
- * of every folder and document below it, so a read-only `member` who could
- * re-team a team folder published documents they may not change themselves
- * — while create and rename checked only that the caller could see the
- * folder. Each door now refuses a member before it writes anything, and a
- * project folder still answers to the project matrix, refusal for refusal.
+ * The hub folder doors take the documents write role (#3592).
+ * `updateFolderTeams` rewrites the audience of every folder and document
+ * below the folder, so a read-only `member` who could re-team a team folder
+ * published documents they may not change themselves — while create and
+ * rename checked only that the caller could see the folder. Each door now
+ * refuses a member before it writes anything, and a project folder still
+ * answers to the project matrix, refusal for refusal.
  */
 
 import type { TransactionSql } from 'postgres';
