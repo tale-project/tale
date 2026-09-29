@@ -41,12 +41,14 @@ Le **Taux de réussite** est la part des exécutions terminées qui ont réussi�
 
 | Indicateur | Ce qu’il mesure |
 | --- | --- |
-| **Terminées** | Les tâches passées à **Terminé** pendant la période, réparties entre celles qu’un agent et celles qu’une personne ont terminées. |
+| **Terminées** | Les tâches passées à **Terminé** pendant la période, réparties selon leur assignation actuelle : les tâches assignées à un agent et toutes les autres. |
 | **Temps de cycle moyen** | Le temps moyen entre le premier passage d’une tâche à **En cours** et son arrivée à **Terminé**. Une tâche qui n’est jamais passée par **En cours** n’a pas de temps de cycle. |
-| **Taux d'intervention** | Les modifications demandées lors de la revue et les questions que les agents ont posées à des personnes, rapportées aux exécutions d’agent lancées pendant la période. |
+| **Taux d'intervention** | Les modifications demandées lors de la revue et les questions que les agents ont posées à des personnes, avec ou sans réponse, rapportées aux exécutions d’agent lancées pendant la période. |
 | **Dépenses** | Le coût des exécutions d’agent du projet, avec le nombre d’exécutions lancées et échouées. |
 
-Les graphiques en dessous montrent les tâches ouvertes par statut à la fin de chaque jour, les tâches créées et terminées chaque jour, l’évolution du temps de cycle, les tâches terminées par des agents et par des personnes, et les dépenses quotidiennes. Si le taux d’intervention augmente alors que le nombre d’exécutions reste stable, les personnes renvoient davantage de travail ou répondent à davantage de questions. Lis alors les tâches en revue avant de modifier les instructions de l’agent dans [Créer et gérer des agents de projet](/fr/platform/projects/project-agents).
+Les graphiques en dessous montrent les tâches ouvertes par statut à la fin de chaque jour, les tâches créées et terminées chaque jour, l’évolution du temps de cycle, les tâches terminées chaque jour réparties entre **Agents** et **Humains**, et les dépenses quotidiennes. Comme celle sous **Terminées**, cette répartition suit l’assignation actuelle de chaque tâche, peu importe qui l’a terminée : une tâche assignée à un agent compte pour les agents même si une personne l’a passée à **Terminé**, et une tâche assignée à une personne ou à une automatisation, ou qui n’est assignée à personne, compte pour les humains. Cela vaut aussi pour les jours passés : si une tâche est assignée plus tard à un agent ou perd son agent, par exemple parce qu’il a été supprimé, elle change de côté.
+
+Si le taux d’intervention augmente alors que le nombre d’exécutions reste stable, les personnes renvoient davantage de travail ou les agents posent davantage de questions. Chaque question compte le jour où un agent la pose, qu’elle reçoive une réponse ou non. Lis les tâches en revue avant de modifier les instructions de l’agent dans [Créer et gérer des agents de projet](/fr/platform/projects/project-agents).
 
 ## Bien lire les chiffres
 

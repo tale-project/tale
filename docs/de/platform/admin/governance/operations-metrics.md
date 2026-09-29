@@ -41,12 +41,14 @@ Die Karten zeigen **Runden gesamt**, die **Erfolgsquote**, die **Timeout-Quote**
 
 | Kennzahl | Was sie misst |
 | --- | --- |
-| **Abgeschlossen** | Aufgaben, die im Zeitraum **Erledigt** erreicht haben, getrennt danach, ob ein Agent oder ein Mensch sie abgeschlossen hat. |
+| **Abgeschlossen** | Aufgaben, die im Zeitraum **Erledigt** erreicht haben, getrennt nach ihrer aktuellen Zuweisung: Aufgaben, die einem Agenten zugewiesen sind, und alle übrigen. |
 | **Ø Durchlaufzeit** | Die durchschnittliche Zeit vom ersten Wechsel einer Aufgabe nach **In Bearbeitung** bis **Erledigt**. Eine Aufgabe, die **In Bearbeitung** übersprungen hat, hat keine Durchlaufzeit. |
-| **Eingriffsquote** | In der Prüfung angeforderte Änderungen plus die Fragen, die Agenten Menschen gestellt haben, bezogen auf die im Zeitraum gestarteten Agentenläufe. |
+| **Eingriffsquote** | In der Prüfung angeforderte Änderungen plus die Fragen, die Agenten Menschen gestellt haben, ob beantwortet oder nicht, bezogen auf die im Zeitraum gestarteten Agentenläufe. |
 | **Ausgaben** | Die Kosten der Agentenläufe des Projekts, mit der Zahl der gestarteten und der fehlgeschlagenen Läufe. |
 
-Die Diagramme darunter zeigen die offenen Aufgaben nach Status am Ende jedes Tages, die täglich erstellten und abgeschlossenen Aufgaben, den Verlauf der Durchlaufzeit, die Abschlüsse durch Agenten und Menschen sowie die täglichen Ausgaben. Steigt die Eingriffsquote bei gleichbleibender Zahl von Läufen, schicken Menschen mehr Arbeit zurück oder beantworten mehr Fragen. Lies dann die Aufgaben in der Prüfung, bevor du die Anweisungen des Agenten unter [Projektagenten](/de/platform/projects/project-agents) änderst.
+Die Diagramme darunter zeigen die offenen Aufgaben nach Status am Ende jedes Tages, die täglich erstellten und abgeschlossenen Aufgaben, den Verlauf der Durchlaufzeit, die Abschlüsse jedes Tages aufgeteilt in **Agenten** und **Menschen** sowie die täglichen Ausgaben. Diese Aufteilung richtet sich wie die unter **Abgeschlossen** danach, wem eine Aufgabe jetzt zugewiesen ist, nicht danach, wer sie abgeschlossen hat: Eine Aufgabe, die einem Agenten zugewiesen ist, zählt für die Agenten, auch wenn ein Mensch sie auf **Erledigt** gesetzt hat; eine Aufgabe, die einer Person, einer Automatisierung oder niemandem zugewiesen ist, zählt für die Menschen. Das gilt auch rückwirkend: Wird eine Aufgabe später einem Agenten zugewiesen oder verliert sie ihren Agenten, etwa weil er gelöscht wurde, wechselt ihr Abschluss auch an vergangenen Tagen auf die andere Seite.
+
+Steigt die Eingriffsquote bei gleichbleibender Zahl von Läufen, schicken Menschen mehr Arbeit zurück oder Agenten stellen mehr Fragen. Jede Frage zählt an dem Tag, an dem ein Agent sie stellt, ob jemand sie beantwortet oder nicht. Lies die Aufgaben in der Prüfung, bevor du die Anweisungen des Agenten unter [Projektagenten](/de/platform/projects/project-agents) änderst.
 
 ## Die Werte richtig lesen
 

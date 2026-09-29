@@ -41,12 +41,14 @@ The cards report **Total turns**, the **Success rate**, the **Timeout rate**, th
 
 | Figure | What it measures |
 | --- | --- |
-| **Completed** | Tasks that reached Done in the period, split into those an agent and those a person completed. |
+| **Completed** | Tasks that reached Done in the period, split by current assignee into tasks assigned to an agent and all other tasks. |
 | **Avg cycle time** | The average time from a task's first move to In progress until it reached Done. A task that skipped In progress has no cycle time. |
-| **Intervention rate** | Changes requested in review plus the questions agents asked people, per agent run started in the period. |
+| **Intervention rate** | Changes requested in review plus the questions agents asked people, answered or not, per agent run started in the period. |
 | **Spend** | The cost of the project's agent runs, with how many started and how many failed. |
 
-The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, completions by agents and by people, and the daily spend. A rising intervention rate with a steady number of runs means people are sending more work back or answering more questions; read the tasks in review before changing the agent's instructions under [Project agents](/platform/projects/project-agents).
+The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, each day's completions split into **Agents** and **Humans**, and the daily spend. That split, like the one under **Completed**, goes by each task's assignee as it is now, not by who completed the task: a task assigned to an agent counts for agents even when a person moved it to Done, and a task assigned to a person, an automation, or no one counts for humans. Past days change too: when a task is later assigned to an agent or loses its agent, for example because the agent was deleted, its completion moves to the other side.
+
+A rising intervention rate with a steady number of runs means people are sending more work back or agents are asking more questions. Every question counts on the day an agent asks it, whether or not anyone answers it. Read the tasks in review before changing the agent's instructions under [Project agents](/platform/projects/project-agents).
 
 ## Read the figures correctly
 
