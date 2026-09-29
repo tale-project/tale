@@ -7,6 +7,7 @@ import {
   messageRef,
 } from '../../../lib/knowledge/message-ref.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 
 /**
@@ -25,10 +26,6 @@ import { markRagQueued } from '../knowledge/service.ts';
  * those whose ref an active document holds, which index as the document), so
  * a lane can never release fewer refs than the indexers wrote.
  */
-
-/** Refs per `knowledge.release_refs` job: a retention batch can purge a
- * thousand conversations at once, and one job's payload stays bounded. */
-const RELEASE_REFS_PER_JOB = 500;
 
 /** The messages of these conversations the corpus may hold. */
 async function indexedMessagesOf(
@@ -119,19 +116,16 @@ export async function mailRefsOf(
  * queues nothing. An attachment's bytes stay while its file row does: only
  * its corpus copy dies with its conversation. A job that exhausts its
  * retries is the daily corpus reconcile's to finish; the retrievable filter
- * refuses those rows meanwhile.
+ * refuses those rows meanwhile. The jobs are bounded as every release lane
+ * bounds them (`queueRefRelease`), and an enqueue that fails fails the
+ * caller's transaction.
  */
 export async function queueMessageRefRelease(
   tx: TransactionSql | Sql,
   organizationId: string,
   refs: readonly string[],
 ): Promise<void> {
-  for (let at = 0; at < refs.length; at += RELEASE_REFS_PER_JOB) {
-    await addJobInTx(tx, 'knowledge.release_refs', {
-      organizationId,
-      refs: refs.slice(at, at + RELEASE_REFS_PER_JOB),
-    });
-  }
+  await queueRefRelease(tx, organizationId, refs);
 }
 
 /**

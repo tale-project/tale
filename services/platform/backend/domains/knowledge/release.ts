@@ -11,10 +11,10 @@ import {
   listKnowledgeDocumentRefs,
 } from '../../core/legacy/knowledge_delete.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { assessMessageRefLiveness, assessRefLiveness } from './liveness.ts';
+import { queueRefRelease } from './release-queue.ts';
 import {
   reconcileDocumentScopeStamps,
   reconcileMailAttachmentStamps,
@@ -357,10 +357,6 @@ function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
   return outcome;
 }
 
-/** Refs per re-queued `knowledge.release_refs` job — the bound the mail
- * lanes queue theirs in (`conversations/message-corpus.ts`). */
-const REQUEUE_REFS_PER_JOB = 500;
-
 /**
  * Queue the durable release job for every ref of a release the reconcile ran
  * whose bytes it could not delete, and hand the outcome on. The corpus rows
@@ -369,9 +365,10 @@ const REQUEUE_REFS_PER_JOB = 500;
  * refs, and no sweep lists bucket objects — and its bytes would stay for
  * good. The job re-decides liveness and reads the absent corpus rows as
  * released, so pg-boss's retries redo the blob stage only. A corpus-stage
- * failure is not queued: its rows still list the ref for the next night. An
- * enqueue that fails is logged, not thrown, so the organization's other
- * passes still run.
+ * failure is not queued: its rows still list the ref for the next night. The
+ * jobs are bounded as the mail lanes' are (`queueRefRelease`), and an
+ * enqueue that fails is logged, not thrown, so the next job is still queued
+ * and the organization's other passes still run.
  */
 async function requeueBlobFailures(
   sql: Sql,
@@ -381,20 +378,14 @@ async function requeueBlobFailures(
   const refs = outcome.failures
     .filter((failure) => failure.stage === 'blob')
     .map((failure) => failure.ref);
-  for (let at = 0; at < refs.length; at += REQUEUE_REFS_PER_JOB) {
-    const job = refs.slice(at, at + REQUEUE_REFS_PER_JOB);
-    try {
-      await addJobInTx(sql, 'knowledge.release_refs', {
-        organizationId,
-        refs: job,
-      });
-    } catch (error) {
+  await queueRefRelease(sql, organizationId, refs, {
+    onChunkError: (job, error) => {
       console.warn(
         `[knowledge] could not re-queue a byte release for org ${organizationId} (refs=${job.length}), their bytes stay:`,
         error,
       );
-    }
-  }
+    },
+  });
   return outcome;
 }
 
