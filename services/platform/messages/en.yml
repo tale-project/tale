@@ -7606,6 +7606,12 @@ tasks:
     agentRunRefused: Run refused
     repeatChanged: Repeat changed
     repeatNext: Next task created
+    empty:
+      startDate: No start date
+      dueDate: No due date
+      description: No description
+      labels: No labels
+      attachments: No attachments
   review:
     needsReview: Needs review
     waitingOn: 'Waiting on {name}'

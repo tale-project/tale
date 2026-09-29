@@ -7495,6 +7495,12 @@ tasks:
     agentRunRefused: Ausführung abgelehnt
     repeatChanged: Wiederholung geändert
     repeatNext: Nächste Aufgabe erstellt
+    empty:
+      startDate: Kein Startdatum
+      dueDate: Kein Fälligkeitsdatum
+      description: Keine Beschreibung
+      labels: Keine Labels
+      attachments: Keine Anhänge
   review:
     needsReview: Review ausstehend
     waitingOn: 'Wartet auf {name}'

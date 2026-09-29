@@ -101,6 +101,8 @@ Mentions in the task description work the same way when you save the task: the p
 
 Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. A parent task cannot close while its subtasks remain open. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
 
+When you change a field, the task's **Activity** shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
+
 ## Repeat a task
 
 Give a task a repeat when the same work comes back on a schedule, such as a weekly status report. Each time the task closes, the next one appears in **To do**, due on the next day the repeat names.

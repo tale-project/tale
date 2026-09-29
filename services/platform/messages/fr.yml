@@ -7601,6 +7601,12 @@ tasks:
     agentRunRefused: Exécution refusée
     repeatChanged: Répétition modifiée
     repeatNext: Tâche suivante créée
+    empty:
+      startDate: Aucune date de début
+      dueDate: Aucune échéance
+      description: Aucune description
+      labels: Aucune étiquette
+      attachments: Aucune pièce jointe
   review:
     needsReview: Revue requise
     waitingOn: 'En attente de {name}'
