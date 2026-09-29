@@ -1,8 +1,8 @@
 'use client';
 
-import { Row } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 
+import { ShellAlert } from '@/app/components/layout/shell-alert';
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { useT } from '@/lib/i18n/client';
 
@@ -15,9 +15,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * enrols, when policy is disabled, or when grace expires (at which
  * point sign-in itself redirects to the enrolment wall).
  *
- * Uses a local div instead of the shared `Banner` component because we
- * need an inline TanStack Router `<Link>` as the CTA and `Banner`
- * rejects children by design.
+ * A `ShellAlert` rather than the shared `Banner` component, because the
+ * CTA is an inline TanStack Router `<Link>` and `Banner` rejects children
+ * by design.
  */
 export function TwoFactorGraceBanner({
   organizationId,
@@ -38,12 +38,7 @@ export function TwoFactorGraceBanner({
   const titleKey = remainingDays === 1 ? 'grace.titleOne' : 'grace.titleOther';
 
   return (
-    <Row
-      role="status"
-      gap={2}
-      wrap
-      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 py-3 text-sm"
-    >
+    <ShellAlert>
       <span className="grow">
         <span className="font-medium">
           {t(titleKey, { days: remainingDays })}
@@ -58,6 +53,6 @@ export function TwoFactorGraceBanner({
       >
         {t('grace.setupLink')}
       </Link>
-    </Row>
+    </ShellAlert>
   );
 }

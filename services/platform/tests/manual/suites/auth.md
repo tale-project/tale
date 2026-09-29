@@ -401,11 +401,19 @@ compute codes from the enrollment secret.
   Home Screen**), end the session the same way and choose **Stay here** → the
   notice sits directly above the shell's header, with no blank band as tall
   as the notch between them; press its **Sign in**, then **Stay here** → the
-  page does not move behind the confirmation or when it closes. At 375 px,
-  end the session while tab 1 shows `/dashboard/changelog`, then while it
-  shows `/dashboard/create-organization` → the notice stands in the flow above
-  the page, never over it: **Back** (`changelog.viewer.back`) can be pressed,
-  and the organization wizard scrolls to its last control.
+  page does not move behind the confirmation or when it closes. Signed in
+  again, open an organization whose shell shows a banner with no notice above
+  it — **Two-factor authentication required in … days**
+  (`twoFactor.grace.titleOther`, inside a 2FA policy's grace window) or
+  **Knowledge search is off** (`settings.dataResidency.orgEmbedding.banner.title`,
+  a provider but no embedding model) → the banner's words sit below the
+  notch, and the shell's header (a chat's own header on a chat) directly
+  below the banner, with no blank band between them; end the session there →
+  the notice clears the notch and the banner under it takes no second pad.
+  At 375 px, end the session while tab 1 shows `/dashboard/changelog`, then
+  while it shows `/dashboard/create-organization` → the notice stands in the
+  flow above the page, never over it: **Back** (`changelog.viewer.back`) can
+  be pressed, and the organization wizard scrolls to its last control.
 
 ## Accessibility (WCAG 2.1 AA)
 
