@@ -61,7 +61,7 @@ Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile
 
 Öffne eine Aufgabe desselben Projekts, wähle den Agenten als Zuständigen und klicke auf **Agent starten**. Zuweisung und Ausführung sind getrennte Aktionen. Ergänze Dateien und Abnahmekriterien vor dem Start.
 
-Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit eine Person sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Der Harness bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
+Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Hat ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet, kann der Agent für die Aufgabe auch Bilder erstellen. Sie erscheinen bei den Ergebnisdateien und zählen für das Mitglied, das den Lauf gestartet hat. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit eine Person sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Der Harness bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
 
 Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Fortschritt, Stoppen und Prüfung. Der gewöhnliche Chat-Assistent bleibt davon getrennt, auch mit Projektkontext.
 

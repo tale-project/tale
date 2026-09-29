@@ -61,7 +61,7 @@ Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le mod
 
 Ouvre une tâche du même projet, affecte-la à l’agent et choisis **Démarrer l'agent**. L’affectation et l’exécution sont deux actions distinctes. Fournis les fichiers et les critères d’acceptation avant le démarrage.
 
-Le compte rendu apparaît dans les commentaires et les fichiers collectés sont joints comme résultats. Après un travail réussi, la tâche passe **En revue** pour qu’une personne l’évalue. Mentionne l’agent dans un commentaire pour guider ou poursuivre le travail. Le harness détermine si le message rejoint le processus actif ou lance une continuation.
+Le compte rendu apparaît dans les commentaires et les fichiers collectés sont joints comme résultats. Si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images), l’agent peut aussi créer des images pour la tâche ; elles apparaissent parmi les fichiers produits et comptent pour le membre qui a lancé l’exécution. Après un travail réussi, la tâche passe **En revue** pour qu’une personne l’évalue. Mentionne l’agent dans un commentaire pour guider ou poursuivre le travail. Le harness détermine si le message rejoint le processus actif ou lance une continuation.
 
 L’[automatisation des tâches](/fr/platform/projects/task-automation) explique le suivi, l’arrêt et la revue. L’assistant de chat ordinaire reste distinct, même avec un contexte de projet.
 
