@@ -18,6 +18,7 @@ import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
 import { auditSkillWrite } from '../skills/audit.ts';
 import { assertSkillTeamsAssignable } from '../skills/errors.ts';
+import { maySkillPublishOrgWide } from '../skills/publish.ts';
 import { withSkillWriterLocks } from '../skills/writer-lock.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { bindProject, saveVersion } from './store.ts';
@@ -152,6 +153,12 @@ export async function uploadAutomationPg(
         teamIds: await uploaderTeamIds(sql),
         isOrgAdmin: defineAbilityFor(auth.role).can('write', 'orgSettings'),
       }),
+      mayPublishOrgWide: () =>
+        maySkillPublishOrgWide(sql, {
+          organizationId: auth.organizationId,
+          userId: auth.userId,
+          role: auth.role,
+        }),
       withSkillWriterLocks: (slugs, work) =>
         withSkillWriterLocks(sql, auth.organizationId, slugs, (tx) =>
           work({

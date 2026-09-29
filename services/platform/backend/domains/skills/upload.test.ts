@@ -129,6 +129,7 @@ function upload(sql: Sql, force?: boolean) {
     storageId: 's3:acme/skill_bundle/x',
     ...(force === undefined ? {} : { force }),
     assertTeamsAssignable: () => Promise.resolve(),
+    mayPublishOrgWide: true,
   });
 }
 
@@ -163,8 +164,34 @@ describe('uploadSkillBundlePg', () => {
         await tx`SELECT 'audience check on the held connection'`;
         events.push('audience');
       },
+      mayPublishOrgWide: true,
     });
     expect(events).toEqual(['begin', 'lock', 'audience', 'commit']);
+  });
+
+  it('hands the door’s publish answer to the bundle rules and writes nothing they refuse', async () => {
+    vi.mocked(readOrgSkill).mockResolvedValue(null);
+    vi.mocked(listSkillBundleFileEntries).mockResolvedValue(null);
+    const refusal = new Error('SKILL_PUBLISH_FORBIDDEN');
+    vi.mocked(prepareBundleWrite).mockImplementationOnce(async (args) => {
+      expect(args.mayPublishOrgWide).toBe(false);
+      throw refusal;
+    });
+    await expect(
+      uploadSkillBundlePg(fakeSql([]), {
+        organizationId: 'org_1',
+        orgSlug: 'acme',
+        viewer: alice,
+        actor,
+        storageId: 's3:acme/skill_bundle/x',
+        assertTeamsAssignable: () => Promise.resolve(),
+        mayPublishOrgWide: false,
+      }),
+    ).rejects.toBe(refusal);
+    expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+    expect(auditSkillWrite).not.toHaveBeenCalled();
+    // The staged blob dies with the refused attempt, as with any other.
+    expect(s3DeleteObject).toHaveBeenCalled();
   });
 
   it('reads the existing bundle and writes inside one writer-lock transaction', async () => {

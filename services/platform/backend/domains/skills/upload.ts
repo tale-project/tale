@@ -65,6 +65,10 @@ export async function uploadSkillBundlePg(
       teamIds: string[],
       tx: TransactionSql,
     ) => Promise<void>;
+    /** Whether the uploader may give a skill the whole organization as its
+     * audience (`publish.ts`); a bundle shared with the organization is
+     * refused without it (`SKILL_PUBLISH_FORBIDDEN`). */
+    mayPublishOrgWide: boolean;
   },
 ): Promise<UploadOutcome> {
   // Single-use: the intent is consumed here, and the blob dies with this
@@ -178,15 +182,16 @@ export async function uploadSkillBundlePg(
           }
         }
 
-        // The owner, private and team-audience rules the editor applies. An
-        // unreadable existing document counts as no bundle: there is
-        // nothing left to preserve.
+        // The owner, private, team-audience and organization-wide rules the
+        // editor applies. An unreadable existing document counts as no
+        // bundle: there is nothing left to preserve.
         const files = await prepareBundleWrite({
           parsed,
           uploader: args.viewer,
           existing,
           assertTeamsAssignable: (teamIds) =>
             args.assertTeamsAssignable(teamIds, tx),
+          mayPublishOrgWide: args.mayPublishOrgWide,
         });
         // What the write changes, read before it replaces the bundle.
         const change = describeBundleWrite({

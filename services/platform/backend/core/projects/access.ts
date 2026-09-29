@@ -21,10 +21,13 @@
 import {
   ADMIN_ROLES,
   canSeeAudience,
+  EDITOR_ROLES,
   normalizeTeamIds,
 } from '../lib/audience.ts';
 
-export { ADMIN_ROLES };
+// Org roles whose project access resolves to `canEdit` — the same set the
+// client-side pickers use to filter designation candidates (reviewer picker).
+export { ADMIN_ROLES, EDITOR_ROLES };
 
 interface ProjectAccessInput {
   /** The audience; empty = organization-wide. Preferred when present. */
@@ -40,10 +43,6 @@ export interface ProjectAccessResult {
   canEdit: boolean;
   canAdminister: boolean;
 }
-
-/** Org roles whose project access resolves to `canEdit` — the same set the
- * client-side pickers use to filter designation candidates (reviewer picker). */
-export const EDITOR_ROLES = new Set(['owner', 'admin', 'developer', 'editor']);
 
 /**
  * The effective audience of a project: the array when it carries one, else

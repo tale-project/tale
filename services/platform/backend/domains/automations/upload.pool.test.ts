@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { uploadAutomationImpl } from '../../core/automations/upload_impl.ts';
 import { auditSkillWrite } from '../skills/audit.ts';
+import { maySkillPublishOrgWide } from '../skills/publish.ts';
 import { uploadAutomationPg } from './upload.ts';
 
 vi.mock('../../core/automations/upload_impl.ts', () => ({
@@ -12,6 +13,9 @@ vi.mock('../../core/automations/upload_impl.ts', () => ({
 }));
 vi.mock('../skills/audit.ts', () => ({
   auditSkillWrite: vi.fn(async () => undefined),
+}));
+vi.mock('../skills/publish.ts', () => ({
+  maySkillPublishOrgWide: vi.fn(async () => false),
 }));
 
 /** A one-connection pool: while begin reserves its only connection, a
@@ -137,6 +141,33 @@ describe('carried skills in the audit log', () => {
       previous: revision('"t1"'),
       current: revision('"t2"'),
       filesChanged: true,
+    });
+  });
+});
+
+describe('carried skills shared with the whole organization', () => {
+  it('asks the skill doors’ publish rule for the uploader, on the pool', async () => {
+    let answer: boolean | undefined;
+    vi.mocked(uploadAutomationImpl).mockImplementationOnce(async (host) => {
+      answer = await host.mayPublishOrgWide();
+      return { ok: true, name: 'flow', version: 1, warnings: [], skills: [] };
+    });
+    const pool = oneConnectionPool();
+    await uploadAutomationPg(
+      pool,
+      {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        userId: 'user-1',
+        role: 'developer',
+      },
+      { storageId: 's3:acme/staged.zip' },
+    );
+    expect(answer).toBe(false);
+    expect(maySkillPublishOrgWide).toHaveBeenCalledExactlyOnceWith(pool, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      role: 'developer',
     });
   });
 });

@@ -10,6 +10,7 @@ import type { Context } from 'hono';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { OrgEnv } from '../../auth/org.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   withOneSkillAttribution: vi.fn(),
   auditSkillWrite: vi.fn(),
   uploadSkillBundlePg: vi.fn(),
+  resolveSkillPublishing: vi.fn(),
+  maySkillPublishOrgWide: vi.fn(),
+  auditIfPublishRefused: vi.fn(),
 }));
 
 vi.mock('../../core/skills/file_actions.ts', () => ({
@@ -36,6 +40,11 @@ vi.mock('./attribution.ts', () => ({
 vi.mock('./audit.ts', () => ({ auditSkillWrite: mocks.auditSkillWrite }));
 vi.mock('./upload.ts', () => ({
   uploadSkillBundlePg: mocks.uploadSkillBundlePg,
+}));
+vi.mock('./publish.ts', () => ({
+  resolveSkillPublishing: mocks.resolveSkillPublishing,
+  maySkillPublishOrgWide: mocks.maySkillPublishOrgWide,
+  auditIfPublishRefused: mocks.auditIfPublishRefused,
 }));
 vi.mock('../../auth/membership.ts', () => ({
   getUserTeamIds: vi.fn(async () => ['team-1']),
@@ -112,6 +121,11 @@ function routes(events: string[] = []) {
 
 beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
+  mocks.resolveSkillPublishing.mockResolvedValue({
+    mode: 'everyone',
+    allowed: true,
+  });
+  mocks.maySkillPublishOrgWide.mockResolvedValue(true);
   mocks.withSkillAttribution.mockImplementation(
     async (_sql: unknown, _org: string, skills: object[]) =>
       skills.map((skill) => ({ ...skill, ownerName: 'Ada Lovelace' })),
@@ -135,6 +149,7 @@ describe('the app skill door', () => {
     expect(await res.json()).toEqual({
       skills: [{ ...summary, ownerName: 'Ada Lovelace' }],
       failures: [],
+      publishing: { mode: 'everyone', allowed: true },
     });
     expect(mocks.withSkillAttribution).toHaveBeenCalledWith(
       expect.anything(),
@@ -201,6 +216,84 @@ describe('the app skill door', () => {
     expect(mocks.uploadSkillBundlePg.mock.calls[0]?.[1]).toMatchObject({
       organizationId: 'o1',
       actor: { id: 'u1', email: 'ada@example.test', role: 'member' },
+      mayPublishOrgWide: true,
     });
+  });
+});
+
+describe('the app skill door under a reserved organization-wide audience', () => {
+  beforeEach(() => {
+    mocks.resolveSkillPublishing.mockResolvedValue({
+      mode: 'admins',
+      allowed: false,
+    });
+    mocks.maySkillPublishOrgWide.mockResolvedValue(false);
+  });
+
+  it('tells the library the member may not publish, and under which mode', async () => {
+    mocks.listSkillsForViewer.mockResolvedValue({ skills: [], failures: [] });
+    const res = await routes().request('/?orgId=o1');
+    expect(await res.json()).toMatchObject({
+      publishing: { mode: 'admins', allowed: false },
+    });
+    expect(mocks.resolveSkillPublishing).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'o1', userId: 'u1', role: 'member' },
+    );
+  });
+
+  it('hands the answer to the save, and answers and audits its refusal', async () => {
+    const refusal = new AppError({
+      code: 'SKILL_PUBLISH_FORBIDDEN',
+      message: 'reserved',
+      data: { slug: 'house-voice' },
+    });
+    mocks.saveSkillForViewer.mockRejectedValue(refusal);
+    const res = await routes().request('/house-voice?orgId=o1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ description: 'How we write', body: 'x' }),
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'SKILL_PUBLISH_FORBIDDEN',
+      message: 'reserved',
+    });
+    expect(mocks.saveSkillForViewer.mock.calls[0]?.[0]).toMatchObject({
+      mayPublishOrgWide: false,
+    });
+    expect(mocks.auditSkillWrite).not.toHaveBeenCalled();
+    expect(mocks.auditIfPublishRefused).toHaveBeenCalledWith(
+      expect.anything(),
+      refusal,
+      {
+        organizationId: 'o1',
+        actor: { id: 'u1', email: 'ada@example.test', role: 'member' },
+        via: 'app',
+      },
+    );
+  });
+
+  it('hands the answer to the upload lane, and audits its refusal as an upload', async () => {
+    const refusal = new AppError({
+      code: 'SKILL_PUBLISH_FORBIDDEN',
+      message: 'reserved',
+      data: { slug: 'house-voice' },
+    });
+    mocks.uploadSkillBundlePg.mockRejectedValue(refusal);
+    const res = await routes().request('/upload?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ storageId: 's3:acme/skill_bundle/x' }),
+    });
+    expect(res.status).toBe(403);
+    expect(mocks.uploadSkillBundlePg.mock.calls[0]?.[1]).toMatchObject({
+      mayPublishOrgWide: false,
+    });
+    expect(mocks.auditIfPublishRefused).toHaveBeenCalledWith(
+      expect.anything(),
+      refusal,
+      expect.objectContaining({ via: 'upload' }),
+    );
   });
 });

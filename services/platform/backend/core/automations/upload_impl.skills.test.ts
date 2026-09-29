@@ -71,6 +71,7 @@ function hostFor(
   bytes: Uint8Array,
   assertTeamsAssignable: UploadSkillWriter['assertTeamsAssignable'] = async () =>
     undefined,
+  mayPublishOrgWide = true,
 ): UploadHost & { cleaned: string[]; recorded: CarriedSkillWrite[] } {
   const cleaned: string[] = [];
   const recorded: CarriedSkillWrite[] = [];
@@ -88,6 +89,7 @@ function hostFor(
       cleaned.push(storageId);
     },
     getViewerContext: async () => ({ teamIds: ['t-mine'], isOrgAdmin: false }),
+    mayPublishOrgWide: async () => mayPublishOrgWide,
     withSkillWriterLocks: async (_slugs, work) =>
       work({
         assertTeamsAssignable,
@@ -202,6 +204,75 @@ describe('an automation package carrying a skill', () => {
       skills: [{ slug: 'triage', action: 'unchanged' }],
     });
     expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+  });
+
+  describe('in an organization that reserves organization-wide skills', () => {
+    const allowTeams = async () => undefined;
+
+    it('refuses a carried organization-wide skill, an unmarked one included, and installs nothing', async () => {
+      for (const frontmatter of ['', 'visibility: org\n']) {
+        const host = hostFor(
+          await pack(skillMd(frontmatter)),
+          allowTeams,
+          false,
+        );
+        expect(
+          await refusalCode(uploadAutomationImpl(host, { storageId: 's3:x' })),
+        ).toBe('SKILL_PUBLISH_FORBIDDEN');
+        expect(host.recorded).toEqual([]);
+        expect(host.cleaned).toEqual(['s3:x']);
+      }
+      expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+    });
+
+    it('installs a carried skill shared with the uploader’s own team', async () => {
+      const host = hostFor(
+        await pack(skillMd('visibility: team\nteams:\n  - t-mine\n')),
+        allowTeams,
+        false,
+      );
+      expect(
+        await uploadAutomationImpl(host, { storageId: 's3:x' }),
+      ).toMatchObject({
+        ok: true,
+        skills: [{ slug: 'triage', action: 'created' }],
+      });
+      expect(writtenMeta().visibility).toBe('team');
+    });
+
+    it('lets a package whose organization-wide skill is already installed as carried through unchanged', async () => {
+      const first = hostFor(await pack(skillMd('')));
+      await uploadAutomationImpl(first, { storageId: 's3:x' });
+      const installed = vi.mocked(writeSkillBundleFiles).mock.calls[0]?.[2];
+      if (installed === undefined) throw new Error('nothing installed');
+      vi.mocked(readSkillBundleFiles).mockResolvedValue(
+        installed.map((file) => ({
+          path: file.path,
+          contentBase64: file.content.toString('base64'),
+        })),
+      );
+      vi.mocked(readOrgSkill).mockResolvedValue({
+        slug: 'triage',
+        path: 'skills/triage/SKILL.md',
+        ...parseSkillMd(
+          installed[0]?.content.toString('utf-8') ?? '',
+          'SKILL.md',
+        ),
+        etag: '"1"',
+        updatedAt: 1,
+      });
+      vi.mocked(writeSkillBundleFiles).mockClear();
+
+      const again = await uploadAutomationImpl(
+        hostFor(await pack(skillMd('')), allowTeams, false),
+        { storageId: 's3:y' },
+      );
+      expect(again).toMatchObject({
+        ok: true,
+        skills: [{ slug: 'triage', action: 'unchanged' }],
+      });
+      expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+    });
   });
 
   describe('installed ownerless, before carried skills followed the owner rule', () => {

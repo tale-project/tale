@@ -26,6 +26,12 @@ import {
 } from './attribution.ts';
 import { auditSkillWrite } from './audit.ts';
 import { assertSkillTeamsAssignable, skillErrorResponse } from './errors.ts';
+import {
+  auditIfPublishRefused,
+  maySkillPublishOrgWide,
+  resolveSkillPublishing,
+  type SkillPublishing,
+} from './publish.ts';
 import { unequipDeletedSkill } from './unequip.ts';
 import { uploadSkillBundlePg } from './upload.ts';
 import { withSkillWriterLock } from './writer-lock.ts';
@@ -87,11 +93,40 @@ export function createSkillRoutes(deps: {
           role,
           teamIds,
         })(ids),
+      // Who may give a skill the whole organization as its audience — read
+      // only by the doors that need it, since it may cost a grant lookup.
+      readPublishing: (): Promise<SkillPublishing> =>
+        resolveSkillPublishing(deps.sql, {
+          organizationId: c.get('orgId'),
+          userId,
+          role,
+        }),
+      readMayPublishOrgWide: (): Promise<boolean> =>
+        maySkillPublishOrgWide(deps.sql, {
+          organizationId: c.get('orgId'),
+          userId,
+          role,
+        }),
     };
   };
 
+  /** A refused organization-wide write, audited as denied. */
+  const auditRefusal = (
+    c: Context<OrgEnv>,
+    error: unknown,
+    via: 'app' | 'upload',
+  ): Promise<void> => {
+    const user = c.get('sessionBundle').user;
+    return auditIfPublishRefused(deps.sql, error, {
+      organizationId: c.get('orgId'),
+      actor: { id: user.id, email: user.email, role: c.get('orgMember').role },
+      via,
+    });
+  };
+
   app.get('/', async (c) => {
-    const listing = await listSkillsForViewer(await caller(c));
+    const who = await caller(c);
+    const listing = await listSkillsForViewer(who);
     return c.json({
       ...listing,
       skills: await withSkillAttribution(
@@ -99,6 +134,9 @@ export function createSkillRoutes(deps: {
         c.get('orgId'),
         listing.skills,
       ),
+      // So the library can offer — or explain why it withholds — the
+      // Organization audience before the member tries to save one.
+      publishing: await who.readPublishing(),
     });
   });
 
@@ -149,6 +187,7 @@ export function createSkillRoutes(deps: {
     try {
       const who = await caller(c);
       const slug = c.req.param('slug');
+      const mayPublishOrgWide = await who.readMayPublishOrgWide();
       // Serialized with the upload lane on the per-slug writer lock: a save
       // must never land between an upload's two swap renames.
       const saved = await withSkillWriterLock(
@@ -161,6 +200,7 @@ export function createSkillRoutes(deps: {
             slug,
             ...body.data,
             assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
+            mayPublishOrgWide,
           });
           await auditSkillWrite(tx, {
             organizationId: c.get('orgId'),
@@ -181,6 +221,7 @@ export function createSkillRoutes(deps: {
         ),
       });
     } catch (error) {
+      await auditRefusal(c, error, 'app');
       return skillErrorResponse(c, error);
     }
   });
@@ -205,9 +246,11 @@ export function createSkillRoutes(deps: {
           storageId: body.data.storageId,
           ...(body.data.force !== undefined ? { force: body.data.force } : {}),
           assertTeamsAssignable: who.assertTeamsAssignable,
+          mayPublishOrgWide: await who.readMayPublishOrgWide(),
         }),
       );
     } catch (error) {
+      await auditRefusal(c, error, 'upload');
       return skillErrorResponse(c, error);
     }
   });

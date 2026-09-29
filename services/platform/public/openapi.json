@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.4.0",
+    "version": "3.5.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -449,7 +449,7 @@
       "get": {
         "tags": ["Organization"],
         "summary": "Who this key acts as",
-        "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — every organization the holder belongs to, and `capabilities`: the gates a deployment knob or a grant decides rather than the role alone (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` and `DELETE /api/v1/browser-sessions/{id}` would pass their gate; `notificationExport` — whether `GET /api/v1/notifications/sync` would, by role or through a `tale:notifications.export` grant). `key` names the API key that made the request — its `name` and its `expiresAt` (epoch ms, `null` for a key minted to never expire) — so an unattended caller can rotate before the 401. Keys are minted, rotated and revoked in the app (Settings > API > REST): no operation on this surface creates, lists or revokes one.",
+        "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — every organization the holder belongs to, and `capabilities`: the gates a deployment knob or a grant decides rather than the role alone (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` and `DELETE /api/v1/browser-sessions/{id}` would pass their gate; `notificationExport` — whether `GET /api/v1/notifications/sync` would, by role or through a `tale:notifications.export` grant; `skillPublish` — whether a `PUT /api/v1/skills/{slug}` that shares a skill with the whole organization would, under the organization’s skill sharing policy, by role or through a `tale:skills.publish` grant). `key` names the API key that made the request — its `name` and its `expiresAt` (epoch ms, `null` for a key minted to never expire) — so an unattended caller can rotate before the 401. Keys are minted, rotated and revoked in the app (Settings > API > REST): no operation on this surface creates, lists or revokes one.",
         "operationId": "getMe",
         "security": [
           {
@@ -33446,7 +33446,7 @@
       "put": {
         "tags": ["Skills"],
         "summary": "Create or update skill",
-        "description": "Creates the bundle when the slug is free — **201** — and updates it in place otherwise — **200** — so the status is the create-or-update signal (the same convention as a task materialisation) and a sync that mirrors bundles from elsewhere needs no read first: `description` and `body` are required; an omitted `icon`, `labels`, `teams`, `visibility` or `disableModelInvocation` keeps its stored value, `null` clears `icon` or `labels`, and `disableModelInvocation: false` drops the flag. A body that does not end with a newline gets one appended. The save rewrites `SKILL.md` only — every other file of the bundle stays, and frontmatter keys the body does not carry (`license`, `recommended-packages`, community keys) are preserved; replacing a whole bundle is the app’s zip upload. Guard an update with `If-Match`: the `etag` you last read (the GET’s `ETag`) — a document that changed since, or is not there, answers 412 `SKILL_STALE` with the current tag in `data.etag` and nothing is written. Send `If-None-Match: *` to create only — a slug that already has a bundle then answers 412 `SKILL_EXISTS` and nothing is written. The body is validated before the preconditions are evaluated. A save whose composed `SKILL.md` is byte-identical to the stored document writes nothing — 200 with the stored `etag` and `updatedAt`, no history entry — the preconditions still evaluated first, so a stale `If-Match` on an identical body is still 412. Every skill carries `canEdit`: whether this key may edit the bundle; shipped skills are organization bundles an administrator may overwrite, so check it before a save that means to replace one. A save that changes the document is recorded in the organization’s audit log as the key’s user — `skill.created`, `skill.updated`, and `skill.sharing_changed` when `visibility` or `teams` moved — and an update makes that user the skill’s `updatedBy`; a save that writes nothing records nothing. The body may run to 4 MiB — this operation’s own cap, so the worst JSON escaping of a full-size `body` still fits; past it the answer is 413 `BODY_TOO_LARGE`.",
+        "description": "Creates the bundle when the slug is free — **201** — and updates it in place otherwise — **200** — so the status is the create-or-update signal (the same convention as a task materialisation) and a sync that mirrors bundles from elsewhere needs no read first: `description` and `body` are required; an omitted `icon`, `labels`, `teams`, `visibility` or `disableModelInvocation` keeps its stored value, `null` clears `icon` or `labels`, and `disableModelInvocation: false` drops the flag. A body that does not end with a newline gets one appended. The save rewrites `SKILL.md` only — every other file of the bundle stays, and frontmatter keys the body does not carry (`license`, `recommended-packages`, community keys) are preserved; replacing a whole bundle is the app’s zip upload. Guard an update with `If-Match`: the `etag` you last read (the GET’s `ETag`) — a document that changed since, or is not there, answers 412 `SKILL_STALE` with the current tag in `data.etag` and nothing is written. Send `If-None-Match: *` to create only — a slug that already has a bundle then answers 412 `SKILL_EXISTS` and nothing is written. The body is validated before the preconditions are evaluated. A save whose composed `SKILL.md` is byte-identical to the stored document writes nothing — 200 with the stored `etag` and `updatedAt`, no history entry — the preconditions still evaluated first, so a stale `If-Match` on an identical body is still 412. Every skill carries `canEdit`: whether this key may edit the bundle; shipped skills are organization bundles an administrator may overwrite, so check it before a save that means to replace one. A save that changes the document is recorded in the organization’s audit log as the key’s user — `skill.created`, `skill.updated`, and `skill.sharing_changed` when `visibility` or `teams` moved — and an update makes that user the skill’s `updatedBy`; a save that writes nothing records nothing. An organization may reserve organization-wide skills (its `skill_sharing` policy: Editors and above, or owners and administrators, plus members granted `tale:skills.publish`): a key holder outside that set gets 403 `SKILL_PUBLISH_FORBIDDEN` for a save that would create a `visibility: org` skill, widen one to `org`, or change an `org` skill in place, and the refusal is audited as `skill.publish_denied`; narrowing to `team`, a byte-identical save and deleting the skill stay open, and `GET /api/v1/me` answers `capabilities.skillPublish`. The body may run to 4 MiB — this operation’s own cap, so the worst JSON escaping of a full-size `body` still fits; past it the answer is 413 `BODY_TOO_LARGE`.",
         "operationId": "saveSkill",
         "security": [
           {
@@ -33525,7 +33525,7 @@
                   "visibility": {
                     "type": "string",
                     "enum": ["team", "org"],
-                    "description": "Who sees the skill; omitted keeps the stored value (a new skill is `org`). `private` is retired: it cannot be set, only kept by omission on a bundle that already carries it"
+                    "description": "Who sees the skill; omitted keeps the stored value (a new skill is `org`, which an organization that reserves organization-wide skills refuses with 403 `SKILL_PUBLISH_FORBIDDEN` when the key holder may not publish — send `team` with `teams` instead). `private` is retired: it cannot be set, only kept by omission on a bundle that already carries it"
                   },
                   "teams": {
                     "type": "array",
@@ -33643,7 +33643,7 @@
             }
           },
           "403": {
-            "description": "Not editable with this key (`SKILL_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "Not editable with this key (`SKILL_FORBIDDEN`), a team this key holder is not in (`TEAM_ACCESS_DENIED`), or an organization-wide skill the organization reserves and this key holder may not publish (`SKILL_PUBLISH_FORBIDDEN` — see `capabilities.skillPublish` on `GET /api/v1/me`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -37396,7 +37396,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.4.0"
+          "example": "3.5.0"
         }
       },
       "Location": {
@@ -37635,6 +37635,7 @@
               "SKILL_FORBIDDEN",
               "SKILL_MALFORMED",
               "SKILL_NOT_FOUND",
+              "SKILL_PUBLISH_FORBIDDEN",
               "SKILL_STALE",
               "SKILL_TEAM_UNKNOWN",
               "TASK_ARCHIVED",
@@ -38960,7 +38961,8 @@
               "deploymentEditor",
               "developer",
               "notificationExport",
-              "actAs"
+              "actAs",
+              "skillPublish"
             ],
             "additionalProperties": false,
             "properties": {
@@ -38979,6 +38981,10 @@
               "notificationExport": {
                 "type": "boolean",
                 "description": "True when the key holder may export members’ notifications through `GET /api/v1/notifications/sync` — an organization owner or administrator by role, or any other member through a live `tale:notifications.export` capability an administrator granted in the competence register (organization-scoped, optionally expiring, revocable, revoked with the membership); false there answers 403 `ROLE_FORBIDDEN`"
+              },
+              "skillPublish": {
+                "type": "boolean",
+                "description": "True when the key holder may share a skill with the whole organization through `PUT /api/v1/skills/{slug}` — create a `visibility: org` skill, widen one to `org`, or change an `org` skill in place. Every member may while the organization has no skill sharing policy; under one it is Editors and above or owners and administrators only, plus any member holding a live `tale:skills.publish` capability an administrator granted in the competence register. False there answers 403 `SKILL_PUBLISH_FORBIDDEN`; sharing with the key holder’s own teams is unaffected"
               }
             }
           }

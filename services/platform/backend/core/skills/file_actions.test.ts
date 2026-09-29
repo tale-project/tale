@@ -84,7 +84,11 @@ async function seedSkill(
 
 function userViewer(
   userId: string,
-  opts: { teamIds?: string[]; isOrgAdmin?: boolean } = {},
+  opts: {
+    teamIds?: string[];
+    isOrgAdmin?: boolean;
+    mayPublishOrgWide?: boolean;
+  } = {},
 ) {
   return {
     viewer: {
@@ -93,6 +97,9 @@ function userViewer(
       teamIds: opts.teamIds ?? [],
       isOrgAdmin: opts.isOrgAdmin ?? false,
     },
+    // The organization's default (`everyone`): every member may publish. A
+    // save reads it; the list, read and delete functions ignore it.
+    mayPublishOrgWide: opts.mayPublishOrgWide ?? true,
   };
 }
 
@@ -1020,6 +1027,211 @@ describe('an editor normalizing a legacy audience', () => {
   });
 });
 
+describe('an organization that reserves organization-wide skills', () => {
+  // A member the organization's `skill_sharing` policy does not let publish:
+  // in team_red, no admin seat, no `tale:skills.publish` grant.
+  const carol = userViewer('user_carol', {
+    teamIds: ['team_red'],
+    mayPublishOrgWide: false,
+  });
+  const publisher = userViewer('user_dave', { mayPublishOrgWide: true });
+
+  async function refusalCode(work: Promise<unknown>): Promise<unknown> {
+    try {
+      await work;
+      return undefined;
+    } catch (err) {
+      return errorCode(err);
+    }
+  }
+
+  async function stored(slug: string): Promise<string> {
+    return readFile(
+      path.join(configRoot, 'acme', 'skills', slug, 'SKILL.md'),
+      'utf8',
+    );
+  }
+
+  it('refuses creating an organization-wide skill, the default audience included, and writes nothing', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    for (const visibility of [undefined, 'org'] as const) {
+      expect(
+        await refusalCode(
+          saveSkill({
+            orgSlug: 'acme',
+            slug: 'house-voice',
+            ...carol,
+            description: 'Everyone.',
+            body: 'Notes.\n',
+            ...(visibility !== undefined ? { visibility } : {}),
+          }),
+        ),
+      ).toBe('SKILL_PUBLISH_FORBIDDEN');
+    }
+    await expect(stored('house-voice')).rejects.toThrow();
+  });
+
+  it('lets the same member create a skill for their own team', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const assertTeamsAssignable = vi.fn(async () => undefined);
+    const { skill } = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'red-notes',
+      ...carol,
+      visibility: 'team',
+      teams: ['team_red'],
+      description: 'Red only.',
+      body: 'Notes.\n',
+      assertTeamsAssignable,
+    });
+    expect(skill.visibility).toBe('team');
+    expect(skill.owner).toBe('user_carol');
+    expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith(['team_red']);
+  });
+
+  it('refuses widening their team skill to the organization', async () => {
+    await seedSkill(
+      'acme',
+      'red-notes',
+      skillMd({
+        name: 'red-notes',
+        description: 'Red only.',
+        visibility: 'team',
+        teams: '[team_red]',
+        owner: 'user_carol',
+      }),
+    );
+    const before = await stored('red-notes');
+    const saveSkill = await load('saveSkillForViewer');
+    expect(
+      await refusalCode(
+        saveSkill({
+          orgSlug: 'acme',
+          slug: 'red-notes',
+          ...carol,
+          visibility: 'org',
+          description: 'Red only.',
+          body: 'Body.\n',
+        }),
+      ),
+    ).toBe('SKILL_PUBLISH_FORBIDDEN');
+    expect(await stored('red-notes')).toBe(before);
+  });
+
+  it('keeps an existing organization-wide skill: no edit in place, an identical save, narrowing and deleting', async () => {
+    const original = skillMd({
+      name: 'house-voice',
+      description: 'Everyone.',
+      visibility: 'org',
+      owner: 'user_carol',
+    });
+    await seedSkill('acme', 'house-voice', original);
+    const saveSkill = await load('saveSkillForViewer');
+    const readSkill = await load('readSkillForViewer');
+    const current = await readSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...carol,
+    });
+    // Tightening the policy narrowed nothing: the owner still reads it, and
+    // may still edit it — only not while it stays organization-wide.
+    expect(current.visibility).toBe('org');
+    expect(current.canEdit).toBe(true);
+
+    expect(
+      await refusalCode(
+        saveSkill({
+          orgSlug: 'acme',
+          slug: 'house-voice',
+          ...carol,
+          description: 'Changed for everyone.',
+          body: current.body,
+        }),
+      ),
+    ).toBe('SKILL_PUBLISH_FORBIDDEN');
+    expect(await stored('house-voice')).toBe(original);
+
+    // Saving the document exactly as stored writes nothing, so it is no
+    // publication either — a mirror re-pushing it keeps working.
+    const unchanged = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...carol,
+      description: current.description,
+      body: current.body,
+    });
+    expect(unchanged.current.etag).toBe(current.etag);
+
+    // Narrowing to the owner's team is open, with an edit in the same save.
+    const narrowed = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...carol,
+      visibility: 'team',
+      teams: ['team_red'],
+      description: 'Red only now.',
+      body: current.body,
+      assertTeamsAssignable: vi.fn(async () => undefined),
+    });
+    expect(narrowed.skill.visibility).toBe('team');
+    expect(narrowed.skill.description).toBe('Red only now.');
+
+    const deleteSkill = await load('deleteSkillForViewer');
+    expect(
+      await deleteSkill({ orgSlug: 'acme', slug: 'house-voice', ...carol }),
+    ).toBe(true);
+  });
+
+  it('lets a publisher and an admin create, widen and edit organization-wide skills', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    const created = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...publisher,
+      description: 'Everyone.',
+      body: 'Notes.\n',
+    });
+    expect(created.skill.visibility).toBe('org');
+    await seedSkill(
+      'acme',
+      'red-notes',
+      skillMd({
+        name: 'red-notes',
+        description: 'Red only.',
+        visibility: 'team',
+        teams: '[team_red]',
+        owner: 'user_carol',
+      }),
+    );
+    const widened = await saveSkill({
+      orgSlug: 'acme',
+      slug: 'red-notes',
+      ...admin,
+      visibility: 'org',
+      description: 'Everyone now.',
+      body: 'Body.\n',
+    });
+    expect(widened.skill.visibility).toBe('org');
+    // The owner stays the member who created it.
+    expect(widened.skill.owner).toBe('user_carol');
+  });
+
+  it('refuses when the door supplied no answer at all (fails closed)', async () => {
+    const saveSkill = await load('saveSkillForViewer');
+    expect(
+      await refusalCode(
+        saveSkill({
+          orgSlug: 'acme',
+          slug: 'house-voice',
+          viewer: alice.viewer,
+          description: 'Everyone.',
+          body: 'Notes.\n',
+        }),
+      ),
+    ).toBe('SKILL_PUBLISH_FORBIDDEN');
+  });
+});
+
 describe('deleteSkill', () => {
   it('reports a no-op when there is nothing to delete', async () => {
     const deleteSkill = await load('deleteSkillForViewer');
@@ -1323,6 +1535,7 @@ describe('prepareBundleWrite', () => {
     const files = await prepareBundleWrite({
       parsed: bundleOf(teamSkill(['t-fin', 't-ops'])),
       uploader: alice.viewer,
+      mayPublishOrgWide: true,
       existing: null,
       assertTeamsAssignable,
     });
@@ -1339,6 +1552,7 @@ describe('prepareBundleWrite', () => {
       prepareBundleWrite({
         parsed: bundleOf(teamSkill(['t-foreign'])),
         uploader: alice.viewer,
+        mayPublishOrgWide: true,
         existing: null,
         assertTeamsAssignable: async () => {
           throw refusal;
@@ -1361,6 +1575,7 @@ describe('prepareBundleWrite', () => {
     const files = await prepareBundleWrite({
       parsed,
       uploader: alice.viewer,
+      mayPublishOrgWide: true,
       existing: null,
       assertTeamsAssignable,
     });
@@ -1376,6 +1591,7 @@ describe('prepareBundleWrite', () => {
       prepareBundleWrite({
         parsed: bundleOf(teamSkill(['" "'])),
         uploader: alice.viewer,
+        mayPublishOrgWide: true,
         existing: null,
         assertTeamsAssignable,
       }),
@@ -1388,6 +1604,7 @@ describe('prepareBundleWrite', () => {
     await prepareBundleWrite({
       parsed: bundleOf(teamSkill(['" t-fin "'])),
       uploader: alice.viewer,
+      mayPublishOrgWide: true,
       existing: existingOf(teamSkill(['" t-fin "'])),
       assertTeamsAssignable,
     });
@@ -1400,6 +1617,7 @@ describe('prepareBundleWrite', () => {
     await prepareBundleWrite({
       parsed: bundleOf(teamSkill(['t-ops', 't-fin'])),
       uploader: alice.viewer,
+      mayPublishOrgWide: true,
       existing,
       assertTeamsAssignable: unchanged,
     });
@@ -1409,6 +1627,7 @@ describe('prepareBundleWrite', () => {
     await prepareBundleWrite({
       parsed: bundleOf(teamSkill(['t-fin', 't-hr'])),
       uploader: alice.viewer,
+      mayPublishOrgWide: true,
       existing,
       assertTeamsAssignable: changed,
     });
@@ -1420,13 +1639,71 @@ describe('prepareBundleWrite', () => {
     await prepareBundleWrite({
       parsed: bundleOf(skillMd({ name: 'house-voice', description: 'Ours.' })),
       uploader: alice.viewer,
+      mayPublishOrgWide: true,
       existing: null,
       assertTeamsAssignable,
     });
     expect(assertTeamsAssignable).not.toHaveBeenCalled();
   });
-});
 
+  it('refuses an organization-wide bundle the uploader may not publish, an unmarked one included', async () => {
+    for (const content of [
+      skillMd({ name: 'house-voice', description: 'Ours.' }),
+      skillMd({ name: 'house-voice', description: 'Ours.', visibility: 'org' }),
+    ]) {
+      await expect(
+        prepareBundleWrite({
+          parsed: bundleOf(content),
+          uploader: alice.viewer,
+          mayPublishOrgWide: false,
+          existing: null,
+          assertTeamsAssignable: vi.fn(async () => undefined),
+        }),
+      ).rejects.toMatchObject({
+        data: {
+          code: 'SKILL_PUBLISH_FORBIDDEN',
+          data: { slug: 'house-voice' },
+        },
+      });
+    }
+    // Replacing an organization skill with the same bytes is still a write
+    // of every file, so it needs the right as well.
+    const orgSkill = skillMd({
+      name: 'house-voice',
+      description: 'Ours.',
+      visibility: 'org',
+      owner: alice.viewer.userId,
+    });
+    await expect(
+      prepareBundleWrite({
+        parsed: bundleOf(orgSkill),
+        uploader: alice.viewer,
+        mayPublishOrgWide: false,
+        existing: existingOf(orgSkill),
+        assertTeamsAssignable: vi.fn(async () => undefined),
+      }),
+    ).rejects.toMatchObject({ data: { code: 'SKILL_PUBLISH_FORBIDDEN' } });
+  });
+
+  it('lets a non-publisher upload a team bundle for their own teams', async () => {
+    const assertTeamsAssignable = vi.fn(async () => undefined);
+    const files = await prepareBundleWrite({
+      parsed: bundleOf(teamSkill(['team_red'])),
+      uploader: alice.viewer,
+      mayPublishOrgWide: false,
+      existing: existingOf(
+        skillMd({
+          name: 'house-voice',
+          description: 'Ours.',
+          visibility: 'org',
+        }),
+      ),
+      assertTeamsAssignable,
+    });
+    expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith(['team_red']);
+    expect(files.map((file) => file.path)).toEqual(['SKILL.md']);
+  });
+});
 describe('readSkillBundle', () => {
   it('hands a member the whole bundle, SKILL.md verbatim', async () => {
     const doc = skillMd({
@@ -1854,6 +2131,7 @@ describe('who created a skill, as every view reads it', () => {
       orgSlug: 'acme',
       slug: 'fresh',
       viewer,
+      mayPublishOrgWide: true,
       description: 'First',
       body: 'One',
     });
@@ -1868,6 +2146,7 @@ describe('who created a skill, as every view reads it', () => {
       orgSlug: 'acme',
       slug: 'fresh',
       viewer,
+      mayPublishOrgWide: true,
       description: 'Second',
       body: 'One',
     });
@@ -1882,6 +2161,7 @@ describe('who created a skill, as every view reads it', () => {
       orgSlug: 'acme',
       slug: 'fresh',
       viewer,
+      mayPublishOrgWide: true,
       description: 'Second',
       body: 'One',
     });

@@ -22,6 +22,7 @@ import {
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
+import { auditIfPublishRefused } from '../skills/publish.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { getOrgAutomationMetrics } from './metrics.ts';
 import {
@@ -130,13 +131,15 @@ const startSchema = z.object({
 });
 
 /**
- * The team-audience refusals a carried skill can answer, which keep the
- * skill door's statuses so both upload lanes agree (403 for a team the
- * caller is not in). Every other coded refusal of this lane stays a 400.
+ * The audience refusals a carried skill can answer, which keep the skill
+ * door's statuses so both upload lanes agree (403 for a team the caller is
+ * not in, and for an organization-wide skill the caller may not publish).
+ * Every other coded refusal of this lane stays a 400.
  */
 const AUDIENCE_REFUSAL_CODES: ReadonlySet<string> = new Set([
   'TEAM_NOT_IN_ORG',
   'TEAM_ACCESS_DENIED',
+  'SKILL_PUBLISH_FORBIDDEN',
 ]);
 
 function handleError<E extends OrgEnv>(
@@ -355,6 +358,18 @@ export function createAutomationRoutes(deps: {
         ),
       );
     } catch (error) {
+      // A carried skill shared with the whole organization the uploader may
+      // not publish: the refusal is audited as denied, as on the skill doors.
+      const user = c.get('sessionBundle').user;
+      await auditIfPublishRefused(deps.sql, error, {
+        organizationId: c.get('orgId'),
+        actor: {
+          id: user.id,
+          email: user.email,
+          role: c.get('orgMember').role,
+        },
+        via: 'automation_package',
+      });
       return handleError(c, error);
     }
   });
