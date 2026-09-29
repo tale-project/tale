@@ -15,7 +15,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, unknown>) => {
       // A row's checkbox is named after its item: keep the name in the label.
-      if (key === 'aria.selectItem') {
+      if (key === 'aria.selectFolder' || key === 'aria.selectFile') {
         return `${ns}.${key} ${String(params?.name)}`;
       }
       if (params) {
@@ -121,7 +121,7 @@ async function selectMeetingsAndImport(
 ) {
   await user.click(
     screen.getByRole('checkbox', {
-      name: 'documents.aria.selectItem Meetings',
+      name: 'documents.aria.selectFolder Meetings',
     }),
   );
   await user.click(

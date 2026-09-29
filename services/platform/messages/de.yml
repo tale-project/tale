@@ -2274,7 +2274,8 @@ documents:
     openFolder: Ordner {name} öffnen
     openDocument: Dokument {name} öffnen
     navigateToFolder: Zum Ordner {name} navigieren
-    selectItem: '{name} auswählen'
+    selectFolder: Ordner {name} auswählen
+    selectFile: Datei {name} auswählen
   folderNotFound: Ordner nicht gefunden oder nicht mehr zugänglich
   filter:
     ragStatus:

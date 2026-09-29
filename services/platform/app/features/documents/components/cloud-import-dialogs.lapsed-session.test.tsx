@@ -116,7 +116,10 @@ describe.each(DIALOGS)(
 
         await user.click(
           screen.getByRole('checkbox', {
-            name: documents('aria.selectItem', { name: item.name }),
+            name: documents(
+              item.isFolder ? 'aria.selectFolder' : 'aria.selectFile',
+              { name: item.name },
+            ),
           }),
         );
         await user.click(

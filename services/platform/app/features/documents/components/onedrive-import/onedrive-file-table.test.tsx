@@ -18,22 +18,23 @@ const ITEMS: OneDriveApiItem[] = [
 ];
 
 /** What a screen reader reads for each box, as every shipped catalog words
- * it (`common.aria.selectAll`, `documents.aria.selectItem`). */
+ * it (`common.aria.selectAll`, `documents.aria.selectFolder`,
+ * `documents.aria.selectFile`). */
 const NAMES = {
   en: {
     all: 'Select all',
-    folder: 'Select Meetings',
-    file: 'Select notes.docx',
+    folder: 'Select folder Meetings',
+    file: 'Select file notes.docx',
   },
   de: {
     all: 'Alle auswählen',
-    folder: 'Meetings auswählen',
-    file: 'notes.docx auswählen',
+    folder: 'Ordner Meetings auswählen',
+    file: 'Datei notes.docx auswählen',
   },
   fr: {
     all: 'Tout sélectionner',
-    folder: 'Sélectionner Meetings',
-    file: 'Sélectionner notes.docx',
+    folder: 'Sélectionner le dossier Meetings',
+    file: 'Sélectionner le fichier notes.docx',
   },
 } as const;
 

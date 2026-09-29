@@ -15,7 +15,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, unknown>) => {
       // A row's checkbox is named after its item: keep the name in the label.
-      if (key === 'aria.selectItem') {
+      if (key === 'aria.selectFolder' || key === 'aria.selectFile') {
         return `${ns}.${key} ${String(params?.name)}`;
       }
       if (params) {
@@ -122,7 +122,9 @@ import { OneDriveImportDialog } from './onedrive-import-dialog';
 
 /** The "Meetings" folder's row checkbox, found by the name it is read by. */
 const meetingsCheckbox = () =>
-  screen.getByRole('checkbox', { name: 'documents.aria.selectItem Meetings' });
+  screen.getByRole('checkbox', {
+    name: 'documents.aria.selectFolder Meetings',
+  });
 
 describe('OneDriveImportDialog', () => {
   const defaultProps = {

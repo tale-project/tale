@@ -75,9 +75,14 @@ export function OneDriveFileTable({
                 handleCheckChange(item.id, Boolean(checked))
               }
               onClick={(e) => e.stopPropagation()}
-              // Named after its item: a screen reader walking the rows'
-              // boxes hears which file or folder each one selects.
-              aria-label={t('aria.selectItem', { name: item.name })}
+              // Named after its item, and what it is: a screen reader
+              // walking the rows' boxes hears which file or folder each one
+              // selects, and a file named "all" is not "Select all".
+              aria-label={
+                isFolder(item)
+                  ? t('aria.selectFolder', { name: item.name })
+                  : t('aria.selectFile', { name: item.name })
+              }
             />
           );
         },
