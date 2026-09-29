@@ -459,6 +459,30 @@ describe('committed source runtime preparation', () => {
     expect(() => parseCompose(stringify(source))).toThrow();
   });
 
+  test("accepts the repository's own Compose source", () => {
+    // The pinned runtime a deploy reads IS this file at the release commit:
+    // a port, mount or network compose.yml gains must be one this model
+    // allows, or the release's own CLI refuses the release (v0.5.62 shipped
+    // the device hub's 127.0.0.1:8004 and refused it).
+    const source = readFileSync(
+      new URL('../../../../../compose.yml', import.meta.url),
+      'utf8',
+    );
+    expect(() => parseCompose(source)).not.toThrow();
+  });
+
+  test.each([['8004:8004'], ['0.0.0.0:8004:8004'], ['127.0.0.1:8005:8005']])(
+    'refuses a sandbox hub port published as %s',
+    (hub) => {
+      const { fixture } = create();
+      const source = structuredClone(fixture.source);
+      source.services.sandbox.ports = ['127.0.0.1:8003:8003', hub];
+      expect(() => parseCompose(stringify(source))).toThrow(
+        'Runtime source contains an unrecognized published port.',
+      );
+    },
+  );
+
   test('attests spawner child images even when the Compose file hash is rewritten', async () => {
     const { fixture, prepare } = create();
     const bundle = await prepare();

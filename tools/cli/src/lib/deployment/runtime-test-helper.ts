@@ -94,7 +94,10 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
     '/var/lib/tale-sandbox:/var/lib/tale-sandbox',
     '${PLATFORM_SHARED_CONFIG:-config-data}:/app/platform-config:ro',
   ];
-  source.services.sandbox.ports = ['127.0.0.1:8003:8003'];
+  source.services.sandbox.ports = [
+    '127.0.0.1:8003:8003',
+    '127.0.0.1:8004:8004',
+  ];
   source.services.sandbox.environment = {
     SANDBOX_RUNTIME_IMAGE:
       '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',

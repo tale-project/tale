@@ -323,7 +323,13 @@ export function parseCompose(
       db: ['["5432:5432"]', '["127.0.0.1:5432:5432"]'],
       'knowledge-db': ['["5433:5432"]', '["127.0.0.1:5433:5432"]'],
       proxy: ['["80:80","443:443"]'],
-      sandbox: ['["127.0.0.1:8003:8003"]'],
+      // The spawner's API, and since tale#3504 the device hub beside it
+      // (connected machines reach it through the proxy's /sandbox/tunnel);
+      // both loopback only. A runtime from before the hub publishes 8003 alone.
+      sandbox: [
+        '["127.0.0.1:8003:8003"]',
+        '["127.0.0.1:8003:8003","127.0.0.1:8004:8004"]',
+      ],
     };
     requireRuntime(
       (allowedPorts[name] ?? ['[]']).includes(ports),
