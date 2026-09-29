@@ -1,6 +1,6 @@
 /**
  * Waits for a React Flow view to come to rest, for browser tests
- * (`*.browser.test.tsx`) that measure a canvas after it pans or zooms.
+ * (`*.browser.test.{ts,tsx}`) that measure a canvas after it pans or zooms.
  *
  * React Flow eases the view with d3 on `requestAnimationFrame`, outside the
  * Web Animations API: `element.getAnimations()` has nothing to await, and a
@@ -16,7 +16,9 @@
  * would otherwise keep this waiting until the test's own timeout, whose
  * message names neither the viewport nor where it was. So once `timeout`
  * milliseconds (5 s by default) have passed and the view is still moving,
- * it rejects, naming the last transform it read.
+ * it rejects, naming the last transform it read. It does as much when the
+ * frames stop coming: a hidden or throttled page draws none, and no read can
+ * then tell whether the view still moves.
  */
 export async function viewportAtRest(
   within: ParentNode = document,
@@ -29,19 +31,33 @@ export async function viewportAtRest(
   };
   const deadline = performance.now() + timeout;
   let seen = read();
+  const unsettled = () =>
+    new Error(
+      `React Flow viewport never came to rest within ${timeout} ms (last transform: ${seen})`,
+    );
   for (;;) {
     // Two frames, so the ease has stepped at least once between the reads
-    // whichever order a frame runs its callbacks in.
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
+    // whichever order a frame runs its callbacks in — raced against the time
+    // left, since frames that stop coming would otherwise hold this forever.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        }),
+        new Promise((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(unsettled()),
+            Math.max(0, deadline - performance.now()),
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
     const now = read();
     if (now === seen) return now;
     seen = now;
-    if (performance.now() >= deadline) {
-      throw new Error(
-        `React Flow viewport never came to rest within ${timeout} ms (last transform: ${seen})`,
-      );
-    }
+    if (performance.now() >= deadline) throw unsettled();
   }
 }
