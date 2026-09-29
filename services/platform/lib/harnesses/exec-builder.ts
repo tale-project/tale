@@ -194,6 +194,13 @@ const PLAYWRIGHT_VISION_ARGS = ['--image-responses', 'omit'] as const;
  * session key and therefore no bridge. */
 const BRIDGE_MCP_COMMAND = 'tale-connectors-mcp';
 
+/** How long Codex lets one bridge call run, in seconds. Codex gives up on an
+ * MCP call after 60 s by default, and a platform-side image generation can
+ * take minutes; this sits just past the bridge's own bound for its longest
+ * tool (300 s), so the bridge's timeout sentence — not Codex's — reaches the
+ * agent. Every other bridge call keeps the bridge's 30 s bound. */
+const BRIDGE_TOOL_TIMEOUT_SEC = 330;
+
 // ---------------------------------------------------------------------------
 // Placeholder substitution
 // ---------------------------------------------------------------------------
@@ -599,6 +606,8 @@ export function buildHarnessExec(
             `mcp_servers.connectors.command=${JSON.stringify(BRIDGE_MCP_COMMAND)}`,
             '-c',
             `mcp_servers.connectors.env_vars=${tomlStringArray(Object.keys(m.bridgeEnv))}`,
+            '-c',
+            `mcp_servers.connectors.tool_timeout_sec=${BRIDGE_TOOL_TIMEOUT_SEC}`,
           );
           Object.assign(slotEnv, substituteMap(m.bridgeEnv, subs));
         }
