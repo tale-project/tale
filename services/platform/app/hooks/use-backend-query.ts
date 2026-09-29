@@ -12,7 +12,7 @@ import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
 import { useSessionUser } from './use-session-user';
 
-interface ConvexQueryOptions {
+interface ConvexQueryOptions<TData = unknown> {
   staleTime?: number;
   gcTime?: number;
   enabled?: boolean;
@@ -24,14 +24,30 @@ interface ConvexQueryOptions {
    * they authenticate with the session cookie, which the browser sends anyway.
    */
   requireAuth?: boolean;
+  /**
+   * What to show while a new key's first answer is pending — react-query's
+   * `placeholderData`, handed the last answer this hook showed and the query
+   * it came from. The result says `isPlaceholderData`, and a failed read
+   * drops the placeholder, so it never stands in for an answer.
+   */
+  placeholderData?: (
+    previousData: TData | undefined,
+    previousQuery: { queryKey: readonly unknown[] } | undefined,
+  ) => TData | undefined;
 }
 
 /** `'skip'` stands in for the args when a read is not ready to run yet — the
  *  hook stays mounted (stable hook order) and answers nothing. */
 type QueryArgs<Name extends QueryName> =
   Record<string, never> extends ArgsOf<Name>
-    ? [args?: ArgsOf<Name> | 'skip', options?: ConvexQueryOptions]
-    : [args: ArgsOf<Name> | 'skip', options?: ConvexQueryOptions];
+    ? [
+        args?: ArgsOf<Name> | 'skip',
+        options?: ConvexQueryOptions<ReturnsOf<Name>>,
+      ]
+    : [
+        args: ArgsOf<Name> | 'skip',
+        options?: ConvexQueryOptions<ReturnsOf<Name>>,
+      ];
 
 /**
  * A backend read, addressed by its contract name. The adapter row keyed by

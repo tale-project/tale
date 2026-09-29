@@ -1,3 +1,8 @@
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
+import { FullPageCenter } from '@tale/ui/full-page-center';
+import { VStack } from '@tale/ui/layout';
+import { toast } from '@tale/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Outlet,
@@ -13,7 +18,7 @@ import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
 import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
-import { useSessionUser } from '@/app/hooks/use-session-user';
+import { useAuth, useSessionUser } from '@/app/hooks/use-session-user';
 import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
 import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
 import {
@@ -21,11 +26,13 @@ import {
   sessionQueryOptions,
 } from '@/app/lib/auth/session-query';
 import {
+  currentUserQuery,
   passwordExpiryQuery,
   twoFactorStatusQuery,
 } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
+import { useT } from '@/lib/i18n/client';
 
 // sessionStorage key arming the one-shot "stuck websocket auth" recovery
 // reload (see the effect in DashboardRedirect).
@@ -62,6 +69,14 @@ function DashboardRedirect() {
   const queryClient = useQueryClient();
   const { isAuthenticated, isLoading } = useSessionUser();
   const [hasAuthenticated, setHasAuthenticated] = useState(isAuthenticated);
+  // Whether the probe has answered at all. A probe that holds no answer (its
+  // reads refused with a 401) goes back to loading on every refetch. Keyed on
+  // that, a verified session swapped its page for the frame and back, each
+  // remount refetched the probe, and every refetch restarted the check below
+  // and cancelled its one reload: a request loop behind a frame that never
+  // left.
+  const [probeAnswered, setProbeAnswered] = useState(!isLoading);
+  if (!probeAnswered && !isLoading) setProbeAnswered(true);
 
   // Idle-timeout UX: warn and sign out proactively when the deployment sets
   // SESSION_IDLE_TIMEOUT_MINUTES. The authenticated layout is the right mount
@@ -100,9 +115,12 @@ function DashboardRedirect() {
 
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
+  // Better Auth calls the session live, the one reload is spent, and the
+  // refreshed probe still names nobody (see verify below).
+  const [accountUnavailable, setAccountUnavailable] = useState(false);
 
   useEffect(() => {
-    if (isLoading) return undefined;
+    if (!probeAnswered) return undefined;
     if (isAuthenticated) {
       setHasAuthenticated(true);
       // Healthy (or recovered) — re-arm the one-shot recovery reload below.
@@ -161,7 +179,14 @@ function DashboardRedirect() {
           if (!valid) return;
           // The session is live but the backend probe may still cache null
           // from before sign-in. Refresh the same auth-scoped reads as login.
-          void invalidateAuthState(queryClient).catch(() => undefined);
+          const refreshed = invalidateAuthState(queryClient).catch(
+            (error: unknown) => {
+              console.warn(
+                '[auth] Refreshing the signed-in reads failed',
+                error,
+              );
+            },
+          );
           // Last resort: if the kick doesn't authenticate within 8s, reload
           // once (what this state otherwise forces the user to do manually).
           // Guarded per tab so it can never loop; cleared on success above.
@@ -173,7 +198,18 @@ function DashboardRedirect() {
               );
               window.location.reload();
             }, 8_000);
+            return;
           }
+          // The reload is spent. If the refreshed probe still names nobody,
+          // the backend does not know the account Better Auth signed in, and
+          // every page below would wait on that user with no word and no way
+          // out: say so instead.
+          void refreshed.then(() => {
+            if (cancelled) return;
+            if (!queryClient.getQueryData(currentUserQuery().queryKey)) {
+              setAccountUnavailable(true);
+            }
+          });
         })
         .catch((err: unknown) => {
           if (cancelled) return;
@@ -189,7 +225,7 @@ function DashboardRedirect() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [isLoading, isAuthenticated, hasAuthenticated, queryClient]);
+  }, [probeAnswered, isAuthenticated, hasAuthenticated, queryClient]);
 
   useEffect(() => {
     if (!hasAuthenticated && sessionVerified && !hasValidSession) {
@@ -202,7 +238,7 @@ function DashboardRedirect() {
   // "nothing on screen for seconds" feel).
   if (
     !hasAuthenticated &&
-    (isLoading || (!isAuthenticated && !sessionVerified))
+    (!probeAnswered || (!isAuthenticated && !sessionVerified))
   ) {
     return <DashboardShellFrame />;
   }
@@ -211,6 +247,10 @@ function DashboardRedirect() {
   // transition doesn't flash blank.
   if (!hasAuthenticated && sessionVerified && !hasValidSession) {
     return <DashboardShellFrame />;
+  }
+
+  if (!hasAuthenticated && !isAuthenticated && accountUnavailable) {
+    return <AccountUnavailable />;
   }
 
   // Authenticated: mount the shared account-bootstrap queries (2FA +
@@ -222,6 +262,73 @@ function DashboardRedirect() {
         <DashboardTwoFactorGate />
       </AccountBootstrapProvider>
     </SessionLapseRecovery>
+  );
+}
+
+/**
+ * A session Better Auth still calls live while the backend's `/users/me`
+ * names nobody, after the one recovery reload. The pages under the layout
+ * wait on that user — the create-organization page held its frame forever —
+ * so the layout says what happened and offers the ways on. Signing in again
+ * ends the session first: the sign-in page sends a live session straight
+ * back to the dashboard. A session an authenticating proxy asserted is the
+ * proxy's to end, as the account menu has it, so it is offered Try again
+ * alone.
+ */
+function AccountUnavailable() {
+  const queryClient = useQueryClient();
+  const { signOut, proxied } = useAuth();
+  const { t } = useT('auth');
+  const { t: tCommon } = useT('common');
+  const [retrying, setRetrying] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
+  const retry = () => {
+    setRetrying(true);
+    void invalidateAuthState(queryClient)
+      .catch((error: unknown) => {
+        console.warn('[auth] Refreshing the account failed', error);
+      })
+      .finally(() => setRetrying(false));
+  };
+
+  const signInAgain = async () => {
+    setLeaving(true);
+    try {
+      await signOut();
+    } catch (error) {
+      console.warn('[auth] Ending the session to sign in again failed', error);
+      setLeaving(false);
+      toast({
+        title: t('userButton.toast.signOutFailed'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    redirectToLogIn();
+  };
+
+  return (
+    <FullPageCenter>
+      <VStack gap={3}>
+        <Alert
+          variant="destructive"
+          description={t('accountUnavailable.description')}
+        />
+        <Button variant="secondary" isLoading={retrying} onClick={retry}>
+          {tCommon('actions.tryAgain')}
+        </Button>
+        {!proxied && (
+          <Button
+            variant="secondary"
+            isLoading={leaving}
+            onClick={() => void signInAgain()}
+          >
+            {t('accountUnavailable.signInAgain')}
+          </Button>
+        )}
+      </VStack>
+    </FullPageCenter>
   );
 }
 

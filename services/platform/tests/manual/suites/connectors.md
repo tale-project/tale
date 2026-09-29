@@ -193,7 +193,7 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   after consent the browser lands on `…/settings/connectors?connected=slack`
   and a new row exists: method **OAuth**, named after the connector, default
   if first. No toast — the row is the assertion. Connecting a second
-  workspace adds a row named after it (**Slack (<workspace>)**); consenting
+  workspace adds a row named after it (**Slack (‹workspace›)**); consenting
   again for a workspace already connected renews its row instead of adding
   one. In **mode A** (no Slack app
   registered) Step 2 instead explains that the app is set up by the

@@ -382,6 +382,8 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       ...(c.req.query('externalSystem') !== undefined
         ? { externalSystem: c.req.query('externalSystem') }
         : {}),
+      // The toolbar's search narrows the board read itself (#3745).
+      ...(c.req.query('q') !== undefined ? { query: c.req.query('q') } : {}),
     };
   };
 
@@ -459,7 +461,8 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  // Token-AND search over fields + a comment fallback (palette + toolbar).
+  // Token-AND search over fields + a comment fallback — the palette. The
+  // board narrows its own read with `q` instead (`boardFilters`).
   app.get('/search', async (c) => {
     try {
       const auth = await authCtx(c);

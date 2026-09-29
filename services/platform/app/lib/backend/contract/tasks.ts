@@ -757,6 +757,8 @@ export interface TasksContract {
         'cancelled' | 'done' | 'in_review' | 'backlog' | 'todo' | 'in_progress'
       >;
       includeArchived?: boolean;
+      /** The toolbar's search, applied with the other filters (`q`). */
+      query?: string;
       organizationId: string;
       projectId: string;
     };
@@ -856,6 +858,8 @@ export interface TasksContract {
         'cancelled' | 'done' | 'in_review' | 'backlog' | 'todo' | 'in_progress'
       >;
       includeArchived?: boolean;
+      /** The toolbar's search, applied with the other filters (`q`). */
+      query?: string;
       organizationId: string;
     };
     returns: {
