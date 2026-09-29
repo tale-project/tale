@@ -49,14 +49,15 @@ Decide what should happen if the provider is unavailable: fail-open allows the m
 
 ## Guardrails on the model endpoints {#model-endpoints}
 
-When your organization turns on [model endpoints for API keys](/platform/admin/governance/content-models#model-endpoints), the input side of these guardrails also judges every request sent to them. Content safety, PII protection, and the moderation provider read the request's system and user text before Tale passes it to the model:
+When your organization turns on [model endpoints for API keys](/platform/admin/governance/content-models#model-endpoints), the input side of these guardrails also judges every request sent to them. Content safety, PII protection, and the moderation provider read every text the request carries before Tale passes it to the model: system and developer instructions, the person's and the assistant's turns, tool calls, tool results and tool definitions, and documents given as text. The caller writes every one of them, so none is trusted more than another:
 
 - A block refuses the request with `400 MODEL_API_GUARDRAIL_BLOCKED`, and nothing reaches the model.
 - A mask replaces the match, and the model receives the masked text.
 - Tokenization cannot be honoured, because Tale relays the model's answer unchanged and cannot restore the values into it. While PII protection is on in **Tokenize** mode, every request is refused with `403 MODEL_API_GUARDRAIL_UNSUPPORTED`; choose **Mask** or **Block** if members use the model endpoints.
-- A moderation provider that fails under fail-closed refuses the request with `503 MODEL_API_GUARDRAIL_UNAVAILABLE`.
+- A moderation provider that fails under fail-closed refuses the request with `503 MODEL_API_GUARDRAIL_UNAVAILABLE`, and so does a guardrail setting Tale cannot read.
+- While a guardrail is on, a request with more than 2 MB of text is refused with `413 MODEL_API_TEXT_TOO_LARGE`.
 
-Nothing else is filtered there: rules that check **Model output** do not apply, and the model's answers, streamed or not, the assistant turns and tool results a request carries, and its images and documents pass unchecked. Custom instructions are not added either; the model receives the request as the caller's tool sent it. Detections appear under **Recent events** like chat detections, each recorded under `model-api:` followed by the request's `X-Request-Id`, the ID the caller received. Because tools resend the whole conversation with every request, Tale reuses its verdict on a text it judged within the last few minutes and records a detection once rather than on every resend.
+Output is not filtered there: rules that check **Model output** do not apply, and the model's answers, streamed or not, pass unchecked, as do images and documents that are not text. Custom instructions are not added either; the model receives the request as the caller's tool sent it. Detections appear under **Recent events** like chat detections, each recorded under `model-api:` followed by Tale's own ID for the request, with the `X-Request-Id` the caller received kept beside it. Because tools resend the whole conversation with every request, Tale reuses its verdict on a text it judged within the last few minutes and records a detection once rather than on every resend.
 
 ## Review and tune
 

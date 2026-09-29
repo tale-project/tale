@@ -26,7 +26,7 @@ L’exécution comprend les démarrages d’automatisation avec ou sans projet, 
 
 Dans un lot MCP, les appels d’outil supplémentaires consomment du budget supplémentaire. Le [point d’accès MCP](/fr/develop/mcp-endpoint) distingue une réponse HTTP `429` d’un message refusé à l’intérieur du lot. Les webhooks ont des budgets séparés ; les limites de l’expéditeur et du déclencheur doivent toutes deux permettre la livraison.
 
-Les appels aux [endpoints de modèles](/fr/develop/api-reference#model-endpoints) sous `/api/v1/openai` et `/api/v1/anthropic` ne comptent que dans le budget général, pour une requête chacun, en flux ou non ; ce qu’un appel peut dépenser est plafonné à part par les règles de budget.
+Les appels aux [endpoints de modèles](/fr/develop/api-reference#model-endpoints) sous `/api/v1/openai` et `/api/v1/anthropic` ne comptent que dans le budget général, pour une requête chacun, en flux ou non ; ce qu’un appel peut dépenser est plafonné à part par les règles de budget. Une personne, et chaque clé API, peuvent en outre avoir huit de ces appels en cours en même temps : un neuvième reçoit `429` avec le `code` `MODEL_API_CONCURRENCY_EXCEEDED` et `Retry-After: 2`.
 
 Le budget d’exécution limite la vitesse d’acceptation des messages, pas le nombre de tours simultanés. Les messages acceptés partagent une file entre toutes les organisations et les clés de l’instance. Chaque lot traite au maximum `WORKER_CONCURRENCY` tours, 5 par défaut ; le suivant attend la fin du lot en cours. Un envoi accepté peut donc attendre derrière d’autres clients. L’API n’expose ni position dans la file ni heure de démarrage estimée.
 

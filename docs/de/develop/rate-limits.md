@@ -26,7 +26,7 @@ Zur Ausführung gehören projektgebundene und globale Automatisierungsstarts, Th
 
 MCP-Batches rechnen zusätzliche Werkzeugaufrufe als zusätzliche Anfragen ab. Der [MCP-Endpunkt](/de/develop/mcp-endpoint) erklärt den Unterschied zwischen HTTP `429` und einer einzelnen abgelehnten Batch-Nachricht. Webhooks haben getrennte Budgets; sowohl Absender- als auch Auslöserlimit müssen die Zustellung zulassen.
 
-Aufrufe der [Modell-Endpunkte](/de/develop/api-reference#model-endpoints) unter `/api/v1/openai` und `/api/v1/anthropic` zählen nur gegen das allgemeine Budget, jeweils als eine Anfrage, ob gestreamt oder nicht; was ein Aufruf ausgeben darf, begrenzen die Budgetregeln gesondert.
+Aufrufe der [Modell-Endpunkte](/de/develop/api-reference#model-endpoints) unter `/api/v1/openai` und `/api/v1/anthropic` zählen nur gegen das allgemeine Budget, jeweils als eine Anfrage, ob gestreamt oder nicht; was ein Aufruf ausgeben darf, begrenzen die Budgetregeln gesondert. Außerdem dürfen eine Person und jeder API-Schlüssel acht dieser Aufrufe gleichzeitig laufen haben: Ein neunter erhält `429` mit `code` `MODEL_API_CONCURRENCY_EXCEEDED` und `Retry-After: 2`.
 
 Das Ausführungsbudget begrenzt, wie schnell Nachrichten angenommen werden, nicht die Zahl gleichzeitig laufender Antworten. Angenommene Chatnachrichten teilen sich eine Warteschlange über alle Organisationen und Schlüssel der Instanz. Ein Worker verarbeitet pro Durchgang bis zu `WORKER_CONCURRENCY` Antwortläufe, standardmäßig 5. Sein nächster Durchgang beginnt erst, wenn der aktuelle abgeschlossen ist. Eine erfolgreich angenommene Nachricht kann deshalb hinter anderen Clients warten. Die API liefert weder Warteschlangenposition noch geschätzten Startzeitpunkt.
 

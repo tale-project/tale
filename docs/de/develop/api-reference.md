@@ -882,7 +882,7 @@ Die Authentifizierung ist dieselbe wie bei jeder anderen Operation: `Authorizati
 
 `model` hat an beiden Schnittstellen die Form `<providerSlug>/<modelId>`: der Slug des Anbieters, ein Schrägstrich und die ID des Modells im Katalog dieses Anbieters, etwa `openrouter/anthropic/claude-sonnet-4.6`. Da eine Katalog-ID Schrägstriche enthalten kann, ist der Anbieter der Teil vor dem ersten Schrägstrich. Antworten nennen die ID, die die Anfrage gesendet hat. Aufrufen darf der Schlüsselinhaber die Chatmodelle der Organisation, die Zugangsdaten mit API-Schlüssel oder Umgebungsvariable bereitstellen, eingeschränkt durch die erlaubten Modelle dieser Zugangsdaten und seinen Modellzugriff. Modelle hinter Abonnement-Zugangsdaten und Anbieter mit einem Endpunkt je Zugangsdaten-Eintrag, etwa Azure, werden nicht bedient. `GET /api/v1/models` nennt für jedes dieser Modelle Kontextfenster, Fähigkeiten und Preise, unter demselben `providerSlug` und derselben `id`.
 
-Jede Anfrage unterliegt dem Modellzugriff des Schlüsselinhabers, wird gegen jede Budgetgrenze geprüft, die für ihn, seine Teams, die Organisation und den Schlüssel gilt, und unter der Person und dem Schlüssel verbucht. Die Eingabe-Guardrails der Organisation prüfen ihren System- und Benutzertext, bevor sie weitergeht; die Antworten werden nicht gefiltert.
+Jede Anfrage unterliegt dem Modellzugriff des Schlüsselinhabers, wird gegen jede Budgetgrenze geprüft, die für ihn, seine Teams, die Organisation und den Schlüssel gilt, und unter der Person und dem Schlüssel verbucht. Die Eingabe-Guardrails der Organisation prüfen jeden Text der Anfrage, bevor sie weitergeht; die Antworten werden nicht gefiltert. Eine Person und jeder Schlüssel dürfen acht Anfragen gleichzeitig laufen haben.
 
 ### Eine Ablehnung im Format der Schnittstelle lesen
 
@@ -907,13 +907,15 @@ Auf der Anthropic-Route, die zusätzlich den Header `request-id` setzt:
 | **400** | `MODEL_API_VISION_UNSUPPORTED` | Die Anfrage enthält Bilder, und das Modell liest keine. |
 | **400** | `MODEL_API_TOOLS_UNSUPPORTED` | Die Anfrage bietet Tools an, und das Modell nimmt keine an. |
 | **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | Die Anfrage lässt ein Tool vom Modellanbieter selbst ausführen: bei OpenAI `web_search_options` oder ein Tool, dessen Typ nicht `function` oder `custom` ist; bei Anthropic Websuche, Web-Abruf, Codeausführung, ein MCP-Toolset, `mcp_servers` oder `container`. |
-| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | Eine Eingabe-Guardrail hat den System- oder Benutzertext blockiert; an das Modell wurde nichts gesendet. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | Eine Eingabe-Guardrail hat einen Text der Anfrage blockiert; an das Modell wurde nichts gesendet. |
 | **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | Der PII-Schutz der Organisation tokenisiert, und das lässt sich bei einer weitergereichten Antwort nicht umsetzen. |
-| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | Ein Moderationsschritt ist unter einer Fail-closed-Richtlinie fehlgeschlagen. Versuche es später erneut. |
-| **429** | `BUDGET_EXCEEDED` | Eine Budgetgrenze, die für den Schlüsselinhaber oder den Schlüssel gilt, ist erreicht. Die Meldung nennt die Grenze, `Retry-After` die Zeit bis zum Zurücksetzen, und `x-should-retry: false` sagt den SDKs, dass sie es nicht erneut versuchen sollen. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | Ein Moderationsschritt ist unter einer Fail-closed-Richtlinie fehlgeschlagen, oder eine Guardrail-Einstellung lässt sich nicht lesen. Versuche es später erneut. |
+| **413** | `MODEL_API_TEXT_TOO_LARGE` | Eine Guardrail ist aktiv, und die Anfrage enthält mehr als 2 MB Text. |
+| **429** | `BUDGET_EXCEEDED` | Eine Budgetgrenze, die für den Schlüsselinhaber oder den Schlüssel gilt, ist erreicht, oder der ungünstigste Fall der Anfrage, ihr Prompt und ihre Ausgabegrenze zum Preis des Modells, passt nicht in das, was übrig ist; ein kleineres `max_tokens` passt eher. Die Meldung nennt die Grenze, `Retry-After` die Zeit bis zum Zurücksetzen einer erreichten Grenze, und `x-should-retry: false` sagt den SDKs, dass sie es nicht erneut versuchen sollen. |
+| **429** | `MODEL_API_CONCURRENCY_EXCEEDED` | Der Schlüsselinhaber oder der Schlüssel hat schon acht Anfragen laufen. `Retry-After` bittet um zwei Sekunden Wartezeit. |
 | **503** | `MODEL_API_UNAVAILABLE` | Tale kann die Anfrage gerade nicht bedienen, etwa weil das Modell-Gateway das Modell nicht bereitstellen kann. Versuche es in Kürze erneut. |
 | **400**, **413**, **422**, **429**, **503**, **529** oder **502** | `MODEL_API_UPSTREAM_ERROR` | Der Modellanbieter hat die Anfrage abgelehnt. Die ersten sechs Status übernehmen den des Anbieters; jede andere Ablehnung wird mit **502** beantwortet. |
-| **400** | `INVALID_BODY` | Der Body ist keine Anfrage, die die Route weiterreichen kann, etwa mit einer Audioeingabe, einer Rolle, die sie nicht weiterreicht, oder einer Bild-URL, die weder `data:` noch `https:` ist. Die Meldung nennt das Feld, im OpenAI-Format auch `param`. |
+| **400** | `INVALID_BODY` | Der Body ist keine Anfrage, die die Route weiterreichen kann, etwa mit einer Audioeingabe oder -ausgabe, einer Rolle, die sie nicht weiterreicht, einer Bild-URL, die weder `data:` noch `https:` ist, mehr als acht Antworten (`n`), einer Datei im Konto des Anbieters (`file_id`, eine Quelle vom Typ `file`), einem anderen `service_tier` als dem Standard oder `store: true`. Die Meldung nennt das Feld, im OpenAI-Format auch `param`. |
 | **413** | `BODY_TOO_LARGE` | Der Body ist größer als 32 MiB. |
 
 ## Die Dateien eines Projekts durchsuchen

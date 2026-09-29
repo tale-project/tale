@@ -855,7 +855,7 @@ Authentication is the same as on every other operation: `Authorization: Bearer <
 
 `model` is `<providerSlug>/<modelId>` on both interfaces: the provider's slug, a slash, and the model's id in that provider's catalog, such as `openrouter/anthropic/claude-sonnet-4.6`. Because a catalog id can contain slashes, the provider is the part before the first slash. Answers name the id the request sent. The key holder may call the organization's chat models that a credential with an API key or an environment variable serves, narrowed by the credential's model allowlist and the holder's model access; models behind a subscription credential and providers with an endpoint per credential, such as Azure, are not served. `GET /api/v1/models` gives each of these models' context window, capabilities, and prices under the same `providerSlug` and `id`.
 
-Every request is held to the key holder's model access, checked against every budget cap that binds the holder, their teams, the organization, and the key, and booked under the person and the key. The organization's input guardrails judge its system and user text before it is relayed; the answers are not filtered.
+Every request is held to the key holder's model access, checked against every budget cap that binds the holder, their teams, the organization, and the key, and booked under the person and the key. The organization's input guardrails judge every text it carries before it is relayed; the answers are not filtered. A person, and each key, may have eight requests running at once.
 
 ### Read a refusal in the interface's shape
 
@@ -880,13 +880,15 @@ On the Anthropic route, which also sets a `request-id` header:
 | **400** | `MODEL_API_VISION_UNSUPPORTED` | The request carries images, and the model does not read them. |
 | **400** | `MODEL_API_TOOLS_UNSUPPORTED` | The request offers tools, and the model takes none. |
 | **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | The request asks the model vendor to run a tool: OpenAI `web_search_options` or a tool whose type is not `function` or `custom`; Anthropic web search, web fetch, code execution, an MCP toolset, `mcp_servers`, or `container`. |
-| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | An input guardrail blocked the system or user text; nothing was sent to the model. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | An input guardrail blocked a text in the request; nothing was sent to the model. |
 | **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | The organization's PII protection tokenizes, which a relayed answer cannot honour. |
-| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | A moderation step failed under a fail-closed policy. Retry later. |
-| **429** | `BUDGET_EXCEEDED` | A budget cap that binds the key holder or the key is reached. The message names the cap, `Retry-After` names the time until it resets, and `x-should-retry: false` tells the SDKs not to retry. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | A moderation step failed under a fail-closed policy, or a guardrail setting cannot be read. Retry later. |
+| **413** | `MODEL_API_TEXT_TOO_LARGE` | A guardrail is on, and the request carries more than 2 MB of text. |
+| **429** | `BUDGET_EXCEEDED` | A budget cap that binds the key holder or the key is reached, or the request's worst case, its prompt and output cap at the model's price, does not fit what is left; a lower `max_tokens` fits more. The message names the cap, `Retry-After` names the time until a reached cap resets, and `x-should-retry: false` tells the SDKs not to retry. |
+| **429** | `MODEL_API_CONCURRENCY_EXCEEDED` | The key holder, or the key, already has eight requests running. `Retry-After` asks for a two-second wait. |
 | **503** | `MODEL_API_UNAVAILABLE` | Tale cannot serve the request right now, for example because the model gateway cannot serve the model. Retry shortly. |
 | **400**, **413**, **422**, **429**, **503**, **529**, or **502** | `MODEL_API_UPSTREAM_ERROR` | The model vendor refused the request. The first six keep the vendor's status; any other refusal is answered as **502**. |
-| **400** | `INVALID_BODY` | The body is not a request the route can relay, such as audio input, a role it does not relay, or an image URL that is neither `data:` nor `https:`. The message names the field, and so does `param` on the OpenAI shape. |
+| **400** | `INVALID_BODY` | The body is not a request the route can relay, such as audio input or output, a role it does not relay, an image URL that is neither `data:` nor `https:`, more than eight answers (`n`), a file stored in the vendor account (`file_id`, a `file` source), a `service_tier` other than the default, or `store: true`. The message names the field, and so does `param` on the OpenAI shape. |
 | **413** | `BODY_TOO_LARGE` | The body is over 32 MiB. |
 
 ## Search a project's files

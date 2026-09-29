@@ -1025,7 +1025,7 @@ L’authentification est la même que pour toute autre opération : `Authorizat
 
 `model` prend la forme `<providerSlug>/<modelId>` sur les deux interfaces : le slug du fournisseur, une barre oblique et l’identifiant du modèle dans le catalogue de ce fournisseur, par exemple `openrouter/anthropic/claude-sonnet-4.6`. Comme un identifiant de catalogue peut contenir des barres obliques, le fournisseur est la partie avant la première. Les réponses nomment l’identifiant envoyé par la requête. Le détenteur de la clé peut appeler les modèles de chat de l’organisation que servent des identifiants avec clé API ou variable d’environnement, restreints par les modèles autorisés de ces identifiants et par son accès aux modèles ; les modèles servis par des identifiants d’abonnement et les fournisseurs dont l’adresse est définie pour chaque identifiant, comme Azure, ne sont pas servis. `GET /api/v1/models` donne pour chacun de ces modèles sa fenêtre de contexte, ses capacités et ses prix, sous les mêmes `providerSlug` et `id`.
 
-Chaque requête est soumise à l’accès aux modèles du détenteur de la clé, vérifiée par rapport à chaque plafond de budget qui s’applique à lui, à ses équipes, à l’organisation et à la clé, puis imputée à la personne et à la clé. Les garde-fous d’entrée de l’organisation examinent son texte système et utilisateur avant qu’elle soit relayée ; les réponses ne sont pas filtrées.
+Chaque requête est soumise à l’accès aux modèles du détenteur de la clé, vérifiée par rapport à chaque plafond de budget qui s’applique à lui, à ses équipes, à l’organisation et à la clé, puis imputée à la personne et à la clé. Les garde-fous d’entrée de l’organisation examinent chaque texte qu’elle porte avant qu’elle soit relayée ; les réponses ne sont pas filtrées. Une personne, et chaque clé, peuvent avoir huit requêtes en cours en même temps.
 
 ### Lire un refus au format de l’interface
 
@@ -1050,13 +1050,15 @@ Sur la route Anthropic, qui ajoute l’en-tête `request-id` :
 | **400** | `MODEL_API_VISION_UNSUPPORTED` | La requête contient des images, et le modèle ne les lit pas. |
 | **400** | `MODEL_API_TOOLS_UNSUPPORTED` | La requête propose des outils, et le modèle n’en accepte pas. |
 | **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | La requête demande au fournisseur du modèle d’exécuter lui-même un outil : chez OpenAI, `web_search_options` ou un outil dont le type n’est ni `function` ni `custom` ; chez Anthropic, la recherche web, la récupération web, l’exécution de code, un ensemble d’outils MCP, `mcp_servers` ou `container`. |
-| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | Un garde-fou d’entrée a bloqué le texte système ou utilisateur ; rien n’a été envoyé au modèle. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | Un garde-fou d’entrée a bloqué un texte de la requête ; rien n’a été envoyé au modèle. |
 | **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | La protection PII de l’organisation tokenise, ce qu’une réponse relayée ne permet pas de respecter. |
-| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | Une étape de modération a échoué sous une politique fail-closed. Réessaie plus tard. |
-| **429** | `BUDGET_EXCEEDED` | Un plafond de budget qui s’applique au détenteur de la clé ou à la clé est atteint. Le message nomme le plafond, `Retry-After` indique le temps restant avant sa réinitialisation, et `x-should-retry: false` indique aux SDK de ne pas réessayer. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | Une étape de modération a échoué sous une politique fail-closed, ou un réglage de garde-fou est illisible. Réessaie plus tard. |
+| **413** | `MODEL_API_TEXT_TOO_LARGE` | Un garde-fou est actif, et la requête porte plus de 2 Mo de texte. |
+| **429** | `BUDGET_EXCEEDED` | Un plafond de budget qui s’applique au détenteur de la clé ou à la clé est atteint, ou le pire cas de la requête, son prompt et son plafond de sortie au prix du modèle, ne tient pas dans ce qui reste ; un `max_tokens` plus bas passe plus facilement. Le message nomme le plafond, `Retry-After` indique le temps restant avant la réinitialisation d’un plafond atteint, et `x-should-retry: false` indique aux SDK de ne pas réessayer. |
+| **429** | `MODEL_API_CONCURRENCY_EXCEEDED` | Le détenteur de la clé, ou la clé, a déjà huit requêtes en cours. `Retry-After` demande d’attendre deux secondes. |
 | **503** | `MODEL_API_UNAVAILABLE` | Tale ne peut pas servir la requête pour le moment, par exemple parce que la passerelle de modèles ne peut pas servir ce modèle. Réessaie sous peu. |
 | **400**, **413**, **422**, **429**, **503**, **529** ou **502** | `MODEL_API_UPSTREAM_ERROR` | Le fournisseur du modèle a refusé la requête. Les six premiers statuts reprennent celui du fournisseur ; tout autre refus est renvoyé en **502**. |
-| **400** | `INVALID_BODY` | Le corps n’est pas une requête que la route peut relayer, par exemple avec de l’audio en entrée, un rôle qu’elle ne relaie pas ou une URL d’image qui n’est ni `data:` ni `https:`. Le message nomme le champ, tout comme `param` au format OpenAI. |
+| **400** | `INVALID_BODY` | Le corps n’est pas une requête que la route peut relayer, par exemple avec de l’audio en entrée ou en sortie, un rôle qu’elle ne relaie pas, une URL d’image qui n’est ni `data:` ni `https:`, plus de huit réponses (`n`), un fichier stocké dans le compte du fournisseur (`file_id`, une source de type `file`), un `service_tier` autre que celui par défaut ou `store: true`. Le message nomme le champ, tout comme `param` au format OpenAI. |
 | **413** | `BODY_TOO_LARGE` | Le corps dépasse 32 Mio. |
 
 ## Rechercher dans les fichiers d’un projet
