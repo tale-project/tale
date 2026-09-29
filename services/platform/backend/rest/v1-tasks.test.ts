@@ -103,6 +103,13 @@ function mount(
     boundProjectIds?: string[];
     /** The root folder a `setupFolderName` lookup finds — `null` for none. */
     setupFolderId?: string | null;
+    /** Whose the task is — nobody's (an import's) unless the case says. */
+    taskOwner?: {
+      createdBy?: string;
+      createdByType?: string;
+      assigneeType?: string;
+      assigneeId?: string;
+    };
   } = {},
 ) {
   const queries: Captured[] = [];
@@ -131,6 +138,7 @@ function mount(
           : [
               {
                 ...task,
+                ...options.taskOwner,
                 projectId:
                   (inTransaction ? options.taskProjectIdInTx : undefined) ??
                   options.taskProjectId ??
@@ -279,6 +287,8 @@ describe('project-scoped task intake', () => {
         actorId: 'user-1',
         creatorType: 'user',
         dedupeScope: 'project',
+        // An editor of the project grows its label catalog on the way in.
+        mintLabels: true,
       }),
     );
     expect(
@@ -505,18 +515,79 @@ describe('project-scoped task intake', () => {
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 
-  it('refuses read-only members before any intake or run', async () => {
+  it('lets a member create a task, naming only labels the catalog has', async () => {
+    // Members create tasks in every project they can read (it used to be a
+    // 403); the label catalog stays the editors' to grow.
+    const { request, tx } = mount({ role: 'member' });
+    const res = await request(collection, 'POST', {
+      ...input,
+      labels: ['Contracts'],
+    });
+    expect(res.status).toBe(201);
+    expect(service.upsertTaskByExternalRef).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        actorId: 'user-1',
+        creatorType: 'user',
+        labels: ['Contracts'],
+        mintLabels: false,
+      }),
+    );
+  });
+
+  it('lets a member start a workflow on the task they just created', async () => {
+    const { request } = mount({
+      role: 'member',
+      taskOwner: { createdBy: 'user-1', createdByType: 'user' },
+    });
+    const res = await request(collection, 'POST', {
+      ...input,
+      runWorkflowSlug: 'triage',
+    });
+    expect(res.status).toBe(201);
+    expect(service.startWorkflowForTaskInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ startedByUserId: 'user-1' }),
+    );
+  });
+
+  it("refuses a member's repeat of someone else's task before any write or run", async () => {
+    // A repeat reconciles the task the reference names — a change to it.
+    service.findTaskByExternalRef.mockResolvedValue({
+      ...task,
+      createdBy: 'user-2',
+      createdByType: 'user',
+    });
     const { request } = mount({ role: 'member' });
-    expect(
-      (
-        await request(collection, 'POST', {
-          ...input,
-          runWorkflowSlug: 'triage',
-        })
-      ).status,
-    ).toBe(403);
+    const res = await request(collection, 'POST', {
+      ...input,
+      runWorkflowSlug: 'triage',
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'RBAC_FORBIDDEN' });
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
     expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it("reconciles a member's repeat of their own task", async () => {
+    service.findTaskByExternalRef.mockResolvedValue({
+      ...task,
+      createdBy: 'user-1',
+      createdByType: 'user',
+    });
+    service.upsertTaskByExternalRef.mockResolvedValue({
+      taskId: 't-1',
+      created: false,
+    });
+    const { request } = mount({ role: 'member' });
+    expect((await request(collection, 'POST', input)).status).toBe(200);
+    expect(service.upsertTaskByExternalRef).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a member in a team project they cannot see', async () => {
+    const { request } = mount({ role: 'member', teamIds: [] });
+    expect((await request(collection, 'POST', input)).status).toBe(404);
+    expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -934,13 +1005,35 @@ describe('project-scoped task reads and operations', () => {
     });
   });
 
-  it('refuses a member workflow start', async () => {
-    const { request } = mount({ role: 'member' });
-    expect(
-      (await request(`${item}/start`, 'POST', { workflowSlug: 'triage' }))
-        .status,
-    ).toBe(403);
+  it("refuses a member's start on someone else's task", async () => {
+    const { request } = mount({
+      role: 'member',
+      taskOwner: { createdBy: 'user-2', createdByType: 'user' },
+    });
+    const res = await request(`${item}/start`, 'POST', {
+      workflowSlug: 'triage',
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'RBAC_FORBIDDEN' });
     expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+  });
+
+  it('starts a workflow on the task a member created or is assigned to', async () => {
+    for (const taskOwner of [
+      { createdBy: 'user-1', createdByType: 'user' },
+      { createdBy: 'user-2', assigneeType: 'user', assigneeId: 'user-1' },
+    ]) {
+      service.startWorkflowForTaskInTx.mockClear();
+      const { request } = mount({ role: 'member', taskOwner });
+      const res = await request(`${item}/start`, 'POST', {
+        workflowSlug: 'triage',
+      });
+      expect(res.status).toBe(200);
+      expect(service.startWorkflowForTaskInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ startedByUserId: 'user-1' }),
+      );
+    }
   });
 
   it.each([
@@ -1274,11 +1367,25 @@ describe('the task lifecycle toggle', () => {
     expect(service.archiveTask).not.toHaveBeenCalled();
   });
 
-  it('refuses a member who cannot edit the project', async () => {
-    const { request } = mount({ role: 'member' });
+  it("refuses a member on someone else's task", async () => {
+    const { request } = mount({
+      role: 'member',
+      taskOwner: { createdBy: 'user-2', createdByType: 'user' },
+    });
     const res = await request(item, 'PATCH', { archived: true });
     expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'RBAC_FORBIDDEN' });
     expect(service.archiveTask).not.toHaveBeenCalled();
+  });
+
+  it('lets a member archive the task they created', async () => {
+    const { request } = mount({
+      role: 'member',
+      taskOwner: { createdBy: 'user-1', createdByType: 'user' },
+    });
+    const res = await request(item, 'PATCH', { archived: true });
+    expect(res.status).toBe(200);
+    expect(service.archiveTask).toHaveBeenCalledOnce();
   });
 
   it("answers the opaque 404 for another project's task", async () => {
