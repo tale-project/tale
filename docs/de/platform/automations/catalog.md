@@ -15,7 +15,7 @@ Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitg
 
 ## Einen Ausgangspunkt wählen
 
-Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Allgemein** findest du Trigger und Projekte: Unter **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung. Die Auswahl **Version** rechts neben den Tabs zeigt den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen.
+Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Allgemein** findest du Trigger und Projekte: Unter **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung. **Projekte** bietet nur Projekte an, die du öffnen kannst. Zuordnungen zu Projekten, die du nicht siehst, bleiben beim Speichern erhalten. Eine Automatisierung, die nur solchen Projekten zugeordnet ist, erscheint nicht in deiner Liste. Die Auswahl **Version** rechts neben den Tabs zeigt den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen.
 
 Das Menü **Automatisierung erstellen** bietet zwei Wege:
 

@@ -27,7 +27,26 @@ export interface CompetenceRecordWire {
   evidence: string | null;
 }
 
+/** One member's API key as the budget editor's picker lists it
+ * (`GET /governance/api-keys`, admin only) — masked: the name and the first
+ * characters the owner saw, never the secret. */
+export interface OrgApiKeyWire {
+  id: string;
+  name: string | null;
+  start: string | null;
+  userId: string;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  createdAt: number;
+  expiresAt: number | null;
+}
+
 export interface GovernanceContract {
+  'governance/api_keys:listOrgApiKeys': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: OrgApiKeyWire[];
+  };
   'governance/competences:grantCompetence': {
     kind: 'mutation';
     args: {

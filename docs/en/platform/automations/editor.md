@@ -23,7 +23,7 @@ On a phone, opening an automation starts with compact navigation. The editor can
 
 </Frame>
 
-To switch without returning to the list, click the current automation's name in the breadcrumb trail. The menu includes every automation in the organization, even after switching to another project. Automations with no project assignments appear first, followed by those assigned to projects, with a horizontal divider between the two groups. Search by name or slug and select an entry. The switch keeps the current tab; from a run’s detail, it opens the other automation’s **Runs** list. A selected version number does not carry over: **Editor** opens the other automation’s latest saved version.
+To switch without returning to the list, click the current automation's name in the breadcrumb trail. The menu includes every automation in the organization, even after switching to another project, except one bound only to projects you cannot open. Automations with no project assignments appear first, followed by those assigned to projects, with a horizontal divider between the two groups. Search by name or slug and select an entry. The switch keeps the current tab; from a run’s detail, it opens the other automation’s **Runs** list. A selected version number does not carry over: **Editor** opens the other automation’s latest saved version.
 
 ## Read the canvas
 

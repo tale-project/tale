@@ -5,6 +5,8 @@ description: Crée des instructions réutilisables, importe un bundle et choisis
 
 Un skill décrit une méthode de travail réutilisable : rédiger des notes de version, vérifier un brief ou préparer un document selon les conventions de ton équipe. Il contient un fichier d’instructions `SKILL.md` et, si nécessaire, des fichiers complémentaires. Entretiens-le dans **Paramètres > Skills**, puis [équipe les agents concernés](/fr/platform/agents/skills).
 
+Un skill agit là où un agent fait le travail : un [agent de projet](/fr/platform/projects/project-agents) qui traite une [tâche](/fr/platform/projects/tasks), ou un nœud agent dans une [automatisation](/fr/platform/automations/concepts). Le chat répond aux questions et cherche dans les connaissances de ton organisation ; il n’utilise pas de skills, n’exécute pas de code et ne produit pas de fichiers. Pour faire produire un document avec un skill, confie une tâche à un agent qui en est équipé — créer des tâches et des agents demande au moins le rôle Éditeur.
+
 Chaque membre peut créer un skill et modifier les siens. Pour modifier ou supprimer le skill partagé d’une autre personne, il faut être administrateur de l’organisation.
 
 ## Créer un petit skill

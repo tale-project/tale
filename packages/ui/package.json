@@ -333,6 +333,7 @@
     "./tabs": "./src/components/navigation/tabs.tsx",
     "./tailwind-preset": "./tailwind-preset.ts",
     "./testing/filters": "./src/testing/filters.ts",
+    "./testing/flow": "./src/testing/flow.ts",
     "./text": "./src/components/typography/text.tsx",
     "./textarea": "./src/components/forms/textarea.tsx",
     "./theme": "./src/theme/index.ts",
