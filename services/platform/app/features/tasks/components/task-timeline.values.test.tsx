@@ -17,9 +17,10 @@ import { TaskTimeline } from './task-timeline';
 /**
  * The history reads each stored value as the field it belongs to. These rows
  * are the activity door's own answer (`GET /api/app/tasks/{id}/activity`: a
- * side the writer left out is `null`, a field it cleared is `''`), read through
- * the app's real adapter and rendered with the shipped catalogs and date
- * formats. Only the member names are a fixture.
+ * side the writer left out is `null`, a field it cleared is `''`), projected
+ * by the app's real activity adapter and handed to the timeline in place of
+ * its query hooks, then rendered with the shipped catalogs and date formats.
+ * The member directory is a fixture.
  */
 
 const timeline = vi.hoisted(() => ({ activity: [] as TaskActivityRow[] }));
@@ -49,10 +50,12 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
 }));
 
-// Noon UTC, so the calendar day is the same in every test runner's zone.
-const SEP_30 = String(Date.UTC(2026, 8, 30, 12));
-const OCT_1 = String(Date.UTC(2026, 9, 1, 12));
-const OCT_2 = String(Date.UTC(2026, 9, 2, 12));
+// Local noon: the day reads the same in whatever zone the runner is in.
+const SEP_30 = String(new Date(2026, 8, 30, 12).getTime());
+const OCT_1 = String(new Date(2026, 9, 1, 12).getTime());
+const OCT_2 = String(new Date(2026, 9, 2, 12).getTime());
+// Stored before the doors held a date to what a `Date` can hold.
+const NO_DATE_CAN_HOLD = '9000000000000000';
 
 type Wire = {
   action: string;
@@ -112,6 +115,7 @@ const WORDS = {
     status: 'status changed',
     created: 'created',
     updated: 'updated',
+    claimed: 'claimed',
     dependencyRemoved: 'dependency removed',
     noDueDate: 'No due date',
     noStartDate: 'No start date',
@@ -141,6 +145,7 @@ const WORDS = {
     status: 'status geändert',
     created: 'erstellt',
     updated: 'aktualisiert',
+    claimed: 'übernommen',
     dependencyRemoved: 'abhängigkeit entfernt',
     noDueDate: 'Kein Fälligkeitsdatum',
     noStartDate: 'Kein Startdatum',
@@ -170,6 +175,7 @@ const WORDS = {
     status: 'statut modifié',
     created: 'créé',
     updated: 'mis à jour',
+    claimed: 'pris en charge',
     dependencyRemoved: 'dépendance supprimée',
     noDueDate: 'Aucune échéance',
     noStartDate: 'Aucune date de début',
@@ -309,5 +315,25 @@ describe.each(SHIPPED_LOCALES)('Task history in %s', (locale) => {
       screen.getByText(line('custom.changed', 'done')),
     ).toBeInTheDocument();
     expect(screen.queryByText(new RegExp(w.noDueDate))).not.toBeInTheDocument();
+  });
+
+  // What the board shows is what the history says: a day no `Date` can hold
+  // reads as no date, an assignee cleared that was already clear changes
+  // nothing, and a claim names the member who took the task.
+  it('reads a stored date no Date can hold, a no-op and a claim as the board does', async () => {
+    await renderHistory(locale, [
+      wire('dueDate.changed', OCT_1, NO_DATE_CAN_HOLD),
+      wire('assignee.changed', null, null),
+      wire('claimed', null, 'user-kim'),
+    ]);
+
+    expect(
+      await screen.findByText(line(w.dueDate, `${w.oct1} → ${w.noDueDate}`)),
+    ).toBeInTheDocument();
+    expect(screen.getByText(line(w.assignee))).toBeInTheDocument();
+    expect(
+      screen.queryByText(new RegExp(`${w.unassigned} → ${w.unassigned}`)),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(line(w.claimed, 'Kim Lee'))).toBeInTheDocument();
   });
 });

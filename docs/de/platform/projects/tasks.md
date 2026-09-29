@@ -101,7 +101,7 @@ Erwähnungen in der Beschreibung der Aufgabe wirken beim Speichern genauso: Die 
 
 Nutze **Teilaufgaben** für Ergebnisse, die sich einzeln prüfen lassen. Eine Teilaufgabe nennt oben in ihren Details die übergeordnete Aufgabe (**Teil von …**); klicke darauf, um zu ihr zurückzukehren. Solange Teilaufgaben offen sind, lässt sich die übergeordnete Aufgabe nicht abschließen. Unter **Abhängigkeiten** siehst du, welche Aufgaben diese Aufgabe blockieren und welche sie selbst blockiert. Kreisförmige Abhängigkeiten sind nicht zulässig.
 
-Die **Aktivität** der Aufgabe hält jede Änderung mit dem Wert davor und danach fest. Leerst du ein Feld, steht dort, was übrig bleibt, etwa **Kein Fälligkeitsdatum** oder **Nicht zugewiesen**, und nicht bloß der alte Wert. Titel, Beschreibungen, Labels und Dateinamen erscheinen genau so, wie sie geschrieben wurden, auch wenn der Text einem Statusnamen wie `done` entspricht. Nur Status und Prioritäten erscheinen in deiner Sprache.
+Änderst du ein Feld, zeigt die **Aktivität** der Aufgabe seinen Wert davor und danach. Leerst du ein Feld, steht dort, was übrig bleibt, etwa **Kein Fälligkeitsdatum** oder **Nicht zugewiesen**, und nicht bloß der alte Wert. Titel, Beschreibungen, Labels und Dateinamen erscheinen genau so, wie sie geschrieben wurden, auch wenn der Text einem Statusnamen wie `done` entspricht. Status, Prioritäten, Datumsangaben und die Angaben für ein leeres Feld erscheinen in deiner Sprache.
 
 ## Wiederkehrende Aufgaben einrichten
 

@@ -185,16 +185,20 @@ export function TaskTimelineEntry({
   // Each value reads as the field the action changed, never by what its text
   // spells: a title renamed from `todo` to `done` stays those words.
   const field = TASK_ACTIVITY_FIELD[entry.action];
+  // An empty side is the `''` a cleared field stores, or the end a writer
+  // leaves out for "nobody" and "does not repeat".
+  const isEmptySide = (value: string | undefined) =>
+    value === '' || (value === undefined && field?.absentIsEmpty === true);
+  const emptyWords = () => {
+    if (field?.kind === 'repeat') return repeatNever;
+    return field?.emptyKey ? t(field.emptyKey) : undefined;
+  };
   const formatActivityValue = (
     value: string | undefined,
   ): string | undefined => {
-    // An empty side names the absence — the `''` a cleared field stores, or
-    // the end a writer leaves out for "nobody" and "does not repeat" — so
-    // setting, changing and clearing each read as the change they were.
-    if (value === '' || (value === undefined && field?.absentIsEmpty)) {
-      if (field?.kind === 'repeat') return repeatNever;
-      return field?.emptyKey ? t(field.emptyKey) : undefined;
-    }
+    // An empty side names the absence, so setting, changing and clearing
+    // each read as the change they were.
+    if (isEmptySide(value)) return emptyWords();
     // An end the row never recorded: nothing is invented for it.
     if (value === undefined) return undefined;
     switch (field?.kind) {
@@ -209,8 +213,9 @@ export function TaskTimelineEntry({
       case 'date': {
         const parsed = Number(value);
         if (!Number.isFinite(parsed)) return value;
-        // A stored day no `Date` can hold formats as nothing, and is left out.
-        return formatDate(new Date(parsed), 'short') || undefined;
+        // A stored day no `Date` can hold reads as no date, as the board
+        // reads it, never as the other side alone.
+        return formatDate(new Date(parsed), 'short') || emptyWords();
       }
       case 'repeat': {
         // A rule keeps when it creates its next task, so a change of that
@@ -227,8 +232,11 @@ export function TaskTimelineEntry({
         return value;
     }
   };
-  const from = formatActivityValue(entry.fromValue);
-  const to = formatActivityValue(entry.toValue);
+  // Empty on both sides (an assignee cleared that was already clear) names no
+  // change, only that the row was written.
+  const unchanged = isEmptySide(entry.fromValue) && isEmptySide(entry.toValue);
+  const from = unchanged ? undefined : formatActivityValue(entry.fromValue);
+  const to = unchanged ? undefined : formatActivityValue(entry.toValue);
   const detail = from && to ? `${from} → ${to}` : (to ?? from);
 
   return (

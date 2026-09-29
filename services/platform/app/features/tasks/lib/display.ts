@@ -139,11 +139,15 @@ export interface TaskActivityField {
 /**
  * How the history reads the values of each stored activity `action` (see
  * `recordActivity` and `stringifyEditValue` in
- * `backend/domains/tasks/service.ts`). An action missing here reads as text.
+ * `backend/domains/tasks/service.ts`). Every action a writer records with a
+ * value is listed (`display.test.ts` holds the writers to it); one missing
+ * here would read as text.
  */
 export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
   created: { kind: 'status' },
   'status.changed': { kind: 'status' },
+  // The retired claim door (until 2026-09) stored the claimer's user id.
+  claimed: { kind: 'person' },
   'priority.changed': { kind: 'priority', emptyKey: 'priority.none' },
   'assignee.changed': {
     kind: 'person',
@@ -165,6 +169,10 @@ export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
     emptyKey: 'activity.empty.attachments',
   },
   'agent_run.refused': { kind: 'refusal' },
+  // The blocker task's id, and the next task's key: shown as stored.
+  'dependency.added': { kind: 'text' },
+  'dependency.removed': { kind: 'text' },
+  'repeat.next': { kind: 'text' },
 };
 
 /**

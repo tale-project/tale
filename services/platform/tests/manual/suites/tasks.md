@@ -213,20 +213,21 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the card from the default views; restoring (`tasks.archive.restoreSuccess`)
   returns it — both persisted across reload.
 - [ ] `TASK-F51` · **History names what a change left** — On a task you can
-  edit, set **Due date** and clear it with its ✕ (`common.datePicker.clear`),
-  assign a member and choose **Unassign** (`tasks.assignee.unassign`), clear
-  the **Description**, rename the task to `todo` and then to `done`, and move it
-  from **To do** to **Done**, while a second member has the same task open
-  from Home; then read **Activity** (`tasks.detail.activity`) in English,
-  **Deutsch** and **Français** → Each clear reads as the old value and then
-  its absence — **due date changed: 10/01/2026 → No due date**
-  (`tasks.activity.empty.dueDate`), **Unassigned**
+  edit that has no due date, set **Due date** to 1 October 2026 and clear it
+  with its ✕ (`common.datePicker.clear`); assign a member and choose
+  **Unassign** (`tasks.assignee.unassign`); write a **Description** and clear
+  it; rename the task to `todo` and then to `done`; move it from **To do** to
+  **Done**. Meanwhile a second member keeps the same task open (its **Copy
+  link** link, pasted in their own session). Then read **Activity**
+  (`tasks.detail.activity`) in English, **Deutsch** and **Français** → Setting
+  the date reads **due date changed: No due date → 10/01/2026**, and each clear
+  reads as the old value and then its absence: **due date changed: 10/01/2026
+  → No due date** (`tasks.activity.empty.dueDate`), **Unassigned**
   (`tasks.assignee.unassigned`), **No description**
-  (`tasks.activity.empty.description`) — and a first value reads **No due
-  date → …**; the renames read `todo → done` in every language, while the move
-  reads **To do → Done** (`tasks.status.*`), **Zu erledigen → Erledigt** and
-  **À faire → Terminé**; the second member's page shows each new line without
-  a reload, and a reload shows the same lines.
+  (`tasks.activity.empty.description`); the renames read `todo → done` in
+  every language, while the move reads **To do → Done** (`tasks.status.*`),
+  **Zu erledigen → Erledigt** and **À faire → Terminé**; the second member's
+  view shows each new line without a reload, and a reload shows the same lines.
 - [ ] `TASK-F33` · **Delete a task** — As an organization owner or admin, open
   a task that has a subtask → **Delete** (`tasks.actions.delete`) under
   **Details** → confirm (`tasks.delete.confirmTitle`) → The toast reads

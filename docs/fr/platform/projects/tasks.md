@@ -101,7 +101,7 @@ Les mentions dans la description de la tâche agissent de la même façon quand 
 
 Utilise **Sous-tâches** pour séparer des résultats vérifiables indépendamment. Une sous-tâche nomme sa tâche parente en haut de ses détails (**Partie de …**) ; clique dessus pour y remonter. Une tâche parente ne peut pas être clôturée tant que ses sous-tâches restent ouvertes. **Dépendances** indique ce qui bloque la tâche et ce qu’elle bloque. Les dépendances circulaires sont refusées.
 
-L’**Activité** de la tâche consigne chaque modification avec la valeur d’avant et celle d’après. Un champ que tu vides indique ce qui reste, par exemple **Aucune échéance** ou **Non assigné**, au lieu de répéter seulement l’ancienne valeur. Les titres, descriptions, étiquettes et noms de fichiers apparaissent exactement tels qu’ils ont été saisis, même quand le texte correspond à un nom de statut comme `done`. Seuls les statuts et les priorités s’affichent dans ta langue.
+Quand tu modifies un champ, l’**Activité** de la tâche affiche sa valeur d’avant et celle d’après. Un champ que tu vides indique ce qui reste, par exemple **Aucune échéance** ou **Non assigné**, au lieu de répéter seulement l’ancienne valeur. Les titres, descriptions, étiquettes et noms de fichiers apparaissent exactement tels qu’ils ont été saisis, même quand le texte correspond à un nom de statut comme `done`. Les statuts, les priorités, les dates et les mentions d’un champ vide s’affichent dans ta langue.
 
 ## Rendre une tâche récurrente
 
