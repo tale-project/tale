@@ -114,7 +114,7 @@ export function DocumentsTable({
     folderId: currentFolderId,
     initialNumItems: 20,
   });
-  const { regionRef, retryRead, focusRegion, failedWithRows } =
+  const { regionRef, retryRead, focusRegion } =
     useListReadRecovery(paginatedResult);
 
   // Search and filters run client-side over `paginatedResult.results`, which
@@ -301,6 +301,25 @@ export function DocumentsTable({
     ],
   );
 
+  // The level lists its folders beside its documents, from two reads. What
+  // it holds before the search and filters narrow it decides how a failed
+  // documents read shows (KNOW-F25): with nothing at all, the table's error
+  // state; with folders or earlier pages on screen, those stay and the
+  // notice names what is missing — a search that narrows them to nothing is
+  // still a search, never the error state.
+  const levelLoaded =
+    folderRows.length > 0 || paginatedResult.results.length > 0;
+  // The documents never answered beside the folders (a retry may be
+  // running), or a later page failed: the rows are not the whole level.
+  const documentsMissing =
+    levelLoaded &&
+    (paginatedResult.unavailable ||
+      (paginatedResult.error !== null &&
+        paginatedResult.status === 'CanLoadMore'));
+  const readFailed =
+    levelLoaded &&
+    (paginatedResult.unavailable || paginatedResult.error !== null);
+
   const previewDocument = useMemo(() => {
     if (!docId || !filteredResults.length) return null;
     return filteredResults.find((item) => item.id === docId) ?? null;
@@ -419,7 +438,8 @@ export function DocumentsTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
-      error: paginatedResult.error,
+      error: levelLoaded ? null : paginatedResult.error,
+      loadFailed: documentsMissing,
       retry: retryRead,
     },
     pageSize,
@@ -460,8 +480,9 @@ export function DocumentsTable({
         />
       )}
 
-      {/* Rows already on screen outlive a failed read — a refresh, or a page
-          a search asked for — and the failure is named above them. */}
+      {/* Rows already on screen outlive a failed read — the folders beside
+          documents that never loaded, a refresh, or a page a search asked
+          for — and the failure is named above them. */}
       <div
         ref={regionRef}
         role="region"
@@ -469,12 +490,14 @@ export function DocumentsTable({
         tabIndex={-1}
         className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
       >
-        {failedWithRows && (
+        {readFailed && (
           <CatalogLoadError
             // Each failure is announced again; Try again keeps its node.
             failureKey={paginatedResult.errorCount}
             onFocusLost={focusRegion}
-            message={tDocuments('refreshFailed')}
+            message={tDocuments(
+              paginatedResult.unavailable ? 'loadFailed' : 'refreshFailed',
+            )}
             onRetry={retryRead}
             isRetrying={paginatedResult.isRetrying}
           />

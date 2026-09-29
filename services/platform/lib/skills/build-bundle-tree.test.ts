@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildBundleTree,
+  bundleTreeEntryPath,
   collectDirPaths,
   type BundleTreeNode,
 } from './build-bundle-tree';
@@ -142,5 +143,61 @@ describe('collectDirPaths', () => {
       'scripts/helpers',
       'scripts/office',
     ]);
+  });
+});
+
+describe('bundleTreeEntryPath', () => {
+  const tree = buildBundleTree([
+    { path: 'references/notes.txt', size: 1 },
+    { path: 'references/nested/inner.txt', size: 1 },
+    { path: 'scripts/run.py', size: 1 },
+    { path: 'LICENSE.txt', size: 1 },
+  ]);
+  const all = new Set(collectDirPaths(tree));
+  const without = (...dirs: string[]) =>
+    new Set([...all].filter((dir) => !dirs.includes(dir)));
+
+  it('is the selected file while it is on screen', () => {
+    expect(bundleTreeEntryPath(tree, all, 'references/nested/inner.txt')).toBe(
+      'references/nested/inner.txt',
+    );
+    expect(bundleTreeEntryPath(tree, new Set(), 'LICENSE.txt')).toBe(
+      'LICENSE.txt',
+    );
+  });
+
+  it('is the folder that hides the selected file', () => {
+    expect(
+      bundleTreeEntryPath(tree, without('references'), 'references/notes.txt'),
+    ).toBe('references');
+    expect(
+      bundleTreeEntryPath(
+        tree,
+        without('references/nested'),
+        'references/nested/inner.txt',
+      ),
+    ).toBe('references/nested');
+  });
+
+  it('is the outermost collapsed folder when several hide it', () => {
+    expect(
+      bundleTreeEntryPath(
+        tree,
+        without('references', 'references/nested'),
+        'references/nested/inner.txt',
+      ),
+    ).toBe('references');
+  });
+
+  it('falls back to the nearest folder still in the bundle', () => {
+    expect(bundleTreeEntryPath(tree, all, 'references/gone.txt')).toBe(
+      'references',
+    );
+  });
+
+  it('is null when no row of the tree qualifies', () => {
+    expect(bundleTreeEntryPath(tree, all, null)).toBeNull();
+    expect(bundleTreeEntryPath(tree, all, 'SKILL.md')).toBeNull();
+    expect(bundleTreeEntryPath(tree, all, 'assets/logo.svg')).toBeNull();
   });
 });

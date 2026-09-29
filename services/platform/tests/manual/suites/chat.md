@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 90 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 91 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -155,6 +155,25 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.export.downloadMarkdown`) saves a file; **Print to PDF**
   (`chat.export.downloadPdf`) opens the print flow; with none selected both
   are disabled.
+- [ ] `CHAT-F52` · **Create task from chat** — As a Member, in a chat of
+  your own that is filed in no project, attach a file, ask for a
+  deliverable, then **Conversation actions** → **Create task from chat**
+  (`chat.createTask.button`) → **Create a task from this chat**
+  (`chat.createTask.projectTitle`) asks for the **Project**, **Continue**
+  stays off until one is picked; **Continue** → **Create task** opens holding
+  your last request as the description, a link back to the chat
+  (`chat.createTask.fromChat`, or `chat.createTask.fromChatUntitled` while
+  the model has not named the chat) and the attached file; assign a project
+  agent → **Create task** → the toast **Task created in {project}**
+  (`chat.createTask.created`) offers **Open task**
+  (`chat.createTask.openTask`), which opens the task on the project's board
+  with the file under **Attachments**; **Start agent** stages it for the run.
+  A chat filed in a project skips the project step; opened by a reader of
+  someone else's project-shared chat, the dialog starts without their files.
+  With `*/chat/threads/*/messages` blocked in DevTools, the flow opens no task
+  form: it says the conversation couldn't be read
+  (`chat.createTask.readFailed`) and offers **Try again** (`chat.tryAgain`);
+  unblock → **Try again** opens the form with the request and files.
 - [ ] `CHAT-F21` · **Share link** — **Share** (`chat.share.button`) → dialog
   **Share chat** (`chat.share.title`) → under **Who can view this chat**
   (`chat.share.accessPickerLabel`) pick **Share with organization**

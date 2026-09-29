@@ -4,10 +4,15 @@
  * those two effects is the whole contract: both fire in one commit when the new
  * slug's document is already cached, so seeding before clearing leaves the form
  * permanently null and the editor blank.
+ *
+ * A failed read is its own state (#3752): never "Skill not found", always a
+ * way to try again, and a failed refresh never takes a draft away. The labels
+ * field keeps every entry it is given (#3753).
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { render, screen } from '@/tests/utils/render';
 
 const { useSkill, useSkillPublishing, useOrgTeams, saveSkill } = vi.hoisted(
@@ -66,6 +71,44 @@ function mountPane(slug: string) {
     />,
   );
 }
+
+/**
+ * A react-query read as the hook returns it: `data` (undefined = none yet),
+ * its failure, and whether it is being fetched again. Fetching again keeps
+ * the error only while there is data — with none, react-query is `pending`.
+ */
+function read(
+  data: object | null | undefined,
+  error?: unknown,
+  {
+    isFetching = false,
+    refetch = vi.fn().mockResolvedValue(undefined),
+  }: { isFetching?: boolean; refetch?: () => Promise<unknown> } = {},
+) {
+  const failed = error !== undefined && !(isFetching && data === undefined);
+  return {
+    data,
+    error: failed ? error : null,
+    isError: failed,
+    isFetching,
+    isPending: data === undefined && !failed,
+    isSuccess: data !== undefined && !failed,
+    refetch,
+  };
+}
+
+function rerenderPane(rerender: (ui: React.ReactElement) => void) {
+  rerender(
+    <SkillDetailPane
+      organizationId="org_1"
+      slug="alpha"
+      onDeleted={vi.fn()}
+      onClose={vi.fn()}
+    />,
+  );
+}
+
+const NINE_LABELS = Array.from({ length: 9 }, (_, i) => `label-${i + 1}`);
 
 beforeEach(() => {
   saveSkill.mockClear();
@@ -188,6 +231,185 @@ describe('SkillDetailPane', () => {
       });
       mountPane('invoices');
       expect(rowValue('Created by')).toBe('Configuration release · Ops Bot');
+    });
+  });
+
+  describe('when a read fails (#3752)', () => {
+    const outage = () => new BackendApiError(503, 'Service Unavailable');
+
+    it('says the skill could not be loaded and offers Try again, never "not found"', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      const refetch = vi.fn().mockResolvedValue(undefined);
+      useSkill.mockReturnValue(read(undefined, outage(), { refetch }));
+      const { user } = mountPane('alpha');
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load this skill.",
+      );
+      expect(screen.queryByText('Skill not found')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(refetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('names a lost connection beside it', () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(
+        read(undefined, new TypeError('Failed to fetch')),
+      );
+      mountPane('alpha');
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load this skill. Couldn't reach Tale. Check your connection and try again.",
+      );
+    });
+
+    it('masks the pane again while Try again runs, then shows the saved skill', () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(undefined, outage(), { isFetching: true }));
+      const { rerender } = mountPane('alpha');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+
+      useSkill.mockReturnValue(read(skillDoc('alpha', 'Alpha body')));
+      rerenderPane(rerender);
+
+      expect(screen.getByDisplayValue('Alpha body')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('puts focus back on Try again when the retry fails again', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(undefined, outage()));
+      const { user, rerender } = mountPane('alpha');
+      screen.getByRole('button', { name: 'Try again' }).focus();
+
+      await user.keyboard('{Enter}');
+      useSkill.mockReturnValue(read(undefined, outage(), { isFetching: true }));
+      rerenderPane(rerender);
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+      useSkill.mockReturnValue(read(undefined, outage()));
+      rerenderPane(rerender);
+
+      expect(screen.getByRole('button', { name: 'Try again' })).toHaveFocus();
+    });
+
+    it('still says "Skill not found" for a skill that is gone', () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(null));
+      mountPane('alpha');
+
+      expect(screen.getByText('Skill not found')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps the editor and the draft when a refresh fails, and says so', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      const doc = skillDoc('alpha', 'Alpha body');
+      useSkill.mockReturnValue(read(doc));
+      const { user, rerender } = mountPane('alpha');
+      await user.type(screen.getByDisplayValue('Alpha body'), ' and a draft');
+
+      const refetch = vi.fn().mockResolvedValue(undefined);
+      useSkill.mockReturnValue(read(doc, outage(), { refetch }));
+      rerenderPane(rerender);
+
+      expect(
+        screen.getByDisplayValue('Alpha body and a draft'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't refresh this skill. You're seeing the version loaded earlier.",
+      );
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+      const tryAgain = screen.getByRole('button', { name: 'Try again' });
+      await user.click(tryAgain);
+      expect(refetch).toHaveBeenCalledTimes(1);
+
+      // The notice, and the focus on it, stay while the retry runs.
+      useSkill.mockReturnValue(
+        read(doc, outage(), { isFetching: true, refetch }),
+      );
+      rerenderPane(rerender);
+      expect(tryAgain).toBeInTheDocument();
+      expect(
+        screen.getByDisplayValue('Alpha body and a draft'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('labels (#3753)', () => {
+    it('keeps a ninth label in the field, says why and holds Save', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(skillDoc('alpha', 'Alpha body')));
+      const { user } = mountPane('alpha');
+      const labels = screen.getByRole('textbox', { name: 'Labels' });
+
+      await user.click(labels);
+      await user.paste(NINE_LABELS.join(', '));
+
+      expect(labels).toHaveValue(NINE_LABELS.join(', '));
+      expect(labels).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'A skill takes up to 8 labels. Remove 1 label to save.',
+      );
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(saveSkill).not.toHaveBeenCalled();
+    });
+
+    it('saves exactly the eight labels the member keeps', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(skillDoc('alpha', 'Alpha body')));
+      const { user } = mountPane('alpha');
+      const labels = screen.getByRole('textbox', { name: 'Labels' });
+      await user.click(labels);
+      await user.paste(NINE_LABELS.join(', '));
+
+      // The member picks which one goes: here the first.
+      await user.clear(labels);
+      await user.paste(NINE_LABELS.slice(1).join(', '));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(saveSkill).toHaveBeenCalledWith(
+        expect.objectContaining({ labels: NINE_LABELS.slice(1) }),
+      );
+    });
+
+    it('says which label is too long', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(skillDoc('alpha', 'Alpha body')));
+      const { user } = mountPane('alpha');
+      const long = 'x'.repeat(41);
+
+      await user.click(screen.getByRole('textbox', { name: 'Labels' }));
+      await user.paste(`finance, ${long}`);
+
+      // The start of the label, so the sentence holds still while typing.
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        `The label "${'x'.repeat(20)}…" is longer than 40 characters. Shorten it to save.`,
+      );
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
+    it('leaves stored labels alone when the member does not touch them', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      // Commas inside labels: the field shows them as nine entries.
+      const stored = ['a,b', 'c,d', 'e,f', 'g,h', 'i'];
+      useSkill.mockReturnValue(
+        read({ ...skillDoc('alpha', 'Alpha body'), labels: stored }),
+      );
+      const { user } = mountPane('alpha');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      await user.type(screen.getByDisplayValue('Alpha body'), ' edited');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(saveSkill).toHaveBeenCalledTimes(1);
+      expect(saveSkill.mock.calls[0]?.[0]).not.toHaveProperty('labels');
     });
   });
 

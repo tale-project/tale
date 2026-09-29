@@ -23,6 +23,8 @@ Ein Titel darf bis zu 200 Zeichen lang sein, eine Beschreibung bis zu 20.000; di
 
 Tale vergibt eine Kennung aus dem Projektkürzel, etwa `WEB-1`. Verwende sie in Verweisen auf die Arbeit, damit ähnlich benannte Aufgaben unterscheidbar bleiben.
 
+Auch ein Gespräch kann eine Aufgabe anstoßen: **Aufgabe aus Chat erstellen** im Menü **⋯** des Chats öffnet **Aufgabe erstellen** mit deiner Anfrage, den Dateien des Chats und einem Link zurück. Siehe [Aus einem Chat eine Aufgabe machen](/de/platform/chat/basics#create-task-from-chat).
+
 Eine Automatisierung, die für Aufgaben gebaut ist, kann in **Aufgabe erstellen** auch eine Vorlage anbieten: Ihr Name steht dann über dem Formular neben **Leere Aufgabe**. Wähle sie, gib den Namen ein, den die Automatisierung verlangt, etwa ein Quartal, und klicke auf **Aufgabe erstellen**; zuständig ist dann die Automatisierung. Gibt es für diesen Namen schon eine Aufgabe, öffnet Tale diese, statt eine zweite anzulegen, und meldet **Für dieses Subjekt existiert bereits eine Aufgabe.** Mitglieder können sie dort lesen und kommentieren, ändern sie aber nur, wenn es ihre eigene ist. Vorlagen, die im Projekt Ordner oder Einstellungsdateien anlegen, stehen nur Redakteuren und höheren Rollen zur Verfügung.
 
 <Tip>

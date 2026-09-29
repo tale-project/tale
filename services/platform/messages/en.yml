@@ -1039,6 +1039,21 @@ chat:
   markAsRead: Mark as read
   markAsUnread: Mark as unread
   readOnlyShared: Shared with the project — read-only
+  createTask:
+    button: Create task from chat
+    projectTitle: Create a task from this chat
+    projectDescription: Choose the project the task belongs to. A project agent there can work on it and deliver the files.
+    projectLabel: Project
+    projectPlaceholder: Choose a project
+    projectEmpty: No project matches
+    noProjects: There's no project to create the task in yet. Ask an Editor or Admin to create one.
+    continue: Continue
+    fromChat: 'From the chat: {title}'
+    fromChatUntitled: From the chat
+    created: Task created in {project}
+    openTask: Open task
+    openTaskAltText: Open the task you just created on its project's board
+    readFailed: Tale couldn't read this conversation, so the task can't carry your request and files yet. Try again, or create the task on the project's board.
   export:
     button: Export
     title: Export chat
@@ -2018,6 +2033,7 @@ documents:
   tableCaption: Documents and folders
   searchPlaceholder: Search documents
   refreshFailed: "Couldn't load the latest documents. What's listed may be incomplete or out of date."
+  loadFailed: "Couldn't load the documents here. Only the folders are listed until the documents load."
   record:
     badge: 'v{version} · {state}'
     state:
@@ -5003,7 +5019,14 @@ skills:
     binaryNotice: This file type is not previewable in the browser.
     largeFile: Large file — syntax highlighting disabled for performance.
     notFound: This file is no longer in the bundle. Pick another file from the tree.
+    loadFailed: Couldn't load this file.
+    refreshFailed: Couldn't refresh this file. You're seeing the version loaded
+      earlier.
+    empty: This file is empty.
   detail:
+    loadFailed: Couldn't load this skill.
+    refreshFailed: Couldn't refresh this skill. You're seeing the version loaded
+      earlier.
     tree:
       heading: Bundle
       empty: Only SKILL.md — bundle assets live under scripts/, references/, or
@@ -5139,6 +5162,11 @@ skills:
     labels: Labels
     labelsPlaceholder: research, pdf, finance
     labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
+    labelsTooMany:
+      'A skill takes up to {max} labels. Remove {excess, plural, one {# label}
+      other {# labels}} to save.'
+    labelTooLong:
+      'The label "{label}" is longer than {max} characters. Shorten it to save.'
     bodyHelp: Markdown the model reads when it loads the skill — playbooks,
       conventions, reference material. Never executed.
 projects:

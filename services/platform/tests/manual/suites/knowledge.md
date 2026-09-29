@@ -389,12 +389,26 @@ records and delete them after.
   field the record has.
 
 
-- [ ] `KNOW-F25` · **A failed documents read is an error, not one folder** —
-  Block `GET /api/app/documents/*` (or answer it 500) and open
-  `/dashboard/{org}/documents` → The table shows the error state
-  **Something went wrong** with **Try again** — never a table of the one
-  folder row with **Showing all 1 document**. Unblock and **Try again** →
-  the documents appear without navigating away.
+- [ ] `KNOW-F25` · **A failed documents read keeps the folders and says so** —
+  With folders at the root, block `*/api/app/documents/paginated*` in
+  DevTools (or answer it 500) and open `/dashboard/{org}/documents` → after
+  the retries the folders stay listed under one notice **Couldn't load the
+  documents here. Only the folders are listed until the documents load.**
+  (`documents.loadFailed`) with **Try again**, and the count reads
+  **Showing the first N documents — the rest couldn't be loaded**
+  (`common.pagination.showingLoadedFailed`), never **Showing all N
+  documents**. A search that matches no folder reads **No results among the
+  loaded items** and keeps its search box. With more than 20 folders, a
+  search that matches them all, and clearing it, keep every folder listed.
+  A folder that holds only a
+  subfolder, read with the documents unblocked, lists it with no notice and
+  **Showing all 1 document**; an empty folder read with them blocked shows
+  the table's error state **Something went wrong** with **Try again**.
+  Unblock → **Try again** from the keyboard: focus moves to the
+  **Documents** region, the documents appear without navigating away, and
+  the count is exact. A search, a filter and a **Rename folder** draft left
+  open survive a background retry that fails and one that heals (switch to
+  another window and back). No toast.
 - [ ] `KNOW-F26` · **Entry content renders as Markdown** — Knowledge entries →
   **Add entry** (`knowledgeEntries.addButton`) with content
   `Open **only on Thursdays**`, a `- ` bullet list and
