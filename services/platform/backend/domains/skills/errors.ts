@@ -29,6 +29,9 @@ export const SKILL_ERROR_STATUS: Readonly<Record<string, CodedRefusalStatus>> =
     INVALID_SKILL: 400,
     SKILL_PRIVATE_RETIRED: 400,
     SKILL_FORBIDDEN: 403,
+    // The organization-wide audience is reserved by the `skill_sharing`
+    // policy and the caller may not publish (`domains/skills/publish.ts`).
+    SKILL_PUBLISH_FORBIDDEN: 403,
     SKILL_EXISTS: 412,
     SKILL_STALE: 412,
     SKILL_MALFORMED: 422,

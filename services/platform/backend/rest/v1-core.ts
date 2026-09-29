@@ -109,6 +109,10 @@ import {
   assertSkillTeamsAssignable,
   SKILL_ERROR_STATUS,
 } from '../domains/skills/errors.ts';
+import {
+  auditIfPublishRefused,
+  maySkillPublishOrgWide,
+} from '../domains/skills/publish.ts';
 import { unequipDeletedSkill } from '../domains/skills/unequip.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { listTeamDirectory } from '../domains/teams/service.ts';
@@ -333,6 +337,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           },
           Date.now(),
         ),
+        // The skill write doors' organization-wide gate (`skill_sharing` and
+        // `tale:skills.publish`): whether a `PUT /skills/{slug}` that shares
+        // a skill with the whole organization would pass, so a sync learns it
+        // before a 403 `SKILL_PUBLISH_FORBIDDEN`.
+        skillPublish: await maySkillPublishOrgWide(deps.sql, {
+          organizationId: c.get('organizationId'),
+          userId: c.get('userId'),
+          role: c.get('role'),
+        }),
       },
       key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
     });
@@ -1594,6 +1607,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const who = await skillCaller(c);
       const slug = c.req.param('slug');
+      const mayPublishOrgWide = await maySkillPublishOrgWide(deps.sql, {
+        organizationId: c.get('organizationId'),
+        userId: c.get('userId'),
+        role: c.get('role'),
+      });
       // Serialized with the upload lane and the app editor on the per-slug
       // writer lock (`writer-lock.ts`); the precondition runs inside it, so
       // two racing conditional saves cannot both find their tag current.
@@ -1608,6 +1626,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             precondition,
             ...body,
             assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
+            mayPublishOrgWide,
           });
           await auditSkillWrite(tx, {
             organizationId: c.get('organizationId'),
@@ -1633,6 +1652,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         ? c.json(view, 201, { location: `/api/v1/skills/${slug}` })
         : c.json(view, 200);
     } catch (error) {
+      await auditIfPublishRefused(deps.sql, error, {
+        organizationId: c.get('organizationId'),
+        actor: {
+          id: c.get('userId'),
+          email: c.get('userEmail'),
+          role: c.get('role'),
+        },
+        via: 'api',
+      });
       return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }
   });

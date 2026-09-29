@@ -403,6 +403,15 @@ export async function saveSkillForViewer(
      * the door answers. Absent = unchecked (the file layer alone).
      */
     assertTeamsAssignable?: (teamIds: string[]) => Promise<void>;
+    /**
+     * Whether the caller may give a skill the whole organization as its
+     * audience — the organization's `skill_sharing` policy, resolved by the
+     * door (`domains/skills/publish.ts`). Anything but `true` refuses a save
+     * that would create an organization-wide skill, widen one to the
+     * organization, or change one in place (`SKILL_PUBLISH_FORBIDDEN`);
+     * narrowing to teams and saving an identical document stay open.
+     */
+    mayPublishOrgWide: boolean;
   } & SkillEditInput,
 ): Promise<SkillSaveResult> {
   {
@@ -471,6 +480,14 @@ export async function saveSkillForViewer(
     }
 
     const content = serializeSkillMd(meta, args.body);
+    const identical =
+      existing !== null && skillEntityTag(sha256(content)) === existing.etag;
+    assertOrgWidePublishable({
+      slug: args.slug,
+      visibility,
+      mayPublishOrgWide: args.mayPublishOrgWide,
+      unchangedOrgWide: identical && existing.meta.visibility === 'org',
+    });
     // Re-read what we are about to persist: a save must never be able to
     // write a document the readers would then reject.
     let verified;
@@ -498,7 +515,7 @@ export async function saveSkillForViewer(
     // preconditions above are still evaluated first, so a stale `If-Match`
     // on an identical body is refused like any other.
     const version =
-      existing !== null && skillEntityTag(sha256(content)) === existing.etag
+      identical && existing !== null
         ? { etag: existing.etag, updatedAt: existing.updatedAt }
         : await bundleRead(args.orgSlug, args.slug, async () => {
             const written = await writeSkillMdText(
@@ -546,6 +563,34 @@ export async function saveSkillForViewer(
       },
     };
   }
+}
+
+/** The refusal of an organization-wide write the caller may not publish —
+ * 403 on every skill door (`domains/skills/errors.ts`). */
+export const SKILL_PUBLISH_FORBIDDEN = 'SKILL_PUBLISH_FORBIDDEN';
+
+/**
+ * The organization-wide audience rule at the file layer: a write whose
+ * result is shared with the whole organization needs the caller's
+ * `mayPublishOrgWide`, unless it leaves an organization-wide document exactly
+ * as stored. That covers creating one, widening a team skill to the
+ * organization and changing one in place; a write that ends on `team` is
+ * never this rule's business, so the owner of an organization-wide skill can
+ * still narrow it (the team rules then apply), and deleting stays open.
+ */
+function assertOrgWidePublishable(args: {
+  slug: string;
+  visibility: SkillFrontmatter['visibility'];
+  mayPublishOrgWide: boolean;
+  unchangedOrgWide: boolean;
+}): void {
+  if (args.visibility !== 'org') return;
+  if (args.mayPublishOrgWide || args.unchangedOrgWide) return;
+  throw new AppError({
+    code: SKILL_PUBLISH_FORBIDDEN,
+    message: `Your organization reserves sharing a skill with the whole organization, so "${args.slug}" was not written. Share it with your teams instead, or ask an owner or admin, or a member granted tale:skills.publish.`,
+    data: { slug: args.slug },
+  });
 }
 
 const PRIVATE_SKILLS_RETIRED_MESSAGE =
@@ -624,22 +669,34 @@ export function normalizedBundleFiles(
  * organization's own teams, and for a non-admin only their own — checked when
  * the list is new or differs from the bundle it replaces (like the editor's
  * save, so an unchanged re-upload never fails on a team deleted since), then
- * the owner and private-retired rules of {@link normalizedBundleFiles}. Both
- * upload lanes write through it: the skill zip and an automation package's
- * carried skills. `assertTeamsAssignable` is supplied by the door, which owns
- * the database handle, and throws the refusal it answers.
+ * the owner and private-retired rules of {@link normalizedBundleFiles}. A
+ * bundle shared with the whole organization (an unmarked one included) needs
+ * `mayPublishOrgWide`: an upload is a write of every file, so unlike the
+ * editor's identical save it has no unchanged case to let through — an
+ * automation package's carried skill that already reads as stored is never
+ * handed here. Both upload lanes write through it: the skill zip and an
+ * automation package's carried skills. `assertTeamsAssignable` is supplied
+ * by the door, which owns the database handle, and throws the refusal it
+ * answers.
  */
 export async function prepareBundleWrite(args: {
   parsed: ParsedBundle;
   uploader: UserSkillViewer;
   existing: OrgSkill | null;
   assertTeamsAssignable: (teamIds: string[]) => Promise<void>;
+  mayPublishOrgWide: boolean;
 }): Promise<Array<{ path: string; content: Buffer }>> {
   const files = normalizedBundleFiles(
     args.parsed,
     args.uploader,
     args.existing,
   );
+  assertOrgWidePublishable({
+    slug: args.parsed.slug,
+    visibility: args.parsed.meta.visibility,
+    mayPublishOrgWide: args.mayPublishOrgWide,
+    unchangedOrgWide: false,
+  });
   const teams =
     resolveTeams(
       args.parsed.meta.visibility,

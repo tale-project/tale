@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 29 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) that project agents and automation agent nodes are equipped with; chat
@@ -219,6 +219,14 @@ builtin skill from `configs/platform/custom/skills/`.
   show its changed fields, the sharing row the visibility and teams before
   and after, and the metadata the door (`app`, `upload`,
   `automation_package`) and the resulting `etag`.
+- [ ] `SKILL-F20` · **Create asks for the audience** — In an organization
+  without a skill sharing policy, **Add skill** → **Blank skill** → The
+  create dialog shows **Visibility** (`skills.visibility.label`) under the
+  description with **Organization** (`skills.visibility.org`) preselected;
+  picking **Teams** (`skills.visibility.team`) keeps **Create** off until a
+  team is picked; a skill created with a team reads that team's badge in the
+  table after reload, and one created with Organization reads
+  **Organization**.
 
 ## Boundary & error tests
 
@@ -253,6 +261,36 @@ builtin skill from `configs/platform/custom/skills/`.
   team, and no skill is written. As a Developer, upload an automation package
   carrying the same two skills → the same outcomes; re-uploading an unchanged
   package reports its skills as unchanged, with no overwrite prompt.
+- [ ] `SKILL-B5` · **A reserved organization-wide audience** — As an admin,
+  set Settings → Governance → Policies & Limits → **Skill sharing**
+  (`governance.skillSharing.title`) to **Owners and admins only**
+  (`governance.skillSharing.modes.admins`) while a Member in team T1 owns an
+  organization-wide skill; then, as that Member: open **Blank skill**; open
+  the owned skill and edit its body; switch it to **Teams** → T1 and save;
+  delete it; upload a zip without `visibility:` → The create dialog preselects
+  **Teams**, its **Organization** option is disabled with the reason
+  (`skills.publishing.reserved.admins`), and a T1 skill creates; the owned
+  skill still reads **Organization** (tightening narrowed nothing), its
+  dialog shows the notice (`skills.publishing.lockedEdit`) and **Save** stays
+  off until it is narrowed, after which it saves; delete works; the upload
+  preview shows the reason with `skills.publishing.uploadRefused` and
+  **Upload bundle** stays off. `PUT /api/v1/skills/{slug}` with the Member's
+  key and no `visibility` answers 403 `SKILL_PUBLISH_FORBIDDEN`, and
+  Governance → Logs lists **Skill publishing refused**
+  (`settings.logs.audit.actionLabels.skill.publish_denied`) as denied.
+  Restore **Every member** afterwards.
+- [ ] `SKILL-B6` · **Who may publish anyway** — With **Editors and above**
+  (`governance.skillSharing.modes.editors`) set: an Editor creates an
+  organization-wide skill; a Member cannot (the reason reads
+  `skills.publishing.reserved.editors`) until an admin grants them **Publish
+  skills to the organization**
+  (`governance.competences.capabilities.skillsPublish.label`) under
+  Governance → Competences, after which a reload offers **Organization** and
+  the create succeeds; `GET /api/v1/me` reports `skillPublish` among its
+  capabilities as `false`, then `true`; revoking the grant refuses the next organization-wide
+  save again. Under **Owners and admins only**, a Developer's automation
+  package carrying a skill without `visibility:` is refused with 403
+  `SKILL_PUBLISH_FORBIDDEN` and installs nothing. Restore **Every member**.
 
 ## Accessibility (WCAG 2.1 AA)
 

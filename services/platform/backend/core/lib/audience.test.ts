@@ -10,7 +10,7 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   assertTeamsAssignable,
@@ -19,8 +19,10 @@ import {
   canSeeAudience,
   grantOf,
   isAudienceAdmin,
+  mayChooseOrgWideAudience,
   normalizeTeamIds,
   PROJECT_TEAM_IDS_SQL,
+  roleMayChooseOrgWideAudience,
   sameAudience,
   TeamAssignmentError,
 } from './audience.ts';
@@ -292,5 +294,76 @@ describe('assertTeamsAssignable', () => {
         ['t-ghost'],
       ),
     ).rejects.toMatchObject({ code: 'TEAM_NOT_IN_ORG', status: 400 });
+  });
+});
+
+describe('mayChooseOrgWideAudience', () => {
+  const ROLES = ['owner', 'admin', 'developer', 'editor', 'member'] as const;
+  const EXPECTED: Record<string, Record<string, boolean>> = {
+    everyone: {
+      owner: true,
+      admin: true,
+      developer: true,
+      editor: true,
+      member: true,
+    },
+    editors: {
+      owner: true,
+      admin: true,
+      developer: true,
+      editor: true,
+      member: false,
+    },
+    admins: {
+      owner: true,
+      admin: true,
+      developer: false,
+      editor: false,
+      member: false,
+    },
+  };
+
+  for (const mode of ['everyone', 'editors', 'admins'] as const) {
+    for (const role of ROLES) {
+      const verdict = EXPECTED[mode]?.[role] ? 'may' : 'may not';
+      it(`${mode}: ${role} ${verdict} by role`, async () => {
+        const holdsGrant = vi.fn(() => Promise.resolve(false));
+        expect(roleMayChooseOrgWideAudience(role, mode)).toBe(
+          EXPECTED[mode]?.[role],
+        );
+        expect(
+          await mayChooseOrgWideAudience({ role }, { mode, holdsGrant }),
+        ).toBe(EXPECTED[mode]?.[role]);
+        // The grant is read only when the role alone does not decide.
+        expect(holdsGrant).toHaveBeenCalledTimes(
+          EXPECTED[mode]?.[role] ? 0 : 1,
+        );
+      });
+    }
+  }
+
+  it('lets a live grant admit a role the mode does not', async () => {
+    for (const role of ['developer', 'editor', 'member']) {
+      expect(
+        await mayChooseOrgWideAudience(
+          { role },
+          { mode: 'admins', holdsGrant: () => Promise.resolve(true) },
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('never admits a disabled seat, whatever it holds', async () => {
+    const holdsGrant = vi.fn(() => Promise.resolve(true));
+    for (const mode of ['everyone', 'editors', 'admins'] as const) {
+      expect(roleMayChooseOrgWideAudience('disabled', mode)).toBe(false);
+      expect(
+        await mayChooseOrgWideAudience(
+          { role: 'disabled' },
+          { mode, holdsGrant },
+        ),
+      ).toBe(false);
+    }
+    expect(holdsGrant).not.toHaveBeenCalled();
   });
 });

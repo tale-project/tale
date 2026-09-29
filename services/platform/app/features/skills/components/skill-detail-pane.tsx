@@ -20,6 +20,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useDeleteSkill, useSaveSkill } from '../hooks/mutations';
 import { useSkill } from '../hooks/queries';
+import { useOrgReservedReason } from '../hooks/use-org-reserved-reason';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import {
@@ -58,6 +59,7 @@ export function SkillDetailPane({
 
   const skillQuery = useSkill(organizationId, slug);
   const skill = skillQuery.data ?? null;
+  const orgReservedReason = useOrgReservedReason(organizationId);
   const saveSkill = useSaveSkill();
   const deleteSkill = useDeleteSkill();
 
@@ -105,12 +107,22 @@ export function SkillDetailPane({
     form !== null &&
     form.metadata.sharing.visibility === 'team' &&
     form.metadata.sharing.teams.length === 0;
+  // The organization reserves organization-wide skills and this viewer may
+  // not publish: a save that ends shared with the whole organization —
+  // an edit in place, or a widening — would be refused. Narrowing to their
+  // teams (with any other change in the same save) and deleting stay open.
+  const orgWideReserved =
+    orgReservedReason !== undefined &&
+    form !== null &&
+    form.metadata.sharing.visibility === 'org';
+  const lockedInPlace =
+    canEdit && orgReservedReason !== undefined && skill?.visibility === 'org';
 
   const files = skill?.files ?? [];
   const assets = files.filter((file) => file.path !== 'SKILL.md');
 
   const save = async () => {
-    if (!form || !skill || !canEdit || teamsMissing) return;
+    if (!form || !skill || !canEdit || teamsMissing || orgWideReserved) return;
     try {
       await saveSkill.mutateAsync({
         organizationId,
@@ -186,6 +198,13 @@ export function SkillDetailPane({
           {selectedPath === 'SKILL.md' ? (
             <Stack gap={4}>
               {!canEdit && <Alert variant="info" description={t('readOnly')} />}
+              {lockedInPlace && (
+                <Alert
+                  variant="info"
+                  title={orgReservedReason}
+                  description={t('publishing.lockedEdit')}
+                />
+              )}
               {form && (
                 <SettingsFieldList className="w-full max-w-3xl">
                   <SettingsFieldRow label={t('attribution.createdBy')}>
@@ -203,6 +222,7 @@ export function SkillDetailPane({
                     savedSharing={savedSharing}
                     onChange={(metadata) => setForm({ ...form, metadata })}
                     disabled={!canEdit}
+                    orgReservedReason={orgReservedReason}
                   />
                   <SettingsFieldRow
                     layout="stack"
@@ -249,7 +269,7 @@ export function SkillDetailPane({
           {canEdit && (
             <Button
               onClick={() => void save()}
-              disabled={!dirty || teamsMissing}
+              disabled={!dirty || teamsMissing || orgWideReserved}
               isLoading={saveSkill.isPending}
             >
               {tCommon('actions.save')}

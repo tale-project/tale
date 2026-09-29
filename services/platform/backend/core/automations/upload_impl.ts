@@ -125,6 +125,11 @@ export interface UploadHost {
     teamIds: string[];
     isOrgAdmin: boolean;
   } | null>;
+  /** Whether the uploader may give a carried skill the whole organization
+   * as its audience (the `skill_sharing` policy and `tale:skills.publish`);
+   * a created or replaced carried skill shared with the organization is
+   * refused without it (`SKILL_PUBLISH_FORBIDDEN`). */
+  mayPublishOrgWide(): Promise<boolean>;
   /** Serialize carried-skill reads, permission checks and writes with all
    * other library writers, including writers served by another replica. */
   withSkillWriterLocks<T>(
@@ -548,6 +553,18 @@ export async function uploadAutomationImpl(
       teamIds: viewerContext?.teamIds ?? [],
       isOrgAdmin: viewerContext?.isOrgAdmin ?? host.isOrgAdmin,
     };
+    // The publish right matters only to a carried skill shared with the whole
+    // organization (an unmarked one included), so a package without one never
+    // reads the policy. It is read here, before the writer locks: the answer
+    // reads through the pool, and reserving a second connection under the
+    // held lock deadlocks when competing writers fill it.
+    const carriesOrgWideSkill = parsed.skills.some(
+      (skill) =>
+        parseSkillMd(skill.skillMdText, `skills/${skill.slug}/SKILL.md`).meta
+          .visibility === 'org',
+    );
+    const mayPublishOrgWide =
+      carriesOrgWideSkill && (await host.mayPublishOrgWide());
     const outcome = await host.withSkillWriterLocks(
       carriedSlugs,
       async (writer) => {
@@ -559,8 +576,10 @@ export async function uploadAutomationImpl(
         );
         if (planned.kind === 'needs_confirm') return planned;
 
-        // The team-audience rule for every skill about to be written, before
-        // any is: a refused team leaves the organization's skills untouched.
+        // The team-audience and organization-wide rules for every skill about
+        // to be written, before any is: a refusal leaves the organization's
+        // skills untouched. A carried skill that already reads as stored is
+        // no write, so it answers to neither.
         for (const entry of planned.plan) {
           if (entry.action === 'unchanged') continue;
           entry.files = await prepareBundleWrite({
@@ -569,6 +588,7 @@ export async function uploadAutomationImpl(
             existing: entry.existing,
             assertTeamsAssignable: (teamIds) =>
               writer.assertTeamsAssignable(teamIds),
+            mayPublishOrgWide,
           });
         }
 

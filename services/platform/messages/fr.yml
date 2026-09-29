@@ -3251,6 +3251,21 @@ governance:
     enabledLabel: Sortie vocale activée pour cette organisation
     saved: Politique de sortie vocale mise à jour
     saveFailed: Échec de l'enregistrement de la politique de sortie vocale
+  skillSharing:
+    title: Partage des skills
+    description: Choisis qui peut partager un skill avec toute l'organisation.
+      Chacun peut toujours partager un skill avec ses propres équipes, et un
+      réglage plus strict ne restreint aucun skill déjà partagé avec
+      l'organisation.
+    label: Partager les skills avec l'organisation
+    labelHint: Les propriétaires et les admins le peuvent toujours. Pour
+      l'autoriser à un autre membre, attribue-lui « Publier des skills pour
+      l'organisation » sous Compétences.
+    modes:
+      everyone: Tous les membres
+      editors: Éditeurs et au-delà
+      admins: Propriétaires et admins uniquement
+    saveFailed: Échec de l'enregistrement de la politique de partage des skills
   dataNotice:
     title: Avis de confidentialité
     description:
@@ -3665,6 +3680,9 @@ governance:
       restActAs:
         label: Agir pour un autre membre
         description: Nommer, dans un appel d'API, le membre pour qui une question reçoit une réponse ou une relecture est décidée, pour que l'enregistrement indique cette personne plutôt que la clé.
+      skillsPublish:
+        label: Publier des skills pour l'organisation
+        description: Partager un skill avec toute l'organisation, même quand la politique de partage des skills le réserve aux éditeurs ou aux admins.
     empty:
       title: Aucune compétence attribuée
       description: Attribue à un membre une capacité de la plateforme ou une qualification. Elle ne s'applique que dans cette organisation.
@@ -5208,6 +5226,25 @@ skills:
     formerMember: Ancien membre
     byMember: Par {name}
     byFormerMember: Par un ancien membre
+  publishing:
+    reserved:
+      editors: Ton organisation réserve le partage avec tout le monde aux
+        éditeurs et au-delà, ainsi qu'aux membres autorisés par un admin.
+      admins: Ton organisation réserve le partage avec tout le monde aux
+        propriétaires et aux admins, ainsi qu'aux membres autorisés par un
+        admin.
+    noTeams: Tu ne fais partie d'aucune équipe, et ton organisation réserve le
+      partage avec tout le monde. Demande à un admin de t'ajouter à une équipe
+      ou de t'autoriser à publier des skills.
+    lockedEdit: Tant que ce skill reste partagé avec toute l'organisation,
+      seule une personne autorisée à publier peut le modifier. Tu peux le
+      restreindre à tes équipes (et le modifier au même moment) ou le
+      supprimer.
+    uploadRefused: Dans SKILL.md, mets la visibilité sur team avec les
+      identifiants de tes équipes, ou demande à un admin de téléverser ce
+      bundle.
+    refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
+      pas le droit de publier. Partage plutôt ce skill avec tes équipes.
   addMenu:
     label: Ajouter un skill
   createMenu:
@@ -6446,6 +6483,7 @@ settings:
         skill.updated: Skill mis à jour
         skill.sharing_changed: Partage d'un skill modifié
         skill.deleted: Skill supprimé
+        skill.publish_denied: Publication d'un skill refusée
         team.created: Équipe créée
         team.updated: Équipe mise à jour
         team.deleted: Équipe supprimée

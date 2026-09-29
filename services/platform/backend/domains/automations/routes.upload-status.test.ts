@@ -12,11 +12,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { uploadAutomationPg } = vi.hoisted(() => ({
+const { uploadAutomationPg, auditIfPublishRefused } = vi.hoisted(() => ({
   uploadAutomationPg: vi.fn(),
+  auditIfPublishRefused: vi.fn(),
 }));
 
 vi.mock('./upload.ts', () => ({ uploadAutomationPg }));
+vi.mock('../skills/publish.ts', () => ({ auditIfPublishRefused }));
 
 vi.mock('../../lib/org-config.ts', async (importOriginal) => {
   const actual =
@@ -65,6 +67,7 @@ async function uploadRefusedWith(code: string): Promise<Response> {
 
 beforeEach(() => {
   uploadAutomationPg.mockReset();
+  auditIfPublishRefused.mockReset();
 });
 
 describe('POST /upload — the uploader', () => {
@@ -99,6 +102,7 @@ describe('POST /upload — refusal statuses', () => {
   it.each([
     ['TEAM_ACCESS_DENIED', 403],
     ['TEAM_NOT_IN_ORG', 400],
+    ['SKILL_PUBLISH_FORBIDDEN', 403],
     ['STORAGE_NOT_FOUND', 400],
     ['SKILL_CONFLICT_FORBIDDEN', 400],
   ])('answers %s with %i', async (code, status) => {
@@ -108,5 +112,21 @@ describe('POST /upload — refusal statuses', () => {
       error: code,
       message: `refused: ${code}`,
     });
+  });
+});
+
+describe('POST /upload — a carried organization-wide skill it may not publish', () => {
+  it('hands the refusal to the denied-publish audit as the uploader, through the package door', async () => {
+    const res = await uploadRefusedWith('SKILL_PUBLISH_FORBIDDEN');
+    expect(res.status).toBe(403);
+    expect(auditIfPublishRefused).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.any(AppError),
+      {
+        organizationId: 'o1',
+        actor: { id: 'u1', email: 'u@example.test', role: 'developer' },
+        via: 'automation_package',
+      },
+    );
   });
 });

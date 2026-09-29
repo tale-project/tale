@@ -166,6 +166,9 @@ export const REST_ERROR_CODES = [
   'SKILL_FORBIDDEN',
   'SKILL_MALFORMED',
   'SKILL_NOT_FOUND',
+  // The organization's `skill_sharing` policy reserves an organization-wide
+  // skill, and the key holder may not publish one.
+  'SKILL_PUBLISH_FORBIDDEN',
   'SKILL_STALE',
   'SKILL_TEAM_UNKNOWN',
   'TASK_ARCHIVED',

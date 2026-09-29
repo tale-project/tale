@@ -11,7 +11,9 @@
  *
  * Assignment is the mirror image: a non-admin may only file a resource into
  * teams they belong to, an admin into any team of the organization, and
- * nobody into a team that is not this organization's.
+ * nobody into a team that is not this organization's. Choosing no team at
+ * all — the whole organization — is open to every writer unless the
+ * organization governs it (`mayChooseOrgWideAudience`).
  *
  * Storage keeps the array as the truth (`app.documents.team_tags`,
  * `app.folders.team_tags`, `app.projects.team_ids`) and derives the legacy
@@ -21,6 +23,7 @@
  * encodings cannot disagree.
  */
 
+import type { OrgWideAudienceMode } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 /** Organization roles that see and administer everything. */
@@ -30,6 +33,18 @@ export const ADMIN_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 export function isAudienceAdmin(role: string | null | undefined): boolean {
   return role != null && ADMIN_ROLES.has(role);
 }
+
+/**
+ * Organization roles that produce shared content — they write to any project
+ * they can read and equip its agents. Also the roles an organization-wide
+ * audience policy in `editors` mode admits.
+ */
+export const EDITOR_ROLES: ReadonlySet<string> = new Set([
+  'owner',
+  'admin',
+  'developer',
+  'editor',
+]);
 
 /** What a resource says about who may see it. */
 export interface Audience {
@@ -234,4 +249,50 @@ export async function assertTeamsAssignable(
     }
   }
   return ids;
+}
+
+/**
+ * What an organization says about who may choose an organization-wide
+ * audience for a kind of resource: the mode its governance policy puts in
+ * force (`everyone` when it has none), and how to ask whether a member holds
+ * the platform capability that admits them regardless. The capability read
+ * is a query, so it is asked for only when the role alone does not decide.
+ */
+export interface OrgWideAudienceRule {
+  readonly mode: OrgWideAudienceMode;
+  readonly holdsGrant: () => Promise<boolean>;
+}
+
+/**
+ * Whether the role alone admits an organization-wide audience under `mode`:
+ * owners and admins always; Editors and above in `editors` mode; every
+ * active member in `everyone` mode. A disabled seat never does.
+ */
+export function roleMayChooseOrgWideAudience(
+  role: string,
+  mode: OrgWideAudienceMode,
+): boolean {
+  if (role === 'disabled') return false;
+  if (isAudienceAdmin(role)) return true;
+  if (mode === 'everyone') return true;
+  if (mode === 'editors') return EDITOR_ROLES.has(role);
+  return false;
+}
+
+/**
+ * The one rule for choosing an organization-wide audience — an empty team
+ * list, which every member then sees. Where {@link assertTeamsAssignable}
+ * decides which teams a writer may name, this decides whether they may name
+ * none: the role, under the organization's mode, or else a live grant of
+ * the capability the rule names. Skills are its first consumer (the
+ * `skill_sharing` policy and `tale:skills.publish`); a document or project
+ * door adopts it by supplying its own rule.
+ */
+export async function mayChooseOrgWideAudience(
+  viewer: { readonly role: string },
+  rule: OrgWideAudienceRule,
+): Promise<boolean> {
+  if (viewer.role === 'disabled') return false;
+  if (roleMayChooseOrgWideAudience(viewer.role, rule.mode)) return true;
+  return rule.holdsGrant();
 }

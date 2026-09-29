@@ -3185,6 +3185,21 @@ governance:
     enabledLabel: Sprachausgabe für diese Organisation aktiviert
     saved: Sprachausgabe-Richtlinie aktualisiert
     saveFailed: Sprachausgabe-Richtlinie konnte nicht gespeichert werden
+  skillSharing:
+    title: Skill-Freigabe
+    description: Lege fest, wer einen Skill mit der ganzen Organisation teilen
+      darf. Mit den eigenen Teams kann jede Person einen Skill weiterhin
+      teilen, und eine strengere Einstellung schränkt keinen Skill ein, der
+      schon mit der Organisation geteilt ist.
+    label: Skills mit der Organisation teilen
+    labelHint: Inhaber und Admins dürfen das immer. Um es einem weiteren
+      Mitglied zu erlauben, weise ihm unter Kompetenzen „Skills für die
+      Organisation veröffentlichen“ zu.
+    modes:
+      everyone: Alle Mitglieder
+      editors: Redakteure und höher
+      admins: Nur Inhaber und Admins
+    saveFailed: Richtlinie zur Skill-Freigabe konnte nicht gespeichert werden
   dataNotice:
     title: Vertraulichkeitshinweis
     description:
@@ -3593,6 +3608,9 @@ governance:
       restActAs:
         label: Für ein anderes Mitglied handeln
         description: Bei einem API-Aufruf das Mitglied nennen, für das eine Frage beantwortet oder eine Prüfung entschieden wird, damit der Eintrag diese Person zeigt statt des Schlüssels.
+      skillsPublish:
+        label: Skills für die Organisation veröffentlichen
+        description: Einen Skill mit der ganzen Organisation teilen, auch wenn die Richtlinie zur Skill-Freigabe das Redakteuren oder Admins vorbehält.
     empty:
       title: Noch keine Kompetenzen zugewiesen
       description: Weise einem Mitglied eine Plattform-Berechtigung oder eine Qualifikation zu. Sie gilt nur in dieser Organisation.
@@ -5136,6 +5154,22 @@ skills:
     formerMember: Ehemaliges Mitglied
     byMember: Von {name}
     byFormerMember: Von einem ehemaligen Mitglied
+  publishing:
+    reserved:
+      editors: Deine Organisation erlaubt das Teilen mit allen nur Redakteuren
+        und höher sowie Mitgliedern, denen ein Admin es erlaubt hat.
+      admins: Deine Organisation erlaubt das Teilen mit allen nur Inhabern und
+        Admins sowie Mitgliedern, denen ein Admin es erlaubt hat.
+    noTeams: Du bist in keinem Team, und deine Organisation beschränkt das
+      Teilen mit allen. Ein Admin kann dich einem Team hinzufügen oder dir das
+      Veröffentlichen von Skills erlauben.
+    lockedEdit: Solange der Skill mit der ganzen Organisation geteilt ist, kann
+      ihn nur ändern, wer veröffentlichen darf. Du kannst ihn auf deine Teams
+      einschränken (und im selben Schritt bearbeiten) oder löschen.
+    uploadRefused: Setze in der SKILL.md die Sichtbarkeit auf team mit den IDs
+      deiner Teams, oder lass einen Admin das Bundle hochladen.
+    refused: Deine Organisation beschränkt das Teilen mit allen, und du darfst
+      nicht veröffentlichen. Teile den Skill stattdessen mit deinen Teams.
   addMenu:
     label: Skill hinzufügen
   createMenu:
@@ -6346,6 +6380,7 @@ settings:
         skill.updated: Skill aktualisiert
         skill.sharing_changed: Freigabe eines Skills geändert
         skill.deleted: Skill gelöscht
+        skill.publish_denied: Veröffentlichen eines Skills abgelehnt
         team.created: Team erstellt
         team.updated: Team aktualisiert
         team.deleted: Team gelöscht

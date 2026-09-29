@@ -330,7 +330,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Richtlinien und Limits",
-      "description": "Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat und die Zuordnung eingehender Konversationen fest."
+      "description": "Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat, das Teilen von Skills mit allen und die Zuordnung eingehender Konversationen fest."
     }
   },
   "de:platform/admin/governance/trash": {
@@ -1483,7 +1483,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Policies and limits",
-      "description": "Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, and inbound-conversation routing."
+      "description": "Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, who may share skills with everyone, and inbound-conversation routing."
     }
   },
   "en:platform/admin/governance/trash": {
@@ -2636,7 +2636,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Politiques et limites",
-      "description": "Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat et le routage des conversations entrantes."
+      "description": "Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat, le partage des skills avec tout le monde et le routage des conversations entrantes."
     }
   },
   "fr:platform/admin/governance/trash": {

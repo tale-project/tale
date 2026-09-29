@@ -253,5 +253,14 @@
  * since. A `PUT /api/v1/skills/{slug}` that changes the document is
  * recorded in the audit log (`skill.created`, `skill.updated`,
  * `skill.sharing_changed`).
+ *
+ * 3.5.0 — 2026-09-29: an organization may reserve organization-wide
+ * skills. Under its `skill_sharing` policy (Editors and above, or owners
+ * and administrators, plus members granted the `tale:skills.publish`
+ * capability), `PUT /api/v1/skills/{slug}` answers 403
+ * `SKILL_PUBLISH_FORBIDDEN` to a key holder outside that set for a save that
+ * would create a `visibility: org` skill, widen one to `org` or change an
+ * `org` skill in place; `GET /api/v1/me` answers
+ * `capabilities.skillPublish`.
  */
-export const API_CONTRACT_VERSION = '3.4.0';
+export const API_CONTRACT_VERSION = '3.5.0';

@@ -45,17 +45,22 @@ function isNarrowingSharingChange(
  *
  * Controlled: `value` is what the FORM currently holds; `savedValue` is what
  * the file on disk says, and is what the narrowing warning compares against.
+ * `orgReservedReason`, when the organization reserves organization-wide
+ * skills and the viewer may not publish, disables the Organization option
+ * and says why in its place.
  */
 export function SkillVisibilityField({
   value,
   savedValue,
   onChange,
   disabled,
+  orgReservedReason,
 }: {
   value: SkillSharingValue;
   savedValue?: SkillSharingValue;
   onChange: (value: SkillSharingValue) => void;
   disabled?: boolean;
+  orgReservedReason?: string;
 }) {
   const { t } = useT('skills');
   const { teams, isLoading } = useOrgTeams();
@@ -122,7 +127,8 @@ export function SkillVisibilityField({
           {
             value: 'org',
             label: t('visibility.org'),
-            description: t('visibility.orgHelp'),
+            description: orgReservedReason ?? t('visibility.orgHelp'),
+            disabled: orgReservedReason !== undefined,
           },
         ]}
       />

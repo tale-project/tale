@@ -63,6 +63,15 @@ export interface SkillsContract {
         updatedAt: number;
       }>;
       failures: Array<{ slug: string; path: string; message: string }>;
+      /**
+       * Whether the viewer may give a skill the whole organization as its
+       * audience, and the organization's `skill_sharing` mode that decides
+       * it (`everyone` while it has no policy).
+       */
+      publishing: {
+        mode: 'everyone' | 'editors' | 'admins';
+        allowed: boolean;
+      };
     };
   };
   'skills/actions:saveSkill': {
