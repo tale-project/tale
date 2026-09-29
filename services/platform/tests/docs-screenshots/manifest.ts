@@ -107,7 +107,13 @@ function escapeRegExp(text: string): string {
 }
 
 const FEEDBACK_PROMPT = DEMO_CHAT_PROMPTS[0];
-const LAUNCH_CHECKLIST_PROMPT = DEMO_CHAT_PROMPTS[1];
+/**
+ * A chat that ends in work needing a file, handed to a project agent. Named
+ * by its words, not its place in the seed list: the launch checklist is no
+ * seeded chat any more (`chat-arena-split` asks it in a chat of its own).
+ */
+const TASK_HANDOFF_PROMPT =
+  'Plan the quarterly business review agenda for Friday';
 
 /** The Confidentiality notice section on Governance > Policies & Limits. */
 const dataNoticeSection = (page: Page): Locator =>
@@ -699,7 +705,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/chat',
     prepare: async (page, ctx) => {
-      await page.goto(chatThreadRoute(ctx, LAUNCH_CHECKLIST_PROMPT), {
+      await page.goto(chatThreadRoute(ctx, TASK_HANDOFF_PROMPT), {
         waitUntil: 'domcontentloaded',
       });
       await page
