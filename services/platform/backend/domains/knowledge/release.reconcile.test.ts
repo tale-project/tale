@@ -399,14 +399,19 @@ describe('runCorpusReconcile — what the log says', () => {
   const lines = (spy: MockInstance<typeof console.info>) =>
     spy.mock.calls.map((call) => String(call[0]));
 
-  it('reports scope drift as the failed per-edit sync it is', async () => {
+  // A corrected row is a scope write that failed or never ran: a failed
+  // per-edit sync, or a shared ref's holder that changed on a lane that
+  // does not re-stamp it — and, the first night after the holder rule
+  // shipped, every row an older release stamped from a copy. The line used
+  // to blame a failed sync for all of them.
+  it('reports scope drift with both of its causes, and the one-off after an upgrade', async () => {
     reconcileDocumentScopeStamps.mockResolvedValue({
       scanned: 9,
       corrected: 2,
     });
     await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
     expect(lines(warn)).toEqual([
-      '[knowledge] corpus scope drift for acme: corrected=2 of scanned=9 — the per-edit sync had failed for these',
+      "[knowledge] corpus scope drift for acme: corrected=2 of scanned=9 — a per-edit scope sync failed, or a shared ref's holder changed without a re-stamp (and, once after an upgrade, rows an older release stamped from a copy rather than the holder)",
     ]);
   });
 
