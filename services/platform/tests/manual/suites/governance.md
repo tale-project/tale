@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 56 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -22,7 +22,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
 | Content & Models      | `content-models`                          | Custom instructions (unified field, was prefix/suffix), Default Models, Model access        |
-| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, conversation routing |
+| Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
 | Guardrails            | `guardrails`                              | Guardrails overview, Content safety, PII protection, Moderation provider                    |
@@ -407,6 +407,17 @@ select lists only the current admin's keys (`useApiKeys`).
   pending receipt still shows the approval actions with the hint **The
   approval requirement was captured when the request was filed**
   (`governance.dataSubjectRequests.approval.capturedPolicy`).
+- [ ] `GOV-F35` · **Skill sharing policy** — As an admin on Policies & Limits,
+  find **Skill sharing** (`governance.skillSharing.title`); switch **Share
+  skills with the organization** (`governance.skillSharing.label`) through
+  **Editors and above** and **Owners and admins only**, saving each through
+  the page's Save cluster, then back to **Every member** → A fresh
+  organization reads **Every member**
+  (`governance.skillSharing.modes.everyone`); each saved mode survives a
+  reload; Discard restores the saved one; Logs lists a
+  `governance_policy.created` then `governance_policy.updated` row for
+  `skill_sharing`; a Member never reaches the page. What each mode does to
+  skills is `SKILL-B5` / `SKILL-B6`.
 
 ## Boundary & error tests
 
