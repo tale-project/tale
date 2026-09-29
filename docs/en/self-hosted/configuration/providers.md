@@ -78,7 +78,7 @@ The backend calls the image model with the organization's credential; no key ent
 
 A custom OpenAI-compatible endpoint's `/models` response must declare an image model with `image` among `architecture.output_modalities` or `modalities.output`, and a positive `context_length` or `context_window`. Tale saves raster images only (PNG, JPEG, WebP, GIF) and refuses a model's SVG; a reference image an agent passes must be a PNG, JPEG or WebP file of at most 4 MB. Listing a model does not prove the endpoint works: turn image generation on, pin the model, have an agent create a test image, then check the request in the endpoint's logs.
 
-One agent turn creates at most 16 images and runs one generation at a time. Before each call, Tale holds USD 0.25 per image against the turn's allowance and the budget caps, then books the reported cost in place of the hold when the call ends. A turn on a vendor subscription has no gateway allowance, so its images are measured against the deployment's default turn allowance.
+One agent turn creates at most 16 images and runs one generation at a time. Before each call, Tale holds USD 0.25 per image against the turn's allowance and the budget caps, then books the reported cost in place of the hold when the call ends. The turn's gateway key gives up the same amount from its cap, so the model and the images together stay within one allowance; if the gateway cannot lower that cap, the image is refused. A turn on a vendor subscription has no gateway allowance, so its images are measured against the deployment's default turn allowance.
 
 ## Verify sandbox model access
 
