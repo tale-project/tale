@@ -411,9 +411,10 @@ compute codes from the enrollment secret.
   below the banner, with no blank band between them; end the session there →
   the notice clears the notch and the banner under it takes no second pad.
   At 375 px, end the session while tab 1 shows `/dashboard/changelog`, then
-  while it shows `/dashboard/create-organization` → the notice stands in the
-  flow above the page, never over it: **Back** (`changelog.viewer.back`) can
-  be pressed, and the organization wizard scrolls to its last control.
+  while it shows `/dashboard/create-organization` with a name typed into the
+  wizard → the notice stands in the flow above the page, never over it:
+  **Back** (`changelog.viewer.back`) can be pressed, and the organization
+  wizard keeps the typed name and scrolls to its last control.
 
 ## Accessibility (WCAG 2.1 AA)
 

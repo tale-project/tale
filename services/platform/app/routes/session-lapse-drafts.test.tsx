@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   getSession: vi.fn(),
+  navigate: vi.fn(),
   realSession: false,
   session: { isAuthenticated: true, isLoading: false },
   outlet: (): ReactNode => null,
@@ -20,7 +21,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: Record<string, unknown>) => options,
   redirect: vi.fn(),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => h.navigate,
   useBlocker: () => ({ status: 'idle' }),
   Outlet: () => h.outlet(),
 }));
@@ -58,14 +59,27 @@ vi.mock('@/app/features/products/hooks/use-product-image-upload', () => ({
 vi.mock('@/app/features/products/hooks/mutations', () => ({
   useCreateProduct: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+// The wizard's name field stands in for its steps: it keeps what was typed
+// for as long as the wizard stays mounted, and no longer.
+vi.mock(
+  '@/app/features/organization/components/onboarding/onboarding-wizard',
+  () => ({
+    OnboardingWizard: () => <input aria-label="Organization name" />,
+  }),
+);
 
 import { ProductCreateDialog } from '@/app/features/products/components/product-create-dialog';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { currentUserQuery } from '@/app/lib/backend/account';
 import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
+import {
+  organizationCapabilitiesQuery,
+  userOrganizationsQuery,
+} from '@/app/lib/backend/org';
 import { LAPSED_SESSION_ANSWER } from '@/tests/utils/lapsed-session';
 
 import { Route } from './dashboard';
+import { Route as CreateOrganizationRoute } from './dashboard/create-organization';
 
 const realLocation = window.location;
 let href: string;
@@ -92,6 +106,7 @@ beforeEach(() => {
     },
   });
   h.getSession.mockReset().mockResolvedValue({ data: null, error: null });
+  h.navigate.mockReset();
   h.session = { isAuthenticated: true, isLoading: false };
   href = '/dashboard/org-1/products';
   Object.defineProperty(window, 'location', {
@@ -341,4 +356,100 @@ describe('confirmed session lapse with an unregistered product draft', () => {
       expect(href).toBe('/dashboard/org-1/products');
     },
   );
+});
+
+const CreateOrganization = (
+  CreateOrganizationRoute as unknown as { component: () => ReactNode }
+).component;
+
+// The create-organization page ran a signed-out redirect of its own under the
+// layout that owns a lapse: once the probe lost its user, it unmounted the
+// wizard, and the name typed into it, and left for /log-in with neither the
+// page to come back to nor the Sign in / Stay here choice.
+describe('a session that ends on the create-organization page', () => {
+  const member = { userId: 'wizard-user', name: 'Synthetic member' };
+  beforeEach(() => {
+    h.realSession = true;
+    href = '/dashboard/create-organization';
+    queryClient.setQueryData(sessionQueryOptions.queryKey, {
+      data: { user: { id: member.userId } },
+      error: null,
+    });
+    queryClient.setQueryData(userOrganizationsQuery().queryKey, []);
+    queryClient.setQueryData(organizationCapabilitiesQuery().queryKey, {
+      canCreate: true,
+    });
+    h.outlet = () => <CreateOrganization />;
+  });
+
+  it("keeps the wizard and its typed name behind the layout's Stay here", async () => {
+    queryClient.setQueryData(currentUserQuery().queryKey, member);
+    const user = userEvent.setup();
+    render(<Dashboard />, { wrapper: QueryWrapper });
+    const name = screen.getByLabelText('Organization name');
+    await user.type(name, 'Acme Research');
+    act(() => {
+      queryClient.setQueryData(currentUserQuery().queryKey, null);
+    });
+    await user.click(
+      await screen.findByRole('button', { name: 'auth.sessionLapse.stayHere' }),
+    );
+    expect(name).toBeInTheDocument();
+    expect(name).toHaveValue('Acme Research');
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(href).toBe('/dashboard/create-organization');
+  });
+
+  // The layout mounts the page as soon as Better Auth confirms the session,
+  // while the probe it refreshes still reads signed out; the capabilities read
+  // waits for that probe, and the page must not take its silence for a no.
+  it('holds its frame, never a refusal, while the probe catches up', async () => {
+    queryClient.setQueryData(currentUserQuery().queryKey, null);
+    queryClient.removeQueries({
+      queryKey: organizationCapabilitiesQuery().queryKey,
+    });
+    h.getSession.mockResolvedValue({
+      data: { user: { id: member.userId } },
+      error: null,
+    });
+    let answerProbe = (_answer: Response) => {};
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (input) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.endsWith('/users/me')) {
+          return new Promise<Response>((resolve) => {
+            answerProbe = resolve;
+          });
+        }
+        if (url.endsWith('/organizations/capabilities')) {
+          return Response.json({ canCreate: true });
+        }
+        return Response.json({ organizations: [] });
+      });
+    render(<Dashboard />, { wrapper: QueryWrapper });
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/users\/me$/),
+        expect.anything(),
+      ),
+    );
+    await act(async () => {});
+    expect(
+      screen.queryByText('onboarding.workspace.creationForbidden'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Organization name'),
+    ).not.toBeInTheDocument();
+
+    await act(async () => answerProbe(Response.json({ user: member })));
+    expect(
+      await screen.findByLabelText('Organization name'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('onboarding.workspace.creationForbidden'),
+    ).not.toBeInTheDocument();
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(href).toBe('/dashboard/create-organization');
+  });
 });
