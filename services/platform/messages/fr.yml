@@ -7460,6 +7460,21 @@ tasks:
     noTasks: Aucune tâche
   list:
     showArchived: Afficher les archivées
+  # Une lecture du tableau qui a échoué après toutes ses tentatives (#3747) :
+  # ce qui n’a pas été chargé et ce que la personne voit entre-temps — jamais
+  # un tableau vide. Chaque alerte porte « Réessayer »
+  # (common.actions.tryAgain) pour cette seule lecture.
+  read:
+    tasksFailed: Impossible de charger les tâches, aucune n’est donc affichée. Ta recherche et tes filtres restent tels quels.
+    tasksStale: Impossible d’actualiser les tâches. Elles s’affichent telles qu’elles ont été chargées la dernière fois.
+    dependenciesFailed: Impossible de charger les dépendances, les tâches bloquées ne sont donc peut-être pas signalées comme bloquées.
+    activityFailed: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés.
+    activityFailedReviewFilter: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés, et « En attente de ma relecture » peut omettre des tâches qui t’attendent.
+    retrying: Nouvelle tentative…
+    # La lecture du tableau s’arrête à son plafond ; la recherche restreint la
+    # lecture elle-même et atteint donc chaque tâche. {count} est le nombre de
+    # tâches affichées.
+    truncated: '{count, plural, one {Seule la première tâche est affichée.} other {Seules les # premières tâches sont affichées.}} Utilise la recherche pour trouver les autres.'
   # Glisser au clavier dans le tableau et la liste : les instructions du
   # titre, puis les annonces en direct. {task} vaut `KEY-12, Titre` à la
   # saisie, puis `KEY-12` (le titre si le projet n'a pas de clé). Un dépôt
