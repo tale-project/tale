@@ -21,6 +21,15 @@ import { describe, expect, it } from 'vitest';
  * write stays quiet (`errorToast: false`) and the caller's toast says why,
  * or the caller leaves the reporting to the write.
  *
+ * A quiet write's one report must also fire. `mutate(args, { onError })` does
+ * not always: react-query runs a call's own `onError` only while that call is
+ * the observer's latest and the caller is mounted, so a second `mutate` on
+ * the same hook, or a caller that unmounts first, drops it. A quiet write is
+ * reported from its call's own promise (`mutateAsync`) or not at all quiet:
+ * the write's own toast, which fires for every call. And a batch surface's
+ * one toast keeps the reason: each `BulkDeleteBar`, `BulkArchiveBar` and
+ * `EntityDeleteDialog` is handed a `describeFailure`.
+ *
  * This parses every non-test `.ts` / `.tsx` under `services/platform/app`
  * and indexes each write that toasts on failure: a direct call, a hook that
  * returns one (a hook forwarding its options is judged by the argument at
@@ -39,7 +48,9 @@ const PLATFORM_ROOT = path.resolve(
 /** The two hooks whose failure raises the default toast. */
 const WRITE_HOOKS = new Set(['useBackendMutation', 'useBackendAction']);
 
-/** The hooks whose `save` rejection `EditorActions` toasts. */
+/** The hooks whose `save` rejection `EditorActions` toasts. A hand-written
+ * controller counts too: one declared an `EditorController`, or an object
+ * carrying `save`, `isDirty` and `reset` (`isEditorController`). */
 const EDITOR_HOOKS = new Set(['useFormEditor', 'useJsonConfigEditor']);
 
 /** Shared surfaces that toast when a callback they are handed rejects. */
@@ -81,11 +92,15 @@ interface Write {
 
 interface Violation {
   origin: Origin;
-  /** The file and line of the second report. */
+  /** The file and line of the second report, or of the report that may never
+   * fire. */
   file: string;
   line: number;
-  /** What reports the failure the second time. */
+  /** What reports the failure the second time, or why its one report may be
+   * dropped. */
   via: string;
+  /** A second toast, or a quiet write's only report hung on `mutate`. */
+  kind: 'doubled' | 'dropped';
 }
 
 interface Walk {
@@ -99,6 +114,10 @@ type FunctionNode =
   | ts.FunctionExpression
   | ts.ArrowFunction
   | ts.MethodDeclaration;
+
+/** How a report reads when a quiet write's only toast hangs on `mutate`. */
+const DROPPED =
+  'its onError is the only report, and mutate drops it when another call starts or the caller unmounts';
 
 const MUTATION_REJECTS: ReadonlySet<string> = new Set(['mutateAsync']);
 const MUTATION_SETTLES: ReadonlySet<string> = new Set(['mutate']);
@@ -937,7 +956,12 @@ class Scan {
 
   /** `options` is an object literal (or a name holding one) whose `onError`
    * toasts: report it. */
-  private onErrorOf(options: ts.Expression, write: Write, via: string): void {
+  private onErrorOf(
+    options: ts.Expression,
+    write: Write,
+    via: string,
+    kind: Violation['kind'] = 'doubled',
+  ): void {
     let literal = unwrap(options);
     if (ts.isIdentifier(literal)) {
       const declaration = this.lookup(literal);
@@ -958,18 +982,22 @@ class Scan {
       );
       if (handler?.body !== undefined) {
         if (this.toastingCall(handler.body, true) !== undefined) {
-          this.report(write, property, via);
+          this.report(write, property, via, kind);
         }
       }
     }
   }
 
-  /** Follow every use of a toasting write a declaration binds. */
+  /** Follow every use of a write a declaration binds: a toasting write to
+   * a second report, a quiet one to a report `mutate` may drop. */
   private bind(declaration: ts.VariableDeclaration, write: Write): void {
-    if (write.mode !== 'toasts') return;
+    if (write.mode !== 'toasts' && write.mode !== 'quiet') return;
+    const quiet = write.mode === 'quiet';
     const walk: Walk = { write, seen: new Set() };
     const track = (reference: ts.Expression, member: string) => {
-      if (write.rejects.has(member)) this.useValue(reference, walk);
+      if (quiet) {
+        if (write.settles.has(member)) this.droppable(reference, walk);
+      } else if (write.rejects.has(member)) this.useValue(reference, walk);
       else if (write.settles.has(member)) this.settled(reference, walk);
     };
     if (ts.isIdentifier(declaration.name)) {
@@ -1001,6 +1029,18 @@ class Scan {
     const options = call.arguments[1];
     if (options !== undefined) {
       this.onErrorOf(options, walk.write, 'its onError toasts');
+    }
+  }
+
+  /** `mutate(vars, { onError })` on a quiet write: that `onError` is the
+   * failure's only report, and react-query drops it once a newer `mutate`
+   * starts on the same hook, or the caller unmounts before it settles. */
+  private droppable(callee: ts.Expression, walk: Walk): void {
+    const call = outer(callee).parent;
+    if (!ts.isCallExpression(call) || call.expression !== outer(callee)) return;
+    const options = call.arguments[1];
+    if (options !== undefined) {
+      this.onErrorOf(options, walk.write, DROPPED, 'dropped');
     }
   }
 
@@ -1119,6 +1159,7 @@ class Scan {
     if (ts.isCallExpression(call) && EDITOR_HOOKS.has(calleeName(call) ?? '')) {
       return true;
     }
+    if (typedAsController(object)) return true;
     const keys = new Set(object.properties.map(propertyName));
     return keys.has('save') && keys.has('isDirty') && keys.has('reset');
   }
@@ -1291,15 +1332,55 @@ class Scan {
     }
   }
 
-  private report(write: Write, at: ts.Node, via: string): void {
+  private report(
+    write: Write,
+    at: ts.Node,
+    via: string,
+    kind: Violation['kind'] = 'doubled',
+  ): void {
     this.found.push({
       origin: write.origin,
       file: at.getSourceFile().fileName,
       line: lineOf(at),
       via:
         write.through === undefined ? via : `${via} (through ${write.through})`,
+      kind,
     });
   }
+}
+
+/** Whether `object` is declared an `EditorController` — built in a
+ * `useMemo<EditorController>`, bound to a name of that type, or cast to it —
+ * whatever keys it carries. */
+function typedAsController(object: ts.ObjectLiteralExpression): boolean {
+  const isController = (type: ts.TypeNode | undefined) =>
+    type !== undefined && type.getText() === 'EditorController';
+  let node: ts.Node = object;
+  while (isWrapper(node.parent)) {
+    node = node.parent;
+    if (
+      (ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) &&
+      isController(node.type)
+    ) {
+      return true;
+    }
+  }
+  const parent = node.parent;
+  if (ts.isVariableDeclaration(parent)) return isController(parent.type);
+  // `useMemo<EditorController>(() => ({ … }))`, a block body returning it.
+  const fn = ts.isArrowFunction(parent)
+    ? parent
+    : ts.isReturnStatement(parent)
+      ? enclosingFunction(parent)
+      : undefined;
+  if (fn === undefined) return false;
+  const call = outer(fn).parent;
+  return (
+    isCallTo(call, 'useMemo') &&
+    call.arguments[0] !== undefined &&
+    outer(call.arguments[0]) === outer(fn) &&
+    isController(call.typeArguments?.[0])
+  );
 }
 
 function isWriteHookCall(call: ts.CallExpression): boolean {
@@ -1359,6 +1440,50 @@ function readPlatformFile(file: string): string | undefined {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
   }
+}
+
+/** The batch surfaces whose one failure toast reads its words from a
+ * `describeFailure` the caller hands it. */
+const REASONED_SURFACES = new Set([
+  'BulkDeleteBar',
+  'BulkArchiveBar',
+  'EntityDeleteDialog',
+]);
+
+/** Every batch surface rendered without a `describeFailure`, as
+ * `file:line Tag`. A spread props object is no proof it carries one. */
+function surfacesWithoutReason(
+  read: (file: string) => string | undefined,
+  files: readonly string[],
+): string[] {
+  const out: { file: string; line: number; tag: string }[] = [];
+  for (const file of files) {
+    const text = read(file);
+    if (text === undefined || !file.endsWith('.tsx')) continue;
+    const tree = ts.createSourceFile(
+      file,
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    for (const node of walkTree(tree, true)) {
+      if (!ts.isJsxOpeningElement(node) && !ts.isJsxSelfClosingElement(node)) {
+        continue;
+      }
+      const tag = node.tagName.getText();
+      if (!REASONED_SURFACES.has(tag)) continue;
+      const reasoned = node.attributes.properties.some(
+        (attribute) =>
+          ts.isJsxAttribute(attribute) &&
+          nameText(attribute.name) === 'describeFailure',
+      );
+      if (!reasoned) out.push({ file, line: lineOf(node), tag });
+    }
+  }
+  return out
+    .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
+    .map(({ file, line, tag }) => `${file}:${line} ${tag}`);
 }
 
 let scanned: Violation[] | undefined;
@@ -1461,11 +1586,32 @@ ${body}`,
 describe('single failure toast guard', () => {
   it('reports one failure with one toast', () => {
     expect(
-      unexempted(scan()).map(
-        ({ origin, file, line, via }) =>
-          `${file}:${line}: ${via}, and ${origin.name} (${origin.file}:${origin.line}) toasts too`,
-      ),
+      unexempted(scan())
+        .filter((violation) => violation.kind === 'doubled')
+        .map(
+          ({ origin, file, line, via }) =>
+            `${file}:${line}: ${via}, and ${origin.name} (${origin.file}:${origin.line}) toasts too`,
+        ),
       'pass errorToast: false where the caller reports the failure, or leave the reporting to the write',
+    ).toEqual([]);
+  });
+
+  it("never hangs a quiet write's one report on mutate's onError", () => {
+    expect(
+      unexempted(scan())
+        .filter((violation) => violation.kind === 'dropped')
+        .map(
+          ({ origin, file, line, via }) =>
+            `${file}:${line}: ${via}, and ${origin.name} (${origin.file}:${origin.line}) stays quiet`,
+        ),
+      "report from the call's own promise (mutateAsync(args).then(onSuccess, onError)), or give the write its own errorToast",
+    ).toEqual([]);
+  });
+
+  it('keeps the reason in every batch surface toast', () => {
+    expect(
+      surfacesWithoutReason(readPlatformFile, sourceFiles('app')),
+      'pass describeFailure (firstFailureDetail / failureDetail), so the one toast says why',
     ).toEqual([]);
   });
 
@@ -1486,6 +1632,7 @@ describe('single failure toast guard', () => {
       file: 'app/caller.tsx',
       line,
       via: 'its catch toasts',
+      kind: 'doubled' as const,
     }));
     const allowance = {
       write: 'app/hooks.ts#useLoud',
@@ -1638,6 +1785,24 @@ describe('single failure toast guard', () => {
       }`,
     ],
     [
+      'a hand-written editor controller',
+      `function A() {
+        const { mutateAsync } = useLoud();
+        const controller = useMemo<EditorController>(
+          () => ({ isDirty: true, save: async () => { await mutateAsync({}); } }),
+          [],
+        );
+        useRegisterActiveEditor(controller);
+      }`,
+    ],
+    [
+      "a quiet write whose one report is mutate's call-site onError",
+      `function A() {
+        const { mutate } = useQuiet();
+        const go = () => mutate({}, { onError: () => toast({ title: 'x' }) });
+      }`,
+    ],
+    [
       'a query function',
       `function A() {
         const { mutateAsync } = useLoud();
@@ -1660,6 +1825,24 @@ describe('single failure toast guard', () => {
     ],
   ])('catches %s', (_shape, body) => {
     expect(scanFiles(sample(body))).not.toEqual([]);
+  });
+
+  it('finds a batch surface handed no describeFailure', () => {
+    const files: Record<string, string> = {
+      'app/table.tsx': `export const bars = (
+  <>
+    <BulkDeleteBar onDeleteItem={remove} />
+    <BulkArchiveBar onArchiveItem={archive} describeFailure={firstFailureDetail} />
+    <EntityDeleteDialog {...props} />
+  </>
+);`,
+    };
+    expect(
+      surfacesWithoutReason((file) => files[file], Object.keys(files)),
+    ).toEqual([
+      'app/table.tsx:3 BulkDeleteBar',
+      'app/table.tsx:5 EntityDeleteDialog',
+    ]);
   });
 
   it('catches a hook whose returned function rethrows, at its caller', () => {
@@ -1760,6 +1943,21 @@ export function useSettings() {
           for (const r of results) if (r.status === 'rejected') console.warn(r.reason);
           toast({ title: 'done' });
         };
+      }`,
+    ],
+    [
+      "a quiet write reported from its call's own promise",
+      `function A() {
+        const { mutateAsync } = useQuiet();
+        const go = () =>
+          void mutateAsync({}).then(() => {}, () => toast({ title: 'x' }));
+      }`,
+    ],
+    [
+      'a write that toasts for every call beside mutate',
+      `function A() {
+        const { mutate } = useCustom();
+        const go = () => mutate({}, { onSuccess: () => toast({ title: 'saved' }) });
       }`,
     ],
     [
