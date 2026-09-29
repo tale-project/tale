@@ -110,6 +110,43 @@ function describeRuns(runs: readonly RunRow[]): string {
 }
 
 /**
+ * Fail the task's newest run the way a crashed turn does, then hand the
+ * retry job that failure queued to the real retry worker (turns stay held
+ * inert). The worker's skip reasons land in `skips`.
+ */
+async function failNewestRunAndRetry(
+  sql: Sql,
+  taskId: string,
+  skips: string[],
+): Promise<void> {
+  const newest = (await runsOf(sql, taskId)).at(-1);
+  if (newest === undefined) return;
+  await failAgentRunFromTurn(sql, {
+    runId: newest.id,
+    execId: newest.execId,
+    error: 'itest: the harness exited before the turn completed',
+    failureCode: 'turn_crashed',
+  });
+  const jobs = await sql<{ data: unknown }[]>`
+    SELECT data FROM pgboss.job
+    WHERE name = 'task.agent_retry'
+      AND data ->> 'expectedRunId' = ${newest.id}
+  `;
+  const retryWorker = createTaskList({ sql })['task.agent_retry'];
+  const log = console.log;
+  console.log = (...args: unknown[]) => {
+    const match = /auto-retry skipped: (\S+)/.exec(args.map(String).join(' '));
+    if (match?.[1] !== undefined) skips.push(match[1]);
+    else log(...args);
+  };
+  try {
+    for (const job of jobs) await retryWorker?.(job.data);
+  } finally {
+    console.log = log;
+  }
+}
+
+/**
  * Park every agent-turn and retry job the lane's projects enqueue a day
  * ahead, at the queue's own insert — the worker runs for the whole harness
  * and would otherwise try to launch a sandbox. Returns the teardown.
@@ -1594,35 +1631,8 @@ export async function checkDelegatedAgentStartTool(
     // and the retry that would be the fourth is refused, as is the manager's
     // next restart. A person's Start in that hour, and its retry, are not.
     const retrySkips: string[] = [];
-    const retryWorker = createTaskList({ sql })['task.agent_retry'];
-    const failAndRetry = async (taskId: string): Promise<void> => {
-      const newest = (await runsOf(sql, taskId)).at(-1);
-      if (newest === undefined) return;
-      await failAgentRunFromTurn(sql, {
-        runId: newest.id,
-        execId: newest.execId,
-        error: 'itest: the harness exited before the turn completed',
-        failureCode: 'turn_crashed',
-      });
-      const jobs = await sql<{ data: unknown }[]>`
-        SELECT data FROM pgboss.job
-        WHERE name = 'task.agent_retry'
-          AND data ->> 'expectedRunId' = ${newest.id}
-      `;
-      const log = console.log;
-      console.log = (...args: unknown[]) => {
-        const match = /auto-retry skipped: (\S+)/.exec(
-          args.map(String).join(' '),
-        );
-        if (match?.[1] !== undefined) retrySkips.push(match[1]);
-        else log(...args);
-      };
-      try {
-        for (const job of jobs) await retryWorker?.(job.data);
-      } finally {
-        console.log = log;
-      }
-    };
+    const failAndRetry = (taskId: string): Promise<void> =>
+      failNewestRunAndRetry(sql, taskId, retrySkips);
     const budgetStart = await dispatch(managerRun.token, 'task_start_agent', {
       taskId: retryTask,
       agentId: w5,
@@ -2173,8 +2183,11 @@ export async function checkInPlaceCompletionCycle(
   const roleAgent = randomUUID();
   const progressAgent = randomUUID();
   const ordinaryAgent = randomUUID();
+  const pickedUpAgent = randomUUID();
+  const editor = `role-editor-${suffix}`;
   const todoName = `itest/role-todo-${suffix}`;
   const progressName = `itest/role-progress-${suffix}`;
+  const pickedUpName = `itest/role-picked-up-${suffix}`;
   const store = pgTaskStore(sql);
   const release = await holdAgentJobs(sql, suffix, [projectA]);
 
@@ -2310,6 +2323,8 @@ export async function checkInPlaceCompletionCycle(
     await fx.insertAgent(roleAgent, projectA, 'Standing role');
     await fx.insertAgent(progressAgent, projectA, 'Standing role in progress');
     await fx.insertAgent(ordinaryAgent, projectA, 'Ordinary implementer');
+    await fx.insertAgent(pickedUpAgent, projectA, 'Standing role picked up');
+    await fx.insertUser(editor, 'editor');
     const roleCard = await fx.insertTask({
       projectId: projectA,
       title: 'Autonomous cycle — role',
@@ -2325,8 +2340,14 @@ export async function checkInPlaceCompletionCycle(
       projectId: projectA,
       title: 'Ordinary work',
     });
+    const pickedUpCard = await fx.insertTask({
+      projectId: projectA,
+      title: 'Autonomous cycle — role a person picks up during its run',
+      agentId: pickedUpAgent,
+    });
     await install(todoName, roleCard);
     await install(progressName, progressCard);
+    await install(pickedUpName, pickedUpCard);
 
     // ---- a To do role: complete the occurrence, then the next one ------
     await schedule(todoName, true);
@@ -2442,9 +2463,70 @@ export async function checkInPlaceCompletionCycle(
         reviewsOrdinary[0]?.status === 'pending',
       `start=${JSON.stringify(ordinary)} moved=${movedIn?.status} completed=${completed5} card=${afterOrdinary?.status} reviews=${JSON.stringify(reviewsOrdinary)}`,
     );
+
+    // ---- a person picks a To do role card up while its run is live ------
+    // They move it to In progress through the real status door, which keeps
+    // the live run rather than starting their own. The run fails, the real
+    // retry worker retries it and the retry completes: the retry carries the
+    // start's in-place intent, so the card stays In progress with no review.
+    await schedule(pickedUpName, true);
+    const fifth = await fire(pickedUpName);
+    const personAuth = await getProjectAuthContext(sql, {
+      organizationId: orgId,
+      userId: editor,
+      role: 'editor',
+    });
+    await sql.begin((tx) =>
+      updateTaskStatus(tx, personAuth, pickedUpCard, 'in_progress'),
+    );
+    const pickedUp = await cardOf(pickedUpCard);
+    const pickedUpRuns = await runsOf(sql, pickedUpCard);
+    const retrySkips: string[] = [];
+    await failNewestRunAndRetry(sql, pickedUpCard, retrySkips);
+    const retryRun = (await runsOf(sql, pickedUpCard))[1];
+    const retryIntent =
+      retryRun === undefined
+        ? undefined
+        : (
+            await sql<{ inPlace: boolean }[]>`
+              SELECT in_place AS "inPlace" FROM app.project_agent_runs
+              WHERE id = ${retryRun.id}
+            `
+          )[0]?.inPlace;
+    const completedRetry =
+      retryRun === undefined
+        ? false
+        : await complete(retryRun, 'Role receipt: done after a retry.');
+    const afterRetry = await cardOf(pickedUpCard);
+    const reviewsRetry = await reviewsOf(pickedUpCard);
+    const settledRetry =
+      retryRun === undefined ? undefined : await settledOf(retryRun.id);
+    const sixth = await fire(pickedUpName);
+    const pickedUpAll = await runsOf(sql, pickedUpCard);
+    record(
+      'in-place completion: a person moves a To do role card to In progress while its run is live (the run is kept), the run fails and its automatic retry completes — the retry carries the in-place intent, so the card stays In progress with no review and the next occurrence starts the role again',
+      fifth.output?.started === true &&
+        pickedUp?.status === 'in_progress' &&
+        pickedUpRuns.length === 1 &&
+        retrySkips.length === 0 &&
+        retryRun !== undefined &&
+        retryRun.trigger === 'auto_retry' &&
+        retryRun.startedVia === 'automation' &&
+        retryIntent === true &&
+        completedRetry &&
+        settledRetry?.status === 'settled' &&
+        afterRetry?.status === 'in_progress' &&
+        hasOutput(afterRetry.outputs, retryRun.id) &&
+        reviewsRetry.length === 0 &&
+        sixth.output?.started === true &&
+        pickedUpAll.length === 3 &&
+        pickedUpAll[2]?.status === 'queued',
+      `fifth=${JSON.stringify(fifth.output)} card after the move=${pickedUp?.status} runs=${describeRuns(pickedUpRuns)} retry skips=${retrySkips.join(',') || 'none'} retry=${retryRun?.trigger}/${retryRun?.startedVia} inPlace=${retryIntent} completed=${completedRetry} run=${JSON.stringify(settledRetry)} card=${afterRetry?.status} reviews=${JSON.stringify(reviewsRetry)} sixth=${JSON.stringify(sixth.output)} runs=${describeRuns(pickedUpAll)}`,
+    );
+    await schedule(pickedUpName, false);
   } finally {
     await release();
-    for (const name of [todoName, progressName]) {
+    for (const name of [todoName, progressName, pickedUpName]) {
       await sql`DELETE FROM app.automation_triggers WHERE org_id = ${orgId} AND name = ${name}`;
       await sql`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${name}`;
       await sql`DELETE FROM app.automation_deployments WHERE org_id = ${orgId} AND name = ${name}`;
