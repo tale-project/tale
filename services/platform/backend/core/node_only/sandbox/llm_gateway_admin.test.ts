@@ -786,6 +786,18 @@ describe('provisionProviders — management-plane auth', () => {
     }
   });
 
+  it('sends the same password as the setup token on every management call, so a gateway without an admin yet still answers', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    await mod.applyGatewayConfig();
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call.headers['x-bifrost-setup-token']).toBe('pw-1');
+    }
+  });
+
   it('falls back to the pre-rename LLM_GATEWAY_ADMIN_PASSWORD env name', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', 'pw-old');
@@ -966,7 +978,7 @@ describe('provisionProviders + mintVirtualKey — request-scoped reuse of the or
 });
 
 describe('mintVirtualKey', () => {
-  it('binds the VK to the org key id with allow_all_keys:false, scoped allowed_models (bare + full), and a dollar budget', async () => {
+  it('binds the VK to the org key id, scoped allowed_models (bare + full), and a dollar budget', async () => {
     const calls = stubGateway({ keyExists: true });
     const mod = await loadModule();
     const minted = await mod.mintVirtualKey({
@@ -985,7 +997,6 @@ describe('mintVirtualKey', () => {
         {
           provider: 'openrouter',
           key_ids: ['kid-A'],
-          allow_all_keys: false,
           allowed_models: [
             'anthropic/claude-sonnet-5',
             'openrouter/anthropic/claude-sonnet-5',
@@ -1163,7 +1174,6 @@ describe('mintVirtualKey', () => {
       {
         provider: 'org_1__my-vllm__llama-3',
         key_ids: ['kid-C'],
-        allow_all_keys: false,
         allowed_models: ['llama-3', 'org_1__my-vllm__llama-3/llama-3'],
       },
     ]);
@@ -1381,18 +1391,19 @@ describe('applyGatewayConfig', () => {
         log_retention_days: 30,
         max_request_body_size_mb: 100,
         enforce_auth_on_inference: true,
-        enforce_governance_header: true,
         disable_content_logging: true,
       },
       // First-time bootstrap (GET reports auth not yet enabled): the plaintext
       // password is sent to establish it — the gateway hashes it on store. A
       // freshly minted secret is policy-compliant by construction, so the
-      // gateway's >= v1.6.9 strength check passes.
+      // gateway's >= v1.6.9 strength check passes. The same password is the
+      // setup token the gateway (>= v2.2) demands before it creates its first
+      // admin account; its image derives the token from it.
       auth_config: {
         is_enabled: true,
         admin_username: 'admin',
         admin_password: DEFAULT_PW,
-        disable_auth_on_inference: true,
+        setup_token: DEFAULT_PW,
       },
     });
   });
@@ -1412,11 +1423,11 @@ describe('applyGatewayConfig', () => {
     // ShouldPreserveStored) and skips the >= v1.6.9 password policy, which a
     // secret minted before the policy (e.g. a base64url one with no special
     // char) would otherwise 400 on ("must include one special character").
+    // No setup token either: the admin account it would admit exists.
     expect(put?.body?.auth_config).toEqual({
       is_enabled: true,
       admin_username: 'admin',
       admin_password: '',
-      disable_auth_on_inference: true,
     });
     // Basic auth still uses the real credential — the password is unchanged,
     // it is simply not re-asserted in the body.
