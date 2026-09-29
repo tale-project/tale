@@ -83,23 +83,41 @@ interface Allowance {
   file: string;
   /** The matched text, whitespace collapsed, as {@link Violation} carries it. */
   text: string;
+  /** How many sites of that text the file holds; one unless it says more. */
+  count?: number;
   reason: string;
 }
 
 /**
  * Surfaces whose error is provably a plain `Error`, each keyed by its repo
- * path AND the text the shape matched, with the reason. An entry exempts that
- * one site, never the rest of its file, and must still match, or it is stale.
+ * path AND the text the shape matched, with the reason. An entry exempts
+ * exactly the sites it counts, never the rest of its file: a file holding
+ * another copy of the same line fails with every copy listed, and a file
+ * holding fewer marks the entry stale.
  */
 const ALLOWED: readonly Allowance[] = [];
 
-function isAllowed(
-  violation: Violation,
-  allowances: readonly Allowance[] = ALLOWED,
-): boolean {
-  return allowances.some(
-    (entry) => entry.file === violation.file && entry.text === violation.text,
+/** The sites of `found` that `entry` names. */
+function sitesOf(entry: Allowance, found: readonly Violation[]): Violation[] {
+  return found.filter(
+    (violation) =>
+      violation.file === entry.file && violation.text === entry.text,
   );
+}
+
+/** The violations the allowlist does not exempt. */
+function unexempted(
+  found: readonly Violation[],
+  allowances: readonly Allowance[] = ALLOWED,
+): Violation[] {
+  const exempt = new Set<Violation>();
+  for (const entry of allowances) {
+    const sites = sitesOf(entry, found);
+    if (sites.length === (entry.count ?? 1)) {
+      for (const site of sites) exempt.add(site);
+    }
+  }
+  return found.filter((violation) => !exempt.has(violation));
 }
 
 function sourceFiles(dir: string): string[] {
@@ -148,11 +166,9 @@ function scan(): Violation[] {
 
 describe('error message guard', () => {
   it("builds no toast or Alert text from an error's message", () => {
-    const shown = scan()
-      .filter((violation) => !isAllowed(violation))
-      .map(
-        ({ file, line, shape, text }) => `${file}:${line}: ${shape} (${text})`,
-      );
+    const shown = unexempted(scan()).map(
+      ({ file, line, shape, text }) => `${file}:${line}: ${shape} (${text})`,
+    );
     expect(
       shown,
       'read the failure through failureDetail (platform) or readableErrorMessage (@tale/ui)',
@@ -163,7 +179,7 @@ describe('error message guard', () => {
     const found = scan();
     expect(
       ALLOWED.filter(
-        (entry) => !found.some((violation) => isAllowed(violation, [entry])),
+        (entry) => sitesOf(entry, found).length < (entry.count ?? 1),
       ),
     ).toEqual([]);
   });
@@ -181,10 +197,30 @@ describe('error message guard', () => {
       reason: 'a sample',
     };
     expect(
-      violations('sample.tsx', src)
-        .filter((violation) => !isAllowed(violation, [allowance]))
-        .map(({ line, text }) => ({ line, text })),
+      unexempted(violations('sample.tsx', src), [allowance]).map(
+        ({ line, text }) => ({ line, text }),
+      ),
     ).toEqual([{ line: 2, text: 'description: e.message' }]);
+  });
+
+  // Keyed by its text, an entry also exempted every identical copy of its
+  // line in the file: a second `description: err.message` passed with it.
+  it('exempts only as many identical sites as the entry counts', () => {
+    const src = [
+      "toast({ title: t('x'), description: err.message });",
+      "toast({ title: t('y'), description: err.message });",
+    ].join('\n');
+    const allowance = {
+      file: 'sample.tsx',
+      text: 'description: err.message',
+      reason: 'a sample',
+    };
+    const lines = (allowances: readonly Allowance[]) =>
+      unexempted(violations('sample.tsx', src), allowances).map(
+        ({ line }) => line,
+      );
+    expect(lines([allowance])).toEqual([1, 2]);
+    expect(lines([{ ...allowance, count: 2 }])).toEqual([]);
   });
 
   // The shapes are regular expressions over source text: hold each to a
