@@ -1,9 +1,9 @@
 ---
 title: Politiques et limites
-description: Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat et le routage des conversations entrantes.
+description: Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat, le partage des skills avec tout le monde et le routage des conversations entrantes.
 ---
 
-En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Politiques et limites** pour contrôler les ressources et le traitement des données. Choisis la section adaptée au problème : dépenses, imports, rétention, fonctionnalités, avis affiché dans le chat ou destinataires des conversations entrantes.
+En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Politiques et limites** pour contrôler les ressources et le traitement des données. Choisis la section adaptée au problème : dépenses, imports, rétention, fonctionnalités, avis affiché dans le chat, partage des skills avec toute l’organisation ou destinataires des conversations entrantes.
 
 <Frame caption="Gouvernance > Politiques et limites — le tableau des règles de budget, au-dessus de la politique d’import et des contrôles de rétention.">
 
@@ -79,6 +79,26 @@ Le commutateur par défaut des instructions personnalisées enregistre la valeur
 Chaque membre voit le texte de sa langue. Un onglet marqué **non traduit** n’a pas de texte propre : les membres qui lisent cette langue voient ton texte anglais, ou l’avis par défaut si l’anglais est vide lui aussi, et le champ vide présente ce texte en aperçu. Un point rouge signale une langue dont le texte est trop long ; l’enregistrement reste impossible tant que tu ne l’as pas raccourci. Désactiver l’avis conserve tes textes pour la prochaine activation.
 
 L’avis n’est qu’un rappel : il ne vérifie, ne bloque ni ne modifie les messages envoyés. Pour agir sur les contenus sensibles, configure les [Garde-fous](/fr/platform/admin/governance/guardrails).
+
+## Décider qui partage des skills avec tout le monde {#skill-sharing}
+
+Par défaut, chaque membre peut partager un skill avec toute l’organisation. **Partage des skills** permet de réserver ce droit à moins de personnes : choisis qui peut **Partager les skills avec l'organisation**, puis enregistre les modifications en attente de la page.
+
+- **Tous les membres** conserve le comportement par défaut.
+- **Éditeurs et au-delà** autorise les éditeurs, les développeurs, les admins et les propriétaires, c’est-à-dire les rôles qui équipent les agents.
+- **Propriétaires et admins uniquement** n’autorise que les propriétaires et les admins.
+
+Les propriétaires et les admins peuvent toujours partager avec tout le monde. Pour l’autoriser à une personne de plus sans lui donner un rôle plus élevé, attribue-lui **Publier des skills pour l'organisation** dans [Compétences](/fr/platform/admin/governance/competences).
+
+Les autres membres peuvent toujours créer des skills et les partager avec leurs propres équipes. Ils ne peuvent ni créer un skill pour toute l’organisation, ni étendre l’un des leurs à **Organisation**, ni modifier sur place un skill partagé avec l’organisation. Ils peuvent restreindre un de leurs skills à leurs équipes, avec d’autres modifications dans le même enregistrement, ou le supprimer. La règle s’applique dans l’éditeur de skills, aux téléversements de zip et de dossier, aux paquets d’automatisation qui contiennent des skills et à l’API REST. Chaque refus apparaît dans les [journaux d’audit](/fr/platform/admin/governance/audit-logs) sous **Publication d'un skill refusée**.
+
+Un réglage plus strict ne restreint pas les skills déjà partagés avec l’organisation. Pour les passer en revue, ouvre **Paramètres > Skills**, choisis **Filtre > Visibilité > Organisation** et consulte la colonne **Créé par**. Restreins ou supprime ceux qui ne doivent plus être partagés avec tout le monde.
+
+<Note>
+
+Une release de configuration gérée installe ses skills au nom du membre qui la déploie. Avant de choisir un réglage plus strict, vérifie que ce membre peut toujours partager avec tout le monde, par son rôle ou par la compétence ; sinon, la prochaine release qui contient un skill partagé avec l’organisation est refusée.
+
+</Note>
 
 ## Routage des conversations
 

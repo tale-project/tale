@@ -5,7 +5,7 @@ description: Create reusable instructions, import a skill bundle, and choose whi
 
 A skill packages a repeatable way of working: writing release notes, checking a brief, or preparing a document in your house style. It contains a `SKILL.md` instruction file and, optionally, supporting files. Use **Settings > Skills** to maintain it once, then [equip the agents](/platform/agents/skills) that need it.
 
-Every member can create a skill. You can edit your own; editing or deleting another person's shared skill requires an organization administrator.
+Every member can create a skill. You can edit your own; editing or deleting another person's shared skill requires an organization administrator. Your organization can reserve sharing with everyone for some roles; see [Who can share with everyone](#who-can-share-with-everyone).
 
 ## Create a small skill
 
@@ -20,7 +20,7 @@ Summarize a project brief into its review date, owner, and open questions.
 Use when someone asks for a handover or a quick check of a brief.
 ```
 
-The name is a unique slug: lowercase letters, digits, and single hyphens, up to 64 characters. The description tells the model when the skill is relevant. Click **Create** to add it and open its editor.
+The name is a unique slug: lowercase letters, digits, and single hyphens, up to 64 characters. The description tells the model when the skill is relevant. Under **Visibility**, choose who sees the skill: **Organization**, or **Teams** with at least one team. Click **Create** to add it and open its editor.
 
 </Step>
 
@@ -41,7 +41,7 @@ Add reference files only when they help perform the procedure. Keep detailed exa
 
 <Step title="Choose the audience and save">
 
-New skills start with **Organization** visibility. Choose **Teams** under **Visibility** and select at least one team if the content belongs to a narrower audience. Add an icon or labels if they will help people find the skill, then click **Save**.
+**Organization** is preselected when you create a skill, unless your organization reserves it. If the content belongs to a different audience, change it under **Visibility**: **Teams** needs at least one team. Add an icon or labels if they will help people find the skill, then click **Save**.
 
 Creating a skill does not equip an agent automatically. Open the intended project's agent and select the skill in its equipment. Run a small task with a known input and check the result against the instructions.
 
@@ -66,7 +66,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-The preview shows metadata, sharing, license, and the file list before **Upload bundle** writes anything. Check the contents and audience. Missing `visibility` means organization-wide sharing. When you create a team skill or change its teams, you may name only your organization's teams, and only your own unless you are an administrator. Keeping an existing team list is allowed even if a team has since been deleted. An `owner` in the file is ignored: a new skill is yours, and a replacement keeps its current owner or becomes yours if it had none. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
+The preview shows metadata, sharing, license, and the file list before **Upload bundle** writes anything. Check the contents and audience. Missing `visibility` means organization-wide sharing. If your organization reserves that and you may not publish, the preview says so and **Upload bundle** stays unavailable; add `visibility: team` and your team IDs to `SKILL.md`. When you create a team skill or change its teams, you may name only your organization's teams, and only your own unless you are an administrator. Keeping an existing team list is allowed even if a team has since been deleted. An `owner` in the file is ignored: a new skill is yours, and a replacement keeps its current owner or becomes yours if it had none. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
 
 <Warning>
 
@@ -84,6 +84,16 @@ Importing a skill does not start a task or execute its files. Once equipped, how
 The project's access decides its equipment, even if you personally can read more skills. An organization-wide project can equip organization skills. Legacy private skills remain visible to their owner, but cannot be equipped; new private skills are not accepted.
 
 Narrowing visibility asks for confirmation because some agents may lose access. Deleting a skill has the same practical consequence: runs that require the missing bundle cannot stage it. Check where a shared skill is used before restricting or retiring it.
+
+### Who can share with everyone {#who-can-share-with-everyone}
+
+By default, every member can share a skill with the whole organization. An administrator can reserve this for Editors and above, or for Owners and Admins, under [Skill sharing](/platform/admin/governance/policies-and-limits#skill-sharing), and can let individual members publish with the **Publish skills to the organization** competence. When your organization reserves it and you may not publish:
+
+- **Organization** is unavailable under **Visibility**, and a new skill starts with **Teams**. You can share with your own teams.
+- An organization-wide skill you created cannot be changed in place. Narrow it to your teams, with any other change in the same save, or delete it.
+- The upload preview flags a bundle that would be shared with the whole organization, one without `visibility` included, and **Upload bundle** stays unavailable.
+
+Skills that were already shared with the organization stay shared.
 
 ## See who created and changed a skill
 

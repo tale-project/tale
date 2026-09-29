@@ -5,7 +5,7 @@ description: Erstelle wiederverwendbare Anweisungen, importiere ein Skill-Bundle
 
 Ein Skill beschreibt eine wiederkehrende Arbeitsweise: Release Notes schreiben, ein Briefing prüfen oder ein Dokument nach euren Vorgaben erstellen. Er enthält eine Anweisungsdatei `SKILL.md` und bei Bedarf ergänzende Dateien. Pflege ihn unter **Einstellungen > Skills** an einer Stelle und [statte die passenden Agenten damit aus](/de/platform/agents/skills).
 
-Jedes Mitglied kann einen Skill erstellen und seine eigenen bearbeiten. Zum Bearbeiten oder Löschen eines geteilten Skills einer anderen Person brauchst du die Rechte eines Organisationsadministrators.
+Jedes Mitglied kann einen Skill erstellen und seine eigenen bearbeiten. Zum Bearbeiten oder Löschen eines geteilten Skills einer anderen Person brauchst du die Rechte eines Organisationsadministrators. Deine Organisation kann das Teilen mit allen bestimmten Rollen vorbehalten; siehe [Wer mit allen teilen darf](#who-can-share-with-everyone).
 
 ## Einen kleinen Skill erstellen
 
@@ -20,7 +20,7 @@ Fasse ein Projektbriefing in Prüftermin, Zuständigkeit und offenen Fragen
 zusammen. Nutze den Skill für eine Übergabe oder eine kurze Briefing-Prüfung.
 ```
 
-Der Name ist eine eindeutige Kurzkennung: Kleinbuchstaben, Ziffern und einzelne Bindestriche, höchstens 64 Zeichen. An der Beschreibung erkennt das Modell, wann der Skill passt. Klicke auf **Erstellen**, um ihn anzulegen und den Editor zu öffnen.
+Der Name ist eine eindeutige Kurzkennung: Kleinbuchstaben, Ziffern und einzelne Bindestriche, höchstens 64 Zeichen. An der Beschreibung erkennt das Modell, wann der Skill passt. Wähle unter **Sichtbarkeit**, wer den Skill sieht: **Organisation** oder **Teams** mit mindestens einem Team. Klicke auf **Erstellen**, um ihn anzulegen und den Editor zu öffnen.
 
 </Step>
 
@@ -41,7 +41,7 @@ Ergänze Referenzdateien nur, wenn sie für den Ablauf hilfreich sind. Lege ausf
 
 <Step title="Die Zielgruppe wählen und speichern">
 
-Neue Skills beginnen mit der Sichtbarkeit **Organisation**. Wähle unter **Sichtbarkeit** die Option **Teams** und mindestens ein Team, wenn der Inhalt für einen engeren Kreis bestimmt ist. Ein Icon oder Labels können das Wiederfinden erleichtern. Klicke anschließend auf **Speichern**.
+Beim Erstellen ist **Organisation** vorausgewählt, sofern deine Organisation das nicht vorbehält. Ist der Inhalt für einen anderen Kreis bestimmt, ändere das unter **Sichtbarkeit**: **Teams** braucht mindestens ein Team. Ein Icon oder Labels können das Wiederfinden erleichtern. Klicke anschließend auf **Speichern**.
 
 Ein neuer Skill wird keinem Agenten automatisch zugeordnet. Öffne den Agenten des gewünschten Projekts und wähle den Skill in seiner Ausstattung. Starte eine kleine Aufgabe mit bekannten Eingaben und prüfe, ob das Ergebnis den Anweisungen entspricht.
 
@@ -66,7 +66,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-Die Vorschau zeigt Metadaten, Freigabe, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe Inhalt und Zielgruppe. Fehlt `visibility`, wird der Skill organisationsweit geteilt. Wenn du einen Team-Skill anlegst oder seine Teams änderst, darfst du nur Teams deiner Organisation angeben, ohne Administratorrechte nur deine eigenen. Eine bestehende Teamliste darf unverändert bleiben, auch wenn ein Team inzwischen gelöscht wurde. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir. Ein ersetzter behält seinen bisherigen Eigentümer; hatte er keinen, gehört er danach dir. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
+Die Vorschau zeigt Metadaten, Freigabe, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe Inhalt und Zielgruppe. Fehlt `visibility`, wird der Skill organisationsweit geteilt. Behält deine Organisation das vor und darfst du nicht veröffentlichen, weist die Vorschau darauf hin und **Bundle hochladen** bleibt gesperrt; ergänze in der `SKILL.md` `visibility: team` und die IDs deiner Teams. Wenn du einen Team-Skill anlegst oder seine Teams änderst, darfst du nur Teams deiner Organisation angeben, ohne Administratorrechte nur deine eigenen. Eine bestehende Teamliste darf unverändert bleiben, auch wenn ein Team inzwischen gelöscht wurde. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir. Ein ersetzter behält seinen bisherigen Eigentümer; hatte er keinen, gehört er danach dir. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
 
 <Warning>
 
@@ -84,6 +84,16 @@ Der Import startet keine Aufgabe und führt keine Dateien aus. Sobald du den Ski
 Der Projektzugriff bestimmt die verfügbare Ausstattung, auch wenn du persönlich mehr Skills lesen kannst. Ein organisationsweites Projekt kann organisationsweite Skills nutzen. Ältere private Skills bleiben für ihren Inhaber sichtbar, lassen sich aber keinem Agenten zuordnen. Neue private Skills werden nicht angenommen.
 
 Eine Einschränkung der Sichtbarkeit verlangt eine Bestätigung, weil Agenten dadurch Zugriff verlieren können. Das Löschen hat dieselbe praktische Folge: Ein Lauf, der das fehlende Bundle benötigt, kann es nicht bereitstellen. Prüfe die Verwendung eines geteilten Skills, bevor du ihn einschränkst oder entfernst.
+
+### Wer mit allen teilen darf {#who-can-share-with-everyone}
+
+Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teilen. Ein Admin kann das unter [Skill-Freigabe](/de/platform/admin/governance/policies-and-limits#skill-sharing) Redakteuren und höher oder Inhabern und Admins vorbehalten und einzelnen Mitgliedern mit der Kompetenz **Skills für die Organisation veröffentlichen** das Veröffentlichen erlauben. Behält deine Organisation es vor und darfst du nicht veröffentlichen, gilt:
+
+- Unter **Sichtbarkeit** ist **Organisation** nicht wählbar, und ein neuer Skill beginnt mit **Teams**. Mit deinen eigenen Teams kannst du teilen.
+- Einen organisationsweiten Skill, den du erstellt hast, kannst du nicht direkt ändern. Schränke ihn auf deine Teams ein, auch zusammen mit anderen Änderungen im selben Speichervorgang, oder lösche ihn.
+- Die Upload-Vorschau markiert ein Bundle, das mit der ganzen Organisation geteilt würde, auch eines ohne `visibility`, und **Bundle hochladen** bleibt gesperrt.
+
+Skills, die schon mit der Organisation geteilt waren, bleiben geteilt.
 
 ## Sehen, wer einen Skill erstellt und geändert hat
 

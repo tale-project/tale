@@ -1,9 +1,9 @@
 ---
 title: Policies and limits
-description: Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, and inbound-conversation routing.
+description: Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, who may share skills with everyone, and inbound-conversation routing.
 ---
 
-Use **Settings > Governance > Policies & Limits** as an Admin or Owner to control resource use and data handling. Choose the section that matches the problem: spending, uploads, retention, feature availability, the notice members see in chat, or who receives inbound conversations.
+Use **Settings > Governance > Policies & Limits** as an Admin or Owner to control resource use and data handling. Choose the section that matches the problem: spending, uploads, retention, feature availability, the notice members see in chat, who may share skills with the whole organization, or who receives inbound conversations.
 
 <Frame caption="Governance > Policies & Limits — the budget-rules table above the upload policy and retention controls.">
 
@@ -79,6 +79,26 @@ The custom-instructions default switch stores the organization default for membe
 Members see the text for their language. A tab marked **untranslated** has no text of its own: members reading that language see your English text, or the default notice when English is empty too, and the empty field previews that text. A red dot marks a language whose text is too long, and saving stays unavailable until you shorten it. Turning the notice off keeps your texts for when you turn it on again.
 
 The notice is a reminder only. It does not check, block, or change what members send. To act on sensitive content, configure [Guardrails](/platform/admin/governance/guardrails).
+
+## Decide who shares skills with everyone {#skill-sharing}
+
+By default, every member can share a skill with the whole organization. Use **Skill sharing** to reserve that for fewer people: choose who may **Share skills with the organization**, then save the pending page changes.
+
+- **Every member** keeps the default.
+- **Editors and above** admits Editors, Developers, Admins, and Owners: the roles that equip agents.
+- **Owners and admins only** admits Owners and Admins.
+
+Owners and Admins can always share with everyone. To let one more person do it without a higher role, grant them **Publish skills to the organization** under [Competences](/platform/admin/governance/competences).
+
+Everyone else can still create skills and share them with their own teams. They cannot create a skill for the whole organization, widen one of theirs to **Organization**, or change an organization-wide skill in place. They can narrow a skill of theirs to their teams, with other changes in the same save, or delete it. The rule applies in the skill editor, to zip and folder uploads, to automation packages that carry skills, and to the REST API. Each refusal appears in the [audit logs](/platform/admin/governance/audit-logs) as **Skill publishing refused**.
+
+A stricter setting does not narrow skills that are already shared with the organization. To review them, open **Settings > Skills**, choose **Filter > Visibility > Organization**, and check the **Created by** column. Narrow or delete the ones that should not stay shared with everyone.
+
+<Note>
+
+A managed configuration release installs its skills as the member who deploys it. Before you choose a stricter setting, make sure that member can still share with everyone, through their role or the competence; otherwise the next release that carries an organization-wide skill is refused.
+
+</Note>
 
 ## Conversation routing
 

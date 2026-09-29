@@ -1,9 +1,9 @@
 ---
 title: Richtlinien und Limits
-description: Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat und die Zuordnung eingehender Konversationen fest.
+description: Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat, das Teilen von Skills mit allen und die Zuordnung eingehender Konversationen fest.
 ---
 
-Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Richtlinien & Limits** Ressourcenverbrauch und Datenverarbeitung. Wähle den Bereich für dein Anliegen: Ausgaben, Uploads, Aufbewahrung, Funktionsverfügbarkeit, den Hinweis im Chat oder die Zuständigkeit für eingehende Konversationen.
+Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Richtlinien & Limits** Ressourcenverbrauch und Datenverarbeitung. Wähle den Bereich für dein Anliegen: Ausgaben, Uploads, Aufbewahrung, Funktionsverfügbarkeit, den Hinweis im Chat, das Teilen von Skills mit der ganzen Organisation oder die Zuständigkeit für eingehende Konversationen.
 
 <Frame caption="Richtlinien > Richtlinien & Limits — die Tabelle der Budget-Regeln über der Upload-Richtlinie und den Aufbewahrungs-Kontrollen.">
 
@@ -79,6 +79,26 @@ Der Standardschalter für benutzerdefinierte Anweisungen legt die Organisationsv
 Mitglieder sehen den Text in ihrer Sprache. Ein Tab mit der Markierung **nicht übersetzt** hat keinen eigenen Text: Mitglieder mit dieser Sprache sehen deinen englischen Text oder, wenn auch dieser fehlt, den Standardhinweis, und das leere Feld zeigt diesen Text als Vorschau. Ein roter Punkt markiert eine Sprache mit zu langem Text; Speichern ist erst wieder möglich, wenn du ihn kürzt. Schaltest du den Hinweis aus, bleiben deine Texte für das nächste Einschalten erhalten.
 
 Der Hinweis ist nur eine Erinnerung. Er prüft, blockiert oder verändert keine Nachrichten. Um auf sensible Inhalte zu reagieren, richte [Guardrails](/de/platform/admin/governance/guardrails) ein.
+
+## Festlegen, wer Skills mit allen teilt {#skill-sharing}
+
+Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teilen. Mit **Skill-Freigabe** behältst du das weniger Personen vor: Wähle unter **Skills mit der Organisation teilen**, wer das darf, und speichere die offenen Änderungen der Seite.
+
+- **Alle Mitglieder** behält die Voreinstellung bei.
+- **Redakteure und höher** lässt Redakteure, Entwickler, Admins und Inhaber zu, also die Rollen, die Agenten ausstatten.
+- **Nur Inhaber und Admins** lässt nur Inhaber und Admins zu.
+
+Inhaber und Admins dürfen immer mit allen teilen. Soll eine weitere Person das ohne höhere Rolle dürfen, weise ihr unter [Kompetenzen](/de/platform/admin/governance/competences) **Skills für die Organisation veröffentlichen** zu.
+
+Alle anderen können weiterhin Skills erstellen und mit ihren eigenen Teams teilen. Sie können keinen Skill für die ganze Organisation anlegen, keinen eigenen auf **Organisation** erweitern und keinen organisationsweiten Skill direkt ändern. Einen eigenen Skill können sie auf ihre Teams einschränken, auch zusammen mit anderen Änderungen im selben Speichervorgang, oder löschen. Die Regel gilt im Skill-Editor, für Zip- und Ordner-Uploads, für Automatisierungspakete mit Skills und für die REST-API. Jede Ablehnung erscheint in den [Audit-Logs](/de/platform/admin/governance/audit-logs) als **Veröffentlichen eines Skills abgelehnt**.
+
+Eine strengere Einstellung schränkt keine Skills ein, die bereits mit der Organisation geteilt sind. Um sie zu prüfen, öffne **Einstellungen > Skills**, wähle **Filter > Sichtbarkeit > Organisation** und sieh dir die Spalte **Erstellt von** an. Schränke die Skills ein, die nicht mehr für alle bestimmt sind, oder lösche sie.
+
+<Note>
+
+Ein verwaltetes Konfigurations-Release installiert seine Skills als das Mitglied, das es ausrollt. Stelle vor einer strengeren Einstellung sicher, dass dieses Mitglied über seine Rolle oder die Kompetenz weiterhin mit allen teilen darf. Sonst wird das nächste Release mit einem organisationsweiten Skill abgelehnt.
+
+</Note>
 
 ## Konversations-Routing
 
