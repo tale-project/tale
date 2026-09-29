@@ -143,71 +143,91 @@ const modelEndpointsSection = (page: Page): Locator =>
     exact: true,
   });
 
+/** A capture-rig value and what a customer's page shows in its place. */
+type RigSwap = readonly [rig: string, real: string];
+
 /**
- * Sanitizer for frames that name the capture rig's model gateway or origin:
- * the mock provider's slug and display name, and the local app origin, in
- * text and in read-only fields alike, become what a customer's page shows.
+ * The mock gateway as the vendor it stands in for: the seeded credential
+ * sits on the offline mock, while a customer's row names a real provider.
+ */
+const RIG_SWAPS: readonly RigSwap[] = [
+  [MOCK_PROVIDER_DISPLAY_NAME, 'OpenRouter'],
+  // The slug alone (`e2e-mock · model`) and as a model id's prefix.
+  [MOCK_PROVIDER_SLUG, 'openrouter'],
+  // The mock catalog's placeholder model, as a model the demo
+  // organization's model access already names.
+  ['e2e-chat-model', 'google/gemini-3-flash-preview'],
+];
+
+/**
+ * Secrets the rig mints for a shot, as regular expressions (source text,
+ * every match swapped): a sandbox join token becomes the stand-in the Add a
+ * device dialog itself shows while it mints one, so a published image never
+ * holds a usable secret.
+ */
+const RIG_SECRETS: readonly RigSwap[] = [
+  ['tsdj_[0-9a-f]{64}', `tsdj_${'0'.repeat(64)}`],
+];
+
+/**
+ * The one sanitizer for frames that show the capture rig: the page's own
+ * origin (a redirect URL, a connection URL, an API endpoint, a link the app
+ * builds from `window.location`), the mock gateway's names and the rig's
+ * secrets become what a customer's page shows, in text and in read-only
+ * fields alike, so no published image shows the rig. The origin is the
+ * page's own, so a stack on another port (`E2E_BASE_URL`) is sanitized too.
+ * It keeps swapping until the capture: a field a late query remounts or
+ * refills prints the rig's values again, after the pass that ran when the
+ * shot was ready.
  */
 const replaceRigNames = async (page: Page): Promise<void> => {
   await page.evaluate(
-    ({ swaps }) => {
-      const swap = (text: string): string =>
-        swaps.reduce((out, [rig, real]) => out.split(rig).join(real), text);
-      const walker = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT,
+    ({ swaps, secrets }) => {
+      const literals: RigSwap[] = [
+        [window.location.origin, 'https://tale.yourcompany.com'],
+        ...swaps,
+      ];
+      const matchers = secrets.map(
+        ([source, real]) => [new RegExp(source, 'g'), real] as const,
       );
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const text = node.textContent ?? '';
-        const next = swap(text);
-        if (next !== text) node.textContent = next;
-      }
-      for (const field of document.querySelectorAll<
-        HTMLInputElement | HTMLTextAreaElement
-      >('input, textarea')) {
-        const next = swap(field.value);
-        if (next !== field.value) field.value = next;
-      }
+      const swap = (text: string): string =>
+        matchers.reduce(
+          (out, [pattern, real]) => out.replace(pattern, real),
+          literals.reduce(
+            (out, [rig, real]) => out.split(rig).join(real),
+            text,
+          ),
+        );
+      const sweep = (): void => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+        );
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const text = node.textContent ?? '';
+          const next = swap(text);
+          if (next !== text) node.textContent = next;
+        }
+        for (const field of document.querySelectorAll<
+          HTMLInputElement | HTMLTextAreaElement
+        >('input, textarea')) {
+          const next = swap(field.value);
+          if (next !== field.value) field.value = next;
+        }
+      };
+      sweep();
+      // A swap writes text the sweep no longer matches, so the observer
+      // settles after one extra, empty pass.
+      new MutationObserver(sweep).observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['value'],
+      });
     },
-    {
-      swaps: [
-        ['http://localhost:3000', 'https://tale.yourcompany.com'],
-        [MOCK_PROVIDER_DISPLAY_NAME, 'OpenRouter'],
-        [`${MOCK_PROVIDER_SLUG}/`, 'openrouter/'],
-        [MOCK_PROVIDER_SLUG, 'openrouter'],
-        // The mock catalog's placeholder model, as a model the demo
-        // organization's model access already names.
-        ['e2e-chat-model', 'google/gemini-3-flash-preview'],
-      ] as [string, string][],
-    },
+    { swaps: RIG_SWAPS, secrets: RIG_SECRETS },
   );
-};
-
-/**
- * The capture rig's own origin, wherever it runs, as the production host: a
- * link the app builds from `window.location` (a task drafted from a chat
- * links back to it) would otherwise publish the rig's port.
- */
-const replaceAppOrigin = async (page: Page): Promise<void> => {
-  await page.evaluate(() => {
-    const rig = window.location.origin;
-    const real = 'https://tale.yourcompany.com';
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-    );
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node.textContent ?? '';
-      if (text.includes(rig)) node.textContent = text.split(rig).join(real);
-    }
-    for (const field of document.querySelectorAll<
-      HTMLInputElement | HTMLTextAreaElement
-    >('input, textarea')) {
-      if (field.value.includes(rig)) {
-        field.value = field.value.split(rig).join(real);
-      }
-    }
-  });
 };
 
 /** Flip the notice switch and wait for its instant save to land. */
@@ -246,63 +266,6 @@ const projectRoute = (ctx: ShotContext, sub = ''): string => {
     );
   }
   return `/dashboard/${ctx.orgId}/projects/${projectId}${sub}`;
-};
-
-/**
- * Sanitizer for pages that print the deployment's own origin (a redirect
- * URL, a connection URL, an API endpoint): swap the capture rig's origin
- * for a production-shaped host so no published image shows the rig. The rig
- * origin is the page's own, so a stack on another port (`E2E_BASE_URL`) is
- * sanitized too. It keeps swapping until the capture: a field a late query
- * remounts prints the rig's origin again, after the one pass that ran when
- * the shot was ready.
- */
-const replaceRigOrigin = async (page: Page): Promise<void> => {
-  await page.evaluate(() => {
-    const rigOrigin = `${window.location.origin}/`;
-    const swap = () => {
-      for (const el of document.querySelectorAll('td, span, div, code, p')) {
-        if (el.children.length === 0 && el.textContent?.includes(rigOrigin)) {
-          el.textContent = el.textContent.replace(
-            rigOrigin,
-            'https://tale.yourcompany.com/',
-          );
-        }
-      }
-    };
-    swap();
-    new MutationObserver(swap).observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-  });
-};
-
-/**
- * Sanitizer for surfaces that name the provider serving a model (a
- * credential row, an agent row, the audio model in use) by its display name
- * or its slug: the seeded credential sits on the offline mock gateway, while
- * a customer's row names a real vendor. Swap in the production-shaped
- * equivalent — never an invented row.
- */
-const showMockProviderAsOpenRouter = async (page: Page): Promise<void> => {
-  await page.evaluate(
-    (swaps) => {
-      for (const el of document.querySelectorAll('td, span, div, p')) {
-        if (el.children.length > 0) continue;
-        for (const { rig, real } of swaps) {
-          if (el.textContent?.includes(rig)) {
-            el.textContent = el.textContent.replace(rig, real);
-          }
-        }
-      }
-    },
-    [
-      { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
-      { rig: `${MOCK_PROVIDER_SLUG} · `, real: 'openrouter · ' },
-    ],
-  );
 };
 
 /** Keep catalog examples reproducible when the local organization also has
@@ -577,7 +540,7 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) =>
       page.getByRole('button', { name: t('projects.agents.rowEdit') }).first(),
     // Each row names the provider serving its model.
-    sanitize: showMockProviderAsOpenRouter,
+    sanitize: replaceRigNames,
   },
   {
     // A new project agent starts with the document skills ticked, each row
@@ -764,10 +727,8 @@ export const SHOTS: readonly Shot[] = [
       page
         .getByRole('dialog', { name: t('tasks.actions.create') })
         .getByRole('textbox', { name: t('tasks.fields.description') }),
-    sanitize: async (page) => {
-      await replaceRigNames(page);
-      await replaceAppOrigin(page);
-    },
+    // The draft links back to the chat by the page's own origin.
+    sanitize: replaceRigNames,
     capture: (page) =>
       page.getByRole('dialog', { name: t('tasks.actions.create') }),
   },
@@ -1041,7 +1002,7 @@ export const SHOTS: readonly Shot[] = [
         .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
         .first(),
     sanitize: async (page) => {
-      await showMockProviderAsOpenRouter(page);
+      await replaceRigNames(page);
       // The rig defines the mock inside the organization, so its row carries
       // the Custom tag; the shipped vendor it stands in for carries none.
       await page
@@ -1286,7 +1247,7 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) =>
       page.getByText(t('settings.mcpEndpoint.orgSlug.title')),
     // The endpoint URL and the example request print the rig's origin.
-    sanitize: replaceRigOrigin,
+    sanitize: replaceRigNames,
   },
   {
     // Settings > API > WebDAV — connection details and the app-password
@@ -1303,7 +1264,7 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) => page.getByText(DEMO_WEBDAV_RETIRED_LABEL),
     // The connection URL shows the capture rig's localhost origin.
-    sanitize: replaceRigOrigin,
+    sanitize: replaceRigNames,
   },
   {
     // Settings > Preferences — the custom-instructions section with its
@@ -1404,7 +1365,7 @@ export const SHOTS: readonly Shot[] = [
       return page.getByText(prefix).first();
     },
     // The model in use names the provider serving it.
-    sanitize: showMockProviderAsOpenRouter,
+    sanitize: replaceRigNames,
     capture: (page) =>
       page.getByRole('region', {
         name: t('governance.transcriptionModel.title'),
@@ -1657,22 +1618,10 @@ export const SHOTS: readonly Shot[] = [
       page
         .getByRole('dialog', { name: t('sandboxes.devices.addDialog.title') })
         .getByText(t('sandboxes.devices.addDialog.waiting')),
-    // The commands carry the rig's origin and a live join token: swap in the
-    // production-shaped host and the stand-in token the dialog itself shows
-    // while it mints one, so a published image never holds a usable secret.
-    sanitize: async (page) => {
-      await page.evaluate(() => {
-        const origin = window.location.origin;
-        for (const el of document.querySelectorAll(
-          '[role="dialog"] code, [role="dialog"] pre, [role="dialog"] span, [role="dialog"] div, [role="dialog"] p',
-        )) {
-          if (el.children.length > 0 || !el.textContent) continue;
-          el.textContent = el.textContent
-            .replaceAll(origin, 'https://tale.yourcompany.com')
-            .replace(/tsdj_[0-9a-f]{64}/g, `tsdj_${'0'.repeat(64)}`);
-        }
-      });
-    },
+    // The commands carry the rig's origin and a live join token; the
+    // sanitizer swaps in the production-shaped host and the dialog's own
+    // stand-in token.
+    sanitize: replaceRigNames,
     capture: (page) =>
       page.getByRole('dialog', {
         name: t('sandboxes.devices.addDialog.title'),
@@ -1781,6 +1730,6 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) =>
       page.getByText(t('settings.enterpriseSso.protocolLabel')).first(),
     // The redirect-URL field shows the capture rig's localhost origin.
-    sanitize: replaceRigOrigin,
+    sanitize: replaceRigNames,
   },
 ] as const;
