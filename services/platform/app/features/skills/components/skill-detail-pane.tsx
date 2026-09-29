@@ -32,6 +32,7 @@ import { readFailureMessage, skillReadState } from '../utils/skill-read-state';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import {
+  labelsProblem,
   parseLabelsInput,
   SkillMetadataFields,
   type SkillMetadataValues,
@@ -127,6 +128,17 @@ export function SkillDetailPane({
     form.metadata.sharing.visibility === 'org';
   const lockedInPlace =
     canEdit && orgReservedReason !== undefined && skill?.visibility === 'org';
+  // Labels travel only when the member changed them: an omitted field keeps
+  // the stored list, so labels the comma-separated field cannot represent
+  // (a label with a comma in it) survive an unrelated save. Changed ones
+  // are held to the caps — Save waits, and the field keeps every entry and
+  // says why.
+  const labelsChanged =
+    form !== null &&
+    savedForm !== null &&
+    form.metadata.labels !== savedForm.metadata.labels;
+  const labelsInvalid =
+    labelsChanged && labelsProblem(form.metadata.labels) !== null;
   const retryFocus = useRetryFocus(read.status);
   const retry = () => {
     retryFocus.arm();
@@ -137,7 +149,16 @@ export function SkillDetailPane({
   const assets = files.filter((file) => file.path !== 'SKILL.md');
 
   const save = async () => {
-    if (!form || !skill || !canEdit || teamsMissing || orgWideReserved) return;
+    if (
+      !form ||
+      !skill ||
+      !canEdit ||
+      teamsMissing ||
+      orgWideReserved ||
+      labelsInvalid
+    ) {
+      return;
+    }
     try {
       await saveSkill.mutateAsync({
         organizationId,
@@ -151,7 +172,9 @@ export function SkillDetailPane({
         // `null` clears a stored icon; an omitted field keeps it (the door's
         // documented contract), so "No icon" has to be sent, not dropped.
         icon: form.metadata.icon ?? null,
-        labels: parseLabelsInput(form.metadata.labels),
+        ...(labelsChanged
+          ? { labels: parseLabelsInput(form.metadata.labels) }
+          : {}),
       });
       setForm(null); // Re-seed from the fresh document.
       toast({ title: t('editor.saved'), variant: 'success' });
@@ -267,6 +290,7 @@ export function SkillDetailPane({
                   <SkillMetadataFields
                     values={form.metadata}
                     savedSharing={savedSharing}
+                    savedLabels={savedForm?.metadata.labels}
                     onChange={(metadata) => setForm({ ...form, metadata })}
                     disabled={!canEdit}
                     orgReservedReason={orgReservedReason}
@@ -316,7 +340,9 @@ export function SkillDetailPane({
           {canEdit && (
             <Button
               onClick={() => void save()}
-              disabled={!dirty || teamsMissing || orgWideReserved}
+              disabled={
+                !dirty || teamsMissing || orgWideReserved || labelsInvalid
+              }
               isLoading={saveSkill.isPending}
             >
               {tCommon('actions.save')}

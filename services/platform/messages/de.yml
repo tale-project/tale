@@ -5293,6 +5293,12 @@ skills:
     labels: Labels
     labelsPlaceholder: recherche, pdf, finanzen
     labelsHelp: Kommagetrennt, bis zu 8 — zum Stöbern, nicht für das Modell.
+    labelsTooMany:
+      'Ein Skill hat höchstens {max} Labels. Entferne {excess, plural, one {#
+      Label} other {# Labels}}, damit du speichern kannst.'
+    labelTooLong:
+      'Das Label „{label}“ ist länger als {max} Zeichen. Kürze es, damit du
+      speichern kannst.'
     bodyHelp:
       Markdown, das das Modell liest, wenn es den Skill lädt — Playbooks,
       Konventionen, Referenzmaterial. Wird nie ausgeführt.

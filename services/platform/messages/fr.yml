@@ -5367,6 +5367,12 @@ skills:
     labels: Libellés
     labelsPlaceholder: recherche, pdf, finance
     labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
+    labelsTooMany:
+      "Un skill accepte au plus {max} libellés. Retire {excess, plural, one {#
+      libellé} other {# libellés}} pour pouvoir enregistrer."
+    labelTooLong:
+      "Le libellé « {label} » dépasse {max} caractères. Raccourcis-le pour
+      pouvoir enregistrer."
     bodyHelp:
       Le markdown que le modèle lit quand il charge le skill — playbooks,
       conventions, référence. Jamais exécuté.

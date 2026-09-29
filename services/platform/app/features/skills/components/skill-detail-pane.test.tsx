@@ -6,7 +6,8 @@
  * permanently null and the editor blank.
  *
  * A failed read is its own state (#3752): never "Skill not found", always a
- * way to try again, and a failed refresh never takes a draft away.
+ * way to try again, and a failed refresh never takes a draft away. The labels
+ * field keeps every entry it is given (#3753).
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -106,6 +107,8 @@ function rerenderPane(rerender: (ui: React.ReactElement) => void) {
     />,
   );
 }
+
+const NINE_LABELS = Array.from({ length: 9 }, (_, i) => `label-${i + 1}`);
 
 beforeEach(() => {
   saveSkill.mockClear();
@@ -334,6 +337,79 @@ describe('SkillDetailPane', () => {
       expect(
         screen.getByDisplayValue('Alpha body and a draft'),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('labels (#3753)', () => {
+    it('keeps a ninth label in the field, says why and holds Save', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(skillDoc('alpha', 'Alpha body')));
+      const { user } = mountPane('alpha');
+      const labels = screen.getByRole('textbox', { name: 'Labels' });
+
+      await user.click(labels);
+      await user.paste(NINE_LABELS.join(', '));
+
+      expect(labels).toHaveValue(NINE_LABELS.join(', '));
+      expect(labels).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'A skill takes up to 8 labels. Remove 1 label to save.',
+      );
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(saveSkill).not.toHaveBeenCalled();
+    });
+
+    it('saves exactly the eight labels the member keeps', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(skillDoc('alpha', 'Alpha body')));
+      const { user } = mountPane('alpha');
+      const labels = screen.getByRole('textbox', { name: 'Labels' });
+      await user.click(labels);
+      await user.paste(NINE_LABELS.join(', '));
+
+      // The member picks which one goes: here the first.
+      await user.clear(labels);
+      await user.paste(NINE_LABELS.slice(1).join(', '));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(saveSkill).toHaveBeenCalledWith(
+        expect.objectContaining({ labels: NINE_LABELS.slice(1) }),
+      );
+    });
+
+    it('says which label is too long', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue(read(skillDoc('alpha', 'Alpha body')));
+      const { user } = mountPane('alpha');
+      const long = 'x'.repeat(41);
+
+      await user.click(screen.getByRole('textbox', { name: 'Labels' }));
+      await user.paste(`finance, ${long}`);
+
+      // The start of the label, so the sentence holds still while typing.
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        `The label "${'x'.repeat(20)}…" is longer than 40 characters. Shorten it to save.`,
+      );
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
+    it('leaves stored labels alone when the member does not touch them', async () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      // Commas inside labels: the field shows them as nine entries.
+      const stored = ['a,b', 'c,d', 'e,f', 'g,h', 'i'];
+      useSkill.mockReturnValue(
+        read({ ...skillDoc('alpha', 'Alpha body'), labels: stored }),
+      );
+      const { user } = mountPane('alpha');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      await user.type(screen.getByDisplayValue('Alpha body'), ' edited');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(saveSkill).toHaveBeenCalledTimes(1);
+      expect(saveSkill.mock.calls[0]?.[0]).not.toHaveProperty('labels');
     });
   });
 

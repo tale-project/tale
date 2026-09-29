@@ -5114,6 +5114,11 @@ skills:
     labels: Labels
     labelsPlaceholder: research, pdf, finance
     labelsHelp: Comma-separated, up to 8 — for browsing, not for the model.
+    labelsTooMany:
+      'A skill takes up to {max} labels. Remove {excess, plural, one {# label}
+      other {# labels}} to save.'
+    labelTooLong:
+      'The label "{label}" is longer than {max} characters. Shorten it to save.'
     bodyHelp: Markdown the model reads when it loads the skill — playbooks,
       conventions, reference material. Never executed.
 projects:
