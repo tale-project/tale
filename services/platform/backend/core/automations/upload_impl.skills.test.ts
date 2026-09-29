@@ -330,7 +330,7 @@ describe('an automation package carrying a skill', () => {
     zip.file('skills/triage/SKILL.md', skillMd(''));
     const host = hostFor(await zip.generateAsync({ type: 'uint8array' }));
     let committed = false;
-    const locks = host.withSkillWriterLocks;
+    const locks = host.withSkillWriterLocks.bind(host);
     host.withSkillWriterLocks = async (slugs, work) => {
       const result = await locks(slugs, work);
       committed = true;
