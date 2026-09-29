@@ -35,6 +35,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { ContactError } from '../contacts/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
+import { listOrgApiKeys } from './api-keys.ts';
 import {
   findBudgetViolation,
   loadBudgetSubject,
@@ -368,6 +369,15 @@ export function createGovernanceRoutes(deps: {
     } catch (error) {
       return competenceError(c, error);
     }
+  });
+
+  /** The API keys of this organization's members, masked — the budget
+   * editor's per-key picker. Admin only, like writing the budget rules; an
+   * admin's own key listing (`/api/auth/api-key/list`) shows only theirs. */
+  app.get('/api-keys', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    return c.json({ keys: await listOrgApiKeys(deps.sql, c.get('orgId')) });
   });
 
   /** Org usage metrics (the metrics page; admin) — the 0.4 fold reused. */

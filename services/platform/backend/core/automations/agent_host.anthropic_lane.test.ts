@@ -155,6 +155,9 @@ function makeCtx(cursor: unknown) {
           return { userId: 'user-starter', agentSlug: 'vat-return-desk' };
         case 'governance/queries:getContextCapInternal':
           return null;
+        // No Custom instructions policy in this organization.
+        case 'governance/internal_queries:getPolicyConfigInternal':
+          return null;
         default:
           throw new Error(`unexpected query ${name}`);
       }

@@ -75,6 +75,7 @@ Si curl signale une erreur TLS ou réseau avant de recevoir du JSON, vérifie l�
 | Afficher une réponse complète | [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script). |
 | Lancer une automation depuis un autre système | [Déclencher une automation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). |
 | Connecter un client MCP | [Endpoint MCP](/fr/develop/mcp-endpoint). |
+| Utiliser Tale depuis opencode, Claude Code ou un script shell | [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor). |
 | Utiliser les fichiers, tâches ou exécutions d’un projet | [Référence API](/fr/develop/api-reference). |
 
 Utilise les routes `/api/v1/projects/{id}/...` pour les opérations d’un projet. L’ID du projet appartient au chemin ; le slug de l’organisation appartient à l’en-tête. Garde les deux valeurs explicites dans ta configuration.

@@ -12,6 +12,7 @@ Use these guides when writing a client, connecting an external system, or changi
 | A script that sends a message and reads the reply | [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) |
 | A client for projects, tasks, files, or other resources | [API reference](/develop/api-reference) |
 | A connection from an MCP client | [MCP endpoint](/develop/mcp-endpoint) |
+| AI help in your editor, with Tale's knowledge or models | [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) |
 | An automation triggered by another system | [Webhooks](/develop/webhooks) |
 | A filesystem client for documents | [WebDAV API](/develop/webdav-api) |
 | A new connector | [Connector development](/develop/connectors) |

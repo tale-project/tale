@@ -121,8 +121,14 @@ export const RelatedAndCta: Story = {
       <DocsLinks
         heading="Read the docs"
         links={[
-          { label: 'Agents overview', href: 'https://docs.tale.dev/agents' },
-          { label: 'Quickstart', href: 'https://docs.tale.dev/quickstart' },
+          {
+            label: 'Agents overview',
+            href: 'https://docs.tale.dev/platform/agents/concepts',
+          },
+          {
+            label: 'Quickstart',
+            href: 'https://docs.tale.dev/get-started/quickstart',
+          },
         ]}
       />
       <FeatureCta

@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 66 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -444,6 +444,16 @@ loaded, and reads **No teams** for an account in none.
   item's; Back brings each item's title back. While the offline notice is up
   the tab reads **Reconnecting** (`connectivity.tabTitle`), also once you are
   back on the chat, and the chat's title returns with the connection.
+- [ ] `NAV-F43` · **Automations entry follows who can use it** — In a fresh
+  organization (only the seeded, undeployed packages), sign in as a Member →
+  the rail shows **Home** and **Knowledge** only, and the phone tab bar
+  **Home**, **Knowledge** and **Settings**; an Owner, Admin or Developer sees
+  **Automations** (`navigation.automations`) in both. As an admin, deploy one
+  automation that is bound to no project → after the list refreshes, the
+  Member's rail and tab bar show **Automations**; an automation deployed only
+  in a project does not bring it back, including a project the Member cannot
+  access. Opening `…/automations` directly as the Member still works (a
+  presentation rule, not access control).
 
 ## Boundary & error tests
 
@@ -484,7 +494,18 @@ loaded, and reads **No teams** for an account in none.
   tab re-navigates), and the service worker's precached offline shell keeps
   the user inside Tale — never the browser's own "site can't be reached" page.
   Start the backend, press **Try again** → the reloaded page comes back
-  signed in on the same URL.
+  signed in on the same URL. Save variant, with **Manage account →
+  Language** (`auth.userButton.language`) on Deutsch: on a project's
+  **Environment** tab (`projectSecrets.title`) **Add variable**
+  (`envEditor.add`) → a name and a value, then set the browser **offline**
+  and press **Save** (`envEditor.save`) at once → before the overlay covers
+  the page, the editor's one save toast (`envEditor.saveError`) reads **Tale
+  ist nicht erreichbar. Prüfe deine Verbindung und versuch es erneut.**
+  (`common.errors.connectionLost`) beneath its title; repeat in Français
+  (**Impossible de joindre Tale. Vérifie ta connexion et réessaie.**), then
+  in Firefox and in Safari → never the browser's own wording (**Failed to
+  fetch**, **NetworkError when attempting to fetch resource.**, **Load
+  failed**) and never an English sentence under the German or French title.
 
 - [ ] `NAV-B7` · **A project that is gone** — Open a project, then in a
   second session **delete it**. Back in the first session, reload that

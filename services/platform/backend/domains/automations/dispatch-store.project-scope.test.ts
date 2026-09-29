@@ -11,6 +11,7 @@ import {
   cancelRun,
   cancelRunInTx,
   getRun,
+  listAutomations,
   listRuns,
 } from './store.ts';
 
@@ -21,6 +22,7 @@ vi.mock('./store.ts', async (original) => ({
   cancelRun: vi.fn(),
   cancelRunInTx: vi.fn(),
   getRun: vi.fn(),
+  listAutomations: vi.fn(),
   listRuns: vi.fn(),
 }));
 vi.mock('../projects/service.ts', async (original) => ({
@@ -111,6 +113,45 @@ beforeEach(() => {
   vi.mocked(cancelRunInTx).mockResolvedValue({ cancelled: true });
   vi.mocked(listRuns).mockResolvedValue([]);
   vi.mocked(listProjects).mockResolvedValue([project] as never);
+});
+
+it('lists only readable project bindings through the engine door', async () => {
+  vi.mocked(listAutomations).mockResolvedValue([
+    {
+      name: 'billing/dunning',
+      latestVersion: 1,
+      deployedVersion: 1,
+      projectIds: ['p-1', 'private-project'],
+    },
+    {
+      name: 'billing/private-only',
+      latestVersion: 1,
+      deployedVersion: 1,
+      projectIds: ['private-project'],
+    },
+    {
+      name: 'billing/org',
+      latestVersion: 2,
+      deployedVersion: null,
+      projectIds: [],
+    },
+  ] as never);
+  // An automation bound only to hidden projects is left out rather than
+  // listed with no bindings, which a client reads as organization scope.
+  expect(await store({ role: 'member' }).list()).toEqual([
+    {
+      name: 'billing/dunning',
+      latest: 1,
+      deployedVersion: 1,
+      projectIds: ['p-1'],
+    },
+    {
+      name: 'billing/org',
+      latest: 2,
+      deployedVersion: null,
+      projectIds: [],
+    },
+  ]);
 });
 
 describe('MCP and engine actor project scope', () => {

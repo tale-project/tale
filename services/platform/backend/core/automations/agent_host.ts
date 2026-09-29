@@ -44,6 +44,7 @@ import {
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
+import { readMandatoryInstructions } from '../chat/guardrails';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
@@ -81,7 +82,12 @@ import {
   TurnBudgetExceededError,
 } from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
-import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../provider_credentials/broker_pool';
+import {
+  credentialRetryAtMs,
+  resolveProviderCredential,
+  runFailureMessage,
+} from '../provider_credentials/resolve_credential';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
@@ -180,6 +186,9 @@ export interface AutomationAgentHost {
     /** An auto-retry's continuation: the failed turn's conversation handle
      * and why it ended. Absent, the turn is a fresh conversation. */
     resume?: WorkflowAgentRetryResume;
+    /** Hold the turn's start until then, epoch ms — a subscription broker
+     * whose every account was cooling down has its first one back. */
+    notBefore?: number;
   }): Promise<WorkflowAgentKick>;
   /** The settled result, or `null` while the turn still runs. Reads fresh —
    * the settle may land after the stepper's turn loaded its checkpoints. */
@@ -345,6 +354,7 @@ export function automationAgentHost(
       request,
       excludeBrokerTokenHashes,
       resume,
+      notBefore,
     }) => {
       const harness = request.harness ?? DEFAULT_HARNESS;
       if (!isManagedHarness(harness)) {
@@ -396,7 +406,17 @@ export function automationAgentHost(
           : null;
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
-      const deadlineAt = Date.now() + agentWorkTurnDeadlineMs();
+      // A cooldown ends a minute after its 429 at the latest, so a held
+      // start stays far inside the stalled-turn sweep's window for the op
+      // row written below.
+      const startDelayMs =
+        notBefore === undefined
+          ? 0
+          : Math.min(
+              Math.max(0, notBefore - Date.now()),
+              BROKER_RATE_LIMIT_COOLDOWN_MS,
+            );
+      const deadlineAt = Date.now() + startDelayMs + agentWorkTurnDeadlineMs();
       // The op row exists BEFORE the start action is scheduled (the chat
       // lane's invariant): from this point, every death of the scheduled
       // start leaves a stale-heartbeat op the agent-turn watchdog settles,
@@ -417,7 +437,7 @@ export function automationAgentHost(
         },
       );
       await ctx.scheduler.runAfter(
-        0,
+        startDelayMs,
         internal.automations.agent_host.startWorkflowAgentTurn,
         {
           organizationId,
@@ -1346,7 +1366,14 @@ export async function startWorkflowAgentTurnImpl(
               ),
             )
           : undefined;
+      const mandatoryInstructions = await readMandatoryInstructions(
+        ctx,
+        args.organizationId,
+        '[agent-host]',
+      );
       const instructions = [
+        // The organization's Custom instructions lead, as on a chat turn.
+        ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
         ...(args.request.system !== undefined && args.request.system !== ''
           ? [args.request.system]
           : []),
@@ -1479,13 +1506,22 @@ export async function startWorkflowAgentTurnImpl(
       console.error('[agent-host] turn start failed:', err);
       // A cap refusal is the org's decision, not a fault: named as such,
       // and never retried (the cap only moves with the period or an admin).
+      // A broker pool whose every account is cooling down says when the
+      // first is back: the stepper holds the re-kick's start until then
+      // instead of meeting the same refusal at once.
       const budgetRefused = isTurnBudgetExceededError(err);
+      const retryAtMs = credentialRetryAtMs(err);
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
         reason: budgetRefused
           ? `the agent turn was refused by the organization's spend cap: ${err.reason}`
-          : `the agent turn could not start: ${err instanceof Error ? err.message : String(err)}`,
-        failureCode: budgetRefused ? 'budget_exceeded' : 'start_failed',
+          : `the agent turn could not start: ${runFailureMessage(err)}`,
+        failureCode: budgetRefused
+          ? 'budget_exceeded'
+          : retryAtMs !== undefined
+            ? 'credential_cooldown'
+            : 'start_failed',
+        ...(retryAtMs !== undefined ? { retryAtMs } : {}),
         text: '',
         files: [],
       });
@@ -1930,7 +1966,14 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
               ),
             )
           : undefined;
+      const mandatoryInstructions = await readMandatoryInstructions(
+        ctx,
+        args.organizationId,
+        '[agent-host]',
+      );
       const instructions = [
+        // The organization's Custom instructions lead, as on a chat turn.
+        ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
         ...(request.system !== undefined && request.system !== ''
           ? [request.system]
           : []),
@@ -2039,6 +2082,9 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       await continueOrSettle(ctx, keys, window);
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
+      // A broker pool cooling down says when its first account is back: the
+      // stepper's re-kick waits for it.
+      const retryAtMs = credentialRetryAtMs(err);
       // A death BEFORE the retarget settles under the asking exec the cursor
       // still names: its finalize claim was burned at the ask park, but the
       // dead-winner branch completes the record (cursor matches, no result),
@@ -2050,8 +2096,9 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         retargeted ? keys : { ...keys, execId: ask.execId },
         {
           errored: true,
-          reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
+          reason: `the agent turn could not resume after the answer: ${runFailureMessage(err)}`,
           failureCode: 'resume_failed',
+          ...(retryAtMs !== undefined ? { retryAtMs } : {}),
           text: '',
           files: [],
         },

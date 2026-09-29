@@ -1610,4 +1610,4 @@ Les notes publiées sont disponibles sur [GitHub Releases](https://github.com/ta
 
 Utilise cette référence pour intégrer Tale depuis une application externe via REST. Le [point d’accès MCP](/fr/develop/mcp-endpoint) donne accès à la plateforme aux clients MCP et permet d’écrire les automatisations, une opération absente de REST.
 
-Les [webhooks](/fr/develop/webhooks) démarrent des exécutions entrantes sans clé API. Pour configurer le travail directement dans Tale, notamment les agents de projet et les automatisations, consulte la documentation [Plateforme](/fr/platform).
+Les [webhooks](/fr/develop/webhooks) démarrent des exécutions entrantes sans clé API. Pour configurer le travail directement dans Tale, notamment les agents de projet et les automatisations, consulte la documentation [Plateforme](/fr/platform). Pour utiliser Tale dans opencode, Claude Code ou un script shell, et savoir ce qui remplace `/api/v1/chat/completions` compatible OpenAI, lis [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor).

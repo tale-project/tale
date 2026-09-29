@@ -32,7 +32,7 @@ vi.mock('../hooks/mutations', () => ({
     isPending: false,
   }),
 }));
-const { state, members, teams, providers, apiKeys, mailboxes, backendQuery } =
+const { state, members, teams, providers, mailboxes, backendQuery } =
   vi.hoisted(() => ({
     state: {
       result: { data: undefined, isLoading: true } as {
@@ -43,7 +43,6 @@ const { state, members, teams, providers, apiKeys, mailboxes, backendQuery } =
     members: { members: [{ userId: 'user-1', displayName: 'Alice' }] },
     teams: { teams: [{ id: 'team-1', name: 'Finance' }] },
     providers: { providers: [] },
-    apiKeys: { data: [] },
     mailboxes: { mailboxes: [] },
     backendQuery: { data: [], isLoading: false },
   }));
@@ -59,9 +58,6 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
 vi.mock('../hooks/model-catalog', () => ({
   useListProviders: () => providers,
   useModelCapabilities: () => new Map(),
-}));
-vi.mock('@/app/features/settings/api-keys/hooks/use-api-keys', () => ({
-  useApiKeys: () => apiKeys,
 }));
 // The routing editor lists mailboxes and API apps as arrival points.
 vi.mock('@/app/features/conversations/hooks/queries', () => ({

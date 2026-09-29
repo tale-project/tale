@@ -775,15 +775,39 @@ export async function setAutomationProjects(
     name: string;
     projectIds: string[];
     actor: string;
+    /** The projects the saving person can read. The editor only ever sees
+     * those bindings, so the save replaces that part of the set and keeps
+     * every binding to a project outside it; a project they cannot read
+     * answers like a missing one unless it is already bound. Omitted, the
+     * save replaces the whole set. */
+    visibleProjectIds?: string[];
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
+    let projectIds = args.projectIds;
+    if (args.visibleProjectIds !== undefined) {
+      const visible = new Set(args.visibleProjectIds);
+      const hidden = projectIds.filter((id) => !visible.has(id));
+      if (hidden.length > 0) {
+        const bound = new Set(
+          await bindingProjectIds(tx, args.organizationId, args.name),
+        );
+        if (hidden.some((id) => !bound.has(id))) {
+          throw new AutomationError(
+            'AUTOMATION_PROJECT_UNKNOWN',
+            'One of the projects does not exist in this organization.',
+            404,
+          );
+        }
+        projectIds = projectIds.filter((id) => visible.has(id));
+      }
+    }
     const owned = await tx<{ id: string; archivedAt: number | null }[]>`
       SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
       WHERE org_id = ${args.organizationId}
-        AND id = ANY(${args.projectIds})
+        AND id = ANY(${projectIds})
     `;
-    if (owned.length !== new Set(args.projectIds).size) {
+    if (owned.length !== new Set(projectIds).size) {
       throw new AutomationError(
         'AUTOMATION_PROJECT_UNKNOWN',
         'One of the projects does not exist in this organization.',
@@ -803,9 +827,14 @@ export async function setAutomationProjects(
       DELETE FROM app.automation_project_bindings
       WHERE org_id = ${args.organizationId}
         AND automation_name = ${args.name}
-        AND NOT (project_id = ANY(${args.projectIds}))
+        AND NOT (project_id = ANY(${projectIds}))
+        ${
+          args.visibleProjectIds === undefined
+            ? tx``
+            : tx`AND project_id = ANY(${args.visibleProjectIds})`
+        }
     `;
-    for (const projectId of args.projectIds) {
+    for (const projectId of projectIds) {
       await tx`
         INSERT INTO app.automation_project_bindings (
           org_id, automation_name, project_id, bound_at_ms, bound_by
@@ -1656,6 +1685,10 @@ export interface BeginRunArgs {
   requireOrgScope?: boolean;
   /** A token authorizes installed projects, not arbitrary same-org projects. */
   requireProjectBinding?: boolean;
+  /** The app member's readable projects. Check the resolved binding inside
+   * admission too: omitting projectId must not infer a hidden project, nor
+   * start an organization run able to operate in hidden bound projects. */
+  visibleProjectIds?: string[];
 }
 
 /** The same project admission for durable and in-process run artifacts.
@@ -1670,9 +1703,17 @@ export async function resolveRunProject(
     | 'projectId'
     | 'requireOrgScope'
     | 'requireProjectBinding'
+    | 'visibleProjectIds'
   >,
 ): Promise<string | null> {
   const bindings = await bindingProjectIds(sql, args.organizationId, args.name);
+  if (args.visibleProjectIds !== undefined) {
+    const visible = new Set(args.visibleProjectIds);
+    const selected = args.projectId === undefined ? bindings : [args.projectId];
+    if (selected.some((id) => !visible.has(id))) {
+      throw new AutomationError('PROJECT_NOT_FOUND', 'Project not found.', 404);
+    }
+  }
   if (
     args.requireOrgScope === true &&
     (args.projectId !== undefined || bindings.length > 0)
@@ -1683,10 +1724,18 @@ export async function resolveRunProject(
       409,
     );
   }
-  if (args.projectId !== undefined) {
+  const inferred = bindings.length === 1 ? bindings[0] : undefined;
+  // A person's app start holds an inferred sole binding to the same checks
+  // as a named project. Trusted trigger callers keep their inferred scope
+  // unchecked: an event dispatch starts every listening automation in one
+  // savepoint, so one refusal there would roll back the others' runs.
+  const projectId =
+    args.projectId ??
+    (args.visibleProjectIds !== undefined ? inferred : undefined);
+  if (projectId !== undefined) {
     const owned = await sql<{ id: string; archivedAt: number | null }[]>`
       SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
-      WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+      WHERE org_id = ${args.organizationId} AND id = ${projectId}
       LIMIT 1
     `;
     const project = owned[0];
@@ -1709,7 +1758,7 @@ export async function resolveRunProject(
     }
     if (
       (args.requireProjectBinding === true || bindings.length > 0) &&
-      !bindings.includes(args.projectId)
+      !bindings.includes(projectId)
     ) {
       // Static, like every refusal a task door relays: the name is what the
       // caller sent (a task start's `workflowSlug`) or what a run carries,
@@ -1721,9 +1770,7 @@ export async function resolveRunProject(
       );
     }
   }
-  return (
-    args.projectId ?? (bindings.length === 1 ? (bindings[0] ?? null) : null)
-  );
+  return projectId ?? inferred ?? null;
 }
 
 export async function beginRun(
@@ -2673,6 +2720,22 @@ export interface AnsweredAsk {
   runId: string;
   /** The task the asking run works on, when it has one. */
   taskId: string | null;
+}
+
+/** The run a question belongs to, or null when the organization has no
+ * such question — what a door checks the run's visibility against before
+ * it lets anyone answer. */
+export async function getAskRunId(
+  sql: Sql,
+  organizationId: string,
+  askId: string,
+): Promise<string | null> {
+  const rows = await sql<{ runId: string }[]>`
+    SELECT run_id AS "runId" FROM app.automation_human_asks
+    WHERE id = ${askId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  return rows[0]?.runId ?? null;
 }
 
 export async function answerAsk(

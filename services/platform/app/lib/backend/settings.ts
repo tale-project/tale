@@ -8,6 +8,7 @@
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
+  API_KEY_HINT_ENTITY,
   MEMBER_HINT_ENTITY,
   PROVIDER_CREDENTIAL_HINT_ENTITY,
   TEAM_HINT_ENTITY,
@@ -101,6 +102,7 @@ type ExtendErasureResult =
   ReturnsOf<'governance/erasure:extendErasureDeadline'>;
 type CloseMatterResult = ReturnsOf<'governance/legal_hold:closeLegalMatter'>;
 type CompetenceItem = ItemOf<'governance/competences:listCompetences'>;
+type OrgApiKeyItem = ItemOf<'governance/api_keys:listOrgApiKeys'>;
 type GrantCompetenceResult =
   ReturnsOf<'governance/competences:grantCompetence'>;
 
@@ -632,6 +634,17 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ holds: LegalHoldItem[] }>(`/legal-holds${qs}`, {
           orgId,
         }).then((body) => body.holds),
+    };
+  },
+  'governance/api_keys:listOrgApiKeys': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list'),
+      queryFn: () =>
+        backendFetch<{ keys: OrgApiKeyItem[] }>('/governance/api-keys', {
+          orgId,
+        }).then((body) => body.keys),
     };
   },
   'governance/competences:listCompetences': (args, ctx) => {

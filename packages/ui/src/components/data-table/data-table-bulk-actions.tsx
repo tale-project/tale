@@ -20,6 +20,13 @@ interface BulkDeleteBarProps {
   onDeleteItem: (id: string) => Promise<void>;
   /** Callback after all deletions complete */
   onDeleteComplete?: () => void;
+  /**
+   * The words under the failure toast, read from what each refused delete
+   * threw, in selection order (for example the first refusal's reason, read
+   * through a helper that never shows an error's payload). Without it the
+   * toast carries only its title.
+   */
+  describeFailure?: (reasons: unknown[]) => string | undefined;
 }
 
 interface BulkArchiveBarProps {
@@ -42,6 +49,7 @@ export function BulkDeleteBar({
   onClearSelection,
   onDeleteItem,
   onDeleteComplete,
+  describeFailure,
 }: BulkDeleteBarProps) {
   const { t } = useT('common');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -56,12 +64,15 @@ export function BulkDeleteBar({
       const results = await Promise.allSettled(
         selectedIds.map((id) => onDeleteItem(id)),
       );
-      const failedCount = results.filter((r) => r.status === 'rejected').length;
-      const successCount = count - failedCount;
+      const refused = results.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      );
+      const successCount = count - refused.length;
 
-      if (failedCount > 0) {
+      if (refused.length > 0) {
         toast({
           title: t('bulkActions.deleteFailed'),
+          description: describeFailure?.(refused.map((r) => r.reason)),
           variant: 'destructive',
         });
       } else {
@@ -76,7 +87,15 @@ export function BulkDeleteBar({
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedIds, count, onDeleteItem, onClearSelection, onDeleteComplete, t]);
+  }, [
+    selectedIds,
+    count,
+    onDeleteItem,
+    onClearSelection,
+    onDeleteComplete,
+    describeFailure,
+    t,
+  ]);
 
   if (count === 0) return null;
 

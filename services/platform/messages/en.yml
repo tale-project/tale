@@ -567,7 +567,10 @@ automations:
     loadFailed: "Couldn't load automations: {error}"
     empty:
       title: No automations yet
-      description: Create an agent with a trigger, or upload a workflow package.
+      description: Choose Create automation to start from a trigger and an agent, or to upload a package.
+    emptyReader:
+      title: No live automations
+      description: An automation appears here once an Owner, Admin, or Developer deploys it.
   createMenu:
     blank: Blank (trigger + agent)
   blank:
@@ -1866,7 +1869,12 @@ conversations:
       Install an email automation (Gmail, Outlook, or IMAP)
       to start reading and replying to conversations here.
     composeNotice: To email {name}, first install an email automation.
+    composeNoticeReader: You can email {name} once an email automation is deployed.
     browseAutomations: Browse automations
+    noAutomationReaderDescription:
+      Once someone with the Owner, Admin, or Developer role deploys an email
+      automation (Gmail, Outlook, or IMAP), you can read and reply to
+      conversations here.
   filter:
     all: All
     read: Read
@@ -2530,10 +2538,6 @@ onboarding:
       Next to try again.
     creationForbidden: You cannot create an organization on this deployment. Contact the operator to request a workspace.
     nameTakenError: That name is already taken. Pick a different one.
-  provider:
-    heading: Connect OpenRouter
-    why: One key unlocks hundreds of models for chat, images, voice, and more —
-      we'll preconfigure a recommended set so you're ready right away.
   finish:
     heading: Ready to go
     subtitle: "Here's what you can do next:"
@@ -2564,7 +2568,7 @@ emptyStates:
     description: Save facts from chat or add entries agents can reuse.
   skills:
     title: No skills yet
-    description: Write a skill to give agents reusable knowledge — equip it in chat or attach it to an automation.
+    description: Write a skill once, then equip project agents or automation agent nodes with it.
   members:
     title: No members found
     description: Invite people to collaborate in this workspace.
@@ -5466,7 +5470,7 @@ settings:
     sandboxes:
       description: Manage always-on remote sandboxes.
     skills:
-      description: Reusable instructions and tools the assistant can load.
+      description: Reusable instruction bundles for project agents and automation agent nodes.
     enterpriseSso:
       description: Single sign-on and directory sync for your organization.
     dataResidency:
@@ -5654,6 +5658,7 @@ settings:
     teamDeleteFailed: Couldn't delete team
     teamCreated: Team created
     teamCreatedDescription: '{name} created with {count} {count, plural, one {member} other {members}}.'
+    teamCreatedMembersRefused: Team created, but not every member was added
     teamCreateFailed: Couldn't create team
     teamUpdated: Team updated
     teamUpdateFailed: Couldn't update team
@@ -7210,6 +7215,9 @@ tasks:
     # Caption under the status line while a machine-kicked retry runs — the
     # user must be able to tell the platform's retry from their own.
     autoRetrying: 'Auto-retry {n} of {max}'
+    # Replaces the caption when the broker refreshed the account's token
+    # under the run and the platform resumed it — no attempt spent yet.
+    resumedAfterTokenRefresh: Resumed after a token refresh
     retry: Retry
     cancel: Cancel run
   automation:

@@ -23,7 +23,7 @@ Create an [API key](/platform/admin/api-keys) and keep it in your client's secre
 | Organization | `X-Organization-Slug: <slug>` |
 | Protocol revisions | `2025-06-18`, or `2025-03-26` when proposed by the client |
 
-Use a client that supports a remote HTTP endpoint with custom headers. There is no SSE event stream, session deletion, or OAuth authorization flow. OAuth discovery URLs return JSON `404`; a client requiring that flow needs a different authentication configuration. A client that only launches local stdio servers cannot use this URL directly.
+Use a client that supports a remote HTTP endpoint with custom headers. There is no SSE event stream, session deletion, or OAuth authorization flow. OAuth discovery URLs return JSON `404`; a client requiring that flow needs a different authentication configuration. A client that only launches local stdio servers cannot use this URL directly. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) has ready configurations for opencode and Claude Code.
 
 Always send the organization header in reusable integrations. It is optional only when the key holder has one organization. With several memberships, omitting it returns `400 ORG_SLUG_REQUIRED`; an unknown slug returns `404 ORG_SLUG_INVALID`, and a non-member organization returns `403 ORG_FORBIDDEN`. Each of these refusals lists the slugs you can send in `data.organizations`.
 

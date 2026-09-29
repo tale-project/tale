@@ -49,13 +49,15 @@ Ein Projektchat erhält außerdem die festen Projektanweisungen. Tale erzwingt d
 
 Nutze [Anhänge](/de/platform/chat/attachments) für dieses Gespräch, [Projektdateien](/de/platform/projects/manage-files) für wiederkehrende Projektarbeit und [Wissen](/de/platform/knowledge/overview) für gemeinsame Referenzquellen. Der Assistent ruft Inhalte nach Bedarf ab. Ein hochgeladenes Dokument wurde deshalb nicht automatisch für jede Antwort gelesen.
 
+Für Fragen zu Tale selbst musst du nichts hochladen: Der Assistent schlägt in der öffentlichen Dokumentation auf docs.tale.dev nach, bevor er erklärt, wie eine Ansicht oder Einstellung funktioniert. Kann der Server docs.tale.dev nicht erreichen, etwa bei einer selbst gehosteten Installation ohne Internetzugang, zeigt der Ablauf einen fehlgeschlagenen Leseschritt, und die Antwort stützt sich nicht auf die Dokumentation. Die Dokumentation beschreibt die neueste Version; der Assistent weist darauf hin, wenn dein Arbeitsbereich davon abweichen kann.
+
 ## Die verwendeten Quellen prüfen
 
 Über der Antwort zeigt der Ablauf die Such- und Leseschritte. Bei einem fehlgeschlagenen Schritt erfährst du, was nicht gelesen werden konnte. Das hilft bei unvollständigen Antworten. Klappe die Denkansicht auf, sofern vorhanden, aber prüfe Tatsachen anhand der Quellen und nicht anhand einer überzeugenden Erklärung.
 
 Unter **Quellen** stehen die geladenen Dokumente und Seiten. Öffne eine Quelle und prüfe, ob sie die jeweilige Aussage stützt. Eine Quellenangabe zeigt verwendetes Material, garantiert aber keine richtige Schlussfolgerung. Ohne Abrufschritt kann eine Antwort auf dem Vorwissen des Modells beruhen.
 
-Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte, zugängliche Aufgaben und die Inbox-Konversationen, die du sehen darfst. Dabei findet er auch den Text der E-Mails, die in diesen Konversationen eingegangen sind, und den ihrer Anhänge. Eine Aufgabe lässt sich über ihren Schlüssel nennen, etwa `DOCS-12`, wie das Board ihn anzeigt. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern oder Dateiergebnisse erstellen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an.
+Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Kontakte, Produkte, zugängliche Aufgaben und die Inbox-Konversationen, die du sehen darfst. Dabei findet er auch den Text der E-Mails, die in diesen Konversationen eingegangen sind, und den ihrer Anhänge. Eine Aufgabe lässt sich über ihren Schlüssel nennen, etwa `DOCS-12`, wie das Board ihn anzeigt. Er kann Details zu einem Ergebnis abrufen und öffentliche Webseiten lesen. Code ausführen, verbundene Systeme ändern, Dateiergebnisse erstellen oder [Skills](/de/platform/workspace/skills) nutzen gehört nicht zum Chat. Lege dafür eine [Projektaufgabe](/de/platform/projects/tasks) an.
 
 ## Ein Gespräch fortsetzen oder aufbewahren
 

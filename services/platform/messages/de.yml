@@ -598,7 +598,10 @@ automations:
     loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
     empty:
       title: Noch keine Automatisierungen
-      description: Erstelle einen Agenten mit Trigger oder lade ein Workflow-Paket hoch.
+      description: Wähle „Automatisierung erstellen“, um mit einem Trigger und einem Agenten zu beginnen oder ein Paket hochzuladen.
+    emptyReader:
+      title: Keine Automatisierungen live
+      description: Eine Automatisierung erscheint hier, sobald sie jemand mit der Rolle Inhaber, Admin oder Entwickler live schaltet.
   createMenu:
     blank: Leer (Trigger + Agent)
   blank:
@@ -1934,7 +1937,12 @@ conversations:
       Installiere eine E-Mail-Automatisierung (Gmail, Outlook
       oder IMAP), um hier Konversationen zu lesen und zu beantworten.
     composeNotice: Um {name} zu schreiben, installiere zuerst eine E-Mail-Automatisierung.
+    composeNoticeReader: Du kannst {name} schreiben, sobald eine E-Mail-Automatisierung live ist.
     browseAutomations: Automatisierungen durchsuchen
+    noAutomationReaderDescription:
+      Sobald jemand mit der Rolle Inhaber, Admin oder Entwickler eine
+      E-Mail-Automatisierung (Gmail, Outlook oder IMAP) live schaltet, kannst
+      du hier Konversationen lesen und beantworten.
   filter:
     all: Alle
     read: Gelesen
@@ -2626,12 +2634,6 @@ onboarding:
       Verbindung und klicke erneut auf „Weiter“.
     creationForbidden: Du kannst in dieser Bereitstellung keine Organisation erstellen. Wende dich an den Betreiber, um einen Arbeitsbereich anzufordern.
     nameTakenError: Dieser Name ist schon vergeben. Wähle einen anderen.
-  provider:
-    heading: OpenRouter verbinden
-    why:
-      Ein Schlüssel schaltet Hunderte Modelle für Chat, Bilder, Sprache und mehr
-      frei – wir konfigurieren eine empfohlene Auswahl vor, damit du sofort
-      loslegen kannst.
   finish:
     heading: Bereit
     subtitle: 'Das kannst du als Nächstes tun:'
@@ -2662,7 +2664,7 @@ emptyStates:
     description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können.
   skills:
     title: Noch keine Skills
-    description: Schreibe einen Skill, um Agents wiederverwendbares Wissen mitzugeben — nutz ihn im Chat oder hänge ihn an eine Automatisierung.
+    description: Schreib einen Skill einmal und rüste dann Projekt-Agenten oder Agent-Knoten in Automatisierungen damit aus.
   members:
     title: Keine Mitglieder gefunden
     description: Lade Personen ein, in diesem Workspace zusammenzuarbeiten.
@@ -5270,7 +5272,7 @@ settings:
     sandboxes:
       description: Always-on Remote-Sandboxes verwalten.
     skills:
-      description: Wiederverwendbare Anleitungen und Werkzeuge, die der Assistent laden kann.
+      description: Wiederverwendbare Anleitungspakete für Projekt-Agenten und Agent-Knoten in Automatisierungen.
     enterpriseSso:
       description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
     dataResidency:
@@ -5468,6 +5470,7 @@ settings:
     teamDeleteFailed: Team konnte nicht gelöscht werden
     teamCreated: Team erstellt
     teamCreatedDescription: '{name} mit {count} {count, plural, one {Mitglied} other {Mitgliedern}} erstellt.'
+    teamCreatedMembersRefused: Team erstellt, aber nicht alle Mitglieder wurden hinzugefügt
     teamCreateFailed: Team konnte nicht erstellt werden
     teamUpdated: Team aktualisiert
     teamUpdateFailed: Team konnte nicht aktualisiert werden
@@ -7086,6 +7089,10 @@ tasks:
     # Zeile unter dem Status, während die Plattform einen fehlgeschlagenen
     # Lauf von selbst neu startet — damit klar ist, dass nicht du es warst.
     autoRetrying: 'Automatischer Versuch {n} von {max}'
+    # Ersetzt diese Zeile, wenn der Broker das Token des Kontos mitten im
+    # Lauf erneuert hat und die Plattform ihn fortsetzt — ohne verbrauchten
+    # Versuch.
+    resumedAfterTokenRefresh: Nach einer Token-Erneuerung fortgesetzt
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:

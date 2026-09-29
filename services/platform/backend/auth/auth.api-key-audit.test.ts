@@ -98,6 +98,12 @@ async function runAfterHook(
 
 const audited = () => createAuditLog.mock.calls.map((call) => call[1]);
 
+/** The realtime hints the hook wrote, as their bound values. */
+const apiKeyHints = (statements: Statement[]) =>
+  statements
+    .filter((s) => s.text.startsWith('INSERT INTO app_realtime.outbox'))
+    .map((s) => s.values);
+
 const SESSION = { user: { id: 'user-1', email: 'ada@example.test' } };
 
 describe('Better Auth after-hook — API-key lifecycle audit', () => {
@@ -154,6 +160,12 @@ describe('Better Auth after-hook — API-key lifecycle audit', () => {
       }),
     ]);
     expect(JSON.stringify(audited())).not.toContain('tale_abcdefgh1234');
+    // Each organization of the holder hears of the new key, so an admin's
+    // open budget picker lists it without a reload.
+    expect(apiKeyHints(statements)).toEqual([
+      ['org-1', null, 'api_key', 'key-1'],
+      ['org-2', null, 'api_key', 'key-1'],
+    ]);
     // The suffix persist that predates the audit still runs.
     expect(
       statements.find((s) => s.text.startsWith('UPDATE "apikey" SET "suffix"'))
@@ -185,6 +197,10 @@ describe('Better Auth after-hook — API-key lifecycle audit', () => {
       }),
     ]);
     expect(audited()[0]).not.toHaveProperty('resourceName');
+    expect(apiKeyHints(statements)).toEqual([
+      ['org-1', null, 'api_key', 'key-1'],
+      ['org-2', null, 'api_key', 'key-1'],
+    ]);
     // The session carried the e-mail: no lookup.
     expect(
       statements.some((s) => s.text.startsWith('SELECT "email" FROM "user"')),
@@ -222,7 +238,7 @@ describe('Better Auth after-hook — API-key lifecycle audit', () => {
   });
 
   it('records nothing for a refused call or another path', async () => {
-    const { sql } = recordingSql();
+    const { sql, statements } = recordingSql();
 
     await runAfterHook(sql, {
       path: '/api-key/delete',
@@ -239,13 +255,14 @@ describe('Better Auth after-hook — API-key lifecycle audit', () => {
     });
 
     expect(audited()).toEqual([]);
+    expect(apiKeyHints(statements)).toEqual([]);
   });
 
   // The key already exists (or is already gone) when the hook runs: a row
   // that cannot be written is logged, never surfaced as a failed request.
   it('never fails the caller when the audit rows cannot be written', async () => {
     createAuditLog.mockRejectedValueOnce(new Error('chain locked'));
-    const { sql } = recordingSql();
+    const { sql, statements } = recordingSql();
 
     await expect(
       runAfterHook(sql, {
@@ -254,5 +271,7 @@ describe('Better Auth after-hook — API-key lifecycle audit', () => {
         context: { returned: { success: true }, session: SESSION },
       }),
     ).resolves.toBeUndefined();
+    // The hint does not ride the audit transaction: the picker still refreshes.
+    expect(apiKeyHints(statements)).toHaveLength(2);
   });
 });

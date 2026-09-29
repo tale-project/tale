@@ -14,14 +14,14 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Polit
 ## Ajouter un budget
 
 1. Dans les règles de budget, choisis **Ajouter une règle**.
-2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé.
+2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé. La liste des clés API propose chaque clé active d’un membre de l’organisation, avec le nom de la personne qui la détient : tu peux ainsi plafonner le script ou l’outil de code d’une seule personne.
 3. Sélectionne une période quotidienne, hebdomadaire ou mensuelle. Renseigne au moins une limite positive de tokens, de coût ou de requêtes. Le coût est en USD ; un champ vide ne plafonne pas cette dimension par cette règle.
 4. Définis si besoin le seuil d’alerte entre 0 et 100 pour avertir avant d’atteindre le plafond.
 5. Choisis **Confirmer**, enregistre les changements de la page et vérifie la portée, la cible, la période et les limites enregistrées.
 
 Par exemple, une règle mensuelle de rôle peut donner aux rédacteurs un budget personnel de 50 USD, tandis qu’une règle d’organisation plafonne les dépenses cumulées à 500 USD. Ce sont des exemples, pas des valeurs recommandées.
 
-Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie vocale et les exécutions d’agents gérés. Tale vérifie chaque requête de chat avant son exécution — un message envoyé, une réponse régénérée ou modifiée, les deux côtés d’une comparaison de modèles, un message en attente d’une pièce jointe et un envoi par l’API REST — et la refuse dès qu’un plafond applicable est atteint, en indiquant ce plafond et le moment de sa réinitialisation. Les réponses en cours de rédaction réservent ce qu’elles peuvent dépenser, afin que des requêtes envoyées au même moment ne franchissent pas ensemble un plafond presque atteint. La génération d’images exige des limites de coût ou de requêtes, car elle n’est pas mesurée en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
+Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie vocale et les exécutions d’agents gérés. Tale vérifie chaque requête de chat avant son exécution — un message envoyé, une réponse régénérée ou modifiée, les deux côtés d’une comparaison de modèles, un message en attente d’une pièce jointe et un envoi par l’API REST — et la refuse dès qu’un plafond applicable est atteint, en indiquant ce plafond et le moment de sa réinitialisation. Les réponses en cours de rédaction réservent ce qu’elles peuvent dépenser, afin que des requêtes envoyées au même moment ne franchissent pas ensemble un plafond presque atteint. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
 
 ## Comprendre les plafonds applicables
 

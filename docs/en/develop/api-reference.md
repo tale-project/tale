@@ -1265,4 +1265,4 @@ A few endpoints live outside that document on purpose: `GET /api/health` is the 
 
 ## Where this fits
 
-This page is the REST half of the outside surface. The [MCP endpoint](/develop/mcp-endpoint) exposes the same platform to MCP clients — automation authoring lives there, not in REST. The [Webhooks page](/develop/webhooks) covers the inbound trigger that starts runs without a key. If you are building inside the product — project agents, automations — the [Platform tab](/platform) is your day-to-day; this page is for outside.
+This page is the REST half of the outside surface. The [MCP endpoint](/develop/mcp-endpoint) exposes the same platform to MCP clients — automation authoring lives there, not in REST. The [Webhooks page](/develop/webhooks) covers the inbound trigger that starts runs without a key. If you are building inside the product — project agents, automations — the [Platform tab](/platform) is your day-to-day; this page is for outside. To bring Tale into opencode, Claude Code, or a shell script, and for what replaced the OpenAI-compatible `/api/v1/chat/completions`, read [Use Tale from your editor or a script](/develop/use-tale-from-your-editor).

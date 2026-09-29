@@ -103,8 +103,9 @@ in the pool**, so they run before the removals.
   back, carrying cc-gateway's own field names — `id`, `label`,
   `account_email`, `status`, `access_token`, `expires_at`, `scopes` — plus
   `provider: "anthropic"`, the planned `refresh_at` (earlier than
-  `expires_at`), identity and quota metadata. The ChatGPT token
-  appears nowhere in the body.
+  `expires_at`), `available`, `hold` (null while the account is available),
+  identity and quota metadata. The ChatGPT token appears nowhere in the
+  body.
 - [ ] `ACCT-22` · **Use that response's `access_token` in the Claude command
   under the service README's "Use the tokens"** → Claude Code starts on that account
   without asking for a login. The endpoint's token is the CLI's token.

@@ -5,6 +5,8 @@ description: Create reusable instructions, import a skill bundle, and choose whi
 
 A skill packages a repeatable way of working: writing release notes, checking a brief, or preparing a document in your house style. It contains a `SKILL.md` instruction file and, optionally, supporting files. Use **Settings > Skills** to maintain it once, then [equip the agents](/platform/agents/skills) that need it.
 
+Skills take effect where an agent does the work: a [project agent](/platform/projects/project-agents) working a [task](/platform/projects/tasks), or an agent node in an [automation](/platform/automations/concepts). Chat answers questions and searches your knowledge; it does not use skills, run code, or produce files. To get a document made with a skill, assign a task to an agent equipped with it — creating tasks and agents needs the Editor role or higher.
+
 Every member can create a skill. You can edit your own; editing or deleting another person's shared skill requires an organization administrator. Your organization can reserve sharing with everyone for some roles; see [Who can share with everyone](#who-can-share-with-everyone).
 
 ## Create a small skill

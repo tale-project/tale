@@ -21,19 +21,15 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import {
-  assertReadable,
   assertWritable,
   getProjectAuthContext,
-  listProjects,
-  loadProjectOrThrow,
-  ProjectError,
   type ProjectAuthContext,
-  type ProjectRow,
 } from '../projects/service.ts';
 import {
   credentialShimHandlers,
   listServingCredentialFacts,
 } from '../provider_credentials/service.ts';
+import { readableProject, readableProjectIds } from './project-visibility.ts';
 import {
   assertAutomationName,
   beginRun,
@@ -138,32 +134,12 @@ export async function authorizeActorRun(
   return getProjectAuthContext(sql, { organizationId, userId, role });
 }
 
-/** The engine/MCP actor has the same project visibility as its member. */
-async function readableActorProject(
-  sql: Sql | TransactionSql,
-  auth: ProjectAuthContext,
-  projectId: string,
-): Promise<ProjectRow | null> {
-  try {
-    const project = await loadProjectOrThrow(sql, projectId);
-    assertReadable(project, auth);
-    return project;
-  } catch (error) {
-    if (
-      error instanceof ProjectError &&
-      (error.code === 'PROJECT_NOT_FOUND' || error.code === 'PROJECT_FORBIDDEN')
-    )
-      return null;
-    throw error;
-  }
-}
-
 async function writableActorProject(
   sql: Sql | TransactionSql,
   auth: ProjectAuthContext,
   projectId: string,
 ): Promise<void> {
-  const project = await readableActorProject(sql, auth, projectId);
+  const project = await readableProject(sql, auth, projectId);
   if (project === null) {
     throw new ActorAuthError('PROJECT_NOT_FOUND', 'Project not found.');
   }
@@ -292,13 +268,31 @@ export function pgAutomationStore(
     // The deployed version and the installations ride along: `latest` alone
     // hid whether an automation was live at all, and the bindings are the
     // one thing a caller needs to start a project-bound automation.
-    list: async () =>
-      (await listAutomations(sql, organizationId)).map((row) => ({
-        name: row.name,
-        latest: row.latestVersion,
-        deployedVersion: row.deployedVersion,
-        projectIds: row.projectIds,
-      })),
+    list: async () => {
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        'membership',
+      );
+      const visible = new Set(await readableProjectIds(sql, auth));
+      // An automation bound only to projects the member cannot read is left
+      // out: listed with no bindings, it would read as organization scope,
+      // where it cannot run.
+      return (await listAutomations(sql, organizationId)).flatMap((row) => {
+        const projectIds = row.projectIds.filter((id) => visible.has(id));
+        return row.projectIds.length > 0 && projectIds.length === 0
+          ? []
+          : [
+              {
+                name: row.name,
+                latest: row.latestVersion,
+                deployedVersion: row.deployedVersion,
+                projectIds,
+              },
+            ];
+      });
+    },
     get: async (name, version) => {
       const row = await versionRow(sql, organizationId, name, version);
       return row
@@ -517,10 +511,10 @@ export function pgAutomationStore(
       );
       if (
         scope.projectId !== undefined &&
-        (await readableActorProject(sql, auth, scope.projectId)) === null
+        (await readableProject(sql, auth, scope.projectId)) === null
       )
         return [];
-      const projects = await listProjects(sql, auth, { includeArchived: true });
+      const visibleProjectIds = await readableProjectIds(sql, auth);
       return (
         await listRuns(sql, organizationId, {
           ...(options.name !== undefined ? { name: options.name } : {}),
@@ -528,7 +522,7 @@ export function pgAutomationStore(
           ...(scope.projectId !== undefined
             ? { projectId: scope.projectId }
             : {}),
-          visibleProjectIds: projects.map((project) => project.id),
+          visibleProjectIds,
         })
       ).map(toRunSummary);
     },
@@ -545,7 +539,7 @@ export function pgAutomationStore(
         return null;
       if (
         row.projectId !== null &&
-        (await readableActorProject(sql, auth, row.projectId)) === null
+        (await readableProject(sql, auth, row.projectId)) === null
       )
         return null;
       return {

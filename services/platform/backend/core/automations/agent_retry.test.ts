@@ -40,7 +40,11 @@ describe('workflowAgentRetryResume', () => {
     expect(
       workflowAgentRetryResume({ failureCode: 'harness_error' }, 'no handle'),
     ).toBeUndefined();
-    for (const failureCode of ['session_gone', 'start_failed']) {
+    for (const failureCode of [
+      'session_gone',
+      'start_failed',
+      'credential_cooldown',
+    ]) {
       expect(
         workflowAgentRetryResume(
           { failureCode, agentSessionId: 'conv-1' },
@@ -50,6 +54,41 @@ describe('workflowAgentRetryResume', () => {
       // Both stay retryable — fresh, not abandoned.
       expect(isWorkflowAgentRetryable(failureCode)).toBe(true);
     }
+  });
+});
+
+describe('workflowAgentRetryResume after a start the cooling pool refused', () => {
+  it('resumes the conversation the refused attempt was to resume, with the cut that ended it', () => {
+    // A 429 cut `conv-1`; the retry that was to resume it was refused while
+    // the pool cooled down, and never launched.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'credential_cooldown' },
+        'the agent turn could not start: every account is cooling down',
+        {
+          resumedFrom: 'conv-1',
+          resumeReason: 'the agent turn failed: API Error: 429',
+        },
+      ),
+    ).toEqual({
+      agentSessionId: 'conv-1',
+      reason: 'the agent turn failed: API Error: 429',
+    });
+    // Nothing was to be resumed: still fresh.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'credential_cooldown' },
+        'refused',
+        {},
+      ),
+    ).toBeUndefined();
+    // Any other start failure keeps its fresh re-kick: the session itself
+    // may be what failed.
+    expect(
+      workflowAgentRetryResume({ failureCode: 'start_failed' }, 'refused', {
+        resumedFrom: 'conv-1',
+      }),
+    ).toBeUndefined();
   });
 });
 
@@ -171,6 +210,44 @@ describe('planWorkflowAgentRetry', () => {
       parked = { ...plan, launchedAt: SHORT };
     }
     expect(retries).toEqual([true, true, true, false]);
+  });
+
+  it('waits out the cooldown of the 429 it retried for free, and counts any other refused start', () => {
+    expect(
+      planWorkflowAgentRetry(
+        {
+          attempt: 2,
+          retriedRateLimit: true,
+          burnedBrokerTokenHashes: ['account-a'],
+        },
+        'credential_cooldown',
+        NOW,
+      ),
+    ).toEqual({
+      retry: true,
+      attempt: 2,
+      burnedBrokerTokenHashes: ['account-a'],
+      credentialRotations: 0,
+    });
+    // The budget is spent: the wait is still free, as the 429 counted.
+    expect(
+      planWorkflowAgentRetry(
+        { attempt: AUTO_RETRY_MAX_ATTEMPTS, retriedRateLimit: true },
+        'credential_cooldown',
+        NOW,
+      ),
+    ).toMatchObject({ retry: true, attempt: AUTO_RETRY_MAX_ATTEMPTS });
+    // Another run cooled the pool, or it is still cooling after a wait.
+    expect(
+      planWorkflowAgentRetry({ attempt: 2 }, 'credential_cooldown', NOW),
+    ).toMatchObject({ retry: true, attempt: 3 });
+    expect(
+      planWorkflowAgentRetry(
+        { attempt: AUTO_RETRY_MAX_ATTEMPTS },
+        'credential_cooldown',
+        NOW,
+      ).retry,
+    ).toBe(false);
   });
 
   it('starts a new rotation streak after progress or any other failure', () => {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
+import {
+  CHAT_ASSISTANT,
+  CHAT_ASSISTANT_SLUG,
+  TALE_DOCS_INDEX_URL,
+} from './assistant';
 
 /**
  * The instructions are a SUBTRACTIVE contract: persona, product boundary,
@@ -42,6 +46,19 @@ describe('CHAT_ASSISTANT', () => {
 
   it('stays a slim persona and names nothing eval-specific', () => {
     expect(instructions.length).toBeLessThan(1800);
-    expect(instructions).not.toMatch(/https?:\/\//);
+    // Tale's own documentation is the one address the persona may name — it
+    // grounds questions about the product itself, not an eval's sources.
+    expect(instructions.replaceAll(TALE_DOCS_INDEX_URL, '')).not.toMatch(
+      /https?:\/\//,
+    );
+  });
+
+  it('answers questions about Tale from its documentation, never guessed URLs', () => {
+    expect(instructions).toContain('QUESTIONS ABOUT TALE');
+    expect(instructions).toContain(TALE_DOCS_INDEX_URL);
+    // The public docs, never a host derived from this deployment's origin.
+    expect(TALE_DOCS_INDEX_URL).toBe('https://docs.tale.dev/llms.txt');
+    expect(instructions).toMatch(/never guess a docs URL/i);
+    expect(instructions).toMatch(/latest release/i);
   });
 });

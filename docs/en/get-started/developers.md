@@ -75,6 +75,7 @@ If curl reports a TLS or network error before receiving JSON, check the host and
 | Print a completed assistant reply | [Call Tale from a script](/tutorials/developer/call-tale-from-a-script). |
 | Start an automation from another system | [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook). |
 | Connect an MCP client | [MCP endpoint](/develop/mcp-endpoint). |
+| Use Tale from opencode, Claude Code or a shell script | [Use Tale from your editor or a script](/develop/use-tale-from-your-editor). |
 | Work with project files, tasks or runs | [API reference](/develop/api-reference). |
 
 Use project routes under `/api/v1/projects/{id}/...` for project-scoped work. The project ID belongs in that path; the organization slug belongs in the header. Keep both explicit in your integration configuration.

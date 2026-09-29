@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import type { MentionSource } from '../../core/tasks/mentions.ts';
 import {
@@ -92,8 +93,13 @@ export interface KickAgentRunArgs {
    * as `feedback`; a description kick carries none, because the turn reads
    * the description as it stands when it starts (`buildKickPrompts`). */
   mentionSource?: MentionSource;
-  /** 1-based display stamp for `trigger: 'auto_retry'` kicks. */
+  /** Display stamp for `trigger: 'auto_retry'` kicks: the attempt of the
+   * budget the retry spends, 1-based, or 0 for a free credential rotation
+   * with none spent yet (`resolveAutoRetryBudget`). */
   autoRetryAttempt?: number;
+  /** The turn may not start before this, epoch ms: the run is queued at
+   * once, its start job waits (a subscription broker's cooldown). */
+  startAfterMs?: number;
 }
 
 /**
@@ -172,11 +178,14 @@ export async function kickAgentRun(
     if (!winner) throw new Error('agent run insert failed');
     return { runId: winner.id, execId: winner.execId, reused: true };
   }
-  await addJobInTx(tx, 'task.agent_turn', {
-    organizationId: args.organizationId,
-    runId,
-    execId,
-  });
+  await addJobInTx(
+    tx,
+    'task.agent_turn',
+    { organizationId: args.organizationId, runId, execId },
+    args.startAfterMs !== undefined && args.startAfterMs > now
+      ? { startAfter: new Date(args.startAfterMs) }
+      : {},
+  );
   return { runId, execId, reused: false };
 }
 
@@ -311,6 +320,10 @@ export async function failAgentRunFromTurn(
      * plan read it back (`freeCredentialRotations`). */
     failureCode?: string;
     apiErrorStatus?: number;
+    /** No retry can start before this, epoch ms — every account of the
+     * subscription broker was cooling down after a rate limit. The retry is
+     * still kicked at once, so the card shows it queued; its start waits. */
+    retryAtMs?: number;
   },
 ): Promise<boolean> {
   const now = Date.now();
@@ -343,11 +356,18 @@ export async function failAgentRunFromTurn(
       error,
     });
     if (isAutoRetryableFailure(args.failureCode)) {
+      // A cooldown ends a minute after its 429 at the latest, so a wait
+      // stays far inside the stranded-queued-run sweep's window.
+      const startAfterMs =
+        args.retryAtMs !== undefined && args.retryAtMs > now
+          ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+          : undefined;
       await addJobInTx(tx, 'task.agent_retry', {
         organizationId: run.organizationId,
         taskId: run.taskId,
         agentId: run.agentId,
         expectedRunId: args.runId,
+        ...(startAfterMs !== undefined && { startAfterMs }),
       });
     }
     return true;

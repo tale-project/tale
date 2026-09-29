@@ -43,4 +43,4 @@ A notification link opens the related task, document or conversation. If you nee
 
 ## If an action is missing
 
-Members read the shared library; Editors and higher roles maintain its content. Automations and technical setup require Developer or administrator permissions. Ask for the access needed for your task rather than assuming every visible resource is editable. [Members and roles](/platform/admin/members-and-roles) explains the differences.
+Members read the shared library; Editors and higher roles maintain its content. Managing automations and technical setup requires Developer or administrator permissions. The **Automations** navigation entry appears for Members and Editors once an organization-wide automation is deployed; project-bound automations are available on their project’s tab. Ask for the access needed for your task rather than assuming every visible resource is editable. [Members and roles](/platform/admin/members-and-roles) explains the differences.
