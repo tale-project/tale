@@ -71,10 +71,11 @@ export function DeferredSendTray({
     },
     [queryClient, threadId],
   );
-  // A refused retry says why, as the composer's chip does.
+  // A refused retry says why, as the composer's chip does; the chips read
+  // again either way.
   const retryVideo = useCallback(
     async (args: { jobId: string }) => {
-      if (!(await retryVideoLinkJob(organizationId, args.jobId, t))) return;
+      await retryVideoLinkJob(organizationId, args.jobId, t);
       void queryClient.invalidateQueries({
         queryKey: videoJobsForThreadQuery(organizationId, threadId).queryKey,
       });

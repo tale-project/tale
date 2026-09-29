@@ -191,6 +191,10 @@ describe('Remove on a video chip', () => {
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
     );
+    // The chips read again: a refused cancel may have met a job that moved.
+    await waitFor(() => {
+      expect(backend.calls.filter((c) => c.startsWith('GET ')).length).toBe(2);
+    });
     await checkAccessibility(container);
   });
 
@@ -240,6 +244,24 @@ describe('Remove on a video chip', () => {
     expect(
       await screen.findByRole('group', { name: CHIP }),
     ).toBeInTheDocument();
+  });
+
+  it('drops a chip whose job is already gone without a word', async () => {
+    // The unbound-job sweep deleted the job: the door answers 404 and the
+    // next read no longer lists it. Nothing is left to remove.
+    backend.cancel.push(() => {
+      backend.jobs = [];
+      return json({ error: 'notFound', message: 'Video link not found' }, 404);
+    });
+    const { user } = renderChips();
+
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => {
+      expect(backend.calls.filter((c) => c.startsWith('GET ')).length).toBe(2);
+    });
+    expect(screen.queryByRole('group', { name: CHIP })).not.toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalled();
   });
 
   it('removes the chip quietly when the cancel succeeds', async () => {

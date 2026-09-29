@@ -100,17 +100,16 @@ function videoLinkFailureDetail(
 /**
  * Retry a failed video job, reporting a refusal the way every video chip
  * does: a destructive toast saying why, and the failed chip left with its
- * Try again. Resolves whether the retry was accepted; never rejects. The
- * composer's chips and the queued-send tray retry through it alike.
+ * Try again. Never rejects. The composer's chips and the queued-send tray
+ * retry through it alike.
  */
 export async function retryVideoLinkJob(
   organizationId: string,
   jobId: string,
   t: TFunction,
-): Promise<boolean> {
+): Promise<void> {
   try {
     await retryVideoLinkRequest(organizationId, jobId);
-    return true;
   } catch (err) {
     // The door refuses with structured codes (cooldown, budget, in-flight
     // cap); without the toast the click reads as dead.
@@ -124,7 +123,6 @@ export async function retryVideoLinkJob(
       '[useChatVideoLinks] retry failed:',
       err instanceof Error ? err.message : err,
     );
-    return false;
   }
 }
 
@@ -306,35 +304,44 @@ export function useChatVideoLinks(args: {
       });
       try {
         await cancelVideoLinkRequest(args.organizationId, jobId);
-        nudgeChips();
       } catch (err) {
-        setHideJobIds((prev) => {
-          if (!prev.has(jobId)) return prev;
-          const next = new Set(prev);
-          next.delete(jobId);
-          return next;
-        });
-        // Reported here, as a refused retry is: the caller fires and
-        // forgets, and a chip that silently comes back reads as a glitch.
-        toast({
-          title: t('videoLink.toast.removeFailedTitle'),
-          description:
-            videoLinkFailureDetail(err, t) ??
-            t('videoLink.toast.removeFailedDescription'),
-          variant: 'destructive',
-        });
-        console.error(
-          '[useChatVideoLinks] cancel failed:',
-          err instanceof Error ? err.message : err,
-        );
+        if (backendErrorCode(err) === 'notFound') {
+          // Nothing left to remove (the unbound-job sweep took it): the chip
+          // stays hidden and the read below drops it.
+          console.warn('[useChatVideoLinks] cancel found no job:', jobId);
+        } else {
+          setHideJobIds((prev) => {
+            if (!prev.has(jobId)) return prev;
+            const next = new Set(prev);
+            next.delete(jobId);
+            return next;
+          });
+          // Reported here, as a refused retry is: the caller fires and
+          // forgets, and a chip that silently comes back reads as a glitch.
+          toast({
+            title: t('videoLink.toast.removeFailedTitle'),
+            description:
+              videoLinkFailureDetail(err, t) ??
+              t('videoLink.toast.removeFailedDescription'),
+            variant: 'destructive',
+          });
+          console.error(
+            '[useChatVideoLinks] cancel failed:',
+            err instanceof Error ? err.message : err,
+          );
+        }
       }
+      // Read the chips again either way: a refused cancel may have met a
+      // job that moved on, and a settled chip no longer polls.
+      nudgeChips();
     },
     [args.organizationId, t, nudgeChips],
   );
 
   const retryJob = useCallback(
     async (jobId: string) => {
-      if (await retryVideoLinkJob(args.organizationId, jobId, t)) nudgeChips();
+      await retryVideoLinkJob(args.organizationId, jobId, t);
+      nudgeChips();
     },
     [args.organizationId, t, nudgeChips],
   );
