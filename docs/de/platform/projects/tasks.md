@@ -185,6 +185,8 @@ Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu üb
 
 Können die Aufgaben nicht geladen werden, sagt das Board das, statt leere Spalten zu zeigen, und deine Suche und deine Filter bleiben, wie sie sind. Wähle **Erneut versuchen**, um sie zu laden. Schlägt eine Aktualisierung fehl, bleiben die angezeigten Aufgaben stehen, und ein Hinweis sagt, dass sie dem zuletzt geladenen Stand entsprechen. Ein Hinweis erscheint auch, wenn die Abhängigkeiten oder die Aktivität der Agenten und Reviews nicht geladen werden können, denn dann sind blockierte Aufgaben, laufende Agenten, offene Fragen und ausstehende Reviews möglicherweise nicht markiert. **Erneut versuchen** in einem Hinweis lädt nur, was fehlgeschlagen ist.
 
+Mit der Tastatur drückst du **Enter** auf **Filter**: Das Panel öffnet sich beim ersten Filter, **Zuständig**. Mit **Enter** klappst du ihn auf, mit **Tab** erreichst du seine Optionen. Die Pfeiltasten wählen eine aus, und das Board folgt sofort. Die **Leertaste** wählt die Option, auf der der Fokus steht, und hebt die Auswahl auf, wenn sie schon gewählt ist. **Tab** führt zum nächsten Filter, und **Escape** schließt das Panel.
+
 In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Tab**. Drücke dann **Enter**, um die Aufgabe zu öffnen.
 
 Kannst du die Aufgabe bearbeiten, drückst du auf ihrem Titel die **Leertaste**, um sie aufzunehmen. Verschiebe sie mit den Pfeiltasten und lege sie mit der **Leertaste** wieder ab. **Escape** bricht das Verschieben ab und lässt die Aufgabe, wo sie war. Ein Screenreader nennt die Aufgabe beim Aufnehmen und sagt beim Verschieben ihren Status und ihre Position an.

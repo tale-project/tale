@@ -185,6 +185,8 @@ Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep pro
 
 If the tasks can't be loaded, the board says so instead of showing empty columns, and your search and filters stay as they are. Choose **Try again** to load them. When a refresh fails, the tasks already on screen stay, with a note that they are shown as they were last loaded. A note also tells you when dependencies or agent and review activity can't be loaded, because blocked tasks, running agents, open questions, and pending reviews may then not be marked. **Try again** in a note reloads only what failed.
 
+With the keyboard, press **Enter** on **Filter**: the panel opens on its first filter, **Assignee**. Press **Enter** to expand it and **Tab** to reach its options. The arrow keys choose one, and the board follows at once. **Space** chooses the option the focus is on, and clears it when it is already chosen. **Tab** moves on to the next filter, and **Escape** closes the panel.
+
 In **Board** and **List**, press **Tab** until the task title is focused, then press **Enter** to open the task.
 
 If you can edit the task, press **Space** on its title to pick it up, move it with the arrow keys, and press **Space** again to drop it. **Escape** cancels the move and leaves the task where it was. A screen reader names the task when you pick it up and announces its status and position as you move it.
