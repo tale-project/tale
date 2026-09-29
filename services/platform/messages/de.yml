@@ -7346,6 +7346,21 @@ tasks:
     noTasks: Keine Aufgaben
   list:
     showArchived: Archivierte anzeigen
+  # Ein Lesevorgang des Boards, der nach allen Wiederholungen gescheitert ist
+  # (#3747): was nicht geladen wurde und was die Person solange sieht — nie ein
+  # leeres Board. Jeder Hinweis trägt „Erneut versuchen“
+  # (common.actions.tryAgain) nur für diesen Lesevorgang.
+  read:
+    tasksFailed: Die Aufgaben konnten nicht geladen werden, deshalb wird keine angezeigt. Deine Suche und deine Filter bleiben, wie sie sind.
+    tasksStale: Die Aufgaben konnten nicht aktualisiert werden. Du siehst sie so, wie sie zuletzt geladen wurden.
+    dependenciesFailed: Die Abhängigkeiten konnten nicht geladen werden, deshalb sind blockierte Aufgaben möglicherweise nicht als blockiert markiert.
+    activityFailed: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert.
+    activityFailedReviewFilter: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert, und „Wartet auf mein Review“ lässt vielleicht Aufgaben aus, die auf dich warten.
+    retrying: Wird erneut versucht…
+    # Der Lesevorgang des Boards endet an seiner Obergrenze; die Suche grenzt
+    # den Lesevorgang selbst ein und erreicht so jede Aufgabe. {count} ist die
+    # Zahl der angezeigten Aufgaben.
+    truncated: 'Angezeigt {count, plural, one {wird die erste Aufgabe} other {werden die ersten # Aufgaben}}. Nutze die Suche, um die übrigen zu finden.'
   # Ziehen per Tastatur in Board und Liste: die Anleitung am Titel, dann die
   # Live-Ansagen. {task} ist beim Aufnehmen `KEY-12, Titel`, danach `KEY-12`
   # (ohne Projektschlüssel der Titel). Ein Ablegen nennt den Ort, keinen

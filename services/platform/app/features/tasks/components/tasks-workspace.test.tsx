@@ -37,18 +37,29 @@ const task = (id: string, overrides: Partial<TaskDoc> = {}): TaskDoc => ({
 });
 
 vi.mock('../hooks/queries', () => {
+  // Every read answered; `tasks-workspace.read-state.test.tsx` owns the rest.
+  const answered = {
+    read: { kind: 'ready', updating: false },
+    retry: () => {},
+  };
   const board = () => ({
     tasks: state.tasks,
     truncated: false,
     canEdit: state.canEdit,
     canCreate: state.canCreate,
     isLoading: false,
+    ...answered,
   });
-  const ops = { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
+  const ops = {
+    runningTaskIds: [],
+    askingTaskIds: [],
+    pendingReviews: [],
+    ...answered,
+  };
   return {
     useTasksByProject: board,
     useTasksAcrossProjects: board,
-    useProjectDependencies: () => ({ edges: [], isLoading: false }),
+    useProjectDependencies: () => ({ edges: [], isLoading: false, ...answered }),
     useTaskOpsIndicators: () => ops,
     useTaskOpsIndicatorsAcrossProjects: () => ops,
   };

@@ -7463,6 +7463,19 @@ tasks:
     noTasks: No tasks
   list:
     showArchived: Show archived
+  # A board read that failed once its retries gave up (#3747): what did not
+  # load and what the reader sees meanwhile — never an empty board. Each
+  # alert carries Try again (common.actions.tryAgain) for that read alone.
+  read:
+    tasksFailed: Couldn't load the tasks, so none are shown. Your search and filters stay as they are.
+    tasksStale: Couldn't refresh the tasks. They are shown as they were last loaded.
+    dependenciesFailed: Couldn't load the dependencies, so blocked tasks may not be marked as blocked.
+    activityFailed: Couldn't load agent and review activity. Running agents, open questions and pending reviews may not be marked.
+    activityFailedReviewFilter: 'Couldn''t load agent and review activity. Running agents, open questions and pending reviews may not be marked, and "Needs my review" may leave out tasks that wait on you.'
+    retrying: Trying again…
+    # The board's read stops at its cap; the search narrows the read itself,
+    # so it reaches every task. {count} is the number of tasks shown.
+    truncated: 'Showing the first {count, plural, one {# task} other {# tasks}}. Search to find the others.'
   # A keyboard drag on the Board or List: the title's instructions (they
   # name the keys the title handles), then the live announcements. {task} is
   # `KEY-12, Title` on pickup and `KEY-12` after it (the title when the

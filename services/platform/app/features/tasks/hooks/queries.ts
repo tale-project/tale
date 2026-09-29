@@ -1,8 +1,13 @@
+import type { UseQueryResult } from '@tanstack/react-query';
+
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { taskBoardScope } from '@/app/lib/backend/tasks';
 import type { TaskOwnership } from '@/backend/core/tasks/access';
 import { backendErrorCode } from '@/lib/utils/backend-error';
+
+import { boardReadState } from '../lib/read-state';
 
 type TaskStatusFilter =
   | 'backlog'
@@ -12,21 +17,55 @@ type TaskStatusFilter =
   | 'done'
   | 'cancelled';
 
+/**
+ * Where a read stands for the board ({@link boardReadState}), and a retry
+ * that re-issues that read alone.
+ */
+function readControls(query: UseQueryResult) {
+  return {
+    read: boardReadState(query),
+    retry: () => {
+      void query.refetch();
+    },
+  };
+}
+
+/**
+ * Keep a board's rows on screen while another search or filter of the SAME
+ * board loads (they read as `updating`); a project's board never shows
+ * another board's rows, and a failed read drops them.
+ */
+function sameBoardRows<T>(scope: readonly unknown[]) {
+  return (
+    previous: T | undefined,
+    previousQuery: { queryKey: readonly unknown[] } | undefined,
+  ): T | undefined =>
+    previousQuery !== undefined &&
+    scope.every((part, index) => previousQuery.queryKey[index] === part)
+      ? previous
+      : undefined;
+}
+
+interface BoardReadOptions {
+  includeArchived?: boolean;
+  status?: TaskStatusFilter;
+  /** Only tasks whose status is in this set (server-side view scoping). */
+  statuses?: TaskStatusFilter[];
+  assigneeId?: string;
+  /** The toolbar's search: the server applies it with the other filters,
+   * before the board's cap, so the rows ARE the search result (#3745). */
+  query?: string;
+  /** Keep the board's rows on screen while a new search or filter of it
+   * loads — the workspace's toolbar; one-off reads leave it off. */
+  keepRowsWhileNarrowing?: boolean;
+}
+
 export function useTasksByProject(
   projectId: string | undefined,
-  options?: {
-    includeArchived?: boolean;
-    status?: TaskStatusFilter;
-    /** Only tasks whose status is in this set (server-side view scoping). */
-    statuses?: TaskStatusFilter[];
-    assigneeId?: string;
-    /** The toolbar's search: the server applies it with the other filters,
-     * before the board's cap, so the rows ARE the search result (#3745). */
-    query?: string;
-  },
+  options?: BoardReadOptions,
 ) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'tasks/queries:listTasksByProject',
     projectId && organizationId
       ? {
@@ -39,7 +78,15 @@ export function useTasksByProject(
           query: options?.query,
         }
       : 'skip',
+    options?.keepRowsWhileNarrowing && projectId && organizationId
+      ? {
+          placeholderData: sameBoardRows(
+            taskBoardScope(organizationId, projectId),
+          ),
+        }
+      : undefined,
   );
+  const { data, isLoading } = query;
   return {
     tasks: data?.tasks ?? [],
     truncated: data?.truncated ?? false,
@@ -51,25 +98,22 @@ export function useTasksByProject(
     canEdit: data?.canEdit ?? false,
     canCreate: data?.canCreate ?? false,
     isLoading,
+    ...readControls(query),
   };
 }
 
 /** All-projects board: every task in projects the caller can read. */
-export function useTasksAcrossProjects(options?: {
-  includeArchived?: boolean;
-  status?: TaskStatusFilter;
-  statuses?: TaskStatusFilter[];
-  assigneeId?: string;
-  /** Only tasks naming this person as the reviewer of their result. */
-  reviewerId?: string;
-  /** The toolbar's search, as on a project's board. */
-  query?: string;
-  /** When false the query is skipped (single-project mode owns the board). */
-  enabled?: boolean;
-}) {
+export function useTasksAcrossProjects(
+  options?: BoardReadOptions & {
+    /** Only tasks naming this person as the reviewer of their result. */
+    reviewerId?: string;
+    /** When false the query is skipped (single-project mode owns the board). */
+    enabled?: boolean;
+  },
+) {
   const organizationId = useOrganizationId();
   const enabled = options?.enabled !== false;
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'tasks/queries:listTasksForAccessibleProjects',
     enabled && organizationId
       ? {
@@ -82,13 +126,18 @@ export function useTasksAcrossProjects(options?: {
           query: options?.query,
         }
       : 'skip',
+    options?.keepRowsWhileNarrowing && enabled && organizationId
+      ? { placeholderData: sameBoardRows(taskBoardScope(organizationId)) }
+      : undefined,
   );
+  const { data, isLoading } = query;
   return {
     tasks: data?.tasks ?? [],
     truncated: data?.truncated ?? false,
     canEdit: data?.canEdit ?? false,
     canCreate: data?.canCreate ?? false,
     isLoading,
+    ...readControls(query),
   };
 }
 
@@ -169,11 +218,15 @@ export function useTaskDependencies(taskId: string | undefined) {
 
 export function useProjectDependencies(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const query = useBackendQuery(
     'tasks/queries:listProjectDependencies',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
-  return { edges: data ?? [], isLoading };
+  return {
+    edges: query.data ?? [],
+    isLoading: query.isLoading,
+    ...readControls(query),
+  };
 }
 
 /** How many comments the discussion shows before asking to load earlier
@@ -215,11 +268,13 @@ export function useTaskActivity(taskId: string | undefined) {
 
 export function useTaskOpsIndicators(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data } = useBackendQuery(
+  const query = useBackendQuery(
     'tasks/queries:getTaskOpsIndicators',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
+  const { data } = query;
   return {
+    ...readControls(query),
     runningTaskIds: data?.runningTaskIds ?? [],
     // Live runs parked on an unanswered agent question — the board shows the
     // needs-answer chip instead of the working pulse for these.
@@ -233,11 +288,13 @@ export function useTaskOpsIndicators(projectId: string | undefined) {
 /** All-projects sibling of {@link useTaskOpsIndicators}. */
 export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
   const organizationId = useOrganizationId();
-  const { data } = useBackendQuery(
+  const query = useBackendQuery(
     'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects',
     enabled && organizationId ? { organizationId } : 'skip',
   );
+  const { data } = query;
   return {
+    ...readControls(query),
     runningTaskIds: data?.runningTaskIds ?? [],
     // Always empty today: the aggregate query omits automation-run indicators
     // (see getTaskOpsIndicatorsForAccessibleProjects), the ask set with them.
