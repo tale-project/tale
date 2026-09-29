@@ -206,6 +206,21 @@ describe('a run a member started, confined to its own task', () => {
       refusedAsMemberRun,
     );
   });
+
+  it('names its run to the door for every tool that asks it, reads included', async () => {
+    const { ctx } = createCtx('task-own');
+    await call(ctx, 'contact_find', {});
+    await call(ctx, 'task_find', {});
+    const asked = ctx.runQuery.mock.calls.filter(
+      ([ref]) =>
+        functionRefName(ref) ===
+        'sandbox/workspace_access:resolveSessionActionContext',
+    );
+    expect(asked).toHaveLength(2);
+    for (const [, args] of asked) {
+      expect(args).toMatchObject({ taskRunExecId: 'exec-1' });
+    }
+  });
 });
 
 describe('a run an editor started keeps the agent’s reach', () => {

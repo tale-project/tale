@@ -519,13 +519,17 @@ async function runWorkspaceTool(
   }
 
   // The remaining find tools are org-wide reads behind the same binding-first
-  // door, then plain org-scoped internal queries.
+  // door, then plain org-scoped internal queries. A task turn names its run
+  // here too: the door answers for a live run only.
   const context = await ctx.runQuery(
     internal.sandbox.workspace_access.resolveSessionActionContext,
     {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      ...(args.taskRunExecId !== undefined
+        ? { taskRunExecId: args.taskRunExecId }
+        : {}),
       subject: TOOL_READ_SUBJECT[args.tool],
       effect: 'read',
     },
