@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 40 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -35,12 +35,12 @@ facet**
   seeded FROM the URL, not bound to it: the facet is multi-select, so the moment
   the operator touches the facet (or clears filters) the param is removed from
   the URL and the facet takes over.
-- The catalog ships 17 connector definitions
+- The catalog ships 19 connector definitions
   (`configs/platform/system/connectors/`), but the four **platform-auth**
   connectors (conversation, document, sandbox, task) never reach the client —
-  the listing drops them, so the add-dialog picker offers **13** vendors:
-  confluence, discord, github, gmail, google-drive, imap-smtp, outlook,
-  shopify, slack, tavily, teams, twilio, webdav.
+  the listing drops them, so the add-dialog picker offers **15** vendors:
+  confluence, discord, github, glitchtip, gmail, google-drive, imap-smtp, jev
+  (**Jev decisions**), outlook, shopify, slack, tavily, teams, twilio, webdav.
 - Both legacy MCP routes redirect in **one hop** to `…/settings/connectors`.
   The MCP **endpoint** section (the platform's own inbound MCP surface) renders
   on `/dashboard/{org}/settings/api/mcp`.
@@ -100,7 +100,7 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   the way in — never a bare empty grid.
 - [ ] `CONN-F3` · **Catalog picker (step 1)** — **Add credential** → A dialog
   titled **Add credential** (`settings.credentials.catalog.title`) with its
-  own search (`settings.connectors.searchPlaceholder`). 13 vendors in one list
+  own search (`settings.connectors.searchPlaceholder`). 15 vendors in one list
   (each row: icon, name, tags + action count meta
   `settings.connectors.card.actionCount`); configured vendors carry a
   **Configured** badge (`settings.credentials.catalog.configured`). The
@@ -130,7 +130,9 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   (`settings.connectors.dialog.endpointHelpConfluence`) and placeholder
   `https://your-site.atlassian.net`. Submit stays disabled until it is filled.
   Shopify behaves the same with its store origin
-  (`settings.connectors.dialog.endpointHelpShopify`).
+  (`settings.connectors.dialog.endpointHelpShopify`), and GlitchTip with its
+  instance origin (`settings.connectors.dialog.endpointHelpGlitchtip`,
+  placeholder `https://app.glitchtip.com`) beside a masked **Token**.
 - [ ] `CONN-F7` · **Mailbox connector config** — Picker → **IMAP / SMTP
   Mailbox** → Beyond username/password, the connector's declared config fields
   render: **IMAP server** (required), **IMAP port** (placeholder `993`),
@@ -174,11 +176,11 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   action at all.
 - [ ] `CONN-F13` · **Delete with confirm** — Row menu → **Delete** → A confirm
   dialog (`settings.credentials.deleteTitle`, body naming the credential
-  `settings.credentials.deleteBody`); deleting the default additionally warns
-  (`settings.credentials.deleteDefaultWarning`). Confirm → toast
+  `settings.credentials.deleteBody`); deleting the default additionally says
+  what happens to the default (CONN-F22). Confirm → toast
   `settings.credentials.deletedToast`; the row is gone after reload.
 - [ ] `CONN-F14` · **No-default warning** — Leave a connector holding only
-  non-default active credentials (delete its default, or disable it) → A
+  non-default credentials that are not disabled (disable its default) → A
   warning alert above the table names the vendor(s):
   `settings.credentials.noDefault`. Surfaced, never auto-fixed; it clears once
   a default is picked.
@@ -232,6 +234,26 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   kept); the default row is byte-for-byte unchanged. A Reconnect on a
   **Disabled** row renews its grant but leaves it **Disabled** — **Enable**
   is what returns it.
+- [ ] `CONN-F21` · **Another session's writes reach an open page** — Two
+  signed-in admins, **A** with `/dashboard/{org}/settings/connectors` open.
+  **B**, in their own browser, adds a credential, renames one, disables one
+  and deletes one → A's table follows each within a few seconds, with no
+  reload, focus change or navigation: the new row appears, the renamed and
+  disabled rows show B's name and **Disabled** badge, the deleted row is
+  gone. An **Edit credential** dialog A holds open on another row stays open
+  through B's writes with what A typed; opening **Edit credential** after
+  B's rename shows B's name.
+- [ ] `CONN-F22` · **Deleting the default hands it on** — GitHub holding
+  **Support bot** (default), **Release bot** and a disabled **Paused bot**, all
+  created in that order → **Support bot**'s menu → **Delete** → the confirm
+  names **Release bot** as the new default
+  (`settings.connectors.credential.deleteDefaultHandsOn`); confirm → after a
+  reload **Release bot** carries **Default** and no no-default alert shows.
+  With only the disabled **Paused bot** left beside the default, the confirm
+  says no active credential can take over
+  (`settings.connectors.credential.deleteDefaultLeavesNone`), and after the
+  delete **Paused bot** stays **Disabled** and not the default. Deleting a
+  credential that is not the default says nothing about the default.
 
 ## Boundary & error tests
 
@@ -285,6 +307,14 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   → **Reconnect** → consent in a different workspace than the row's → The
   fixed page "That is a different workspace"; nothing was saved. Reconnect
   in the row's own workspace renews it.
+- [ ] `CONN-B11` · **Acting on a row another session deleted** — As in
+  CONN-F21, but block A's `…/events` request first (DevTools → Network →
+  block request URL), so A misses the hint; B deletes a credential A still
+  sees → On A, that row's menu → **Disable** answers one toast
+  `settings.credentials.updateFailed` naming "Credential not found." and the
+  row leaves A's table; on another such row, **Delete** → **Delete** answers
+  `settings.credentials.deleteFailed` once and the confirm closes with the
+  row. No second click can fail the same way.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -301,6 +331,11 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   screen readers (visually hidden, `settings.credentials.columns.actions`);
   each row's 3-dot menu is named for its credential
   (`settings.credentials.actionsLabel`) and its items are keyboard reachable.
+- [ ] `CONN-A4` · **Row-menu dialogs return focus** → Keyboard only: Tab to a
+  row's **Actions for …** button (`settings.credentials.actionsLabel`), Enter,
+  arrow to **Edit credential**, **Replace …** or **Delete**, Enter → the
+  dialog takes focus; Escape, and once Tab to **Cancel** + Enter → focus is
+  back on that row's **Actions for …** button, never on the page body.
 
 ## Performance
 

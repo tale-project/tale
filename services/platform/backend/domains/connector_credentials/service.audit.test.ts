@@ -205,11 +205,20 @@ describe('connector credential writes — audit rows', () => {
   });
 
   it('records a deletion with the state it removed and the default it promoted', async () => {
+    // The pair's siblings, read under its lock: the oldest active one takes
+    // the default over.
+    const sibling = {
+      ...ROW,
+      id: 'cred-2',
+      name: 'Backup',
+      isDefault: false,
+      createdAt: 2,
+    };
     const { sql } = fakeSql(
       (s) =>
         ownRow(ROW)(s) ??
-        (s.text.startsWith('SELECT id FROM app.connector_credentials')
-          ? [{ id: 'cred-2' }]
+        (s.text.includes('WHERE org_id = ? AND connector_slug = ?')
+          ? [ROW, sibling]
           : undefined),
     );
 

@@ -44,7 +44,11 @@ interface EntityRowActionsProps {
   align?: 'start' | 'center' | 'end';
   /** Whether the entire menu trigger is disabled */
   disabled?: boolean;
-  /** Stable focus target for dialogs opened from an unmounting menu item. */
+  /**
+   * The menu button, for a caller that names it as a dialog's
+   * `restoreFocusRef`. A dialog opened from one of the items returns focus
+   * here without it: the menu names its button (`useRestoreFocus`).
+   */
   triggerRef?: React.RefObject<HTMLButtonElement | null>;
 }
 

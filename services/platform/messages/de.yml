@@ -5742,6 +5742,16 @@ settings:
         Verbinde neu, um die Freigabe erneut zu erteilen.
       needsReauthDetail: '{detail} Verbinde neu, um die Freigabe erneut zu erteilen.'
       reconnect: Neu verbinden
+      deleteDefaultHandsOn: >-
+        Das sind die Standard-Zugangsdaten. Nach dem Löschen wird "{name}" zum
+        Standard für Aufrufe, die keine Zugangsdaten nennen.
+      deleteDefaultLeavesNone: >-
+        Das sind die Standard-Zugangsdaten, und keine anderen aktiven
+        Zugangsdaten können übernehmen: Aufrufe ohne eigene Angabe schlagen
+        fehl, bis du einen Eintrag zum Standard machst.
+      deleteDefaultHandsOnOldest: >-
+        Das sind die Standard-Zugangsdaten. Nach dem Löschen wird der älteste
+        aktive Eintrag dieses Connectors zum Standard, sofern es einen gibt.
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       tokenTitle: Token ersetzen
@@ -5815,6 +5825,10 @@ settings:
       endpointHelpShopify:
         Die myshopify.com-Adresse deines Shops — die Admin-Adresse, nicht die
         Storefront-Domain.
+      endpointHelpGlitchtip:
+        Die Adresse deiner GlitchTip-Instanz, etwa https://app.glitchtip.com.
+        Eine selbst gehostete Instanz funktioniert, sobald die Bereitstellung
+        ihren Host erlaubt.
       endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
   enterpriseSso:
     connected: Die Anmeldung ist aktiviert.

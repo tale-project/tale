@@ -34,7 +34,7 @@ auth:
 | `allowedHosts` in per-credential mode | Host suffixes: `atlassian.net` allows its subdomains |
 | `configFields` | Non-secret per-credential values such as server host, port, region, or API version |
 
-Confluence and Shopify use per-credential origins. Keep secrets out of `configFields`; use the encrypted credential payload. For JavaScript actions, `ctx.http` enforces the declared HTTP destination boundary. Native backends, such as mailbox protocols, implement their own transport checks; an HTTP allowlist alone does not describe their whole security boundary.
+Confluence, GlitchTip and Shopify use per-credential origins. Keep secrets out of `configFields`; use the encrypted credential payload. For JavaScript actions, `ctx.http` enforces the declared HTTP destination boundary. Native backends, such as mailbox protocols, implement their own transport checks; an HTTP allowlist alone does not describe their whole security boundary.
 
 <Info>
 

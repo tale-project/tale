@@ -3,11 +3,12 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /**
  * Write hooks for the connectors settings page. The secret-carrying writes
- * (create, update) are Convex ACTIONS — plaintext must reach the node-side
- * encryption layer — while delete and default-swap are plain mutations. The
- * credential list is a reactive query, so none of these invalidate anything.
+ * (create, update) ride the action lane — plaintext must reach the node-side
+ * encryption layer — while delete and default-swap are plain mutations. Each
+ * one's adapter row refreshes the credential listing when it lands, and when
+ * it is refused because the credential is gone (another session deleted it).
  * Error feedback belongs to the call sites (dialog-inline or toast, via
- * `mapConnectorError`), so the mutation hooks opt out of the generic toast.
+ * `mapCredentialError`), so the mutation hooks opt out of the generic toast.
  *
  * OAuth credentials have no write hook here: they are created and refreshed by
  * the consent flow's callback, which the browser reaches through

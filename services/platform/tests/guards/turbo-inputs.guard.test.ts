@@ -73,6 +73,16 @@ const OUTSIDE_READS = [
       'the shipped connector, model, provider, harness and PII catalog suites',
   },
   {
+    // The connector guides, which table the catalog the picker offers and
+    // name the connectors whose credentials carry an instance URL.
+    path: 'docs/*/platform/admin/connectors.md',
+    readers: 'backend/core/connector_credentials/catalog_docs.test.ts',
+  },
+  {
+    path: 'docs/*/platform/connectors/overview.md',
+    readers: 'backend/core/connector_credentials/catalog_docs.test.ts',
+  },
+  {
     // The user docs' task page, which states the task caps in each locale.
     path: 'docs/*/platform/projects/tasks.md',
     readers: 'backend/core/tasks/limits_docs.test.ts',

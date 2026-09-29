@@ -65,6 +65,13 @@ component-level axe coverage comes from `vitest-axe` via
 - [ ] `A11Y-A5` · **Focus return** — Open a dialog (create/delete); press
   `Esc` → Focus is trapped inside the open dialog; on close it returns to the
   triggering control (`document.activeElement` === the trigger)
+- [ ] `A11Y-A20` · **Focus return from a row menu** — Keyboard only, on each
+  table whose rows carry an actions menu (Settings → Connectors, AI providers,
+  Members, Teams, API keys; Projects; Documents): open a dialog from a row
+  menu item, then Escape or **Cancel** → Focus returns to that row's menu
+  button (`document.activeElement` === it), never `<body>` — the menu item
+  that opened the dialog is gone by then. A confirmed delete that removes the
+  row is a separate case.
 - [ ] `A11Y-A6` · **Icon buttons** — Query all `<button>` on each surface →
   **Zero** buttons have an empty accessible name — every icon-only button
   carries a translated `aria-label`/`title` (verified live: 0 unnamed on

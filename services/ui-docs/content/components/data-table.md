@@ -67,7 +67,7 @@ The toolbar wraps rather than overflows. When its column cannot hold the control
 
 When an `addAction` opens a dialog, pass a button ref as `addAction.triggerRef` and the same ref as the dialog's `restoreFocusRef`. The ref follows the button when creating the first row moves it from the empty state into the toolbar, so closing the dialog returns focus to the new button.
 
-When a `DataTableActionMenu` item opens a dialog, pass a stable button ref as `triggerRef` and pass the same ref to the dialog's `restoreFocusRef`. The menu item disappears when the dialog opens; the toolbar button remains the keyboard user's return point after closing it.
+When a `DataTableActionMenu` or `EntityRowActions` item opens a dialog, closing the dialog returns focus to the menu's button. The menu item disappears when the dialog opens, so the dialog returns to the button the menu names as its label. Pass a button ref as `triggerRef` and the same ref as the dialog's `restoreFocusRef` only when that button can itself unmount or move while the dialog is open.
 
 ## Decide what scrolls
 

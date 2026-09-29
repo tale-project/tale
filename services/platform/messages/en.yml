@@ -5922,6 +5922,16 @@ settings:
       needsReauthHint: Authorization expired or revoked. Reconnect to restore access.
       needsReauthDetail: '{detail} Reconnect to grant consent again.'
       reconnect: Reconnect
+      deleteDefaultHandsOn: >-
+        This is the default credential. Deleting it makes "{name}" the default
+        for calls that name no credential.
+      deleteDefaultLeavesNone: >-
+        This is the default credential, and no other active credential can
+        take over: calls that name no credential fail until you make one the
+        default.
+      deleteDefaultHandsOnOldest: >-
+        This is the default credential. Deleting it makes the oldest active
+        credential of this connector the default, if there is one.
     replace:
       apiKeyTitle: Replace API key
       tokenTitle: Replace token
@@ -5991,6 +6001,9 @@ settings:
       endpointHelpShopify:
         Your store's myshopify.com origin — the admin address, not the
         storefront domain.
+      endpointHelpGlitchtip:
+        Your GlitchTip instance origin, such as https://app.glitchtip.com. A
+        self-hosted instance works once the deployment allows its host.
       endpointHelpGeneric: The https origin of the instance this credential belongs to.
   enterpriseSso:
     connected: Sign-in is enabled.

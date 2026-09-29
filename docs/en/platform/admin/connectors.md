@@ -18,16 +18,16 @@ The connector determines which fields appear. Use the account's actual credentia
 
 | Method | Required information |
 | --- | --- |
-| API key | The key issued by the service, such as Tavily or Shopify. |
-| Token | A service token, such as a GitHub personal access token or Discord bot token. |
+| API key | The key issued by the service, such as Tavily or Shopify. Jev decisions takes an OpenRouter API key. |
+| Token | A service token, such as a GitHub personal access token, a Discord bot token, or a GlitchTip API token with `project:read` and `event:read`. |
 | Username and password | The service's expected pair. This can be a login and app password, or a vendor-specific ID and token. |
 | OAuth | Authorization in the vendor's browser flow; Tale stores the returned authorization. |
 
-Some connectors also require an instance address. For Confluence, use the Atlassian site origin. For Shopify, use the store's `myshopify.com` origin, not the customer-facing storefront domain.
+Some connectors also require an instance address. For Confluence, use the Atlassian site origin. For GlitchTip, use the instance origin, such as `https://app.glitchtip.com`; a self-hosted instance must also be allowed by the deployment's connector host policy. For Shopify, use the store's `myshopify.com` origin, not the customer-facing storefront domain.
 
 ## Choose the default
 
-The table contains one row per credential. The **Default** badge marks the credential used when an action does not explicitly name one. Select **Make default** in a row's menu to change it; one default is allowed per connector.
+The table contains one row per credential and updates while it is open: a credential another admin adds, changes or deletes appears there without a reload. The **Default** badge marks the credential used when an action does not explicitly name one. Select **Make default** in a row's menu to change it; one default is allowed per connector.
 
 A connector with several credentials and no default can still serve callers that name a credential. Callers that omit the name need a default. Name accounts clearly before wiring automations so a future administrator can identify the intended account.
 
@@ -41,7 +41,7 @@ Use the row's replacement action for its method, such as **Replace API key** or 
 
 <Warning>
 
-Deleting credentials removes access for automations and agents that depend on them. Move callers first and select a new default when needed. Deletion cannot be undone by reopening the same row.
+Deleting credentials removes access for automations and agents that depend on them. Move callers first. Deleting a connector's default makes its oldest remaining active credential the default, and the confirmation names that credential before you delete. A disabled credential or one that needs Reconnect never takes over, so with no active credential left the connector has no default until you choose one. Deletion cannot be undone by reopening the same row.
 
 </Warning>
 
