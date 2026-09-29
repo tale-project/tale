@@ -179,6 +179,65 @@ function managementHeaders(): Record<string, string> {
   };
 }
 
+/** The waits before each repeat of a management call the gateway's store
+ * turned away for a moment — about three seconds in all. */
+const STORE_BUSY_RETRY_DELAYS_MS = [250, 750, 2_000] as const;
+
+/** How the gateway names its SQLite store refusing a write that collided
+ * with another one; the write's transaction rolled back, nothing changed. */
+const STORE_BUSY = /database is locked/i;
+
+type ManagementMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+/**
+ * One call to the gateway's management API: `path` under its base URL, with
+ * the admin credentials and a 15 s bound per attempt, `json` as the body.
+ *
+ * The gateway keeps its config in SQLite, which turns away a write that
+ * collides with another one — right after the gateway starts, while it syncs
+ * its own catalogs, and under the platform's concurrent writes (a revoke
+ * beside a budget move). It answers those with a 500 that names the locked
+ * store, except a virtual key's DELETE, which says only that it failed. So a
+ * call answered with a 5xx is sent again after a short wait, up to three
+ * times, when that is safe: always when the answer names the locked store,
+ * and for the idempotent methods whatever it says. A POST answered otherwise
+ * comes back at once — it may have created what it asked for. The last
+ * answer is returned either way, for the caller to read as before.
+ */
+async function managementFetch(
+  path: string,
+  init: { method?: ManagementMethod; json?: unknown } = {},
+): Promise<Response> {
+  const method = init.method ?? 'GET';
+  const request = (): Promise<Response> =>
+    fetch(`${llmGatewayUrl()}${path}`, {
+      method,
+      headers: managementHeaders(),
+      ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
+      signal: AbortSignal.timeout(15_000),
+    });
+  for (const delayMs of STORE_BUSY_RETRY_DELAYS_MS) {
+    const res = await request();
+    if (res.status < 500) return res;
+    const text = await res.text().catch((error: unknown) => {
+      console.warn(
+        `[llm-gateway] ${method} ${path} answered ${res.status} with an unreadable body:`,
+        error,
+      );
+      return '';
+    });
+    if (method === 'POST' && !STORE_BUSY.test(text)) {
+      return new Response(text, { status: res.status, headers: res.headers });
+    }
+    const said = sanitizeError(text).replace(/\s+/g, ' ').trim().slice(0, 200);
+    console.warn(
+      `[llm-gateway] ${method} ${path} answered ${res.status} (${said}); sending it again in ${delayMs} ms`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return request();
+}
+
 // The gateway's built-in provider set lives in lib/shared/providers (the
 // serving resolver reads it too); re-exported so this module stays the
 // gateway-facing entry point for the provisioner and the mint.
@@ -457,11 +516,9 @@ async function postVirtualKey(
     ],
     is_active: true,
   };
-  const res = await fetch(`${llmGatewayUrl()}/api/governance/virtual-keys`, {
+  const res = await managementFetch('/api/governance/virtual-keys', {
     method: 'POST',
-    headers: managementHeaders(),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
+    json: body,
   });
   if (!res.ok) {
     // The gateway names what it refused (a field it did not accept, a
@@ -508,13 +565,9 @@ async function postVirtualKey(
 /** DELETE /api/governance/virtual-keys/:id — instant revoke (session destroy
  * / teardown). A 404 means it is already gone. */
 export async function revokeVirtualKey(keyId: string): Promise<void> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
-    {
-      method: 'DELETE',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
+  const res = await managementFetch(
+    `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
+    { method: 'DELETE' },
   );
   if (!res.ok && res.status !== 404) {
     throw new Error(
@@ -540,13 +593,9 @@ export async function setVirtualKeyBudget(
   keyId: string,
   budgetCents: number,
 ): Promise<'ok' | 'gone'> {
-  const url = `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
+  const path = `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
   // The budget row's id, so the update names the row whose usage it keeps.
-  const current = await fetch(url, {
-    method: 'GET',
-    headers: managementHeaders(),
-    signal: AbortSignal.timeout(15_000),
-  });
+  const current = await managementFetch(path);
   if (current.status === 404) return 'gone';
   if (!current.ok) {
     throw new Error(
@@ -560,10 +609,9 @@ export async function setVirtualKeyBudget(
   const budgets = parsed.virtual_key?.budgets;
   const first: unknown = Array.isArray(budgets) ? budgets[0] : undefined;
   const budgetId = isRecord(first) ? getString(first, 'id') : undefined;
-  const res = await fetch(url, {
+  const res = await managementFetch(path, {
     method: 'PUT',
-    headers: managementHeaders(),
-    body: JSON.stringify({
+    json: {
       budgets: [
         {
           ...(budgetId !== undefined ? { id: budgetId } : {}),
@@ -571,8 +619,7 @@ export async function setVirtualKeyBudget(
           reset_duration: '1M',
         },
       ],
-    }),
-    signal: AbortSignal.timeout(15_000),
+    },
   });
   if (res.status === 404) return 'gone';
   if (!res.ok) {
@@ -607,13 +654,9 @@ export async function setVirtualKeyBudget(
 export async function readVirtualKeySpend(
   keyId: string,
 ): Promise<GatewaySpendReading> {
-  const url = `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
+  const path = `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
   const read = (fromMemory: boolean) =>
-    fetch(fromMemory ? `${url}?from_memory=true` : url, {
-      method: 'GET',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    });
+    managementFetch(fromMemory ? `${path}?from_memory=true` : path);
   let res = await read(true);
   if (res.status === 404) res = await read(false);
   if (res.status === 404) return { status: 'gone' };
@@ -785,13 +828,8 @@ async function listPricingOverrides(
   // Advance by what the gateway actually returned, not the requested page
   // size — a server-side cap below it would otherwise skip a stride.
   for (let offset = 0; ; offset = overrides.length) {
-    const res = await fetch(
-      `${llmGatewayUrl()}/api/governance/pricing-overrides?provider_id=${encodeURIComponent(gatewayProvider)}&limit=${PRICING_OVERRIDE_PAGE}&offset=${offset}`,
-      {
-        method: 'GET',
-        headers: managementHeaders(),
-        signal: AbortSignal.timeout(15_000),
-      },
+    const res = await managementFetch(
+      `/api/governance/pricing-overrides?provider_id=${encodeURIComponent(gatewayProvider)}&limit=${PRICING_OVERRIDE_PAGE}&offset=${offset}`,
     );
     if (!res.ok) {
       throw new Error(
@@ -861,15 +899,13 @@ export async function ensureModelPricingOverride(
     request_types: requestTypes,
     patch,
   };
-  const res = await fetch(
+  const res = await managementFetch(
     existing
-      ? `${llmGatewayUrl()}/api/governance/pricing-overrides/${encodeURIComponent(existing.id)}`
-      : `${llmGatewayUrl()}/api/governance/pricing-overrides`,
+      ? `/api/governance/pricing-overrides/${encodeURIComponent(existing.id)}`
+      : '/api/governance/pricing-overrides',
     {
       method: existing ? 'PUT' : 'POST',
-      headers: managementHeaders(),
-      body: JSON.stringify(existing ? desired : { name, ...desired }),
-      signal: AbortSignal.timeout(15_000),
+      json: existing ? desired : { name, ...desired },
     },
   );
   if (!res.ok) {
@@ -1053,13 +1089,8 @@ interface GatewayKey {
 /** GET /api/providers/:provider/keys — the provider's key sub-resources
  * (values are masked). Empty when the provider has no keys / is absent. */
 async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/providers/${encodeURIComponent(provider)}/keys`,
-    {
-      method: 'GET',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(provider)}/keys`,
   );
   if (!res.ok) {
     // Treat as "no keys" but log: a transient gateway failure here would
@@ -1092,13 +1123,9 @@ async function resolveOrgProviderKeyId(
  * (openai↔anthropic) — the gateway forbids mutating it in place. Tolerates
  * 404 (already gone). */
 async function deleteGatewayProvider(name: string): Promise<void> {
-  const res = await fetch(
-    `${llmGatewayUrl()}/api/providers/${encodeURIComponent(name)}`,
-    {
-      method: 'DELETE',
-      headers: managementHeaders(),
-      signal: AbortSignal.timeout(15_000),
-    },
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(name)}`,
+    { method: 'DELETE' },
   );
   if (!res.ok && res.status !== 404) {
     throw new Error(
@@ -1183,11 +1210,9 @@ async function ensureProviderConfig(
       : {}),
   };
   const putConfig = () =>
-    fetch(`${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}`, {
+    managementFetch(`/api/providers/${encodeURIComponent(p.name)}`, {
       method: 'PUT',
-      headers: managementHeaders(),
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
+      json: body,
     });
 
   const res = await putConfig();
@@ -1235,14 +1260,12 @@ async function writeProviderKey(
     models: p.models,
     weight: 1,
   };
-  const url = existing
-    ? `${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
-    : `${llmGatewayUrl()}/api/providers/${encodeURIComponent(p.name)}/keys`;
-  const res = await fetch(url, {
+  const path = existing
+    ? `/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
+    : `/api/providers/${encodeURIComponent(p.name)}/keys`;
+  const res = await managementFetch(path, {
     method: existing ? 'PUT' : 'POST',
-    headers: managementHeaders(),
-    body: JSON.stringify(keyBody),
-    signal: AbortSignal.timeout(15_000),
+    json: keyBody,
   });
   if (!res.ok) {
     throw new Error(
@@ -1422,11 +1445,7 @@ export async function applyGatewayConfig(
   ) {
     return;
   }
-  const getRes = await fetch(`${llmGatewayUrl()}/api/config`, {
-    method: 'GET',
-    headers: managementHeaders(),
-    signal: AbortSignal.timeout(15_000),
-  });
+  const getRes = await managementFetch('/api/config');
   if (!getRes.ok) {
     throw new Error(
       `llm-gateway get config failed (${getRes.status}): ${sanitizeError(await getRes.text())}`,
@@ -1491,11 +1510,9 @@ export async function applyGatewayConfig(
         : { admin_password: password, setup_token: password }),
     },
   };
-  const putRes = await fetch(`${llmGatewayUrl()}/api/config`, {
+  const putRes = await managementFetch('/api/config', {
     method: 'PUT',
-    headers: managementHeaders(),
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
+    json: body,
   });
   if (!putRes.ok) {
     // The gateway says why it refused (e.g. its admin-password policy on the
