@@ -104,6 +104,7 @@ import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integ
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
+import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
@@ -56013,6 +56014,10 @@ async function main(): Promise<void> {
       [
         'checkTaskRunStartFence',
         () => checkTaskRunStartFence(sql, authCtx, record),
+      ],
+      [
+        'checkTaskRetryProjectEligibility',
+        () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
       ],
       [
         'checkCredentialRotationRetry',
