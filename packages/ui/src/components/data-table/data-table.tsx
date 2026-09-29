@@ -1247,13 +1247,15 @@ export function DataTable<TData, TValue = unknown>({
               total: infiniteScroll.totalCount,
               ...entityLabelForms(infiniteScroll.entityLabel),
             })
-          : infiniteScroll.hasMore
+          : infiniteScroll.hasMore || infiniteScroll.loadFailed
             ? // No server total to name (a paginated source counts only what
               // it has loaded) while more can still load: "Showing all N"
               // would claim a completeness the list does not have, and an
               // investigator reading an audit table might conclude an event is
               // absent (2026-09-26 evaluation, E-03). Once a failed request
-              // stopped the list, scrolling loads nothing more either.
+              // stopped the list, scrolling loads nothing more either — and
+              // rows that stand in for a read that never answered (a
+              // documents table's folders) are not "all" of anything.
               t(
                 infiniteScroll.loadFailed
                   ? 'pagination.showingLoadedFailed'

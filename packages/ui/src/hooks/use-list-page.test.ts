@@ -395,4 +395,64 @@ describe('useListPage — failed request', () => {
 
     expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
   });
+
+  // A documents table lists folders beside a documents read that never
+  // answered; only the host can tell the table those rows are partial.
+  describe('when the host says the rows stopped short', () => {
+    const partial = {
+      type: 'paginated' as const,
+      results: makeItems(25),
+      status: 'Exhausted' as
+        | 'LoadingFirstPage'
+        | 'CanLoadMore'
+        | 'LoadingMore'
+        | 'Exhausted',
+      loadMore: vi.fn(),
+      isLoading: false,
+      loadFailed: true,
+      retry: vi.fn(),
+    };
+
+    it('halts the list with every row on screen, though nothing more is paged', () => {
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({ dataSource: partial, pageSize: 10 }),
+      );
+
+      expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(true);
+      expect(result.current.tableProps.infiniteScroll.hasMore).toBe(false);
+      expect(result.current.tableProps.data).toHaveLength(25);
+      expect(result.current.tableProps.error).toBeNull();
+    });
+
+    it('keeps the rows through a retry the source reads as a first load', () => {
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({
+          dataSource: { ...partial, status: 'LoadingFirstPage' },
+          pageSize: 10,
+        }),
+      );
+
+      expect(result.current.tableProps.infiniteScroll.isInitialLoading).toBe(
+        false,
+      );
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.tableProps.data).toHaveLength(25);
+    });
+
+    it('lets the host clear it, over the rule it would derive', () => {
+      const { result } = renderHook(() =>
+        useListPage<TestItem>({
+          dataSource: {
+            ...partial,
+            status: 'CanLoadMore',
+            error: new Error('next page failed'),
+            loadFailed: false,
+          },
+          pageSize: 10,
+        }),
+      );
+
+      expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+    });
+  });
 });

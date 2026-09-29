@@ -47,6 +47,17 @@ interface RequestOutcome {
   error?: Error | null;
   /** Re-issue the request — the table's retry action. */
   retry?: () => void;
+  /**
+   * The host's word that the rows on screen are all the list could load for
+   * now — for a host that lists rows of its own beside the source's, or
+   * narrows the rows itself, so the table cannot tell. A documents table's
+   * folders stay when its documents read never answered. While it holds,
+   * the list loads no further, keeps its rows through a retry instead of
+   * drawing a first-load skeleton, and says the rest could not be loaded —
+   * never "all". Absent, a paginated source counts as stopped once a
+   * request failed with rows loaded and more to come.
+   */
+  loadFailed?: boolean;
 }
 
 interface PaginatedDataSource<TData> extends RequestOutcome {
@@ -232,21 +243,26 @@ export function useListPage<TData>(
     [dataSource],
   );
 
-  const isLoading =
-    dataSource.type === 'paginated'
-      ? dataSource.status === 'LoadingFirstPage'
-      : dataSource.data === undefined;
-
   const requestError = dataSource.error ?? null;
   // With rows on screen, a failed request halts a paginated source where it
   // stands: draining on would re-issue the failed page on every render, and
   // the table would keep promising rows ("loading", "scroll for more") that
   // no request is fetching. A retry in flight reads as loading again.
   const loadFailed =
-    requestError !== null &&
-    rawData.length > 0 &&
-    dataSource.type === 'paginated' &&
-    dataSource.status === 'CanLoadMore';
+    dataSource.loadFailed ??
+    (requestError !== null &&
+      rawData.length > 0 &&
+      dataSource.type === 'paginated' &&
+      dataSource.status === 'CanLoadMore');
+
+  // react-query resets a read that never answered to its first-load state
+  // the moment a retry starts. A list that stopped short keeps its rows
+  // meanwhile: a skeleton would take them — and a dialog open on one of
+  // them — off the screen, only to bring them back if the retry fails.
+  const isLoading =
+    dataSource.type === 'paginated'
+      ? dataSource.status === 'LoadingFirstPage' && !loadFailed
+      : dataSource.data === undefined;
 
   // 2. Managed search state
   const [managedSearchValue, setManagedSearchValue] = useState('');
@@ -473,10 +489,7 @@ export function useListPage<TData>(
             ? dataSource.status === 'LoadingMore' &&
               (hasActiveSort || displayCount >= processed.length)
             : false,
-        isInitialLoading:
-          dataSource.type === 'paginated'
-            ? dataSource.status === 'LoadingFirstPage'
-            : dataSource.data === undefined,
+        isInitialLoading: isLoading,
         loadFailed,
         entityLabel,
         // In entity units when rows aggregate (countRow) — a folder row stands
