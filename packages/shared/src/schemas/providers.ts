@@ -886,6 +886,11 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  *    is `bridgeEnv` under the CLI's field name (`env`/`environment`).
  *    `serverShape`: `command-args` = `{command, args}` objects;
  *    `opencode-local` = `{type: "local", command: [bin, …args], enabled}`.
+ *    `bridgeCallTimeout`: the field (and its unit) under which the CLI takes
+ *    one MCP call's timeout, for a CLI whose default gives up before the
+ *    bridge's longest tool can answer and whose calls are not kept alive by
+ *    the bridge's progress reports. The value is the platform's bridge call
+ *    bound, never the YAML's.
  *  - `instructionsRef`: when instructions are staged as a file
  *    (`stagedInstructions`), set `path` to `[prefix + stagedPath]` so the
  *    CLI discovers the staged file.
@@ -906,6 +911,13 @@ const docFragmentSchema = z.union([
           serverShape: z.enum(['command-args', 'opencode-local']),
           bridgeEnvField: z.enum(['env', 'environment']),
           bridgeEnv: envTemplateMapSchema,
+          bridgeCallTimeout: z
+            .object({
+              field: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/),
+              unit: z.enum(['ms', 's']),
+            })
+            .strict()
+            .optional(),
         })
         .strict(),
     })
