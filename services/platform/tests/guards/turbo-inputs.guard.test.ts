@@ -40,7 +40,8 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * and catalogs, and the automation editor's browser suite imports its test
  * helpers (`@tale/ui/testing/flow`), so a design-system change alone must
  * re-run them: both hash `packages/ui/src` whole, as `test` does. All three
- * tasks hash the package's files outside `src/` too (`UI_PACKAGE_FILES`).
+ * tasks also hash two of the package's files outside `src/`
+ * (`UI_PACKAGE_FILES`).
  */
 
 const PLATFORM_ROOT = path.resolve(
