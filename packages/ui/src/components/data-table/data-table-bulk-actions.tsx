@@ -23,8 +23,9 @@ interface BulkDeleteBarProps {
   /**
    * The words under the failure toast, read from what each refused delete
    * threw, in selection order (for example the first refusal's reason, read
-   * through a helper that never shows an error's payload). Without it the
-   * toast carries only its title.
+   * through a helper that never shows an error's payload). This toast is the
+   * batch's only report, so `onDeleteItem` keeps its own quiet. Without it
+   * the toast carries only its title.
    */
   describeFailure?: (reasons: unknown[]) => string | undefined;
 }
@@ -38,6 +39,12 @@ interface BulkArchiveBarProps {
   onArchiveItem: (id: string) => Promise<void>;
   /** Callback after all archives complete */
   onComplete?: () => void;
+  /**
+   * The words under the failure toast, read from what each refused archive
+   * threw, in selection order — as `BulkDeleteBar`'s `describeFailure`.
+   * Without it the toast carries only its title.
+   */
+  describeFailure?: (reasons: unknown[]) => string | undefined;
 }
 
 function selectedIdsFrom(rowSelection: RowSelectionState): string[] {
@@ -148,6 +155,7 @@ export function BulkArchiveBar({
   onClearSelection,
   onArchiveItem,
   onComplete,
+  describeFailure,
 }: BulkArchiveBarProps) {
   const { t } = useT('common');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -162,12 +170,15 @@ export function BulkArchiveBar({
       const results = await Promise.allSettled(
         selectedIds.map((id) => onArchiveItem(id)),
       );
-      const failedCount = results.filter((r) => r.status === 'rejected').length;
-      const successCount = count - failedCount;
+      const refused = results.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      );
+      const successCount = count - refused.length;
 
-      if (failedCount > 0) {
+      if (refused.length > 0) {
         toast({
           title: t('bulkActions.archiveFailed'),
+          description: describeFailure?.(refused.map((r) => r.reason)),
           variant: 'destructive',
         });
       } else {
@@ -182,7 +193,15 @@ export function BulkArchiveBar({
     } finally {
       setIsArchiving(false);
     }
-  }, [selectedIds, count, onArchiveItem, onClearSelection, onComplete, t]);
+  }, [
+    selectedIds,
+    count,
+    onArchiveItem,
+    onClearSelection,
+    onComplete,
+    describeFailure,
+    t,
+  ]);
 
   if (count === 0) return null;
 

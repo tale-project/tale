@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useT } from '@tale/ui/i18n/client';
 import { structuralEqual } from '@tale/ui/structural-equal';
 import { useForm } from '@tale/ui/use-form';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -11,6 +12,7 @@ import {
   type UseFormReturn,
 } from 'react-hook-form';
 
+import { toastSaveFailure } from './save-failure-toast';
 import { isEditorSaveCancelled, type EditorController } from './types';
 import { useRegisterDirtySource } from './use-dirty-source';
 
@@ -67,7 +69,9 @@ interface FormEditor<T extends FieldValues> extends EditorController {
   /**
    * Form `onSubmit` handler — wire it as `<form onSubmit={editor.submit}>`.
    * It routes the native submit (Save button `type="submit"`, Enter key)
-   * through {@link save}/`doSave`, so the dirty baseline is reset on success.
+   * through {@link save}/`doSave`, so the dirty baseline is reset on success,
+   * and reports a server failure with the one toast `EditorActions` raises
+   * for it on the button path.
    *
    * Use this instead of the raw `form.handleSubmit(save)`: that calls `save`
    * directly and never clears `isDirty`, leaving the Save button active and
@@ -90,6 +94,7 @@ export function useFormEditor<T extends FieldValues>({
   mapServerError,
   onReset,
 }: UseFormEditorArgs<T>): FormEditor<T> {
+  const { t } = useT('common');
   const form = useForm<T>({
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- T extends FieldValues
     defaultValues: (data ?? defaultValues) as DefaultValues<T> | undefined,
@@ -234,17 +239,18 @@ export function useFormEditor<T extends FieldValues>({
       // Route the native form submit through `doSave` so the dirty baseline is
       // reset on success. Validation failures surface inline via
       // `form.setError` and a cancelled save is a deliberate no-op, so both
-      // stay quiet; a server failure has no cluster to toast it on this path
-      // (the native submit bypasses `EditorActions`), so log it rather than
-      // swallow it.
+      // stay quiet. A server failure has no cluster to toast it on this path
+      // (the native submit bypasses `EditorActions`), and the write under
+      // `save` keeps its own toast quiet so the cluster's is the only one:
+      // raise that same toast here, or the failure goes unreported.
       doSave().catch((err) => {
         if (isEditorSaveCancelled(err)) return;
-        if (!(err instanceof Error && err.message === 'VALIDATION_FAILED')) {
-          console.error('[useFormEditor] submit failed', err);
-        }
+        if (err instanceof Error && err.message === 'VALIDATION_FAILED') return;
+        console.error('[useFormEditor] submit failed', err);
+        toastSaveFailure(err, t);
       });
     },
-    [doSave],
+    [doSave, t],
   );
 
   const reset = useCallback(() => {
