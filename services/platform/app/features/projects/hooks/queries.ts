@@ -5,6 +5,7 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { backendKey } from '@/app/lib/backend/query-keys';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 /**
@@ -148,22 +149,48 @@ export function useProject(projectId: string | undefined) {
   return { project: data ?? null, isLoading };
 }
 
+/**
+ * A project list read's rows, with how the read stands (`readStateOf`): a
+ * failed read is the screen's to name and retry, never an empty list
+ * (#3736).
+ */
+function projectListRead<Row>(query: {
+  data: Row[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  isFetching: boolean;
+  errorUpdateCount: number;
+  refetch: () => Promise<unknown>;
+}) {
+  const { refetch } = query;
+  return {
+    rows: query.data ?? [],
+    isLoading: query.isLoading,
+    ...readStateOf(query),
+    retry: () => void refetch(),
+  };
+}
+
 export function useProjectDocuments(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
-    'projects/queries:listProjectDocuments',
-    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  const { rows, ...read } = projectListRead(
+    useBackendQuery(
+      'projects/queries:listProjectDocuments',
+      projectId && organizationId ? { projectId, organizationId } : 'skip',
+    ),
   );
-  return { documents: data ?? [], isLoading };
+  return { documents: rows, ...read };
 }
 
 export function useProjectFolders(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
-    'projects/queries:listProjectFolders',
-    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  const { rows, ...read } = projectListRead(
+    useBackendQuery(
+      'projects/queries:listProjectFolders',
+      projectId && organizationId ? { projectId, organizationId } : 'skip',
+    ),
   );
-  return { folders: data ?? [], isLoading };
+  return { folders: rows, ...read };
 }
 
 /** The Chats tab's data: the caller's own conversations in the project and

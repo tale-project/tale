@@ -299,6 +299,41 @@ describe('EntityViewDialog', () => {
     expect(onEmail).toHaveBeenCalledOnce();
   });
 
+  // A host moves focus into a section when a retry replaces the control
+  // that held it; the section keeps its name for the screen reader.
+  it('makes a section a named focus target when given a focusRef', () => {
+    function Host() {
+      const ref = useRef<HTMLElement>(null);
+      return (
+        <EntityViewDialog
+          open
+          onOpenChange={vi.fn()}
+          title="Website details"
+          name="example.com"
+          icon={Globe}
+        >
+          <EntityViewSection title="Website pages" focusRef={ref}>
+            <button type="button" onClick={() => ref.current?.focus()}>
+              Retry
+            </button>
+          </EntityViewSection>
+          <EntityViewSection title="Other">
+            <p>Not a target</p>
+          </EntityViewSection>
+        </EntityViewDialog>
+      );
+    }
+    render(<Host />);
+
+    const section = screen.getByRole('region', { name: 'Website pages' });
+    expect(section).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('region', { name: 'Other' })).not.toHaveAttribute(
+      'tabindex',
+    );
+    screen.getByRole('button', { name: 'Retry' }).click();
+    expect(section).toHaveFocus();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
       const { container } = render(

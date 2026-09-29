@@ -35,6 +35,16 @@ Une intégration peut importer un fichier sans l’indexer. Il reste visible dan
 
 Si tous les fichiers n’arrivent pas, le compte rendu de l’import liste les autres avec leur motif : les fichiers **Ignorés** n’ont pas passé le contrôle de type ou de taille avant l’envoi, et les fichiers **Non ajoutés** ont été refusés par Tale, qui en donne la raison. Les règles de l’organisation peuvent imposer des limites supplémentaires de taille ou de stockage. Si l’import échoue, commence par un petit fichier compatible. Un admin peut vérifier [Politiques et limites](/fr/platform/admin/governance/policies-and-limits), le stockage et le modèle d’embedding.
 
+## Si les fichiers ou les dossiers ne se chargent pas
+
+Quand l’onglet ne parvient pas à charger les fichiers ou les dossiers du projet, un avis au-dessus de l’arborescence indique ce qui a échoué et propose **Réessayer**. Tale ne présente jamais le projet comme vide à cause d’un échec de chargement :
+
+- Si seuls les dossiers échouent, tous les fichiers chargés restent listés. Les fichiers à la racine restent à leur place, et les fichiers placés dans des dossiers apparaissent sous **Fichiers dans des dossiers** jusqu’au chargement des dossiers.
+- Si seuls les fichiers échouent, les dossiers restent visibles et l’avis indique que les fichiers manquent.
+- Si une actualisation échoue alors que l’arborescence était chargée, celle-ci garde son contenu, et l’avis indique qu’il n’est peut-être plus à jour.
+
+**Réessayer** ne relance que le chargement qui a échoué, et l’arborescence garde ses dossiers dépliés et sélectionnés. Si l’échec se répète, demande à un administrateur de vérifier que les services de Tale fonctionnent.
+
 ## Poser la question dans un chat du projet
 
 Ouvre **Chats** dans ce projet, démarre une conversation et pose une question en nommant le fichier ou son sujet. L’assistant peut consulter les fichiers de ce projet et les documents de la bibliothèque auxquels tu as accès. Il ne peut pas lire les fichiers d’un autre projet depuis ce chat.

@@ -55,7 +55,7 @@ Klicke auf **Speichern**. Der Eintrag erscheint mit Thema, Inhalt, Quelle (**Man
 
 Öffne das Zeilenmenü, wähle **Bearbeiten**, ändere den Inhalt und klicke auf **Speichern**. Damit entsteht eine neue aktuelle Fassung; ihr Text wird erneut zur Indexierung vorgemerkt. Pro Thema gibt es einen aktuellen Eintrag. Eine Korrektur am bestehenden Eintrag vermeidet widersprüchliche Antworten.
 
-Öffne nach einer Korrektur die Details und den **Versionsverlauf**. Frühere Fassungen zeigen, was geändert wurde und wann sie ersetzt wurden; sie sind keine zusätzlichen aktuellen Informationen. Die **Versions-ID** in den Details gehört zur aktuellen Fassung und ändert sich bei jeder Bearbeitung; das Thema kennzeichnet den Eintrag über alle Versionen hinweg. Anwendungen können Einträge auch über die [REST-API](/de/develop/api-reference) erstellen und ändern.
+Öffne nach einer Korrektur die Details und den **Versionsverlauf**. Frühere Fassungen zeigen, was geändert wurde und wann sie ersetzt wurden; sie sind keine zusätzlichen aktuellen Informationen. Bei einem Eintrag, der nie bearbeitet wurde, steht dort, dass es noch keine früheren Versionen gibt. Die **Versions-ID** in den Details gehört zur aktuellen Fassung und ändert sich bei jeder Bearbeitung; das Thema kennzeichnet den Eintrag über alle Versionen hinweg. Anwendungen können Einträge auch über die [REST-API](/de/develop/api-reference) erstellen und ändern.
 
 <Tip>
 
@@ -72,3 +72,13 @@ Wähle **Löschen** im Zeilenmenü und lies die Bestätigung. Dadurch verschwind
 Prüfe zuerst den aktuellen Eintrag: Ist er gespeichert und fertig indexiert? Benennt die Frage das Thema eindeutig? Ist die Indexierung fehlgeschlagen, behebe die angegebene Ursache und starte sie über die Wiederholungsaktion erneut. Bei anhaltenden Fehlern muss ein Administrator die Embedding-Konfiguration und die Indexierungsdienste prüfen.
 
 Bitte den Assistenten um einen Quellenbeleg, öffne die Quelle und vergleiche sie mit dem Eintrag. Eine plausibel klingende Antwort beweist noch nicht, dass die aktuelle Information verwendet wurde. Die gemeinsamen Indexierungszustände erklärt [Dokumente](/de/platform/knowledge/documents).
+
+## Wenn die Liste oder der Verlauf nicht lädt
+
+Schlägt das Laden fehl, meldet Tale das dort, wo die Inhalte stehen würden. Ein Fehler erscheint nie als leere Bibliothek oder als Eintrag ohne Verlauf. **Erneut versuchen** wiederholt den Abruf, ohne dass du die Seite neu laden musst:
+
+- Lässt sich kein Eintrag laden, zeigt die Tabelle statt des leeren Zustands den Fehler mit **Erneut versuchen**.
+- Sind bereits Einträge zu sehen, bleiben sie stehen, und ein Hinweis über der Tabelle sagt, dass die Liste unvollständig oder veraltet sein kann. Deine Suche und die ausgewählten Zeilen bleiben beim erneuten Versuch erhalten. Konnten weitere Einträge nicht geladen werden, steht das unter der Tabelle, und eine Suche umfasst nur die geladenen Einträge.
+- Lässt sich in den Details eines Eintrags der **Versionsverlauf** nicht laden, sagt der Abschnitt das und bietet **Erneut versuchen** an. Der aktuelle Inhalt bleibt lesbar.
+
+Scheitert **Erneut versuchen** immer wieder, bitte einen Administrator zu prüfen, ob die Dienste von Tale laufen.

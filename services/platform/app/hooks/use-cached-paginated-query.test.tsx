@@ -143,4 +143,51 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
     // The first page was read once: the retry did not reload it.
     expect(cursors.filter((cursor) => cursor === null)).toHaveLength(1);
   });
+
+  // #3777: a search drain and the scroll sentinel call `loadMore` on every
+  // render, so a failed page was re-requested in a loop.
+  it('does not ask for a failed next page again until the retry', async () => {
+    let answerRetry = (): void => {};
+    const cursors = listDoor([
+      () =>
+        json(200, {
+          items: [row('c1'), row('c2')],
+          isDone: false,
+          continueCursor: 'after-c2',
+        }),
+      unavailable,
+      unavailable,
+      unavailable,
+      unavailable,
+      () =>
+        new Promise((resolve) => {
+          answerRetry = () =>
+            resolve(
+              json(200, {
+                items: [row('c3')],
+                isDone: true,
+                continueCursor: '',
+              }),
+            );
+        }),
+    ]);
+    const { result } = renderListing();
+    await waitFor(() => expect(result.current.status).toBe('CanLoadMore'));
+
+    act(() => result.current.loadMore(2));
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.errorCount).toBe(1);
+    expect(result.current.isRetrying).toBe(false);
+
+    act(() => result.current.loadMore(2));
+    act(() => result.current.loadMore(2));
+    expect(cursors).toHaveLength(5);
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.isRetrying).toBe(true));
+    act(() => answerRetry());
+    await waitFor(() => expect(result.current.results).toHaveLength(3));
+    expect(result.current.isRetrying).toBe(false);
+    expect(cursors).toHaveLength(6);
+  });
 });

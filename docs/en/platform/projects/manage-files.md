@@ -35,6 +35,16 @@ An integration can upload a file without indexing it. Such a file is still visib
 
 When not every file arrives, the upload report lists the rest with a reason: **Skipped** files failed the type or size check before uploading, and **Not added** files were refused by Tale, which says why. Per-file and storage limits may be restricted further by organization policy. When an upload fails, first try a small supported file. An admin can check [Policies and limits](/platform/admin/governance/policies-and-limits), storage, and the embedding model.
 
+## If files or folders don't load
+
+When the tab cannot load the project's files or folders, a notice above the tree says what failed and offers **Try again**. Tale never shows the project as empty because a read failed:
+
+- If only the folders fail to load, every file that loaded stays listed. Files at the root stay in place, and files inside folders appear under **Files inside folders** until the folders load.
+- If only the files fail to load, the folders stay visible and the notice says the files are missing.
+- If a refresh fails after the tree has loaded, the tree keeps what it showed, and the notice says it may be out of date.
+
+**Try again** repeats only the read that failed, and the tree keeps its expanded and selected folders. If it keeps failing, ask an administrator to check that Tale's services are running.
+
 ## Ask about the files from a project chat
 
 Open **Chats** in this project, start a chat, and ask about the file by name or topic. The assistant can retrieve this project’s files and the organization’s Knowledge documents that you can access. It cannot retrieve another project’s files from here.

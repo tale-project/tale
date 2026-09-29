@@ -321,5 +321,78 @@ describe('useListPage — failed request', () => {
     const { result } = renderListPage();
     expect(result.current.tableProps.error).toBeNull();
     expect(result.current.tableProps.onRetry).toBeUndefined();
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+  });
+
+  // #3777: a search drained into a page that failed, and the drain re-issued
+  // it on every render while the table showed a skeleton no request filled.
+  it('stops draining a paginated source a failed request halted', () => {
+    const loadMore = vi.fn();
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'CanLoadMore',
+        loadMore,
+        isLoading: false,
+        error: new Error('next page failed'),
+        retry: vi.fn(),
+      },
+      search: { fields: ['name'] },
+    });
+
+    act(() => {
+      result.current.tableProps.search?.onChange('Item 99');
+    });
+    act(() => {
+      result.current.tableProps.infiniteScroll.onLoadMore();
+    });
+
+    expect(loadMore).not.toHaveBeenCalled();
+    // The rows stay, the error is not the table's (rows exist), and the
+    // table learns that nothing is loading.
+    expect(result.current.tableProps.error).toBeNull();
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(true);
+    expect(result.current.tableProps.infiniteScroll.hasMore).toBe(true);
+  });
+
+  it('opens its window to every loaded row once halted, and keeps it open', () => {
+    const halted = {
+      type: 'paginated' as const,
+      results: makeItems(25),
+      status: 'CanLoadMore' as const,
+      loadMore: vi.fn(),
+      isLoading: false,
+      error: new Error('next page failed') as Error | null,
+      retry: vi.fn(),
+    };
+    const { result, rerender } = renderHook(
+      ({ source }) =>
+        useListPage<TestItem>({ dataSource: source, pageSize: 10 }),
+      { initialProps: { source: halted } },
+    );
+    // No scroll pages loaded rows in while the list is halted.
+    expect(result.current.tableProps.data).toHaveLength(25);
+
+    // Recovered: the rows on screen stay on screen.
+    rerender({ source: { ...halted, results: makeItems(35), error: null } });
+    expect(result.current.tableProps.data).toHaveLength(25);
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
+  });
+
+  it('reads a retry in flight as loading again', () => {
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: makeItems(10),
+        status: 'LoadingMore',
+        loadMore: vi.fn(),
+        isLoading: true,
+        error: new Error('next page failed'),
+        retry: vi.fn(),
+      },
+    });
+
+    expect(result.current.tableProps.infiniteScroll.loadFailed).toBe(false);
   });
 });
