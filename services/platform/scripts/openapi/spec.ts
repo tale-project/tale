@@ -5675,7 +5675,7 @@ export function buildSpec(): Json {
       summary: 'Get skill',
       operationId: 'getSkill',
       description:
-        'One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. A malformed slug answers 404 like an unknown one.',
+        'One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. The tag covers the SKILL.md content only: `canEdit`, `ownerName`, `updatedBy` and `updatedByName` can change while it stands (a member leaves or is renamed, an edit changes only the sharing), so a 304 does not revalidate them — read without `If-None-Match` when you need them current. A malformed slug answers 404 like an unknown one.',
       security: sec,
       parameters: [
         skillSlugParam,
