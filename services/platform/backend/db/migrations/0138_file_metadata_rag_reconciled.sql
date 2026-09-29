@@ -1,0 +1,35 @@
+-- The RAG watchdog's rotation clock for failed rows.
+--
+-- Each tick of the watchdog (`recoverStuckRagIndexing` in
+-- `backend/domains/file_metadata/watchdogs.ts`) reads at most 200 candidates:
+-- every stuck `queued`/`running` row first, then the `failed` rows of the
+-- last 48 hours, so that a false failure heals — a failed row whose corpus
+-- row completed after all is adopted, one whose corpus row is still moving is
+-- revived. Most failed rows are settled: their corpus row failed with the
+-- same error, or has nothing to say, and the tick writes nothing for them.
+-- Ranked by queue time, the same oldest settled failures filled the batch on
+-- every tick until they aged out of the window, and with more than about 200
+-- failures in two days (an embedding outage during a bulk sync) a false
+-- failure queued after them was never reached.
+--
+--   rag_reconciled_at_ms  when a tick last read the row as a failed candidate.
+--                         The failed rows are read least recently read first
+--                         — a row no tick has read yet counts as read when
+--                         its run was queued (`rag_queued_at_ms`) — so a row
+--                         is read again once every row read or queued before
+--                         it has had its turn, however many fail meanwhile.
+--                         Written by the watchdog alone and never read as a
+--                         status: it moves neither `status_changed_at_ms`
+--                         (the clock of the 48-hour window) nor any list, and
+--                         it is not cleared when the row changes status — a
+--                         stamp older than every other row's is simply read
+--                         early.
+--
+-- Nullable, no backfill: a row no tick has read yet takes its queue time. No
+-- index: no index serves the candidate read's two status windows, so it
+-- scans the table either way. Rolling-deploy safe: the previous image neither
+-- reads nor writes the column, and its watchdog keeps reading by queue time
+-- until it stops.
+
+ALTER TABLE app.file_metadata
+  ADD COLUMN IF NOT EXISTS rag_reconciled_at_ms bigint;

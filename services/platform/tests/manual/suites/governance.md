@@ -124,7 +124,7 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   cap. **Delete the rule after**
 - [ ] `GOV-F36` · **Cap a member's key** — As a Developer member, create an API
   key "opencode"; as an Admin, open the GOV-F4b dialog → the **API key**
-  select lists the Developer's key as **opencode · <their name>** beside the
+  select lists the Developer's key as **opencode · ‹their name›** beside the
   Admin's own keys, and no key of someone outside the organization; save a
   rule on it → a REST send with the Developer's key over the cap answers 429
   `BUDGET_EXCEEDED` as in GOV-F4c. With the dialog still open, the Developer

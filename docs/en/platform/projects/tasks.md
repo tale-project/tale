@@ -101,6 +101,8 @@ Mentions in the task description work the same way when you save the task: the p
 
 Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. While any of its subtasks is still open, a parent task cannot move to **Done** or **Cancelled**; every other status stays available, **To do** included. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
 
+When you change a field, the task's **Activity** shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
+
 ## Repeat a task
 
 Give a task a repeat when the same work comes back on a schedule, such as a weekly status report. Each time the task closes, the next one appears in **To do**, due on the next day the repeat names.
@@ -182,6 +184,8 @@ Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep pro
 **Search tasks** narrows the board together with **Filter**, and every task that matches both appears, however many there are. A search finds tasks whose title, description, or identifier, such as `WEB-12`, contains each word you type, and tasks with a comment that contains them all. The board holds up to 2,000 tasks. In a larger project, a note says that only the first 2,000 are shown; search to reach the others.
 
 If the tasks can't be loaded, the board says so instead of showing empty columns, and your search and filters stay as they are. Choose **Try again** to load them. When a refresh fails, the tasks already on screen stay, with a note that they are shown as they were last loaded. A note also tells you when dependencies or agent and review activity can't be loaded, because blocked tasks, running agents, open questions, and pending reviews may then not be marked. **Try again** in a note reloads only what failed.
+
+With the keyboard, press **Enter** on **Filter**: the panel opens on its first filter, **Assignee**. Press **Enter** to expand it and **Tab** to reach its options. The arrow keys choose one, and the board follows at once. **Space** chooses the option the focus is on, and clears it when it is already chosen. **Tab** moves on to the next filter, and **Escape** closes the panel.
 
 In **Board** and **List**, press **Tab** until the task title is focused, then press **Enter** to open the task.
 

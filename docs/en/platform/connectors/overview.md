@@ -16,9 +16,11 @@ Use a connector when Tale needs to read or change data in an external service. T
 | Confluence | Import Confluence Cloud pages into knowledge. | Username and password/token pair. |
 | Discord | Work with messages and channels. | Token. |
 | GitHub | Read or manage repositories, issues and pull requests. | Token. |
+| GlitchTip | Read a project's issues so the GlitchTip importer can turn them into tasks. | Token and an Instance URL. |
 | Gmail | Read, send and organize mail. | OAuth. |
 | Google Drive | Import files into knowledge. | OAuth. |
 | IMAP / SMTP Mailbox | Read or send mail through a private mail service. | Username and password. |
+| Jev decisions | Answer typed questions about a workflow's data with calibrated probabilities, to decide whether to act. | API key (an OpenRouter key). |
 | Microsoft Outlook | Work with mail, calendars and contacts. | OAuth. |
 | Shopify | Work with products, customers and orders. | API key. |
 | Slack | Work with messages and channels. | OAuth. |
@@ -35,7 +37,7 @@ Knowledge imports use the [document indexing pipeline](/platform/knowledge/docum
 
 Select **Add credential**, search for the service and choose its card. Connectors with existing credentials appear first, but you can add another account for the same service. The form asks for the authentication that connector supports.
 
-<Frame caption="Add credential opens on the catalog — the thirteen shipped connectors, with the ones you already hold a credential for listed first.">
+<Frame caption="Add credential opens on the catalog — the shipped connectors, with the ones you already hold a credential for listed first.">
 
 ![The Add credential dialog over the Settings > Connectors table, listing the shipped connectors as cards with their category tags and action counts, a search field at the top, and the already-configured Tavily connector at the head of the list.](/images/platform/connectors-add-credential.webp)
 
@@ -43,11 +45,11 @@ Select **Add credential**, search for the service and choose its card. Connector
 
 The **Name** field starts with the connector’s name. When you add several accounts for the same service, change it to one that identifies the purpose, such as `Support inbox` or `Release bot`. Use the external service’s credentials, not a Tale API key. For OAuth, sign in to the provider as the account you want to add and complete its consent. Each connection adds a new credential named after the connector and numbered (`Gmail`, then `Gmail 2`); Slack keeps one per workspace. Rename a new credential so the accounts stay distinguishable. If consent cannot start, an administrator may need to configure its OAuth app first.
 
-Confluence and Shopify require an **Instance URL** per credential. Use the Atlassian site origin or the store’s `myshopify.com` origin, rather than an unrelated page or customer-facing domain. [Connector credentials](/platform/admin/connectors) covers setup fields, reconnection and rotation.
+Confluence, GlitchTip and Shopify require an **Instance URL** per credential. Use the Atlassian site origin, the GlitchTip instance origin such as `https://app.glitchtip.com`, or the store’s `myshopify.com` origin, rather than an unrelated page or customer-facing domain. A self-hosted GlitchTip instance must also be allowed by the deployment's connector host policy. [Connector credentials](/platform/admin/connectors) covers setup fields, reconnection and rotation.
 
 ## Choose which account an action uses
 
-An action uses the credential it explicitly names, or the connector’s default when no name is supplied. Only one credential per connector is the default. With no default, an unnamed call fails even if other credentials exist.
+An action uses the credential it explicitly names, or the connector’s default when no name is supplied. Only one credential per connector is the default. With no default, an unnamed call fails even if other credentials exist. Deleting the default makes the oldest remaining active credential of that connector the default; the delete confirmation names it first.
 
 For example, two support mailboxes are two credential rows. Choose names that distinguish them and inspect a workflow’s resolved input before running it live. A default is a fallback for selection, not proof that every job should use that account. Mailbox operations designed to inspect all active accounts are a separate case.
 
@@ -55,7 +57,7 @@ Disabling a credential retains its configuration but stops use through it. Repla
 
 ## Understand reads and writes
 
-Automations use connector actions as workflow nodes. Each action declares an input schema, output and read or write effect. In a test run, connector responses are mocked. In a live run, a write can send a message or change external data and is subject to the organization’s approval policy.
+Automations use connector actions as workflow nodes. Each action declares an input schema, output and read or write effect. GlitchTip and Jev decisions only read: the GlitchTip importer writes Tale tasks and never changes the upstream issue, and a Jev decision answers each question with its probabilities and writes nothing. Each decision is billed to the OpenRouter account whose key the credential holds. In a test run, connector responses are mocked. In a live run, a write can send a message or change external data and is subject to the organization’s approval policy.
 
 Equipped project agents receive supported read actions through Tale’s connector broker. It keeps those connector credentials outside the sandbox and returns results. The broker refuses connector writes. Direct GitHub tooling or explicit agent secrets use separate paths and must be reviewed separately.
 

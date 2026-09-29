@@ -55,6 +55,18 @@ export const DEFERRED_SEND_HINT_ENTITY = 'chat_deferred';
 export const PROVIDER_CREDENTIAL_HINT_ENTITY = 'provider_credential';
 
 /**
+ * An organization's connector credentials — the Settings > Connectors table
+ * and the mailbox reads built on the same listing (the compose Inbox field,
+ * the mailbox a thread names). Every write the listing shows hints under
+ * this entity: an add or a Reconnect through the consent callback, a rename,
+ * a secret rotation, an enable or disable, a default moved or handed on by a
+ * delete, and a grant the refresh found dead. Before it existed another
+ * admin's changes never reached an open page: a deleted credential stayed
+ * listed and actionable, and a new one stayed hidden, until a reload.
+ */
+export const CONNECTOR_CREDENTIAL_HINT_ENTITY = 'connector_credential';
+
+/**
  * An organization's membership — the Members settings table, the member
  * pickers a document review or a team dialog reads, and the shell's own
  * member context. Both doors that change it must agree on the name: the app's

@@ -101,6 +101,8 @@ Erwähnungen in der Beschreibung der Aufgabe wirken beim Speichern genauso: Die 
 
 Nutze **Teilaufgaben** für Ergebnisse, die sich einzeln prüfen lassen. Eine Teilaufgabe nennt oben in ihren Details die übergeordnete Aufgabe (**Teil von …**); klicke darauf, um zu ihr zurückzukehren. Solange noch eine Teilaufgabe offen ist, lässt sich die übergeordnete Aufgabe nicht nach **Erledigt** oder **Abgebrochen** verschieben. Alle anderen Status bleiben verfügbar, auch **Zu erledigen**. Unter **Abhängigkeiten** siehst du, welche Aufgaben diese Aufgabe blockieren und welche sie selbst blockiert. Kreisförmige Abhängigkeiten sind nicht zulässig.
 
+Änderst du ein Feld, zeigt die **Aktivität** der Aufgabe seinen Wert davor und danach. Leerst du ein Feld, steht dort, was übrig bleibt, etwa **Kein Fälligkeitsdatum** oder **Nicht zugewiesen**, und nicht bloß der alte Wert. Titel, Beschreibungen, Labels und Dateinamen erscheinen genau so, wie sie geschrieben wurden, auch wenn der Text einem Statusnamen wie `done` entspricht. Status, Prioritäten, Datumsangaben und die Angaben für ein leeres Feld erscheinen in deiner Sprache.
+
 ## Wiederkehrende Aufgaben einrichten
 
 Kommt dieselbe Arbeit regelmäßig wieder, etwa ein wöchentlicher Statusbericht, gib der Aufgabe eine Wiederholung. Jedes Mal, wenn du sie abschließt, steht die nächste Aufgabe in **Zu erledigen** bereit, fällig am nächsten Tag, den die Wiederholung vorsieht.
@@ -182,6 +184,8 @@ Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu üb
 **Tasks durchsuchen** grenzt das Board zusammen mit **Filter** ein. Jede Aufgabe, die zu beidem passt, erscheint, egal wie viele es sind. Die Suche findet Aufgaben, deren Titel, Beschreibung oder Kennung, etwa `WEB-12`, jedes eingegebene Wort enthält, und Aufgaben mit einem Kommentar, der alle diese Wörter enthält. Das Board fasst bis zu 2.000 Aufgaben. In einem größeren Projekt sagt ein Hinweis, dass nur die ersten 2.000 angezeigt werden; über die Suche erreichst du die übrigen.
 
 Können die Aufgaben nicht geladen werden, sagt das Board das, statt leere Spalten zu zeigen, und deine Suche und deine Filter bleiben, wie sie sind. Wähle **Erneut versuchen**, um sie zu laden. Schlägt eine Aktualisierung fehl, bleiben die angezeigten Aufgaben stehen, und ein Hinweis sagt, dass sie dem zuletzt geladenen Stand entsprechen. Ein Hinweis erscheint auch, wenn die Abhängigkeiten oder die Aktivität der Agenten und Reviews nicht geladen werden können, denn dann sind blockierte Aufgaben, laufende Agenten, offene Fragen und ausstehende Reviews möglicherweise nicht markiert. **Erneut versuchen** in einem Hinweis lädt nur, was fehlgeschlagen ist.
+
+Mit der Tastatur drückst du **Enter** auf **Filter**: Das Panel öffnet sich beim ersten Filter, **Zuständig**. Mit **Enter** klappst du ihn auf, mit **Tab** erreichst du seine Optionen. Die Pfeiltasten wählen eine aus, und das Board folgt sofort. Die **Leertaste** wählt die Option, auf der der Fokus steht, und hebt die Auswahl auf, wenn sie schon gewählt ist. **Tab** führt zum nächsten Filter, und **Escape** schließt das Panel.
 
 In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Tab**. Drücke dann **Enter**, um die Aufgabe zu öffnen.
 

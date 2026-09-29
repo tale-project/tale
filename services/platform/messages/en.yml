@@ -342,6 +342,9 @@ auth:
     stayHere: Stay here
     signIn: Sign in
     checkFailed: Your session could not be checked. Stay here and try again when your connection is restored.
+  accountUnavailable:
+    description: Your account could not be loaded.
+    signInAgain: Sign in again
   oauth:
     title: 'Continue with Tale'
     request: '{application} wants to sign you in with Tale.'
@@ -2012,6 +2015,7 @@ documents:
   entityLabelOne: document
   tableCaption: Documents and folders
   searchPlaceholder: Search documents
+  refreshFailed: "Couldn't load the latest documents. What's listed may be incomplete or out of date."
   record:
     badge: 'v{version} · {state}'
     state:
@@ -2278,6 +2282,7 @@ documents:
     fileTooLargeLimit: File exceeds the {limit} limit.
     uploadTimedOut: Upload timed out. Check your connection and try again.
     storedButNotIndexed: Stored and downloadable, but not indexed for search (legacy format).
+    storedButNotIndexedNoExtension: 'Stored and downloadable, but not indexed for search: the file name is only an extension.'
     filesCompletedSummary: '{completed} of {total} files completed'
     filesCompletedWithFailures: '{completed} of {total} files completed · {failed} failed'
     selectTeams: Assign to teams
@@ -4291,6 +4296,7 @@ knowledgeEntries:
   title: Knowledge entries
   entityLabelOne: knowledge entry
   searchPlaceholder: Search knowledge entries
+  refreshFailed: "Couldn't load the latest knowledge entries. What's listed may be incomplete or out of date."
   addButton: Add entry
   addEntry: Add knowledge entry
   addDescription: Name a topic, then write the knowledge so it makes sense on its own.
@@ -4338,6 +4344,10 @@ knowledgeEntries:
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded
     supersededOn: Replaced on {date}
+    historyLoading: Loading version history…
+    historyEmpty: No earlier versions yet — each edit keeps the text it replaces here.
+    historyLoadFailed: "Couldn't load the version history."
+    historyRefreshFailed: "Couldn't refresh the version history. The versions shown may be out of date."
 metadata:
   suffix: Tale
   default:
@@ -5302,6 +5312,11 @@ projects:
     newSubfolderAction: New folder inside
     uploadingIndicator: Uploading…
     historyAction: Version history
+    loadFailed: "Couldn't load this project's files."
+    foldersLoadFailed: "Couldn't load this project's folders. Files inside folders are listed separately until the folders load."
+    treeLoadFailed: "Couldn't load this project's files and folders."
+    refreshFailed: "Couldn't refresh this project's files. What's shown may be out of date."
+    unplacedGroup: Files inside folders
   threads:
     yourChats: Your chats
     subtitle: Chats you've started in this project.
@@ -5907,6 +5922,16 @@ settings:
       needsReauthHint: Authorization expired or revoked. Reconnect to restore access.
       needsReauthDetail: '{detail} Reconnect to grant consent again.'
       reconnect: Reconnect
+      deleteDefaultHandsOn: >-
+        This is the default credential. Deleting it makes "{name}" the default
+        for calls that name no credential.
+      deleteDefaultLeavesNone: >-
+        This is the default credential, and no other active credential can
+        take over: calls that name no credential fail until you make one the
+        default.
+      deleteDefaultHandsOnOldest: >-
+        This is the default credential. Deleting it makes the oldest active
+        credential of this connector the default, if there is one.
     replace:
       apiKeyTitle: Replace API key
       tokenTitle: Replace token
@@ -5976,6 +6001,9 @@ settings:
       endpointHelpShopify:
         Your store's myshopify.com origin — the admin address, not the
         storefront domain.
+      endpointHelpGlitchtip:
+        Your GlitchTip instance origin, such as https://app.glitchtip.com. A
+        self-hosted instance works once the deployment allows its host.
       endpointHelpGeneric: The https origin of the instance this credential belongs to.
   enterpriseSso:
     connected: Sign-in is enabled.
@@ -7603,6 +7631,12 @@ tasks:
     agentRunRefused: Run refused
     repeatChanged: Repeat changed
     repeatNext: Next task created
+    empty:
+      startDate: No start date
+      dueDate: No due date
+      description: No description
+      labels: No labels
+      attachments: No attachments
   review:
     needsReview: Needs review
     waitingOn: 'Waiting on {name}'

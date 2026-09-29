@@ -34,6 +34,7 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { ContactError } from '../contacts/service.ts';
+import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
 import { listModelApiModels } from '../model_api/models.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
@@ -647,6 +648,13 @@ export function createGovernanceRoutes(deps: {
           body.data,
         ),
       );
+      // A restored document can be its ref's holder again — the lowest-id
+      // active document holding a shared ref, whose scope the corpus row
+      // carries — and a restore edits no scope, so no other write re-stamps
+      // the row before the nightly reconcile. Best-effort, after commit.
+      if (body.data.resourceType === 'document') {
+        await syncRagDocumentScope(deps.sql, c.get('orgId'), body.data.id);
+      }
       return c.json({ ok: true });
     } catch (error) {
       if (error instanceof TrashError) {

@@ -10,9 +10,13 @@
         "$TURBO_ROOT$/compose.yml",
         "$TURBO_ROOT$/compose.dev.yml",
         "$TURBO_ROOT$/configs/platform/**",
+        "$TURBO_ROOT$/docs/*/platform/admin/connectors.md",
+        "$TURBO_ROOT$/docs/*/platform/connectors/overview.md",
         "$TURBO_ROOT$/docs/*/platform/projects/tasks.md",
         "$TURBO_ROOT$/knip.config.ts",
+        "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
+        "$TURBO_ROOT$/packages/ui/tailwind-preset.ts",
         "$TURBO_ROOT$/scripts/ensure-sandbox-runtime-image.ts",
         "$TURBO_ROOT$/services/db/init-scripts/*.sql",
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
@@ -23,14 +27,18 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/packages/ui/src/**"
+        "$TURBO_ROOT$/packages/ui/package.json",
+        "$TURBO_ROOT$/packages/ui/src/**",
+        "$TURBO_ROOT$/packages/ui/tailwind-preset.ts"
       ]
     },
     "test:ui": {
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/packages/ui/src/**"
+        "$TURBO_ROOT$/packages/ui/package.json",
+        "$TURBO_ROOT$/packages/ui/src/**",
+        "$TURBO_ROOT$/packages/ui/tailwind-preset.ts"
       ]
     }
   }

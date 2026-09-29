@@ -2,9 +2,11 @@ import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 /**
- * Read hooks for the connectors settings page. Credentials come from a
- * reactive Convex query (masked by construction — the server never selects
- * ciphertext), so the writes next door propagate without manual invalidation.
+ * Read hooks for the connectors settings page. Credentials come from the
+ * backend listing (masked by construction — the server never selects
+ * ciphertext), keyed under the connector-credential entity: this tab's own
+ * writes refresh it when they land, another session's reach it as a realtime
+ * hint, and a write refused because its credential is gone refetches it.
  * The connector catalog comes from an ACTION (it reads the shipped connector
  * files from disk), so it goes through `useActionQuery`.
  */

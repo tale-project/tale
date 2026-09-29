@@ -9,15 +9,22 @@
  * createDocument race used to get the winner's id back over a blob the
  * document never referenced — it now refreshes the row through the same
  * lane, so its blob becomes `file_ref` and the winner's joins the history.
+ * A replaced blob's ref may still be held by a twin (a WebDAV copy of the
+ * synced file), which is its holder now: its corpus row is re-stamped.
  */
 
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import { createSyncImportDeps, ONEDRIVE_SYNC_ADAPTER } from './service.ts';
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../knowledge/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
+  syncRagRefHolderScopes: vi.fn(() => Promise.resolve()),
+}));
 
 interface Statement {
   text: string;
@@ -97,6 +104,9 @@ describe('createSyncImportDeps.updateDocument', () => {
       'knowledge.release_refs',
       { organizationId: 'org-1', refs: ['blob-old'] },
     );
+    expect(syncRagRefHolderScopes).toHaveBeenCalledWith(sql, 'org-1', [
+      'blob-old',
+    ]);
   });
 
   it('keeps history and corpus untouched when the blob is the same', async () => {
@@ -113,6 +123,7 @@ describe('createSyncImportDeps.updateDocument', () => {
 
     expect(updateStatement(statements)?.values).toContainEqual([]);
     expect(addJobInTx).not.toHaveBeenCalled();
+    expect(syncRagRefHolderScopes).not.toHaveBeenCalled();
   });
 });
 
