@@ -4994,6 +4994,8 @@ skills:
       (and edit it in the same save) or delete it.
     uploadRefused: Set visibility to team with your team IDs in SKILL.md, or
       ask an admin to upload this bundle.
+    refused: Your organization reserves sharing with everyone, and you aren't
+      allowed to publish. Share the skill with your teams instead.
   addMenu:
     label: Add skill
   createMenu:

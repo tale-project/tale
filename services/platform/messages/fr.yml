@@ -5241,6 +5241,8 @@ skills:
     uploadRefused: Dans SKILL.md, mets la visibilité sur team avec les
       identifiants de tes équipes, ou demande à un admin de téléverser ce
       bundle.
+    refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
+      pas le droit de publier. Partage plutôt ce skill avec tes équipes.
   addMenu:
     label: Ajouter un skill
   createMenu:

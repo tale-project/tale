@@ -9,6 +9,7 @@ import { useCallback, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { isAbortError } from '@/lib/utils/abort-error';
 
+import { isSkillPublishRefusal } from '../../hooks/mutations';
 import { useOrgReservedReason } from '../../hooks/use-org-reserved-reason';
 import { useSkillBundleUpload } from './hooks/use-skill-bundle-upload';
 import { useUploadSkill } from './hooks/use-upload-skill';
@@ -84,7 +85,9 @@ export function SkillUploadPane({
         if (isAbortError(err)) return;
         toast({
           title: t('upload.uploadFailed'),
-          description: extractErrorMessage(err),
+          description: isSkillPublishRefusal(err)
+            ? t('publishing.refused')
+            : extractErrorMessage(err),
           variant: 'destructive',
         });
       } finally {

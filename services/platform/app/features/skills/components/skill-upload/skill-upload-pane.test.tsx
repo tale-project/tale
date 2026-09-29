@@ -13,11 +13,14 @@ import { render, screen } from '@/tests/utils/render';
 
 import type { ParsedSkillBundle } from './utils/parse-skill-bundle';
 
-const { useSkillPublishing, upload, bundle } = vi.hoisted(() => ({
+const { useSkillPublishing, upload, bundle, toast } = vi.hoisted(() => ({
   useSkillPublishing: vi.fn(),
   upload: vi.fn(),
   bundle: { current: null as ParsedSkillBundle | null },
+  toast: vi.fn(),
 }));
+
+vi.mock('@tale/ui/use-toast', () => ({ toast }));
 
 vi.mock('../../hooks/queries', () => ({ useSkillPublishing }));
 vi.mock('./hooks/use-skill-bundle-upload', () => ({
@@ -69,6 +72,7 @@ const REFUSAL_HINT =
   'Set visibility to team with your team IDs in SKILL.md, or ask an admin to upload this bundle.';
 
 beforeEach(() => {
+  toast.mockClear();
   upload.mockReset();
   upload.mockResolvedValue({ status: 'landed', slug: 'house-voice' });
 });
@@ -109,5 +113,28 @@ describe('SkillUploadPane', () => {
     expect(screen.queryByText(REFUSAL_HINT)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Upload bundle' }));
     expect(upload).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the reason in the viewer’s language when the server refuses a publish the listing still offered', async () => {
+    useSkillPublishing.mockReturnValue({ mode: 'everyone', allowed: true });
+    bundle.current = parsed({ visibility: 'org' });
+    upload.mockRejectedValue(
+      Object.assign(new Error('SKILL_PUBLISH_FORBIDDEN'), {
+        data: {
+          code: 'SKILL_PUBLISH_FORBIDDEN',
+          message: 'Your organization reserves sharing a skill …',
+        },
+      }),
+    );
+    const { user } = mountPane();
+
+    await user.click(screen.getByRole('button', { name: 'Upload bundle' }));
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description:
+          "Your organization reserves sharing with everyone, and you aren't allowed to publish. Share the skill with your teams instead.",
+        variant: 'destructive',
+      }),
+    );
   });
 });
