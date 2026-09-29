@@ -398,7 +398,9 @@ records and delete them after.
   **Showing the first N documents — the rest couldn't be loaded**
   (`common.pagination.showingLoadedFailed`), never **Showing all N
   documents**. A search that matches no folder reads **No results among the
-  loaded items** and keeps its search box. A folder that holds only a
+  loaded items** and keeps its search box. With more than 20 folders, a
+  search that matches them all, and clearing it, keep every folder listed.
+  A folder that holds only a
   subfolder, read with the documents unblocked, lists it with no notice and
   **Showing all 1 document**; an empty folder read with them blocked shows
   the table's error state **Something went wrong** with **Try again**.

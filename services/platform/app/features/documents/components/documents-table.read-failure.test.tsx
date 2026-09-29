@@ -285,6 +285,42 @@ describe(
       expect(screen.getByRole('alert')).toHaveTextContent(t('loadFailed'));
     });
 
+    // #3944 review: more folders than one page, and a search that matches
+    // them all reset the window to one page — with nothing more to page in,
+    // the rest of the loaded folders were out of reach, even after clearing.
+    it('keeps every loaded folder reachable through a search above one page, and its clearing', async () => {
+      const many = Array.from({ length: 35 }, (_, index) => {
+        const n = String(index + 1).padStart(2, '0');
+        return folder(`f-${n}`, `Contract ${n}`);
+      });
+      backend.on(FOLDERS, () => Response.json({ folders: many }));
+      backend.on(DOCUMENTS, () => serviceUnavailable());
+      const { user } = renderTable();
+      await notice();
+      const listed = () => screen.queryAllByText(/^Contract \d\d$/).length;
+      expect(listed()).toBe(35);
+
+      const box = screen.getByRole('textbox', { name: t('searchPlaceholder') });
+      await user.click(box);
+      await user.paste('Contract');
+      expect(listed()).toBe(35);
+      expect(
+        screen.getByText(footer('showingLoadedFailed', 35)),
+      ).toBeInTheDocument();
+
+      await user.clear(box);
+      expect(listed()).toBe(35);
+
+      // A narrower search, then clearing it, reopens the whole level too.
+      await user.paste('Contract 3');
+      expect(listed()).toBe(6);
+      await user.clear(box);
+      expect(listed()).toBe(35);
+      expect(
+        screen.getByText(footer('showingLoadedFailed', 35)),
+      ).toBeInTheDocument();
+    });
+
     it('keeps a focused Try again through a background refresh that fails again, and hands focus to the list once it heals', async () => {
       backend.on(DOCUMENTS, () => serviceUnavailable());
       renderTable();
