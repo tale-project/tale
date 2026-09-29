@@ -17,6 +17,8 @@ Lies die Aktion und die Angaben unter **Der Schritt würde aufrufen mit** genau.
 
 Wähle **Freigeben**, um die Aktion zu erlauben. Der Lauf wird fortgesetzt und versucht den Schreibzugriff; kontrolliere danach Knotenergebnis und Auswirkungen. Wähle **Ablehnen**, wenn die Anfrage falsch ist oder nicht ausgeführt werden soll. Die Ablehnung verhindert diese Aktion und lässt den Lauf fehlschlagen.
 
+Auch wenn etwas schiefgeht, zeigt die Karte, wo der Lauf steht. Lässt sich die Freigabe nicht laden, sagt die Karte das und bietet **Erneut versuchen** an; der Lauf wartet weiter, bis jemand entscheidet. Wurde deine Entscheidung nicht gespeichert, meldet die Karte das und behält **Freigeben** und **Ablehnen**, damit du noch einmal wählen kannst. Hat jemand anderes zuerst entschieden, zeigt die Karte die gespeicherte Entscheidung.
+
 Ein Live-Lauf prüft vor der Freigabeanfrage, ob der Connector ein nutzbares Credential hat: Ist keines konfiguriert, schlägt der Knoten mit diesem Grund fehl, statt auf eine Entscheidung zu warten.
 
 Auf der Freigabekarte kannst du keine Parameter ändern. Lehne eine falsche Anfrage ab, korrigiere den Workflow oder seine Eingaben und teste die Änderung vor einem neuen Live-Lauf. Änderungen an der Freigaberichtlinie geben eine bereits offene Karte nicht frei. [Freigabekonzepte](/de/platform/approvals/concepts) erklärt den Ablauf; die [Konfiguration der Freigaberichtlinie](/de/self-hosted/configuration/approvals) beschreibt die Regeln für den Betrieb.

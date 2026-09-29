@@ -903,6 +903,10 @@ automations:
       input: "L'étape appellerait avec"
       approve: Approuver
       reject: Rejeter
+      loading: "Chargement de l'approbation…"
+      loadFailed: Impossible de charger cette approbation.
+      retry: Réessayer
+      decideFailed: "Impossible d'enregistrer ta décision."
     ask:
       title: "L'agent a besoin de ta réponse pour continuer"
       answerLabel: Ta réponse

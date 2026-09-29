@@ -275,4 +275,46 @@ describe('TaskSubjectPanel', () => {
       status: 'done',
     });
   });
+
+  // The board dialog keeps the panel mounted when it opens another task (a
+  // subtask, the parent, a link in a comment). Whatever the reader was
+  // saying about one task stays with that task: a Request changes draft for
+  // task A must not be waiting, pre-filled, in task B's dialog.
+  it('keeps a Request changes draft with the task it was written for', async () => {
+    const taskOf = (id: string) => ({
+      _id: id,
+      projectId: 'project_1',
+      status: 'in_review',
+      externalId: FOLDER,
+      hasFiles: true,
+    });
+    const { user, rerender } = render(
+      <TaskSubjectPanel
+        organizationId="org_1"
+        task={taskOf('task_a')}
+        ownedBy={ownedBy()}
+        canEdit
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Request changes' }));
+    await user.type(
+      await screen.findByRole('textbox', { name: 'What should change' }),
+      'Task A: replace the old figures',
+    );
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    rerender(
+      <TaskSubjectPanel
+        organizationId="org_1"
+        task={taskOf('task_b')}
+        ownedBy={ownedBy()}
+        canEdit
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Request changes' }));
+
+    expect(
+      await screen.findByRole('textbox', { name: 'What should change' }),
+    ).toHaveValue('');
+  });
 });

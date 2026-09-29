@@ -69,16 +69,26 @@ import { RunBadge } from './run-status-badge';
  * its runs are kept until retention removes them — the canvas is drawn from
  * the run's own trace: the nodes it recorded, in the order it ran them. The
  * page never goes blank over retained history (2026-09-26 evaluation, D-14).
+ *
+ * The run routes keep this mounted when they move to another run (a
+ * continuation, back and forward), so each run gets a fresh page state: a
+ * refused stop or a picked node never shows on the next run.
  */
-export function RunDetail({
-  organizationId,
-  automationSlug,
-  runId,
-}: {
+export function RunDetail(props: RunDetailProps) {
+  return <RunDetailBody key={props.runId} {...props} />;
+}
+
+interface RunDetailProps {
   organizationId: string;
   automationSlug: string;
   runId: string;
-}) {
+}
+
+function RunDetailBody({
+  organizationId,
+  automationSlug,
+  runId,
+}: RunDetailProps) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
   const inspectorId = useId();
