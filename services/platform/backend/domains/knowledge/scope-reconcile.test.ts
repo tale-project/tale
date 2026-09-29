@@ -30,6 +30,7 @@ const {
   reconcileDocumentScopeStamps,
   syncRagDocumentScope,
   syncRagDocumentScopes,
+  syncRagFolderSubtree,
 } = await import('./service.ts');
 
 interface DocRow {
@@ -607,5 +608,110 @@ describe('syncRagDocumentScope', () => {
     expect(sent).toEqual([
       ['acme', 'blob:t', ['team-t'], 'team-t', null, null],
     ]);
+  });
+});
+
+/**
+ * `syncRagFolderSubtree` re-stamps the folder path of every document under a
+ * renamed or moved folder, through `subtreeDocumentFolderPaths` — whose read
+ * is answered here from `rows` under the folders in `subtree`, of the ref
+ * holders among ALL the organization's active rows only when the statement
+ * carries the holder clause (a twin's holder can sit outside the subtree).
+ * The folder tree read (`folderTreePaths`, reached from inside `paths.ts`)
+ * answers each folder's path from `treePaths`.
+ */
+function fakeSqlForSubtree(
+  rows: DocRow[],
+  subtree: ReadonlySet<string>,
+  treePaths: ReadonlyMap<string, string>,
+): Sql {
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join(' ');
+    if (text.includes('FROM "organization"')) {
+      return Promise.resolve([{ slug: 'acme' }]);
+    }
+    if (text.includes('WITH RECURSIVE subtree')) {
+      return Promise.resolve(
+        (readsHoldersOnly(text) ? holdersOf(rows) : rows).filter(
+          (row) => row.folderId !== null && subtree.has(row.folderId),
+        ),
+      );
+    }
+    if (text.includes('WITH RECURSIVE chain')) {
+      const ids =
+        values.find((value): value is string[] => Array.isArray(value)) ?? [];
+      return Promise.resolve(
+        ids.flatMap((id) => {
+          const path = treePaths.get(id);
+          return path === undefined ? [] : [{ folderId: id, path }];
+        }),
+      );
+    }
+    return Promise.resolve([]);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the subtree sync issues only these three tagged reads
+  return sql as unknown as Sql;
+}
+
+describe('syncRagFolderSubtree', () => {
+  // A WebDAV COPY's twin in folder B shares the holder's ref, and the
+  // corpus row carries the holder's path. Read from every document under a
+  // renamed folder, the twin's path went onto the row: the unnest handed the
+  // UPDATE two paths for one ref, or the twin's alone, and the reconcile
+  // wrote the holder's back the next night.
+  const twins = [
+    doc({ id: 'doc-1', fileRef: 'blob:shared', folderId: 'fold-a' }),
+    doc({ id: 'doc-3', fileRef: 'blob:shared', folderId: 'fold-b' }),
+  ];
+  const treePaths = new Map([
+    ['fold-a', 'Root/A'],
+    ['fold-b', 'Root/B'],
+  ]);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('writes a ref two documents under the renamed folder share from its holder alone', async () => {
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await syncRagFolderSubtree(
+      fakeSqlForSubtree(
+        twins,
+        new Set(['root', 'fold-a', 'fold-b']),
+        treePaths,
+      ),
+      'org-9',
+      'root',
+    );
+
+    expect(sent).toEqual([['acme', ['blob:shared'], ['Root/A']]]);
+  });
+
+  it('writes nothing for a twin whose holder sits outside the renamed folder', async () => {
+    const { pool, sent } = fakePool(0);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await syncRagFolderSubtree(
+      fakeSqlForSubtree(twins, new Set(['fold-b']), treePaths),
+      'org-9',
+      'fold-b',
+    );
+
+    expect(sent).toEqual([]);
+  });
+
+  it('writes the holder’s new path when the holder’s own folder is renamed', async () => {
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+    await syncRagFolderSubtree(
+      fakeSqlForSubtree(twins, new Set(['fold-a']), treePaths),
+      'org-9',
+      'fold-a',
+    );
+
+    expect(sent).toEqual([['acme', ['blob:shared'], ['Root/A']]]);
   });
 });
