@@ -49,7 +49,7 @@ const PAUSED = {
   setOpen: vi.fn(),
   continueToLogIn: vi.fn(),
 };
-/** The confirmation is open again: the notice steps aside for it. */
+/** The confirmation is open again: the notice steps aside for it, unseen. */
 const ASKING = { ...PAUSED, open: true };
 const SIGNED_IN = { ...PAUSED, isLapsed: false };
 
@@ -111,10 +111,18 @@ function PageDialog({ open }: { open: boolean }) {
 
 /** A dashboard page in the shell: its alert stack, then the page under its
  * header, in a column as tall as the window. */
-function ShellPage({ header, dialog }: { header: string; dialog: boolean }) {
+function ShellPage({
+  header,
+  dialog,
+  recovery = PAUSED,
+}: {
+  header: string;
+  dialog: boolean;
+  recovery?: typeof PAUSED;
+}) {
   const Header = HEADERS[header];
   return (
-    <SessionLapseRecovery recovery={PAUSED}>
+    <SessionLapseRecovery recovery={recovery}>
       <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
         <SessionLapseNotice />
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -249,17 +257,25 @@ describe('the notch of an installed app', () => {
     );
   });
 
-  it.each([
-    { state: 'while signed in', recovery: SIGNED_IN },
-    { state: 'while the confirmation is open', recovery: ASKING },
-  ])('is cleared by the shell itself $state', async ({ recovery }) => {
-    const { header } = await renderPhoneShell(recovery, false);
+  it('is cleared by the shell itself while signed in', async () => {
+    const { header } = await renderPhoneShell(SIGNED_IN, false);
     if (header === null) throw new Error('no shell header');
     expect(screen.queryByRole('status', { hidden: true })).toBeNull();
     expect(getComputedStyle(header).paddingTop).toBe(`${NOTCH}px`);
     cleanup();
-    const { spacer } = await renderPhoneShell(recovery, true);
+    const { spacer } = await renderPhoneShell(SIGNED_IN, true);
     expect(spacer?.getBoundingClientRect().height).toBe(NOTCH);
+  });
+
+  it('is still cleared once, by the unseen notice, while the confirmation is open', async () => {
+    const { header } = await renderPhoneShell(ASKING, false);
+    if (header === null) throw new Error('no shell header');
+    const held = screen.getByRole('status', { hidden: true });
+    expect(getComputedStyle(held).visibility).toBe('hidden');
+    expect(getComputedStyle(header).paddingTop).toBe('0px');
+    expect(header.getBoundingClientRect().top).toBe(
+      held.getBoundingClientRect().bottom,
+    );
   });
 });
 
@@ -304,10 +320,18 @@ const STANDALONE_PAGES: Record<string, () => ReactNode> = {
   ),
 };
 
-function StandalonePage({ name, dialog }: { name: string; dialog: boolean }) {
+function StandalonePage({
+  name,
+  dialog,
+  recovery = PAUSED,
+}: {
+  name: string;
+  dialog: boolean;
+  recovery?: typeof PAUSED;
+}) {
   const Page = STANDALONE_PAGES[name];
   return (
-    <SessionLapseRecovery recovery={PAUSED}>
+    <SessionLapseRecovery recovery={recovery}>
       <Page />
       <PageDialog open={dialog} />
     </SessionLapseRecovery>
@@ -372,3 +396,46 @@ describe.each([
     });
   },
 );
+
+// Removed while the confirmation was open, the notice grew the page behind
+// the dialog by its own height, and Stay here shrank it again: the page
+// jumped under the backdrop on every Sign in and Stay here.
+describe('the notice under a reopened confirmation', () => {
+  /** Where the page's header stands (the page is under the dialog). */
+  const headerTop = () =>
+    screen
+      .getByRole('button', { name: 'Open navigation', hidden: true })
+      .getBoundingClientRect().top;
+
+  it.each([
+    ...Object.keys(HEADERS).map((header) => ({
+      frame: `the shell above a ${header}`,
+      at: (recovery: typeof PAUSED) => (
+        <ShellPage header={header} dialog={false} recovery={recovery} />
+      ),
+    })),
+    ...Object.keys(STANDALONE_PAGES).map((name) => ({
+      frame: name,
+      at: (recovery: typeof PAUSED) => (
+        <StandalonePage name={name} dialog={false} recovery={recovery} />
+      ),
+    })),
+  ])('keeps its place, unseen, in $frame', async ({ at }) => {
+    await page.viewport(375, 740);
+    const { rerender } = renderApp(at(PAUSED));
+    const standing = headerTop();
+
+    rerender(at(ASKING));
+    await expect
+      .element(page.getByRole('dialog', { name: 'Your session has ended' }))
+      .toBeVisible();
+    expect(headerTop()).toBe(standing);
+    const held = screen.getByRole('status', { hidden: true });
+    expect(getComputedStyle(held).visibility).toBe('hidden');
+    expect(held).toHaveAttribute('aria-hidden', 'true');
+
+    rerender(at(PAUSED));
+    expect(headerTop()).toBe(standing);
+    expect(pressable(noticeTitle())).toBe(true);
+  });
+});

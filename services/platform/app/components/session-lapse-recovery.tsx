@@ -50,10 +50,10 @@ export function SessionLapseRecovery({
   const host = useMemo(() => ({ recovery, claim }), [recovery, claim]);
   // The notice floated over the top of such a page and, on a narrow window,
   // covered its header or back link. In the flow it pushes the page down;
-  // while it shows, the page is bounded to the rest of the window, so one
+  // while it stands, the page is bounded to the rest of the window, so one
   // exactly the viewport tall still scrolls all of its content into view.
-  // The frame is there whether or not it shows, so the page never remounts.
-  const unhosted = recovery.isLapsed && !recovery.open && claims === 0;
+  // The frame is there whether or not it stands, so the page never remounts.
+  const unhosted = recovery.isLapsed && claims === 0;
   return (
     <NoticeHostContext.Provider value={host}>
       <div className="flex h-full flex-col">
@@ -94,7 +94,7 @@ export function SessionLapseNotice() {
   const host = useContext(NoticeHostContext);
   const claim = host?.claim;
   useLayoutEffect(() => claim?.(), [claim]);
-  if (!host?.recovery.isLapsed || host.recovery.open) return null;
+  if (!host?.recovery.isLapsed) return null;
   return <StandingNotice recovery={host.recovery} />;
 }
 
@@ -102,8 +102,13 @@ export function SessionLapseNotice() {
  * The notice's one row, wherever it stands. A narrow or short viewport keeps
  * it to its title and Sign in; the sentence stays for screen readers. It pads
  * the notch itself, since it sits above the header that otherwise would; the
- * shell's header drops its own pad while it shows
+ * shell's header drops its own pad while it stands
  * (`data-session-lapse-notice`, `layout/shell-mobile-header.tsx`).
+ *
+ * While the confirmation is open the notice steps aside, unseen and out of
+ * the accessibility tree, but keeps its place: removed, it grew the page
+ * behind the dialog by its own height and shrank it again on Stay here, and
+ * the focus had no Sign in to come back to.
  */
 function StandingNotice({ recovery }: { recovery: SessionLapseRecoveryState }) {
   const { t } = useT('auth');
@@ -111,8 +116,12 @@ function StandingNotice({ recovery }: { recovery: SessionLapseRecoveryState }) {
     <Row
       role="status"
       data-session-lapse-notice
+      aria-hidden={recovery.open || undefined}
       gap={2}
-      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 pt-[calc(0.5rem+var(--safe-top))] pb-2 text-sm"
+      className={cn(
+        'bg-warning/10 border-warning/30 shrink-0 border-b px-4 pt-[calc(0.5rem+var(--safe-top))] pb-2 text-sm',
+        recovery.open && 'invisible',
+      )}
     >
       <span className="min-w-0 grow">
         <span className="font-medium">{t('sessionLapse.title')}</span>
