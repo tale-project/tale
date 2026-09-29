@@ -27,7 +27,7 @@ export type GitHubApi = (path: string) => Promise<unknown>;
  *   whether its images or GitHub release were published successfully.
  * - `conflict`: this pair can never pass — the version is taken or not newer
  *   than the latest release, or the commit is not on main or does not
- *   contain that release. Choose again explicitly; never move a tag.
+ *   advance beyond that release. Choose again explicitly; never move a tag.
  */
 export type GateState =
   | 'eligible'
@@ -58,25 +58,38 @@ const CANDIDATE_WORKFLOW = 'build.yml';
 const CANDIDATE_WORKFLOW_PATH = `.github/workflows/${CANDIDATE_WORKFLOW}`;
 const CANDIDATE_EVENTS = ['workflow_dispatch', 'repository_dispatch'];
 const CANDIDATE_GATE_JOB = 'Candidate gate';
+const RUNS_PAGE_SIZE = 100;
+const RUNS_MAX_PAGES = 10;
+// Filtered Actions searches return at most 1,000 results. At that boundary,
+// even a reported total of 1,000 cannot establish that no run was omitted.
+const RUNS_SEARCH_CEILING = RUNS_PAGE_SIZE * RUNS_MAX_PAGES;
 
 const SHA = /^[a-f0-9]{40}$/;
 const VERSION = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const REPOSITORY = /^[\w.-]+\/[\w.-]+$/;
 
-const runSchema = z.object({
-  id: z.number(),
-  path: z.string(),
-  event: z.string(),
-  status: z.string().nullable(),
-  conclusion: z.string().nullable(),
-  display_title: z.string(),
-  html_url: z.string(),
-  run_attempt: z.number().optional(),
-  created_at: z.string(),
-  head_branch: z.string().nullable(),
-  head_sha: z.string(),
+const runSchema = z
+  .object({
+    id: z.number(),
+    path: z.string(),
+    event: z.string(),
+    status: z.string().nullable(),
+    conclusion: z.string().nullable(),
+    display_title: z.string(),
+    html_url: z.string(),
+    run_attempt: z.number().int().positive().optional(),
+    created_at: z.iso.datetime(),
+    run_started_at: z.iso.datetime().nullish(),
+    head_branch: z.string().nullable(),
+    head_sha: z.string(),
+  })
+  .refine((run) => (run.run_attempt ?? 1) === 1 || run.run_started_at != null, {
+    message: 'run_started_at is required to order a rerun',
+  });
+const runsSchema = z.object({
+  total_count: z.number().int().nonnegative(),
+  workflow_runs: z.array(runSchema),
 });
-const runsSchema = z.object({ workflow_runs: z.array(runSchema) });
 const jobsSchema = z.object({
   jobs: z.array(
     z.object({
@@ -105,6 +118,8 @@ export type RunSummary = {
   status: string | null;
   conclusion: string | null;
   attempt: number | null;
+  createdAt: string;
+  startedAt: string | null;
   headBranch: string | null;
   headSha: string;
 };
@@ -118,7 +133,7 @@ export type GateReport = {
   tag: string | null;
   tagName: string | null;
   latestRelease: { tag: string; sha: string | null } | null;
-  /** Every candidate run for this SHA, newest first; the newest decides. */
+  /** Every candidate run for this SHA, newest attempt first; it decides. */
   validation: RunSummary[];
   receipt: { artifact: string; id: number } | null;
   checks: { workflow: string; run: RunSummary | null }[];
@@ -134,13 +149,70 @@ function summary(run: Run): RunSummary {
     status: run.status,
     conclusion: run.conclusion,
     attempt: run.run_attempt ?? null,
+    createdAt: run.created_at,
+    startedAt: run.run_started_at ?? null,
     headBranch: run.head_branch,
     headSha: run.head_sha,
   };
 }
 
 function newestFirst(a: Run, b: Run): number {
-  return b.created_at.localeCompare(a.created_at) || b.id - a.id;
+  // A rerun keeps its original id and creation time. Only the current
+  // attempt's start orders it against attempts of other runs. First runs
+  // without a start time (for example, queued ones) use their creation time.
+  return (
+    Date.parse(b.run_started_at ?? b.created_at) -
+      Date.parse(a.run_started_at ?? a.created_at) ||
+    b.created_at.localeCompare(a.created_at) ||
+    b.id - a.id
+  );
+}
+
+/** Read complete run evidence before judging it. A rerun keeps its original
+ * position in the listing, so finding a success is never a stopping point. */
+async function readRuns(
+  api: GitHubApi,
+  path: string,
+  blocked: string[],
+): Promise<Run[] | null> {
+  const runs: Run[] = [];
+  const seen = new Set<number>();
+  let total: number | undefined;
+  const refuse = (detail: string) => {
+    blocked.push(`incomplete workflow run evidence from ${path}: ${detail}`);
+    return null;
+  };
+  for (let page = 1; page <= RUNS_MAX_PAGES; page++) {
+    const parsed = runsSchema.safeParse(await api(`${path}&page=${page}`));
+    if (!parsed.success) {
+      return refuse(
+        `page ${page} is missing or invalid (${parsed.error.issues[0]?.message})`,
+      );
+    }
+    const response = parsed.data;
+    total ??= response.total_count;
+    if (total >= RUNS_SEARCH_CEILING) {
+      return refuse('the 1,000-run search ceiling was reached');
+    }
+    if (response.total_count !== total) {
+      return refuse(`the total changed while reading page ${page}; try again`);
+    }
+    if (
+      response.workflow_runs.length !==
+      Math.min(RUNS_PAGE_SIZE, total - runs.length)
+    ) {
+      return refuse(
+        `page ${page} does not contain its expected number of runs`,
+      );
+    }
+    for (const run of response.workflow_runs) {
+      if (seen.has(run.id)) return refuse(`page ${page} repeats run ${run.id}`);
+      seen.add(run.id);
+      runs.push(run);
+    }
+    if (runs.length === total) return runs;
+  }
+  return refuse('the page limit was reached before the list was complete');
 }
 
 /** The commit a tag names (annotated tags dereferenced), or null. */
@@ -298,8 +370,8 @@ export async function gate({
     conflict.push(`${sha} is not a commit on main (compare: ${onMain})`);
   }
 
-  // Releases only move forward: a newer version, on a commit that contains
-  // the latest release (release.yml moves `latest` to every release).
+  // Releases only move forward: a newer version on a later source commit
+  // than the latest release. Ops identifies a deployment by its source SHA.
   const latest = await api(`${repo}/releases/latest`);
   if (latest !== null) {
     const tag = releaseSchema.parse(latest).tag_name;
@@ -310,6 +382,10 @@ export async function gate({
     }
     if (tagSha === null) {
       conflict.push(`the latest release ${tag} has no tag to compare with`);
+    } else if (tagSha === sha) {
+      conflict.push(
+        `${sha} is already published as ${tag}; choose a newer candidate`,
+      );
     } else if (
       onMain !== 'missing' &&
       !contains(await compare(api, repo, tagSha, sha))
@@ -318,31 +394,35 @@ export async function gate({
     }
   }
 
-  // The candidate validation: the newest Build run dispatched for this SHA.
-  // Earlier runs stay in the report, so a failure that a retry followed
-  // remains visible.
+  // The candidate validation: the newest Build attempt for this SHA.
+  // Earlier distinct runs remain; each reports its current attempt.
   const candidates: Run[] = [];
+  let candidatesComplete = true;
   for (const event of CANDIDATE_EVENTS) {
-    const page = await api(
-      `${repo}/actions/workflows/${CANDIDATE_WORKFLOW}/runs?branch=main&event=${event}&per_page=100`,
+    const runs = await readRuns(
+      api,
+      `${repo}/actions/workflows/${CANDIDATE_WORKFLOW}/runs?branch=main&event=${event}&per_page=${RUNS_PAGE_SIZE}`,
+      reasons.blocked,
     );
-    if (page === null) continue;
+    if (runs === null) {
+      candidatesComplete = false;
+      continue;
+    }
     candidates.push(
-      ...runsSchema
-        .parse(page)
-        .workflow_runs.filter(
-          (run) => run.display_title === `Release candidate ${sha}`,
-        ),
+      ...runs.filter((run) => run.display_title === `Release candidate ${sha}`),
     );
   }
   candidates.sort(newestFirst);
   report.validation = candidates.map(summary);
   const validation = candidates[0];
   if (!validation) {
-    reasons.blocked.push(
-      `no main-branch Release candidate run validated ${sha}: dispatch build.yml for it (.github/RELEASING.md)`,
-    );
+    if (candidatesComplete) {
+      reasons.blocked.push(
+        `no main-branch Release candidate run validated ${sha}: dispatch build.yml for it (.github/RELEASING.md)`,
+      );
+    }
   } else if (
+    candidatesComplete &&
     (await trustedCandidateRun(api, repo, validation, reasons.blocked)) &&
     judge(validation, 'the candidate validation', reasons)
   ) {
@@ -375,16 +455,22 @@ export async function gate({
     }
   }
 
-  // The other checks of the same commit: the newest run of each decides.
-  const page = await api(`${repo}/actions/runs?head_sha=${sha}&per_page=100`);
-  const onCommit = page === null ? [] : runsSchema.parse(page).workflow_runs;
+  // The other checks of the same commit: the newest attempt of each decides.
+  const onCommit = await readRuns(
+    api,
+    `${repo}/actions/runs?head_sha=${sha}&per_page=${RUNS_PAGE_SIZE}`,
+    reasons.blocked,
+  );
   for (const workflow of [...REQUIRED_WORKFLOWS, ...REQUIRED_WHEN_RUN]) {
     const run = onCommit
-      .filter((entry) => entry.path === workflow)
+      ?.filter((entry) => entry.path === workflow)
       .sort(newestFirst)[0];
     report.checks.push({ workflow, run: run ? summary(run) : null });
     if (run) judge(run, workflow, reasons);
-    else if ((REQUIRED_WORKFLOWS as readonly string[]).includes(workflow)) {
+    else if (
+      onCommit !== null &&
+      (REQUIRED_WORKFLOWS as readonly string[]).includes(workflow)
+    ) {
       reasons.blocked.push(`${workflow} never ran for ${sha}`);
     }
   }

@@ -29,6 +29,7 @@ type Run = {
   html_url: string;
   run_attempt: number;
   created_at: string;
+  run_started_at?: string | null;
   head_branch: string | null;
   head_sha: string;
 };
@@ -77,6 +78,7 @@ type Scenario = {
   jobs: Record<number, { name: string; conclusion: string | null }[]>;
   artifacts: Record<number, { id: number; name: string; expired: boolean }[]>;
   commitRuns: Run[];
+  runPageOverrides?: Record<string, unknown>;
 };
 
 /** Everything the gate reads, for a candidate every check passed on. */
@@ -117,6 +119,82 @@ function passing(): Scenario {
   };
 }
 
+/** The older run is attempted again after a newer run has completed. */
+function rerunScenario(
+  lane: 'candidate' | 'checks',
+  conclusion: string | null,
+  previousConclusion = 'success',
+) {
+  const scenario = passing();
+  const path =
+    lane === 'candidate'
+      ? '.github/workflows/build.yml'
+      : '.github/workflows/checks.yml';
+  const make = lane === 'candidate' ? candidateRun : run.bind(null, path);
+  const retried = make(conclusion, {
+    created_at: '2026-09-29T19:00:00Z',
+    run_started_at: '2026-09-29T21:00:00Z',
+    run_attempt: 2,
+  });
+  const newer = make(previousConclusion, {
+    created_at: '2026-09-29T20:00:00Z',
+    run_started_at: '2026-09-29T20:00:00Z',
+  });
+  if (lane === 'candidate') {
+    const initial = scenario.candidateRuns[0]!;
+    scenario.candidateRuns = [newer, retried];
+    for (const entry of scenario.candidateRuns) {
+      scenario.jobs[entry.id] = scenario.jobs[initial.id]!;
+      scenario.artifacts[entry.id] = scenario.artifacts[initial.id]!;
+    }
+  } else {
+    scenario.commitRuns = [
+      ...scenario.commitRuns.filter((entry) => entry.path !== path),
+      newer,
+      retried,
+    ];
+  }
+  return { scenario, retried };
+}
+
+function pagedRerunScenario(
+  lane: 'candidate' | 'checks',
+  count = 101,
+  conclusion = 'failure',
+  previousConclusion = 'success',
+) {
+  const { scenario, retried } = rerunScenario(
+    lane,
+    conclusion,
+    previousConclusion,
+  );
+  const rows =
+    lane === 'candidate' ? scenario.candidateRuns : scenario.commitRuns;
+  rows.splice(rows.indexOf(retried), 1);
+  while (rows.length < count - 1) {
+    rows.push(
+      run(
+        lane === 'candidate'
+          ? '.github/workflows/build.yml'
+          : '.github/workflows/scorecard.yml',
+        'success',
+        {
+          event: lane === 'candidate' ? 'workflow_dispatch' : 'push',
+          display_title: `Release candidate ${ELSEWHERE}`,
+        },
+      ),
+    );
+  }
+  rows.push(retried);
+  return { scenario, retried, rows };
+}
+
+function runListPath(lane: 'candidate' | 'checks') {
+  return lane === 'candidate'
+    ? 'actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100'
+    : `actions/runs?head_sha=${CANDIDATE}&per_page=100`;
+}
+
 function fakeApi(scenario: Scenario) {
   const calls: string[] = [];
   const api: GitHubApi = async (path) => {
@@ -124,6 +202,8 @@ function fakeApi(scenario: Scenario) {
     if (!path.startsWith(API_ROOT))
       throw new Error(`outside the repo: ${path}`);
     const rest = path.slice(API_ROOT.length);
+    if (Object.hasOwn(scenario.runPageOverrides ?? {}, rest))
+      return scenario.runPageOverrides![rest];
     let match: RegExpMatchArray | null;
     if ((match = rest.match(/^git\/ref\/tags\/(.+)$/))) {
       const tag = scenario.tags[match[1]!];
@@ -147,13 +227,16 @@ function fakeApi(scenario: Scenario) {
     }
     if (
       (match = rest.match(
-        /^actions\/workflows\/build\.yml\/runs\?branch=main&event=(\w+)&per_page=100$/,
+        /^actions\/workflows\/build\.yml\/runs\?branch=main&event=(\w+)&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
+      const rows = scenario.candidateRuns.filter(
+        (entry) => entry.event === match![1],
+      );
+      const page = Number(match[2] ?? 1);
       return {
-        workflow_runs: scenario.candidateRuns.filter(
-          (entry) => entry.event === match![1],
-        ),
+        total_count: rows.length,
+        workflow_runs: rows.slice((page - 1) * 100, page * 100),
       };
     }
     if (
@@ -174,11 +257,14 @@ function fakeApi(scenario: Scenario) {
     }
     if (
       (match = rest.match(
-        /^actions\/runs\?head_sha=([a-f0-9]{40})&per_page=100$/,
+        /^actions\/runs\?head_sha=([a-f0-9]{40})&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
+      const rows = match[1] === CANDIDATE ? scenario.commitRuns : [];
+      const page = Number(match[2] ?? 1);
       return {
-        workflow_runs: match[1] === CANDIDATE ? scenario.commitRuns : [],
+        total_count: rows.length,
+        workflow_runs: rows.slice((page - 1) * 100, page * 100),
       };
     }
     throw new Error(`unexpected call: ${path}`);
@@ -298,8 +384,8 @@ describe('release candidate gate', () => {
       expect(
         calls.filter((call) => call.includes('/workflows/build.yml/runs?')),
       ).toEqual([
-        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100`,
-        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100`,
+        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100&page=1`,
+        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100&page=1`,
       ]);
     },
   );
@@ -345,6 +431,123 @@ describe('release candidate gate', () => {
       'success',
     ]);
   });
+
+  for (const lane of ['candidate', 'checks'] as const) {
+    test.each([
+      ['failure', 'blocked'],
+      ['cancelled', 'blocked'],
+      [null, 'pending'],
+    ] as const)(
+      `${lane}: the latest %s attempt of an older run decides (%s)`,
+      async (conclusion, state) => {
+        const { scenario, retried } = rerunScenario(lane, conclusion);
+        const { report } = await judge(scenario);
+        expect(report.state).toBe(state);
+        const selected =
+          lane === 'candidate'
+            ? report.validation[0]
+            : report.checks.find(
+                (check) => check.workflow === '.github/workflows/checks.yml',
+              )?.run;
+        expect(selected).toMatchObject({
+          url: retried.html_url,
+          attempt: 2,
+          createdAt: retried.created_at,
+          startedAt: retried.run_started_at,
+        });
+      },
+    );
+
+    test(`${lane}: a later successful attempt of an older run recovers a failure`, async () => {
+      const { scenario } = rerunScenario(lane, 'success', 'failure');
+      expect((await judge(scenario)).report.state).toBe('eligible');
+    });
+
+    test(`${lane}: a rerun without an attempt timestamp cannot be ordered as an old success`, async () => {
+      const { scenario, retried } = rerunScenario(lane, 'failure');
+      delete retried.run_started_at;
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.reasons.join(' ')).toContain('run_started_at');
+    });
+
+    test(`${lane}: a newer failed attempt of run 101 cannot hide behind page-one success`, async () => {
+      const { scenario, retried } = pagedRerunScenario(lane);
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.reasons.join(' ')).toContain(retried.html_url);
+      expect(calls).toContain(`${API_ROOT}${runListPath(lane)}&page=2`);
+    });
+
+    test(`${lane}: a newer successful attempt on page two recovers page-one failure`, async () => {
+      const { scenario } = pagedRerunScenario(lane, 101, 'success', 'failure');
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('eligible');
+      expect(calls).toContain(`${API_ROOT}${runListPath(lane)}&page=2`);
+    });
+
+    test(`${lane}: 999 unique runs complete within ten pages`, async () => {
+      const { scenario } = pagedRerunScenario(lane, 999, 'success', 'failure');
+      const { report, calls } = await judge(scenario);
+      expect(report.state).toBe('eligible');
+      expect(
+        calls.filter((path) =>
+          path.startsWith(`${API_ROOT}${runListPath(lane)}`),
+        ),
+      ).toHaveLength(10);
+    });
+
+    test.each([1000, 1001])(
+      `${lane}: refuses %s runs at the API search ceiling`,
+      async (count) => {
+        const { scenario } = pagedRerunScenario(lane, count);
+        const { report, calls } = await judge(scenario);
+        expect(report.state).toBe('blocked');
+        expect(report.reasons.join(' ')).toContain('1,000-run search ceiling');
+        expect(
+          calls.filter((path) =>
+            path.startsWith(`${API_ROOT}${runListPath(lane)}`),
+          ),
+        ).toHaveLength(1);
+      },
+    );
+
+    test.each([
+      'repeated',
+      'partial',
+      'missing',
+      'changed total',
+      'missing total',
+    ])(
+      `${lane}: refuses a %s page instead of using incomplete success`,
+      async (kind) => {
+        const { scenario, rows } = pagedRerunScenario(lane, 201);
+        const path = runListPath(lane);
+        const first = { total_count: 201, workflow_runs: rows.slice(0, 100) };
+        const second = {
+          total_count: 201,
+          workflow_runs: rows.slice(100, 200),
+        };
+        scenario.runPageOverrides = {
+          [`${path}&page=2`]:
+            kind === 'repeated'
+              ? first
+              : kind === 'partial'
+                ? { ...second, workflow_runs: rows.slice(100, 199) }
+                : kind === 'missing'
+                  ? null
+                  : kind === 'changed total'
+                    ? { ...second, total_count: 202 }
+                    : { workflow_runs: second.workflow_runs },
+        };
+        const { report } = await judge(scenario);
+        expect(report.state).toBe('blocked');
+        expect(report.reasons.join(' ')).toContain(
+          'incomplete workflow run evidence',
+        );
+      },
+    );
+  }
 
   test('a validation still running leaves it pending', async () => {
     const scenario = passing();
@@ -577,6 +780,26 @@ describe('release candidate gate', () => {
     );
   });
 
+  test('a new version cannot republish the latest released source', async () => {
+    const scenario = passing();
+    scenario.tags['v0.5.63'] = { sha: CANDIDATE };
+    scenario.compare[`${CANDIDATE}...${CANDIDATE}`] = 'identical';
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('conflict');
+    expect(report.reasons).toEqual([
+      `${CANDIDATE} is already published as v0.5.63; choose a newer candidate`,
+    ]);
+  });
+
+  test('an existing allocation still reconciles the same released source', async () => {
+    const scenario = passing();
+    scenario.latestRelease = 'v0.5.64';
+    scenario.tags['v0.5.64'] = { sha: CANDIDATE };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('allocated');
+    expect(report.tagName).toBe('v0.5.64');
+  });
+
   test.each([
     ['diverged', `${CANDIDATE} is not a commit on main (compare: diverged)`],
     ['behind', `${CANDIDATE} is not a commit on main (compare: behind)`],
@@ -683,11 +906,32 @@ describe('release candidate gate command', () => {
         `compare/${WORKFLOW_SOURCE}...main?per_page=1`,
         `actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100`,
         `actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100`,
+        ...['workflow_dispatch', 'repository_dispatch'].flatMap((event) =>
+          Array.from(
+            {
+              length: Math.max(
+                1,
+                Math.ceil(
+                  scenario.candidateRuns.filter(
+                    (entry) => entry.event === event,
+                  ).length / 100,
+                ),
+              ),
+            },
+            (_unused, page) =>
+              `actions/workflows/build.yml/runs?branch=main&event=${event}&per_page=100&page=${page + 1}`,
+          ),
+        ),
         ...scenario.candidateRuns.flatMap((entry) => [
           `actions/runs/${entry.id}/jobs?filter=latest&per_page=100`,
           `actions/runs/${entry.id}/artifacts?per_page=100`,
         ]),
         `actions/runs?head_sha=${CANDIDATE}&per_page=100`,
+        ...Array.from(
+          { length: Math.max(1, Math.ceil(scenario.commitRuns.length / 100)) },
+          (_unused, page) =>
+            `actions/runs?head_sha=${CANDIDATE}&per_page=100&page=${page + 1}`,
+        ),
       ];
       for (const path of paths) {
         const answer = await api(API_ROOT + path);
@@ -770,6 +1014,35 @@ exit 1
     },
     30_000,
   );
+
+  for (const lane of ['candidate', 'checks'] as const) {
+    test.skipIf(process.platform === 'win32')(
+      `${lane}: exits 1 when a later attempt of an older run failed`,
+      async () => {
+        const { scenario } = rerunScenario(lane, 'failure');
+        const result = await command(args, scenario);
+        expect(result.code, result.stderr).toBe(1);
+        expect(JSON.parse(result.stdout).state).toBe('blocked');
+      },
+      30_000,
+    );
+
+    test.skipIf(process.platform === 'win32')(
+      `${lane}: CLI blocks a page-two failure and accepts its later recovery`,
+      async () => {
+        const failed = await command(args, pagedRerunScenario(lane).scenario);
+        expect(failed.code, failed.stderr).toBe(1);
+        expect(JSON.parse(failed.stdout).state).toBe('blocked');
+        const passed = await command(
+          args,
+          pagedRerunScenario(lane, 101, 'success', 'failure').scenario,
+        );
+        expect(passed.code, passed.stderr).toBe(0);
+        expect(JSON.parse(passed.stdout).state).toBe('eligible');
+      },
+      30_000,
+    );
+  }
 
   test.skipIf(process.platform === 'win32')(
     'exits 2 on arguments it cannot use, before calling gh',

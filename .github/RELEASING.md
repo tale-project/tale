@@ -17,8 +17,12 @@ whose validation and gate have passed.
 
 Choose a merged, reviewed commit on `main`, with the version it becomes. Candidates move
 forward only. The version must be newer than the latest release, and the commit must contain
-that release. `release.yml` points `latest` at every release, so an older commit would move it
-backwards. The gate enforces both rules.
+that release plus a later commit. Do not publish a new version at the latest release's existing
+source SHA: Ops identifies the deployment by source, so it would see no new deployment to apply.
+`release.yml` points `latest` at every release, so an older commit would move it backwards.
+The gate enforces both version and source progression against the latest published release.
+That comparison uses GitHub's `releases/latest` and its tag; the release lease below covers a
+version still in flight.
 
 Never take "whatever `main` is now" as the candidate. Record the SHA before you start, and name
 it in everything you post about the release.
@@ -95,7 +99,7 @@ The gate only reads GitHub. It prints a JSON report and exits 0 only when the st
 | `pending` | A required run is still going. | Wait, then run the gate again. |
 | `blocked` | A required run is missing, failed, skipped or was cancelled. | Validate again, or re-run what failed. |
 | `allocated` | A version tag already points at the candidate. This does not prove publication succeeded. | Do not tag. Reconcile the Release run for the report's `tagName` (step 5). |
-| `conflict` | The version is taken or not newer, or the commit is not on `main` or lacks the latest release. | Choose a version or candidate explicitly. |
+| `conflict` | The version is taken or not newer, or the commit is not on `main` or does not advance beyond the latest release. | Choose a version or candidate explicitly. |
 
 To be `eligible`, the candidate must pass all of these:
 
@@ -103,16 +107,30 @@ To be `eligible`, the candidate must pass all of these:
   same image version, so either reserves it even while its Release run is pending or failed.
   A tag is never moved or reused. If either spelling points at another commit, the state is
   `conflict`, even if the other already points at the candidate.
-- **Its place on `main`.** The candidate is on `main`, contains the latest release, and the
-  version is newer than that release.
-- **Its newest validation.** The newest `Release candidate <sha>` run dispatched from `main`
+- **Its place on `main`.** The candidate is on `main`, contains and advances beyond the latest
+  release's source, and the version is newer than that release. An existing version allocation
+  still returns `allocated` for recovery; this rule does not ask you to replace its tag.
+- **Its newest validation.** The newest `Release candidate <sha>` attempt dispatched from `main`
   used the trusted Build workflow and succeeded, with a successful Candidate gate job and an
-  unexpired receipt. Earlier candidate runs stay in the report, so a failure before a successful
-  retry remains visible. Each run records its dispatch branch and workflow source SHA in the
-  report.
-- **The other workflows.** The newest run of Checks, SAST, Commitlint and E2E on the commit
+  unexpired receipt. Earlier distinct candidate runs stay in the report; each entry describes
+  that run's current attempt. Each run records its attempt number, creation and current attempt
+  start times, dispatch branch and workflow source SHA in the report.
+- **The other workflows.** The newest attempt of Checks, SAST, Commitlint and E2E on the commit
   succeeded, and so did CLI and Security when they ran for it. The Build push run of the commit
   does not count, because path filters skip checks there and later merges cancel it.
+
+"Newest" uses GitHub's `run_started_at`, not the run's original creation time or id. Re-running an
+older run after a newer success makes that rerun the deciding evidence: its failure blocks, an
+unfinished attempt waits, and a later success can recover. A first attempt without a start time
+uses its creation time; a rerun missing its start time is refused because its order is unknown.
+
+The gate reads every page of each candidate-event list and the candidate's workflow-run list
+before selecting attempts. It verifies the reported total, page lengths and unique run ids;
+missing pages, repeated records or a changing total answer `blocked`, never an approval based on
+the partial list. Retry a read that changed. Each list has a ten-page bound of 100 runs per page.
+Because GitHub caps these filtered searches at 1,000 results, a total of 1,000 or more also answers
+`blocked`: completeness cannot be proved at that boundary. Do not tag from that result; the
+release lane must obtain complete evidence through a reviewed change to its query strategy.
 
 Only Build has a candidate mode so far. The other workflows still run once per push to `main`,
 and a newer merge still cancels their older runs. E2E runs only when dispatched on the head of
@@ -156,7 +174,8 @@ A published version is not a deployment. Deployments follow their own procedure.
   `failed`. Open the failing job before you decide anything.
 - **Resume a flake.** Re-run the failed jobs (`gh run rerun <run id> --failed`, which needs
   permission to run workflows), or dispatch the same SHA again. Either stays in the candidate's
-  own group. The newest run for the SHA decides, and the gate still lists the earlier ones.
+  own group. The newest attempt for the SHA decides, even when it belongs to an older run id,
+  and the gate still lists the earlier runs.
 - **A second dispatch waits.** Dispatching a SHA that is already running queues a run behind the
   current one, without cancelling it. GitHub keeps one waiting run per group, so a third dispatch
   replaces the waiting one. That cancellation shows on the replaced run; the running one
