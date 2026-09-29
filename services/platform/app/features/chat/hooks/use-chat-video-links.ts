@@ -2,8 +2,10 @@
 
 import { toast } from '@tale/ui/use-toast';
 import { useQuery as useTanstackQuery } from '@tanstack/react-query';
+import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import {
   cancelVideoLinkRequest,
@@ -64,8 +66,8 @@ const NON_TERMINAL: ReadonlySet<string> = new Set([
 ]);
 
 /** Structured `code` off a refusal — the 0.5 backend answers coded JSON
- * (`BackendApiError.code`), the legacy path a AppError `data.code`;
- * both map 1:1 to `videoLink.errors.*` keys. */
+ * (`BackendApiError.code`), the legacy path a AppError `data.code`; a
+ * video-link refusal's code names its `videoLink.errors.*` key. */
 function backendErrorCode(err: unknown): string | undefined {
   if (err instanceof BackendApiError) return err.code;
   return err instanceof AppError &&
@@ -74,6 +76,56 @@ function backendErrorCode(err: unknown): string | undefined {
     'code' in err.data
     ? String(err.data.code)
     : undefined;
+}
+
+/**
+ * What a failed ingest, retry or remove says under its toast's title: the
+ * chip's own sentence for a video-link refusal (`videoLink.errors.*`), else
+ * the platform's reading of the failure (`failureDetail`: a refusal's own
+ * words, a lapsed session, a lost connection), else nothing — a fault, which
+ * each caller covers with its own line.
+ */
+function videoLinkFailureDetail(
+  err: unknown,
+  t: TFunction,
+): string | undefined {
+  const code = backendErrorCode(err);
+  const known =
+    code === undefined
+      ? ''
+      : t(`videoLink.errors.${code}`, { defaultValue: '' });
+  return known !== '' ? known : failureDetail(err);
+}
+
+/**
+ * Retry a failed video job, reporting a refusal the way every video chip
+ * does: a destructive toast saying why, and the failed chip left with its
+ * Try again. Resolves whether the retry was accepted; never rejects. The
+ * composer's chips and the queued-send tray retry through it alike.
+ */
+export async function retryVideoLinkJob(
+  organizationId: string,
+  jobId: string,
+  t: TFunction,
+): Promise<boolean> {
+  try {
+    await retryVideoLinkRequest(organizationId, jobId);
+    return true;
+  } catch (err) {
+    // The door refuses with structured codes (cooldown, budget, in-flight
+    // cap); without the toast the click reads as dead.
+    toast({
+      title: t('videoLink.toast.retryFailedTitle'),
+      description:
+        videoLinkFailureDetail(err, t) ?? t('videoLink.errors.generic'),
+      variant: 'destructive',
+    });
+    console.error(
+      '[useChatVideoLinks] retry failed:',
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
 }
 
 export interface UseChatVideoLinksResult {
@@ -85,6 +137,8 @@ export interface UseChatVideoLinksResult {
   hasFailedJobs: boolean;
   /** Ingests up to 3 video URLs found in `text`; returns how many. */
   ingestUrlsFromText: (text: string) => Promise<number>;
+  /** Remove a chip (cancels its job). Never rejects: a refusal puts the
+   * chip back and toasts why, as `retryJob` does for a refused retry. */
   cancelJob: (jobId: string) => Promise<void>;
   retryJob: (jobId: string) => Promise<void>;
   /** Hide chips synchronously on send-click; the server bind's subscription
@@ -223,16 +277,10 @@ export function useChatVideoLinks(args: {
           });
           ingested += 1;
         } catch (err) {
-          const code = backendErrorCode(err);
           toast({
             title: t('videoLink.toast.ingestFailedTitle'),
-            // defaultValue: an unmapped backend code degrades to the generic
-            // copy instead of rendering a raw i18n key (the chip's pattern).
-            description: code
-              ? t(`videoLink.errors.${code}`, {
-                  defaultValue: t('videoLink.errors.generic'),
-                })
-              : t('videoLink.errors.generic'),
+            description:
+              videoLinkFailureDetail(err, t) ?? t('videoLink.errors.generic'),
             variant: 'destructive',
           });
           console.error(
@@ -249,7 +297,7 @@ export function useChatVideoLinks(args: {
 
   const cancelJob = useCallback(
     async (jobId: string) => {
-      // Hide first so the ✕ feels instant; reverted if the mutation fails.
+      // Hide first so the ✕ feels instant; a refusal brings the chip back.
       setHideJobIds((prev) => {
         if (prev.has(jobId)) return prev;
         const next = new Set(prev);
@@ -266,41 +314,27 @@ export function useChatVideoLinks(args: {
           next.delete(jobId);
           return next;
         });
+        // Reported here, as a refused retry is: the caller fires and
+        // forgets, and a chip that silently comes back reads as a glitch.
+        toast({
+          title: t('videoLink.toast.removeFailedTitle'),
+          description:
+            videoLinkFailureDetail(err, t) ??
+            t('videoLink.toast.removeFailedDescription'),
+          variant: 'destructive',
+        });
         console.error(
           '[useChatVideoLinks] cancel failed:',
           err instanceof Error ? err.message : err,
         );
-        throw err;
       }
     },
-    [args.organizationId, nudgeChips],
+    [args.organizationId, t, nudgeChips],
   );
 
   const retryJob = useCallback(
     async (jobId: string) => {
-      try {
-        await retryVideoLinkRequest(args.organizationId, jobId);
-        nudgeChips();
-      } catch (err) {
-        // The mutation refuses with structured codes (cooldown, budget,
-        // in-flight cap); without this catch the click reads as dead.
-        const code = backendErrorCode(err);
-        toast({
-          title: t('videoLink.toast.retryFailedTitle'),
-          // defaultValue: an unmapped backend code degrades to the generic
-          // copy instead of rendering a raw i18n key (the chip's pattern).
-          description: code
-            ? t(`videoLink.errors.${code}`, {
-                defaultValue: t('videoLink.errors.generic'),
-              })
-            : t('videoLink.errors.generic'),
-          variant: 'destructive',
-        });
-        console.error(
-          '[useChatVideoLinks] retry failed:',
-          err instanceof Error ? err.message : err,
-        );
-      }
+      if (await retryVideoLinkJob(args.organizationId, jobId, t)) nudgeChips();
     },
     [args.organizationId, t, nudgeChips],
   );
