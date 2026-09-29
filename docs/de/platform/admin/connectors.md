@@ -23,7 +23,7 @@ Der Connector bestimmt die Felder. Verwende die tatsächlichen Zugangsdaten des 
 | Benutzername und Passwort | Das vom Dienst erwartete Paar, etwa Anmeldung und App-Passwort oder eine anbieterspezifische ID mit Token. |
 | OAuth | Die Freigabe im Browser beim Anbieter. Tale speichert die zurückgegebene Berechtigung. |
 
-Manche Connectors benötigen zusätzlich die Adresse der Instanz. Für Confluence ist das die Basisadresse der Atlassian-Site. Für GlitchTip ist das der Ursprung der Instanz, etwa `https://app.glitchtip.com`; eine selbst betriebene Instanz muss zusätzlich in der Host-Richtlinie der Bereitstellung für Connectors erlaubt sein. Für Shopify verwendest du die `myshopify.com`-Adresse des Shops, nicht die öffentliche Shop-Domain.
+Manche Connectors benötigen zusätzlich die Adresse der Instanz. Für Confluence ist das die Basisadresse der Atlassian-Site. Für GlitchTip ist das der Ursprung der Instanz, etwa `https://app.glitchtip.com`; eine selbst gehostete Instanz muss zusätzlich durch die Host-Richtlinie des Connectors erlaubt sein. Für Shopify verwendest du die `myshopify.com`-Adresse des Shops, nicht die öffentliche Shop-Domain.
 
 ## Einen Standard wählen
 

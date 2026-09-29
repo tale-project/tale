@@ -5811,7 +5811,7 @@ settings:
         Storefront-Domain.
       endpointHelpGlitchtip:
         Die Adresse deiner GlitchTip-Instanz, etwa https://app.glitchtip.com.
-        Eine selbst betriebene Instanz funktioniert, sobald die Bereitstellung
+        Eine selbst gehostete Instanz funktioniert, sobald die Bereitstellung
         ihren Host erlaubt.
       endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
   enterpriseSso:

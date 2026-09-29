@@ -16,7 +16,7 @@ Utilise un connector lorsque Tale doit lire ou modifier les données d’un serv
 | Confluence | Importer des pages Confluence Cloud dans les connaissances. | Nom d’utilisateur avec mot de passe ou jeton. |
 | Discord | Travailler avec les messages et canaux. | Jeton. |
 | GitHub | Lire ou gérer dépôts, issues et pull requests. | Jeton. |
-| GlitchTip | Lire les issues d’un projet pour que l’import GlitchTip en fasse des tâches. | Jeton et une URL de l'instance. |
+| GlitchTip | Lire les issues d’un projet pour que l’import GlitchTip en fasse des tâches. | Jeton et URL de l’instance. |
 | Gmail | Lire, envoyer et organiser le courrier. | OAuth. |
 | Google Drive | Importer des fichiers dans les connaissances. | OAuth. |
 | IMAP / SMTP Mailbox | Lire ou envoyer du courrier via un service privé. | Nom d’utilisateur et mot de passe. |
@@ -45,7 +45,7 @@ Choisis **Ajouter des identifiants**, recherche le service et ouvre sa carte. Le
 
 Le champ **Nom** est prérempli avec le nom du connecteur. Si tu ajoutes plusieurs comptes pour le même service, remplace-le par un nom qui indique l’usage, par exemple `Boîte support` ou `Bot de publication`. Utilise ceux du service externe, pas une clé API Tale. Pour OAuth, connecte-toi chez le fournisseur avec le compte à ajouter et termine le consentement. Chaque connexion ajoute de nouveaux identifiants, nommés d’après le connecteur puis numérotés (`Gmail`, puis `Gmail 2`) ; Slack en garde un seul jeu par espace. Renomme les nouveaux identifiants pour distinguer les comptes. Si le parcours ne démarre pas, un administrateur doit peut-être configurer l’app OAuth d’abord.
 
-Confluence, GlitchTip et Shopify demandent une **URL de l'instance** pour chaque compte. Utilise l’origine du site Atlassian, l’origine de l’instance GlitchTip comme `https://app.glitchtip.com` ou l’adresse `myshopify.com` de la boutique, pas une page quelconque ni le domaine destiné aux clients. Une instance GlitchTip auto-hébergée doit aussi être autorisée par la politique d’hôtes des connectors du déploiement. [Identifiants des connectors](/fr/platform/admin/connectors) explique les champs, la reconnexion et le renouvellement des secrets.
+Confluence, GlitchTip et Shopify demandent une **URL de l'instance** pour chaque compte. Utilise l’origine du site Atlassian, l’origine de l’instance GlitchTip comme `https://app.glitchtip.com` ou l’adresse `myshopify.com` de la boutique, pas une page quelconque ni le domaine destiné aux clients. Une instance GlitchTip auto-hébergée doit aussi être autorisée par la politique des hôtes du connecteur. [Identifiants des connectors](/fr/platform/admin/connectors) explique les champs, la reconnexion et le renouvellement des secrets.
 
 ## Déterminer le compte utilisé
 

@@ -23,7 +23,7 @@ Le connecteur détermine les champs. Utilise les identifiants du compte externe,
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 
-Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour GlitchTip, utilise l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance auto-hébergée doit aussi être autorisée par la politique d’hôtes des connectors du déploiement. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
+Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour GlitchTip, utilise l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance auto-hébergée doit aussi être autorisée par la politique des hôtes du connecteur. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
 ## Choisir les identifiants par défaut
 

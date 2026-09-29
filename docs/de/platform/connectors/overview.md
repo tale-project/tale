@@ -20,7 +20,7 @@ Nutze einen Connector, wenn Tale Daten in einem externen Dienst lesen oder ände
 | Gmail | E-Mails lesen, senden und organisieren. | OAuth. |
 | Google Drive | Dateien ins Wissen importieren. | OAuth. |
 | IMAP / SMTP Mailbox | E-Mails über einen eigenen Maildienst lesen oder senden. | Benutzername und Passwort. |
-| Jev decisions | Typisierte Fragen zu den Daten eines Workflows mit kalibrierten Wahrscheinlichkeiten beantworten, um zu entscheiden, ob gehandelt wird. | API-Schlüssel (ein OpenRouter-Schlüssel). |
+| Jev decisions | Typisierte Fragen zu den Daten eines Workflows mit kalibrierten Wahrscheinlichkeiten beantworten, damit der Workflow entscheiden kann, ob er handelt. | API-Schlüssel (ein OpenRouter-Schlüssel). |
 | Microsoft Outlook | Mit E-Mails, Kalendern und Kontakten arbeiten. | OAuth. |
 | Shopify | Mit Produkten, Kunden und Bestellungen arbeiten. | API-Schlüssel. |
 | Slack | Mit Nachrichten und Kanälen arbeiten. | OAuth. |
@@ -45,7 +45,7 @@ Wähle **Zugangsdaten hinzufügen**, suche den Dienst und öffne seine Karte. Be
 
 Das Feld **Name** enthält zunächst den Namen des Connectors. Fügst du für denselben Dienst mehrere Konten hinzu, ersetze ihn durch einen zweckbezogenen Namen, etwa `Support-Postfach` oder `Release-Bot`. Verwende Zugangsdaten des externen Diensts, keinen Tale-API-Schlüssel. Melde dich bei OAuth mit dem Konto beim Provider an, das du hinzufügen willst, und schließe die Zustimmung ab. Jede Verbindung legt neue Zugangsdaten an, benannt nach dem Connector und durchnummeriert (`Gmail`, dann `Gmail 2`); Slack führt pro Workspace genau einen Satz. Benenne neue Zugangsdaten um, damit die Konten unterscheidbar bleiben. Kann der Vorgang nicht starten, muss gegebenenfalls ein Administrator zuerst die OAuth-App einrichten.
 
-Confluence, GlitchTip und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den Ursprung der Atlassian-Site, den Ursprung der GlitchTip-Instanz wie `https://app.glitchtip.com` oder die `myshopify.com`-Adresse des Shops, keine beliebige Unterseite oder Kundendomain. Eine selbst betriebene GlitchTip-Instanz muss zusätzlich in der Host-Richtlinie der Bereitstellung für Connectors erlaubt sein. [Connector-Zugangsdaten](/de/platform/admin/connectors) erklärt Felder, erneute Autorisierung und Schlüsselaustausch.
+Confluence, GlitchTip und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den Ursprung der Atlassian-Site, den Ursprung der GlitchTip-Instanz wie `https://app.glitchtip.com` oder die `myshopify.com`-Adresse des Shops, keine beliebige Unterseite oder Kundendomain. Eine selbst gehostete GlitchTip-Instanz muss zusätzlich durch die Host-Richtlinie des Connectors erlaubt sein. [Connector-Zugangsdaten](/de/platform/admin/connectors) erklärt Felder, erneute Autorisierung und Schlüsselaustausch.
 
 ## Das Konto für eine Aktion bestimmen
 
