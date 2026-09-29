@@ -41,9 +41,24 @@ vi.mock('@/app/hooks/use-ability', () => ({
   }),
 }));
 
+// Whether the member may call the model endpoints decides the API group for
+// a role without developer settings; the rail reads it through one hook.
+const apiAccess = vi.hoisted(() => ({ modelApi: false }));
+vi.mock(
+  '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
+  () => ({
+    useApiSettingsAccess: () => ({
+      developer: ability.canEverything,
+      modelApi: ability.canEverything || apiAccess.modelApi,
+      loading: false,
+    }),
+  }),
+);
+
 describe('SettingsRail', () => {
   beforeEach(() => {
     ability.canEverything = true;
+    apiAccess.modelApi = false;
   });
 
   describe('accessibility', () => {
@@ -77,5 +92,28 @@ describe('SettingsRail', () => {
       ['Usage', '/dashboard/org-1/settings/usage'],
       ['Skills', '/dashboard/org-1/settings/skills'],
     ]);
+    expect(
+      screen.queryByRole('button', { name: 'API' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens the API group to a member granted the model endpoints: REST and Models only', async () => {
+    ability.canEverything = false;
+    apiAccess.modelApi = true;
+
+    const { user } = render(<SettingsRail organizationId="org-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'API' }));
+    const nav = within(screen.getByRole('navigation'));
+    expect(nav.getByRole('link', { name: 'REST' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/settings/api/rest',
+    );
+    expect(nav.getByRole('link', { name: 'Models' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/settings/api/models',
+    );
+    expect(nav.queryByRole('link', { name: 'MCP' })).not.toBeInTheDocument();
+    expect(nav.queryByRole('link', { name: 'WebDAV' })).not.toBeInTheDocument();
   });
 });

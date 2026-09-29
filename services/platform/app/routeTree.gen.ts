@@ -102,6 +102,7 @@ import { Route as DashboardIdSettingsGovernanceAuditLogsRouteImport } from './ro
 import { Route as DashboardIdSettingsApiWebdavRouteImport } from './routes/dashboard/$id/settings/api/webdav';
 import { Route as DashboardIdSettingsApiRuntimesRouteImport } from './routes/dashboard/$id/settings/api/runtimes';
 import { Route as DashboardIdSettingsApiRestRouteImport } from './routes/dashboard/$id/settings/api/rest';
+import { Route as DashboardIdSettingsApiModelsRouteImport } from './routes/dashboard/$id/settings/api/models';
 import { Route as DashboardIdSettingsApiMcpRouteImport } from './routes/dashboard/$id/settings/api/mcp';
 import { Route as DashboardIdProjectsProjectIdThreadsRouteImport } from './routes/dashboard/$id/projects/$projectId/threads';
 import { Route as DashboardIdProjectsProjectIdSettingsRouteImport } from './routes/dashboard/$id/projects/$projectId/settings';
@@ -660,6 +661,12 @@ const DashboardIdSettingsApiRestRoute =
     path: '/rest',
     getParentRoute: () => DashboardIdSettingsApiRouteRoute,
   } as any);
+const DashboardIdSettingsApiModelsRoute =
+  DashboardIdSettingsApiModelsRouteImport.update({
+    id: '/models',
+    path: '/models',
+    getParentRoute: () => DashboardIdSettingsApiRouteRoute,
+  } as any);
 const DashboardIdSettingsApiMcpRoute =
   DashboardIdSettingsApiMcpRouteImport.update({
     id: '/mcp',
@@ -924,6 +931,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
   '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
+  '/dashboard/$id/settings/api/models': typeof DashboardIdSettingsApiModelsRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
@@ -1035,6 +1043,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
   '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
+  '/dashboard/$id/settings/api/models': typeof DashboardIdSettingsApiModelsRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
@@ -1158,6 +1167,7 @@ export interface FileRoutesById {
   '/dashboard/$id/projects/$projectId/settings': typeof DashboardIdProjectsProjectIdSettingsRoute;
   '/dashboard/$id/projects/$projectId/threads': typeof DashboardIdProjectsProjectIdThreadsRoute;
   '/dashboard/$id/settings/api/mcp': typeof DashboardIdSettingsApiMcpRoute;
+  '/dashboard/$id/settings/api/models': typeof DashboardIdSettingsApiModelsRoute;
   '/dashboard/$id/settings/api/rest': typeof DashboardIdSettingsApiRestRoute;
   '/dashboard/$id/settings/api/runtimes': typeof DashboardIdSettingsApiRuntimesRoute;
   '/dashboard/$id/settings/api/webdav': typeof DashboardIdSettingsApiWebdavRoute;
@@ -1281,6 +1291,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
     | '/dashboard/$id/settings/api/mcp'
+    | '/dashboard/$id/settings/api/models'
     | '/dashboard/$id/settings/api/rest'
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
@@ -1392,6 +1403,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
     | '/dashboard/$id/settings/api/mcp'
+    | '/dashboard/$id/settings/api/models'
     | '/dashboard/$id/settings/api/rest'
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
@@ -1514,6 +1526,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/settings'
     | '/dashboard/$id/projects/$projectId/threads'
     | '/dashboard/$id/settings/api/mcp'
+    | '/dashboard/$id/settings/api/models'
     | '/dashboard/$id/settings/api/rest'
     | '/dashboard/$id/settings/api/runtimes'
     | '/dashboard/$id/settings/api/webdav'
@@ -2223,6 +2236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdSettingsApiRestRouteImport;
       parentRoute: typeof DashboardIdSettingsApiRouteRoute;
     };
+    '/dashboard/$id/settings/api/models': {
+      id: '/dashboard/$id/settings/api/models';
+      path: '/models';
+      fullPath: '/dashboard/$id/settings/api/models';
+      preLoaderRoute: typeof DashboardIdSettingsApiModelsRouteImport;
+      parentRoute: typeof DashboardIdSettingsApiRouteRoute;
+    };
     '/dashboard/$id/settings/api/mcp': {
       id: '/dashboard/$id/settings/api/mcp';
       path: '/mcp';
@@ -2492,6 +2512,7 @@ const DashboardIdConversationsRouteWithChildren =
 
 interface DashboardIdSettingsApiRouteRouteChildren {
   DashboardIdSettingsApiMcpRoute: typeof DashboardIdSettingsApiMcpRoute;
+  DashboardIdSettingsApiModelsRoute: typeof DashboardIdSettingsApiModelsRoute;
   DashboardIdSettingsApiRestRoute: typeof DashboardIdSettingsApiRestRoute;
   DashboardIdSettingsApiRuntimesRoute: typeof DashboardIdSettingsApiRuntimesRoute;
   DashboardIdSettingsApiWebdavRoute: typeof DashboardIdSettingsApiWebdavRoute;
@@ -2501,6 +2522,7 @@ interface DashboardIdSettingsApiRouteRouteChildren {
 const DashboardIdSettingsApiRouteRouteChildren: DashboardIdSettingsApiRouteRouteChildren =
   {
     DashboardIdSettingsApiMcpRoute: DashboardIdSettingsApiMcpRoute,
+    DashboardIdSettingsApiModelsRoute: DashboardIdSettingsApiModelsRoute,
     DashboardIdSettingsApiRestRoute: DashboardIdSettingsApiRestRoute,
     DashboardIdSettingsApiRuntimesRoute: DashboardIdSettingsApiRuntimesRoute,
     DashboardIdSettingsApiWebdavRoute: DashboardIdSettingsApiWebdavRoute,

@@ -3,7 +3,7 @@ title: API keys
 description: Create, verify, rotate, and revoke credentials for software that calls Tale.
 ---
 
-Create an API key when a script or service needs to call Tale's REST API. A key belongs to the person who created it, not to the organization whose settings page created it: it acts as that person, follows their current permissions, and works in every organization they are a member of. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**.
+Create an API key when a script or service needs to call Tale's REST API. A key belongs to the person who created it, not to the organization whose settings page created it: it acts as that person, follows their current permissions, and works in every organization they are a member of. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**, and so does a member who holds the competence **Call models over the API**.
 
 <Frame caption="Settings > API > REST — where keys are created, rotated, and revoked.">
 
@@ -43,7 +43,7 @@ Tale does not automatically rotate keys. Key creation and revocation happen in t
 
 ## Revoke a key
 
-Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate. Revocation cannot be undone; create a new key if you revoke the wrong one. Creating and revoking a key each leave a row in the audit log under **Settings > Governance > Logs**, in every organization you belong to.
+Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate, calls to the model endpoints included; an answer that is already streaming finishes. Revocation cannot be undone; create a new key if you revoke the wrong one. Creating and revoking a key each leave a row in the audit log under **Settings > Governance > Logs**, in every organization you belong to.
 
 Do not use an old **Last used** date as the only reason to revoke a key. A monthly job or a recovery process may legitimately be idle. Check the caller identified by the name first.
 
@@ -53,6 +53,8 @@ Role changes take effect for existing keys on subsequent requests. Disabling the
 
 Give an integration the narrowest access that works. A notification mirror, for example, does not need an Admin account: an Admin can grant an ordinary member the `tale:notifications.export` capability, which permits that export and none of the other rights of the Admin role. The grant applies only in that organization, can expire, and ends when the member is removed. Grant it under [Competences](/platform/admin/governance/competences), where an integration that relays people's answers and review decisions gets `tale:rest.act-as` the same way; [Delegate the export without an Admin role](/develop/api-reference#delegate-the-export-without-an-admin-role) covers the API side.
 
-REST rate limits apply to the authenticated key holder. Several keys owned by the same person do not provide separate rate-limit allowances. See [Rate limits](/develop/rate-limits). A [budget rule](/platform/admin/governance/policies-and-limits) can additionally cap what requests authenticated with one key may spend: their usage counts toward the key, and a send over the cap is refused with `429 BUDGET_EXCEEDED`. Automation runs started with the key count toward it as well, alongside the personal limits of the member the key acts for. [How usage is counted](/platform/admin/governance/usage-attribution) has the full rule.
+REST rate limits apply to the authenticated key holder. Several keys owned by the same person do not provide separate rate-limit allowances. See [Rate limits](/develop/rate-limits). A [budget rule](/platform/admin/governance/policies-and-limits) can additionally cap what requests authenticated with one key may spend: their usage counts toward the key, and a send or a model call over the cap is refused with `429 BUDGET_EXCEEDED`. Automation runs started with the key count toward it as well, alongside the personal limits of the member the key acts for. [How usage is counted](/platform/admin/governance/usage-attribution) has the full rule.
+
+A key can also call the organization's models from tools such as opencode or Claude Code, through the [model endpoints](/develop/use-tale-from-your-editor#model-endpoints), once an Admin turns them on under [Models](/platform/admin/governance/content-models#model-endpoints). Its holder must be an Owner, Admin, or Developer, or hold **Call models over the API**. Those calls count toward the key's budget rules like its chat messages, and they appear as **Direct API** in usage analytics under the person and the key.
 
 API keys authenticate software calling Tale. [Connector credentials](/platform/admin/connectors) serve the other direction: they let Tale call an external service. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) shows where a key goes in opencode, Claude Code, and a shell script.

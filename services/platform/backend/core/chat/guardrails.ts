@@ -169,6 +169,9 @@ export interface TurnGuardrailArgs {
   readonly organizationId: string;
   readonly threadId: string;
   readonly agentSlug?: string;
+  /** The request id the caller was answered with, when the lane has one
+   * apart from `threadId` (the model endpoints' `X-Request-Id`). */
+  readonly requestId?: string;
   readonly policies: TurnPolicies;
 }
 
@@ -308,6 +311,9 @@ export function buildTurnGuardrails(
           threadId,
           ...(args.agentSlug !== undefined
             ? { agentSlug: args.agentSlug }
+            : {}),
+          ...(args.requestId !== undefined
+            ? { requestId: args.requestId }
             : {}),
           // Whose text was judged: the person's on input, the model's on
           // output — the Security page groups events by it.

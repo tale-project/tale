@@ -389,6 +389,9 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<ModelAccessConfig['mode']>('blocklist');
   const [rules, setRules] = useState<ModelAccessRule[]>([]);
+  // The model endpoints' switch lives in the same policy file: every save
+  // below writes it back beside the rules, so no rule edit can drop it.
+  const [modelApiEnabled, setModelApiEnabled] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -417,12 +420,14 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     setEnabled(savedConfig.enabled);
     setMode(savedConfig.mode);
     setRules(savedConfig.rules);
+    setModelApiEnabled(savedConfig.modelApi?.enabled === true);
   }
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
+  /** Save the whole policy; answers whether it was written. */
   const saveConfig = useCallback(
-    async (configToSave: ModelAccessConfig) => {
+    async (configToSave: ModelAccessConfig): Promise<boolean> => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
@@ -434,6 +439,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           description: t('modelAccess.saved'),
           variant: 'success',
         });
+        return true;
       } catch (error: unknown) {
         toast({
           title: t('toastSaveFailedTitle'),
@@ -444,9 +450,15 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           ),
           variant: 'destructive',
         });
+        return false;
       }
     },
     [organizationId, upsertMutation, toast, t],
+  );
+
+  const modelApi = useMemo(
+    () => ({ enabled: modelApiEnabled }),
+    [modelApiEnabled],
   );
 
   /**
@@ -470,11 +482,30 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     (checked: boolean) => {
       const prev = enabled;
       setEnabled(checked);
-      attemptSaveConfig({ enabled: checked, mode, rules }, () =>
+      attemptSaveConfig({ enabled: checked, mode, rules, modelApi }, () =>
         setEnabled(prev),
       );
     },
-    [attemptSaveConfig, enabled, mode, rules],
+    [attemptSaveConfig, enabled, mode, rules, modelApi],
+  );
+
+  // The switch changes who may call the endpoints, never which models a
+  // rule allows, so it saves directly — no default model can be denied by
+  // it. A save that fails puts the switch back where the file still is.
+  const handleToggleModelApi = useCallback(
+    (checked: boolean) => {
+      const prev = modelApiEnabled;
+      setModelApiEnabled(checked);
+      void saveConfig({
+        enabled,
+        mode,
+        rules,
+        modelApi: { enabled: checked },
+      }).then((saved) => {
+        if (!saved) setModelApiEnabled(prev);
+      });
+    },
+    [saveConfig, modelApiEnabled, enabled, mode, rules],
   );
 
   const handleModeChange = useCallback(
@@ -482,9 +513,11 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
       if (!isModeValue(value)) return;
       const prev = mode;
       setMode(value);
-      attemptSaveConfig({ enabled, mode: value, rules }, () => setMode(prev));
+      attemptSaveConfig({ enabled, mode: value, rules, modelApi }, () =>
+        setMode(prev),
+      );
     },
-    [attemptSaveConfig, enabled, mode, rules],
+    [attemptSaveConfig, enabled, mode, rules, modelApi],
   );
 
   const confirmRemoveRule = useCallback(() => {
@@ -493,8 +526,10 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     const newRules = rules.filter((_, i) => i !== deletingIndex);
     setRules(newRules);
     setDeletingIndex(null);
-    attemptSaveConfig({ enabled, mode, rules: newRules }, () => setRules(prev));
-  }, [deletingIndex, rules, enabled, mode, attemptSaveConfig]);
+    attemptSaveConfig({ enabled, mode, rules: newRules, modelApi }, () =>
+      setRules(prev),
+    );
+  }, [deletingIndex, rules, enabled, mode, modelApi, attemptSaveConfig]);
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
@@ -521,11 +556,11 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
         newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
       }
       setRules(newRules);
-      attemptSaveConfig({ enabled, mode, rules: newRules }, () =>
+      attemptSaveConfig({ enabled, mode, rules: newRules, modelApi }, () =>
         setRules(prev),
       );
     },
-    [editingIndex, rules, enabled, mode, attemptSaveConfig],
+    [editingIndex, rules, enabled, mode, modelApi, attemptSaveConfig],
   );
 
   const resolveTarget = useCallback(
@@ -799,6 +834,21 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
           }}
         />
       </SettingsSection>
+      {/* The model endpoints for API keys: stored on this policy because
+          every call through them is held to its rules, switched on its own —
+          the rules' switch above does not turn it on or off. */}
+      <SettingsSection
+        title={t('modelAccess.modelApi.title')}
+        description={t('modelAccess.modelApi.description')}
+        action={
+          <Switch
+            aria-label={t('modelAccess.modelApi.enabled')}
+            checked={modelApiEnabled}
+            onCheckedChange={handleToggleModelApi}
+            disabled={cannotManage || isPending}
+          />
+        }
+      />
     </Skeletonize>
   );
 }

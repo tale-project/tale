@@ -31,6 +31,23 @@ Bei Chats wird der Zugriff bei der Modellnutzung geprüft, auch bei ausdrücklic
 Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktionieren, ein gesperrtes für das betroffene Mitglied abgelehnt werden. Ein Test nur als Admin belegt keine rollenspezifische Regel.
 </Tip>
 
+### API-Schlüsseln die Modelle der Organisation öffnen {#model-endpoints}
+
+Mit **Modell-Endpunkte für API-Schlüssel** nutzen Personen die Modelle, die diese Richtlinie erlaubt, aus ihren eigenen Tools, etwa opencode, Claude Code oder Skripten mit den SDKs von OpenAI oder Anthropic, mit einem persönlichen API-Schlüssel über OpenAI- und Anthropic-kompatible Endpunkte. Standardmäßig ist das ausgeschaltet. Aktiviere den Schalter **Modell-Endpunkte für API-Schlüssel**; die Änderung wird sofort gespeichert.
+
+- **Wer aufrufen darf.** Inhaber, Admins und Entwickler über ihre Rolle. Jedes andere Mitglied nur mit der Kompetenz **Modelle über die API aufrufen**, die du unter [Kompetenzen](/de/platform/admin/governance/competences) zuweist.
+- **Welche Modelle.** Die Chatmodelle, die deine Anbieter-Zugangsdaten mit API-Schlüssel oder Umgebungsvariable bereitstellen, eingeschränkt durch die erlaubten Modelle der jeweiligen Zugangsdaten. Die Zugriffsregeln oben gelten für jeden Aufruf, und zwar für die Person, deren Schlüssel ihn gesendet hat. Der Schalter wirkt unabhängig von **Modellzugriffsrichtlinie aktivieren**: Ist diese Richtlinie aus, grenzen nur die erlaubten Modelle der Zugangsdaten die Liste ein.
+- **Was jeder Aufruf durchläuft.** Die Budgets unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) und die Eingabe-Guardrails unter [Guardrails](/de/platform/admin/governance/guardrails#model-endpoints). Die Antworten der Modelle werden nicht gefiltert.
+- **Wo er erscheint.** Jeder Aufruf wird unter der Person und dem Schlüssel verbucht, in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) als **Direkter API-Aufruf**.
+
+<Frame caption="Richtlinien > Modelle — Modell-Endpunkte für API-Schlüssel, eingeschaltet.">
+
+![Der Bereich Modell-Endpunkte für API-Schlüssel auf der Seite Modelle mit eingeschaltetem Schalter; er erklärt, dass Inhaber, Admins, Entwickler und Mitglieder mit der Kompetenz Modelle über die API aufrufen die Modelle der Organisation aus ihren eigenen Tools nutzen dürfen.](/images/platform/governance-model-endpoints.webp)
+
+</Frame>
+
+Schaltest du den Schalter aus, lehnt Tale den nächsten Aufruf mit `403 MODEL_API_DISABLED` ab. [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor#model-endpoints) zeigt Mitgliedern, wie sie ihre Tools verbinden.
+
 ## Das Modell zum Lesen von Bildern wählen
 
 Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell das Bild für den Agenten beschreibt. Kann das eigene Agentenmodell Bilder lesen, liest es sie selbst; das Vision-Modell bedient weiterhin die Bildwerkzeuge, die Skripte und Coding-Agenten in ihrer Sandbox aufrufen, etwa die Stapeltranskription gescannter Seiten. Jeder verwaltete Agent erhält deshalb eines, sobald ein erreichbares Modell existiert.
@@ -46,6 +63,12 @@ Mit der **Bildgenerierung** können [Projektagenten](/de/platform/projects/proje
 1. Schalte **Agenten Bilder erstellen lassen** ein. Der Schalter speichert sofort.
 2. Lass **Bildmodell** auf **Automatisch** oder wähle ein Modell und speichere die offenen Änderungen der Seite in der Kopfzeile.
 3. Prüfe die Zeile unter der Auswahl. Sie nennt das Modell, mit dem Agenten Bilder erstellen.
+
+<Frame caption="Richtlinien > Modelle — die Bildgenerierung ist eingeschaltet, mit einem fest gewählten Bildmodell.">
+
+![Der Bereich Bildgenerierung mit eingeschaltetem Schalter, dem Bildmodell OpenRouter · google/gemini-2.5-flash-image in der Auswahl und der Zeile darunter, die das Modell nennt, mit dem Agenten gerade Bilder erstellen.](/images/platform/governance-image-generation.webp)
+
+</Frame>
 
 **Automatisch** nimmt das erste Modell einer kurzen Empfehlungsliste, das deine Anbieter-Zugangsdaten erreichen: Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1 und danach FLUX.2 Pro. Dabei berücksichtigt Tale Zugangsdaten für OpenRouter und OpenAI. Die Auswahl listet jedes Bildmodell, das deine Zugangsdaten bedienen können, auch die anderer kompatibler Anbieter. Ein ausgewähltes Modell bleibt fest, bis du es änderst. Ist es nicht mehr verfügbar, meldet Tale das und wechselt nicht zu einem anderen Modell. Schaltest du die Bildgenerierung aus, bleibt das gewählte Modell für das nächste Einschalten erhalten.
 

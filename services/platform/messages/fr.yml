@@ -3731,6 +3731,9 @@ governance:
       until: 'Jusqu''au {date}'
       noExpiry: Sans expiration
     capabilities:
+      modelsApi:
+        label: Appeler les modèles par l'API
+        description: Utiliser les modèles de l'organisation depuis ses propres outils avec une clé API personnelle, via les endpoints compatibles OpenAI et Anthropic, une fois que la politique d'accès aux modèles les active. Les propriétaires, les admins et les développeurs le peuvent sans cette compétence.
       notificationsExport:
         label: Exporter les notifications
         description: Lire par l'API REST les notifications qu'un autre membre peut voir, pour les refléter dans une autre application.
@@ -4092,6 +4095,16 @@ governance:
       des modèles qui ne seraient plus autorisés : {rules}. Les utilisateurs
       concernés basculeront vers un autre modèle autorisé.'
     removeDefaultConfirmAction: Enregistrer quand même
+    modelApi:
+      title: Endpoints de modèles pour les clés API
+      description: Permets aux propriétaires, aux admins et aux développeurs —
+        et aux membres qui ont la compétence « Appeler les modèles par l'API »
+        — d'utiliser les modèles que cette politique autorise depuis leurs
+        propres outils, avec une clé API personnelle, via des endpoints
+        compatibles OpenAI et Anthropic. Les appels sont décomptés des budgets
+        et passent par les garde-fous d'entrée ; les réponses des modèles ne
+        sont pas filtrées.
+      enabled: Activer les endpoints de modèles pour les clés API
   dataSubjectRequests:
     title: Demandes de personnes concernées
     entityLabel: demandes
@@ -4723,6 +4736,9 @@ metadata:
   mcp:
     title: MCP
     description: Connecte des clients MCP à cet espace de travail via MCP.
+  modelEndpoints:
+    title: Endpoints de modèles
+    description: Appelle les modèles de l'organisation depuis tes propres outils via des endpoints compatibles OpenAI et Anthropic.
   sandboxes:
     title: Sandboxes
     description: Gère les sandboxes distantes de ton organisation.
@@ -4750,6 +4766,7 @@ navigation:
   apiKeys: Clés API
   api: API
   apiRest: REST
+  apiModels: Modèles
   branding: Branding
   governance: Gouvernance
   metrics: Métriques
@@ -5449,6 +5466,67 @@ settings:
       Liste les outils — remplace par ta clé API ; X-Organization-Slug
       est déjà renseigné.
     copyExample: Copier la requête d'exemple
+  modelEndpoints:
+    title: Endpoints de modèles
+    description: Utilise les modèles de l'organisation depuis tes propres
+      outils — opencode, Claude Code, les SDK OpenAI et Anthropic — avec une
+      clé API personnelle.
+    loadFailed: Impossible de charger l'état des endpoints de modèles.
+    governanceNote: Chaque appel est décompté de tes budgets et passe par les
+      garde-fous d'entrée de l'organisation ; les réponses des modèles ne sont
+      pas filtrées.
+    disabled:
+      title: Les endpoints de modèles ne sont pas activés pour ton organisation
+      description: Un admin les active sous Paramètres → Gouvernance →
+        Modèles → Accès aux modèles.
+      openPolicy: Ouvrir l'accès aux modèles
+    forbidden:
+      title: Ton rôle ne peut pas appeler les endpoints de modèles
+      description: Les propriétaires, les admins et les développeurs le
+        peuvent. Demande à un admin de t'attribuer la compétence « Appeler les
+        modèles par l'API ».
+    openaiUrl:
+      label: URL de base compatible OpenAI
+      description: Pour les SDK OpenAI, opencode et les autres clients
+        compatibles OpenAI, qui ajoutent /chat/completions.
+      copy: Copier l'URL de base compatible OpenAI
+    anthropicUrl:
+      label: URL de base compatible Anthropic
+      description: Pour Claude Code (ANTHROPIC_BASE_URL) et les SDK
+        Anthropic, qui ajoutent /v1/messages.
+      copy: Copier l'URL de base compatible Anthropic
+    apiKey:
+      label: Clé API
+      description: Envoie une clé API personnelle en jeton Bearer dans
+        l'en-tête Authorization. Tu crées les clés sous
+      link: Clés API REST.
+    orgSlug:
+      label: Slug de l'organisation
+      description: Envoie-le dans l'en-tête X-Organization-Slug quand ta clé
+        appartient à plus d'une organisation.
+      copy: Copier le slug de l'organisation
+    models:
+      label: Modèles que tu peux appeler
+      description: Utilise ces identifiants comme nom de modèle sur les deux
+        endpoints. Ton accès aux modèles décide de la liste.
+      empty: Aucun modèle ne t'est encore disponible. Un admin connecte les
+        fournisseurs et décide de l'accès aux modèles.
+      copy: Copier l'identifiant de modèle {id}
+    opencode:
+      title: opencode
+      description: Ajoute le fournisseur à opencode.json. La clé vient de la
+        variable d'environnement TALE_API_KEY.
+      copy: Copier la configuration opencode
+    claudeCode:
+      title: Claude Code
+      description: Définis ces variables avant de lancer claude. Laisse
+        ANTHROPIC_API_KEY non définie — Tale refuse l'en-tête qu'elle envoie.
+      copy: Copier les variables Claude Code
+    openaiSdk:
+      title: SDK OpenAI (Python)
+      description: Pointe le client vers Tale. Le streaming, les outils et les
+        images fonctionnent comme avec OpenAI.
+      copy: Copier l'exemple du SDK OpenAI
   account:
     profile:
       title: Profil

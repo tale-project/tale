@@ -8,8 +8,9 @@
  * check; these pin the transitions that used to be silent or unguarded —
  * the Retry of a receipt blocked at filing (policy re-applied, CAS re-arm),
  * the execution-time hold block (audited), the limiter outage (not a
- * denial), the project-agent-runs pass, and the review pass handing a
- * waiting review on instead of stamping it with the pseudonym.
+ * denial), the project-agent-runs pass, the model-endpoint requests pass
+ * (settled rows deleted, rows in flight pseudonymised), and the review pass
+ * handing a waiting review on instead of stamping it with the pseudonym.
  */
 
 import type { Sql } from 'postgres';
@@ -453,6 +454,109 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
+  });
+
+  /**
+   * A request through the model endpoints for API keys is an op row stamped
+   * with the key holder. One whose spend is booked and whose key is deleted
+   * (or never minted) goes; one still in flight keeps its hold and its key
+   * for the settlement — deleting it would orphan the key and drop the spend
+   * from the organization's usage — and loses the identity instead.
+   */
+  it('deletes the settled model-endpoint request rows of the subject and pseudonymises the ones in flight', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('DELETE FROM app.sandbox_session_ops'))
+        return [{ id: 'op-settled-1' }, { id: 'op-settled-2' }];
+      if (text.startsWith('UPDATE app.sandbox_session_ops'))
+        return [{ id: 'op-in-flight' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const indexOf = (prefix: string) =>
+      fake.statements.findIndex((s) => s.text.startsWith(prefix));
+    const removed =
+      fake.statements[indexOf('DELETE FROM app.sandbox_session_ops')];
+    expect(removed?.text).toBe(
+      'DELETE FROM app.sandbox_session_ops WHERE org_id = ? AND kind = ? AND user_id = ? AND spend_settled_at_ms IS NOT NULL AND (key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL) RETURNING id',
+    );
+    expect(removed?.values).toEqual(['org_1', 'model-api', 'subject']);
+    const pseudonymised =
+      fake.statements[indexOf('UPDATE app.sandbox_session_ops')];
+    // Every row of the subject the delete left — no settlement predicate, so
+    // a row that settled in between cannot keep the subject's id.
+    expect(pseudonymised?.text).toBe(
+      'UPDATE app.sandbox_session_ops SET user_id = ? WHERE org_id = ? AND kind = ? AND user_id = ? RETURNING id',
+    );
+    expect(pseudonymised?.values).toEqual([
+      'erased-user',
+      'org_1',
+      'model-api',
+      'subject',
+    ]);
+    // The delete first, then the pseudonym — both before the ledger pass,
+    // so a request settling mid-cascade books either before the ledger is
+    // cleared or under the pseudonym, never under the subject afterwards.
+    expect(indexOf('UPDATE app.sandbox_session_ops')).toBeGreaterThan(
+      indexOf('DELETE FROM app.sandbox_session_ops'),
+    );
+    expect(indexOf('DELETE FROM app.usage_ledger')).toBeGreaterThan(
+      indexOf('UPDATE app.sandbox_session_ops'),
+    );
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[0]).toBe('done');
+    expect(settle?.values[2]).toMatchObject({ modelApiRequests: 3 });
+  });
+
+  it('holds the model-endpoint requests pass off like any other while a hold binds the subject', async () => {
+    // The first hold read (the cascade's gate) passes; every per-pass
+    // re-read finds the subject held, so no pass touches a row.
+    vi.mocked(loadActiveHolds)
+      .mockResolvedValueOnce(noHolds)
+      .mockResolvedValue({
+        orgHeld: false,
+        userMembershipIds: new Set(['subject']),
+      });
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    expect(
+      fake.statements.some((s) => s.text.includes('app.sandbox_session_ops')),
+    ).toBe(false);
   });
 });
 
