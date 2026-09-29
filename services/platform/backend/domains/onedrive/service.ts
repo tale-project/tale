@@ -1,9 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  isRagIndexableFile,
-  resolveFileType,
-} from '../../../lib/shared/file-types.ts';
+import { isRagIndexableFile } from '../../../lib/shared/file-types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
@@ -562,15 +559,13 @@ async function scheduleDocumentRagIndexing(
     {
       id: string;
       fileName: string;
-      contentType: string;
       threadId: string | null;
       skipRagIndexing: boolean | null;
       ragStatus: string | null;
     }[]
   >`
-    SELECT id, file_name AS "fileName", content_type AS "contentType",
-           thread_id AS "threadId", skip_rag_indexing AS "skipRagIndexing",
-           rag_status AS "ragStatus"
+    SELECT id, file_name AS "fileName", thread_id AS "threadId",
+           skip_rag_indexing AS "skipRagIndexing", rag_status AS "ragStatus"
     FROM app.file_metadata
     WHERE storage_ref = ${doc.fileRef}
     LIMIT 1
@@ -592,15 +587,15 @@ async function scheduleDocumentRagIndexing(
   ) {
     return false;
   }
-  // Both lanes judge the stored file name and type, the ones the indexer
-  // reads. The document title is renamed on its own (REST PATCH, the app's
+  // Both lanes judge the stored file name, the one the indexer reads — its
+  // type does not stand in for a missing extension, as the indexer's does
+  // not. The document title is renamed on its own (REST PATCH, the app's
   // rename) and never decides: a title of "Minutes 27.09" reads as
   // extension `09`, which sent a readable `minutes.docx` whose last run
   // failed to the terminal lane on every rescan, where it was never queued
   // again; a title ending in `.pdf` over a `standup.loop` queued a job the
   // indexer only refuses.
-  const contentType = resolveFileType(file.fileName, file.contentType);
-  if (!isRagIndexableFile(file.fileName, contentType)) {
+  if (!isRagIndexableFile(file.fileName)) {
     // A file no extractor reads — a Loop page (`.loop`, served as
     // `application/octet-stream`), a legacy `.doc` — gets the terminal state
     // the indexer would give it; its empty status used to read "Not indexed"

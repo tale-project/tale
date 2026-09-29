@@ -9,8 +9,11 @@
  * such a file on the terminal `unsupported` + `unsupported_type` state the
  * indexer gives it, and never queued; the list hides Reindex for that status
  * (`document-row-actions.test.tsx`) and the retry door refuses it. Every
- * decision is the stored file's — the name and type the indexer reads — and
- * never the document's title or type, which are renamed on their own.
+ * decision is the stored file's — its name, the one the indexer reads — and
+ * never the document's title or type, which are renamed on their own: the
+ * document is read for its blob reference alone. The fake answers each read
+ * with the columns it selects and nothing else, so a case can only set what
+ * the scheduler reads.
  *
  * The unit here only decides which knowledge helper runs, with what: the
  * helpers' own statements and hints — which names they write, the sentence,
@@ -38,51 +41,56 @@ vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   syncRagDocumentScope: vi.fn(() => Promise.resolve()),
 }));
 
+/** The stored file, as the scheduler's file read selects it. */
 interface FileRow {
   id: string;
   fileName: string;
-  contentType: string;
   threadId: string | null;
   skipRagIndexing: boolean | null;
   ragStatus: string | null;
 }
 
 /**
- * A document on one synced blob and the file row that tracks it, answered by
+ * A synced document's blob and the file row it is stored as, answered by
  * position — the unit reads the document, then its file — so no answer
- * depends on how either read is worded. `tx` is the handle `sql.begin` hands
- * its body.
+ * depends on how either read is worded. The document read is answered with
+ * the blob reference alone. `reads` holds each read's text; `tx` is the
+ * handle `sql.begin` hands its body.
  */
-function fakeSql(
-  doc: { title: string; mimeType: string },
-  file: Partial<FileRow> = {},
-): { sql: Sql; tx: unknown } {
+function fakeSql(file: Pick<FileRow, 'fileName'> & Partial<FileRow>): {
+  sql: Sql;
+  tx: unknown;
+  reads: string[];
+} {
   const row: FileRow = {
     id: 'file-1',
-    fileName: doc.title,
-    contentType: doc.mimeType,
     threadId: null,
     skipRagIndexing: null,
     ragStatus: null,
     ...file,
   };
-  const answers: unknown[][] = [
-    [{ fileRef: 's3:org-1/blob-1', title: doc.title, mimeType: doc.mimeType }],
-    [row],
-  ];
-  let reads = 0;
-  const tag = () => Promise.resolve(answers[reads++] ?? []);
+  const answers: unknown[][] = [[{ fileRef: 's3:org-1/blob-1' }], [row]];
+  const reads: string[] = [];
+  const tag = (strings: TemplateStringsArray) => {
+    reads.push(strings.join('?').replace(/\s+/g, ' ').trim());
+    return Promise.resolve(answers[reads.length - 1] ?? []);
+  };
   const tx = { handle: 'tx' };
   const sql = Object.assign(tag, {
     begin: (fn: (handle: unknown) => Promise<void>) => fn(tx),
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return { sql: sql as unknown as Sql, tx };
+  return { sql: sql as unknown as Sql, tx, reads };
 }
 
-const LOOP = { title: 'standup.loop', mimeType: 'application/octet-stream' };
-const DOCX =
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+/** The columns a read selects, by their source names. */
+function selectedColumns(read: string | undefined): string[] {
+  const list = /^SELECT (.+?) FROM /.exec(read ?? '')?.[1] ?? '';
+  return list.split(',').map((column) => column.trim().split(' ')[0] ?? '');
+}
+
+/** A Microsoft Loop page, as OneDrive stores it. */
+const LOOP = { fileName: 'standup.loop' };
 
 /** Neither lane ran: no terminal state, no queued run. */
 function expectUntouched(): void {
@@ -101,6 +109,28 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
     ['Google Drive', createGoogleDriveImportDeps],
   ],
 )('%s sync: scheduleHubDocumentRagIndexing', (_provider, createDeps) => {
+  // A document title is renamed on its own (REST PATCH, the app's rename)
+  // and its type with it, and neither decides. A title of "Minutes 27.09"
+  // reads as extension `09`, which once sent a readable `minutes.docx` to
+  // the terminal lane on every rescan; a title ending in `.pdf` over a
+  // `standup.loop` queued a job the indexer only refuses.
+  it('reads the document for its blob reference alone, and the file for the columns the fake answers', async () => {
+    const { sql, reads } = fakeSql(LOOP);
+
+    await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+
+    expect(reads[0]).toContain('FROM app.documents');
+    expect(selectedColumns(reads[0])).toEqual(['file_ref']);
+    expect(reads[1]).toContain('FROM app.file_metadata');
+    expect(selectedColumns(reads[1])).toEqual([
+      'id',
+      'file_name',
+      'thread_id',
+      'skip_rag_indexing',
+      'rag_status',
+    ]);
+  });
+
   it('hands a synced `.loop` to the terminal lane and queues nothing', async () => {
     const { sql } = fakeSql(LOOP);
 
@@ -116,8 +146,25 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
+  // The indexer reads a file by its name alone, and refuses one without an
+  // extension whatever the provider typed it: queueing it bought a job that
+  // could only end `unsupported`.
+  it('hands a stored name without an extension to the terminal lane', async () => {
+    const { sql } = fakeSql({ fileName: 'README' });
+
+    await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+
+    expect(markRagUnsupportedIfNoExtractor).toHaveBeenCalledWith(
+      sql,
+      'file-1',
+      'README',
+    );
+    expect(markRagQueued).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
   it('does nothing again once the file is unsupported — every scan re-offers it', async () => {
-    const { sql } = fakeSql(LOOP, { ragStatus: 'unsupported' });
+    const { sql } = fakeSql({ ...LOOP, ragStatus: 'unsupported' });
 
     await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
@@ -128,12 +175,12 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
   // used to flip them back to `queued` and download and refuse them again
   // on every scan.
   it.each([
-    ['an image', { title: 'photo.png', mimeType: 'image/png' }],
-    ['an empty text file', { title: 'blank.txt', mimeType: 'text/plain' }],
+    ['an image', 'photo.png'],
+    ['an empty text file', 'blank.txt'],
   ])(
     'never re-queues %s the indexer already made unsupported',
-    async (_label, doc) => {
-      const { sql } = fakeSql(doc, { ragStatus: 'unsupported' });
+    async (_label, fileName) => {
+      const { sql } = fakeSql({ fileName, ragStatus: 'unsupported' });
 
       await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
@@ -141,72 +188,30 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
     },
   );
 
-  // A document title is renamed on its own (REST PATCH, the app's rename);
-  // the indexer reads the stored file name, so a title that merely looks
-  // like an unknown extension (`09`, `2026`) must never keep a readable file
-  // from its run: a rescan re-queues one whose last run failed.
+  // The stored name is the one the indexer reads, so a dot inside it that
+  // looks like an unknown extension never keeps a readable file from its
+  // run: a rescan re-queues one whose last run failed.
   it.each([
-    ['Minutes 27.09', 'minutes.docx', DOCX],
-    ['Minutes 27.09', 'Minutes 27.09.docx', DOCX],
-    ['Board minutes 27.09.2026', 'minutes.pdf', 'application/pdf'],
-  ])(
-    're-queues a failed file retitled %s (stored as %s)',
-    async (title, fileName, mimeType) => {
-      const { sql, tx } = fakeSql(
-        { title, mimeType },
-        { fileName, ragStatus: 'failed' },
-      );
+    'minutes.docx',
+    'Minutes 27.09.docx',
+    'Board minutes 27.09.2026.pdf',
+  ])('re-queues a failed file stored as %s', async (fileName) => {
+    const { sql, tx } = fakeSql({ fileName, ragStatus: 'failed' });
 
-      await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+    await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
-      expect(markRagQueued).toHaveBeenCalledTimes(1);
-      expect(markRagQueued).toHaveBeenCalledWith(tx, 'file-1');
-      expect(addJobInTx).toHaveBeenCalledWith(tx, 'rag.index_file', {
-        fileId: 'file-1',
-      });
-      expect(markRagUnsupportedIfNoExtractor).not.toHaveBeenCalled();
-    },
-  );
-
-  // The reverse: a document that reads as a supported type never queues a
-  // stored file no extractor reads — the indexer would only refuse the job.
-  it.each([
-    [
-      'a title without the extension',
-      { title: 'Standup', mimeType: 'application/octet-stream' },
-    ],
-    [
-      'a title ending in .pdf',
-      { title: 'Standup notes.pdf', mimeType: 'application/octet-stream' },
-    ],
-    [
-      'a document typed as a PDF',
-      { title: 'Standup', mimeType: 'application/pdf' },
-    ],
-  ])(
-    'hands the stored `.loop` to the terminal lane under %s',
-    async (_label, doc) => {
-      const { sql } = fakeSql(doc, {
-        fileName: 'standup.loop',
-        contentType: 'application/octet-stream',
-      });
-
-      await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
-
-      expect(markRagUnsupportedIfNoExtractor).toHaveBeenCalledWith(
-        sql,
-        'file-1',
-        'standup.loop',
-      );
-      expect(markRagQueued).not.toHaveBeenCalled();
-      expect(addJobInTx).not.toHaveBeenCalled();
-    },
-  );
+    expect(markRagQueued).toHaveBeenCalledTimes(1);
+    expect(markRagQueued).toHaveBeenCalledWith(tx, 'file-1');
+    expect(addJobInTx).toHaveBeenCalledWith(tx, 'rag.index_file', {
+      fileId: 'file-1',
+    });
+    expect(markRagUnsupportedIfNoExtractor).not.toHaveBeenCalled();
+  });
 
   it.each(['completed', 'running', 'queued'])(
     'leaves a %s file as it is',
     async (ragStatus) => {
-      const { sql } = fakeSql(LOOP, { ragStatus });
+      const { sql } = fakeSql({ ...LOOP, ragStatus });
 
       await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
@@ -218,7 +223,7 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
     ['a chat-bound file', { threadId: 'thread-1' }],
     ['an opted-out file', { skipRagIndexing: true }],
   ])('leaves %s alone', async (_label, file) => {
-    const { sql } = fakeSql(LOOP, file);
+    const { sql } = fakeSql({ ...LOOP, ...file });
 
     await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
@@ -229,7 +234,7 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
   // reads it, so the terminal lane leaves its status empty and a Reindex
   // can index it.
   it('hands a `.log` to the terminal lane rather than queueing it', async () => {
-    const { sql } = fakeSql({ title: 'server.log', mimeType: 'text/plain' });
+    const { sql } = fakeSql({ fileName: 'server.log' });
 
     await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
@@ -243,7 +248,7 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
   });
 
   it('still queues an indexable file, in one transaction with its job', async () => {
-    const { sql, tx } = fakeSql({ title: 'notes.txt', mimeType: 'text/plain' });
+    const { sql, tx } = fakeSql({ fileName: 'notes.txt' });
 
     await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 

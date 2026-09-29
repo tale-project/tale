@@ -6,13 +6,18 @@
  * already carries — never at a re-upload, which the text once demanded even
  * though the blob is still stored and the retry re-ingests it. The corpus's
  * own error, when it has one, always wins over the generic text, and an
- * already-failed row is never overwritten with it. Each organization's
- * document lists hear a sweep once, and only for rows a document holds. A
- * write that throws defers its own row and no other: the rows after it are
- * still settled and told, only two faults in a row stop the organization,
- * and no fault in one organization, its slug read included, stops the sweep
- * of the organizations after it. The stale-window scan and the adopt/revive
- * rules ride the real-Postgres probe in `integration-check.ts`.
+ * already-failed row is never overwritten with it. A failed row that already
+ * reads the corpus's error is settled: nothing is written and no list is
+ * told, and another text is corrected without moving the row's status clock.
+ * The stuck rows are read ahead of the failed ones. Each organization's
+ * document lists hear a sweep once, and only for rows a document holds. Every
+ * write runs in a transaction of its own under a lock timeout, and a write
+ * that throws defers its own row and no other: the rows after it are still
+ * settled and told, only two faults in a row stop the organization, and no
+ * fault in one organization, its slug read included, stops the sweep of the
+ * organizations after it. The stale-window scan, the batch order, a real row
+ * lock and the adopt/revive rules ride the real-Postgres probes in
+ * `integration-check.ts` and `watchdogs.integration.ts`.
  */
 
 import type { Sql } from 'postgres';
@@ -37,6 +42,8 @@ vi.mock('../../realtime/outbox.ts', () => ({
 interface Statement {
   text: string;
   values: unknown[];
+  /** The `sql.begin` the statement ran in, numbered; null outside one. */
+  transaction: number | null;
 }
 
 interface Candidate {
@@ -44,6 +51,7 @@ interface Candidate {
   orgId: string;
   storageRef: string;
   ragStatus: string;
+  ragError: string | null;
   /** A document holds the file, so a document list shows its status. */
   listed: boolean;
 }
@@ -56,11 +64,14 @@ interface CorpusRow {
 }
 
 /**
- * Scripted `sql`: the candidate read is a snapshot, while the ownership
- * read sees the current state. A bind or deletion may land between that
+ * Scripted `sql`: the candidate read is a snapshot of the columns it
+ * selects, while the ownership read sees the current state. A bind or deletion may land between that
  * snapshot and the status write, as the real-Postgres lane proves too. The
  * status write of each row in `failWrites` throws, as a lock timeout would,
  * and the slug read of `failSlugFor` throws, as a dropped connection would.
+ * `begin` runs its body on a handle whose statements carry the
+ * transaction's number; a throw in the body is the begin's, as a rolled-back
+ * transaction's is.
  */
 function fakeSql(
   candidates: Candidate[],
@@ -76,11 +87,21 @@ function fakeSql(
 } {
   const statements: Statement[] = [];
   const current = new Map(candidates.map((row) => [row.id, { ...row }]));
-  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('?').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
+  const answer = (text: string, values: unknown[]) => {
     if (text.startsWith('SELECT id,')) {
-      return Promise.resolve(candidates.map((row) => ({ ...row })));
+      // Only the columns the read selects: a field it does not ask for is
+      // not on the row it gets back.
+      const selected = new Set([
+        'id',
+        ...[...text.matchAll(/ AS "(\w+)"/g)].map((match) => match[1]),
+      ]);
+      return Promise.resolve(
+        candidates.map((row) =>
+          Object.fromEntries(
+            Object.entries(row).filter(([column]) => selected.has(column)),
+          ),
+        ),
+      );
     }
     if (text.startsWith('UPDATE app.file_metadata')) {
       const id = candidates.find((row) => values.includes(row.id))?.id;
@@ -116,7 +137,21 @@ function fakeSql(
     }
     return Promise.resolve([]);
   };
-  const sql = Object.assign(fn, { unsafe: (raw: string) => raw });
+  let transactions = 0;
+  const handle =
+    (transaction: number | null) =>
+    (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      statements.push({ text, values, transaction });
+      return answer(text, values);
+    };
+  const sql = Object.assign(handle(null), {
+    unsafe: (raw: string) => raw,
+    begin: async (body: (tx: unknown) => Promise<unknown>) => {
+      transactions += 1;
+      return body(handle(transactions));
+    },
+  });
   return { sql: sql as unknown as Sql, statements };
 }
 
@@ -136,6 +171,7 @@ function candidate(
     orgId: 'org_1',
     storageRef: `s3:${id}`,
     ragStatus,
+    ragError: null,
     listed: true,
     ...over,
   };
@@ -151,6 +187,10 @@ const failWriteFor = (
       s.text.includes("UPDATE app.file_metadata SET rag_status = 'failed'") &&
       s.values.includes(id),
   );
+
+/** Every status write the sweep sent, in order. */
+const writesOf = (statements: Statement[]): Statement[] =>
+  statements.filter((s) => s.text.startsWith('UPDATE app.file_metadata'));
 
 /** The file rows the sweep told one organization's lists about: the ids its
  * ownership read after the writes asked for. */
@@ -227,8 +267,74 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
     expect(failWriteFor(statements, 'fm_failed')).toBeUndefined();
   });
 
-  it('gives an already-failed row the corpus error without counting it again', async () => {
-    const { sql, statements } = fakeSql([candidate('fm_known', 'failed')]);
+  // A job failure records the same sentence on the file row and the corpus
+  // row, so every such row reads the corpus's error from the start. A
+  // rewrite moved its `status_changed_at_ms`, the clock of the failed
+  // window: the row never left the window, and its lists refetched on every
+  // tick.
+  it.each([
+    [
+      'the corpus error',
+      'The embedding server answered 503.',
+      'The embedding server answered 503.',
+    ],
+    [
+      'the interrupted text, the corpus having none',
+      null,
+      RAG_INTERRUPTED_MESSAGE,
+    ],
+  ])(
+    'leaves a failed row alone that already reads %s: no write, no hint',
+    async (_label, corpusError, ragError) => {
+      const { sql, statements } = fakeSql([
+        candidate('fm_settled', 'failed', { ragError }),
+      ]);
+      corpusAnswering([
+        {
+          file_id: 's3:fm_settled',
+          status: 'failed',
+          error: corpusError,
+          updated_at: null,
+        },
+      ]);
+
+      const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+      expect(result).toEqual({ adopted: 0, failed: 0, revived: 0 });
+      expect(writesOf(statements)).toEqual([]);
+      expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+    },
+  );
+
+  // A secret scan's refusal records no error on the corpus row, while the
+  // file row carries the refusal's sentence: the generic text would send
+  // the person to a retry that meets the same refusal.
+  it('keeps a failed row’s own error when its corpus row failed without one', async () => {
+    const { sql, statements } = fakeSql([
+      candidate('fm_refused', 'failed', {
+        ragError: 'Indexing refused (secret-detected).',
+      }),
+    ]);
+    corpusAnswering([
+      {
+        file_id: 's3:fm_refused',
+        status: 'failed',
+        error: null,
+        updated_at: null,
+      },
+    ]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    expect(result).toEqual({ adopted: 0, failed: 0, revived: 0 });
+    expect(writesOf(statements)).toEqual([]);
+    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+  });
+
+  it('corrects an already-failed row to the corpus error, keeping its status clock and its count', async () => {
+    const { sql, statements } = fakeSql([
+      candidate('fm_known', 'failed', { ragError: RAG_INTERRUPTED_MESSAGE }),
+    ]);
     corpusAnswering([
       {
         file_id: 's3:fm_known',
@@ -240,13 +346,91 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
 
     const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
 
-    // No new failure — but the row now reads the real error, and the
+    // No new failure, and the status has not changed, so its clock stays
+    // where it was — but the row now reads the real error, and the
     // organization's lists hear it.
     expect(result).toEqual({ adopted: 0, failed: 0, revived: 0 });
-    expect(failWriteFor(statements, 'fm_known')?.values).toContain(
-      'The embedding server answered 503.',
-    );
+    const writes = writesOf(statements);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.values).toContain('The embedding server answered 503.');
+    expect(writes[0]?.values).toContain('fm_known');
+    expect(writes[0]?.text).not.toContain('status_changed_at_ms');
+    // Only the failed row it read: a retry may have queued it since.
+    expect(writes[0]?.text).toContain("AND rag_status = 'failed'");
     expect(vi.mocked(emitHintInTx)).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads every stuck row ahead of the failed rows it watches', async () => {
+    const { sql, statements } = fakeSql([]);
+    corpusAnswering([]);
+
+    await recoverStuckRagIndexing(sql);
+
+    // One limit covers both kinds; ranked by queue time alone, two hundred
+    // failed rows filled it ahead of a row that got stuck after them. The
+    // effect on a real batch is `watchdogs.integration.ts`'s to prove.
+    const read = statements.find((s) => s.text.startsWith('SELECT id,'));
+    expect(read?.text).toMatch(
+      /ORDER BY \(rag_status = 'failed'\), coalesce\(rag_queued_at_ms, created_at_ms\) LIMIT \?$/,
+    );
+  });
+});
+
+describe('recoverStuckRagIndexing — a lock held on a row', () => {
+  // The app pool sets no lock timeout: a row another transaction held made
+  // the write wait for as long as that transaction ran, and the whole sweep
+  // with it. Only a write that throws reaches the per-row isolation.
+  it('runs every status write in a transaction of its own, under a lock timeout', async () => {
+    const { sql, statements } = fakeSql([
+      candidate('fm_done'),
+      candidate('fm_known', 'failed'),
+      candidate('fm_loud'),
+      candidate('fm_live', 'failed'),
+      candidate('fm_dead'),
+    ]);
+    corpusAnswering([
+      {
+        file_id: 's3:fm_done',
+        status: 'completed',
+        error: null,
+        updated_at: null,
+      },
+      {
+        file_id: 's3:fm_known',
+        status: 'failed',
+        error: 'The embedding server answered 503.',
+        updated_at: null,
+      },
+      {
+        file_id: 's3:fm_loud',
+        status: 'failed',
+        error: 'No text extractor exists for "loud.bin".',
+        updated_at: null,
+      },
+      {
+        file_id: 's3:fm_live',
+        status: 'processing',
+        error: null,
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 60_000 });
+
+    // An adoption, a corrected text, a corpus failure, a revival and an
+    // interrupted run: every kind of write the sweep sends.
+    expect(result).toEqual({ adopted: 1, failed: 2, revived: 1 });
+    const writes = writesOf(statements);
+    expect(writes).toHaveLength(5);
+    for (const write of writes) {
+      expect(write.transaction).not.toBeNull();
+      expect(
+        statements
+          .filter((s) => s.transaction === write.transaction)
+          .map((s) => s.text),
+      ).toEqual(["SET LOCAL lock_timeout = '2s'", write.text]);
+    }
+    expect(new Set(writes.map((write) => write.transaction)).size).toBe(5);
   });
 });
 
