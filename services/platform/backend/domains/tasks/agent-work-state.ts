@@ -75,10 +75,13 @@ export async function readTaskWorkState(
     runsBeforeSeq?: number;
   },
 ): Promise<TaskWorkState> {
+  // At least one run a page: an empty page that says more follow would give
+  // the caller no position to continue from.
+  const runLimit = Math.max(1, Math.floor(args.runLimit));
   const runs = await listTaskAgentRunSummaries(sql, {
     organizationId: args.organizationId,
     taskId: args.taskId,
-    limit: args.runLimit + 1,
+    limit: runLimit + 1,
     ...(args.runsBeforeSeq !== undefined
       ? { beforeSeq: args.runsBeforeSeq }
       : {}),
@@ -129,8 +132,8 @@ export async function readTaskWorkState(
     args.taskId,
   );
   return {
-    agentRuns: runs.slice(0, args.runLimit),
-    agentRunsHasMore: runs.length > args.runLimit,
+    agentRuns: runs.slice(0, runLimit),
+    agentRunsHasMore: runs.length > runLimit,
     workflowRun,
     pendingReview:
       review === null

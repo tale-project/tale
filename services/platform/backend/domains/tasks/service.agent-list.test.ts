@@ -126,16 +126,16 @@ describe('listTasksForAgent — the task_find page', () => {
     );
   });
 
-  it('refuses a position of the other order', async () => {
+  it('continues the order a position was taken in', async () => {
     const { sql, statements } = recordingSql();
-    await expect(
-      listTasksForAgent(sql, {
-        organizationId: 'org-1',
-        order: 'created',
-        after: { order: 'board', status: 'todo', rank: 'a', id: 't-1' },
-      }),
-    ).rejects.toMatchObject({ code: 'TASK_CURSOR_INVALID', status: 400 });
-    expect(statements).toHaveLength(0);
+    await listTasksForAgent(sql, {
+      organizationId: 'org-1',
+      order: 'created',
+      after: { order: 'board', status: 'todo', rank: 'a', id: 't-1' },
+    });
+    const { text } = lastStatement(statements);
+    expect(text).toContain('ORDER BY t.status ASC, t.rank ASC, t.id ASC');
+    expect(text).toContain('(t.status, t.rank, t.id) >');
   });
 
   it('bounds one read at 200 rows and at least one', async () => {

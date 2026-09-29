@@ -413,6 +413,14 @@ describe('task_find pages a whole queue', () => {
     expect(called('listTasksForAgent')).toHaveLength(reads);
   });
 
+  it('reads at least one task a page, so a fractional limit never answers an empty end', async () => {
+    const { call, called } = createHarness({ board: tiedBoard(3) });
+    const result = await call('task_find', { limit: 0.5 });
+    expect(tasksOf(result)).toEqual(['t-0000']);
+    expect(outputOf(result)).toMatchObject({ isDone: false });
+    expect(called('listTasksForAgent')[0]?.args.limit).toBe(2);
+  });
+
   it('refuses an order it does not walk', async () => {
     const { call } = createHarness();
     const result = await call('task_find', { order: 'priority' });
@@ -601,9 +609,12 @@ describe('task_get reads what a manager decides with', () => {
     await call('task_get', { taskId: 't-0000' });
     await call('task_get', { taskId: 't-0000', runLimit: 500 });
     await call('task_get', { taskId: 't-0000', runLimit: -3 });
+    // A fraction below one reads one run, never an empty page that says
+    // more follow with no position to continue from.
+    await call('task_get', { taskId: 't-0000', runLimit: 0.5 });
     expect(
       called('getTaskWorkStateForAgent').map((entry) => entry.args.runLimit),
-    ).toEqual([5, 20, 5]);
+    ).toEqual([5, 20, 5, 1]);
     // The run state is read for the task's own project.
     expect(called('getTaskWorkStateForAgent')[0]?.args.projectId).toBe('p-1');
   });

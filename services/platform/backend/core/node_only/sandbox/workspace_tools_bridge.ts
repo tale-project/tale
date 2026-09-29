@@ -174,9 +174,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'isDone is false, pass continueCursor as cursor, with the same other ' +
     'arguments, for the next page — a cursor from another listing is ' +
     'refused, never read as the first page. totalFound appears only when ' +
-    'one page holds every matching task. order "board" (the default) reads ' +
-    'the columns as people see them, so a task that moves while you page ' +
-    'can be skipped or listed twice; "created" reads the oldest first and ' +
+    'one page holds every matching task. order "board" (the default) groups ' +
+    "tasks by status name and keeps each column's order within it, so a task " +
+    'that moves while you page can be skipped or listed twice; "created" ' +
+    'reads the oldest first and ' +
     'a task keeps its place, so a walk lists each task at most once, as it ' +
     'stands when its page is read. On a project-bound run the listing is ' +
     "fixed to the run's own project.",

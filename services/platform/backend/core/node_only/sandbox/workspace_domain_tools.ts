@@ -909,7 +909,7 @@ export async function runTaskTool(
           taskId,
           runLimit:
             typeof callArgs.runLimit === 'number' && callArgs.runLimit > 0
-              ? Math.min(Math.floor(callArgs.runLimit), TASK_GET_RUNS_MAX)
+              ? readLimit(callArgs.runLimit, TASK_GET_RUNS_MAX)
               : TASK_GET_RUNS_DEFAULT,
           ...(runsBeforeSeq !== undefined ? { runsBeforeSeq } : {}),
         },

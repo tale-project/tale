@@ -924,14 +924,48 @@ export async function checkAgentTaskReadTools(
     );
 
     // ---- what stays a person's ---------------------------------------------
+    // The answer names the task's own agent while nothing runs on the task:
+    // the case in which a person's @mention starts a rework run.
     const answerBody =
       `Answer (to comment ${questionId}, question q-${suffix}, source run ` +
-      `${workerRun.runId}): yes, keep the budget per task.`;
+      `${workerRun.runId}): @${worker} yes, keep the budget per task.`;
+    const countRuns = async () =>
+      (
+        await sql<{ n: number }[]>`
+          SELECT count(*)::int AS n FROM app.project_agent_runs
+          WHERE task_id = ${questionTask}
+        `
+      )[0]?.n ?? -1;
+    const countKicks = async () =>
+      (
+        await sql<{ n: number }[]>`
+          SELECT count(*)::int AS n FROM pgboss.job
+          WHERE name IN ('task.agent_turn', 'task.agent_steer',
+                         'task.start_workflow')
+            AND (data ->> 'taskId' = ${questionTask}
+                 OR data ->> 'runId' IN (SELECT id FROM app.project_agent_runs
+                                         WHERE task_id = ${questionTask}))
+        `
+      )[0]?.n ?? -1;
+    const runsBeforeAnswer = await countRuns();
     const answered = await dispatch(m1, 'task_comment', {
       taskId: questionTask,
       body: answerBody,
     });
     const answerId = textAt(out(answered), 'messageId');
+    const runsAfterAnswer = await countRuns();
+    const kicksAfterAnswer = await countKicks();
+    const assignee = await sql<{ assigneeId: string | null }[]>`
+      SELECT assignee_id AS "assigneeId" FROM app.tasks WHERE id = ${questionTask}
+    `;
+    record(
+      'read tools: an agent’s comment that @mentions the task’s own idle agent starts nothing — a manager restarts work only through its start tool',
+      answered.status === 'ok' &&
+        runsAfterAnswer === runsBeforeAnswer &&
+        kicksAfterAnswer === 0 &&
+        assignee[0]?.assigneeId === worker,
+      `runs=${runsBeforeAnswer}->${runsAfterAnswer} kicks=${kicksAfterAnswer} assignee=${String(assignee[0]?.assigneeId)}`,
+    );
     const completing = await dispatch(m1, 'task_update_status', {
       taskId: questionTask,
       status: 'done',

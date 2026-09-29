@@ -629,6 +629,10 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       expect(selected).not.toMatch(new RegExp(`\\b${column}\\b`));
     }
     expect(selected).toContain('left(feedback, ?) AS feedback');
+    // A cancelled run keeps its park stamp; only a queued one is waiting.
+    expect(selected).toContain(
+      "(status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)",
+    );
     expect(statements[0]?.values).toContain(AGENT_RUN_FEEDBACK_EXCERPT_CHARS);
   });
 

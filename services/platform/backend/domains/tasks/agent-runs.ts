@@ -712,7 +712,8 @@ export async function listTaskAgentRunSummaries(
            started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt",
            settled_at_ms::float8 AS "settledAt",
-           waiting_for_capacity_at_ms IS NOT NULL AS "waitingForCapacity",
+           (status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)
+             AS "waitingForCapacity",
            failure_code AS "failureCode",
            left(feedback, ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS}) AS feedback,
            coalesce(char_length(feedback) > ${AGENT_RUN_FEEDBACK_EXCERPT_CHARS},

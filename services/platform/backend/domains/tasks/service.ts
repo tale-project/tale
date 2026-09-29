@@ -2990,12 +2990,13 @@ export async function listTasksByProject(
 const AGENT_TASK_LIST_CAP = 200;
 
 /**
- * The orders `task_find` walks in. `board` is the columns as people see them
- * (status, then the column's rank); `created` is the order the tasks were
- * made in, oldest first, and a task's place in it never changes. Both end on
- * the task id, so tasks tied on rank or on their creation millisecond still
- * have exactly one order, and a page that ends inside a tie resumes after
- * the row it ended on.
+ * The orders `task_find` walks in. `board` groups the tasks by status, in
+ * the order of the status names (backlog, cancelled, done, in_progress,
+ * in_review, todo), and keeps each column's own order (its rank) within a
+ * status; `created` is the order the tasks were made in, oldest first, and a
+ * task's place in it never changes. Both end on the task id, so tasks tied on
+ * rank or on their creation millisecond still have exactly one order, and a
+ * page that ends inside a tie resumes after the row it ended on.
  */
 export type AgentTaskListOrder = 'board' | 'created';
 
@@ -3041,15 +3042,10 @@ export async function listTasksForAgent(
     ...(args.status !== undefined ? { status: args.status } : {}),
     ...(args.assigneeId !== undefined ? { assigneeId: args.assigneeId } : {}),
   };
-  const order = args.order ?? 'board';
+  // A position carries the order it was taken in, so a later page always
+  // continues the order its first page was read in.
   const after = args.after;
-  if (after !== undefined && after.order !== order) {
-    throw new TaskError(
-      'TASK_CURSOR_INVALID',
-      'The listing position belongs to another order',
-      400,
-    );
-  }
+  const order = after?.order ?? args.order ?? 'board';
   const limit =
     args.limit !== undefined && Number.isFinite(args.limit)
       ? Math.min(Math.max(Math.floor(args.limit), 1), AGENT_TASK_LIST_CAP)
