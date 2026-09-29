@@ -96,9 +96,17 @@ function Harness({
   return (
     <>
       {view === 'board' ? (
-        <TaskCard task={task} canEdit onOpen={() => setOpen(true)} />
+        <TaskCard
+          task={task}
+          canWorkTask={() => true}
+          onOpen={() => setOpen(true)}
+        />
       ) : view === 'list' ? (
-        <TasksList tasks={[task]} canEdit onOpenTask={() => setOpen(true)} />
+        <TasksList
+          tasks={[task]}
+          canWorkTask={() => true}
+          onOpenTask={() => setOpen(true)}
+        />
       ) : (
         <button type="button" onClick={() => setOpen(true)}>
           New task

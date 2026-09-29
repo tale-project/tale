@@ -38,9 +38,13 @@ export function useTasksByProject(
   return {
     tasks: data?.tasks ?? [],
     truncated: data?.truncated ?? false,
-    // Defaults to false until the read resolves, so write controls stay hidden
-    // (rather than flashing) for a viewer who turns out to be read-only.
+    // Both default to false until the read resolves, so write controls stay
+    // hidden (rather than flashing) for a viewer who turns out to be
+    // read-only. `canEdit`: an editor of the project, who works every task;
+    // `canCreate`: a reader, who creates tasks and works their own — decide
+    // one task with `useTaskAccess`.
     canEdit: data?.canEdit ?? false,
+    canCreate: data?.canCreate ?? false,
     isLoading,
   };
 }
@@ -75,6 +79,7 @@ export function useTasksAcrossProjects(options?: {
     tasks: data?.tasks ?? [],
     truncated: data?.truncated ?? false,
     canEdit: data?.canEdit ?? false,
+    canCreate: data?.canCreate ?? false,
     isLoading,
   };
 }
@@ -95,7 +100,11 @@ export function useTask(taskId: string | undefined) {
   const code = backendErrorCode(error);
   return {
     task: data?.task ?? null,
+    // The task's project access, as on the board: decide this task with
+    // `useTaskAccess` (an editor works it; a reader works it when it is
+    // theirs).
     canEdit: data?.canEdit ?? false,
+    canCreate: data?.canCreate ?? false,
     // Commenting is read-level: default false until the read resolves so the
     // composer doesn't flash, then true for any member who can open the task.
     canComment: data?.canComment ?? false,

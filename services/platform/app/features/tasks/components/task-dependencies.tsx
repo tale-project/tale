@@ -22,6 +22,7 @@ import {
   useRemoveTaskDependency,
 } from '../hooks/mutations';
 import { useTaskDependencies, useTasksByProject } from '../hooks/queries';
+import { useTaskAccess } from '../hooks/use-task-access';
 import type { TaskDoc } from '../lib/display';
 import { TaskStatusBadge } from './task-status-badge';
 
@@ -34,6 +35,11 @@ type TaskRow = TaskDoc;
  * status change. The picker only offers same-project tasks not already linked,
  * and the backend rejects any edge that would close a cycle (surfaced here as a
  * friendly toast).
+ *
+ * An edge is the BLOCKED task's record — the server holds it to that task's
+ * work gate. So "Blocked by" is editable with this task, and "Blocks" offers
+ * (and takes back) only the tasks the viewer may work themselves: every task
+ * for an editor, their own for anyone else.
  */
 export function TaskDependencies({
   task,
@@ -42,6 +48,7 @@ export function TaskDependencies({
   onOpenTask,
 }: {
   task: TaskRow;
+  /** The viewer may work this task, and it is not archived. */
   canEdit: boolean;
   projectKey?: string | null;
   onOpenTask?: (taskId: string) => void;
@@ -49,7 +56,12 @@ export function TaskDependencies({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { blockedBy, blocks } = useTaskDependencies(task._id);
-  const { tasks: projectTasks } = useTasksByProject(task.projectId);
+  const projectList = useTasksByProject(task.projectId);
+  const projectTasks = projectList.tasks;
+  const { canWorkTask } = useTaskAccess(task.organizationId, {
+    canEdit: projectList.canEdit,
+    canCreate: projectList.canCreate,
+  });
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
 
@@ -94,6 +106,7 @@ export function TaskDependencies({
         items={blockedBy}
         candidates={candidates}
         canEdit={canEdit}
+        canRemove={() => canEdit}
         projectKey={projectKey}
         onOpenTask={onOpenTask}
         onAdd={(blockerTaskId) =>
@@ -110,8 +123,10 @@ export function TaskDependencies({
       <DependencyGroup
         label={t('detail.blocks')}
         items={blocks}
-        candidates={candidates}
+        // Marking another task as blocked changes that task.
+        candidates={candidates.filter(canWorkTask)}
         canEdit={canEdit}
+        canRemove={(item) => canEdit && canWorkTask(item)}
         projectKey={projectKey}
         onOpenTask={onOpenTask}
         onAdd={(blockedTaskId) =>
@@ -134,6 +149,7 @@ function DependencyGroup({
   items,
   candidates,
   canEdit,
+  canRemove,
   projectKey,
   onOpenTask,
   onAdd,
@@ -143,6 +159,8 @@ function DependencyGroup({
   items: TaskRow[];
   candidates: TaskRow[];
   canEdit: boolean;
+  /** Whether the viewer may take this edge back. */
+  canRemove: (item: TaskRow) => boolean;
   projectKey?: string | null;
   onOpenTask?: (taskId: string) => void;
   onAdd: (taskId: string) => void;
@@ -227,7 +245,7 @@ function DependencyGroup({
                     {item.title}
                   </span>
                 </button>
-                {canEdit && (
+                {canRemove(item) && (
                   // Gradient scrub under the remove control so the X doesn't
                   // sit on top of the title glyphs (see browser-tab chips).
                   <div

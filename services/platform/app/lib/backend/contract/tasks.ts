@@ -375,7 +375,11 @@ export interface TasksContract {
         folderExists: boolean;
         hasFiles: boolean;
       };
+      /** An editor of the task's (active) project: may work every task. */
       canEdit: boolean;
+      /** A reader of the task's (active) project: may create tasks and work
+       * their own (`canWorkTask`). */
+      canCreate: boolean;
       canComment: boolean;
     };
   };
@@ -818,7 +822,11 @@ export interface TasksContract {
         }
       >;
       truncated: boolean;
+      /** An editor of the (active) project: may work every task on it. */
       canEdit: boolean;
+      /** A reader of the (active) project: may create tasks and work their
+       * own (`canWorkTask`). */
+      canCreate: boolean;
     };
   };
   'tasks/queries:listTasksForAccessibleProjects': {
@@ -913,7 +921,10 @@ export interface TasksContract {
         }
       >;
       truncated: boolean;
+      /** Role-level: an editor role works every task on the board. */
       canEdit: boolean;
+      /** Role-level: every member creates and works their own tasks. */
+      canCreate: boolean;
     };
   };
   'tasks/queries:mentionTriggerPreview': {
@@ -933,7 +944,8 @@ export interface TasksContract {
         | 'agent_not_live'
         | 'pack_disabled'
         | 'breaker_paused'
-        | 'budget_paused';
+        | 'budget_paused'
+        | 'not_permitted';
     }>;
   };
   'tasks/review_mutations:setTaskReviewer': {

@@ -7578,6 +7578,7 @@ tasks:
     breakerPaused: "{slug} won't respond — agent runs are paused on this task"
     budgetPaused: "{slug} won't respond — monthly budget exhausted"
     agentNotLive: "{slug} won't respond — agent is not installed or is disabled"
+    notPermitted: "{slug} won't respond — you can't start agents on this task"
   mentionPicker:
     title: Mention a member, agent, or automation
     empty: No matches

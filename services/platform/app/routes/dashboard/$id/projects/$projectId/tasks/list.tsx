@@ -33,6 +33,10 @@ function TasksChunkFallback() {
     <TasksPageSkeleton
       view="list"
       canEdit={!allProjects && project?.canEdit === true}
+      // Every reader of an active project creates tasks in it.
+      canCreate={
+        !allProjects && project != null && project.archivedAt === undefined
+      }
       allProjects={allProjects}
     />
   );

@@ -7459,6 +7459,7 @@ tasks:
     breakerPaused: '{slug} antwortet nicht — Agenten-Läufe sind auf dieser Aufgabe pausiert'
     budgetPaused: '{slug} antwortet nicht — Monatsbudget aufgebraucht'
     agentNotLive: '{slug} antwortet nicht — Agent ist nicht installiert oder deaktiviert'
+    notPermitted: '{slug} antwortet nicht — auf dieser Aufgabe kannst du keine Agenten starten'
   mentionPicker:
     title: Mitglied, Agent oder Automatisierung erwähnen
     empty: Keine Treffer

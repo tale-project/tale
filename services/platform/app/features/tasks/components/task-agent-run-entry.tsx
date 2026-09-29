@@ -42,6 +42,8 @@ interface TaskAgentRunEntryProps {
   organizationId: string;
   taskId: string;
   assigneeId: string;
+  /** The viewer may work the task (`useTaskAccess`): start, retry and
+   * cancel its agent. Reading the run is for everyone. */
   canEdit: boolean;
   /**
    * Whether the task's assignee is an agent that still exists in the project
@@ -140,7 +142,8 @@ export function TaskAgentRunEntry({
   assigneeLive = true,
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
-  // Kicking a run is for editors with an agent that can actually run it.
+  // Kicking a run is for whoever may work the task (an editor, or the
+  // member it belongs to), with an agent that can actually run it.
   const canKick = canEdit && assigneeLive;
   const runQuery = useBackendQuery(
     'tasks/queries:getLatestTaskAgentRunForTask',
