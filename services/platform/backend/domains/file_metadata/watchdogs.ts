@@ -143,6 +143,7 @@ interface RagCandidate {
   storageRef: string;
   ragStatus: string;
   ragError: string | null;
+  ragErrorCode: string | null;
 }
 
 /** What a sweep did, summed across its organizations. */
@@ -219,9 +220,20 @@ async function readCorpusStatuses(
  *  - a recent `failed` row is reconciled too, so a false failure heals —
  *    but only after every stuck row: one limit covers both kinds, and a
  *    stuck row is what the sweep exists for;
+ *  - the failed rows are read in rotation: each tick stamps the ones it read
+ *    ({@link stampReconciled}) and reads the never-read ones first, then the
+ *    one read longest ago, so every failed row in the window is reached — a
+ *    batch ranked by queue time was the same oldest failures, settled ones
+ *    included, on every tick until they left the window;
  *  - an already-failed row is never overwritten with the generic interrupted
  *    text — its real error is the more useful one — and one that already
- *    reads the corpus's error is left exactly as it is.
+ *    reads the corpus's error is left exactly as it is, as is one whose code
+ *    says the app classified its failure itself;
+ *  - a failure the sweep writes carries no code: it classifies nothing, and
+ *    the code a retried row still carries from its previous failure
+ *    (`markRagQueued` keeps it until the job's first write) would pair that
+ *    failure's guidance — the Settings link for a missing embedding model —
+ *    with the sweep's sentence.
  *
  * Every write here moves a status the document list renders, so each
  * organization's lists hear the sweep once — and only for rows a document
@@ -235,13 +247,15 @@ export async function recoverStuckRagIndexing(
   const staleMs = options.staleMs ?? RAG_STALE_AFTER_MS;
   const staleBefore = Date.now() - staleMs;
   const failedAfter = Date.now() - RAG_FAILED_RECONCILE_WINDOW_MS;
-  // The stuck rows first, then the failed ones, each oldest first, as 0.4
-  // read them. Ranked by queue time alone, the failed rows of the last two
-  // days sorted ahead of every row that got stuck after them, and two
-  // hundred of them filled the batch: those rows were never reached.
+  // The stuck rows first, oldest first, as 0.4 read them. Ranked by queue
+  // time alone, the failed rows of the last two days sorted ahead of every
+  // row that got stuck after them, and two hundred of them filled the batch:
+  // those rows were never reached. The failed rows after them, in rotation:
+  // never reconciled first, then the one reconciled longest ago.
   const candidates = await sql<RagCandidate[]>`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
-           rag_status AS "ragStatus", rag_error AS "ragError"
+           rag_status AS "ragStatus", rag_error AS "ragError",
+           rag_error_code AS "ragErrorCode"
     FROM app.file_metadata
     WHERE storage_ref IS NOT NULL
       AND (
@@ -250,10 +264,14 @@ export async function recoverStuckRagIndexing(
         OR (rag_status = 'failed'
           AND coalesce(status_changed_at_ms, created_at_ms) > ${failedAfter})
       )
-    ORDER BY (rag_status = 'failed'), coalesce(rag_queued_at_ms, created_at_ms)
+    ORDER BY (rag_status = 'failed'),
+             CASE WHEN rag_status = 'failed' THEN rag_reconciled_at_ms END
+               NULLS FIRST,
+             coalesce(rag_queued_at_ms, created_at_ms)
     LIMIT ${options.limit ?? RAG_MAX_PER_RUN}
   `;
   if (candidates.length === 0) return { adopted: 0, failed: 0, revived: 0 };
+  await stampReconciled(sql, candidates);
 
   const byOrg = new Map<string, RagCandidate[]>();
   for (const row of candidates) {
@@ -286,6 +304,46 @@ export async function recoverStuckRagIndexing(
     );
   }
   return counts;
+}
+
+/**
+ * Stamp the failed candidates a tick read, so the next tick reads the failed
+ * rows after them: the rotation that keeps settled failures — rows the rules
+ * leave as they are, and write nothing for — from holding the batch's slots
+ * tick after tick, ahead of a false failure queued after them. Every failed
+ * candidate is stamped, whatever its settle does: a row deferred by a fault
+ * is read again on its next turn, and an organization whose corpus stays
+ * unreachable cannot pin the head of the rotation.
+ *
+ * The stamp moves no status, so it moves neither `status_changed_at_ms` (the
+ * failed window's clock) nor any list. A row another transaction holds is
+ * skipped, never waited for, and read again at the head of the next tick.
+ * Best-effort: a stamp that fails leaves the rotation where it was — the next
+ * tick reads the same rows again — and the settles still run.
+ */
+async function stampReconciled(
+  sql: Sql,
+  candidates: readonly RagCandidate[],
+): Promise<void> {
+  const failedIds = candidates
+    .filter((row) => row.ragStatus === 'failed')
+    .map((row) => row.id);
+  if (failedIds.length === 0) return;
+  try {
+    await sql`
+      UPDATE app.file_metadata SET rag_reconciled_at_ms = ${Date.now()}
+      WHERE id IN (
+        SELECT id FROM app.file_metadata
+        WHERE id = ANY(${failedIds}) AND rag_status = 'failed'
+        FOR NO KEY UPDATE SKIP LOCKED
+      )
+    `;
+  } catch (error) {
+    console.warn(
+      `[watchdog] could not stamp ${failedIds.length} failed rag row(s) as reconciled; the next tick reads them again:`,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 /**
@@ -410,13 +468,16 @@ async function settleRagRow(
   if (status?.status === 'failed') {
     if (row.ragStatus !== 'failed') {
       // The corpus knows the REAL error; the generic text stands in only
-      // for none.
+      // for none. It keeps the sentence alone, never its code, and the code
+      // on a retried row is its previous failure's: the pair goes as one,
+      // with no code.
       const moved = await settleWrite(
         sql,
         (tx) => tx<{ id: string }[]>`
           UPDATE app.file_metadata SET
             rag_status = 'failed',
             rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
+            rag_error_code = NULL,
             status_changed_at_ms = ${now}
           WHERE id = ${row.id}
           RETURNING id
@@ -424,7 +485,13 @@ async function settleRagRow(
       );
       return { moved, counts: 'failed' };
     }
-    // Already failed: the corpus's error replaces the row's. Without one the
+    // Already failed with a code: the app classified this failure and wrote
+    // its sentence and code together (`recordIndexingFailure`), while the
+    // corpus copy of the sentence is best-effort and can be an earlier
+    // attempt's. The app's pair outranks it and is left as it is.
+    if (row.ragErrorCode !== null) return null;
+    // Already failed without one — the sweep's own settle, or a failure from
+    // before codes: the corpus's error replaces the row's. Without one the
     // row keeps its own — a secret scan's refusal records none on the corpus
     // — and only a row with none either takes the generic text.
     const error = status.error ?? row.ragError ?? RAG_INTERRUPTED_MESSAGE;
@@ -432,13 +499,16 @@ async function settleRagRow(
     // again moved `status_changed_at_ms`, the clock of the failed window, so
     // the row never left the window: it was rewritten, and its lists told, on
     // every tick. Another text is corrected in place — the status has not
-    // changed, so neither does its clock.
+    // changed, so neither does its clock — on a row that still has no code:
+    // a retry may have re-queued it, or failed it with a classified cause,
+    // since the read.
     if (row.ragError === error) return null;
     const moved = await settleWrite(
       sql,
       (tx) => tx<{ id: string }[]>`
-        UPDATE app.file_metadata SET rag_error = ${error}
+        UPDATE app.file_metadata SET rag_error = ${error}, rag_error_code = NULL
         WHERE id = ${row.id} AND rag_status = 'failed'
+          AND rag_error_code IS NULL
         RETURNING id
       `,
     );
@@ -467,14 +537,16 @@ async function settleRagRow(
     }
   }
   // Stale `processing` or never ingested: the job will not finish. An
-  // already-failed row keeps its own (possibly real) error.
+  // already-failed row keeps its own (possibly real) error. The interrupted
+  // text names no classified cause, so it goes without a code — never beside
+  // the one a retried row kept from its previous failure.
   if (row.ragStatus === 'failed') return null;
   const moved = await settleWrite(
     sql,
     (tx) => tx<{ id: string }[]>`
       UPDATE app.file_metadata SET
         rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
-        status_changed_at_ms = ${now}
+        rag_error_code = NULL, status_changed_at_ms = ${now}
       WHERE id = ${row.id}
       RETURNING id
     `,

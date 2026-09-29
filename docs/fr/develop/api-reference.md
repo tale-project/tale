@@ -451,6 +451,7 @@ Branche ton client sur `indexing.errorCode`, pas sur le texte d’`error`. Le sc
 | `failed` : `embedding_upstream`, `indexer_error`, `index_rebuilding` | Le traitement de fond réessaie. Consulte le statut avant de demander un nouvel essai. |
 | `failed` : `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Fais corriger la configuration du fournisseur, les autorisations ou l’état de l’index par l’opérateur, puis réessaie. `embedding_provider_refused` couvre aussi un modèle qui renvoie des vecteurs d’une autre largeur que celle indiquée dans les réglages, ainsi que des identifiants d’embedding que la plateforme ne peut pas utiliser (aucun configuré, supprimés, désactivés ou illisibles) ; enregistrer des réglages d’embedding corrigés, ou ajouter ou réparer les identifiants qu’utilise le modèle d’embedding, remet en file d’attente chaque document qui a échoué sur le modèle d’embedding. |
 | `failed` : `secret_detected`, `pii_blocked` | Corrige la source ou la politique de contenu approuvée de l’organisation avant de réessayer. |
+| `failed` sans `errorCode` | L’indexation s’est arrêtée avant la fin (une tâche perdue ou un worker arrêté), et la plateforme l’a marquée en échec. Rien ne la relance automatiquement : demande un `retry-indexing`. |
 
 ## Synchroniser les notifications d’un membre
 
