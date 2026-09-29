@@ -130,6 +130,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
   title must itself be commitlint-shaped.
+- **No conflict markers** — `bun run lint:conflicts` (`scripts/check-conflict-markers.ts`)
+  refuses a `<<<<<<<`, `|||||||` or `>>>>>>>` line in any tracked text file: the pre-commit hook
+  runs it on the staged files, CI's Format job and `bun run check` on the whole tree. Markdown and
+  shell still parse with a conflict left in them, and one was committed that way (2026-09).
 
 ## A green check is not always a run
 
@@ -193,7 +197,7 @@ Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` 
 | Skill                                                      | Read before…                                                                                     |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | [`create-migration`](skills/create-migration/SKILL.md)     | adding/changing/testing a versioned data migration, or a red `backend:integration` / corpus gate |
-| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing product or component guides — follow the affected content tree’s contract |
+| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing product or component guides — follow the affected content tree’s contract        |
 | [`write-translations`](skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                             |
 
 The product skills are not repo-dev workflows: they live under
@@ -265,7 +269,7 @@ default means deleting the override and fixing what surfaces:
   `attachmentRefs`). A data URI pasted into `content` reaches the model as text and is answered as
   text, billed (2026-09, round f). The surface now says so. Paying it down means an `attachments`
   field on the REST send naming staged uploads the key holder minted — `POST
-  /api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
+/api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
   unfiled `/api/v1/threads` lane lacks today — handed to `runChatTurn` as the app's
   `{fileId: <s3Ref>, fileName, fileType, fileSize}`, with the spec's send body, the `Message`
   `attachment` part on the read side, the upload allowlist (`UNSUPPORTED_FILE_TYPE`) and a
@@ -342,7 +346,7 @@ default means deleting the override and fixing what surfaces:
   `POST /api/v1/websites/{id}/search` is BM25 only (`paradedb.score`), and when the knowledge
   database lacks ParadeDB it falls back to an ILIKE match stamping `score: 0` on every hit with
   nothing on the wire saying so (2026-09, round g). Paying it down means `diagnostics: {leg:
-  'keyword' | 'substring'}` on the response, and a `websiteId` filter on
+'keyword' | 'substring'}` on the response, and a `websiteId` filter on
   `POST /api/v1/knowledge/search` (`corpus: "web"`) for a per-site cosine without a second
   search stack.
 - **No `Idempotency-Key` on the task start** — `POST …/tasks/{taskId}/start` runs behind a
@@ -363,7 +367,7 @@ default means deleting the override and fixing what surfaces:
 - **A corrupt Office document still fails as a raw parse error** — a PDF that does not parse
   now lands `unsupported` with `errorCode: malformed`, but `docx`/`pptx`/`xlsx`/`odt` parse
   failures ("Invalid or corrupt file" in `backend/core/lib/knowledge/extraction/{ooxml,pptx,
-  xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
+xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
   times (2026-09, round g). Paying it down means wrapping those throws in
   `ExtractionError('malformed')` the way `pdf.ts` does.
 - **No `/.well-known/security.txt`** — nothing serves RFC 9116's disclosure channel; the path

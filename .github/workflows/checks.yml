@@ -49,6 +49,11 @@ jobs:
       - name: Run format check
         run: bun run format:check
 
+      # A conflict a merge or rebase left behind parses fine in markdown and
+      # shell, so no other job would notice it.
+      - name: Refuse merge-conflict markers
+        run: bun run lint:conflicts
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
