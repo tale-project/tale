@@ -24,7 +24,7 @@ import { SKILL_WRITE_ACTIONS } from './audit.ts';
 
 /** The display names of the given users who are members of the org. A
  * member without a name reads as their email. */
-export async function memberDisplayNames(
+async function memberDisplayNames(
   sql: Sql | TransactionSql,
   organizationId: string,
   userIds: readonly string[],

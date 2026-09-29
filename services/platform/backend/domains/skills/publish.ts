@@ -35,7 +35,7 @@ import type { SkillWriteAudit, SkillWriteDoor } from './audit.ts';
  */
 
 /** The capability that admits a member whatever the policy's mode. */
-export const SKILL_PUBLISH_CAPABILITY = 'tale:skills.publish';
+const SKILL_PUBLISH_CAPABILITY = 'tale:skills.publish';
 
 /** What the caller may do with an organization-wide skill audience. */
 export interface SkillPublishing {
@@ -111,7 +111,7 @@ export function publishRefusalSlug(error: unknown): string | null {
 }
 
 /** The audit action a refused publish records, in category `skill`. */
-export const SKILL_PUBLISH_DENIED_ACTION = 'skill.publish_denied';
+const SKILL_PUBLISH_DENIED_ACTION = 'skill.publish_denied';
 
 /**
  * Record a refused publish — a denied attempt at governed sharing is
