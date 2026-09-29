@@ -4,9 +4,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 
 /**
  * The durable release job (`knowledge.release_refs`, run by
- * `runReleaseRefsJob` in `release.ts`) as every lane that hands it a set of
- * refs queues it: in jobs of a bounded size. The mail lanes queue theirs in
- * their own transaction (`conversations/message-corpus.ts`); the corpus
+ * `runReleaseRefsJob` in `release.ts`) as every lane that hands it more than
+ * one ref queues it: in jobs of a bounded size. The mail lanes and a task
+ * retire queue theirs in their own transaction
+ * (`conversations/message-corpus.ts`, `tasks/retire.ts`); the corpus
  * reconcile queues the bytes it could not delete (`release.ts`). Its own
  * module, so a lane reaches it without the release seam's imports.
  */

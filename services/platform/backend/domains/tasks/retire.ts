@@ -1,7 +1,7 @@
 import type { TransactionSql } from 'postgres';
 
-import { addJobInTx } from '../../jobs/enqueue.ts';
 import { cancelRunInTx } from '../automations/store.ts';
+import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { cancelAgentRunInTx } from './agent-runs.ts';
 
 /**
@@ -167,8 +167,9 @@ export function collectTaskBlobRefs(
  * file rows are trashed so the release sees them dead, and the durable job
  * deletes the bytes after commit — network I/O never runs inside this
  * transaction, and the release re-checks liveness itself (a document or a
- * chat thread holding the same ref keeps its bytes). Answers the refs it
- * released.
+ * chat thread holding the same ref keeps its bytes). A project's whole task
+ * tree can release thousands of refs, so the jobs are bounded
+ * (`queueRefRelease`). Answers the refs it released.
  */
 export async function releaseUnlistedTaskBlobRefs(
   tx: TransactionSql,
@@ -197,10 +198,7 @@ export async function releaseUnlistedTaskBlobRefs(
         AND conversation_id IS NULL
         AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
     `;
-    await addJobInTx(tx, 'knowledge.release_refs', {
-      organizationId,
-      refs: releasedRefs,
-    });
+    await queueRefRelease(tx, organizationId, releasedRefs);
   }
   return releasedRefs;
 }

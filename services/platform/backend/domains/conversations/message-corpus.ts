@@ -116,9 +116,9 @@ export async function mailRefsOf(
  * queues nothing. An attachment's bytes stay while its file row does: only
  * its corpus copy dies with its conversation. A job that exhausts its
  * retries is the daily corpus reconcile's to finish; the retrievable filter
- * refuses those rows meanwhile. The jobs are bounded as every release lane
- * bounds them (`queueRefRelease`), and an enqueue that fails fails the
- * caller's transaction.
+ * refuses those rows meanwhile. The jobs are bounded as every lane that
+ * releases more than one ref bounds them (`queueRefRelease`), and an enqueue
+ * that fails fails the caller's transaction.
  */
 export async function queueMessageRefRelease(
   tx: TransactionSql | Sql,
