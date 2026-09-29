@@ -1753,6 +1753,7 @@ conversations:
   updating: Updating conversations...
   bulk:
     progress: 'Updating conversations... {settled} of {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Send messages
     close: Close
     reopen: Reopen

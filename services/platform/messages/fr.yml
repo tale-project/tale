@@ -1820,6 +1820,7 @@ conversations:
   updating: Mise à jour des conversations...
   bulk:
     progress: 'Mise à jour des conversations... {settled} sur {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Envoyer les messages
     close: Fermer
     reopen: Rouvrir

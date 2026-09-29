@@ -27,6 +27,7 @@ import {
   useGoogleDriveFiles,
 } from '../hooks/queries';
 import { useListingFailureToast } from '../hooks/use-listing-failure-toast';
+import { CloudListingError } from '../lib/cloud-listing-error';
 import { GoogleDisconnectButton } from './google-disconnect-button';
 import { OneDriveFileTable } from './onedrive-import/onedrive-file-table';
 import { OneDriveSettingsStage } from './onedrive-import/onedrive-settings-stage';
@@ -280,9 +281,12 @@ export function GoogleDriveImportDialog({
         });
         // A folder that cannot be listed whole cannot be imported whole:
         // stop here (the caller reports it) instead of importing the rest
-        // and calling that a success — the OneDrive picker's posture.
+        // and calling that a success — the OneDrive picker's posture. The
+        // provider's answer is for the log, never for the toast.
         if (!folderResult.success || !folderResult.items) {
-          throw new Error(folderResult.error || t('googledrive.loadFailed'));
+          throw new CloudListingError(
+            folderResult.error || 'Failed to load the folder',
+          );
         }
         if (folderResult.truncated) {
           throw new Error(
@@ -384,23 +388,37 @@ export function GoogleDriveImportDialog({
         setSelectedItems(new Map());
         onSuccess?.();
       } else {
+        // The answer's `error` is the backend's own English (the grant
+        // check's sentence, a vendor's refusal): the log keeps it.
+        console.warn('Google Drive import did not complete:', result.error);
         toast({
           title:
             importType === 'one-time'
               ? t('googledrive.importFailed')
               : t('googledrive.syncFailed'),
-          description: result.error || tCommon('errors.generic'),
+          description: tCommon('errors.generic'),
           variant: 'destructive',
         });
       }
     } catch (error) {
-      console.error('Failed to import from Google Drive:', error);
+      // A folder the provider would not list carries its raw answer, in
+      // English: the log keeps it, and the toast says only that the import
+      // failed. A refusal keeps its words, and so does a folder too large
+      // to import whole.
+      const unworded = error instanceof CloudListingError;
+      if (unworded) {
+        console.warn('Google Drive import listing failed:', error.message);
+      } else {
+        console.error('Failed to import from Google Drive:', error);
+      }
       toast({
         title:
           importType === 'one-time'
             ? t('googledrive.importFailed')
             : t('googledrive.syncFailed'),
-        description: failureDetail(error) ?? tCommon('errors.generic'),
+        description: unworded
+          ? tCommon('errors.generic')
+          : (failureDetail(error) ?? tCommon('errors.generic')),
         variant: 'destructive',
       });
     } finally {
