@@ -16,9 +16,11 @@ Nutze einen Connector, wenn Tale Daten in einem externen Dienst lesen oder ände
 | Confluence | Confluence-Cloud-Seiten ins Wissen importieren. | Benutzername mit Passwort oder Token. |
 | Discord | Mit Nachrichten und Kanälen arbeiten. | Token. |
 | GitHub | Repositorys, Issues und Pull Requests lesen oder verwalten. | Token. |
+| GlitchTip | Issues eines Projekts lesen, damit der GlitchTip-Import daraus Aufgaben anlegt. | Token und eine Instanz-URL. |
 | Gmail | E-Mails lesen, senden und organisieren. | OAuth. |
 | Google Drive | Dateien ins Wissen importieren. | OAuth. |
 | IMAP / SMTP Mailbox | E-Mails über einen eigenen Maildienst lesen oder senden. | Benutzername und Passwort. |
+| Jev decisions | Typisierte Fragen zu den Daten eines Workflows mit kalibrierten Wahrscheinlichkeiten beantworten, damit der Workflow entscheiden kann, ob er handelt. | API-Schlüssel (ein OpenRouter-Schlüssel). |
 | Microsoft Outlook | Mit E-Mails, Kalendern und Kontakten arbeiten. | OAuth. |
 | Shopify | Mit Produkten, Kunden und Bestellungen arbeiten. | API-Schlüssel. |
 | Slack | Mit Nachrichten und Kanälen arbeiten. | OAuth. |
@@ -35,7 +37,7 @@ Wissensimporte verwenden die [Dokumentenindexierung](/de/platform/knowledge/docu
 
 Wähle **Zugangsdaten hinzufügen**, suche den Dienst und öffne seine Karte. Bereits eingerichtete Connectors erscheinen zuerst. Trotzdem kannst du für denselben Dienst ein weiteres Konto hinzufügen. Das Formular fragt nach der vom Connector unterstützten Anmeldung.
 
-<Frame caption="Zugangsdaten hinzufügen öffnet den Katalog — die dreizehn mitgelieferten Connectoren, die mit vorhandenen Zugangsdaten zuerst.">
+<Frame caption="Zugangsdaten hinzufügen öffnet den Katalog — die mitgelieferten Connectoren, die mit vorhandenen Zugangsdaten zuerst.">
 
 ![Der Dialog Zugangsdaten hinzufügen über der Tabelle unter Einstellungen > Connectors, mit den mitgelieferten Connectoren als Karten samt Kategorien und Aktionszahl, einem Suchfeld oben und dem bereits eingerichteten Connector Tavily am Anfang der Liste.](/images/platform/connectors-add-credential.webp)
 
@@ -43,11 +45,11 @@ Wähle **Zugangsdaten hinzufügen**, suche den Dienst und öffne seine Karte. Be
 
 Das Feld **Name** enthält zunächst den Namen des Connectors. Fügst du für denselben Dienst mehrere Konten hinzu, ersetze ihn durch einen zweckbezogenen Namen, etwa `Support-Postfach` oder `Release-Bot`. Verwende Zugangsdaten des externen Diensts, keinen Tale-API-Schlüssel. Melde dich bei OAuth mit dem Konto beim Provider an, das du hinzufügen willst, und schließe die Zustimmung ab. Jede Verbindung legt neue Zugangsdaten an, benannt nach dem Connector und durchnummeriert (`Gmail`, dann `Gmail 2`); Slack führt pro Workspace genau einen Satz. Benenne neue Zugangsdaten um, damit die Konten unterscheidbar bleiben. Kann der Vorgang nicht starten, muss gegebenenfalls ein Administrator zuerst die OAuth-App einrichten.
 
-Confluence und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den Ursprung der Atlassian-Site oder die `myshopify.com`-Adresse des Shops, keine beliebige Unterseite oder Kundendomain. [Connector-Zugangsdaten](/de/platform/admin/connectors) erklärt Felder, erneute Autorisierung und Schlüsselaustausch.
+Confluence, GlitchTip und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den Ursprung der Atlassian-Site, den Ursprung der GlitchTip-Instanz wie `https://app.glitchtip.com` oder die `myshopify.com`-Adresse des Shops, keine beliebige Unterseite oder Kundendomain. Eine selbst gehostete GlitchTip-Instanz muss zusätzlich durch die Host-Richtlinie des Connectors erlaubt sein. [Connector-Zugangsdaten](/de/platform/admin/connectors) erklärt Felder, erneute Autorisierung und Schlüsselaustausch.
 
 ## Das Konto für eine Aktion bestimmen
 
-Eine Aktion verwendet den ausdrücklich genannten Eintrag oder, ohne Angabe, den Standard des Connectors. Nur ein Eintrag pro Connector kann Standard sein. Ohne Standard schlägt ein Aufruf ohne Namen fehl, selbst wenn andere Zugangsdaten vorhanden sind.
+Eine Aktion verwendet den ausdrücklich genannten Eintrag oder, ohne Angabe, den Standard des Connectors. Nur ein Eintrag pro Connector kann Standard sein. Ohne Standard schlägt ein Aufruf ohne Namen fehl, selbst wenn andere Zugangsdaten vorhanden sind. Löschst du den Standard, wird der älteste verbleibende aktive Eintrag dieses Connectors zum Standard; die Löschbestätigung nennt ihn vorher.
 
 Zwei Support-Postfächer sind beispielsweise zwei Einträge. Vergib unterscheidbare Namen und prüfe die aufgelöste Eingabe eines Workflows vor dem Live-Lauf. Der Standard wird verwendet, wenn die Aktion keinen bestimmten Eintrag nennt. Postfachoperationen, die alle aktiven Konten auslesen, sind ein eigener Fall.
 
@@ -55,7 +57,7 @@ Das Deaktivieren erhält die Konfiguration, verhindert aber ihre Nutzung. Der Au
 
 ## Lesen und Schreiben unterscheiden
 
-Automatisierungen verwenden Connector-Aktionen als Workflow-Nodes. Jede Aktion definiert Eingabeschema, Ausgabe und Lese- oder Schreibwirkung. Testläufe simulieren die Antworten. Ein Live-Schreibvorgang kann Nachrichten senden oder externe Daten ändern und unterliegt der Freigaberichtlinie der Organisation.
+Automatisierungen verwenden Connector-Aktionen als Workflow-Nodes. Jede Aktion definiert Eingabeschema, Ausgabe und Lese- oder Schreibwirkung. GlitchTip und Jev decisions lesen nur: Der GlitchTip-Import legt Tale-Aufgaben an und ändert nie das ursprüngliche Issue, und eine Jev-Entscheidung beantwortet jede Frage mit ihren Wahrscheinlichkeiten, ohne etwas zu schreiben. Jede Entscheidung wird dem OpenRouter-Konto berechnet, dessen Schlüssel die Zugangsdaten enthalten. Testläufe simulieren die Antworten. Ein Live-Schreibvorgang kann Nachrichten senden oder externe Daten ändern und unterliegt der Freigaberichtlinie der Organisation.
 
 Projektagenten mit konfigurierten Connectors erhalten deren unterstützte Leseaktionen über Tales Connector-Broker. Er hält diese Zugangsdaten außerhalb der Sandbox und gibt Ergebnisse zurück. Connector-Schreibaktionen lehnt er ab. Direkte GitHub-Werkzeuge und explizite Agent-Secrets nutzen andere Wege und brauchen eine eigene Prüfung.
 

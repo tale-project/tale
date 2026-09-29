@@ -29,6 +29,9 @@ const {
   getSandboxDeploymentLimits,
   getUserTeamIds,
   listModelApiModels,
+  mayCreateApiKeys,
+  restoreSoftDeletedRow,
+  syncRagDocumentScope,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createAuditLog: vi.fn(),
@@ -41,6 +44,9 @@ const {
   getSandboxDeploymentLimits: vi.fn(),
   getUserTeamIds: vi.fn(),
   listModelApiModels: vi.fn(),
+  mayCreateApiKeys: vi.fn(),
+  restoreSoftDeletedRow: vi.fn(),
+  syncRagDocumentScope: vi.fn(),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({ transactSerializable }));
@@ -56,9 +62,18 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
 vi.mock('../model_api/models.ts', () => ({ listModelApiModels }));
+vi.mock('../../auth/api-key-create-gate.ts', () => ({ mayCreateApiKeys }));
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
   getUserTeamIds,
+}));
+vi.mock('./trash.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./trash.ts')>()),
+  restoreSoftDeletedRow,
+}));
+vi.mock('../knowledge/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
+  syncRagDocumentScope,
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -86,6 +101,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { createGovernanceRoutes } from './routes.ts';
+import { TrashError } from './trash.ts';
 
 const TX = { tx: true };
 
@@ -527,6 +543,37 @@ describe('GET /my/model-api', () => {
   });
 });
 
+describe('GET /my/api-keys', () => {
+  it.each([
+    [true, true],
+    [false, true],
+    [false, false],
+  ])(
+    'answers whether the caller may create a personal API key (%s) and holds one (%s)',
+    async (mayCreate, holdsKeys) => {
+      caller.role = 'member';
+      mayCreateApiKeys.mockReset().mockResolvedValue(mayCreate);
+      const keyReads: unknown[][] = [];
+      const sql = (async (
+        _strings: TemplateStringsArray,
+        ...values: unknown[]
+      ) => {
+        keyReads.push(values);
+        return holdsKeys ? [{ id: 'key-1' }] : [];
+      }) as never;
+      const res = await createGovernanceRoutes({
+        sql,
+        auth: {} as never,
+      }).request('/my/api-keys?orgId=o1');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ mayCreate, holdsKeys });
+      // The person's right and keys, whichever organization's page asks.
+      expect(mayCreateApiKeys).toHaveBeenCalledWith(expect.anything(), 'u1');
+      expect(keyReads).toEqual([['u1']]);
+    },
+  );
+});
+
 describe('GET /my/budget-usage', () => {
   interface Usage {
     totalTokens: number;
@@ -737,5 +784,72 @@ describe('GET /policies/:policyType — who may read', () => {
     caller.role = 'admin';
 
     expect((await read(policyType)).status).toBe(200);
+  });
+});
+
+describe('POST /trash/restore — the corpus row of a restored document', () => {
+  // A restored document can be its ref's holder again — the lowest-id
+  // active document holding a shared ref, whose scope the corpus row
+  // carries — and a restore edits no scope: without a re-stamp the row kept
+  // the twin's scope until the nightly reconcile counted it as drift.
+  beforeEach(() => {
+    caller.role = 'admin';
+    restoreSoftDeletedRow.mockResolvedValue(undefined);
+    syncRagDocumentScope.mockResolvedValue(undefined);
+  });
+
+  it('re-stamps a restored document’s ref from its holder, after the restore commits', async () => {
+    // The transaction counts as committed once its body has resolved; the
+    // re-stamp records whether it had.
+    let committed = false;
+    let restampedAfterCommit: boolean | undefined;
+    transactSerializable.mockImplementation(
+      async (_sql: unknown, callback: (tx: unknown) => Promise<unknown>) => {
+        const result = await callback(TX);
+        committed = true;
+        return result;
+      },
+    );
+    syncRagDocumentScope.mockImplementation(() => {
+      restampedAfterCommit = committed;
+      return Promise.resolve();
+    });
+
+    const response = await post('/trash/restore?orgId=o1', {
+      resourceType: 'document',
+      id: 'doc-1',
+    });
+
+    expect(response.status).toBe(200);
+    expect(syncRagDocumentScope).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'doc-1',
+    );
+    expect(restampedAfterCommit).toBe(true);
+  });
+
+  it('re-stamps nothing for a row that is not a document', async () => {
+    const response = await post('/trash/restore?orgId=o1', {
+      resourceType: 'fileMetadata',
+      id: 'fm-1',
+    });
+
+    expect(response.status).toBe(200);
+    expect(syncRagDocumentScope).not.toHaveBeenCalled();
+  });
+
+  it('re-stamps nothing when the restore is refused', async () => {
+    restoreSoftDeletedRow.mockRejectedValue(
+      new TrashError('ROW_NOT_FOUND', 'Nothing to restore', 404),
+    );
+
+    const response = await post('/trash/restore?orgId=o1', {
+      resourceType: 'document',
+      id: 'doc-1',
+    });
+
+    expect(response.status).toBe(404);
+    expect(syncRagDocumentScope).not.toHaveBeenCalled();
   });
 });

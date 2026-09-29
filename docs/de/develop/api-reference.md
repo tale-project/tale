@@ -41,7 +41,7 @@ Kontakte und Produkte sind nach `updatedAt`, dann `id`, jeweils absteigend sorti
 
 ## Authentifizierung
 
-Erstelle Schlüssel unter **Einstellungen > API > REST** als Inhaber, Admin oder Entwickler oder als Mitglied, dem ein Admin **Modelle über die API aufrufen** zugewiesen hat; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller. Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
+Erstelle Schlüssel unter **Einstellungen > API > REST** als Inhaber, Admin oder Entwickler oder als Mitglied, dem ein Admin eine Kompetenz zugewiesen hat, die mit einem Schlüssel genutzt wird (`tale:models.api`, `tale:notifications.export` oder `tale:rest.act-as`); alle anderen lehnt Tale mit `403 API_KEY_CREATE_FORBIDDEN` ab; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller. Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
 
 | Header | Regel |
 | --- | --- |
@@ -412,6 +412,7 @@ Verzweige nach `indexing.errorCode`, nicht nach dem Wortlaut von `error`. Das Op
 | `failed`: `embedding_upstream`, `indexer_error`, `index_rebuilding` | Der Hintergrundauftrag wiederholt diese Fehler. Prüfe den Status, bevor du selbst erneut anstößt. |
 | `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Lass Anbieter-Konfiguration, Berechtigungen oder Indexzustand vom Betreiber korrigieren und versuche es danach erneut. `embedding_provider_refused` deckt auch ein Modell ab, das Vektoren mit einer anderen Breite liefert, als die Einstellungen angeben, sowie Embedding-Zugangsdaten, die die Plattform nicht verwenden kann (keine konfiguriert, gelöscht, deaktiviert oder nicht lesbar); das Speichern korrigierter Embedding-Einstellungen oder das Anlegen beziehungsweise Reparieren der Zugangsdaten, die das Embedding-Modell verwendet, stellt jedes Dokument, das am Embedding-Modell gescheitert ist, erneut in die Warteschlange. |
 | `failed`: `secret_detected`, `pii_blocked` | Korrigiere die Quelle oder die freigegebene Inhaltsrichtlinie der Organisation vor dem nächsten Versuch. |
+| `failed` ohne `errorCode` | Die Plattform hat den Fehler abgeschlossen, ohne ihn einzuordnen, meist weil die Indexierung vor dem Ende abbrach (ein verlorener Auftrag oder ein angehaltener Worker). Warte nicht auf einen automatischen neuen Versuch: Stoße `retry-indexing` an. |
 
 ## Benachrichtigungen eines Mitglieds spiegeln
 

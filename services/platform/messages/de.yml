@@ -2,9 +2,9 @@ accessDenied:
   title: Zugriff verweigert
   connectors: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
     Connector-Einstellungen zuzugreifen.
-  apiKeys:
-    Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu
-    verwalten.
+  apiKeys: API-Schlüssel nutzen Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
+  apiTab: Diese Seite ist Inhabern, Admins und Entwicklern vorbehalten.
+  apiModels: Die Einrichtung der Modell-Endpunkte ist Inhabern, Admins und Entwicklern vorbehalten und Mitgliedern mit der Kompetenz „Modelle über die API aufrufen“.
   organization: Du benötigst Admin-Berechtigungen, um auf die
     Organisationseinstellungen zuzugreifen.
   branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
@@ -356,6 +356,9 @@ auth:
     stayHere: Hier bleiben
     signIn: Anmelden
     checkFailed: Deine Sitzung konnte nicht geprüft werden. Bleib hier und versuche es erneut, sobald die Verbindung wiederhergestellt ist.
+  accountUnavailable:
+    description: Dein Konto konnte nicht geladen werden.
+    signInAgain: Erneut anmelden
   oauth:
     title: 'Mit Tale fortfahren'
     request: '{application} möchte dich mit Tale anmelden.'
@@ -1078,6 +1081,20 @@ chat:
   markAsRead: Als gelesen markieren
   markAsUnread: Als ungelesen markieren
   readOnlyShared: Mit dem Projekt geteilt — nur Lesen
+  createTask:
+    button: Aufgabe aus Chat erstellen
+    projectTitle: Aufgabe aus diesem Chat erstellen
+    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. Ein Projekt-Agent dort kann sie bearbeiten und die Dateien liefern.
+    projectLabel: Projekt
+    projectPlaceholder: Projekt wählen
+    projectEmpty: Kein passendes Projekt
+    noProjects: Es gibt noch kein Projekt für die Aufgabe. Bitte einen Redakteur oder Admin, eines anzulegen.
+    continue: Weiter
+    fromChat: 'Aus dem Chat: {title}'
+    fromChatUntitled: Aus dem Chat
+    created: Aufgabe in {project} erstellt
+    openTask: Aufgabe öffnen
+    openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
   export:
     button: Exportieren
     title: Chat exportieren
@@ -1301,6 +1318,7 @@ chat:
       notFound: Video-Link nicht gefunden — möglicherweise wurde er entfernt
       notUploader: Nur die Person, die dieses Video hinzugefügt hat, kann es ändern
       notRetryable: Erneuter Versuch gerade nicht möglich — das Video wird womöglich schon wieder verarbeitet
+      threadNotFound: Dieser Chat ist nicht mehr verfügbar
     actions:
       removeLink: Entfernen
       retry: Erneut versuchen
@@ -1311,6 +1329,8 @@ chat:
     toast:
       ingestFailedTitle: Video konnte nicht hinzugefügt werden
       retryFailedTitle: Erneuter Versuch fehlgeschlagen
+      removeFailedTitle: Video konnte nicht entfernt werden
+      removeFailedDescription: Das Video ist noch an deine Nachricht angehängt — bitte erneut entfernen
   fallback:
     image: Bild
   loadingConversation: Lädt die Unterhaltung…
@@ -1807,6 +1827,7 @@ conversations:
   updating: Konversationen werden aktualisiert...
   bulk:
     progress: 'Konversationen werden aktualisiert... {settled} von {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Nachrichten senden
     close: Schließen
     reopen: Erneut öffnen
@@ -2082,6 +2103,7 @@ documents:
   entityLabelOne: Dokument
   tableCaption: Dokumente und Ordner
   searchPlaceholder: Dokumente suchen
+  refreshFailed: Die neuesten Dokumente konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   record:
     badge: 'v{version} · {state}'
     state:
@@ -2361,6 +2383,9 @@ documents:
     storedButNotIndexed:
       Gespeichert und herunterladbar, aber nicht für die Suche
       indexiert (Altformat).
+    storedButNotIndexedNoExtension:
+      'Gespeichert und herunterladbar, aber nicht für die Suche indexiert:
+      Der Dateiname besteht nur aus einer Dateiendung.'
     filesCompletedSummary: '{completed} von {total} Dateien abgeschlossen'
     filesCompletedWithFailures: '{completed} von {total} Dateien abgeschlossen - {failed} fehlgeschlagen'
     selectTeams: Teams zuweisen
@@ -2679,6 +2704,7 @@ emptyStates:
   apiKeys:
     title: Noch keine API-Schlüssel
     description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
+    descriptionNoCreate: Einen Schlüssel erstellen können Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
 governance:
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert
@@ -4449,6 +4475,7 @@ knowledgeEntries:
   title: Wissenseinträge
   entityLabelOne: Wissenseintrag
   searchPlaceholder: Wissenseinträge durchsuchen
+  refreshFailed: Die neuesten Wissenseinträge konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   addButton: Eintrag hinzufügen
   addEntry: Wissenseintrag hinzufügen
   addDescription: Wähle ein Thema und formuliere das Wissen so, dass es für sich allein verständlich ist.
@@ -4497,6 +4524,10 @@ knowledgeEntries:
     versionCount: '{count, plural, one {# frühere Version} other {# frühere Versionen}}'
     superseded: Ersetzt
     supersededOn: Ersetzt am {date}
+    historyLoading: Versionsverlauf wird geladen…
+    historyEmpty: Noch keine früheren Versionen – bei jeder Bearbeitung bleibt hier der Text erhalten, den sie ersetzt.
+    historyLoadFailed: Der Versionsverlauf konnte nicht geladen werden.
+    historyRefreshFailed: Der Versionsverlauf konnte nicht aktualisiert werden. Die angezeigten Versionen sind womöglich veraltet.
 metadata:
   suffix: Tale
   default:
@@ -5726,6 +5757,16 @@ settings:
         Verbinde neu, um die Freigabe erneut zu erteilen.
       needsReauthDetail: '{detail} Verbinde neu, um die Freigabe erneut zu erteilen.'
       reconnect: Neu verbinden
+      deleteDefaultHandsOn: >-
+        Das sind die Standard-Zugangsdaten. Nach dem Löschen wird "{name}" zum
+        Standard für Aufrufe, die keine Zugangsdaten nennen.
+      deleteDefaultLeavesNone: >-
+        Das sind die Standard-Zugangsdaten, und keine anderen aktiven
+        Zugangsdaten können übernehmen: Aufrufe ohne eigene Angabe schlagen
+        fehl, bis du einen Eintrag zum Standard machst.
+      deleteDefaultHandsOnOldest: >-
+        Das sind die Standard-Zugangsdaten. Nach dem Löschen wird der älteste
+        aktive Eintrag dieses Connectors zum Standard, sofern es einen gibt.
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       tokenTitle: Token ersetzen
@@ -5799,6 +5840,10 @@ settings:
       endpointHelpShopify:
         Die myshopify.com-Adresse deines Shops — die Admin-Adresse, nicht die
         Storefront-Domain.
+      endpointHelpGlitchtip:
+        Die Adresse deiner GlitchTip-Instanz, etwa https://app.glitchtip.com.
+        Eine selbst gehostete Instanz funktioniert, sobald die Bereitstellung
+        ihren Host erlaubt.
       endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
   enterpriseSso:
     connected: Die Anmeldung ist aktiviert.
@@ -7346,6 +7391,21 @@ tasks:
     noTasks: Keine Aufgaben
   list:
     showArchived: Archivierte anzeigen
+  # Ein Lesevorgang des Boards, der nach allen Wiederholungen gescheitert ist
+  # (#3747): was nicht geladen wurde und was die Person solange sieht — nie ein
+  # leeres Board. Jeder Hinweis trägt „Erneut versuchen“
+  # (common.actions.tryAgain) nur für diesen Lesevorgang.
+  read:
+    tasksFailed: Die Aufgaben konnten nicht geladen werden, deshalb wird keine angezeigt. Deine Suche und deine Filter bleiben, wie sie sind.
+    tasksStale: Die Aufgaben konnten nicht aktualisiert werden. Du siehst sie so, wie sie zuletzt geladen wurden.
+    dependenciesFailed: Die Abhängigkeiten konnten nicht geladen werden, deshalb sind blockierte Aufgaben möglicherweise nicht als blockiert markiert.
+    activityFailed: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert.
+    activityFailedReviewFilter: Die Aktivität der Agenten und Reviews konnte nicht geladen werden. Laufende Agenten, offene Fragen und ausstehende Reviews sind deshalb möglicherweise nicht markiert, und „Wartet auf mein Review“ lässt vielleicht Aufgaben aus, die auf dich warten.
+    retrying: Wird erneut versucht…
+    # Der Lesevorgang des Boards endet an seiner Obergrenze; die Suche grenzt
+    # den Lesevorgang selbst ein und erreicht so jede Aufgabe. {count} ist die
+    # Zahl der angezeigten Aufgaben.
+    truncated: 'Angezeigt {count, plural, one {wird die erste Aufgabe} other {werden die ersten # Aufgaben}}. Nutze die Suche, um die übrigen zu finden.'
   # Ziehen per Tastatur in Board und Liste: die Anleitung am Titel, dann die
   # Live-Ansagen. {task} ist beim Aufnehmen `KEY-12, Titel`, danach `KEY-12`
   # (ohne Projektschlüssel der Titel). Ein Ablegen nennt den Ort, keinen
@@ -7473,6 +7533,12 @@ tasks:
     agentRunRefused: Ausführung abgelehnt
     repeatChanged: Wiederholung geändert
     repeatNext: Nächste Aufgabe erstellt
+    empty:
+      startDate: Kein Startdatum
+      dueDate: Kein Fälligkeitsdatum
+      description: Keine Beschreibung
+      labels: Keine Labels
+      attachments: Keine Anhänge
   review:
     needsReview: Review ausstehend
     waitingOn: 'Wartet auf {name}'
@@ -7978,6 +8044,7 @@ projects:
     emptyTitle: Noch keine Projekte
     emptyDescription: Lege ein Projekt an, um Dateien, Anweisungen und Chats mit
       deinem Team zu teilen.
+    emptyReaderDescription: Ein Projekt erscheint hier, sobald jemand es mit dir oder einem deiner Teams teilt.
     searchPlaceholder: Projekte suchen
     showArchived: Archivierte anzeigen
     columnName: Name
@@ -8136,6 +8203,11 @@ projects:
     newSubfolderAction: Neuer Unterordner
     uploadingIndicator: Wird hochgeladen…
     historyAction: Versionsverlauf
+    loadFailed: Die Dateien dieses Projekts konnten nicht geladen werden.
+    foldersLoadFailed: Die Ordner dieses Projekts konnten nicht geladen werden. Dateien in Ordnern stehen gesondert da, bis die Ordner geladen sind.
+    treeLoadFailed: Die Dateien und Ordner dieses Projekts konnten nicht geladen werden.
+    refreshFailed: Die Dateien dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+    unplacedGroup: Dateien in Ordnern
   threads:
     yourChats: Deine Chats
     subtitle: Chats, die du in diesem Projekt gestartet hast.

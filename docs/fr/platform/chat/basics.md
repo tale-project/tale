@@ -57,7 +57,19 @@ Au-dessus de la réponse, le déroulé montre les recherches et les lectures. Un
 
 La zone **Sources** sous la réponse liste les documents et pages chargés. Ouvre une source et vérifie qu’elle appuie l’affirmation concernée. Une citation indique le contenu utilisé, sans garantir toutes les conclusions. Une réponse sans étape de consultation peut reposer sur les connaissances préalables du modèle.
 
-L’assistant peut rechercher des documents, entrées de connaissances, sites, contacts, produits, tâches accessibles et conversations de la boîte de réception que tu peux voir, y compris le texte des e-mails qu’elles ont reçus et de leurs pièces jointes. Une tâche peut être désignée par sa clé, par exemple `DOCS-12`, telle que le tableau l’affiche. Il peut lire le détail d’un résultat et une page web publique. Le chat n’exécute pas de code, ne modifie pas de systèmes connectés, ne crée pas d’images, ne produit pas de fichiers livrables et n’utilise pas de [skills](/fr/platform/workspace/skills). Confie ce travail à une [tâche de projet](/fr/platform/projects/tasks). Toute personne qui peut ouvrir le projet peut en créer une et la confier à l’un des agents du projet. Un agent de projet qui traite la tâche peut créer des images si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images).
+L’assistant peut rechercher des documents, entrées de connaissances, sites, contacts, produits, tâches accessibles et conversations de la boîte de réception que tu peux voir, y compris le texte des e-mails qu’elles ont reçus et de leurs pièces jointes. Une tâche peut être désignée par sa clé, par exemple `DOCS-12`, telle que le tableau l’affiche. Il peut lire le détail d’un résultat et une page web publique. Le chat n’exécute pas de code, ne modifie pas de systèmes connectés, ne crée pas d’images, ne produit pas de fichiers livrables et n’utilise pas de [skills](/fr/platform/workspace/skills). Confie ce travail à une [tâche de projet](/fr/platform/projects/tasks). Toute personne qui peut ouvrir le projet peut en créer une et la confier à l’un des agents du projet ; [Créer une tâche depuis le chat](#create-task-from-chat) la crée à partir de la conversation. Un agent de projet qui traite la tâche peut créer des images si un admin a activé la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images).
+
+## Transformer un chat en tâche {#create-task-from-chat}
+
+Quand une conversation aboutit à un travail qui demande un fichier, par exemple une présentation, un rapport ou un tableur, confie-le à un agent de projet. Ouvre le menu **⋯** de la conversation et choisis **Créer une tâche depuis le chat**. Si le chat est classé dans un projet, la tâche y est créée ; sinon, choisis d’abord le projet. La boîte de dialogue de la tâche s’ouvre avec ta dernière demande comme description, un lien vers le chat et les fichiers que tu as joints dans la conversation. Modifie ce que tu veux, choisis l’agent sous **Assigné à** et sélectionne **Créer une tâche**. **Ouvrir la tâche** dans la confirmation t’y conduit, et **Démarrer l'agent** la lance.
+
+<Frame caption="Créer une tâche depuis le chat ouvre la boîte de dialogue de la tâche avec la demande et un lien vers le chat.">
+
+![La boîte de dialogue de création de tâche contient comme titre et description « Draft a launch checklist for the website relaunch project » et, sous la demande, un lien intitulé From the chat.](/images/platform/chat-create-task.webp)
+
+</Frame>
+
+Seuls les fichiers de ta propre conversation suivent. Une tâche n’accepte que les fichiers téléversés par la personne qui la crée ; une tâche créée depuis un chat qu’une autre personne a partagé dans un projet commence donc sans eux.
 
 ## Continuer ou conserver la conversation
 

@@ -4,7 +4,8 @@
  * agent's creator, the task's creator or a system marker. Spend attribution
  * and the member a task run's connector calls act for both read that column,
  * so a retry that switched it would book and act for someone who did not
- * start the work.
+ * start the work. And it starts new work only where that person's manual
+ * Start would, as the project and their access stand when it runs.
  */
 
 import type { Sql } from 'postgres';
@@ -31,12 +32,31 @@ const PAYLOAD = {
 
 /** What the job asked the run history for: the query text and its values. */
 const reads: Array<{ text: string; values: unknown[] }> = [];
+/** Every statement the job ran, in order. */
+const statements: string[] = [];
 
-/** A transaction that answers the job's three reads: the task, its runs
- * newest first, and the agent. */
-function sqlWith(runs: Array<Record<string, unknown>>): Sql {
+interface World {
+  /** The task's project as it stands; `null` when it is gone. */
+  project?: { archivedAt: number | null; teamIds: string[] } | null;
+  /** The starter's membership; `null` when they are no longer a member. */
+  member?: { role: string } | null;
+  /** The starter's teams in the organization. */
+  teams?: string[];
+  /** Who created the task (default: someone other than the starter). */
+  createdBy?: string;
+}
+
+/** A transaction that answers the job's reads: the task, its runs newest
+ * first, the agent, and the admission's project, member and team reads. */
+function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
+  const project =
+    world.project === undefined
+      ? { archivedAt: null, teamIds: [] }
+      : world.project;
+  const member = world.member === undefined ? { role: 'editor' } : world.member;
   const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
+    statements.push(text);
     if (text.includes('FROM app.tasks')) {
       return Promise.resolve([
         {
@@ -45,6 +65,9 @@ function sqlWith(runs: Array<Record<string, unknown>>): Sql {
           projectId: 'project-1',
           assigneeType: 'agent',
           assigneeId: 'agent-1',
+          createdBy: world.createdBy ?? 'user-creator',
+          createdByType: 'user',
+          parentTaskId: null,
         },
       ]);
     }
@@ -57,11 +80,43 @@ function sqlWith(runs: Array<Record<string, unknown>>): Sql {
         { harness: 'claude-code', model: 'm', modelProvider: null },
       ]);
     }
+    if (text.includes('FROM app.projects')) {
+      if (project === null) return Promise.resolve([]);
+      return Promise.resolve([
+        {
+          id: 'project-1',
+          organizationId: 'org-1',
+          archivedAt: project.archivedAt,
+          teamIds: project.teamIds,
+          teamId: project.teamIds[0] ?? null,
+          sharedWithTeamIds: project.teamIds.slice(1),
+        },
+      ]);
+    }
+    if (text.includes('FROM "member"')) {
+      return Promise.resolve(
+        member === null
+          ? []
+          : [
+              {
+                id: 'member-1',
+                organizationId: 'org-1',
+                userId: values[1],
+                role: member.role,
+              },
+            ],
+      );
+    }
+    if (text.includes('FROM "teamMember"')) {
+      return Promise.resolve((world.teams ?? []).map((teamId) => ({ teamId })));
+    }
     throw new Error(`unexpected query: ${text}`);
   };
+  const unsafe = (text: string) => text;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- postgres.js as far as the retry job uses it
   return {
-    begin: async (run: (t: typeof tx) => Promise<unknown>) => run(tx),
+    begin: async (run: (t: typeof tx) => Promise<unknown>) =>
+      run(Object.assign(tx, { unsafe })),
   } as unknown as Sql;
 }
 
@@ -87,6 +142,7 @@ describe('task.agent_retry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     reads.length = 0;
+    statements.length = 0;
   });
 
   it.each([
@@ -218,5 +274,118 @@ describe('task.agent_retry', () => {
     await handler?.(PAYLOAD);
 
     expect(kickAgentRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('task.agent_retry admission', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reads.length = 0;
+    statements.length = 0;
+  });
+
+  async function deliver(
+    world: World,
+    startedBy = 'user-starter',
+  ): Promise<string[]> {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const handler = createTaskList({
+      sql: sqlWith(
+        [failedRun('run-failed', 'turn_crashed', { startedBy })],
+        world,
+      ),
+    })['task.agent_retry'];
+    await handler?.(PAYLOAD);
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    log.mockRestore();
+    return lines;
+  }
+
+  it('share-locks the project and checks it before it kicks', async () => {
+    const lines = await deliver({});
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(lines).toEqual([]);
+    const lock = statements.findIndex(
+      (text) =>
+        text.includes('FROM app.projects') && text.includes('FOR SHARE'),
+    );
+    expect(lock).toBeGreaterThan(-1);
+    expect(statements[lock]).toContain('org_id');
+  });
+
+  it.each([
+    [
+      'a project archived since the run failed',
+      { project: { archivedAt: 1_700_000_000_000, teamIds: [] } },
+      'project_archived',
+    ],
+    ['a project that is gone', { project: null }, 'project_unavailable'],
+    ['a starter who left the organization', { member: null }, 'not_permitted'],
+    [
+      'a starter who may no longer edit',
+      { member: { role: 'member' } },
+      'not_permitted',
+    ],
+    ['a disabled starter', { member: { role: 'disabled' } }, 'not_permitted'],
+    [
+      'a starter outside the team the project belongs to',
+      { project: { archivedAt: null, teamIds: ['team-a'] }, teams: ['team-b'] },
+      'not_permitted',
+    ],
+  ] satisfies [string, World, string][])(
+    'starts nothing for %s',
+    async (_label, world, reason) => {
+      const lines = await deliver(world);
+
+      expect(kickAgentRun).not.toHaveBeenCalled();
+      expect(lines).toEqual([`[task-agent] auto-retry skipped: ${reason}`]);
+    },
+  );
+
+  it('retries a member on a task of their own, which they may still work', async () => {
+    await deliver({ member: { role: 'member' }, createdBy: 'user-starter' });
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a team member of a team project', async () => {
+    await deliver({
+      project: { archivedAt: null, teamIds: ['team-a'] },
+      teams: ['team-a'],
+    });
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the project alone decide for a run a trigger started', async () => {
+    const archived = await deliver(
+      { project: { archivedAt: 1_700_000_000_000, teamIds: [] }, member: null },
+      'trigger:schedule-1',
+    );
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(archived).toEqual([
+      '[task-agent] auto-retry skipped: project_archived',
+    ]);
+
+    await deliver({ member: null }, 'trigger:schedule-1');
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a starter that names nobody', async () => {
+    const lines = await deliver({}, 'itest:plan');
+
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(lines).toEqual(['[task-agent] auto-retry skipped: not_permitted']);
+  });
+
+  it('checks a REST start against the person behind the key', async () => {
+    const lines = await deliver(
+      { member: { role: 'member' } },
+      'api-key:user-starter',
+    );
+
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(lines).toEqual(['[task-agent] auto-retry skipped: not_permitted']);
   });
 });

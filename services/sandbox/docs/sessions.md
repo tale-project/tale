@@ -34,7 +34,9 @@ never `wait()`s children it did not spawn) would otherwise accumulate as zombies
 against `pids-limit`. The spawner proxies every in-session operation to runnerd
 over plain HTTP on `:8200`:
 
-- Docker: container DNS name `tale-sbx-ses-<id>` on `tale-sandbox-net`.
+- Docker: container DNS name `tale-sbx-ses-<id>` on `tale-sandbox-net`; an id
+  that would outgrow the 63-character DNS label (a member's workspace session)
+  is replaced by the first 16 hex digits of its SHA-1, as the K8s backend does.
 - K8s: the Pod IP (read from `status.podIP`).
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so

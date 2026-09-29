@@ -23,6 +23,8 @@ Un titre compte jusqu’à 200 caractères et une description jusqu’à 20 00
 
 Tale attribue un identifiant à partir de la clé du projet, par exemple `WEB-1`. Utilise-le pour désigner le travail sans confondre des tâches aux titres proches.
 
+Une conversation peut aussi lancer une tâche : **Créer une tâche depuis le chat** dans le menu **⋯** du chat ouvre **Créer une tâche** avec ta demande, les fichiers du chat et un lien vers celui-ci. Voir [Transformer un chat en tâche](/fr/platform/chat/basics#create-task-from-chat).
+
 Une automatisation conçue pour les tâches peut aussi proposer un modèle dans **Créer une tâche** : son nom apparaît alors à côté de **Tâche vierge**, au-dessus du formulaire. Choisis-la, saisis le nom qu’elle demande, par exemple un trimestre, puis clique sur **Créer une tâche** ; l’automatisation devient responsable de la tâche. Si une tâche existe déjà pour ce nom, Tale l’ouvre au lieu d’en créer une deuxième et indique **Une tâche existe déjà pour ce sujet.** Un Membre peut alors la lire et la commenter, mais ne la modifie que si elle est la sienne. Les modèles qui créent des dossiers ou des fichiers de paramètres dans le projet ne sont proposés qu’aux Éditeurs et aux rôles supérieurs.
 
 <Tip>
@@ -99,7 +101,9 @@ Saisis `@` dans un commentaire pour ouvrir le sélecteur de mentions. Mentionner
 
 Les mentions dans la description de la tâche agissent de la même façon quand tu enregistres la tâche : les personnes citées sont notifiées, et un agent cité est guidé ou démarre une exécution comme décrit ci-dessus. S’il démarre une exécution, la tâche passe à **En cours**, quelle que soit la colonne où tu l’as créée. Quand tu modifies la description plus tard, seules les mentions que tu ajoutes comptent. Reformuler le texte autour d’une mention existante ne notifie personne à nouveau. L’agent lit la description telle qu’elle est au démarrage de son exécution : si tu la modifies pendant que l’exécution attend encore, c’est ta nouvelle version qu’il suit.
 
-Utilise **Sous-tâches** pour séparer des résultats vérifiables indépendamment. Une sous-tâche nomme sa tâche parente en haut de ses détails (**Partie de …**) ; clique dessus pour y remonter. Une tâche parente ne peut pas être clôturée tant que ses sous-tâches restent ouvertes. **Dépendances** indique ce qui bloque la tâche et ce qu’elle bloque. Les dépendances circulaires sont refusées.
+Utilise **Sous-tâches** pour séparer des résultats vérifiables indépendamment. Une sous-tâche nomme sa tâche parente en haut de ses détails (**Partie de …**) ; clique dessus pour y remonter. Tant qu’une de ses sous-tâches reste ouverte, une tâche parente ne peut passer ni à **Terminé** ni à **Annulé** ; les autres statuts restent disponibles, **À faire** compris. **Dépendances** indique ce qui bloque la tâche et ce qu’elle bloque. Les dépendances circulaires sont refusées.
+
+Quand tu modifies un champ, l’**Activité** de la tâche affiche sa valeur d’avant et celle d’après. Un champ que tu vides indique ce qui reste, par exemple **Aucune échéance** ou **Non assigné**, au lieu de répéter seulement l’ancienne valeur. Les titres, descriptions, étiquettes et noms de fichiers apparaissent exactement tels qu’ils ont été saisis, même quand le texte correspond à un nom de statut comme `done`. Les statuts, les priorités, les dates et les mentions d’un champ vide s’affichent dans ta langue.
 
 ## Rendre une tâche récurrente
 
@@ -178,6 +182,12 @@ Passe la tâche à **Terminé** lorsqu’elle répond au besoin. Si l’agent do
 ## Retrouver le travail à suivre
 
 Réduis le tableau avec les filtres ou passe à la liste pour parcourir les tâches ligne par ligne. Garde les propositions dans le [Backlog](/fr/platform/projects/backlog) jusqu’à leur démarrage. Utilise des étiquettes pour les distinctions qui ne demandent pas un nouveau statut.
+
+Le champ **Rechercher des tâches** et les filtres restreignent le tableau ensemble : chaque tâche qui correspond aux deux apparaît, quel que soit leur nombre. La recherche trouve les tâches dont le titre, la description ou l’identifiant, par exemple `WEB-12`, contient chacun des mots saisis, ainsi que celles dont un commentaire les contient tous. Le tableau affiche jusqu’à 2 000 tâches. Dans un projet plus grand, un message indique que seules les 2 000 premières sont affichées ; utilise la recherche pour atteindre les autres.
+
+Si les tâches ne peuvent pas être chargées, le tableau l’indique au lieu d’afficher des colonnes vides, et ta recherche et tes filtres restent tels quels. Choisis **Réessayer** pour les charger. Quand une actualisation échoue, les tâches déjà affichées restent visibles, avec un message indiquant qu’elles apparaissent telles qu’au dernier chargement. Un message apparaît aussi quand les dépendances ou l’activité des agents et des relectures ne peuvent pas être chargées, car les tâches bloquées, les agents en cours, les questions ouvertes et les relectures en attente ne sont alors peut-être pas signalés. **Réessayer** dans un message recharge uniquement ce qui a échoué.
+
+Au clavier, appuie sur **Entrée** sur **Filtre** : le panneau s’ouvre sur son premier filtre, **Assigné à**. Appuie sur **Entrée** pour le déplier, puis sur **Tab** pour atteindre ses options. Les touches fléchées en choisissent une, et le tableau suit aussitôt. **Espace** choisit l’option où se trouve le focus, et l’annule quand elle est déjà choisie. **Tab** passe au filtre suivant et **Échap** ferme le panneau.
 
 Dans les vues **Tableau** et **Liste**, appuie sur **Tab** jusqu’à placer le focus sur le titre de la tâche, puis sur **Entrée** pour l’ouvrir.
 

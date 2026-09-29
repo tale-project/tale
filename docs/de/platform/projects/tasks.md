@@ -23,6 +23,8 @@ Ein Titel darf bis zu 200 Zeichen lang sein, eine Beschreibung bis zu 20.000; di
 
 Tale vergibt eine Kennung aus dem Projektkürzel, etwa `WEB-1`. Verwende sie in Verweisen auf die Arbeit, damit ähnlich benannte Aufgaben unterscheidbar bleiben.
 
+Auch ein Gespräch kann eine Aufgabe anstoßen: **Aufgabe aus Chat erstellen** im Menü **⋯** des Chats öffnet **Aufgabe erstellen** mit deiner Anfrage, den Dateien des Chats und einem Link zurück. Siehe [Aus einem Chat eine Aufgabe machen](/de/platform/chat/basics#create-task-from-chat).
+
 Eine Automatisierung, die für Aufgaben gebaut ist, kann in **Aufgabe erstellen** auch eine Vorlage anbieten: Ihr Name steht dann über dem Formular neben **Leere Aufgabe**. Wähle sie, gib den Namen ein, den die Automatisierung verlangt, etwa ein Quartal, und klicke auf **Aufgabe erstellen**; zuständig ist dann die Automatisierung. Gibt es für diesen Namen schon eine Aufgabe, öffnet Tale diese, statt eine zweite anzulegen, und meldet **Für dieses Subjekt existiert bereits eine Aufgabe.** Mitglieder können sie dort lesen und kommentieren, ändern sie aber nur, wenn es ihre eigene ist. Vorlagen, die im Projekt Ordner oder Einstellungsdateien anlegen, stehen nur Redakteuren und höheren Rollen zur Verfügung.
 
 <Tip>
@@ -99,7 +101,9 @@ Mit `@` im Kommentarfeld öffnest du die Erwähnungsauswahl. Eine Erwähnung des
 
 Erwähnungen in der Beschreibung der Aufgabe wirken beim Speichern genauso: Die genannten Personen werden benachrichtigt, und ein genannter Agent wird gesteuert oder startet einen Lauf, wie oben beschrieben. Startet er einen Lauf, wechselt die Aufgabe nach **In Bearbeitung**, egal in welcher Spalte du sie angelegt hast. Bearbeitest du die Beschreibung später, zählen nur die Erwähnungen, die du hinzufügst. Formulierst du den Text um eine bestehende Erwähnung herum um, wird niemand erneut benachrichtigt. Der Agent liest die Beschreibung so, wie sie beim Start seines Laufs lautet. Änderst du sie, solange der Lauf noch wartet, arbeitet er also mit deiner neuen Fassung.
 
-Nutze **Teilaufgaben** für Ergebnisse, die sich einzeln prüfen lassen. Eine Teilaufgabe nennt oben in ihren Details die übergeordnete Aufgabe (**Teil von …**); klicke darauf, um zu ihr zurückzukehren. Solange Teilaufgaben offen sind, lässt sich die übergeordnete Aufgabe nicht abschließen. Unter **Abhängigkeiten** siehst du, welche Aufgaben diese Aufgabe blockieren und welche sie selbst blockiert. Kreisförmige Abhängigkeiten sind nicht zulässig.
+Nutze **Teilaufgaben** für Ergebnisse, die sich einzeln prüfen lassen. Eine Teilaufgabe nennt oben in ihren Details die übergeordnete Aufgabe (**Teil von …**); klicke darauf, um zu ihr zurückzukehren. Solange noch eine Teilaufgabe offen ist, lässt sich die übergeordnete Aufgabe nicht nach **Erledigt** oder **Abgebrochen** verschieben. Alle anderen Status bleiben verfügbar, auch **Zu erledigen**. Unter **Abhängigkeiten** siehst du, welche Aufgaben diese Aufgabe blockieren und welche sie selbst blockiert. Kreisförmige Abhängigkeiten sind nicht zulässig.
+
+Änderst du ein Feld, zeigt die **Aktivität** der Aufgabe seinen Wert davor und danach. Leerst du ein Feld, steht dort, was übrig bleibt, etwa **Kein Fälligkeitsdatum** oder **Nicht zugewiesen**, und nicht bloß der alte Wert. Titel, Beschreibungen, Labels und Dateinamen erscheinen genau so, wie sie geschrieben wurden, auch wenn der Text einem Statusnamen wie `done` entspricht. Status, Prioritäten, Datumsangaben und die Angaben für ein leeres Feld erscheinen in deiner Sprache.
 
 ## Wiederkehrende Aufgaben einrichten
 
@@ -178,6 +182,12 @@ Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ei
 ## Aufgaben finden, die Aufmerksamkeit brauchen
 
 Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu überfliegen. Lass Vorschläge im [Backlog](/de/platform/projects/backlog), bis sie begonnen werden sollen. Nutze Labels für Unterscheidungen, die keinen eigenen Status brauchen.
+
+**Tasks durchsuchen** grenzt das Board zusammen mit **Filter** ein. Jede Aufgabe, die zu beidem passt, erscheint, egal wie viele es sind. Die Suche findet Aufgaben, deren Titel, Beschreibung oder Kennung, etwa `WEB-12`, jedes eingegebene Wort enthält, und Aufgaben mit einem Kommentar, der alle diese Wörter enthält. Das Board fasst bis zu 2.000 Aufgaben. In einem größeren Projekt sagt ein Hinweis, dass nur die ersten 2.000 angezeigt werden; über die Suche erreichst du die übrigen.
+
+Können die Aufgaben nicht geladen werden, sagt das Board das, statt leere Spalten zu zeigen, und deine Suche und deine Filter bleiben, wie sie sind. Wähle **Erneut versuchen**, um sie zu laden. Schlägt eine Aktualisierung fehl, bleiben die angezeigten Aufgaben stehen, und ein Hinweis sagt, dass sie dem zuletzt geladenen Stand entsprechen. Ein Hinweis erscheint auch, wenn die Abhängigkeiten oder die Aktivität der Agenten und Reviews nicht geladen werden können, denn dann sind blockierte Aufgaben, laufende Agenten, offene Fragen und ausstehende Reviews möglicherweise nicht markiert. **Erneut versuchen** in einem Hinweis lädt nur, was fehlgeschlagen ist.
+
+Mit der Tastatur drückst du **Enter** auf **Filter**: Das Panel öffnet sich beim ersten Filter, **Zuständig**. Mit **Enter** klappst du ihn auf, mit **Tab** erreichst du seine Optionen. Die Pfeiltasten wählen eine aus, und das Board folgt sofort. Die **Leertaste** wählt die Option, auf der der Fokus steht, und hebt die Auswahl auf, wenn sie schon gewählt ist. **Tab** führt zum nächsten Filter, und **Escape** schließt das Panel.
 
 In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Tab**. Drücke dann **Enter**, um die Aufgabe zu öffnen.
 

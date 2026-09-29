@@ -61,11 +61,13 @@ When an initially empty table has no search/filter toolbar, `addAction` moves in
 
 Over an empty collection that no query or filter narrows, the table disables its search box and **Filter**, because there is nothing to narrow. A query or filter that narrowed the rows to none keeps both usable so the reader can undo it, and a filter marked `widensResultSet` keeps **Filter** usable because it can reveal rows the default view hides. Neither control is disabled under the reader's focus. A search box whose last character was erased stays editable until focus leaves it. When **Clear all** or **Escape** leaves nothing to narrow, **Filter** takes the focus back and reads as unavailable (`aria-disabled`); it leaves the tab order once focus moves on. For a toolbar built outside a table, derive its `disabled` flags from `isFilterAffordanceDisabled` in `@tale/ui/filters/filter-panel`, passing the read's loading and error states so an unknown set never reads as empty.
 
+**Filter** opens with the focus on its first facet's header, so the keyboard reaches every option from there: Enter or Space expands a facet, and Tab moves between the facets and into the one that is open. A single-choice facet is a radio group (one per heading when its options are grouped) with one Tab stop, on its chosen option or else its first. The arrow keys, Home and End move the focus and the choice together. Space chooses the focused option, and on the chosen option clears it; a facet with `defaultValues` goes back to them instead. A multi-choice facet lists one checkbox per option. Escape closes the panel and gives the focus back to **Filter**.
+
 The toolbar wraps rather than overflows. When its column cannot hold the controls and the primary action on one line, the action moves to a line of its own on the right, and the search box gives up width before anything is pushed past the edge; on a phone the action takes a full-width row. A list that builds its own toolbar outside a table uses the same `DataTableToolbar` from `@tale/ui/data-table/data-table-filters`.
 
 When an `addAction` opens a dialog, pass a button ref as `addAction.triggerRef` and the same ref as the dialog's `restoreFocusRef`. The ref follows the button when creating the first row moves it from the empty state into the toolbar, so closing the dialog returns focus to the new button.
 
-When a `DataTableActionMenu` item opens a dialog, pass a stable button ref as `triggerRef` and pass the same ref to the dialog's `restoreFocusRef`. The menu item disappears when the dialog opens; the toolbar button remains the keyboard user's return point after closing it.
+When a `DataTableActionMenu` or `EntityRowActions` item opens a dialog, closing the dialog returns focus to the menu's button. The menu item disappears when the dialog opens, so the dialog returns to the button the menu names as its label. Pass a button ref as `triggerRef` and the same ref as the dialog's `restoreFocusRef` only when that button can itself unmount or move while the dialog is open.
 
 ## Decide what scrolls
 
@@ -79,7 +81,9 @@ A sticky frame is still only as tall as its rows, so a short list ends high on t
 
 Set `isLoading` while fetching the initial data. `approxRowCount` helps reserve space: an unknown count gives the default skeleton; a positive estimate gives skeleton rows up to the component's cap; zero allows the supplied initial empty state. Do not pass zero merely because a request has not returned yet.
 
-Pass `error` and `onRetry` for a failed query. A load failure should explain recovery rather than masquerade as an empty collection. Keep filter state when retrying so the request still matches what the reader sees.
+Pass `error` and `onRetry` for a failed query. A load failure should explain recovery rather than masquerade as an empty collection. Keep filter state when retrying so the request still matches what the reader sees. A refresh the reader did not start, such as the tab regaining focus or another session's change, replaces the error state with the loading state while it runs. Pass `onErrorFocusLost` a stable, named target around the table, such as the list's region, so that the focus **Try again** held lands there instead of on the page. Focus the reader moved elsewhere stays where it is.
+
+Rows already on screen stay through a failed refetch, and the host names that failure above the table with the same retry. When a cursor source fails while more rows may exist, set `infiniteScroll.loadFailed` until the retry: the table stops asking for more on scroll, a search that matches none of the loaded rows says it searched only those instead of showing a skeleton, and the count footer says the rest could not be loaded. [`useListPage`](/docs/patterns/list-page) sets the flag from its data source.
 
 ## Pick one paging model
 

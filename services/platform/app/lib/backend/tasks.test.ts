@@ -112,6 +112,7 @@ describe('task read adapters', () => {
       'u1',
       '',
       '',
+      '',
     ]);
     const result = (await row?.queryFn()) as {
       tasks: Record<string, unknown>[];
@@ -159,10 +160,78 @@ describe('task read adapters', () => {
       '',
       'u1',
       '',
+      '',
     ]);
     await row?.queryFn();
     expect(fetchSpy).toHaveBeenCalledWith(
       '/api/app/tasks?includeArchived=false&statuses=in_review&reviewerId=u1&orgId=org-1',
+      expect.anything(),
+    );
+  });
+
+  // #3745: the toolbar's search is a board filter. It rides the board read
+  // (trimmed), keys its own entry under the same board key, and a blank one
+  // reads — and keys — exactly like no search at all.
+  it('carries the search into the board URL and key, trimmed', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(async () =>
+        jsonResponse(200, { tasks: [], truncated: false, canEdit: true }),
+      );
+    const adapter = taskReadAdapters['tasks/queries:listTasksByProject'];
+
+    const searched = adapter?.(
+      {
+        organizationId: 'org-1',
+        projectId: 'p1',
+        statuses: ['todo'],
+        query: '  needle urgent ',
+      },
+      {},
+    );
+    expect(searched?.queryKey).toEqual(
+      backendKey(
+        'org-1',
+        'task',
+        'by-project',
+        'p1',
+        false,
+        '',
+        'todo',
+        '',
+        '',
+        '',
+        'needle urgent',
+      ),
+    );
+    await searched?.queryFn();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/app/tasks/by-project/p1?includeArchived=false&statuses=todo&q=needle+urgent&orgId=org-1',
+      expect.anything(),
+    );
+
+    const blank = adapter?.(
+      {
+        organizationId: 'org-1',
+        projectId: 'p1',
+        statuses: ['todo'],
+        query: ' ',
+      },
+      {},
+    );
+    const none = adapter?.(
+      { organizationId: 'org-1', projectId: 'p1', statuses: ['todo'] },
+      {},
+    );
+    expect(blank?.queryKey).toEqual(none?.queryKey);
+
+    const across = taskReadAdapters[
+      'tasks/queries:listTasksForAccessibleProjects'
+    ]?.({ organizationId: 'org-1', query: 'needle' }, {});
+    expect(across?.queryKey.at(-1)).toBe('needle');
+    await across?.queryFn();
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      '/api/app/tasks?includeArchived=false&q=needle&orgId=org-1',
       expect.anything(),
     );
   });

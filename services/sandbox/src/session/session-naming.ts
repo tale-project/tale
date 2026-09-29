@@ -5,18 +5,31 @@
 // shared state — the registry is a cache, the backend objects + these
 // derivations are the source of truth (sessions plan §5).
 
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 import { RUNNERD_TOKEN_CONTEXT } from './runnerd-protocol.ts';
 
+const SESSION_CONTAINER_PREFIX = 'tale-sbx-ses-';
+/** The longest DNS label: the spawner reaches a session's runnerd at the
+ * container's name on the sandbox network, and a longer name never
+ * resolves. */
+const DNS_LABEL_MAX = 63;
+
 /**
- * Docker container name / K8s annotation key for a session. The `ses-`
- * infix keeps session containers disjoint from one-shot `tale-sbx-<id>`
+ * Docker container name for a session — also the hostname the spawner
+ * reaches the session's runnerd at, so it must stay a valid DNS label. The
+ * `ses-` infix keeps session containers disjoint from one-shot `tale-sbx-<id>`
  * containers so the existing one-shot sweep (label `tale.sandbox=1`) never
- * touches them. sessionId is ID_ALPHABET_RE-validated upstream.
+ * touches them. sessionId is ID_ALPHABET_RE-validated upstream, up to 64
+ * characters: an id whose name would outgrow a DNS label (a project agent's
+ * workspace for a member's runs, `pa-<agent id>-m<hash>`) is folded into a
+ * hash, the way the Kubernetes backend names its Pods.
  */
 export function sessionContainerName(sessionId: string): string {
-  return `tale-sbx-ses-${sessionId}`;
+  const name = `${SESSION_CONTAINER_PREFIX}${sessionId}`;
+  if (name.length <= DNS_LABEL_MAX) return name;
+  const hash = createHash('sha1').update(sessionId).digest('hex').slice(0, 16);
+  return `${SESSION_CONTAINER_PREFIX}${hash}`;
 }
 
 // Prefix of every per-session workspace dir under the host session root

@@ -20,7 +20,11 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch, BackendApiError } from './api-client';
-import { backendEntityPrefix, backendKey } from './query-keys';
+import {
+  backendEntityPrefix,
+  backendKey,
+  type BackendQueryKey,
+} from './query-keys';
 
 // ---------------------------------------------------------------------------
 // Wire rows + 0.4-shape projections
@@ -204,6 +208,21 @@ function orgOf(
   return ctx.organizationId;
 }
 
+/**
+ * The key every read of one board starts with, whatever its filters: a
+ * project's board, or the all-projects board. A board that keeps its rows
+ * while another search of it loads matches on this, so it never shows
+ * another board's rows.
+ */
+export function taskBoardScope(
+  orgId: string,
+  projectId?: string,
+): BackendQueryKey {
+  return projectId === undefined
+    ? backendKey(orgId, 'task', 'across-projects')
+    : backendKey(orgId, 'task', 'by-project', projectId);
+}
+
 /** The shared board filter set → query-string + a stable key suffix. */
 function boardFilterParams(args: Record<string, unknown>): {
   search: string;
@@ -220,6 +239,9 @@ function boardFilterParams(args: Record<string, unknown>): {
   const reviewerId = typeof args.reviewerId === 'string' ? args.reviewerId : '';
   const externalSystem =
     typeof args.externalSystem === 'string' ? args.externalSystem : '';
+  // The toolbar's search is a board filter: the server matches it with the
+  // others before the board's cap, so the rows ARE the search result.
+  const query = typeof args.query === 'string' ? args.query.trim() : '';
   const params = new URLSearchParams({
     includeArchived: String(includeArchived),
     ...(status.length > 0 ? { status } : {}),
@@ -227,6 +249,7 @@ function boardFilterParams(args: Record<string, unknown>): {
     ...(assigneeId.length > 0 ? { assigneeId } : {}),
     ...(reviewerId.length > 0 ? { reviewerId } : {}),
     ...(externalSystem.length > 0 ? { externalSystem } : {}),
+    ...(query.length > 0 ? { q: query } : {}),
   });
   return {
     search: params.toString(),
@@ -237,6 +260,7 @@ function boardFilterParams(args: Record<string, unknown>): {
       assigneeId,
       reviewerId,
       externalSystem,
+      query,
     ],
   };
 }
@@ -248,13 +272,7 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
     if (orgId === undefined || typeof projectId !== 'string') return null;
     const filters = boardFilterParams(args);
     return {
-      queryKey: backendKey(
-        orgId,
-        'task',
-        'by-project',
-        projectId,
-        ...filters.key,
-      ),
+      queryKey: [...taskBoardScope(orgId, projectId), ...filters.key],
       queryFn: () =>
         backendFetch<BoardWire>(
           `/tasks/by-project/${encodeURIComponent(projectId)}?${filters.search}`,
@@ -267,7 +285,7 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
     if (orgId === undefined) return null;
     const filters = boardFilterParams(args);
     return {
-      queryKey: backendKey(orgId, 'task', 'across-projects', ...filters.key),
+      queryKey: [...taskBoardScope(orgId), ...filters.key],
       queryFn: () =>
         backendFetch<BoardWire>(`/tasks?${filters.search}`, { orgId }).then(
           boardView,
@@ -1040,9 +1058,12 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);
       const taskId = requireString(args, 'taskId');
+      // The column a person moved the card to, and where in it, rides the
+      // stop; without one the task parks at Cancelled.
+      const { organizationId: _org, taskId: _task, ...body } = args;
       return backendFetch(
         `/tasks/${encodeURIComponent(taskId)}/workflow/cancel`,
-        { method: 'POST', body: {}, orgId },
+        { method: 'POST', body, orgId },
       );
     },
     invalidate: taskWriteInvalidate,

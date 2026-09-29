@@ -61,6 +61,8 @@ Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich
 
 Bei behebbaren Fehlern folgen bis zu drei automatische Wiederholungsversuche, die bis auf den unten beschriebenen Fall sofort starten. Ein Lauf, der mindestens fünfzehn Minuten Fortschritt macht, erhält ein neues Versuchskontingent. So kann lange Arbeit Unterbrechungen überstehen. Die Richtigkeit des Ergebnisses musst du trotzdem prüfen.
 
+Eine automatische Wiederholung setzt die Arbeit der Person fort, die den Lauf gestartet hat. Sie startet deshalb nur dort, wo diese Person den Lauf jetzt selbst starten könnte: Das Projekt muss noch aktiv sein, und sie muss die Aufgabe weiterhin ändern dürfen. Archiviert ein Admin das Projekt, verlässt die Person die Organisation oder darf sie die Aufgabe nicht mehr ändern, startet keine weitere Wiederholung, und der Lauf bleibt fehlgeschlagen. Das gilt auch für eine Erwähnung, die den Agenten erst nach dem Ende seines Laufs erreicht. Sobald das Projekt wiederhergestellt ist, kann jeder, der die Aufgabe ändern darf, **Erneut ausführen** nutzen.
+
 Ein Agent, der über einen Abo-Broker arbeitet, kann sein Token mitten in der Arbeit verlieren, wenn der Broker das Konto erneuert. Die Wiederholung setzt die Konversation dann mit einem neuen Token fort, ohne den Versuchszähler zu erhöhen: Sie zeigt denselben Stand wie der Lauf, den sie ersetzt. Zeigte dieser keinen oder hatte er mindestens fünfzehn Minuten gearbeitet und damit ein neues Versuchskontingent erhalten, steht dort **Nach einer Token-Erneuerung fortgesetzt**. Nach zwei solchen Unterbrechungen in Folge zählt eine weitere wie jeder andere Fehler.
 
 Ein Lauf kann auch gar nicht erst starten, weil alle Konten seines Abo-Brokers nach Erreichen eines Rate-Limits pausieren. Seine Wiederholung wird dann sofort eingereiht, startet aber erst, sobald das erste Konto wieder verfügbar ist, spätestens eine Minute später. Die Wartezeit verbraucht keinen Versuch, wenn der abgelehnte Lauf selbst einen Fehler durch ein Rate-Limit wiederholte; sonst zählt der abgelehnte Start als Versuch.
@@ -68,6 +70,8 @@ Ein Lauf kann auch gar nicht erst starten, weil alle Konten seines Abo-Brokers n
 ## Arbeit abbrechen oder pausieren
 
 Mit **Lauf abbrechen** stoppst du den aktiven Agenten. Abbrechen kann den Lauf, wer die Aufgabe ändern darf, und auch die Person, die ihn gestartet hat, selbst wenn die Aufgabe inzwischen beim Agenten liegt. Auch das Verschieben einer laufenden Agentenaufgabe aus **In Bearbeitung** kann den Lauf abbrechen. Lies die Bestätigung vorher. Pro Aufgabe kann nur ein Agentenlauf aktiv sein.
+
+Bei einer Aufgabe mit zuständiger Automatisierung stoppt das Verschieben den Lauf und legt die Aufgabe in einem Schritt dort ab, wohin du sie verschoben hast. Wird die Verschiebung abgelehnt, etwa weil du eine übergeordnete Aufgabe mit noch offenen Teilaufgaben nach **Erledigt** verschiebst, arbeitet der Lauf weiter, und die Aufgabe bleibt in **In Bearbeitung**. **Lauf abbrechen** im Bereich der Automatisierung auf der Aufgabe verschiebt sie nach **Abgebrochen**; offene Teilaufgaben verhindern das ebenso. Willst du den Lauf stoppen und die Aufgabe offen lassen, verschiebe sie stattdessen nach **Zu erledigen**.
 
 Ein Admin kann die Aufgabenautomatisierung für die Organisation ausschalten. Neue Läufe starten dann nicht; bestehende Arbeit endet regulär. Organisationslimits und Budgets gelten weiterhin für jeden Lauf. Siehe [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
 

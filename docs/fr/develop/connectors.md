@@ -34,7 +34,7 @@ auth:
 | `allowedHosts` en mode per-credential | Suffixes d'hôtes : `atlassian.net` autorise ses sous-domaines |
 | `configFields` | Valeurs non secrètes propres à l'identifiant : hôte, port, région ou version d'API |
 
-Confluence et Shopify utilisent des origines propres à chaque identifiant. Les secrets n'ont pas leur place dans `configFields` : conserve-les dans les données d'identification chiffrées. Pour les actions JavaScript, `ctx.http` applique la restriction des destinations HTTP. Les backends natifs, comme les protocoles de messagerie, appliquent leurs propres contrôles ; une liste HTTP ne décrit pas toute leur sécurité réseau.
+Confluence, GlitchTip et Shopify utilisent des origines propres à chaque identifiant. Les secrets n'ont pas leur place dans `configFields` : conserve-les dans les données d'identification chiffrées. Pour les actions JavaScript, `ctx.http` applique la restriction des destinations HTTP. Les backends natifs, comme les protocoles de messagerie, appliquent leurs propres contrôles ; une liste HTTP ne décrit pas toute leur sécurité réseau.
 
 <Info>
 

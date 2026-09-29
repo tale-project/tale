@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { ShellNotch } from '@/app/components/layout/shell-notch';
 import type { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
 
 type SessionLapseRecoveryState = ReturnType<typeof useSessionLapseRedirect>;
@@ -53,11 +54,18 @@ export function SessionLapseRecovery({
   // while it stands, the page is bounded to the rest of the window, so one
   // exactly the viewport tall still scrolls all of its content into view.
   // The frame is there whether or not it stands, so the page never remounts.
+  // At the top of the window the notice stands under its own notch strip, as
+  // the shell's alerts stand under the shell's.
   const unhosted = recovery.isLapsed && claims === 0;
   return (
     <NoticeHostContext.Provider value={host}>
       <div className="flex h-full flex-col">
-        {unhosted && <StandingNotice recovery={recovery} />}
+        {unhosted && (
+          <>
+            <ShellNotch />
+            <StandingNotice recovery={recovery} />
+          </>
+        )}
         <div className={cn('min-h-0 flex-1', unhosted && '*:max-h-full')}>
           {children}
         </div>
@@ -100,11 +108,10 @@ export function SessionLapseNotice() {
 
 /**
  * The notice's one row, wherever it stands. A narrow or short viewport keeps
- * it to its title and Sign in; the sentence stays for screen readers. It pads
- * the notch itself, since it stands first, above the header that otherwise
- * would; like every shell alert (`data-shell-alert`, `layout/shell-alert.tsx`)
- * it has the shell's header drop its own pad while it stands
- * (`layout/shell-mobile-header.tsx`).
+ * it to its title and Sign in; the sentence stays for screen readers. Like
+ * every shell alert (`data-shell-alert`, `layout/shell-alert.tsx`) it stands
+ * under the strip that clears the notch (`layout/shell-notch.tsx`), which
+ * takes its tint while it is seen.
  *
  * While the confirmation is open the notice steps aside, unseen and out of
  * the accessibility tree, but keeps its place: removed, it grew the page
@@ -120,7 +127,7 @@ function StandingNotice({ recovery }: { recovery: SessionLapseRecoveryState }) {
       aria-hidden={recovery.open || undefined}
       gap={2}
       className={cn(
-        'bg-warning/10 border-warning/30 shrink-0 border-b px-4 pt-[calc(0.5rem+var(--safe-top))] pb-2 text-sm',
+        'bg-warning/10 border-warning/30 shrink-0 border-b px-4 py-2 text-sm',
         recovery.open && 'invisible',
       )}
     >

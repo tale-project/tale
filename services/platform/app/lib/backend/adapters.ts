@@ -154,6 +154,13 @@ export interface WriteAdapter {
     args: Record<string, unknown>,
     ctx: AdapterContext,
   ) => void;
+  /**
+   * Whether this refusal proves the reads the caller acted on stale — the
+   * write named a row another session already removed — so `invalidate`
+   * fires for it as well. A write whose failure says nothing about the cache
+   * leaves it out.
+   */
+  refusalInvalidates?: (error: unknown) => boolean;
 }
 
 /** One fetched page on the adapted paginated lane (the 0.4 page envelope). */

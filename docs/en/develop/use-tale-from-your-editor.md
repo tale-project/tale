@@ -18,7 +18,7 @@ An editor can use two of them with the same key: the model endpoints as its mode
 
 ## Create an API key
 
-Every path from outside the app starts with a personal API key. Owners, Admins, and Developers create one under **Settings > API > REST** with **Create API key**, choosing a name and an expiration, and so can a member an Admin granted **Call models over the API**. The secret is shown once; copy it into your secret store or a private shell environment before closing the dialog. [API keys](/platform/admin/api-keys) covers creation, rotation, and revocation.
+Every path from outside the app starts with a personal API key. Owners, Admins, and Developers create one under **Settings > API > REST** with **Create API key**, choosing a name and an expiration, and so can a member an Admin granted a competence that is used with a key, such as **Call models over the API**. The secret is shown once; copy it into your secret store or a private shell environment before closing the dialog. [API keys](/platform/admin/api-keys) covers creation, rotation, and revocation.
 
 A key acts as you. It carries your current role and project access, and the usage it causes is booked under your name. Chat turns, model calls, and automation runs you start with the key also record the key, so API-key limits apply to them as well; a project-agent run is booked to you alone. An Admin can cap what you spend with a personal, team, or role budget under [Policies and limits](/platform/admin/governance/policies-and-limits); a request over a cap is refused with `429 BUDGET_EXCEEDED`.
 
@@ -33,6 +33,12 @@ The model endpoints let opencode, Claude Code, and scripts built on the OpenAI o
 The endpoints are off until an Admin turns on **Model endpoints for API keys** under **Settings > Governance > Models**; [Models](/platform/admin/governance/content-models#model-endpoints) describes the switch. Owners, Admins, and Developers may then call them through their role; any other member needs the competence **Call models over the API**, which an Admin grants under [Competences](/platform/admin/governance/competences). `GET /api/v1/me` answers `capabilities.modelApi: true` once your key may call them.
 
 **Settings > API > Models** collects what your tools need: both base URLs, the organization slug, the models you can call with a copy button for each id, and configuration to copy for opencode, Claude Code, and the OpenAI SDK for Python. While your organization has not turned the endpoints on, the tab reads **Model endpoints are not enabled for your organization**, and Owners and Admins find **Open model access** there.
+
+<Frame caption="Settings > API > Models — the base URLs, the organization slug, and the models you can call.">
+
+![The Models tab under Settings > API showing the OpenAI- and Anthropic-compatible base URLs, the Authorization header for an API key, the organization slug northlight-labs, and five model ids, each with a copy button.](/images/develop/settings-api-models.webp)
+
+</Frame>
 
 ### Connection settings
 

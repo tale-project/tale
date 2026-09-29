@@ -82,17 +82,32 @@ interface Store {
   casLostTo?: Row;
 }
 
+/** A realtime hint the seam emitted, as the outbox row it inserted. */
+interface EmittedHint {
+  orgId: unknown;
+  entity: unknown;
+  entityId: unknown;
+}
+
 /**
  * A `sql` double over one credential row that behaves like the table: the
  * listing and the by-id re-read answer the stored row, and both CAS UPDATEs
  * (the needs-reauth flip and the re-sealed envelope) either write the row
  * or — when a concurrent write got there first — change nothing and return
- * no row. Every UPDATE is also captured for inspection.
+ * no row. Every UPDATE and every realtime hint is also captured for
+ * inspection; a transaction runs its statements on the same double.
  */
-function fakeSql(store: Store): Sql & { updates: Update[] } {
+function fakeSql(
+  store: Store,
+): Sql & { updates: Update[]; hints: EmittedHint[] } {
   const updates: Update[] = [];
+  const hints: EmittedHint[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
+    if (text.includes('INSERT INTO app_realtime.outbox')) {
+      hints.push({ orgId: values[0], entity: values[2], entityId: values[3] });
+      return Promise.resolve([]);
+    }
     if (text.includes('UPDATE app.connector_credentials')) {
       updates.push({ text, values });
       if (text.includes("status = 'needs-reauth'")) {
@@ -135,9 +150,18 @@ function fakeSql(store: Store): Sql & { updates: Update[] } {
   return Object.assign(tag, {
     unsafe: (text: string) => text,
     json: (value: unknown) => value,
+    begin: (fn: (tx: unknown) => Promise<unknown>) => fn(tag),
     updates,
-  }) as unknown as Sql & { updates: Update[] };
+    hints,
+  }) as unknown as Sql & { updates: Update[]; hints: EmittedHint[] };
 }
+
+/** The one hint a flip of `cred_1` owes every open settings page. */
+const FLIP_HINT = {
+  orgId: 'org_1',
+  entity: 'connector_credential',
+  entityId: 'cred_1',
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -231,6 +255,8 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(update.text).toContain('AND updated_at_ms = ?');
     expect(update.values).toContain(1000);
     expect(update.text).not.toContain('status');
+    // A silent renewal changes nothing a listing shows: no hint.
+    expect(sql.hints).toEqual([]);
     const next = envelopeOf(store);
     expect(next.accessToken).toBe('fresh-token');
     // The vendor omitted the refresh token and the scopes: the grant's stay.
@@ -279,6 +305,8 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
       status: 'needs-reauth',
       statusDetail: expect.stringContaining('no refresh token'),
     });
+    // Every open Settings > Connectors page learns the row needs Reconnect.
+    expect(sql.hints).toEqual([FLIP_HINT]);
   });
 
   it('marks a vendor-rejected refresh needs-reauth with the vendor code and refuses', async () => {
@@ -333,6 +361,8 @@ describe('resolveConnectorCredential — oauth2 refresh', () => {
     expect(update.text).toContain("status = 'needs-reauth'");
     expect(update.text).toContain('AND updated_at_ms = ?');
     expect(update.values).toContain(1000);
+    // A lost compare-and-swap changed nothing, so it announces nothing.
+    expect(sql.hints).toEqual([]);
   });
 
   it("refuses with the winner's verdict when a concurrent refresh already marked the row", async () => {

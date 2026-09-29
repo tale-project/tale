@@ -20,6 +20,9 @@ import { ApiKeyCreateDialog } from './api-key-create-dialog';
 interface ApiKeysTableProps {
   apiKeys: ApiKey[] | undefined;
   organizationId: string;
+  /** Whether the viewer may create a key. One whose right lapsed still sees
+   * and revokes the keys they hold, but is offered no new one. */
+  canCreate?: boolean;
   error?: Error | null;
   onRetry?: () => void;
 }
@@ -45,6 +48,7 @@ function ApiDocsLink() {
 export function ApiKeysTable({
   apiKeys,
   organizationId,
+  canCreate = true,
   error,
   onRetry,
 }: ApiKeysTableProps) {
@@ -105,7 +109,7 @@ export function ApiKeysTable({
         // the toolbar once there are. Wait for the initial read so a focused
         // toolbar opener cannot be removed when that read comes back empty.
         addAction={
-          apiKeys === undefined
+          apiKeys === undefined || !canCreate
             ? undefined
             : {
                 triggerRef: createTriggerRef,
@@ -117,7 +121,9 @@ export function ApiKeysTable({
         emptyState={{
           icon: Key,
           title: tEmpty('apiKeys.title'),
-          description: tEmpty('apiKeys.description'),
+          description: canCreate
+            ? tEmpty('apiKeys.description')
+            : tEmpty('apiKeys.descriptionNoCreate'),
         }}
         footer={
           <BulkDeleteBar
@@ -133,12 +139,14 @@ export function ApiKeysTable({
       {/* Below the table in every state, so the docs never move between the
           empty state and the list. */}
       <ApiDocsLink />
-      <ApiKeyCreateDialog
-        restoreFocusRef={createTriggerRef}
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        organizationId={organizationId}
-      />
+      {canCreate && (
+        <ApiKeyCreateDialog
+          restoreFocusRef={createTriggerRef}
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          organizationId={organizationId}
+        />
+      )}
     </Stack>
   );
 }

@@ -327,6 +327,16 @@ paths:
                     architecture:
                       input_modalities: [text, image]
                       output_modalities: [text]
+                  # An image model only (no chat tag), so the chat and vision
+                  # pickers skip it; the docs demo pins it for image
+                  # generation, and `/images/generations` above answers it.
+                  - id: google/gemini-2.5-flash-image
+                    object: model
+                    owned_by: tale-mock
+                    context_length: 32768
+                    architecture:
+                      input_modalities: [text, image]
+                      output_modalities: [image]
                   # A speech-to-text model (no token window), so the audio
                   # transcription setting resolves an Automatic pick instead
                   # of a warning. `/audio/transcriptions` above serves it.

@@ -170,6 +170,13 @@ export interface DataTableProps<TData, TValue = unknown> {
     isLoadingMore?: boolean;
     /** Whether initial data is loading (prevents empty state flash) */
     isInitialLoading?: boolean;
+    /**
+     * A request failed while rows are on screen, and more may exist. Nothing
+     * loads until the host's retry: no skeleton stands in for rows no
+     * request is fetching, scrolling asks for nothing, and the footer says
+     * the rest could not be loaded.
+     */
+    loadFailed?: boolean;
     /** Enable automatic loading on scroll (default: true) */
     autoLoad?: boolean;
     /** Distance from bottom to trigger load in px (default: 1000) */
@@ -297,6 +304,15 @@ export interface DataTableProps<TData, TValue = unknown> {
   error?: Error | null;
   /** Callback when retry is clicked */
   onRetry?: () => void;
+  /**
+   * Takes the focus the error state held when it leaves: a refresh the
+   * reader did not start (the tab regaining focus, another session's
+   * change) replaces it with the loading state, and later with the rows.
+   * Pass a stable, named target around the table — the list's region — so
+   * the focus does not drop to the page. Focus the reader moved elsewhere
+   * stays where it is.
+   */
+  onErrorFocusLost?: () => void;
 }
 
 /**
@@ -350,6 +366,7 @@ export function DataTable<TData, TValue = unknown>({
   isLoading = false,
   error,
   onRetry,
+  onErrorFocusLost,
 }: DataTableProps<TData, TValue>) {
   const { t } = useT('common');
   const { organizationId: orgId } = useErrorScope();
@@ -443,7 +460,11 @@ export function DataTable<TData, TValue = unknown>({
     hasMore: infiniteScroll?.hasMore ?? false,
     isLoading: infiniteScroll?.isLoadingMore ?? false,
     threshold: infiniteScroll?.threshold ?? 1000,
-    enabled: !!(infiniteScroll && infiniteScroll.autoLoad !== false),
+    enabled: !!(
+      infiniteScroll &&
+      infiniteScroll.autoLoad !== false &&
+      !infiniteScroll.loadFailed
+    ),
     root: rowsScrollInFrame ? scrollContainerRef : undefined,
   });
 
@@ -532,8 +553,15 @@ export function DataTable<TData, TValue = unknown>({
       if (data.length > 0) return 'data';
       // A filter narrowed the loaded rows to zero, but infinite-scroll is still
       // draining backend pages — show loading, not "no results", so a match on
-      // an un-loaded page isn't prematurely reported as empty (#2054).
-      if (hasActiveFilters && infiniteScroll?.hasMore) return 'skeleton';
+      // an un-loaded page isn't prematurely reported as empty (#2054). A drain
+      // a failed request stopped is not loading: the host's notice says what
+      // the answer is missing.
+      if (
+        hasActiveFilters &&
+        infiniteScroll?.hasMore &&
+        !infiniteScroll.loadFailed
+      )
+        return 'skeleton';
       // Has filters
       if (hasActiveFilters) return 'filtered-empty';
       // Has empty state
@@ -560,6 +588,7 @@ export function DataTable<TData, TValue = unknown>({
     emptyState,
     hasActiveFilters,
     infiniteScroll?.hasMore,
+    infiniteScroll?.loadFailed,
   ]);
 
   const isSkeleton =
@@ -588,6 +617,7 @@ export function DataTable<TData, TValue = unknown>({
         error={error}
         organizationId={orgId}
         reset={onRetry || (() => {})}
+        onFocusLost={onErrorFocusLost}
       />
     );
   }
@@ -976,9 +1006,19 @@ export function DataTable<TData, TValue = unknown>({
             <TableRow data-no-hover>
               <TableCell colSpan={colSpan} className="p-0">
                 <div className="sticky left-0 w-screen max-w-full p-4">
+                  {/* A list a failed request stopped searched only what
+                      loaded: say so, not that nothing matches. */}
                   <DataTableEmptyState
-                    title={t('search.noResults')}
-                    description={t('search.tryAdjusting')}
+                    title={t(
+                      infiniteScroll?.loadFailed
+                        ? 'search.noLoadedResults'
+                        : 'search.noResults',
+                    )}
+                    description={t(
+                      infiniteScroll?.loadFailed
+                        ? 'search.restNotSearched'
+                        : 'search.tryAdjusting',
+                    )}
                     headingLevel={emptyState?.headingLevel}
                   />
                 </div>
@@ -1158,18 +1198,20 @@ export function DataTable<TData, TValue = unknown>({
       {infiniteScroll.hasMore ? (
         <>
           {/* Sentinel element for IntersectionObserver (auto-loading) */}
-          {infiniteScroll.autoLoad !== false && (
+          {infiniteScroll.autoLoad !== false && !infiniteScroll.loadFailed && (
             <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
           )}
 
-          {/* Loading indicator or manual button */}
+          {/* Loading indicator or manual button — neither once a failed
+              request stopped the list: the host's notice owns the retry. */}
           <div className="flex justify-center py-3">
             {infiniteScroll.isLoadingMore ? (
               <div className="text-muted-foreground flex items-center gap-2 text-sm">
                 <Spinner size="sm" label={t('pagination.loading')} />
                 <Text as="span">{t('pagination.loading')}</Text>
               </div>
-            ) : infiniteScroll.autoLoad === false ? (
+            ) : infiniteScroll.autoLoad === false &&
+              !infiniteScroll.loadFailed ? (
               <Button
                 variant="ghost"
                 onClick={infiniteScroll.onLoadMore}
@@ -1210,11 +1252,17 @@ export function DataTable<TData, TValue = unknown>({
               // it has loaded) while more can still load: "Showing all N"
               // would claim a completeness the list does not have, and an
               // investigator reading an audit table might conclude an event is
-              // absent (2026-09-26 evaluation, E-03).
-              t('pagination.showingLoaded', {
-                count: shownEntityCount,
-                ...entityLabelForms(infiniteScroll.entityLabel),
-              })
+              // absent (2026-09-26 evaluation, E-03). Once a failed request
+              // stopped the list, scrolling loads nothing more either.
+              t(
+                infiniteScroll.loadFailed
+                  ? 'pagination.showingLoadedFailed'
+                  : 'pagination.showingLoaded',
+                {
+                  count: shownEntityCount,
+                  ...entityLabelForms(infiniteScroll.entityLabel),
+                },
+              )
             : t('pagination.showingAll', {
                 count: shownEntityCount,
                 ...entityLabelForms(infiniteScroll.entityLabel),

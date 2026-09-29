@@ -9,10 +9,12 @@
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
   API_KEY_HINT_ENTITY,
+  CONNECTOR_CREDENTIAL_HINT_ENTITY,
   MEMBER_HINT_ENTITY,
   PROVIDER_CREDENTIAL_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { invalidateMyPasswordPolicy } from './account';
 import type {
@@ -79,6 +81,7 @@ type MyBudgetStatusResult = ReturnsOf<'governance/queries:getMyBudgetStatus'>;
 type MyBudgetUsageResult = ReturnsOf<'governance/queries:getMyBudgetUsage'>;
 type MyModelApiAccessResult =
   ReturnsOf<'governance/queries:getMyModelApiAccess'>;
+type MyApiKeyAccessResult = ReturnsOf<'governance/queries:getMyApiKeyAccess'>;
 type TrashListResult = ReturnsOf<'governance/queries:listTrashedRows'>;
 type LegalHoldItem = ItemOf<'governance/legal_hold_queries:listLegalHolds'>;
 type LegalMatterItem = ItemOf<'governance/legal_hold_queries:listLegalMatters'>;
@@ -350,6 +353,22 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       staleTime: 30_000,
     };
   },
+  'governance/queries:getMyApiKeyAccess': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Keyed under the API-key entity: creating or revoking a key hints it
+      // to every organization of the holder and the key dialogs invalidate
+      // it, so the REST tab follows the keys held at once. A role change or
+      // a grant arrives on the next read.
+      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'my-access'),
+      queryFn: () =>
+        backendFetch<MyApiKeyAccessResult>('/governance/my/api-keys', {
+          orgId,
+        }),
+      staleTime: 30_000,
+    };
+  },
   'governance/queries:getMyBudgetUsage': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -497,7 +516,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(
         orgId,
-        'connector_credential',
+        CONNECTOR_CREDENTIAL_HINT_ENTITY,
         'list',
         connectorSlug ?? null,
       ),
@@ -1042,8 +1061,19 @@ function invalidateConnectorCredentials(
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
   void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'connector_credential'),
+    queryKey: backendEntityPrefix(orgId, CONNECTOR_CREDENTIAL_HINT_ENTITY),
   });
+}
+
+/**
+ * A credential write refused because its credential is gone — another
+ * session deleted it, and this tab missed the hint (its stream was down).
+ * The listing the reader acted on is stale, so the same reads refetch: the
+ * row drops, and its menu or confirm with it, instead of failing the same
+ * way on every click.
+ */
+function credentialGone(error: unknown): boolean {
+  return backendErrorCode(error) === 'CREDENTIAL_NOT_FOUND';
 }
 
 function invalidateSandboxSessions(
@@ -1348,6 +1378,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'provider_credentials/actions:updateCredentialWithDefinition': {
     run: (args, ctx) =>
@@ -1385,6 +1416,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'provider_credentials/mutations:setDefaultCredential': {
     run: (args, ctx) =>
@@ -1393,6 +1425,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: { isDefault: true } },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/actions:createCredential': {
     run: (args, ctx) =>
@@ -1433,6 +1466,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null);
     },
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
@@ -1441,6 +1475,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/mutations:setDefaultCredential': {
     run: (args, ctx) =>
@@ -1449,6 +1484,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_oauth_apps/actions:upsert': {
     run: (args, ctx) =>

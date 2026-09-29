@@ -11,13 +11,13 @@ import {
   cancelDeferredSendRequest,
   deferredSendsQuery,
   invalidateChatMessages,
-  retryVideoLinkRequest,
   videoJobsForThreadQuery,
 } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
 
 import { useChatQueryClient } from '../data/chat-backend';
+import { retryVideoLinkJob } from '../hooks/use-chat-video-links';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import { VideoLinkChip } from './video-link-chip';
@@ -71,14 +71,16 @@ export function DeferredSendTray({
     },
     [queryClient, threadId],
   );
+  // A refused retry says why, as the composer's chip does; the chips read
+  // again either way.
   const retryVideo = useCallback(
     async (args: { jobId: string }) => {
-      await retryVideoLinkRequest(organizationId, args.jobId);
+      await retryVideoLinkJob(organizationId, args.jobId, t);
       void queryClient.invalidateQueries({
         queryKey: videoJobsForThreadQuery(organizationId, threadId).queryKey,
       });
     },
-    [queryClient, organizationId, threadId],
+    [queryClient, organizationId, threadId, t],
   );
 
   // Every parked attachment across rows, for the two status hooks.

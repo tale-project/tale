@@ -702,6 +702,83 @@ describe('DataTable entity count footer (#2646)', () => {
   });
 });
 
+// #3777: a knowledge list searched into a page that failed showed a skeleton
+// no request was filling, above a footer promising "scroll for more".
+describe('DataTable after a failed request stopped the list', () => {
+  it('says the rest could not be loaded instead of "scroll for more"', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        infiniteScroll={{
+          hasMore: true,
+          loadFailed: true,
+          onLoadMore: vi.fn(),
+          entityLabel: { one: 'entry', other: 'entries' },
+          totalCount: 3,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Showing the first 3 entries — the rest couldn't be loaded",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/scroll for more/)).not.toBeInTheDocument();
+  });
+
+  it('says a search found nothing in what loaded, with no skeleton standing in', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={3}
+        search={{ value: 'nothing', onChange: vi.fn() }}
+        infiniteScroll={{
+          hasMore: true,
+          loadFailed: true,
+          onLoadMore: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'No results among the loaded items',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The rest couldn't be loaded, so it wasn't searched."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No results found')).not.toBeInTheDocument();
+    expect(getSkeletonRows()).toHaveLength(0);
+  });
+
+  it('keeps the skeleton while a drain is still loading', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={3}
+        search={{ value: 'nothing', onChange: vi.fn() }}
+        infiniteScroll={{ hasMore: true, onLoadMore: vi.fn() }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('heading', { name: 'No results found' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', {
+        name: 'No results among the loaded items',
+      }),
+    ).not.toBeInTheDocument();
+    expect(getSkeletonRows()).toHaveLength(3);
+  });
+});
+
 describe('DataTable client-side page size', () => {
   const twelve = Array.from({ length: 12 }, (_, i) => ({
     _id: String(i),
@@ -1076,5 +1153,33 @@ describe('DataTable — error state', () => {
     const retry = screen.getByRole('button', { name: /try ?again/i });
     retry.click();
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  // #3814: a refresh the reader did not start swaps the error state for the
+  // loading state, and a focused Try again went with it.
+  it('hands the focus its error state held to onErrorFocusLost when the loading state replaces it', async () => {
+    const onErrorFocusLost = vi.fn();
+    const { rerender } = render(
+      <DataTable
+        columns={columnsWithSize}
+        data={[]}
+        error={new Error('overview failed')}
+        onRetry={vi.fn()}
+        onErrorFocusLost={onErrorFocusLost}
+      />,
+    );
+    screen.getByRole('button', { name: /try ?again/i }).focus();
+
+    rerender(
+      <DataTable
+        columns={columnsWithSize}
+        data={[]}
+        isLoading
+        onRetry={vi.fn()}
+        onErrorFocusLost={onErrorFocusLost}
+      />,
+    );
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(onErrorFocusLost).toHaveBeenCalledTimes(1);
   });
 });

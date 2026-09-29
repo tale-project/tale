@@ -40,6 +40,12 @@ Après un changement, teste les deux cas pour le membre concerné : un modèle a
 - **Ce que chaque appel traverse.** Les budgets de [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) et les garde-fous d’entrée de [Garde-fous](/fr/platform/admin/governance/guardrails#model-endpoints). Les réponses des modèles ne sont pas filtrées.
 - **Où il apparaît.** Chaque appel est imputé à la personne et à la clé, comme **Appel API direct** dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
 
+<Frame caption="Gouvernance > Modèles — les endpoints de modèles pour les clés API, activés.">
+
+![La section Endpoints de modèles pour les clés API de la page Modèles, interrupteur activé, qui explique que les propriétaires, les admins, les développeurs et les membres ayant la compétence Appeler les modèles par l'API peuvent utiliser les modèles de l’organisation depuis leurs propres outils.](/images/platform/governance-model-endpoints.webp)
+
+</Frame>
+
 Désactiver l’interrupteur fait refuser l’appel suivant avec `403 MODEL_API_DISABLED`. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor#model-endpoints) montre aux membres comment connecter leurs outils.
 
 ## Choisir le modèle qui lit les images
@@ -58,11 +64,17 @@ La **génération d’images** permet aux [agents de projet](/fr/platform/projec
 2. Laisse **Modèle d'images** sur **Automatique**, ou choisis un modèle et enregistre les modifications en attente dans l’en-tête de la page.
 3. Vérifie la ligne sous la sélection. Elle nomme le modèle avec lequel les agents créent les images.
 
+<Frame caption="Gouvernance > Modèles — la génération d’images activée, avec un modèle d’image fixé.">
+
+![La section Génération d'images avec son interrupteur activé, le sélecteur Modèle d'images réglé sur OpenRouter · google/gemini-2.5-flash-image et la ligne en dessous qui nomme le modèle qu’utilisent actuellement les agents.](/images/platform/governance-image-generation.webp)
+
+</Frame>
+
 **Automatique** prend le premier modèle d’une courte liste recommandée que tes identifiants fournisseur atteignent : Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1, puis FLUX.2 Pro. Tale tient compte pour cela des identifiants OpenRouter et OpenAI. La sélection liste chaque modèle d’images que tes identifiants peuvent servir, y compris ceux d’autres fournisseurs compatibles. Un modèle choisi reste fixé jusqu’à ce que tu le changes ; s’il devient indisponible, Tale le signale et ne passe pas à un autre modèle. Désactiver la génération d’images conserve le modèle choisi pour la prochaine activation.
 
 Tant que la génération d’images est activée et qu’un modèle est disponible, chaque agent qui commence à travailler dans un environnement doté du canal MCP de Tale reçoit un outil pour les images. Les agents des autres environnements, et tous les agents quand la génération d’images est désactivée, ne voient pas du tout cet outil ; [Choisir un environnement d’agent](/fr/platform/agents/harnesses) indique quels environnements disposent de ce canal. La désactivation refuse aussi la prochaine demande d’image d’un agent déjà en cours. Un agent range ses images parmi ses fichiers : celles d’une tâche apparaissent dans ses fichiers produits, celles d’une étape d’automatisation dans la sortie de l’étape.
 
-Chaque image est facturée à ton organisation et compte, comme le reste de l’exécution, pour la personne qui l’a lancée. Un tour d’agent crée au plus 16 images, une requête à la fois, et ses images puisent dans la même enveloppe que l’usage du modèle pendant ce tour : une fois l’enveloppe épuisée, Tale refuse l’image suivante. Une limite de budget qui s’applique à cette personne refuse l’image avant l’appel au modèle d’images. Fixe des limites de coût ou de requêtes pour les images dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; [Comment l’usage est compté](/fr/platform/admin/governance/usage-attribution) explique pour qui chaque image compte. Le fichier de politique et les endpoints d’images personnalisés sont décrits dans la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configure-image-generation).
+Chaque image est facturée à ton organisation et compte, comme le reste de l’exécution, pour la personne qui l’a lancée. Un tour d’agent crée au plus 16 images, une requête à la fois, et ses images puisent dans la même enveloppe que l’usage du modèle pendant ce tour : le coût de chaque image est retiré de ce que le modèle peut encore dépenser, et une fois l’enveloppe épuisée, Tale refuse l’image suivante. Une limite de budget qui s’applique à cette personne refuse l’image avant l’appel au modèle d’images. Fixe des limites de coût ou de requêtes pour les images dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; [Comment l’usage est compté](/fr/platform/admin/governance/usage-attribution) explique pour qui chaque image compte. Le fichier de politique et les endpoints d’images personnalisés sont décrits dans la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configure-image-generation).
 
 ## Choisir le modèle de transcription audio
 

@@ -18,16 +18,16 @@ Le connecteur détermine les champs. Utilise les identifiants du compte externe,
 
 | Méthode | Informations nécessaires |
 | --- | --- |
-| Clé API | La clé fournie par le service, par exemple Tavily ou Shopify. |
-| Token | Un jeton du service, comme un token d’accès personnel GitHub ou un token de bot Discord. |
+| Clé API | La clé fournie par le service, par exemple Tavily ou Shopify. Jev decisions demande une clé API OpenRouter. |
+| Token | Un jeton du service, comme un token d’accès personnel GitHub, un token de bot Discord ou un token d’API GlitchTip avec `project:read` et `event:read`. |
 | Nom d’utilisateur et mot de passe | La paire attendue par le service : connexion et mot de passe d’application, ou identifiant et token propres au fournisseur. |
 | OAuth | Une autorisation dans le navigateur du fournisseur, ensuite conservée par Tale. |
 
-Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
+Certains connecteurs demandent aussi l’adresse de l’instance. Pour Confluence, utilise l’adresse de base du site Atlassian. Pour GlitchTip, utilise l’origine de l’instance, par exemple `https://app.glitchtip.com` ; une instance auto-hébergée doit aussi être autorisée par la politique des hôtes du connecteur. Pour Shopify, utilise l’adresse `myshopify.com` de la boutique, pas son domaine public destiné aux clients.
 
 ## Choisir les identifiants par défaut
 
-Le tableau contient une ligne par jeu d’identifiants. Le badge **Par défaut** indique ceux utilisés lorsqu’une action n’en nomme pas. **Définir par défaut**, dans le menu d’une ligne, change ce choix. Chaque connecteur a un seul choix par défaut.
+Le tableau contient une ligne par jeu d’identifiants et se met à jour sans rechargement tant qu’il est ouvert : ce qu’un autre admin ajoute, modifie ou supprime y apparaît aussitôt. Le badge **Par défaut** indique ceux utilisés lorsqu’une action n’en nomme pas. **Définir par défaut**, dans le menu d’une ligne, change ce choix. Chaque connecteur a un seul choix par défaut.
 
 Sans choix par défaut, un connecteur qui possède plusieurs identifiants peut toujours servir les appels qui les nomment explicitement. Les autres appels ont besoin d’un choix par défaut. Nomme les comptes clairement avant de les utiliser dans des automatisations, pour que leur destination reste compréhensible.
 
@@ -41,7 +41,7 @@ Utilise l’action de remplacement adaptée à la méthode, par exemple **Rempla
 
 <Warning>
 
-Supprimer des identifiants retire l’accès aux automatisations et agents qui en dépendent. Migre les appelants et choisis un nouveau défaut si nécessaire. Rouvrir la même ligne ne permet pas d’annuler la suppression.
+Supprimer des identifiants retire l’accès aux automatisations et agents qui en dépendent. Migre d’abord les appelants. Si tu supprimes les identifiants par défaut d’un connecteur, ses plus anciens identifiants actifs restants deviennent le choix par défaut, et la confirmation les nomme avant la suppression. Des identifiants désactivés ou à reconnecter ne prennent jamais le relais : s’il ne reste aucun identifiant actif, le connecteur n’a pas de choix par défaut tant que tu n’en choisis pas. Rouvrir la même ligne ne permet pas d’annuler la suppression.
 
 </Warning>
 

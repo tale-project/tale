@@ -10,13 +10,16 @@
  * active row retires the chain keyed by its DOCUMENT (a topic rename
  * leaves older rows' keys behind and frees the key for a stranger), and a
  * second delete of the same row answers 404, not a 204 that re-stamps
- * nothing.
+ * nothing. A ref the de-index keeps — a WebDAV copy of the entry's file
+ * still holds it — is re-stamped with its holder's scope: the trashed
+ * document may have been that holder.
  */
 
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { releaseCorpusRefs } from '../knowledge/release.ts';
+import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import { deleteKnowledgeEntry, KnowledgeEntryError } from './service.ts';
 
 // The de-index after an active delete talks to the corpus: the seam is
@@ -28,6 +31,10 @@ vi.mock('../knowledge/release.ts', () => ({
 }));
 vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(() => Promise.resolve('acme')),
+}));
+vi.mock('../knowledge/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
+  syncRagRefHolderScopes: vi.fn(() => Promise.resolve()),
 }));
 
 interface Statement {
@@ -58,6 +65,7 @@ const updates = (statements: Statement[]) =>
 describe('deleteKnowledgeEntry', () => {
   beforeEach(() => {
     vi.mocked(releaseCorpusRefs).mockClear();
+    vi.mocked(syncRagRefHolderScopes).mockClear();
   });
 
   it('looks only at live rows, and answers 404 for one already deleted', async () => {
@@ -91,6 +99,7 @@ describe('deleteKnowledgeEntry', () => {
     expect(writes).toHaveLength(1);
     // History pruned, the fact untouched — its corpus rows stay.
     expect(releaseCorpusRefs).not.toHaveBeenCalled();
+    expect(syncRagRefHolderScopes).not.toHaveBeenCalled();
     expect(writes[0]?.text).toMatch(
       /^UPDATE app\.knowledge_entries SET deleted_at_ms = \? WHERE id = \?/,
     );
@@ -128,6 +137,17 @@ describe('deleteKnowledgeEntry', () => {
       refs: ['s3:acme/blob-1'],
       excludeDocumentId: 'doc-1',
     });
+    // A ref the de-index kept for a twin gets its holder's scope, after it.
+    expect(syncRagRefHolderScopes).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      ['s3:acme/blob-1'],
+    );
+    expect(
+      vi.mocked(syncRagRefHolderScopes).mock.invocationCallOrder[0],
+    ).toBeGreaterThan(
+      vi.mocked(releaseCorpusRefs).mock.invocationCallOrder[0] ?? Infinity,
+    );
   });
 
   it('survives a failed de-index — the delete stands and the purge retries', async () => {

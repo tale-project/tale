@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "file": "images/develop/settings-api-models.webp",
+      "shot": "settings-api-models",
+      "route": "/dashboard/:orgId/settings/api/models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
       "file": "images/get-started/documents-list.webp",
       "shot": "documents-list",
       "route": "/dashboard/:orgId/documents",
@@ -157,6 +169,18 @@
       "height": 348
     },
     {
+      "file": "images/platform/chat-create-task.webp",
+      "shot": "chat-create-task",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1536,
+      "height": 1000
+    },
+    {
       "file": "images/platform/chat-document-attachment.webp",
       "shot": "chat-document-attachment",
       "route": "/dashboard/:orgId/chat?new=true",
@@ -301,6 +325,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/governance-image-generation.webp",
+      "shot": "governance-image-generation",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 394
+    },
+    {
       "file": "images/platform/governance-legal-hold.webp",
       "shot": "governance-legal-hold",
       "route": "/dashboard/:orgId/settings/governance/legal-hold",
@@ -311,6 +347,18 @@
       "dpr": 2,
       "width": 2880,
       "height": 1920
+    },
+    {
+      "file": "images/platform/governance-model-endpoints.webp",
+      "shot": "governance-model-endpoints",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 274
     },
     {
       "file": "images/platform/governance-policies-limits.webp",

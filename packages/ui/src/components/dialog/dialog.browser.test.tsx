@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, waitFor } from '@testing-library/react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
@@ -7,6 +8,8 @@ import { page, userEvent } from 'vitest/browser';
 import { render, screen } from '@/tests/utils/render';
 
 import { DataTableActionMenu } from '../data-table/data-table-action-menu';
+import { EntityRowActions } from '../entity/entity-row-actions';
+import { DeleteDialog } from './delete-dialog';
 import { Dialog } from './dialog';
 
 import '../../globals.css';
@@ -56,6 +59,100 @@ function MenuDialogHarness() {
     </>
   );
 }
+
+/** A table row's actions menu whose items open dialogs, with no restore
+ * ref anywhere: the menu's own button is where focus has to come back. */
+function RowMenuHarness() {
+  const [dialog, setDialog] = useState<'edit' | 'delete' | null>(null);
+  return (
+    <>
+      <button type="button">Before the row</button>
+      <EntityRowActions
+        ariaLabel="Actions for GitHub"
+        actions={[
+          {
+            key: 'edit',
+            label: 'Edit credential',
+            icon: Pencil,
+            onClick: () => setDialog('edit'),
+          },
+          {
+            key: 'delete',
+            label: 'Delete',
+            icon: Trash2,
+            destructive: true,
+            onClick: () => setDialog('delete'),
+          },
+        ]}
+      />
+      <Dialog
+        open={dialog === 'edit'}
+        title="Edit credential"
+        onOpenChange={(open) => {
+          if (!open) setDialog(null);
+        }}
+      >
+        <input aria-label="Name" />
+      </Dialog>
+      <DeleteDialog
+        open={dialog === 'delete'}
+        title="Delete credential"
+        description="Delete GitHub?"
+        onOpenChange={(open) => {
+          if (!open) setDialog(null);
+        }}
+        onDelete={() => setDialog(null)}
+      />
+    </>
+  );
+}
+
+describe('row menu to dialog, without a restore ref', () => {
+  it.each([
+    ['Edit credential', 'Escape'],
+    ['Delete', 'Escape'],
+    ['Delete', 'Cancel'],
+  ])(
+    'returns focus to the row menu button after %s closes by %s',
+    async (item, close) => {
+      const { user } = render(<RowMenuHarness />);
+      const trigger = screen.getByRole('button', {
+        name: 'Actions for GitHub',
+      });
+      await user.tab();
+      await user.tab();
+      expect(trigger).toHaveFocus();
+      await user.keyboard('{Enter}');
+      await waitFor(() =>
+        expect(
+          screen.getByRole('menuitem', { name: 'Edit credential' }),
+        ).toHaveFocus(),
+      );
+      if (item === 'Delete') await user.keyboard('{ArrowDown}');
+      await waitFor(() =>
+        expect(screen.getByRole('menuitem', { name: item })).toHaveFocus(),
+      );
+      await user.keyboard('{Enter}');
+      const dialog = await screen.findByRole('dialog');
+      await waitFor(() =>
+        expect(dialog.contains(document.activeElement)).toBe(true),
+      );
+      if (close === 'Escape') {
+        await user.keyboard('{Escape}');
+      } else {
+        screen.getByRole('button', { name: 'Cancel' }).focus();
+        await user.keyboard('{Enter}');
+      }
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('menu', { hidden: true }),
+        ).not.toBeInTheDocument();
+        expect(trigger).toHaveFocus();
+      });
+    },
+  );
+});
 
 describe('menu-to-dialog lifecycle', () => {
   it('keeps keyboard activation, modal focus trapping and trigger restoration', async () => {

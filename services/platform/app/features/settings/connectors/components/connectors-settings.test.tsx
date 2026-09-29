@@ -2,7 +2,7 @@ import { pickFilterOption } from '@tale/ui/testing/filters';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type {
   ConnectorSummary,
@@ -511,6 +511,34 @@ describe('ConnectorsSettings', () => {
       });
     });
 
+    // #3716: GlitchTip names its own instance too, and says which one.
+    it('tells a GlitchTip credential which instance origin to enter', async () => {
+      fixtures.connectors = [
+        {
+          slug: 'glitchtip',
+          displayName: 'GlitchTip',
+          description: 'Read GlitchTip issues for task intake.',
+          tags: ['Developer'],
+          endpointMode: 'per-credential',
+          authMethods: ['bearer'],
+          configFields: [],
+          actionCount: 3,
+        } satisfies ConnectorSummary,
+      ];
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const form = await pickConnector(user, 'GlitchTip');
+
+      const instance = form.getByRole('textbox', { name: /^Instance URL/ });
+      expect(instance).toHaveAttribute(
+        'placeholder',
+        'https://app.glitchtip.com',
+      );
+      expect(instance).toHaveAccessibleDescription(
+        'Your GlitchTip instance origin, such as https://app.glitchtip.com. A self-hosted instance works once the deployment allows its host.',
+      );
+    });
+
     it('collects the connector settings it declares, and gates submit on the required ones', async () => {
       // createCredential validates config against the connector's configFields
       // and refuses a missing required one. The form used to render no field for
@@ -708,6 +736,175 @@ describe('ConnectorsSettings', () => {
         organizationId: 'org-1',
         credentialId: 'cred-2',
       });
+    });
+
+    // #3715: the menu item that opened the dialog is gone once it closes, so
+    // a keyboard user lands back on the row's menu button — never <body>.
+    it.each(['Edit credential', 'Replace token', 'Delete'])(
+      'returns keyboard focus to the row menu once %s closes',
+      async (item) => {
+        const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+        const trigger = screen.getByRole('button', {
+          name: 'Actions for Platform bot',
+        });
+        trigger.focus();
+        await user.keyboard('{Enter}');
+        const menu = within(await screen.findByRole('menu'));
+        const target = menu.getByRole('menuitem', { name: item });
+        for (
+          let step = 0;
+          step < 8 && document.activeElement !== target;
+          step++
+        ) {
+          await user.keyboard('{ArrowDown}');
+        }
+        expect(target).toHaveFocus();
+        await user.keyboard('{Enter}');
+        const dialog = await screen.findByRole('dialog');
+        await waitFor(() => {
+          expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+          expect(dialog).toContainElement(
+            document.activeElement as HTMLElement,
+          );
+        });
+
+        // Cancel from the keyboard; Escape is the real-browser suite's
+        // (`@tale/ui` dialog.browser.test.tsx), jsdom's layer stack needs two.
+        within(dialog).getByRole('button', { name: 'Cancel' }).focus();
+        await user.keyboard('{Enter}');
+
+        await waitFor(() => {
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+          expect(trigger).toHaveFocus();
+        });
+      },
+    );
+
+    // #3712: another session's write reaches the open page, so the list
+    // refetches under whatever the admin has open.
+    it('keeps an open, typed-into dialog across a refetch that changed the list', async () => {
+      const page = () => <ConnectorsSettings organizationId="org-1" />;
+      const { user, rerender } = render(page());
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Platform bot' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      await rename(user, form, 'Platform bot (typed)');
+
+      // A colleague added a credential: new rows, new objects, new counts.
+      fixtures.credentials = [
+        ...defaultCredentials.map((row) => ({ ...row })),
+        credential({ id: 'cred-9', name: 'Ops bot' }),
+      ];
+      rerender(page());
+
+      expect(screen.getByText('Ops bot')).toBeInTheDocument();
+      expect(
+        screen.getByRole('dialog', { name: 'Edit credential' }),
+      ).toBeInTheDocument();
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'Platform bot (typed)',
+      );
+    });
+
+    it('opens Edit on what the listing holds now, not what it held at mount', async () => {
+      const page = () => <ConnectorsSettings organizationId="org-1" />;
+      const { user, rerender } = render(page());
+      // A colleague renamed the credential while this page stayed open.
+      fixtures.credentials = [
+        credential({
+          id: 'cred-1',
+          name: 'Platform bot (ops)',
+          isDefault: true,
+        }),
+        defaultCredentials[1],
+      ];
+      rerender(page());
+
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Platform bot (ops)' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'Platform bot (ops)',
+      );
+      // Saving an untouched form must not write the old name back.
+      expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
+    // #3713: the server hands a deleted default to the oldest active
+    // credential left, and the listing names it on the default's row.
+    it.each([
+      [
+        'names the credential that takes the default over',
+        { id: 'cred-3', name: 'Ops bot' },
+        'This is the default credential. Deleting it makes "Ops bot" the default for calls that name no credential.',
+      ],
+      [
+        'says no default remains when no active credential can take over',
+        null,
+        'This is the default credential, and no other active credential can take over: calls that name no credential fail until you make one the default.',
+      ],
+    ] as const)(
+      'the delete confirm of the default %s',
+      async (_case, successor, sentence) => {
+        fixtures.credentials = [
+          credential({
+            id: 'cred-1',
+            name: 'Platform bot',
+            isDefault: true,
+            defaultSuccessor: successor,
+          }),
+          ...defaultCredentials.slice(1),
+        ];
+        const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+        await user.click(
+          screen.getByRole('button', { name: 'Actions for Platform bot' }),
+        );
+        await user.click(
+          within(await screen.findByRole('menu')).getByRole('menuitem', {
+            name: 'Delete',
+          }),
+        );
+        const confirm = within(
+          await screen.findByRole('dialog', { name: 'Delete credential' }),
+        );
+        expect(confirm.getByText(sentence)).toBeInTheDocument();
+        // Never the AI providers' rule, which promotes nobody.
+        expect(
+          confirm.queryByText(/leaves no default until you pick another one/),
+        ).not.toBeInTheDocument();
+      },
+    );
+
+    it('says nothing about the default when deleting another credential', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Release bot' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Delete',
+        }),
+      );
+      const confirm = within(
+        await screen.findByRole('dialog', { name: 'Delete credential' }),
+      );
+      expect(confirm.queryByText(/default credential/)).not.toBeInTheDocument();
     });
 
     it('keeps make-default visible but inert on a disabled credential', async () => {

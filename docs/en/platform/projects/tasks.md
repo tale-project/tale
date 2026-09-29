@@ -23,6 +23,8 @@ A title can have up to 200 characters and a description up to 20,000; most emoji
 
 Tale gives the task an identifier built from the project key, such as `WEB-1`. Use that identifier when referring to the work so similarly named tasks remain distinguishable.
 
+A conversation can start a task too: **Create task from chat** in the chat's **⋯** menu opens **Create task** with your request, the chat's files, and a link back to it. See [Turn a chat into a task](/platform/chat/basics#create-task-from-chat).
+
 An automation built for tasks can also offer a template in **Create task**: its name then appears beside **Blank task** above the form. Choose it, enter the name the automation asks for, such as a quarter, and click **Create task**; the automation becomes the task's assignee. If a task already exists for that name, Tale opens it instead of creating a second one and says **A task for this subject already exists.** A Member can read and comment on it there, but change it only if it's theirs. Templates that set up folders or settings files in the project are offered to Editors and higher roles only.
 
 <Tip>
@@ -99,7 +101,9 @@ Typing `@` in a comment opens the mention picker. A mention of an assigned agent
 
 Mentions in the task description work the same way when you save the task: the people you name are notified, and a named agent is steered or starts a run as described above. A run it starts moves the task to **In progress**, whichever column you created it in. When you edit the description later, only the mentions you add take effect. Rewording the text around an existing mention notifies no one again. The agent reads the description as it is when its run starts, so an edit you make while the run is still waiting is the version it works from.
 
-Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. A parent task cannot close while its subtasks remain open. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
+Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. While any of its subtasks is still open, a parent task cannot move to **Done** or **Cancelled**; every other status stays available, **To do** included. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
+
+When you change a field, the task's **Activity** shows its value before and after. A field you clear shows what is left, such as **No due date** or **Unassigned**, rather than its old value alone. Titles, descriptions, labels, and file names appear exactly as they were written, even when the text is a status name such as `done`. Statuses, priorities, dates, and the words for an empty field appear in your language.
 
 ## Repeat a task
 
@@ -178,6 +182,12 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 ## Find work that needs attention
 
 Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep proposals in [Backlog](/platform/projects/backlog) until they are ready to start; use labels for distinctions that do not need another status.
+
+**Search tasks** narrows the board together with **Filter**, and every task that matches both appears, however many there are. A search finds tasks whose title, description, or identifier, such as `WEB-12`, contains each word you type, and tasks with a comment that contains them all. The board holds up to 2,000 tasks. In a larger project, a note says that only the first 2,000 are shown; search to reach the others.
+
+If the tasks can't be loaded, the board says so instead of showing empty columns, and your search and filters stay as they are. Choose **Try again** to load them. When a refresh fails, the tasks already on screen stay, with a note that they are shown as they were last loaded. A note also tells you when dependencies or agent and review activity can't be loaded, because blocked tasks, running agents, open questions, and pending reviews may then not be marked. **Try again** in a note reloads only what failed.
+
+With the keyboard, press **Enter** on **Filter**: the panel opens on its first filter, **Assignee**. Press **Enter** to expand it and **Tab** to reach its options. The arrow keys choose one, and the board follows at once. **Space** chooses the option the focus is on, and clears it when it is already chosen. **Tab** moves on to the next filter, and **Escape** closes the panel.
 
 In **Board** and **List**, press **Tab** until the task title is focused, then press **Enter** to open the task.
 

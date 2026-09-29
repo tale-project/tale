@@ -446,6 +446,52 @@ describe('relayToGateway — whole answers', () => {
     ]);
   });
 
+  it('drops the gateway’s own fields from a whole answer', async () => {
+    gateway(() =>
+      Response.json({
+        id: 'c',
+        object: 'chat.completion',
+        model: 'org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'hi' } }],
+        usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 },
+        extra_fields: {
+          routing_info: { provider: 'org-1__deepseek', key: 'tale-org-1-key' },
+          latency: 7,
+        },
+      }),
+    );
+    const { args: relay } = args({});
+    const answer = (await (await relayToGateway(relay)).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(answer).not.toHaveProperty('extra_fields');
+    expect(JSON.stringify(answer)).not.toContain('org-1');
+  });
+
+  it('drops the gateway’s own fields from every stream event', async () => {
+    const extra = {
+      routing_info: { provider: 'org-1__deepseek', key: 'tale-org-1-key' },
+      chunk_index: 0,
+    };
+    gateway(() =>
+      sse([
+        `data: ${JSON.stringify({ model: 'gw', choices: [{ index: 0, delta: { content: 'a' } }], extra_fields: extra })}\n\n`,
+        'data: [DONE]\n\n',
+      ]),
+    );
+    const { args: relay } = args({ stream: true });
+    const text = await (await relayToGateway(relay)).text();
+    expect(text).not.toContain('extra_fields');
+    expect(events(text)).toEqual([
+      {
+        model: 'deepseek/deepseek-v4-flash',
+        choices: [{ index: 0, delta: { content: 'a' } }],
+      },
+      '[DONE]',
+    ]);
+  });
+
   it('renames the model and reads the usage of an Anthropic message', async () => {
     gateway(() =>
       Response.json({

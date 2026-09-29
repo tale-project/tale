@@ -18,7 +18,7 @@ Ein Editor kann zwei davon mit demselben Schlüssel nutzen: die Modell-Endpunkte
 
 ## Einen API-Schlüssel erstellen
 
-Jeder Zugriff von außerhalb der App beginnt mit einem persönlichen API-Schlüssel. Inhaber, Admins und Entwickler erstellen ihn unter **Einstellungen > API > REST** mit **API-Schlüssel erstellen** und legen dabei Namen und Ablaufzeit fest. Das kann auch ein Mitglied, dem ein Admin **Modelle über die API aufrufen** zugewiesen hat. Der geheime Wert erscheint nur einmal. Kopiere ihn in deinen Secret-Speicher oder eine private Shell-Umgebung, bevor du den Dialog schließt. [API-Schlüssel](/de/platform/admin/api-keys) beschreibt Erstellen, Rotieren und Widerrufen.
+Jeder Zugriff von außerhalb der App beginnt mit einem persönlichen API-Schlüssel. Inhaber, Admins und Entwickler erstellen ihn unter **Einstellungen > API > REST** mit **API-Schlüssel erstellen** und legen dabei Namen und Ablaufzeit fest. Das kann auch ein Mitglied, dem ein Admin eine Kompetenz zugewiesen hat, die mit einem Schlüssel genutzt wird, etwa **Modelle über die API aufrufen**. Der geheime Wert erscheint nur einmal. Kopiere ihn in deinen Secret-Speicher oder eine private Shell-Umgebung, bevor du den Dialog schließt. [API-Schlüssel](/de/platform/admin/api-keys) beschreibt Erstellen, Rotieren und Widerrufen.
 
 Ein Schlüssel handelt in deinem Namen. Er trägt deine aktuelle Rolle und deinen Projektzugriff, und der Verbrauch, den er verursacht, wird dir zugeordnet. Chat-Turns, Modellaufrufe und Automatisierungsläufe, die du mit dem Schlüssel startest, erfassen zusätzlich den Schlüssel, sodass auch API-Schlüssellimits für sie gelten. Ein Lauf eines Projektagenten wird nur dir zugeordnet. Ein Admin kann deine Ausgaben mit einem persönlichen, Team- oder Rollenbudget unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) begrenzen. Eine Anfrage über der Grenze lehnt Tale mit `429 BUDGET_EXCEEDED` ab.
 
@@ -33,6 +33,12 @@ Mit den Modell-Endpunkten verwenden opencode, Claude Code und Skripte, die auf d
 Die Endpunkte sind ausgeschaltet, bis ein Admin unter **Einstellungen > Richtlinien > Modelle** den Schalter **Modell-Endpunkte für API-Schlüssel** einschaltet; [Modelle](/de/platform/admin/governance/content-models#model-endpoints) beschreibt ihn. Danach dürfen Inhaber, Admins und Entwickler sie über ihre Rolle aufrufen. Jedes andere Mitglied braucht die Kompetenz **Modelle über die API aufrufen**, die ein Admin unter [Kompetenzen](/de/platform/admin/governance/competences) zuweist. `GET /api/v1/me` antwortet mit `capabilities.modelApi: true`, sobald dein Schlüssel sie aufrufen darf.
 
 **Einstellungen > API > Modelle** bündelt, was deine Tools brauchen: beide Basis-URLs, den Organisations-Slug, die Modelle, die du aufrufen kannst, mit einer Kopierschaltfläche für jede ID, und Konfigurationen zum Kopieren für opencode, Claude Code und das OpenAI-SDK für Python. Solange deine Organisation die Endpunkte nicht eingeschaltet hat, zeigt der Tab **Die Modell-Endpunkte sind für deine Organisation nicht aktiviert**; Inhaber und Admins finden dort **Modellzugriff öffnen**.
+
+<Frame caption="Einstellungen > API > Modelle — die Basis-URLs, der Organisations-Slug und die Modelle, die du aufrufen kannst.">
+
+![Der Tab Modelle unter Einstellungen > API mit den OpenAI- und Anthropic-kompatiblen Basis-URLs, dem Authorization-Header für einen API-Schlüssel, dem Organisations-Slug northlight-labs und fünf Modell-IDs mit je einem Kopierknopf.](/images/develop/settings-api-models.webp)
+
+</Frame>
 
 ### Verbindungsdaten
 

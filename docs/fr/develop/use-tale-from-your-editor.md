@@ -18,7 +18,7 @@ Un éditeur peut en combiner deux avec la même clé : les endpoints de modèle
 
 ## Créer une clé API
 
-Tout accès depuis l’extérieur de l’application commence par une clé API personnelle. Les propriétaires, admins et développeurs la créent dans **Paramètres > API > REST** avec **Créer une clé API**, en choisissant un nom et une expiration ; un membre à qui un admin a attribué **Appeler les modèles par l'API** le peut aussi. La valeur secrète ne s’affiche qu’une fois : copie-la dans ton gestionnaire de secrets ou un environnement de shell privé avant de fermer la boîte de dialogue. [Clés API](/fr/platform/admin/api-keys) décrit la création, le renouvellement et la révocation.
+Tout accès depuis l’extérieur de l’application commence par une clé API personnelle. Les propriétaires, admins et développeurs la créent dans **Paramètres > API > REST** avec **Créer une clé API**, en choisissant un nom et une expiration ; un membre à qui un admin a attribué une compétence qui s’utilise avec une clé, comme **Appeler les modèles par l'API**, le peut aussi. La valeur secrète ne s’affiche qu’une fois : copie-la dans ton gestionnaire de secrets ou un environnement de shell privé avant de fermer la boîte de dialogue. [Clés API](/fr/platform/admin/api-keys) décrit la création, le renouvellement et la révocation.
 
 Une clé agit en ton nom. Elle porte ton rôle et tes accès aux projets actuels, et la consommation qu’elle entraîne t’est attribuée. Les tours de chat, les appels aux modèles et les exécutions d’automatisation que tu lances avec la clé enregistrent aussi la clé, si bien que les limites de clé API s’y appliquent également ; une exécution d’agent de projet n’est attribuée qu’à toi. Un admin peut plafonner tes dépenses avec un budget personnel, d’équipe ou de rôle dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; une requête qui dépasse un plafond est refusée avec `429 BUDGET_EXCEEDED`.
 
@@ -33,6 +33,12 @@ Les endpoints de modèles permettent à opencode, à Claude Code et aux scripts 
 Les endpoints restent désactivés tant qu’un admin n’a pas activé **Endpoints de modèles pour les clés API** dans **Paramètres > Gouvernance > Modèles** ; [Modèles](/fr/platform/admin/governance/content-models#model-endpoints) décrit ce réglage. Les propriétaires, admins et développeurs peuvent ensuite les appeler grâce à leur rôle ; tout autre membre a besoin de la compétence **Appeler les modèles par l'API**, qu’un admin attribue dans [Compétences](/fr/platform/admin/governance/competences). `GET /api/v1/me` répond `capabilities.modelApi: true` dès que ta clé peut les appeler.
 
 **Paramètres > API > Modèles** rassemble ce dont tes outils ont besoin : les deux URL de base, le slug de l’organisation, les modèles que tu peux appeler avec un bouton de copie pour chaque identifiant, et des configurations à copier pour opencode, Claude Code et le SDK OpenAI pour Python. Tant que ton organisation n’a pas activé les endpoints, l’onglet affiche **Les endpoints de modèles ne sont pas activés pour ton organisation**, et les propriétaires et les admins y trouvent **Ouvrir l'accès aux modèles**.
+
+<Frame caption="Paramètres > API > Modèles — les URL de base, le slug de l’organisation et les modèles que tu peux appeler.">
+
+![L’onglet Modèles sous Paramètres > API avec les URL de base compatibles OpenAI et Anthropic, l’en-tête Authorization pour une clé API, le slug d’organisation northlight-labs et cinq identifiants de modèles, chacun avec un bouton de copie.](/images/develop/settings-api-models.webp)
+
+</Frame>
 
 ### Paramètres de connexion
 

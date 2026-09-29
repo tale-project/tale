@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import {
   FilterPanel,
@@ -304,6 +304,248 @@ describe('FilterPanel', () => {
     rerender(<FilterPanel filters={[]} onClearAll={vi.fn()} />);
     rerender(<FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  // #3746: a single-choice facet is one radio group — one Tab stop, the arrow
+  // keys move the choice — and the panel opens with the keyboard inside it.
+  describe('a single-choice facet from the keyboard', () => {
+    const PRIORITIES = [
+      { value: 'p0', label: 'Urgent' },
+      { value: 'p1', label: 'High' },
+      { value: 'p2', label: 'Medium' },
+    ];
+
+    /** A toolbar that keeps what the reader picks, beside a second facet. */
+    function Toolbar({
+      initial = [],
+      defaultValues,
+      onChange = vi.fn(),
+    }: {
+      initial?: string[];
+      defaultValues?: string[];
+      onChange?: (values: string[]) => void;
+    }) {
+      const [priority, setPriority] = useState(initial);
+      return (
+        <FilterPanel
+          filters={[
+            {
+              key: 'priority',
+              title: 'Priority',
+              options: PRIORITIES,
+              selectedValues: priority,
+              ...(defaultValues === undefined ? {} : { defaultValues }),
+              onChange: (values) => {
+                onChange(values);
+                setPriority(values);
+              },
+            },
+            tagFilter(),
+          ]}
+          onClearAll={() => setPriority(defaultValues ?? [])}
+        />
+      );
+    }
+
+    /** Press an arrow key and wait for the focus to land on `next`. Held
+     * until then, as a person holds a key; or, `quick`, released at once, the
+     * way a key comes up before the focus moves on a page still busy with the
+     * last choice. The option the focus lands on is chosen either way. */
+    async function pressArrow(
+      user: ReturnType<typeof render>['user'],
+      key: 'ArrowDown' | 'ArrowUp',
+      next: string,
+      { quick = false }: { quick?: boolean } = {},
+    ) {
+      await user.keyboard(quick ? `{${key}}` : `{${key}>}`);
+      await waitFor(() =>
+        expect(screen.getByRole('radio', { name: next })).toHaveFocus(),
+      );
+      if (!quick) await user.keyboard(`{/${key}}`);
+    }
+
+    /** Open the panel and the Priority facet, leaving the focus on its
+     * header, the control before the options. */
+    async function openPriority(user: ReturnType<typeof render>['user']) {
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      const header = await screen.findByRole('button', {
+        name: (name) => name.startsWith('Priority'),
+      });
+      await user.click(header);
+      expect(header).toHaveFocus();
+    }
+
+    it('opens with the focus on its first facet, not on Clear all', async () => {
+      const { user } = render(<Toolbar initial={['p1']} />);
+      await user.tab();
+      await user.keyboard('{Enter}');
+
+      expect(
+        await screen.findByRole('dialog', { name: 'Filters' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Clear all' }),
+      ).toBeInTheDocument();
+      const header = screen.getByRole('button', {
+        name: (name) => name.startsWith('Priority'),
+      });
+      await waitFor(() => expect(header).toHaveFocus());
+
+      // From there the keyboard alone reaches the options.
+      await user.keyboard('{Enter}');
+      await user.tab();
+      expect(screen.getByRole('radio', { name: 'High' })).toHaveFocus();
+    });
+
+    it('is one Tab stop whose arrow keys move the choice', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar onChange={onChange} />);
+      await openPriority(user);
+
+      // Nothing chosen yet: Tab lands on the first option and chooses nothing.
+      await user.tab();
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+      expect(onChange).not.toHaveBeenCalled();
+
+      await pressArrow(user, 'ArrowDown', 'High');
+      expect(onChange).toHaveBeenLastCalledWith(['p1']);
+      expect(screen.getByRole('radio', { name: 'High' })).toBeChecked();
+      await pressArrow(user, 'ArrowDown', 'Medium');
+      await pressArrow(user, 'ArrowDown', 'Urgent');
+      await pressArrow(user, 'ArrowUp', 'Medium');
+      expect(onChange).toHaveBeenLastCalledWith(['p2']);
+      // One choice per key, never a second one for the same option.
+      expect(onChange.mock.calls).toEqual([
+        [['p1']],
+        [['p2']],
+        [['p0']],
+        [['p2']],
+      ]);
+      expect(
+        screen.getAllByRole('radio').map((radio) => radio.tabIndex),
+      ).toEqual([-1, -1, 0]);
+
+      // Tab leaves the group for the next facet, Shift+Tab comes back to the
+      // chosen option.
+      await user.tab();
+      expect(
+        screen.getByRole('button', { name: (name) => name.startsWith('Tags') }),
+      ).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(screen.getByRole('radio', { name: 'Medium' })).toHaveFocus();
+      expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
+    });
+
+    it('chooses the option the focus lands on even when the key came up first', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar initial={['p1']} onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+      expect(screen.getByRole('radio', { name: 'High' })).toHaveFocus();
+
+      for (const next of ['Medium', 'Urgent', 'High']) {
+        await pressArrow(user, 'ArrowDown', next, { quick: true });
+        await waitFor(() =>
+          expect(screen.getByRole('radio', { name: next })).toBeChecked(),
+        );
+      }
+      expect(onChange.mock.calls).toEqual([[['p2']], [['p0']], [['p1']]]);
+    });
+
+    it('moves the choice with Home and End too', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar initial={['p1']} onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+
+      await user.keyboard('{End}');
+      await waitFor(() =>
+        expect(screen.getByRole('radio', { name: 'Medium' })).toHaveFocus(),
+      );
+      expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
+      await user.keyboard('{Home}');
+      await waitFor(() =>
+        expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus(),
+      );
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toBeChecked();
+      expect(onChange.mock.calls).toEqual([[['p2']], [['p0']]]);
+    });
+
+    it('keeps the chosen option chosen when an arrow key lands on it', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar initial={['p2']} onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+      // The focus off the choice, as a choice made elsewhere leaves it.
+      const high = screen.getByRole('radio', { name: 'High' });
+      act(() => high.focus());
+
+      await pressArrow(user, 'ArrowDown', 'Medium');
+      expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('chooses nothing on the way in, even after a key that moved nothing', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+      // Radix moves nothing for an arrow with a modifier.
+      await user.keyboard('{Shift>}{ArrowDown}{/Shift}');
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+
+      // Out of the group both ways, and back in: the focus returns to the
+      // first option and still nothing is chosen.
+      await user.tab({ shift: true });
+      expect(
+        screen.getByRole('button', {
+          name: (name) => name.startsWith('Priority'),
+        }),
+      ).toHaveFocus();
+      await user.tab();
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+      await user.tab();
+      await user.tab({ shift: true });
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('clears an optional facet with Space on the chosen option, as a click does', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar initial={['p1']} onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+      const high = screen.getByRole('radio', { name: 'High' });
+      expect(high).toHaveFocus();
+
+      await user.keyboard(' ');
+      expect(onChange).toHaveBeenLastCalledWith([]);
+      expect(high).not.toBeChecked();
+      expect(high).toHaveFocus();
+
+      await user.keyboard(' ');
+      expect(onChange).toHaveBeenLastCalledWith(['p1']);
+      expect(high).toBeChecked();
+
+      await user.click(high);
+      expect(onChange).toHaveBeenLastCalledWith([]);
+      await user.click(screen.getByRole('radio', { name: 'Urgent' }));
+      expect(onChange).toHaveBeenLastCalledWith(['p0']);
+    });
+
+    it('sets a facet that always holds a value back to its resting value', async () => {
+      const onChange = vi.fn();
+      const { user } = render(
+        <Toolbar initial={['p0']} defaultValues={['p2']} onChange={onChange} />,
+      );
+      await openPriority(user);
+      await user.tab();
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+
+      await user.keyboard(' ');
+      expect(onChange).toHaveBeenLastCalledWith(['p2']);
+      expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
+    });
   });
 
   describe('isFilterAffordanceDisabled', () => {

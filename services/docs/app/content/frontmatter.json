@@ -1061,7 +1061,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Ein Projekt für gemeinsamen Kontext nutzen",
-      "description": "Erstelle ein Projekt, hinterlege Dateien und Anweisungen und stelle eine Frage zum Projektwissen."
+      "description": "Stelle eine Frage, die die Dateien eines Projekts beantworten, teile das Gespräch und übergib die Folgearbeit einem Projekt-Agenten."
     }
   },
   "de:tutorials/overview": {
@@ -2222,7 +2222,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Use a project for shared context",
-      "description": "Create a project, add reference files and instructions, then ask a question that uses the project’s knowledge."
+      "description": "Ask a question that a project's files answer, share the conversation, and hand the follow-up work to a project agent."
     }
   },
   "en:tutorials/overview": {
@@ -3383,7 +3383,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Utiliser un projet pour partager le contexte",
-      "description": "Crée un projet, ajoute des fichiers et des instructions, puis pose une question sur ses connaissances."
+      "description": "Pose une question à laquelle répondent les fichiers d’un projet, partage la conversation et confie la suite à un agent du projet."
     }
   },
   "fr:tutorials/overview": {

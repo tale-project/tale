@@ -1,5 +1,6 @@
 'use client';
 
+import * as RadioGroupPrimitive from '@radix-ui/react-radio-group';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
 import { FilterButton } from '@tale/ui/filters/filter-button';
@@ -60,6 +61,20 @@ function toSegments(options: readonly FilterOption[]): OptionSegment[] {
   }
   return segments;
 }
+
+/** The keys Radix moves a radio group's focus with, and the choice with it. */
+const FOCUS_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+]);
+/** The keys Radix checks the option for itself, while the key is down. */
+const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 export interface FilterConfig {
   /** Unique key for this filter */
@@ -187,6 +202,11 @@ export function FilterPanel({
   // The reader pressed or focused something outside the open panel: closing,
   // it leaves the focus there instead of handing it back to the button.
   const interactedOutside = useRef(false);
+  const facetsRef = useRef<HTMLDivElement>(null);
+  // The option a focus key was pressed on, and whether an arrow key is down —
+  // what the options' `onClick` and `onFocus` read.
+  const navigatedFrom = useRef<EventTarget | null>(null);
+  const arrowDown = useRef(false);
   const headingId = useId();
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
@@ -244,7 +264,15 @@ export function FilterPanel({
       // tree while the panel is open.
       modal={false}
       align={align}
-      onOpenAutoFocus={(e) => e.preventDefault()}
+      onOpenAutoFocus={(event) => {
+        // The reader lands on the first facet's header, inside the panel: left
+        // on the button, their next Tab went on down the page and closed the
+        // panel unseen. Not on "Clear all", which a reflexive Enter would fire.
+        event.preventDefault();
+        facetsRef.current
+          ?.querySelector<HTMLElement>('button')
+          ?.focus({ preventScroll: true });
+      }}
       onInteractOutside={(event) => {
         // A press on the button closes the panel through the button, which
         // keeps the focus.
@@ -303,7 +331,10 @@ export function FilterPanel({
         )}
       </div>
 
-      <div className="divide-border min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain">
+      <div
+        ref={facetsRef}
+        className="divide-border min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain"
+      >
         {filters.map((filter) => (
           <FilterSection
             key={filter.key}
@@ -383,8 +414,25 @@ export function FilterPanel({
                       })}
                     </div>
                   ) : (
-                    <div
-                      role="radiogroup"
+                    // The radio group primitive `RadioGroup` is built on: one
+                    // Tab stop (the chosen option, else the first), keys that
+                    // move the focus and the choice together, and Tab and
+                    // Shift+Tab to leave the group.
+                    <RadioGroupPrimitive.Root
+                      value={filter.selectedValues[0] ?? null}
+                      onValueChange={(value) => filter.onChange([value])}
+                      onKeyDown={(event) => {
+                        if (FOCUS_KEYS.has(event.key)) {
+                          navigatedFrom.current = event.target;
+                        }
+                        if (ARROW_KEYS.has(event.key)) arrowDown.current = true;
+                      }}
+                      onKeyUp={() => {
+                        arrowDown.current = false;
+                      }}
+                      onPointerDown={() => {
+                        navigatedFrom.current = null;
+                      }}
                       aria-label={segment.group ?? filter.title}
                       className={cn(
                         'flex flex-col gap-1',
@@ -395,20 +443,41 @@ export function FilterPanel({
                         const isSelected =
                           filter.selectedValues[0] === option.value;
                         return (
-                          <button
+                          <RadioGroupPrimitive.Item
                             key={option.value}
-                            type="button"
-                            role="radio"
-                            aria-checked={isSelected}
-                            onClick={() =>
-                              filter.onChange(
-                                isSelected
-                                  ? (filter.defaultValues ?? [])
-                                  : [option.value],
-                              )
-                            }
+                            value={option.value}
+                            // Pressing the chosen option again (a click or
+                            // Space) sets the facet back to its resting
+                            // selection: how an optional one is cleared. The
+                            // click Radix sends an option an arrow key lands
+                            // on is no such press.
+                            onClick={() => {
+                              if (isSelected && !arrowDown.current) {
+                                filter.onChange(filter.defaultValues ?? []);
+                              }
+                            }}
+                            // A key that moves the focus to this option moves
+                            // the choice with it. Radix checks the option only
+                            // for an arrow key still down when its deferred
+                            // focus lands; Home, End, and an arrow key a busy
+                            // page lets come up first left the focus on one
+                            // option and the choice on another. Those choose
+                            // here, so one of the two chooses, never both.
+                            onFocus={(event) => {
+                              const navigated =
+                                event.relatedTarget !== null &&
+                                event.relatedTarget === navigatedFrom.current;
+                              navigatedFrom.current = null;
+                              if (
+                                navigated &&
+                                !arrowDown.current &&
+                                !isSelected
+                              ) {
+                                filter.onChange([option.value]);
+                              }
+                            }}
                             className={cn(
-                              'flex cursor-pointer items-center gap-2 rounded-lg p-2',
+                              'focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-lg p-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
                               isSelected ? 'bg-muted' : 'hover:bg-muted/70',
                             )}
                           >
@@ -430,10 +499,10 @@ export function FilterPanel({
                             >
                               {option.label}
                             </Text>
-                          </button>
+                          </RadioGroupPrimitive.Item>
                         );
                       })}
-                    </div>
+                    </RadioGroupPrimitive.Root>
                   )}
                 </Fragment>
               );

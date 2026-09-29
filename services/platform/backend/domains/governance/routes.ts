@@ -15,6 +15,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
+import { mayCreateApiKeys } from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -34,10 +35,11 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { ContactError } from '../contacts/service.ts';
+import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
 import { listModelApiModels } from '../model_api/models.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
-import { listOrgApiKeys } from './api-keys.ts';
+import { holdsApiKeys, listOrgApiKeys } from './api-keys.ts';
 import {
   findBudgetViolation,
   loadBudgetSubject,
@@ -532,6 +534,23 @@ export function createGovernanceRoutes(deps: {
   });
 
   /**
+   * Whether the caller may create a personal API key — the rule the create
+   * endpoint's gate holds them to (`auth/api-key-create-gate.ts`): owner,
+   * admin or developer of any organization, or a live grant of a competence
+   * that is used with a key — and whether they hold one already. The API
+   * settings open the REST tab to such a member: to create a key, or to see
+   * and revoke the ones they hold after the right lapsed.
+   */
+  app.get('/my/api-keys', async (c) => {
+    const userId = c.get('sessionBundle').user.id;
+    const [mayCreate, holdsKeys] = await Promise.all([
+      mayCreateApiKeys(deps.sql, userId),
+      holdsApiKeys(deps.sql, userId),
+    ]);
+    return c.json({ mayCreate, holdsKeys });
+  });
+
+  /**
    * The caller's standing under every budget cap that binds them — their
    * personal caps, each of their teams' shared caps and the organization's —
    * with the usage the gate measures and when each period resets. Unlike
@@ -647,6 +666,13 @@ export function createGovernanceRoutes(deps: {
           body.data,
         ),
       );
+      // A restored document can be its ref's holder again — the lowest-id
+      // active document holding a shared ref, whose scope the corpus row
+      // carries — and a restore edits no scope, so no other write re-stamps
+      // the row before the nightly reconcile. Best-effort, after commit.
+      if (body.data.resourceType === 'document') {
+        await syncRagDocumentScope(deps.sql, c.get('orgId'), body.data.id);
+      }
       return c.json({ ok: true });
     } catch (error) {
       if (error instanceof TrashError) {

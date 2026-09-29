@@ -87,4 +87,65 @@ describe('ErrorDisplayCompact', () => {
       );
     });
   });
+
+  // #3814: a data table's error state goes when a refresh the reader did not
+  // start replaces it; a focused Try again took the focus down with it.
+  describe('focus when it leaves', () => {
+    const nextFrame = () =>
+      new Promise((resolve) => requestAnimationFrame(resolve));
+
+    it('hands the focus it held to onFocusLost', async () => {
+      const onFocusLost = vi.fn();
+      const { rerender } = render(
+        <ErrorDisplayCompact
+          error={new Error('Test error')}
+          reset={() => {}}
+          onFocusLost={onFocusLost}
+        />,
+      );
+      screen.getByRole('button', { name: 'Try again' }).focus();
+      // A new callback on re-render is not the display leaving.
+      const next = vi.fn();
+      rerender(
+        <ErrorDisplayCompact
+          error={new Error('Test error')}
+          reset={() => {}}
+          onFocusLost={next}
+        />,
+      );
+      await nextFrame();
+      expect(onFocusLost).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+
+      rerender(<></>);
+      await nextFrame();
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves focus the reader moved elsewhere where it is', async () => {
+      const onFocusLost = vi.fn();
+      const { rerender } = render(
+        <>
+          <button type="button">Elsewhere</button>
+          <ErrorDisplayCompact
+            error={new Error('Test error')}
+            reset={() => {}}
+            onFocusLost={onFocusLost}
+          />
+        </>,
+      );
+      screen.getByRole('button', { name: 'Try again' }).focus();
+      screen.getByRole('button', { name: 'Elsewhere' }).focus();
+
+      rerender(
+        <>
+          <button type="button">Elsewhere</button>
+          {null}
+        </>,
+      );
+      await nextFrame();
+      expect(onFocusLost).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
+    });
+  });
 });

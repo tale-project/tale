@@ -5,9 +5,10 @@ import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useT } from '@tale/ui/i18n/client';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { SearchX } from 'lucide-react';
-import { Fragment, type ComponentType, type ReactNode } from 'react';
+import { Loader2, SearchX } from 'lucide-react';
+import { Fragment, type ComponentType, type Key, type ReactNode } from 'react';
 
+import { useFocusHandoff } from '../../hooks/use-focus-handoff';
 import { CatalogGridSkeleton } from './catalog-card-skeleton';
 import { CatalogGrid } from './catalog-grid';
 
@@ -69,33 +70,64 @@ interface CatalogViewProps<T> {
   className?: string;
 }
 
-/** Destructive alert for a failed listing, with an optional inline retry. */
+/**
+ * Destructive alert for a failed listing, with an optional inline retry.
+ * `isRetrying` marks the retry busy while it runs, for a host that keeps
+ * the alert up until the request settles — a refresh of rows that stay on
+ * screen, rather than a first read that goes back to its loading state.
+ *
+ * A host whose read can fail again under the alert (a background refresh)
+ * passes a new `failureKey` for each failure: the message is written afresh
+ * inside the same live region, so the failure is announced again, while
+ * **Try again** keeps its node — and the focus a reader may have put on it.
+ * When a refresh that worked takes the alert away while it holds focus,
+ * `onFocusLost` gets the focus instead of the page; focus the reader moved
+ * elsewhere in the meantime stays where it is.
+ */
 export function CatalogLoadError({
   message,
   onRetry,
+  isRetrying = false,
+  failureKey,
+  onFocusLost,
 }: {
   message: string;
   onRetry?: () => void;
+  isRetrying?: boolean;
+  failureKey?: Key;
+  onFocusLost?: () => void;
 }) {
   const { t } = useT('common');
+  const setRetryRow = useFocusHandoff<HTMLSpanElement>(onFocusLost);
   return (
     <Alert
       variant="destructive"
       description={
         onRetry ? (
-          <span className="inline-flex flex-wrap items-baseline gap-x-2">
-            <span>{message}</span>
+          <span
+            ref={setRetryRow}
+            className="inline-flex flex-wrap items-baseline gap-x-2"
+          >
+            <span key={failureKey}>{message}</span>
             <Button
               type="button"
               variant="link"
               className="text-foreground h-auto min-h-0 p-0 text-sm"
-              onClick={onRetry}
+              // Busy, not gone: `isLoading` would disable the button natively
+              // and drop a focused retry's focus — also when the host starts
+              // the request itself (a refetch as the tab regains focus). It
+              // stays focusable and inert instead, with Button's own spinner.
+              icon={isRetrying ? Loader2 : undefined}
+              iconClassName="animate-spin motion-reduce:animate-none"
+              aria-busy={isRetrying || undefined}
+              aria-disabled={isRetrying || undefined}
+              onClick={isRetrying ? undefined : onRetry}
             >
               {t('actions.tryAgain')}
             </Button>
           </span>
         ) : (
-          message
+          <span key={failureKey}>{message}</span>
         )
       }
     />

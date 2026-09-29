@@ -48,7 +48,7 @@ import { resolveHostAddresses } from '../../../../lib/net/safe-fetch';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
-import { isRecord } from '../../../../lib/utils/type-utils';
+import { getString, isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 import type { GatewaySpendReading } from './gateway_key_settlement';
 
@@ -509,8 +509,70 @@ export async function revokeVirtualKey(keyId: string): Promise<void> {
     },
   );
   if (!res.ok && res.status !== 404) {
-    throw new Error(`llm-gateway revoke key failed (${res.status})`);
+    throw new Error(
+      `llm-gateway revoke key failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
   }
+}
+
+/** The lowest cap a key is moved to: a turn whose allowance is spent keeps
+ * a key that refuses its next call, not one the gateway's validator refuses. */
+const MIN_KEY_BUDGET_CENTS = 0.01;
+
+/**
+ * Move a key's spend cap, in cents, through `PUT
+ * /api/governance/virtual-keys/:id`. The key keeps its budget row and the
+ * usage already counted against it: on the pinned gateway `current_usage`
+ * survives the update, and a cap moved below it refuses the next call (402).
+ * A turn's generated images are paid outside its key but from the same
+ * allowance, so the cap gives up their cost as they are admitted and booked.
+ * A key the gateway no longer holds answers `gone`; any other failure throws.
+ */
+export async function setVirtualKeyBudget(
+  keyId: string,
+  budgetCents: number,
+): Promise<'ok' | 'gone'> {
+  const url = `${llmGatewayUrl()}/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
+  // The budget row's id, so the update names the row whose usage it keeps.
+  const current = await fetch(url, {
+    method: 'GET',
+    headers: managementHeaders(),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (current.status === 404) return 'gone';
+  if (!current.ok) {
+    throw new Error(
+      `llm-gateway read key failed (${current.status}): ${sanitizeError(await current.text())}`,
+    );
+  }
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const parsed = (await current.json()) as {
+    virtual_key?: { budgets?: unknown };
+  };
+  const budgets = parsed.virtual_key?.budgets;
+  const first: unknown = Array.isArray(budgets) ? budgets[0] : undefined;
+  const budgetId = isRecord(first) ? getString(first, 'id') : undefined;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: managementHeaders(),
+    body: JSON.stringify({
+      budgets: [
+        {
+          ...(budgetId !== undefined ? { id: budgetId } : {}),
+          max_limit: Math.max(budgetCents, MIN_KEY_BUDGET_CENTS) / 100,
+          reset_duration: '1M',
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (res.status === 404) return 'gone';
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway update key budget failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  return 'ok';
 }
 
 /**
@@ -1360,7 +1422,9 @@ export async function applyGatewayConfig(
     signal: AbortSignal.timeout(15_000),
   });
   if (!getRes.ok) {
-    throw new Error(`llm-gateway get config failed (${getRes.status})`);
+    throw new Error(
+      `llm-gateway get config failed (${getRes.status}): ${sanitizeError(await getRes.text())}`,
+    );
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const cfg = (await getRes.json()) as {
@@ -1382,6 +1446,12 @@ export async function applyGatewayConfig(
     log_retention_days: logRetention,
     enforce_auth_on_inference: true,
     enforce_governance_header: true,
+    // The gateway's request log would otherwise keep every prompt and
+    // answer — agent turns and model-endpoint calls alike — for its
+    // retention window, outside the organization's retention policy and
+    // erasure. Tale never reads that log: spend is read from each virtual
+    // key's usage, which the governance plugin keeps without content.
+    disable_content_logging: true,
   };
   // The gateway (Bifrost >= v1.6.9) enforces an admin-password strength policy
   // (>=12 chars, an upper, a lower, a digit and a non-alphanumeric special
@@ -1416,7 +1486,11 @@ export async function applyGatewayConfig(
     signal: AbortSignal.timeout(15_000),
   });
   if (!putRes.ok) {
-    throw new Error(`llm-gateway apply config failed (${putRes.status})`);
+    // The gateway says why it refused (e.g. its admin-password policy on the
+    // first bootstrap); without its words an operator sees a bare 400.
+    throw new Error(
+      `llm-gateway apply config failed (${putRes.status}): ${sanitizeError(await putRes.text())}`,
+    );
   }
   gatewayConfigAppliedAt = Date.now();
 }

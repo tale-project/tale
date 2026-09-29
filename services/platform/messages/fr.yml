@@ -2,8 +2,9 @@ accessDenied:
   title: Accès refusé
   connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
     aux paramètres de connectors.
-  apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
-    clés API.
+  apiKeys: Utiliser des clés API demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
+  apiTab: Cette page est réservée aux propriétaires, admins et développeurs.
+  apiModels: La configuration des endpoints de modèles est réservée aux propriétaires, admins et développeurs, et aux membres qui ont la compétence « Appeler les modèles par l'API ».
   organization:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
@@ -358,6 +359,9 @@ auth:
     stayHere: Rester ici
     signIn: Se reconnecter
     checkFailed: Ta session n'a pas pu être vérifiée. Reste ici et réessaie quand la connexion sera rétablie.
+  accountUnavailable:
+    description: Ton compte n'a pas pu être chargé.
+    signInAgain: Se reconnecter
   oauth:
     title: 'Continuer avec Tale'
     request: '{application} souhaite te connecter avec Tale.'
@@ -1089,6 +1093,20 @@ chat:
   markAsRead: Marquer comme lu
   markAsUnread: Marquer comme non lu
   readOnlyShared: Partagé avec le projet — lecture seule
+  createTask:
+    button: Créer une tâche depuis le chat
+    projectTitle: Créer une tâche à partir de ce chat
+    projectDescription: Choisis le projet auquel la tâche appartient. Un agent de ce projet peut la traiter et livrer les fichiers.
+    projectLabel: Projet
+    projectPlaceholder: Choisir un projet
+    projectEmpty: Aucun projet ne correspond
+    noProjects: Il n’y a encore aucun projet où créer la tâche. Demande à un éditeur ou à un admin d’en créer un.
+    continue: Continuer
+    fromChat: 'Depuis le chat : {title}'
+    fromChatUntitled: Depuis le chat
+    created: Tâche créée dans {project}
+    openTask: Ouvrir la tâche
+    openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
   export:
     button: Exporter
     title: Exporter le chat
@@ -1311,6 +1329,7 @@ chat:
       notFound: Lien vidéo introuvable — il a peut-être été supprimé
       notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
       notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
+      threadNotFound: Ce chat n'est plus disponible
     actions:
       removeLink: Retirer
       retry: Réessayer
@@ -1321,6 +1340,8 @@ chat:
     toast:
       ingestFailedTitle: Impossible d'ajouter cette vidéo
       retryFailedTitle: Impossible de réessayer cette vidéo
+      removeFailedTitle: Impossible de retirer cette vidéo
+      removeFailedDescription: Elle est toujours jointe à ton message — réessaie de la retirer
   fallback:
     image: Image
   loadingConversation: Chargement de la conversation…
@@ -1817,6 +1838,7 @@ conversations:
   updating: Mise à jour des conversations...
   bulk:
     progress: 'Mise à jour des conversations... {settled} sur {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Envoyer les messages
     close: Fermer
     reopen: Rouvrir
@@ -2091,6 +2113,7 @@ documents:
   entityLabelOne: document
   tableCaption: Documents et dossiers
   searchPlaceholder: Rechercher des documents
+  refreshFailed: Impossible de charger les derniers documents. La liste est peut-être incomplète ou obsolète.
   record:
     badge: 'v{version} · {state}'
     state:
@@ -2372,6 +2395,9 @@ documents:
     storedButNotIndexed:
       Stocké et téléchargeable, mais non indexé pour la recherche
       (ancien format).
+    storedButNotIndexedNoExtension:
+      "Stocké et téléchargeable, mais non indexé pour la recherche : le nom
+      du fichier n'est qu'une extension."
     filesCompletedSummary: '{completed} sur {total} fichiers terminés'
     filesCompletedWithFailures: '{completed} sur {total} fichiers terminés · {failed} échoués'
     selectTeams: Assigner aux équipes
@@ -2706,6 +2732,7 @@ emptyStates:
   apiKeys:
     title: Aucune clé API pour l'instant
     description: Génère une clé pour connecter des outils et scripts externes.
+    descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
@@ -4516,6 +4543,7 @@ knowledgeEntries:
   title: Entrées de connaissances
   entityLabelOne: entrée de connaissance
   searchPlaceholder: Rechercher des entrées de connaissances
+  refreshFailed: Impossible de charger les dernières entrées de connaissances. La liste est peut-être incomplète ou obsolète.
   addButton: Ajouter une entrée
   addEntry: Ajouter une entrée de connaissances
   addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
@@ -4564,6 +4592,10 @@ knowledgeEntries:
       précédentes}}'
     superseded: Remplacée
     supersededOn: Remplacée le {date}
+    historyLoading: "Chargement de l'historique des versions…"
+    historyEmpty: "Aucune version précédente pour l'instant — chaque modification conserve ici le texte qu'elle remplace."
+    historyLoadFailed: "Impossible de charger l'historique des versions."
+    historyRefreshFailed: "Impossible d'actualiser l'historique des versions. Les versions affichées ne sont peut-être plus à jour."
 metadata:
   suffix: Tale
   default:
@@ -5812,6 +5844,17 @@ settings:
         accorder le consentement à nouveau.
       needsReauthDetail: '{detail} Reconnecte-toi pour accorder le consentement à nouveau.'
       reconnect: Reconnecter
+      deleteDefaultHandsOn: >-
+        Ce sont les identifiants par défaut. Si tu les supprimes, « {name} »
+        devient le choix par défaut des appels qui n'en nomment aucun.
+      deleteDefaultLeavesNone: >-
+        Ce sont les identifiants par défaut, et aucun autre identifiant actif
+        ne peut prendre le relais : les appels qui n'en nomment aucun échouent
+        jusqu'à ce que tu en définisses d'autres par défaut.
+      deleteDefaultHandsOnOldest: >-
+        Ce sont les identifiants par défaut. Si tu les supprimes, les plus
+        anciens identifiants actifs de ce connecteur deviennent le choix par
+        défaut, s'il y en a.
     replace:
       apiKeyTitle: Remplacer la clé API
       tokenTitle: Remplacer le jeton
@@ -5887,6 +5930,10 @@ settings:
       endpointHelpShopify:
         L'adresse myshopify.com de ta boutique — l'adresse d'administration,
         pas le domaine de la vitrine.
+      endpointHelpGlitchtip:
+        L'adresse de ton instance GlitchTip, par exemple
+        https://app.glitchtip.com. Une instance auto-hébergée fonctionne dès
+        que le déploiement autorise son hôte.
       endpointHelpGeneric: L'origine https de l'instance à laquelle appartiennent ces identifiants.
   enterpriseSso:
     connected: La connexion est activée.
@@ -7456,6 +7503,21 @@ tasks:
     noTasks: Aucune tâche
   list:
     showArchived: Afficher les archivées
+  # Une lecture du tableau qui a échoué après toutes ses tentatives (#3747) :
+  # ce qui n’a pas été chargé et ce que la personne voit entre-temps — jamais
+  # un tableau vide. Chaque alerte porte « Réessayer »
+  # (common.actions.tryAgain) pour cette seule lecture.
+  read:
+    tasksFailed: Impossible de charger les tâches, aucune n’est donc affichée. Ta recherche et tes filtres restent tels quels.
+    tasksStale: Impossible d’actualiser les tâches. Elles s’affichent telles qu’elles ont été chargées la dernière fois.
+    dependenciesFailed: Impossible de charger les dépendances, les tâches bloquées ne sont donc peut-être pas signalées comme bloquées.
+    activityFailed: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés.
+    activityFailedReviewFilter: Impossible de charger l’activité des agents et des relectures. Les agents en cours, les questions ouvertes et les relectures en attente ne sont donc peut-être pas signalés, et « En attente de ma relecture » peut omettre des tâches qui t’attendent.
+    retrying: Nouvelle tentative…
+    # La lecture du tableau s’arrête à son plafond ; la recherche restreint la
+    # lecture elle-même et atteint donc chaque tâche. {count} est le nombre de
+    # tâches affichées.
+    truncated: '{count, plural, one {Seule la première tâche est affichée.} other {Seules les # premières tâches sont affichées.}} Utilise la recherche pour trouver les autres.'
   # Glisser au clavier dans le tableau et la liste : les instructions du
   # titre, puis les annonces en direct. {task} vaut `KEY-12, Titre` à la
   # saisie, puis `KEY-12` (le titre si le projet n'a pas de clé). Un dépôt
@@ -7579,6 +7641,12 @@ tasks:
     agentRunRefused: Exécution refusée
     repeatChanged: Répétition modifiée
     repeatNext: Tâche suivante créée
+    empty:
+      startDate: Aucune date de début
+      dueDate: Aucune échéance
+      description: Aucune description
+      labels: Aucune étiquette
+      attachments: Aucune pièce jointe
   review:
     needsReview: Revue requise
     waitingOn: 'En attente de {name}'
@@ -8083,6 +8151,7 @@ projects:
     emptyDescription:
       Crée un projet pour partager fichiers, instructions et chats
       avec ton équipe.
+    emptyReaderDescription: Un projet apparaît ici dès qu’une personne le partage avec toi ou l’une de tes équipes.
     searchPlaceholder: Rechercher des projets
     showArchived: Afficher les archivés
     columnName: Nom
@@ -8238,6 +8307,11 @@ projects:
     newSubfolderAction: Nouveau sous-dossier
     uploadingIndicator: Envoi en cours…
     historyAction: Historique des versions
+    loadFailed: Impossible de charger les fichiers de ce projet.
+    foldersLoadFailed: "Impossible de charger les dossiers de ce projet. Les fichiers placés dans des dossiers sont listés à part jusqu'au chargement des dossiers."
+    treeLoadFailed: Impossible de charger les fichiers et les dossiers de ce projet.
+    refreshFailed: "Impossible d'actualiser les fichiers de ce projet. L'affichage n'est peut-être plus à jour."
+    unplacedGroup: Fichiers dans des dossiers
   threads:
     yourChats: Tes chats
     subtitle: Les chats que tu as démarrés dans ce projet.

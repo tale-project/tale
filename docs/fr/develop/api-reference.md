@@ -41,7 +41,7 @@ Les contacts et produits sont triés par `updatedAt`, puis `id`, dans l’ordre 
 
 ## Authentification
 
-Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué **Appeler les modèles par l'API** ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
+Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué une compétence qui s’utilise avec une clé (`tale:models.api`, `tale:notifications.export` ou `tale:rest.act-as`) ; toute autre personne est refusée avec `403 API_KEY_CREATE_FORBIDDEN` ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
 
 | En-tête | Règle |
 | --- | --- |
@@ -451,6 +451,7 @@ Branche ton client sur `indexing.errorCode`, pas sur le texte d’`error`. Le sc
 | `failed` : `embedding_upstream`, `indexer_error`, `index_rebuilding` | Le traitement de fond réessaie. Consulte le statut avant de demander un nouvel essai. |
 | `failed` : `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Fais corriger la configuration du fournisseur, les autorisations ou l’état de l’index par l’opérateur, puis réessaie. `embedding_provider_refused` couvre aussi un modèle qui renvoie des vecteurs d’une autre largeur que celle indiquée dans les réglages, ainsi que des identifiants d’embedding que la plateforme ne peut pas utiliser (aucun configuré, supprimés, désactivés ou illisibles) ; enregistrer des réglages d’embedding corrigés, ou ajouter ou réparer les identifiants qu’utilise le modèle d’embedding, remet en file d’attente chaque document qui a échoué sur le modèle d’embedding. |
 | `failed` : `secret_detected`, `pii_blocked` | Corrige la source ou la politique de contenu approuvée de l’organisation avant de réessayer. |
+| `failed` sans `errorCode` | La plateforme a clôturé l’échec sans le classer, le plus souvent parce que l’indexation s’est arrêtée avant la fin (une tâche perdue ou un worker arrêté). N’attends pas de nouvel essai automatique : demande un `retry-indexing`. |
 
 ## Synchroniser les notifications d’un membre
 

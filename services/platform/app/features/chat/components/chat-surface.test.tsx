@@ -1933,7 +1933,7 @@ describe('ChatSurface on a conversation shared with the project', () => {
     ).toBeDisabled();
   });
 
-  it('keeps Export in the conversation menu and leaves Share to the owner', async () => {
+  it('keeps Export and Create task in the conversation menu and leaves Share to the owner', async () => {
     const { user } = render(
       <ChatSurface organizationId="org-1" threadId="thread-shared" />,
     );
@@ -1946,6 +1946,11 @@ describe('ChatSurface on a conversation shared with the project', () => {
 
     expect(
       await screen.findByRole('menuitem', { name: 'Export' }),
+    ).toBeInTheDocument();
+    // A reader may hand the conversation to a project agent too — without
+    // the owner's files, which a task takes only from its creator.
+    expect(
+      screen.getByRole('menuitem', { name: 'Create task from chat' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Share' })).toBeNull();
   });

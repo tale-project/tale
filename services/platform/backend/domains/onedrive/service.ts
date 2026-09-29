@@ -30,6 +30,7 @@ import {
   markRagQueued,
   markRagUnsupportedIfNoExtractor,
   syncRagDocumentScope,
+  syncRagRefHolderScopes,
 } from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
@@ -843,6 +844,9 @@ async function updateDocumentRow(
         refs: [oldFileRef],
       });
     });
+    // A twin still holding the old ref (a WebDAV COPY of the synced file)
+    // keeps its corpus row, and is its holder now.
+    await syncRagRefHolderScopes(sql, organizationId, [oldFileRef]);
   }
 }
 

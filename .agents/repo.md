@@ -153,7 +153,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
   knowledge-db migrations, `packages/ui/src` (two suites read it as text) and other outside
   files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
-  component suites render it. Its guard is
+  component suites render it, and all three list `@tale/ui`'s `package.json` and every file
+  it exports from outside `src/` (`tailwind-preset.ts`). Its guard is
   `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
@@ -176,11 +177,14 @@ Beyond such a declared file, an edit under `packages/` leaves every dependent wo
 `test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
 package change is judged only by that package's own tasks until the consumer's own files
 change. The platform's `test`, `test:ui` and `test:browser` are the exception for `@tale/ui`:
-they hash `packages/ui/src` whole, so a design-system change re-runs them — the i18n suite, and
-every component suite that renders the package or imports its test helpers
-(`@tale/ui/testing/flow`). The i18n suites of `services/web`, `services/ui-docs`,
-`services/ai-gateway` and `packages/marketing-ui` are still in that gap: they run `@tale/ui`'s
-i18n test framework (the first two also read the package catalogs) unhashed.
+they hash `packages/ui/src` whole, the package's `package.json`, whose `exports` resolve every
+`@tale/ui/*` import, and every file an export names outside `src/` — today
+`tailwind-preset.ts` alone; the guard reads that list from the manifest. So a design-system
+change re-runs them — the i18n suite, and every component suite that renders the package or
+imports its test helpers (`@tale/ui/testing/flow`). The i18n suites of `services/web`,
+`services/ui-docs`, `services/ai-gateway` and `packages/marketing-ui` are still in that gap:
+they run `@tale/ui`'s i18n test framework (the first two also read the package catalogs)
+unhashed.
 
 ## Skills index
 
@@ -467,11 +471,3 @@ default means deleting the override and fixing what surfaces:
   Paying it down means moving to a Bifrost release that cancels the upstream call on a client
   disconnect and books the partial usage of a cut stream (v2.2.0 or later), then dropping the
   deferred settle and the floor in `metering.ts` for the gateway's figure.
-- **A turn's image spend sits beside its model allowance, not inside it** — `generate_image`
-  admits an image only when its estimate fits what the turn's allowance has left after the
-  model's live spend (`services/platform/backend/domains/sandbox/image-generation.ts`), but the
-  turn's gateway key keeps its full cap, so the model may still spend the whole allowance
-  afterwards: a turn's worst case is about two allowances, and budget caps still count both
-  (2026-09). Paying it down means lowering the key's budget by the booked image spend in the
-  settle (`core/node_only/sandbox/llm_gateway_admin.ts`), once it is verified that the pinned
-  Bifrost keeps `current_usage` across a budget update.

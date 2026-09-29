@@ -107,6 +107,7 @@ function escapeRegExp(text: string): string {
 }
 
 const FEEDBACK_PROMPT = DEMO_CHAT_PROMPTS[0];
+const LAUNCH_CHECKLIST_PROMPT = DEMO_CHAT_PROMPTS[1];
 
 /** The Confidentiality notice section on Governance > Policies & Limits. */
 const dataNoticeSection = (page: Page): Locator =>
@@ -127,6 +128,87 @@ const skillSharingSection = (page: Page): Locator =>
     name: t('governance.skillSharing.title'),
     exact: true,
   });
+
+/** The Image generation section on Governance > Models. */
+const imageGenerationSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.imageGeneration.title'),
+    exact: true,
+  });
+
+/** The Model endpoints for API keys section on Governance > Models. */
+const modelEndpointsSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.modelAccess.modelApi.title'),
+    exact: true,
+  });
+
+/**
+ * Sanitizer for frames that name the capture rig's model gateway or origin:
+ * the mock provider's slug and display name, and the local app origin, in
+ * text and in read-only fields alike, become what a customer's page shows.
+ */
+const replaceRigNames = async (page: Page): Promise<void> => {
+  await page.evaluate(
+    ({ swaps }) => {
+      const swap = (text: string): string =>
+        swaps.reduce((out, [rig, real]) => out.split(rig).join(real), text);
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent ?? '';
+        const next = swap(text);
+        if (next !== text) node.textContent = next;
+      }
+      for (const field of document.querySelectorAll<
+        HTMLInputElement | HTMLTextAreaElement
+      >('input, textarea')) {
+        const next = swap(field.value);
+        if (next !== field.value) field.value = next;
+      }
+    },
+    {
+      swaps: [
+        ['http://localhost:3000', 'https://tale.yourcompany.com'],
+        [MOCK_PROVIDER_DISPLAY_NAME, 'OpenRouter'],
+        [`${MOCK_PROVIDER_SLUG}/`, 'openrouter/'],
+        [MOCK_PROVIDER_SLUG, 'openrouter'],
+        // The mock catalog's placeholder model, as a model the demo
+        // organization's model access already names.
+        ['e2e-chat-model', 'google/gemini-3-flash-preview'],
+      ] as [string, string][],
+    },
+  );
+};
+
+/**
+ * The capture rig's own origin, wherever it runs, as the production host: a
+ * link the app builds from `window.location` (a task drafted from a chat
+ * links back to it) would otherwise publish the rig's port.
+ */
+const replaceAppOrigin = async (page: Page): Promise<void> => {
+  await page.evaluate(() => {
+    const rig = window.location.origin;
+    const real = 'https://tale.yourcompany.com';
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+    );
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent ?? '';
+      if (text.includes(rig)) node.textContent = text.split(rig).join(real);
+    }
+    for (const field of document.querySelectorAll<
+      HTMLInputElement | HTMLTextAreaElement
+    >('input, textarea')) {
+      if (field.value.includes(rig)) {
+        field.value = field.value.split(rig).join(real);
+      }
+    }
+  });
+};
 
 /** Flip the notice switch and wait for its instant save to land. */
 async function setDataNotice(page: Page, on: boolean): Promise<void> {
@@ -647,6 +729,49 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText('Shared by', { exact: false }).first(),
   },
   {
+    // A conversation handed to a project agent: header ⋯ → Create task from
+    // chat → the project step → the task dialog drafted from the chat, with
+    // the request and the way back to it.
+    name: 'chat-create-task',
+    section: 'platform',
+    route: '/dashboard/:orgId/chat',
+    prepare: async (page, ctx) => {
+      await page.goto(chatThreadRoute(ctx, LAUNCH_CHECKLIST_PROMPT), {
+        waitUntil: 'domcontentloaded',
+      });
+      await page
+        .getByRole('button', { name: t('chat.aria.threadActions') })
+        .click();
+      await page
+        .getByRole('menuitem', { name: t('chat.createTask.button') })
+        .first()
+        .click();
+      const step = page.getByRole('dialog', {
+        name: t('chat.createTask.projectTitle'),
+      });
+      await expect(step).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+      await step
+        .getByRole('button', { name: t('chat.createTask.projectLabel') })
+        .click();
+      await page.getByRole('option', { name: RELAUNCH_PROJECT }).click();
+      await step
+        .getByRole('button', { name: t('chat.createTask.continue') })
+        .click();
+    },
+    // The form mounts only once the conversation is read, holding the draft
+    // from its first paint: the description field is the last thing to land.
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('tasks.actions.create') })
+        .getByRole('textbox', { name: t('tasks.fields.description') }),
+    sanitize: async (page) => {
+      await replaceRigNames(page);
+      await replaceAppOrigin(page);
+    },
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('tasks.actions.create') }),
+  },
+  {
     // Arena Mode: the same prompt streamed into two model columns.
     name: 'chat-arena-split',
     section: 'platform',
@@ -948,6 +1073,19 @@ export const SHOTS: readonly Shot[] = [
         .getByLabel(t('settings.apiKeys.form.name')),
     capture: (page) =>
       page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
+  },
+  {
+    // Settings > API > Models — the two base URLs, the models the member may
+    // call and the tool setups. Gate on a listed model id: the list arrives
+    // after the page chrome.
+    name: 'settings-api-models',
+    section: 'develop',
+    route: '/dashboard/:orgId/settings/api/models',
+    readyWhen: (page) =>
+      page
+        .getByText(`${MOCK_PROVIDER_SLUG}/anthropic/claude-sonnet-4.6`)
+        .first(),
+    sanitize: replaceRigNames,
   },
   {
     // Four shipped triage examples, found with the real list search, show
@@ -1272,6 +1410,35 @@ export const SHOTS: readonly Shot[] = [
         name: t('governance.transcriptionModel.title'),
         exact: true,
       }),
+  },
+  {
+    // Governance > Models — image generation switched on with a pinned image
+    // model (the demo organization's fixture pins the mock gateway's image
+    // model). Gate on the resolved sentence, not the static title above a
+    // skeleton; the frame names the vendor a customer's page names.
+    name: 'governance-image-generation',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/content-models',
+    readyWhen: (page) =>
+      imageGenerationSection(page).getByText(
+        /^Agents currently generate images with/,
+      ),
+    sanitize: replaceRigNames,
+    capture: (page) => imageGenerationSection(page),
+  },
+  {
+    // Governance > Models — the model endpoints for API keys, switched on in
+    // the demo organization's model access policy. The switch reads on only
+    // once the policy has loaded.
+    name: 'governance-model-endpoints',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/content-models',
+    readyWhen: (page) =>
+      modelEndpointsSection(page).getByRole('switch', {
+        name: t('governance.modelAccess.modelApi.enabled'),
+        checked: true,
+      }),
+    capture: (page) => modelEndpointsSection(page),
   },
   {
     // Governance > Policies & Limits — budget rules, upload/retention policy,

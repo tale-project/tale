@@ -992,25 +992,27 @@ export async function ingestVideoUrl(
   const sourceUrlHash = hashUrlForDedup(serverNormalized);
   const now = Date.now();
 
-  // In-thread dedup (welcome-page pastes skip it — the 0.4 two-tabs bug).
+  // In-thread dedup (welcome-page pastes skip it — the 0.4 two-tabs bug):
+  // the caller's own unsent chip for this URL in this chat. Every rule is
+  // part of the lookup. Taking the organization's newest row for the URL
+  // and checking it afterwards let the same URL pasted in another chat hide
+  // this chat's job, so the next paste here started a second one.
   if (args.threadId !== undefined) {
     const existing = await sql<VideoLinkJobRow[]>`
       SELECT ${sql.unsafe(JOB_COLUMNS)} FROM app.video_link_jobs
       WHERE org_id = ${args.organizationId}
         AND source_url_hash = ${sourceUrlHash}
+        AND thread_id = ${args.threadId}
+        AND uploaded_by = ${args.userId}
+        AND message_bound_at_ms IS NULL
+        AND status NOT IN ('failed', 'skipped')
+        AND lifecycle_status IS DISTINCT FROM 'trashed'
+        AND created_at_ms > ${now - DEDUP_WINDOW_MS}
       ORDER BY created_at_ms DESC
       LIMIT 1
     `;
     const hit = existing[0];
-    if (
-      hit &&
-      hit.messageBoundAt === null &&
-      hit.threadId === args.threadId &&
-      hit.uploadedBy === args.userId &&
-      hit.status !== 'failed' &&
-      hit.status !== 'skipped' &&
-      now - hit.createdAt < DEDUP_WINDOW_MS
-    ) {
+    if (hit) {
       if (args.pastedToken !== hit.pastedToken) {
         await sql`
           UPDATE app.video_link_jobs SET pasted_token = ${args.pastedToken}

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -59,6 +59,10 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
 const paginatedMock = vi.hoisted(() => ({
   loadMore: vi.fn(),
   status: 'CanLoadMore' as string,
+  results: [] as unknown[],
+  error: null as Error | null,
+  retry: vi.fn(),
+  errorCount: 0,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -66,10 +70,14 @@ vi.mock('../hooks/queries', () => ({
   useFolder: () => ({ data: null }),
   useFolders: () => ({ data: [] }),
   useListDocumentsPaginated: () => ({
-    results: [],
+    results: paginatedMock.results,
     status: paginatedMock.status,
     loadMore: paginatedMock.loadMore,
     isLoading: false,
+    error: paginatedMock.error,
+    retry: paginatedMock.retry,
+    isRetrying: false,
+    errorCount: paginatedMock.errorCount,
   }),
 }));
 
@@ -98,7 +106,11 @@ import { DocumentsTable } from './documents-table';
 describe('DocumentsTable', () => {
   beforeEach(() => {
     paginatedMock.loadMore.mockClear();
+    paginatedMock.retry.mockClear();
     paginatedMock.status = 'CanLoadMore';
+    paginatedMock.results = [];
+    paginatedMock.error = null;
+    paginatedMock.errorCount = 0;
   });
 
   // Search/filters run client-side over loaded pages only; without this the
@@ -123,6 +135,82 @@ describe('DocumentsTable', () => {
       );
       expect(paginatedMock.loadMore).not.toHaveBeenCalled();
     });
+  });
+
+  // #3777's sibling in the same library: rows a failed page or refresh left
+  // on screen stay, the failure is named above them, and a search does not
+  // re-issue the failed page.
+  it('names a failed read above the rows it keeps, and retries from the list', async () => {
+    paginatedMock.results = [
+      { id: 'doc-1', name: 'Contract.pdf', type: 'file', lastModified: 0 },
+    ];
+    paginatedMock.error = new Error('next page failed');
+    paginatedMock.errorCount = 1;
+    const { user } = render(
+      <DocumentsTable organizationId="test-org-id" searchQuery="contract" />,
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('documents.refreshFailed');
+    await user.click(
+      within(alert).getByRole('button', { name: 'common.actions.tryAgain' }),
+    );
+    expect(paginatedMock.retry).toHaveBeenCalledTimes(1);
+    // The alert that held focus goes once the read answers: focus waits on
+    // the list instead.
+    expect(
+      screen.getByRole('region', { name: 'knowledge.documents' }),
+    ).toHaveFocus();
+  });
+
+  // #3814 review: a refresh that fails again must not re-create a focused
+  // Try again; the failure is announced again inside the same alert.
+  it('keeps a focused Try again through another failure', () => {
+    paginatedMock.results = [
+      { id: 'doc-1', name: 'Contract.pdf', type: 'file', lastModified: 0 },
+    ];
+    paginatedMock.error = new Error('refresh failed');
+    paginatedMock.errorCount = 1;
+    const { rerender } = render(
+      <DocumentsTable organizationId="test-org-id" />,
+    );
+    const retry = within(screen.getByRole('alert')).getByRole('button', {
+      name: 'common.actions.tryAgain',
+    });
+    retry.focus();
+
+    paginatedMock.error = new Error('refresh failed again');
+    paginatedMock.errorCount = 2;
+    rerender(<DocumentsTable organizationId="test-org-id" />);
+
+    expect(
+      within(screen.getByRole('alert')).getByRole('button', {
+        name: 'common.actions.tryAgain',
+      }),
+    ).toBe(retry);
+    expect(retry).toHaveFocus();
+  });
+
+  // Swept from the same review: with nothing loaded the failure is the
+  // table's error state, which a refresh the reader did not start swaps for
+  // the loading state; a focused Try again took the focus down with it.
+  it('hands a focused Try again in the error state to the list when a refresh replaces it', async () => {
+    paginatedMock.status = 'Exhausted';
+    paginatedMock.error = new Error('first page failed');
+    paginatedMock.errorCount = 1;
+    const { rerender } = render(
+      <DocumentsTable organizationId="test-org-id" />,
+    );
+    screen.getByRole('button', { name: 'common.errors.tryAgain' }).focus();
+
+    paginatedMock.status = 'LoadingFirstPage';
+    paginatedMock.error = null;
+    rerender(<DocumentsTable organizationId="test-org-id" />);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(
+      screen.getByRole('region', { name: 'knowledge.documents' }),
+    ).toHaveFocus();
   });
 
   it('renders the fixed frame every overview list uses', () => {
