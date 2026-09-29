@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { render, screen } from '@/tests/utils/render';
 
 // One parked send carrying a still-indexing document and a FAILED video job:
@@ -14,6 +15,8 @@ const cancelMock = vi.hoisted(() =>
 const retryMock = vi.hoisted(() =>
   vi.fn((..._args: [string, string]) => Promise.resolve()),
 );
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
 // The tray reads over HTTP now: react-query rows keyed by the backend
 // vocabulary — the entity slot tells the two reads apart.
@@ -58,6 +61,7 @@ afterEach(() => {
   listState.jobs = [];
   cancelMock.mockClear();
   retryMock.mockClear();
+  toastMock.mockClear();
 });
 
 function seedRow() {
@@ -124,6 +128,37 @@ describe('DeferredSendTray', () => {
     expect(
       screen.queryByRole('button', { name: 'Remove' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('says why when the video’s Try again is refused, as the composer does', async () => {
+    seedRow();
+    retryMock.mockRejectedValueOnce(
+      new BackendApiError(
+        429,
+        'This video failed with a rate-limit / bot-detection signal. Please wait a few minutes before retrying.',
+        'retryCooldown',
+      ),
+    );
+    const { user } = render(
+      <DeferredSendTray
+        organizationId="org-1"
+        threadId="thread-1"
+        onRestoreText={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+    await vi.waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: "Couldn't retry this video",
+        description:
+          'This video was just rate-limited — wait a few minutes before retrying',
+        variant: 'destructive',
+      }),
+    );
+    // The failed chip keeps its Try again.
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
   });
 
   it('cancels the whole parked send from the row and restores the text', async () => {

@@ -97,7 +97,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the search, turn **Show archived** off, search again → it is gone. The
   search narrows the board read itself, so **Show archived** governs it like
   every other filter and typing never drops rows the toggle just revealed.
-- [ ] `TASK-F51` · **A search reaches every match** — In a project with more
+- [ ] `TASK-F52` · **A search reaches every match** — In a project with more
   than 25 tasks whose titles share one word, where the only **Urgent**
   (`tasks.priority.p0`) one is the oldest: **Filter** → **Priority** →
   **Urgent**, then type the word into **Search tasks**
@@ -925,7 +925,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   image model; the run itself still settles. Restore: delete the rule —
   env-gated: mark **ENVIRONMENT** without a runnable harness and an
   image-capable credential.
-- [ ] `TASK-B28` · **A failed board read** — DevTools → Network → block the
+- [ ] `TASK-B32` · **A failed board read** — DevTools → Network → block the
   request URL `*/api/app/tasks/by-project/*`, open **Board**, then **List**;
   unblock and press **Try again** (`common.actions.tryAgain`) → Once the
   retries settle, an alert **Couldn't load the tasks, so none are shown. Your
@@ -934,7 +934,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   for an editor, **Create task** (`tasks.actions.create`) stay usable; while
   the retry runs the alert reads **Trying again…** (`tasks.read.retrying`), and
   the tasks come back without a reload, the search and filters as they were.
-- [ ] `TASK-B29` · **A failed refresh, a failed search** — With the board
+- [ ] `TASK-B33` · **A failed refresh, a failed search** — With the board
   loaded, block `*/api/app/tasks/by-project/*` and rename a task from a second
   session; then type a search; unblock, press **Try again**, and while it runs
   type another search → The tasks stay on screen under **Couldn't refresh the

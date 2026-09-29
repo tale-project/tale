@@ -106,6 +106,7 @@ import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts'
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { cookieHeaderFrom, signUpUser } from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
@@ -55751,6 +55752,10 @@ async function main(): Promise<void> {
       ['checkWebsitesCrawl', () => checkWebsitesCrawl(sql, baseUrl, authCtx)],
       ['checkTranscription', () => checkTranscription(sql, baseUrl, authCtx)],
       ['checkVideoLinks', () => checkVideoLinks(sql, baseUrl, authCtx)],
+      [
+        'checkVideoLinkComposerChips',
+        () => checkVideoLinkComposerChips(sql, baseUrl, authCtx, record),
+      ],
       [
         'checkBrowserSessions',
         () => checkBrowserSessions(sql, baseUrl, authCtx),
