@@ -407,7 +407,7 @@ select lists only the current admin's keys (`useApiKeys`).
   pending receipt still shows the approval actions with the hint **The
   approval requirement was captured when the request was filed**
   (`governance.dataSubjectRequests.approval.capturedPolicy`).
-- [ ] `GOV-F35` · **Skill sharing policy** — As an admin on Policies & Limits,
+- [ ] `GOV-F37` · **Skill sharing policy** — As an admin on Policies & Limits,
   find **Skill sharing** (`governance.skillSharing.title`); switch **Share
   skills with the organization** (`governance.skillSharing.label`) through
   **Editors and above** and **Owners and admins only**, saving each through
