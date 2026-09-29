@@ -1292,7 +1292,13 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                     auth.userId,
                   )
                 ).cancelled;
-          if (task.status !== status) {
+          // A default stop on a task already where it lands writes nothing.
+          // A drop names its place between two cards: that place still
+          // applies when another session moved the task to the same column
+          // while this one confirmed the stop.
+          const placed =
+            beforeTaskId !== undefined || afterTaskId !== undefined;
+          if (task.status !== status || placed) {
             await moveTask(tx, auth, {
               taskId: task.id,
               status,

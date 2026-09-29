@@ -265,4 +265,31 @@ describe('POST /:taskId/workflow/cancel', () => {
     expect(cancelRunInTx).toHaveBeenCalledTimes(1);
     expect(moveTask).not.toHaveBeenCalled();
   });
+
+  it('still places the card a drop names when the task already reached that column', async () => {
+    // Another session moved the task to To do while this one confirmed the
+    // stop: the drop's place between two cards still applies.
+    loadTaskOrThrow.mockResolvedValue({
+      id: 't1',
+      organizationId: 'o1',
+      projectId: 'p1',
+      status: 'todo',
+    });
+
+    const res = await stop(
+      JSON.stringify({
+        status: 'todo',
+        beforeTaskId: 'above',
+        afterTaskId: 'below',
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(moveTask).toHaveBeenCalledWith(TX, AUTH, {
+      taskId: 't1',
+      status: 'todo',
+      beforeTaskId: 'above',
+      afterTaskId: 'below',
+    });
+  });
 });
