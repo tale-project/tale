@@ -24,6 +24,10 @@ export interface SkillsContract {
       visibility: 'org' | 'team' | 'private';
       teams?: string[];
       owner?: string;
+      origin: 'builtin' | 'release' | 'member';
+      ownerName?: string;
+      updatedBy?: string;
+      updatedByName?: string;
       icon?: string;
       labels?: string[];
       disableModelInvocation?: boolean;
@@ -47,6 +51,10 @@ export interface SkillsContract {
         visibility: 'org' | 'team' | 'private';
         teams?: string[];
         owner?: string;
+        origin: 'builtin' | 'release' | 'member';
+        ownerName?: string;
+        updatedBy?: string;
+        updatedByName?: string;
         icon?: string;
         labels?: string[];
         disableModelInvocation?: boolean;
@@ -79,6 +87,10 @@ export interface SkillsContract {
       visibility: 'org' | 'team' | 'private';
       teams?: string[];
       owner?: string;
+      origin: 'builtin' | 'release' | 'member';
+      ownerName?: string;
+      updatedBy?: string;
+      updatedByName?: string;
       icon?: string;
       labels?: string[];
       disableModelInvocation?: boolean;

@@ -241,5 +241,17 @@
  * that continues its series once one exists. An approved review (`POST
  * …/tasks/{taskId}/review`) that closes a repeating task continues its
  * series as a close in the app does.
+ *
+ * 3.4.0 — 2026-09-29: a skill says who created it and who last edited it.
+ * `SkillSummary` and `Skill` carry `origin` — `release` for a skill a
+ * managed configuration release installed, `builtin` when no owner is
+ * recorded, `member` otherwise — and `ownerName`, the owner's display name
+ * while they are a member of the organization. `updatedBy` and
+ * `updatedByName` name the member whose write through Tale produced the
+ * stored SKILL.md, read off the audit log; they are absent when nobody
+ * edited the skill since it was created, or its file changed outside Tale
+ * since. A `PUT /api/v1/skills/{slug}` that changes the document is
+ * recorded in the audit log (`skill.created`, `skill.updated`,
+ * `skill.sharing_changed`).
  */
-export const API_CONTRACT_VERSION = '3.3.0';
+export const API_CONTRACT_VERSION = '3.4.0';

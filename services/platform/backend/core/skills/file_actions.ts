@@ -10,6 +10,7 @@ import {
   describeSkillSlugProblem,
   MAX_SKILL_TEAMS,
   type SkillFrontmatter,
+  type SkillOrigin,
 } from '@tale/shared/schemas/skills';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -58,6 +59,19 @@ function relativeSkillPath(slug: string): string {
   return `${SKILLS_CONFIG_DOMAIN}/${slug}/${SKILL_DOCUMENT_NAME}`;
 }
 
+/**
+ * The release compiler's marker (`tools/cli` config releases): a skill a
+ * managed configuration release installed carries it under its frontmatter
+ * `metadata`, beside the deploy operator as `owner`.
+ */
+const RELEASE_METADATA_KEY = 'tale-release';
+
+/** Where a skill came from — see {@link SkillOrigin}. */
+export function skillOrigin(meta: SkillFrontmatter): SkillOrigin {
+  if (meta.metadata?.[RELEASE_METADATA_KEY] !== undefined) return 'release';
+  return meta.owner === undefined ? 'builtin' : 'member';
+}
+
 function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
   const { meta } = skill;
   return {
@@ -66,6 +80,7 @@ function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
     visibility: meta.visibility,
     teams: meta.teams === undefined ? undefined : [...meta.teams],
     owner: meta.owner,
+    origin: skillOrigin(meta),
     icon: meta.icon,
     labels: meta.labels,
     disableModelInvocation: meta.disableModelInvocation,
@@ -353,12 +368,24 @@ export interface SkillEditInput {
   disableModelInvocation?: boolean;
 }
 
+/** One stored version of a skill's `SKILL.md`, as a write's audit record
+ * compares it: the frontmatter, the body and the document's tag. */
+export interface SkillRevision {
+  meta: SkillFrontmatter;
+  body: string;
+  etag: string;
+}
+
 /** What a save answers: the document as it now reads, and whether the
  * save CREATED the bundle (no document under the slug when the writer
- * lock was held) or updated one — the REST door's 201 / 200. */
+ * lock was held) or updated one — the REST door's 201 / 200. `previous` and
+ * `current` are the revisions before and after, for the door's audit row;
+ * they carry the same tag when the save wrote nothing. */
 export interface SkillSaveResult {
   skill: SkillDocumentView;
   created: boolean;
+  previous: SkillRevision | null;
+  current: SkillRevision;
 }
 
 export async function saveSkillForViewer(
@@ -508,6 +535,15 @@ export async function saveSkillForViewer(
         })),
       },
       created: existing === null,
+      previous:
+        existing === null
+          ? null
+          : { meta: existing.meta, body: existing.body, etag: existing.etag },
+      current: {
+        meta: verified.meta,
+        body: verified.body,
+        etag: version.etag,
+      },
     };
   }
 }
@@ -614,6 +650,64 @@ export async function prepareBundleWrite(args: {
     await args.assertTeamsAssignable([...teams]);
   }
   return files;
+}
+
+/**
+ * What an upload's bundle write changes, for the door's audit record: the
+ * revision it replaces (`null` for a new slug, and for one whose document
+ * was unreadable — the upload then counts as a creation, as the owner rule
+ * already treats it), the revision the written `SKILL.md` becomes, and
+ * whether any other file of the bundle differs from what is stored.
+ */
+export function describeBundleWrite(args: {
+  slug: string;
+  existing: OrgSkill | null;
+  /** The bundle's files as stored before the write, `null` when none. */
+  stored: ReadonlyArray<{ path: string; contentBase64: string }> | null;
+  /** The files the write persists (after {@link prepareBundleWrite}). */
+  files: ReadonlyArray<{ path: string; content: Buffer }>;
+}): {
+  previous: SkillRevision | null;
+  current: SkillRevision;
+  filesChanged: boolean;
+} {
+  const document = args.files.find((file) => file.path === SKILL_DOCUMENT_NAME);
+  if (document === undefined) {
+    throw new Error(
+      `the bundle written for "${args.slug}" carries no ${SKILL_DOCUMENT_NAME}`,
+    );
+  }
+  const text = document.content.toString('utf-8');
+  const parsed = parseSkillMd(text, relativeSkillPath(args.slug));
+  const storedAssets = new Map(
+    (args.stored ?? [])
+      .filter((file) => file.path !== SKILL_DOCUMENT_NAME)
+      .map((file) => [file.path, file.contentBase64] as const),
+  );
+  const writtenAssets = args.files.filter(
+    (file) => file.path !== SKILL_DOCUMENT_NAME,
+  );
+  const filesChanged =
+    storedAssets.size !== writtenAssets.length ||
+    writtenAssets.some(
+      (file) => storedAssets.get(file.path) !== file.content.toString('base64'),
+    );
+  return {
+    previous:
+      args.existing === null
+        ? null
+        : {
+            meta: args.existing.meta,
+            body: args.existing.body,
+            etag: args.existing.etag,
+          },
+    current: {
+      meta: parsed.meta,
+      body: parsed.body,
+      etag: skillEntityTag(sha256(text)),
+    },
+    filesChanged,
+  };
 }
 
 /** Compare with the actual stored IDs, without normalizing a legacy padded

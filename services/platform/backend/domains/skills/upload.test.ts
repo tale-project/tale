@@ -14,11 +14,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OrgSkill } from '../../../lib/skills/listing.ts';
 import { readOrgSkill } from '../../../lib/skills/listing.ts';
 import { s3DeleteObject } from '../../core/lib/storage/object_store.ts';
-import { prepareBundleWrite } from '../../core/skills/file_actions.ts';
+import {
+  describeBundleWrite,
+  prepareBundleWrite,
+} from '../../core/skills/file_actions.ts';
 import {
   listSkillBundleFileEntries,
+  readSkillBundleFiles,
+  SkillBundleError,
   writeSkillBundleFiles,
 } from '../../core/skills/file_utils.ts';
+import { auditSkillWrite } from './audit.ts';
 import { uploadSkillBundlePg } from './upload.ts';
 
 vi.mock('../files/upload-intents.ts', () => ({
@@ -38,13 +44,31 @@ vi.mock('../../core/lib/storage/object_store.ts', () => ({
 vi.mock('../../core/skills/bundle_zip.ts', () => ({
   parseSkillBundleZip: vi.fn(() => Promise.resolve({ slug: 'house-voice' })),
 }));
+const revision = vi.hoisted(() => (etag: string) => ({
+  meta: { name: 'house-voice', description: 'd', visibility: 'org', extra: {} },
+  body: 'x\n',
+  etag,
+}));
 vi.mock('../../core/skills/file_actions.ts', () => ({
   prepareBundleWrite: vi.fn(() => Promise.resolve([])),
+  describeBundleWrite: vi.fn((args: { existing: unknown }) => ({
+    previous: args.existing === null ? null : revision('"before"'),
+    current: revision('"after"'),
+    filesChanged: false,
+  })),
 }));
-vi.mock('../../core/skills/file_utils.ts', () => ({
-  createOrgSkillReader: vi.fn(() => ({})),
-  listSkillBundleFileEntries: vi.fn(),
-  writeSkillBundleFiles: vi.fn(),
+vi.mock('../../core/skills/file_utils.ts', async () => {
+  class BundleRefusal extends Error {}
+  return {
+    createOrgSkillReader: vi.fn(() => ({})),
+    listSkillBundleFileEntries: vi.fn(),
+    readSkillBundleFiles: vi.fn(() => Promise.resolve([])),
+    SkillBundleError: BundleRefusal,
+    writeSkillBundleFiles: vi.fn(),
+  };
+});
+vi.mock('./audit.ts', () => ({
+  auditSkillWrite: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('../../../lib/skills/listing.ts', () => ({
   readOrgSkill: vi.fn(),
@@ -88,6 +112,8 @@ const alice = {
   isOrgAdmin: false,
 };
 
+const actor = { id: 'user_alice', email: 'alice@example.com', role: 'member' };
+
 const existingSkill = {
   slug: 'house-voice',
   path: 'skills/house-voice/SKILL.md',
@@ -99,6 +125,7 @@ function upload(sql: Sql, force?: boolean) {
     organizationId: 'org_1',
     orgSlug: 'acme',
     viewer: alice,
+    actor,
     storageId: 's3:acme/skill_bundle/x',
     ...(force === undefined ? {} : { force }),
     assertTeamsAssignable: () => Promise.resolve(),
@@ -110,6 +137,10 @@ beforeEach(() => {
   vi.mocked(listSkillBundleFileEntries).mockReset();
   vi.mocked(writeSkillBundleFiles).mockReset();
   vi.mocked(s3DeleteObject).mockClear();
+  vi.mocked(auditSkillWrite).mockReset();
+  vi.mocked(auditSkillWrite).mockResolvedValue(undefined);
+  vi.mocked(readSkillBundleFiles).mockClear();
+  vi.mocked(describeBundleWrite).mockClear();
 });
 
 describe('uploadSkillBundlePg', () => {
@@ -125,6 +156,7 @@ describe('uploadSkillBundlePg', () => {
       organizationId: 'org_1',
       orgSlug: 'acme',
       viewer: alice,
+      actor,
       storageId: 's3:acme/skill_bundle/x',
       assertTeamsAssignable: async (_ids, tx) => {
         expect(events).toEqual(['begin', 'lock']);
@@ -148,6 +180,9 @@ describe('uploadSkillBundlePg', () => {
     vi.mocked(writeSkillBundleFiles).mockImplementation(async () => {
       events.push('write');
     });
+    vi.mocked(auditSkillWrite).mockImplementation(async () => {
+      events.push('audit');
+    });
 
     expect(await upload(fakeSql(events))).toEqual({
       ok: true,
@@ -159,6 +194,7 @@ describe('uploadSkillBundlePg', () => {
       'read',
       'entries',
       'write',
+      'audit',
       'commit',
     ]);
     expect(s3DeleteObject).toHaveBeenCalledTimes(1);
@@ -199,5 +235,70 @@ describe('uploadSkillBundlePg', () => {
     });
     expect(writeSkillBundleFiles).not.toHaveBeenCalled();
     expect(s3DeleteObject).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a new slug as created, by the uploader, through the upload door', async () => {
+    vi.mocked(readOrgSkill).mockResolvedValue(null);
+    vi.mocked(listSkillBundleFileEntries).mockResolvedValue(null);
+
+    await upload(fakeSql([]));
+
+    expect(readSkillBundleFiles).not.toHaveBeenCalled();
+    expect(auditSkillWrite).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(auditSkillWrite).mock.calls[0]?.[1]).toMatchObject({
+      organizationId: 'org_1',
+      slug: 'house-voice',
+      actor,
+      via: 'upload',
+      previous: null,
+      current: { etag: '"after"' },
+    });
+  });
+
+  it('records a replacement against the bundle it replaced', async () => {
+    const owned = {
+      ...existingSkill,
+      meta: { ...existingSkill.meta, owner: 'user_alice' },
+    } as unknown as OrgSkill;
+    vi.mocked(readOrgSkill).mockResolvedValue(owned);
+    vi.mocked(listSkillBundleFileEntries).mockResolvedValue([]);
+
+    await upload(fakeSql([]), true);
+
+    expect(readSkillBundleFiles).toHaveBeenCalledWith('acme', 'house-voice');
+    expect(vi.mocked(describeBundleWrite).mock.calls[0]?.[0]).toMatchObject({
+      slug: 'house-voice',
+      existing: owned,
+      stored: [],
+    });
+    expect(vi.mocked(auditSkillWrite).mock.calls[0]?.[1]).toMatchObject({
+      via: 'upload',
+      previous: { etag: '"before"' },
+      current: { etag: '"after"' },
+    });
+  });
+
+  it('still replaces a bundle whose files cannot be walked, recording them as changed', async () => {
+    const owned = {
+      ...existingSkill,
+      meta: { ...existingSkill.meta, owner: 'user_alice' },
+    } as unknown as OrgSkill;
+    vi.mocked(readOrgSkill).mockResolvedValue(owned);
+    vi.mocked(listSkillBundleFileEntries).mockResolvedValue([]);
+    vi.mocked(readSkillBundleFiles).mockRejectedValueOnce(
+      new SkillBundleError('/srv/acme/skills/house-voice', 'x', 'a symlink'),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    expect(await upload(fakeSql([]), true)).toEqual({
+      ok: true,
+      slug: 'house-voice',
+    });
+    expect(vi.mocked(describeBundleWrite).mock.calls[0]?.[0]).toMatchObject({
+      stored: null,
+    });
+    expect(writeSkillBundleFiles).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

@@ -25,7 +25,12 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({ useOrgTeams }));
 
 import { SkillDetailPane } from './skill-detail-pane';
 
-function skillDoc(slug: string, body: string, icon?: string) {
+function skillDoc(
+  slug: string,
+  body: string,
+  icon?: string,
+  attribution: Record<string, string> = { origin: 'builtin' },
+) {
   return {
     slug,
     description: `${slug} description`,
@@ -36,7 +41,16 @@ function skillDoc(slug: string, body: string, icon?: string) {
     body,
     canEdit: true,
     files: [{ path: 'SKILL.md' }],
+    ...attribution,
   };
+}
+
+/** The value a read-only attribution row shows beside its label. */
+function rowValue(label: string): string | null {
+  const row = screen
+    .getByText(label, { selector: 'span' })
+    .closest('[data-settings-field-row]');
+  return row?.querySelector('p')?.textContent ?? null;
 }
 
 function mountPane(slug: string) {
@@ -110,5 +124,62 @@ describe('SkillDetailPane', () => {
 
     expect(screen.getByDisplayValue('Beta body')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('Alpha body')).not.toBeInTheDocument();
+  });
+
+  describe('who created and last edited it', () => {
+    it('names the creator and the last editor', () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue({
+        data: skillDoc('alpha', 'Alpha body', undefined, {
+          origin: 'member',
+          owner: 'user-ada',
+          ownerName: 'Ada Lovelace',
+          updatedBy: 'user-grace',
+          updatedByName: 'Grace Hopper',
+        }),
+        isPending: false,
+      });
+      mountPane('alpha');
+
+      expect(rowValue('Created by')).toBe('Ada Lovelace');
+      expect(rowValue('Last edited by')).toBe('Grace Hopper');
+    });
+
+    it('reads a departed creator as a former member and leaves out an unknown editor', () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue({
+        data: skillDoc('alpha', 'Alpha body', undefined, {
+          origin: 'member',
+          owner: 'user-gone',
+        }),
+        isPending: false,
+      });
+      mountPane('alpha');
+
+      expect(rowValue('Created by')).toBe('Former member');
+      expect(screen.queryByText('Last edited by')).not.toBeInTheDocument();
+    });
+
+    it('labels a built-in skill and names who installed a configuration release', () => {
+      useOrgTeams.mockReturnValue({ teams: [], isLoading: false });
+      useSkill.mockReturnValue({
+        data: skillDoc('docx', 'Word', undefined, { origin: 'builtin' }),
+        isPending: false,
+      });
+      const { unmount } = mountPane('docx');
+      expect(rowValue('Created by')).toBe('Built-in');
+      unmount();
+
+      useSkill.mockReturnValue({
+        data: skillDoc('invoices', 'Invoices', undefined, {
+          origin: 'release',
+          owner: 'user-operator',
+          ownerName: 'Ops Bot',
+        }),
+        isPending: false,
+      });
+      mountPane('invoices');
+      expect(rowValue('Created by')).toBe('Configuration release · Ops Bot');
+    });
   });
 });

@@ -123,11 +123,16 @@ export async function agentEquipmentRefusal(
   },
 ): Promise<EquipmentRefusal | null> {
   if (args.skills.length === 0 && args.connectors.length === 0) return null;
-  const capabilities = await listProjectCapabilities(sql, {
-    organizationId: args.organizationId,
-    userId: args.userId,
-    projectId: args.projectId,
-  });
+  // Only the slugs matter here: skip the creator names the picker shows.
+  const capabilities = await listProjectCapabilities(
+    sql,
+    {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      projectId: args.projectId,
+    },
+    { attribution: false },
+  );
   const skills = new Set(capabilities.skills.map((skill) => skill.slug));
   const unknownSkills = args.skills.filter((slug) => !skills.has(slug));
   if (unknownSkills.length > 0) {

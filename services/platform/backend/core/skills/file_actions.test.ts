@@ -21,7 +21,11 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import type { OrgSkill } from '../../../lib/skills/listing';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import type { ParsedBundle } from './bundle_zip';
-import { normalizedBundleFiles, prepareBundleWrite } from './file_actions';
+import {
+  describeBundleWrite,
+  normalizedBundleFiles,
+  prepareBundleWrite,
+} from './file_actions';
 
 // The `*ForViewer` functions ARE the skill-file surface now — the Convex
 // action wrappers that used to delegate to them retired with the runtime —
@@ -1789,5 +1793,158 @@ describe('bundle files and assets', () => {
         ...bob,
       }),
     ).toEqual({ kind: 'no-skill' });
+  });
+});
+
+describe('who created a skill, as every view reads it', () => {
+  const viewer = {
+    kind: 'user' as const,
+    userId: 'user-ada',
+    teamIds: [],
+    isOrgAdmin: false,
+  };
+
+  it('reads a member skill, a skill with no owner and a release install apart', async () => {
+    await seedSkill(
+      'acme',
+      'by-member',
+      skillMd({ name: 'by-member', description: 'd', owner: 'user-ada' }),
+    );
+    await seedSkill(
+      'acme',
+      'docx',
+      skillMd({ name: 'docx', description: 'Word documents' }),
+    );
+    await seedSkill(
+      'acme',
+      'released',
+      [
+        '---',
+        'name: released',
+        'description: From the release',
+        'owner: user-operator',
+        'metadata:',
+        '  tale-release:',
+        '    logicalSlug: released',
+        '    sourceCommit: 0123456789abcdef0123456789abcdef01234567',
+        '---',
+        '',
+        'Body.',
+        '',
+      ].join('\n'),
+    );
+    const list = await load('listSkillsForViewer');
+    const { skills } = await list({ orgSlug: 'acme', viewer });
+    const origins = Object.fromEntries(
+      skills.map((skill: { slug: string; origin: string }) => [
+        skill.slug,
+        skill.origin,
+      ]),
+    );
+    expect(origins).toEqual({
+      'by-member': 'member',
+      docx: 'builtin',
+      released: 'release',
+    });
+  });
+
+  it('answers a save with the revision before and after, for the audit record', async () => {
+    const save = await load('saveSkillForViewer');
+    const created = await save({
+      orgSlug: 'acme',
+      slug: 'fresh',
+      viewer,
+      description: 'First',
+      body: 'One',
+    });
+    expect(created.previous).toBeNull();
+    expect(created.current).toMatchObject({
+      meta: { owner: 'user-ada', description: 'First' },
+      body: 'One\n',
+      etag: created.skill.etag,
+    });
+
+    const updated = await save({
+      orgSlug: 'acme',
+      slug: 'fresh',
+      viewer,
+      description: 'Second',
+      body: 'One',
+    });
+    expect(updated.previous).toMatchObject({
+      meta: { description: 'First' },
+      etag: created.skill.etag,
+    });
+    expect(updated.current.etag).toBe(updated.skill.etag);
+    expect(updated.current.etag).not.toBe(created.skill.etag);
+
+    const unchanged = await save({
+      orgSlug: 'acme',
+      slug: 'fresh',
+      viewer,
+      description: 'Second',
+      body: 'One',
+    });
+    expect(unchanged.previous.etag).toBe(unchanged.current.etag);
+  });
+});
+
+describe('describeBundleWrite', () => {
+  const document = skillMd({
+    name: 'bundle',
+    description: 'd',
+    owner: 'user-ada',
+  });
+  const files = (asset: string) => [
+    { path: 'SKILL.md', content: Buffer.from(document) },
+    { path: 'scripts/run.py', content: Buffer.from(asset) },
+  ];
+  const stored = (asset: string) =>
+    files(asset).map((file) => ({
+      path: file.path,
+      contentBase64: file.content.toString('base64'),
+    }));
+
+  it('tags the written document the way the listing will', async () => {
+    await seedSkill('acme', 'bundle', document);
+    const read = await load('readSkillForViewer');
+    const live = await read({
+      orgSlug: 'acme',
+      slug: 'bundle',
+      viewer: { kind: 'org' },
+    });
+    const change = describeBundleWrite({
+      slug: 'bundle',
+      existing: null,
+      stored: null,
+      files: files('print(1)'),
+    });
+    expect(change.previous).toBeNull();
+    expect(change.current.etag).toBe(live.etag);
+    expect(change.current.meta.owner).toBe('user-ada');
+  });
+
+  it('tells a changed asset from an identical bundle', () => {
+    const same = describeBundleWrite({
+      slug: 'bundle',
+      existing: null,
+      stored: stored('print(1)'),
+      files: files('print(1)'),
+    });
+    expect(same.filesChanged).toBe(false);
+    const changed = describeBundleWrite({
+      slug: 'bundle',
+      existing: null,
+      stored: stored('print(1)'),
+      files: files('print(2)'),
+    });
+    expect(changed.filesChanged).toBe(true);
+    const removed = describeBundleWrite({
+      slug: 'bundle',
+      existing: null,
+      stored: stored('print(1)'),
+      files: files('print(1)').slice(0, 1),
+    });
+    expect(removed.filesChanged).toBe(true);
   });
 });

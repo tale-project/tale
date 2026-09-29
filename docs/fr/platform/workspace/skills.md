@@ -87,6 +87,14 @@ L’accès du projet détermine son équipement, même si tu peux personnellemen
 
 Restreindre la visibilité demande une confirmation, car certains agents peuvent perdre l’accès. La suppression a la même conséquence pratique : une exécution qui dépend du bundle manquant ne peut plus le préparer. Vérifie les usages d’un skill partagé avant de le restreindre ou de le retirer.
 
+## Voir qui a créé et modifié un skill
+
+La colonne **Créé par** indique le membre qui a créé chaque skill. Recherche un nom dans la bibliothèque pour retrouver tout ce que cette personne a partagé. Pour un skill sans créateur enregistré, comme les skills de documents fournis à la création de ton organisation, elle affiche **Fourni avec Tale** ; pour un skill installé par une release de configuration gérée, **Release de configuration** suivi du membre dont le téléversement l’a installé. Quand le créateur a quitté l’organisation, elle affiche **Ancien membre**.
+
+Ouvre un skill pour voir **Créé par** et **Dernière modification par** : le membre dont l’enregistrement ou le téléversement dans Tale a produit la version actuelle. **Dernière modification par** n’apparaît pas si personne n’a modifié le skill depuis sa création, ou si son fichier a changé en dehors de Tale depuis la dernière modification. La liste des skills dans l’[équipement d’un agent](/fr/platform/agents/skills) indique elle aussi le créateur sous chaque skill.
+
+Tale consigne dans le journal d’audit la création, la modification, le téléversement et la suppression d’un skill, ainsi que chaque changement de sa visibilité ou de ses équipes. Les administrateurs et propriétaires trouvent ces entrées dans **Paramètres > Gouvernance > Journaux**, catégorie **Skill**.
+
 ## Référence du fichier
 
 Voici un `SKILL.md` minimal :
@@ -107,6 +115,7 @@ ouvertes. Cite les preuves et marque les informations absentes « Non précisé 
 | `name` | Correspond au nom du dossier. `anthropic` et `claude` sont réservés. |
 | `description` | Quand et pourquoi lire le skill ; 1 024 caractères maximum. |
 | `visibility` / `teams` | `org`, ou `team` accompagné des identifiants d’équipes. L’interface remplit ces valeurs. |
+| `owner` | L’identifiant utilisateur du membre qui a créé le skill. Tale le renseigne ; une valeur présente dans un fichier téléversé est ignorée. |
 | `license` | Les conditions d’utilisation fournies par l’auteur. |
 | `recommended-packages` | Les dépendances conseillées ; l’import ne les installe pas. |
 | `disable-model-invocation` | Demande un usage explicite du skill. Cette métadonnée est une instruction, pas une restriction d’accès. |

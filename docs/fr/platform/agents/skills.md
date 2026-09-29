@@ -24,6 +24,8 @@ Les anciens skills privés ne peuvent pas équiper un agent de projet. La même 
 
 Pour un nouvel agent de projet, les skills de documents `docx`, `pptx`, `xlsx` et `pdf` sont cochés s’ils sont accessibles au projet. Décoche ceux dont la tâche n’a pas besoin.
 
+Chaque skill de la liste indique son créateur : un membre, **Fourni avec Tale** pour les skills fournis à la création de ton organisation, ou **Release de configuration** suivi du membre dont le téléversement l’a installé. Vérifie l’origine d’un skill inconnu avant d’en équiper un agent.
+
 ## Utiliser des skills dans une automatisation
 
 Les nœuds agent d’une automatisation déclarent les skills dont ils ont besoin. Une exécution liée à un projet utilise l’accès de ce projet. Une exécution au niveau de l’organisation peut seulement utiliser les skills de l’organisation. Ton appartenance personnelle à d’autres équipes n’élargit pas ces accès.

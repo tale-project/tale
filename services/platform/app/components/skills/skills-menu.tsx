@@ -13,6 +13,7 @@
  * selection does is decided by the lane that runs the agent.
  */
 
+import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
@@ -22,6 +23,8 @@ import { Blocks, ChevronDown } from 'lucide-react';
 import { useId, useMemo, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+
+import { useSkillAttribution } from './use-skill-attribution';
 
 /** One skill, connector, or tool on offer. */
 export interface SkillOption {
@@ -33,6 +36,10 @@ export interface SkillOption {
    * picker groups them instead of showing one flat list. Options with no
    * `group` render directly under the section label. */
   readonly group?: string;
+  /** A skill's provenance: when set, the row's caption names who created it
+   * (`useSkillAttribution`) — what an editor weighs before equipping it. */
+  readonly origin?: SkillOrigin;
+  readonly ownerName?: string;
 }
 
 /** The assembled equipment: org skill slugs + enabled-connector slugs +
@@ -83,6 +90,7 @@ export function SkillsMenu({
   // The capability vocabulary lives in the chat namespace; every surface
   // shares it so the labels can never diverge between hosts.
   const { t } = useT('chat');
+  const { creatorHint } = useSkillAttribution();
   const fieldId = useId();
   const labelId = `${fieldId}-label`;
   const descriptionId = `${fieldId}-description`;
@@ -95,6 +103,16 @@ export function SkillsMenu({
     ) => ({
       type: 'checkbox' as const,
       label: option.label,
+      ...(option.origin !== undefined
+        ? {
+            description: creatorHint({
+              origin: option.origin,
+              ...(option.ownerName !== undefined
+                ? { ownerName: option.ownerName }
+                : {}),
+            }),
+          }
+        : {}),
       checked: selected.includes(option.slug),
       onCheckedChange: (next: boolean) =>
         onChange(apply(toggle(selected, option.slug, next))),
@@ -188,7 +206,7 @@ export function SkillsMenu({
       ),
       ...toolGroups(),
     ];
-  }, [skills, connectors, tools, value, onChange, t]);
+  }, [skills, connectors, tools, value, onChange, t, creatorHint]);
 
   const count =
     value.skills.length + value.connectors.length + value.tools.length;

@@ -20,6 +20,11 @@ import {
 } from '../../core/skills/file_actions.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  withOneSkillAttribution,
+  withSkillAttribution,
+} from './attribution.ts';
+import { auditSkillWrite } from './audit.ts';
 import { assertSkillTeamsAssignable, skillErrorResponse } from './errors.ts';
 import { unequipDeletedSkill } from './unequip.ts';
 import { uploadSkillBundlePg } from './upload.ts';
@@ -57,11 +62,14 @@ export function createSkillRoutes(deps: {
     if (!orgSlug) {
       throw new Error(`organization ${c.get('orgId')} has no slug`);
     }
-    const userId = c.get('sessionBundle').user.id;
+    const user = c.get('sessionBundle').user;
+    const userId = user.id;
     const role = c.get('orgMember').role;
     const teamIds = await getUserTeamIds(deps.sql, c.get('orgId'), userId);
     return {
       orgSlug,
+      // Who a write's audit row names.
+      actor: { id: userId, email: user.email, role },
       viewer: {
         kind: 'user' as const,
         userId,
@@ -83,7 +91,15 @@ export function createSkillRoutes(deps: {
   };
 
   app.get('/', async (c) => {
-    return c.json(await listSkillsForViewer(await caller(c)));
+    const listing = await listSkillsForViewer(await caller(c));
+    return c.json({
+      ...listing,
+      skills: await withSkillAttribution(
+        deps.sql,
+        c.get('orgId'),
+        listing.skills,
+      ),
+    });
   });
 
   app.get('/:slug', async (c) => {
@@ -93,7 +109,9 @@ export function createSkillRoutes(deps: {
         slug: c.req.param('slug'),
       });
       if (skill === null) return c.json({ error: 'skill not found' }, 404);
-      return c.json({ skill });
+      return c.json({
+        skill: await withOneSkillAttribution(deps.sql, c.get('orgId'), skill),
+      });
     } catch (error) {
       return skillErrorResponse(c, error);
     }
@@ -137,15 +155,31 @@ export function createSkillRoutes(deps: {
         deps.sql,
         c.get('orgId'),
         slug,
-        (tx) =>
-          saveSkillForViewer({
+        async (tx) => {
+          const result = await saveSkillForViewer({
             ...who,
             slug,
             ...body.data,
             assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
-          }),
+          });
+          await auditSkillWrite(tx, {
+            organizationId: c.get('orgId'),
+            slug,
+            actor: who.actor,
+            via: 'app',
+            previous: result.previous,
+            current: result.current,
+          });
+          return result;
+        },
       );
-      return c.json({ skill: saved.skill });
+      return c.json({
+        skill: await withOneSkillAttribution(
+          deps.sql,
+          c.get('orgId'),
+          saved.skill,
+        ),
+      });
     } catch (error) {
       return skillErrorResponse(c, error);
     }
@@ -167,6 +201,7 @@ export function createSkillRoutes(deps: {
           organizationId: c.get('orgId'),
           orgSlug: who.orgSlug,
           viewer: who.viewer,
+          actor: who.actor,
           storageId: body.data.storageId,
           ...(body.data.force !== undefined ? { force: body.data.force } : {}),
           assertTeamsAssignable: who.assertTeamsAssignable,

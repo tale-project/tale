@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 21 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 26 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) that project agents and automation agent nodes are equipped with; chat
@@ -46,7 +46,7 @@ builtin skill from `configs/platform/custom/skills/`.
 
 - [ ] `SKILL-F1` · **Table renders** — `/dashboard/{org}/settings/skills` →
   Under the section description (`skills.sectionDescription`) the table
-  renders columns **Name / Description / Visibility / Usage / Labels**
+  renders columns **Name / Description / Created by / Visibility / Labels**
   (`skills.columns.*`); search (`skills.searchPlaceholder`) narrows by slug,
   description, **and** label text; a fresh org shows the empty state
   (`emptyStates.skills.title`) whose description
@@ -54,6 +54,8 @@ builtin skill from `configs/platform/custom/skills/`.
   agent nodes — never at chat, which does not use skills. **Add skill > Blank
   skill** (`skills.addMenu.label` / `skills.createMenu.blank`) opens the create
   pane by pointer or keyboard.
+  description, label text **and** creator name; a fresh org shows the empty state
+  (`emptyStates.skills.title`) whose click opens the create pane.
 - [ ] `SKILL-F2` · **Facets** — Open the table filter → **Visibility**
   (`skills.library.scopeFilterLabel`) and **Filter by label**
   (`skills.library.labelFilterLabel`) → The scope facet offers **Organization
@@ -173,6 +175,50 @@ builtin skill from `configs/platform/custom/skills/`.
   Repeat on a fresh task with `disable-model-invocation: true` in the skill
   file: it is not used unless the task names it. Then name the skill in
   another task and verify that its instructions are followed again.
+- [ ] `SKILL-F16` · **Created by** — As member A create a blank skill; keep a
+  seeded builtin (`docx`) in view; remove a member B who created a skill from
+  the organization (Settings → Members) → The table's **Created by** column
+  (`skills.columns.createdBy`) reads A's name on A's skill, **Built-in**
+  (`skills.attribution.builtin`) on `docx`, **Former member**
+  (`skills.attribution.formerMember`) on B's skill — never a raw user id —
+  and a skill a managed configuration release installed reads
+  **Configuration release · <installing member>**
+  (`skills.attribution.releaseBy`); a zip A uploads whose `SKILL.md`
+  frontmatter carries the release marker (`tale-release` under `metadata`)
+  reads **Configuration release · <A's name>**,
+  never the bare label; searching A's name keeps only A's skills; the skill
+  dialog's **Created by** row (`skills.attribution.createdBy`) says the
+  same; every cell of the row still fits the page at 1280 px in English,
+  German and French.
+- [ ] `SKILL-F17` · **Last edited by** — Open the skill A just created; then,
+  as an admin C, change its description and save; then edit its `SKILL.md`
+  on disk (`$TALE_CONFIG_DIR/<org>/skills/<slug>/SKILL.md`) and reload → A
+  skill nobody has edited since creating it shows no **Last edited by** row
+  (`skills.attribution.lastEditedBy`); after C's save the row names C, in
+  the dialog and on `GET /api/v1/skills/<slug>` (`updatedByName`); after
+  the out-of-band edit the row is gone again while **Created by** still
+  names A.
+- [ ] `SKILL-F18` · **Creator in the agent skill picker** —
+  `/dashboard/{org}/projects/{projectId}/agents` → open an agent's dialog →
+  open the skills menu (`chat.skills.label`), then an automation agent node's
+  skills menu → Under every skill row a caption names its creator: **By
+  <name>** (`skills.attribution.byMember`), **By a former member**
+  (`skills.attribution.byFormerMember`), **Built-in** or **Configuration
+  release · <installing member>**; connector and tool rows carry no such caption; the caption is
+  part of the row's accessible name and toggling a row still works by
+  keyboard.
+- [ ] `SKILL-F19` · **Skill writes in the audit log** — As an admin: create a
+  skill, edit its body, switch it from Organization to a team, save it again
+  unchanged, replace it by a zip upload that keeps its sharing, then install
+  an automation package that carries a new skill → Settings → Governance →
+  Logs, category **Skill**, lists in order **Skill created**, **Skill
+  updated**, **Skill updated** + **Skill sharing changed**, (nothing for the
+  unchanged save), **Skill updated**, **Skill created**
+  (`settings.logs.audit.actionLabels.skill.created` / `…skill.updated` /
+  `…skill.sharing_changed`), each naming the acting member; a row's details
+  show its changed fields, the sharing row the visibility and teams before
+  and after, and the metadata the door (`app`, `upload`,
+  `automation_package`) and the resulting `etag`.
 
 ## Boundary & error tests
 

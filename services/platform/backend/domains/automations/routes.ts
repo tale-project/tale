@@ -389,6 +389,7 @@ export function createAutomationRoutes(deps: {
             organizationId: c.get('orgId'),
             orgSlug,
             userId: c.get('sessionBundle').user.id,
+            email: c.get('sessionBundle').user.email,
             role: c.get('orgMember').role,
           },
           body.data,

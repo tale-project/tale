@@ -29,6 +29,7 @@ import {
   MAX_SKILL_TEAMS,
   SKILL_EDIT_VISIBILITIES,
   SKILL_SLUG_REGEX,
+  SKILL_ORIGINS,
   SKILL_VISIBILITIES,
 } from '@tale/shared/schemas/skills';
 // ── Small builders ───────────────────────────────────────────────────────────
@@ -972,7 +973,32 @@ const skillSummaryProperties: Json = {
     ...strArray,
     description: 'Team ids a `team` skill is shared with; absent otherwise',
   },
-  owner: { ...str, description: 'The member who owns the bundle (a user id)' },
+  owner: {
+    ...str,
+    description:
+      'The member who created the bundle, as a user id — absent when none is recorded. A skill created in the editor or uploaded belongs to the member who created it; a declared `owner` in an uploaded bundle is never honoured',
+  },
+  origin: {
+    type: 'string',
+    enum: [...SKILL_ORIGINS],
+    description:
+      'Where the skill came from: `release` — a managed configuration release installed it (its frontmatter carries `metadata.tale-release`); `builtin` — no owner is recorded, as on the catalog copies an organization starts with; `member` — the member named by `owner` created it',
+  },
+  ownerName: {
+    ...str,
+    description:
+      'The display name of `owner` (their email when they have none) while they are a member of the organization; absent once they have left, and whenever `owner` is',
+  },
+  updatedBy: {
+    ...str,
+    description:
+      'The user id of the member whose write through Tale produced the stored SKILL.md — present only when the newest recorded write of the skill is an edit whose resulting tag is the current `etag`. Absent on a skill nobody has edited since it was created, and on one changed outside Tale since its last edit',
+  },
+  updatedByName: {
+    ...str,
+    description:
+      'The display name of `updatedBy` while they are a member of the organization',
+  },
   icon: { ...str, description: 'An Iconify id shown on the skill’s card' },
   labels: { ...strArray, description: 'Display chips on the skill’s card' },
   disableModelInvocation: {
@@ -5649,7 +5675,7 @@ export function buildSpec(): Json {
       summary: 'Get skill',
       operationId: 'getSkill',
       description:
-        'One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. A malformed slug answers 404 like an unknown one.',
+        'One skill bundle: the summary fields plus the body and the file list, with the document’s entity tag as `ETag` — send it back as `If-Match` on a save, or as `If-None-Match` on the next read to get 304 while the document is unchanged. The tag covers the SKILL.md content only: `canEdit`, `ownerName`, `updatedBy` and `updatedByName` can change while it stands (a member leaves or is renamed, an edit changes only the sharing), so a 304 does not revalidate them — read without `If-None-Match` when you need them current. A malformed slug answers 404 like an unknown one.',
       security: sec,
       parameters: [
         skillSlugParam,
@@ -5711,7 +5737,12 @@ export function buildSpec(): Json {
         'still 412. Every skill carries `canEdit`: whether this key may edit ' +
         'the bundle; shipped skills are organization bundles an ' +
         'administrator may overwrite, so check it before a save that means ' +
-        'to replace one. The body may run to 4 MiB — this operation’s own ' +
+        'to replace one. A save that changes the document is recorded in ' +
+        'the organization’s audit log as the key’s user — `skill.created`, ' +
+        '`skill.updated`, and `skill.sharing_changed` when `visibility` or ' +
+        '`teams` moved — and an update makes that user the skill’s ' +
+        '`updatedBy`; a save that writes nothing records nothing. The body ' +
+        'may run to 4 MiB — this operation’s own ' +
         'cap, so the worst JSON escaping of a full-size `body` still fits; ' +
         'past it the answer is 413 `BODY_TOO_LARGE`.',
       operationId: 'saveSkill',
@@ -9298,6 +9329,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'slug',
             'description',
             'visibility',
+            'origin',
             'canEdit',
             'etag',
             'updatedAt',
@@ -9313,6 +9345,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'slug',
             'description',
             'visibility',
+            'origin',
             'canEdit',
             'etag',
             'updatedAt',

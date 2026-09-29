@@ -24,6 +24,8 @@ Alte private Skills können nicht für einen Projekt-Agenten ausgewählt werden.
 
 Bei einem neuen Projekt-Agenten sind die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf` vorausgewählt, sofern das Projekt auf sie zugreifen kann. Entferne die Häkchen bei Skills, die die Aufgabe nicht braucht.
 
+Jeder Skill in der Liste nennt seinen Ersteller: ein Mitglied, **Mitgeliefert** für die Skills, mit denen deine Organisation startet, oder **Konfigurations-Release** mit dem Mitglied, dessen Upload ihn installiert hat. Prüfe bei einem unbekannten Skill, woher er stammt, bevor du einen Agenten damit ausrüstest.
+
 ## Skills in einer Automation verwenden
 
 Die Agent-Knoten einer Automation geben an, welche Skills sie brauchen. Ein an ein Projekt gebundener Lauf nutzt dessen Zugriff. Ein Lauf auf Organisationsebene kann nur organisationsweite Skills verwenden. Deine persönliche Mitgliedschaft in weiteren Teams erweitert diesen Zugriff nicht.

@@ -42,6 +42,10 @@ export interface ChatContract {
         icon?: string;
         slug: string;
         label: string;
+        /** Where the skill came from — how its creator reads. */
+        origin: 'builtin' | 'release' | 'member';
+        /** The creator's name while they are a member. */
+        ownerName?: string;
       }>;
       connectors: Array<{
         description?: string;
@@ -98,6 +102,10 @@ export interface ChatContract {
         icon?: string;
         slug: string;
         label: string;
+        /** Where the skill came from — how its creator reads. */
+        origin: 'builtin' | 'release' | 'member';
+        /** The creator's name while they are a member. */
+        ownerName?: string;
       }>;
       connectors: Array<{
         description?: string;

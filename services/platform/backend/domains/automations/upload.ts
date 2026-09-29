@@ -16,6 +16,7 @@ import {
 } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
+import { auditSkillWrite } from '../skills/audit.ts';
 import { assertSkillTeamsAssignable } from '../skills/errors.ts';
 import { withSkillWriterLocks } from '../skills/writer-lock.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
@@ -38,6 +39,8 @@ export async function uploadAutomationPg(
     organizationId: string;
     orgSlug: string;
     userId: string;
+    /** The uploader's email, for the audit rows of carried skills. */
+    email?: string;
     role: string;
   },
   args: UploadArgs,
@@ -160,6 +163,22 @@ export async function uploadAutomationPg(
                 role: auth.role,
                 teamIds: await uploaderTeamIds(tx),
               })(teamIds),
+            // Each installed skill's audit row, in the transaction holding
+            // its writer lock — the way the skill doors record theirs.
+            recordSkillWrite: async (write) =>
+              auditSkillWrite(tx, {
+                organizationId: auth.organizationId,
+                slug: write.slug,
+                actor: {
+                  id: auth.userId,
+                  email: auth.email,
+                  role: auth.role,
+                },
+                via: 'automation_package',
+                previous: write.previous,
+                current: write.current,
+                filesChanged: write.filesChanged,
+              }),
           }),
         ),
     },

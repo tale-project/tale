@@ -67,6 +67,34 @@ beforeEach(() => {
   uploadAutomationPg.mockReset();
 });
 
+describe('POST /upload — the uploader', () => {
+  it('reaches the lane with their email, for the audit rows of carried skills', async () => {
+    uploadAutomationPg.mockResolvedValueOnce({
+      ok: true,
+      name: 'triage-flow',
+      version: 1,
+      warnings: [],
+      skills: [],
+    });
+    const res = await createAutomationRoutes({
+      sql: {} as never,
+      auth: {} as never,
+    }).request('/upload?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ storageId: 's3:acme/staged.zip' }),
+    });
+    expect(res.status).toBe(200);
+    expect(uploadAutomationPg.mock.calls[0]?.[1]).toEqual({
+      organizationId: 'o1',
+      orgSlug: 'acme',
+      userId: 'u1',
+      email: 'u@example.test',
+      role: 'developer',
+    });
+  });
+});
+
 describe('POST /upload — refusal statuses', () => {
   it.each([
     ['TEAM_ACCESS_DENIED', 403],

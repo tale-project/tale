@@ -24,6 +24,8 @@ Legacy private skills cannot be equipped on a project agent. The same access rul
 
 A new project agent starts with the document skills `docx`, `pptx`, `xlsx` and `pdf` ticked when the project can access them. Untick those the job does not need.
 
+Each skill in the list names who created it: a member, **Built-in** for the skills your organization starts with, or **Configuration release** with the member whose upload installed it. Check where an unfamiliar skill comes from before you equip it.
+
 ## Use skills in an automation
 
 An automation's agent nodes declare the skills they need. A run bound to a project uses that project's scope. An organization-level run can use organization skills only. Your personal membership in additional teams does not expand either scope.

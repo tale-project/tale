@@ -87,6 +87,14 @@ The project's access decides its equipment, even if you personally can read more
 
 Narrowing visibility asks for confirmation because some agents may lose access. Deleting a skill has the same practical consequence: runs that require the missing bundle cannot stage it. Check where a shared skill is used before restricting or retiring it.
 
+## See who created and changed a skill
+
+The **Created by** column names the member who created each skill. Search the library for a name to find everything that person shared. The column shows **Built-in** for a skill without a recorded creator, such as the document skills your organization starts with, and **Configuration release** with the member whose upload installed it for a skill a managed configuration release installed. Once the creator leaves the organization, it shows **Former member**.
+
+Open a skill to see **Created by** and **Last edited by**: the member whose save or upload in Tale produced the current version. **Last edited by** is left out when nobody has edited the skill since it was created, or when its file changed outside Tale since the last edit. The skill list in an [agent's equipment](/platform/agents/skills) names the creator under each skill as well.
+
+Tale records creating, editing, uploading and deleting a skill, and every change to its visibility or teams, in the audit log. Administrators and owners find these entries under **Settings > Governance > Logs** in the **Skill** category.
+
 ## File reference
 
 A minimal `SKILL.md` looks like this:
@@ -107,6 +115,7 @@ Quote supporting text and mark missing information as "Not stated".
 | `name` | Matches the bundle's folder name. `anthropic` and `claude` are reserved. |
 | `description` | When and why the model should read the skill; maximum 1,024 characters. |
 | `visibility` / `teams` | `org`, or `team` with the team IDs. The UI fills these in for you. |
+| `owner` | The user ID of the member who created the skill. Tale sets it; a value in an uploaded file is ignored. |
 | `license` | The terms supplied by the author. |
 | `recommended-packages` | Suggested dependencies; importing does not install them. |
 | `disable-model-invocation` | Requests explicit use of the skill. Treat this metadata as an instruction, not an access restriction. |
