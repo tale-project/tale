@@ -1,5 +1,5 @@
 import { cn } from '@tale/ui/cn';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 /**
  * Fixed panel widths. `default` (14rem / 224px) matches the expanded app
@@ -20,6 +20,7 @@ export interface SubPanelProps {
   ariaLabel?: string;
   /** Element id, e.g. as an `aria-controls` target for a panel toggle. */
   id?: string;
+  style?: CSSProperties;
   width?: keyof typeof WIDTH_CLASSES;
   className?: string;
   children: ReactNode;
@@ -41,12 +42,14 @@ export function SubPanel({
   id,
   width = 'default',
   className,
+  style,
   children,
 }: SubPanelProps) {
   return (
     <Component
       aria-label={ariaLabel}
       id={id}
+      style={style}
       className={cn(
         'bg-background border-border hidden shrink-0 flex-col overflow-hidden border-r md:flex',
         WIDTH_CLASSES[width],

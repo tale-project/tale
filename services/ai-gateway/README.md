@@ -16,10 +16,10 @@ one that serves the whole pool.
 | | |
 | --- | --- |
 | **One endpoint per vendor** | `GET /api/tokens/anthropic` and `GET /api/tokens/openai` answer with that vendor's access tokens, identities and quota availability; `GET /api/tokens` serves the whole pool |
-| **Compatible token fields** | Keeps cc-gateway's `id`, `label`, `account_email`, `status`, `access_token`, `expires_at` and `scopes`, adding metadata for selection without changing those names |
+| **Compatible token fields** | Keeps cc-gateway's `id`, `label`, `account_email`, `status`, `access_token`, `expires_at` and `scopes`, adding metadata for selection — `refresh_at` among it — without changing those names |
 | **Two providers, one shape** | Anthropic and OpenAI differ in their OAuth callback, their identity claims and their usage payload; the panel and the endpoint do not |
 | **Connects on its own** | A ChatGPT account connects through OpenAI's device sign-in, and a Claude account — when the panel is opened on localhost — through a redirect straight back to the gateway; there is no code to carry back |
-| **Token refresh** | Background passes and token requests refresh access tokens before expiry; transient failures pause retries, and refused refresh grants require a new sign-in |
+| **Token refresh** | Each account's token is refreshed on a schedule of its own, spread across the pool and spaced out per vendor, with a shared-expiry exception; while another account can take new work, one whose planned refresh (`refresh_at`) is closer than the hand-out floor waits for it; transient failures pause retries, and refused refresh grants require a new sign-in |
 | **Usage in view** | Each account's session and weekly windows — plus any per-model cap the vendor reports — as live bars coloured by how much is spent (green, yellow from half, orange from three quarters, red at the ceiling), beside a short grey one counting the window down to its rollover, which turns green when that is within the hour. An account whose session or weekly window is spent greys out like a disabled row until that window rolls over — only the look: its row menu keeps working |
 | **The plan, named** | Each account's plan as its vendor sells it — Max 20x, Pro, Plus, Pro Lite — read from Anthropic's profile and from ChatGPT's own usage answer |
 | **Encrypted at rest** | AES-256-GCM under `AI_GATEWAY_ENCRYPTION_KEY`; a tampered store fails loudly rather than decrypting to something plausible |
@@ -109,6 +109,7 @@ curl localhost:3004/api/tokens/openai    -H "Authorization: Bearer $AI_GATEWAY_A
       "status": "active",
       "access_token": "sk-ant-oat01-…",
       "expires_at": "2026-10-21T09:40:00Z",
+      "refresh_at": "2026-10-21T07:12:30Z",
       "scopes": "org:create_api_key user:profile user:inference",
       "available": true,
       "available_at": null,
@@ -137,13 +138,19 @@ row integers. Use it for selection and retry exclusions: token bytes change
 when a token refreshes. `account_id` is the vendor's own identity instead;
 OpenAI's ChatGPT account id must accompany its access token.
 
-Both endpoint shapes include `provider`. A caller should require the expected
-vendor, an `active` status, an unexpired token, and `available: true` before
-selecting a credential. The gateway reports the pool; the consumer owns
-distribution between its eligible entries.
+`refresh_at` is when the gateway plans to refresh the token, and a refresh
+ends the token it replaces — Anthropic revokes the previous access token — so
+`refresh_at`, not the vendor's `expires_at`, is the end of a handed-out
+token's usable life. It is null when the vendor stated no expiry.
 
-`available` describes quota eligibility independently of credential status.
-A session or weekly window at 100% makes it false until its reset. OpenAI's
+Both endpoint shapes include `provider`. A caller should require the expected
+vendor, an `active` status, and `available: true` before selecting a
+credential; `refresh_at` reports its planned refresh, which may be deferred by vendor spacing. The gateway
+reports the pool; the consumer owns distribution between its eligible entries.
+
+`available` says whether the account may take new work — its quota, and the
+hand-out floor below — independently of credential status. A session or
+weekly window at 100% makes it false until its reset. OpenAI's
 explicit `allowed: false` or `limit_reached: true` also makes it false, even
 with rounded or absent percentages; `usage.limited` preserves that signal
 (`null` when the vendor does not report it). Contradictory flags are treated
@@ -154,6 +161,23 @@ model-specific (`scoped`) cap does not remove the whole account. When several
 general windows are exhausted, `available_at` is their latest reset; it is
 null when any blocking window has no known reset. A passed reset stops
 blocking even if the next usage read has not happened yet.
+
+`available` also turns false while an account's planned refresh is closer
+than `AI_GATEWAY_TOKEN_MIN_HANDOUT_SECONDS` (an hour by default) and another
+active account of the same vendor — with quota left and outside its own floor
+— can take the work instead. `available_at` is then `refresh_at`: new work
+waits for the fresh token rather than taking one that would be revoked under
+it, and the lifetime restriction ends once the refresh lands; quota restrictions still apply. When no other
+account can take the work, the held-back account with the latest `refresh_at`
+is served as available anyway, so a pool of one account is never held back: a
+turn that a refresh may cut can still recover on a fresh token instead of a
+pool that refuses all work. When a due refresh keeps failing, the token may still
+work but its end cannot be promised; the account is held back like one
+inside its floor, with `available_at: null`. A token whose whole planned life
+is shorter than the floor is handed out until its planned refresh is due, since
+the next one would be no longer, and an `expired` account is left to its status. The floor covers the
+start of the work, not a run longer than the floor: a consumer still holding a
+token after its actual refresh may receive a 401 and should request credentials again.
 
 Usage is refreshed on token requests subject to
 `AI_GATEWAY_USAGE_MIN_INTERVAL_SECONDS`. The gateway ignores exhaustion from
@@ -195,10 +219,22 @@ env -u CODEX_ACCESS_TOKEN -u CODEX_API_KEY -u OPENAI_API_KEY \
   -c 'model_providers.tale-subscription.requires_openai_auth=false'
 ```
 
-The gateway refreshes tokens near expiry before answering. Consumers still
-check status and expiry because a vendor can refuse or fail a refresh. One
-vendor's token request refreshes only that vendor's accounts. Accounts are
-refreshed concurrently, overlapping calls share the work per account, and
+The gateway refreshes a token once its planned refresh is due, before
+answering. The plan is the vendor's expiry less
+`AI_GATEWAY_TOKEN_REFRESH_SKEW_SECONDS`, brought forward by the account's own
+share — a stable hash of its id — of half the time between the token's issue
+and that point. Two accounts refreshed together therefore fall due at
+different times, and, each on a cycle of its own length, do not stay in step.
+When two accounts of one vendor still fall due together — by chance, or on
+the first pass after an outage or an upgrade — the second waits until ten
+minutes after the first refresh, though never past its skew point, where its
+own token is about to expire. Refreshes are normally separated; accounts already at their skew point can refresh together. A request refreshes only the accounts that
+are due; the others keep their tokens.
+
+Consumers still check status because a vendor can refuse or fail a refresh.
+One vendor's token request refreshes only that vendor's accounts. Accounts of
+different vendors are refreshed concurrently, overlapping calls share the work
+per account, and
 each provider HTTP request has a four-second deadline. An unreadable stored
 credential is marked expired and omitted without taking the rest of the pool
 offline. Token and copied-command responses use `Cache-Control: no-store`.
@@ -231,7 +267,8 @@ offline. Token and copied-command responses use `Cache-Control: no-store`.
 | `AI_GATEWAY_DATA_DIR` | `.data` | Where `accounts.json` lives. Back this up; it is the pool |
 | `AI_GATEWAY_REFRESH_INTERVAL_SECONDS` | `300` | Cadence of the background refresh pass |
 | `AI_GATEWAY_USAGE_MIN_INTERVAL_SECONDS` | `180` | Floor between two usage reads for one account; both vendors rate-limit this hard |
-| `AI_GATEWAY_TOKEN_REFRESH_SKEW_SECONDS` | `300` | How long before expiry a token is refreshed anyway |
+| `AI_GATEWAY_TOKEN_REFRESH_SKEW_SECONDS` | `300` | How long before expiry a token is refreshed at the latest; each account's own share of the refresh spread brings it forward |
+| `AI_GATEWAY_TOKEN_MIN_HANDOUT_SECONDS` | `3600` | How long a token must still have before its planned refresh to be handed out as available while another account of its vendor can take the work; `0` turns the floor off |
 | `AI_GATEWAY_CLAUDE_CODE_VERSION` | `1.0.0` | Reported as `claude-code/<version>` to Anthropic's usage endpoint |
 | `AI_GATEWAY_ANTHROPIC_CLIENT_ID` | the CLI's | Override only if Anthropic rotates its public client |
 | `AI_GATEWAY_OPENAI_CLIENT_ID` | the CLI's | Override only if OpenAI rotates its public client |

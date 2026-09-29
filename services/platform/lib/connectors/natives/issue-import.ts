@@ -11,6 +11,7 @@ import PQueue from 'p-queue';
  * unavailable and never interpreted as a request to delete or complete work. */
 import { z } from 'zod';
 
+import { truncateImportedDescription } from '../../../backend/core/tasks/helpers';
 import type { ConnectorHttpResponse } from '../../engine/core/slots';
 import type {
   NativeConnectorContext,
@@ -26,9 +27,10 @@ interface ImportedIssue {
   description: string;
   externalIssue: TaskExternalIssue;
 }
-// Local task descriptions must remain editable through the app's task API.
-// Source snapshots retain their separate, larger description limit.
-const taskDescriptionLimit = 50_000;
+// A task's description is the task domain's own cut of the source text
+// (`truncateImportedDescription`: the board's cap, on a grapheme boundary),
+// so the run carries what the task will hold and every door can save it
+// again. The source snapshot keeps its separate, larger limit.
 const limit = z.number().int().min(1).max(500).default(100);
 const cursor = z.string().max(12000).optional();
 const githubInput = z
@@ -164,7 +166,7 @@ function unavailable(
     externalId: source.externalId,
     externalUrl: issue.url,
     title: issue.title,
-    description: issue.description.slice(0, taskDescriptionLimit),
+    description: truncateImportedDescription(issue.description),
     externalIssue: issue,
   };
 }
@@ -195,7 +197,7 @@ function githubIssue(raw: unknown, repositoryId: number): ImportedIssue {
     externalId: `${ref[1]}/${ref[2]}#${row.number}`.toLowerCase(),
     externalUrl: row.html_url,
     title: row.title,
-    description: description.slice(0, taskDescriptionLimit),
+    description: truncateImportedDescription(description),
     externalIssue: {
       id: String(row.id),
       title: row.title,
@@ -247,7 +249,7 @@ function glitchtipIssue(
     externalId: `${endpoint}/${encodeURIComponent(organization)}/${encodeURIComponent(row.project.slug)}#${id}`,
     externalUrl: url,
     title: row.title,
-    description: description.slice(0, taskDescriptionLimit),
+    description: truncateImportedDescription(description),
     externalIssue: {
       id: `${endpoint}#${id}`,
       title: row.title,
