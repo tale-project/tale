@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 34 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) that project agents and automation agent nodes are equipped with; chat
@@ -227,6 +227,16 @@ builtin skill from `configs/platform/custom/skills/`.
   team is picked; a skill created with a team reads that team's badge in the
   table after reload, and one created with Organization reads
   **Organization**.
+- [ ] `SKILL-F21` · **Remembered folders** — Open a skill whose bundle nests
+  folders (SKILL-F5's upload), collapse a top-level folder and a folder
+  inside another open one in the **Bundle** tree
+  (`skills.detail.tree.heading`), close the dialog and reopen the skill, then
+  reload the page and reopen it once more; upload the bundle again with an
+  extra top-level folder; then open a skill whose folders you have not
+  collapsed in this browser → Both folders are still collapsed after each
+  reopen and every other folder is open; the folder the new upload added
+  opens expanded while the two stay collapsed; the other skill's tree opens
+  with every folder expanded.
 
 ## Boundary & error tests
 
@@ -291,6 +301,26 @@ builtin skill from `configs/platform/custom/skills/`.
   save again. Under **Owners and admins only**, a Developer's automation
   package carrying a skill without `visibility:` is refused with 403
   `SKILL_PUBLISH_FORBIDDEN` and installs nothing. Restore **Every member**.
+- [ ] `SKILL-B7` · **A failed read is not a missing skill** — Reload the page
+  (the dialog keeps what it read for a while), block the request
+  `/api/app/skills/<slug>` in the browser's developer tools, open the row and
+  wait for the loading mask to end; lift the block and press **Try again**
+  (`common.actions.tryAgain`); block the skill's `/assets/<path>` request and
+  pick that file, one you have not opened since the reload; lift it and press
+  **Try again**; then pick an empty file, and a file you deleted on disk before
+  first picking it → The dialog reads `skills.detail.loadFailed`, never
+  `skills.notFound`, and its retry shows the saved instructions without
+  reopening; the file pane reads `skills.viewer.loadFailed` with **Copy**
+  (`common.actions.copy`) off, never an empty preview, and its retry shows the
+  contents; the empty file reads `skills.viewer.empty`; the deleted one reads
+  `skills.viewer.notFound`; nothing on disk changed.
+- [ ] `SKILL-B8` · **Labels over the cap** — In the detail pane enter nine
+  comma-separated labels in **Labels** (`skills.editor.labels`), remove one of
+  your choice and **Save** (`common.actions.save`); then enter a label of 41
+  characters → With nine, the field shows `skills.editor.labelsTooMany`,
+  still holds all nine and **Save** stays off; with eight, the save stores
+  exactly the eight you kept (close, reload, reopen and read them back); the
+  long label shows `skills.editor.labelTooLong` and **Save** stays off.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -302,6 +332,22 @@ builtin skill from `configs/platform/custom/skills/`.
   activatable by keyboard (`skills.upload.dropZoneLabel`); validation failures
   render in a `role="alert"` region announced to assistive tech, not color
   alone.
+- [ ] `SKILL-A3` · **Icon picker by keyboard** — **Change icon**
+  (`skills.iconPicker.trigger`), then with focus in **Search icons**
+  (`skills.iconPicker.searchPlaceholder`) press Tab; press ArrowDown ten
+  times and Enter; reopen and click an icon; reopen, move with the arrows and
+  press Escape → Tab never walks the icons; the highlighted icon stays in
+  view as it moves down the grid; Enter picks it and focus returns to
+  **Change icon**; the click picks exactly the clicked icon; Escape closes the
+  picker without a change and returns focus to **Change icon**.
+- [ ] `SKILL-A4` · **Bundle tree keeps its Tab stop** — Tab into the
+  **Bundle** tree, ArrowDown to a file inside a folder and press Enter;
+  ArrowLeft to its folder and ArrowLeft again to collapse it; Tab away, then
+  Shift+Tab; press ArrowRight and reach another file with the arrows and
+  Enter; close the dialog and open the skill again → Shift+Tab lands on the
+  collapsed folder, not past the tree; ArrowRight opens it and the arrows and
+  Enter select the other file; the reopened dialog's tree takes Tab on
+  `SKILL.md`.
 
 ## Performance
 
