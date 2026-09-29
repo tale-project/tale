@@ -447,8 +447,9 @@ export const SHOTS: readonly Shot[] = [
     name: 'project-general-tab',
     section: 'platform',
     // Taller than the default so the Sharing section clears the fold under
-    // the Project rows and the Instructions editor.
-    viewport: { width: 1440, height: 1200 },
+    // the Project rows and the Instructions editor; the fold sits on the seam
+    // below Sharing, before the Archive section starts.
+    viewport: { width: 1440, height: 1110 },
     route: '/dashboard/:orgId/projects',
     prepare: async (page, ctx) => {
       await page.goto(projectRoute(ctx, '/overview'), {
