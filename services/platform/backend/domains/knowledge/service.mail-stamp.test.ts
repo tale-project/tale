@@ -223,13 +223,54 @@ describe('indexUploadedFile — the conversation stamp', () => {
     expect(holder?.text).toContain(ACTIVE_DOCUMENT);
   });
 
-  it('asks for a holding document only for an unbound file', async () => {
+  it('indexes a file filed into a document as its ref holder, when a lower-id twin holds the ref too', async () => {
+    // A WebDAV COPY leaves two documents on one ref, and the file row stays
+    // with the source. The corpus row is the ref's: indexed as the source
+    // while the scope pass writes the lower-id twin's scope back, the row
+    // would read as drift after every re-index.
+    const log: Query[] = [];
+    await indexUploadedFile(
+      fakeSql(
+        log,
+        { documentId: 'doc-2', conversationId: null },
+        {
+          teamTags: ['team-twin'],
+          projectId: null,
+          folderId: null,
+          folderPath: 'Copies',
+        },
+      ),
+      'file-1',
+    );
+    expect(vi.mocked(indexWholeDocument).mock.calls[0]?.[0]).toMatchObject({
+      conversationId: null,
+      teamIds: ['team-twin'],
+      folderPath: 'Copies',
+    });
+    // The holder is read first; the bound document only stands in for one.
+    expect(log.filter(isHolderRead)).toHaveLength(1);
+    expect(
+      log.filter((query) => query.text.includes('FROM app.documents WHERE id')),
+    ).toEqual([]);
+  });
+
+  it('indexes a filed file as the document it is filed in when no active document holds its ref', async () => {
+    // Its own document trashed, say: nothing holds the ref as an active
+    // document, and the file still indexes under the document it is filed in.
     const log: Query[] = [];
     await indexUploadedFile(
       fakeSql(log, { documentId: 'doc-1', conversationId: 'conv-1' }),
       'file-1',
     );
-    expect(log.filter(isHolderRead)).toEqual([]);
+    expect(log.filter(isHolderRead)).toHaveLength(1);
+    expect(
+      log.find((query) => query.text.includes('FROM app.documents WHERE id'))
+        ?.values,
+    ).toEqual(['doc-1']);
+    expect(vi.mocked(indexWholeDocument).mock.calls[0]?.[0]).toMatchObject({
+      conversationId: null,
+      teamIds: ['team-a'],
+    });
   });
 
   it('stamps no conversation on an ordinary upload', async () => {

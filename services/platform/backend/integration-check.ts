@@ -76,6 +76,7 @@ import { checkConversationApi } from './domains/conversations/api-sync.integrati
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
+import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
@@ -55400,6 +55401,7 @@ async function main(): Promise<void> {
             orgSlug: `itest-${orgSuffix}`,
           }),
       ],
+      ['checkScopeRefHolder', () => checkScopeRefHolder(sql, record)],
       [
         'checkCorpusPurgeConsistency',
         () =>

@@ -953,10 +953,10 @@ async function stampExtractionMetadata(
  * The conversation an emailed attachment's corpus row is stamped with: the
  * one its file row is bound to, unless the file indexes as a document —
  * filed into one, or unbound while an active document holds its ref
- * (`heldByActiveDocument`, read by `activeDocumentHoldingRef`) — then it
- * indexes under that document's scope. The indexer's rule, and the one both
- * walks of the stamp pass read (`readMailAttachments`), so the backfill
- * walks exactly the rows it stamps.
+ * (`heldByActiveDocument`, read by `activeDocumentHoldingRef`) — then none:
+ * the row carries a document's scope instead. The indexer's rule, and the
+ * one both walks of the stamp pass read (`readMailAttachments`), so the
+ * backfill walks exactly the rows it stamps.
  */
 export function emailedAttachmentConversation(file: {
   readonly documentId: string | null;
@@ -980,10 +980,13 @@ interface DocumentScopeRow {
 
 /**
  * The active document that holds this ref as its file, with its scope — the
- * one an unbound file row holding the same ref indexes as: the corpus row is
- * the ref's, and the document's scope is what the scope pass writes back on
- * it every night (`reconcileDocumentScopeStamps`). The stamp pass's walks
- * exclude an attachment on this same condition (`readMailAttachments`).
+ * ref's HOLDER, the document a file holding the same ref indexes as: the
+ * corpus row is the ref's. Several documents can hold one ref (a WebDAV COPY
+ * shares it), so the holder is the one with the lowest id, the document
+ * whose scope the scope passes write back on the row too
+ * (`reconcileDocumentScopeStamps`, `syncRagDocumentScopes`). The stamp
+ * pass's walks exclude an attachment on the same active-document condition
+ * (`readMailAttachments`).
  */
 async function activeDocumentHoldingRef(
   sql: Sql,
@@ -1125,14 +1128,20 @@ export async function indexUploadedFile(
 
     // Scope stamp from the document the file indexes as (hub/team/project),
     // and its folder — the corpus filters on both; a NULL folder stamp made
-    // every folder-scoped search miss the document it was filed in. That is
-    // the document the file is bound to, or, for an unbound file, an active
-    // document that holds the same ref: the corpus row is the ref's, and a
-    // re-index under no scope would blank that document's stamps until the
-    // nightly scope pass wrote them back.
-    let doc: DocumentScopeRow | null = null;
-    let heldByActiveDocument = false;
-    if (file.documentId !== null) {
+    // every folder-scoped search miss the document it was filed in. The
+    // corpus row is the ref's, so that is the ref's holder
+    // (`activeDocumentHoldingRef`), whose scope the scope passes write back —
+    // also for a file bound to a WebDAV COPY's twin — and the document the
+    // file is bound to only when no active document holds the ref. An
+    // unbound file indexed under no scope would blank the holder's stamps
+    // until the nightly scope pass wrote them back.
+    let doc = await activeDocumentHoldingRef(
+      sql,
+      file.organizationId,
+      file.storageRef,
+    );
+    const heldByActiveDocument = doc !== null;
+    if (doc === null && file.documentId !== null) {
       const docRows = await sql<DocumentScopeRow[]>`
         SELECT team_id AS "teamId", team_tags AS "teamTags",
                project_id AS "projectId", folder_id AS "folderId",
@@ -1140,13 +1149,6 @@ export async function indexUploadedFile(
         FROM app.documents WHERE id = ${file.documentId} LIMIT 1
       `;
       doc = docRows[0] ?? null;
-    } else {
-      doc = await activeDocumentHoldingRef(
-        sql,
-        file.organizationId,
-        file.storageRef,
-      );
-      heldByActiveDocument = doc !== null;
     }
     let teamIds: string[] | null = null;
     let projectId: string | null = null;
@@ -1592,6 +1594,8 @@ export async function syncRagDocumentScope(
  * still reports `indexing.status: "completed"`, with no re-index to heal it
  * (a scope-only move never re-embeds). Reads the documents' CURRENT rows, so a
  * caller passes ids and this speaks the same one-liner every scope edit uses.
+ * A document whose ref a lower-id active document holds too writes nothing:
+ * the row carries its ref's holder's scope, as the reconcile writes it.
  * Best-effort by contract like its single-document sibling: a corpus failure
  * logs; {@link reconcileDocumentScopeStamps} is the backstop.
  */
@@ -1616,11 +1620,17 @@ export async function syncRagDocumentScopes(
       SELECT id, file_ref AS "fileRef", team_id AS "teamId",
              team_tags AS "teamTags", project_id AS "projectId",
              folder_id AS "folderId", folder_path AS "folderPath"
-      FROM app.documents
+      FROM app.documents d
       WHERE org_id = ${organizationId}
         AND id = ANY(${[...documentIds]})
         AND file_ref IS NOT NULL
         AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+        AND NOT EXISTS (
+          SELECT 1 FROM app.documents o
+          WHERE o.org_id = d.org_id AND o.file_ref = d.file_ref
+            AND (o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')
+            AND o.id < d.id
+        )
     `;
     if (docs.length === 0) return;
     const treePaths = await folderTreePaths(
@@ -1696,6 +1706,13 @@ const SCOPE_RECONCILE_PAGE = 1000;
  * per-edit sync failed to write it — and is the stamp pass's to take off
  * (`reconcileMailAttachmentStamps`), so the count stays what the reconcile
  * reports it as: edits whose corpus write failed.
+ *
+ * The corpus row is the ref's, and several documents can hold one ref (a
+ * WebDAV COPY shares it), so the walk reads each ref's holder alone — the
+ * active document with the lowest id, the one the indexer indexes the ref as
+ * (`activeDocumentHoldingRef`). Written from every document holding it, the
+ * row took either twin within one statement, a later page's twin overwrote
+ * an earlier one's, and the same row was drift again every night.
  */
 export async function reconcileDocumentScopeStamps(
   sql: Sql,
@@ -1728,7 +1745,8 @@ interface ScopeReconcilePage {
 }
 
 /** One page of {@link reconcileDocumentScopeStamps}: the documents after
- * `afterId` in id order, compared and corrected in one corpus statement. */
+ * `afterId` in id order, each ref's holder alone, compared and corrected in
+ * one corpus statement. */
 async function reconcileScopeStampPage(
   sql: Sql,
   args: {
@@ -1752,10 +1770,16 @@ async function reconcileScopeStampPage(
     SELECT id, file_ref AS "fileRef", team_id AS "teamId",
            team_tags AS "teamTags", project_id AS "projectId",
            folder_id AS "folderId", folder_path AS "folderPath"
-    FROM app.documents
+    FROM app.documents d
     WHERE org_id = ${args.organizationId}
       AND file_ref IS NOT NULL
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+      AND NOT EXISTS (
+        SELECT 1 FROM app.documents o
+        WHERE o.org_id = d.org_id AND o.file_ref = d.file_ref
+          AND (o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')
+          AND o.id < d.id
+      )
       AND (${args.afterId}::text IS NULL OR id > ${args.afterId})
     ORDER BY id
     LIMIT ${args.pageSize}

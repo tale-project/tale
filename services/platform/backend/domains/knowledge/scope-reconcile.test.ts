@@ -40,10 +40,31 @@ interface DocRow {
 }
 
 /**
+ * Whether a document read keeps each ref's HOLDER alone: a document no
+ * active document of the organization with a lower id shares its ref with —
+ * the one the indexer indexes the ref as (`activeDocumentHoldingRef`).
+ */
+const readsHoldersOnly = (text: string) =>
+  text.includes('NOT EXISTS') &&
+  text.includes('o.org_id = d.org_id AND o.file_ref = d.file_ref') &&
+  text.includes(
+    "(o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')",
+  ) &&
+  text.includes('o.id < d.id');
+
+/** The holders among `rows`, all of them active documents. */
+const holdersOf = (rows: DocRow[]) =>
+  rows.filter(
+    (row) =>
+      !rows.some((other) => other.fileRef === row.fileRef && other.id < row.id),
+  );
+
+/**
  * `sql` is only ever the document read here — answered the way the keyset
  * page reads it: the rows after the `afterId` parameter in id order, at most
- * the `LIMIT` parameter of them. The parameters are the tagged template's
- * values, in the order the statement binds them.
+ * the `LIMIT` parameter of them, each ref's holder alone when the statement
+ * asks for that. The parameters are the tagged template's values, in the
+ * order the statement binds them.
  */
 interface PageRead {
   afterId: string | null;
@@ -62,7 +83,9 @@ function fakeSql(rows: DocRow[]): Sql & { reads: PageRead[] } {
       afterId: typeof afterId === 'string' ? afterId : null,
       limit: typeof limit === 'number' ? limit : Number.NaN,
     });
-    const sorted = [...rows].sort((a, b) => (a.id < b.id ? -1 : 1));
+    const sorted = [
+      ...(readsHoldersOnly(strings.join('')) ? holdersOf(rows) : rows),
+    ].sort((a, b) => (a.id < b.id ? -1 : 1));
     const page = sorted
       .filter((row) => typeof afterId !== 'string' || row.id > afterId)
       .slice(0, typeof limit === 'number' ? limit : rows.length);
@@ -344,6 +367,49 @@ describe('reconcileDocumentScopeStamps', () => {
     ]);
   });
 
+  it.each([1, 2, 3])(
+    'writes a ref two documents share from the lower id alone (pages of %i)',
+    async (limit) => {
+      // A WebDAV COPY leaves two active documents on one ref, and the corpus
+      // has one row for it. Written from both, the row took either twin
+      // within a page, a later page's twin overwrote an earlier one's, and
+      // it was drift again every night. The indexer indexes the ref as its
+      // holder, the lowest-id active document holding it; so does the pass.
+      const sql = fakeSql([
+        doc({ id: 'doc-1', fileRef: 'blob:shared', teamTags: ['team-a'] }),
+        doc({ id: 'doc-2', fileRef: 'blob:f2' }),
+        doc({ id: 'doc-3', fileRef: 'blob:shared', teamTags: ['team-b'] }),
+      ]);
+      const { pool, sent } = fakePool(0);
+      getKnowledgePoolForOrg.mockResolvedValue(pool);
+
+      const out = await reconcileDocumentScopeStamps(sql, {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        limit,
+      });
+
+      const written = sent.flatMap((params) => payloadOf([params]));
+      expect(written).toEqual([
+        {
+          file_id: 'blob:shared',
+          team_ids: ['team-a'],
+          team_id: 'team-a',
+          project_id: null,
+          folder_path: null,
+        },
+        {
+          file_id: 'blob:f2',
+          team_ids: null,
+          team_id: null,
+          project_id: null,
+          folder_path: null,
+        },
+      ]);
+      expect(out.scanned).toBe(2);
+    },
+  );
+
   it('sends the org slug the corpus rows are keyed by', async () => {
     const { pool, sent } = fakePool(0);
     getKnowledgePoolForOrg.mockResolvedValue(pool);
@@ -374,10 +440,15 @@ function fakeSqlByIds(rows: DocRow[]): Sql & { reads: string[] } {
       return Promise.resolve([{ slug: 'acme' }]);
     }
     // The document read: WHERE id = ANY($ids). The last value is the id
-    // array; answer the rows whose id is in it.
+    // array; answer the rows whose id is in it — of the holders among all
+    // the organization's rows, when the statement asks for those.
     const ids = values.find((value): value is string[] => Array.isArray(value));
     const wanted = new Set(ids ?? []);
-    return Promise.resolve(rows.filter((row) => wanted.has(row.id)));
+    return Promise.resolve(
+      (readsHoldersOnly(text) ? holdersOf(rows) : rows).filter((row) =>
+        wanted.has(row.id),
+      ),
+    );
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the batch sync issues only these two tagged reads
   return Object.assign(sql, { reads }) as unknown as Sql & { reads: string[] };
@@ -420,6 +491,31 @@ describe('syncRagDocumentScopes', () => {
       project_id: null,
       folder_path: null,
     });
+  });
+
+  it("writes a ref two documents share from the lower id alone, and nothing for the other's edit", async () => {
+    const { pool, sent } = fakePool(1);
+    getKnowledgePoolForOrg.mockResolvedValue(pool);
+    const sql = fakeSqlByIds([
+      doc({ id: 'doc-1', fileRef: 'blob:shared', teamTags: ['team-a'] }),
+      doc({ id: 'doc-3', fileRef: 'blob:shared', teamTags: ['team-b'] }),
+    ]);
+
+    // The copy alone moved: the row carries its ref's holder's scope, and
+    // the reconcile would write that back the next night.
+    await syncRagDocumentScopes(sql, 'org-9', ['doc-3']);
+    expect(sent).toEqual([]);
+
+    await syncRagDocumentScopes(sql, 'org-9', ['doc-1', 'doc-3']);
+    expect(payloadOf(sent)).toEqual([
+      {
+        file_id: 'blob:shared',
+        team_ids: ['team-a'],
+        team_id: 'team-a',
+        project_id: null,
+        folder_path: null,
+      },
+    ]);
   });
 
   it('reads only the ids it was given', async () => {
