@@ -39,7 +39,15 @@ export type TaskRunFailureCode =
   | 'equipment_missing'
   /** The org's spend cap refused the start — the cap only moves with the
    * period or an admin, so a retry would only be refused again. */
-  | 'budget_exceeded';
+  | 'budget_exceeded'
+  /** The vendor answered 401 to a turn the subscription broker served: the
+   * broker refreshed the account under the running turn, and the refresh
+   * revoked the token the turn was started with. The account is healthy and
+   * holds a fresh token, so the retry vends again and resumes the
+   * conversation — the first {@link CREDENTIAL_ROTATION_FREE_RETRIES} in a
+   * row outside the crash-loop budget and without burning the account
+   * ({@link freeCredentialRotations}). */
+  | 'credential_rotated';
 
 /** Failures where a retry is pure waste: the run burned its 12h window
  * (either executing or parked), or the agent configuration itself is gone.
@@ -63,6 +71,32 @@ export function isAutoRetryableFailure(code: string | undefined): boolean {
  * budget) resets at it. 15 minutes, per the product decision. */
 export const AUTO_RETRY_PROGRESS_MS = 15 * 60 * 1000;
 
+/** Credential rotations in a row that resume for free — outside
+ * `AUTO_RETRY_MAX_ATTEMPTS`, and without excluding the account from the
+ * next vend. A token revoked under a turn is the broker's routine refresh,
+ * not a fault of the run or the account; but a grant that is truly dead
+ * answers 401 on every vend, and the third rotation in a row takes the
+ * ordinary path (counted, account excluded), so it cannot loop. */
+export const CREDENTIAL_ROTATION_FREE_RETRIES = 2;
+
+/** Whether an errored turn's end is the broker's token rotating under it:
+ * the vendor answered 401 (`api_error_status`) and the turn was served from
+ * a subscription broker — the one lane whose token the platform does not
+ * own and a refresh elsewhere revokes. A 401 on a static subscription key
+ * or on the managed gateway is a credential fault, not a rotation. */
+export function isCredentialRotation(end: {
+  apiErrorStatus?: number | undefined;
+  brokerServed: boolean;
+}): boolean {
+  return end.brokerServed && end.apiErrorStatus === 401;
+}
+
+/** How many run rows the retry decision reads, newest first: enough to see
+ * one attempt past the budget even when every counted failure sits behind a
+ * full allowance of free rotations. */
+export const AUTO_RETRY_HISTORY_LIMIT =
+  (AUTO_RETRY_MAX_ATTEMPTS + 1) * (CREDENTIAL_ROTATION_FREE_RETRIES + 1) + 1;
+
 /** The run-row facts the budget walk reads, newest-first; element 0 is the
  * run that just failed. */
 export interface AutoRetryRunFacts {
@@ -75,6 +109,9 @@ export interface AutoRetryRunFacts {
    * the budget on every park timeout. */
   readonly launchedAt?: number | undefined;
   readonly settledAt?: number | undefined;
+  /** The producer's failure code (`project_agent_runs.failure_code`);
+   * absent on rows failed before the column, which read as ordinary. */
+  readonly failureCode?: string | undefined;
 }
 
 export interface AutoRetryBudget {
@@ -91,28 +128,71 @@ function executedMs(run: AutoRetryRunFacts): number {
 }
 
 /**
+ * Which rows of a task's newest-first run history are FREE credential
+ * rotations: a `credential_rotated` failure that is at most the
+ * {@link CREDENTIAL_ROTATION_FREE_RETRIES}-th of its agent's rotations in a
+ * row, counted oldest first. Any other row ends a streak, and an attempt
+ * that executed past the progress threshold before its 401 starts a new one
+ * — a grant that served a quarter of an hour of work is not dead. The retry
+ * budget and the kick plan's account exclusions read the same answer, so a
+ * free rotation is neither counted nor burned in either.
+ */
+export function freeCredentialRotations(
+  rows: readonly AutoRetryRunFacts[],
+): boolean[] {
+  const free = rows.map(() => false);
+  let streak = 0;
+  let streakAgent: string | undefined;
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (
+      row === undefined ||
+      row.status !== 'failed' ||
+      row.failureCode !== 'credential_rotated'
+    ) {
+      streak = 0;
+      streakAgent = undefined;
+      continue;
+    }
+    streak =
+      row.agentId === streakAgent && executedMs(row) < AUTO_RETRY_PROGRESS_MS
+        ? streak + 1
+        : 1;
+    streakAgent = row.agentId;
+    free[index] = streak <= CREDENTIAL_ROTATION_FREE_RETRIES;
+  }
+  return free;
+}
+
+/**
  * Count the streak of consecutive short-lived failures ending at `rows[0]`
  * (the run that just failed) and decide whether one more auto-retry fits the
  * budget. The walk stops — resetting the budget — at the first row that is
  * not a failure of the same agent (human cancel, a settled run, or a
  * reassignment boundary all count as intervention/progress), or whose
- * attempt executed ≥ the progress threshold.
+ * attempt executed ≥ the progress threshold. A free credential rotation
+ * ({@link freeCredentialRotations}) is skipped — neither counted nor ending
+ * the streak — and, when it is the run that just failed, is retried whatever
+ * the streak behind it: the turn was cut by the broker, not by a crash loop.
  */
 export function resolveAutoRetryBudget(
   rows: readonly AutoRetryRunFacts[],
 ): AutoRetryBudget {
   const agentId = rows[0]?.agentId;
+  const free = freeCredentialRotations(rows);
   let shortStreak = 0;
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
     if (row.agentId !== agentId) break;
     if (row.status !== 'failed') break;
     if (executedMs(row) >= AUTO_RETRY_PROGRESS_MS) break;
+    if (free[index]) continue;
     shortStreak += 1;
     // One past the budget already decides — no need to walk the whole tail.
     if (shortStreak > AUTO_RETRY_MAX_ATTEMPTS) break;
   }
   return {
-    retry: shortStreak <= AUTO_RETRY_MAX_ATTEMPTS,
-    attempt: Math.max(shortStreak, 1),
+    retry: free[0] || shortStreak <= AUTO_RETRY_MAX_ATTEMPTS,
+    // A free retry spends nothing: it shows the attempts already spent.
+    attempt: Math.min(Math.max(shortStreak, 1), AUTO_RETRY_MAX_ATTEMPTS),
   };
 }

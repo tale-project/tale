@@ -72,6 +72,7 @@ function serializeToken(handout: TokenHandout) {
     status: handout.status,
     access_token: handout.accessToken,
     expires_at: handout.expiresAt,
+    refresh_at: handout.refreshAt,
     scopes: handout.scopes,
     available: handout.available,
     available_at: handout.availableAt,

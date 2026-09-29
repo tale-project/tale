@@ -7240,7 +7240,6 @@ tasks:
   fields:
     title: Title
     description: Description
-    descriptionTooLong: This description has {length} characters; the limit is {max}. Shorten it to save. Most emoji count as 2.
     assignee: Assignee
     reviewer: Reviewer
     priority: Priority
@@ -7496,6 +7495,7 @@ tasks:
     noDueDateHint: No due date yet. Picking a repeat sets it to the first matching day.
     becomesDue: 'This task becomes due on {date}.'
     noDueDateSaved: 'No due date: its next task is dated from the day this one closes.'
+    dateOutOfRange: Upcoming dates are outside the supported calendar range. Choose an earlier date.
     dueDateSet: 'This task is now due on {date}.'
     ruleOnDue: '{rule}, next task on the due date'
     withParent: 'With {parent}'
@@ -7511,7 +7511,7 @@ tasks:
       continued: 'This series continues on {task}. Change the repeat there.'
       continuedUnnamed: This series continues on its next task. Change the repeat there.
       stopped: This series has stopped.
-      nextDeleted: Its next task was deleted, so this series has ended.
+      nextDeleted: Its next task was deleted. This task cannot repeat again.
       automation: An automation runs this task, so it doesn't repeat.
       subtask: 'This subtask comes back with {parent}: each time {parent} repeats, its next task gets a fresh copy of it.'
       notOpen: Only open tasks repeat.

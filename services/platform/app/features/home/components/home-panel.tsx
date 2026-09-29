@@ -22,6 +22,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { SubPanel } from '@tale/ui/sub-panel';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useIsMac } from '@tale/ui/use-is-mac';
+import { useResizable } from '@tale/ui/use-resizable';
 import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
 import { Link, useLocation } from '@tanstack/react-router';
 import {
@@ -132,6 +133,22 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
     readHomeLocation(pathname, search, organizationId),
   );
   const open = storedOpen || !collapsible;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [storedWidth, setWidth] = usePersistedState(
+    `home-panel-width-${organizationId}`,
+    280,
+  );
+  const width =
+    typeof storedWidth === 'number' && Number.isFinite(storedWidth)
+      ? Math.min(480, Math.max(280, storedWidth))
+      : 280;
+  const resize = useResizable(panelRef, {
+    edge: 'right',
+    minWidth: 280,
+    maxWidth: 480,
+    width,
+    onWidthChange: setWidth,
+  });
   // ⌘\ (Ctrl+\) folds and unfolds the panel wherever the header's toggle
   // could — the physical key too, for layouts that type "\" with Option.
   const isMac = useIsMac();
@@ -167,21 +184,40 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
       width="list"
       ariaLabel={t('aria.panel')}
       id="home-panel"
+      style={{ width: open ? width : 0 }}
       className={cn(
-        '[transition:width_260ms_var(--ease-out-quint)] motion-reduce:transition-none',
+        'relative motion-reduce:transition-none',
+        !resize.isResizing && '[transition:width_260ms_var(--ease-out-quint)]',
         !open && 'w-0 border-r-0',
       )}
     >
       <div
+        ref={panelRef}
+        style={{ width }}
         inert={!open || undefined}
         aria-hidden={!open}
-        className="flex h-full w-70 shrink-0 flex-col overflow-hidden"
+        className="flex h-full shrink-0 flex-col overflow-hidden"
       >
         <HomeNavigator
           organizationId={organizationId}
           switcherAction={<HomeNewChatButton organizationId={organizationId} />}
         />
       </div>
+      {open && (
+        <div
+          role="separator"
+          tabIndex={0}
+          aria-label={t('aria.panel')}
+          aria-controls="home-panel"
+          aria-orientation="vertical"
+          aria-valuemin={resize.minWidth}
+          aria-valuemax={resize.maxWidth}
+          aria-valuenow={width}
+          onMouseDown={resize.handleMouseDown}
+          onKeyDown={resize.handleKeyDown}
+          className="hover:bg-primary/30 focus-visible:bg-primary/30 focus-visible:ring-ring absolute inset-y-0 right-0 w-1.5 cursor-col-resize focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+        />
+      )}
     </SubPanel>
   );
 }

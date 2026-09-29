@@ -32,6 +32,8 @@ Bookmarks and shared links to a particular project, task, or document still open
 
 Home keeps your chats, tasks, projects, and customer conversations together. On a computer, the Home panel stays beside every chat, task, project, and inbox page. On a phone, **Home** opens the same list as a screen of its own. A chat, task, or conversation you open from it has a single header: a back arrow that returns to the list, its title, and its actions. Your profile menu stays at the top of the Home screen and of Settings.
 
+On desktop, drag the Home panel’s right edge to adjust its width. You can also focus the divider with Tab and press Left or Right. The width is remembered for this organization in your browser.
+
 At the top of the panel, **All**, **Chats**, **Tasks**, and **Inbox** switch what the list shows, and **New chat**, the pencil beside them, starts a chat; its tooltip shows the shortcut. **Inbox** appears only when your organization has an inbox: a deployed mail-sync automation, or an API app that has synced a conversation.
 
 **Projects** lists every project you can open. Choose a project to open its page with the task board, **General**, **Chats**, **Knowledge**, and **Agents**. The two icons beside the **Projects** heading are **All projects**, which opens the full project list, and **New project**. Drag a chat onto a project to file it there. A project's menu offers **New chat** and **Pin project**.

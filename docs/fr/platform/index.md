@@ -32,6 +32,8 @@ Les favoris et les liens partagés vers un projet, une tâche ou un document pr�
 
 **Accueil** réunit tes chats, tes tâches, tes projets et les conversations clients. Sur ordinateur, le panneau latéral d’**Accueil** reste affiché à côté de chaque chat, tâche, projet et page de la boîte de réception. Sur téléphone, **Accueil** ouvre la même liste en plein écran. Un chat, une tâche ou une conversation que tu ouvres depuis cette liste n’a qu’un seul en-tête : une flèche de retour qui t’y ramène, son titre et ses actions. Ton menu de profil reste accessible en haut de l’écran **Accueil** et dans **Paramètres**.
 
+Sur ordinateur, fais glisser le bord droit du panneau d’**Accueil** pour ajuster sa largeur. Tu peux aussi atteindre la séparation avec Tab, puis appuyer sur la flèche gauche ou droite. Ton navigateur conserve cette largeur pour cette organisation.
+
 En haut du panneau, **Tout**, **Chats**, **Tâches** et **Réception** déterminent ce que la liste affiche. Juste à côté, **Nouveau chat**, le crayon, démarre un chat ; son infobulle indique le raccourci clavier. **Réception** n’apparaît que si ton organisation dispose d’une boîte de réception : une automatisation de synchronisation du courrier mise en service, ou une app API qui a déjà synchronisé une conversation.
 
 **Projets** liste tous les projets que tu peux ouvrir. Choisis un projet pour ouvrir sa page avec le tableau des tâches, **Général**, **Chats**, **Connaissances** et **Agents**. Les deux icônes à côté du titre **Projets** sont **Tous les projets**, qui ouvre la liste complète, et **Nouveau projet**. Fais glisser un chat sur un projet pour l’y ranger. Le menu d’un projet propose **Nouveau chat** et **Épingler le projet**.

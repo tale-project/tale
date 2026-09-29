@@ -43,7 +43,7 @@ Subscription brokers support Anthropic subscriptions through Claude Code and Ope
 
 When adding the credential, choose **Subscription broker** and obtain the endpoint and authentication details from your operator. Use an endpoint that serves only the selected provider. For Tale AI gateway, that is `/api/tokens/anthropic` or `/api/tokens/openai`.
 
-Set **Token array path** to `$.tokens`, **Token field** to `access_token`, and **Target environment variable** to the value above. Under **Advanced**, use `status` for **Status field**, `active` for **Active status value**, and `expires_at` for **Expiry field**. Other brokers may use different paths. OpenAI pools must also supply the vendor's `account_id` for every usable token; the broker's own `id` is a separate account identifier.
+Set **Token array path** to `$.tokens`, **Token field** to `access_token`, and **Target environment variable** to the value above. Under **Advanced**, use `status` for **Status field**, `active` for **Active status value**, and `expires_at` for **Expiry field**, and leave **Expiry safety margin (ms)** at its default. The gateway itself holds back an account whose token is about to be refreshed while another account can take the work. Other brokers may use different paths. OpenAI pools must also supply the vendor's `account_id` for every usable token; the broker's own `id` is a separate account identifier.
 
 For OpenAI, restrict **Model allowlist** to model IDs your ChatGPT plan supports. The OpenAI API catalog can include models that the subscription cannot use.
 
@@ -53,7 +53,7 @@ Choose **Token selection** according to how you want to distribute new agent tur
 - **First usable** always takes the first usable account in the broker's order. Use it for an ordered preference, not to spread work.
 - **Round-robin** picks the usable account that was selected least recently. All backend processes share the selection history for this organization and credential, including concurrent requests. Reordered responses and backend restarts preserve that history; stable broker account IDs also preserve it across token refreshes. This distributes selections; it does not promise equal token usage or equal numbers of running agents.
 
-Save the credential, then run a short task or automation with the matching provider and agent runtime. Check that the agent completes a reply. If no account is usable, ask the operator to check account authorization, token expiry and reported quota. The [broker configuration reference](/self-hosted/configuration/providers#connect-a-subscription-broker) explains the optional account metadata, defaults and recovery.
+Save the credential, then run a short task or automation with the matching provider and agent runtime. Check that the agent completes a reply. If no account is usable, ask the operator to check account authorization, token expiry and planned refreshes, and reported quota. The [broker configuration reference](/self-hosted/configuration/providers#connect-a-subscription-broker) explains the optional account metadata, defaults and recovery.
 
 ## Configure Azure or another custom endpoint
 

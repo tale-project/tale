@@ -6,6 +6,7 @@ import { page } from 'vitest/browser';
 import { render, screen } from '@/tests/utils/render';
 
 import { Checkbox } from './checkbox';
+import { DatePicker } from './date-picker';
 import { NumberStepper } from './number-stepper';
 import { RecurrencePicker } from './recurrence-picker';
 import { Switch } from './switch';
@@ -16,7 +17,8 @@ import '../../globals.css';
 // Real-Chromium coverage for WCAG 2.5.8 (target size, minimum): a checkbox is
 // a 16px box and a switch an 18px-tall track, both under the 24px a pointer
 // may be asked to hit. An invisible ring around each takes the tap too; only
-// hit-testing in a real engine can say where the target actually ends.
+// hit-testing in a real engine can say where the target actually ends. The
+// date picker's clear button carries a 14px glyph in a box of its own.
 afterEach(cleanup);
 
 /** What a tap `offset` px outside each edge of `el`'s box lands on. */
@@ -63,6 +65,27 @@ describe('small controls keep a 24px target (real layout)', () => {
     // Half of what the track lacks to 24px, on each side.
     expect(tapsAround(toggle, (24 - height) / 2 - 0.5)).toEqual(everywhere);
   });
+
+  it.each(['default', 'ghost'] as const)(
+    "gives the %s date picker's clear button a whole 24px box",
+    (variant) => {
+      render(
+        <div className="w-64 p-8">
+          <DatePicker
+            value={new Date(2026, 8, 29).getTime()}
+            onChange={() => {}}
+            variant={variant}
+          />
+        </div>,
+      );
+      const clear = screen.getByRole('button', { name: 'Clear date' });
+      const { width, height } = clear.getBoundingClientRect();
+      expect(width).toBeGreaterThanOrEqual(24);
+      expect(height).toBeGreaterThanOrEqual(24);
+      // The glyph is smaller; a tap anywhere in the box still clears.
+      expect(tapsAround(clear, -1)).toEqual(everywhere);
+    },
+  );
 });
 
 /** Width and height of an element's box. */

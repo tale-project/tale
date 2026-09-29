@@ -43,7 +43,7 @@ Abo-Broker unterstützen Anthropic-Abonnements über Claude Code und OpenAI-Chat
 
 Wähle beim Hinzufügen der Zugangsdaten **Abo-Broker** und lass dir Endpunkt und Anmeldeangaben vom Betreiber geben. Der Endpunkt muss ausschließlich Tokens des gewählten Anbieters liefern. Beim Tale AI Gateway ist das `/api/tokens/anthropic` oder `/api/tokens/openai`.
 
-Trage unter **Pfad zum Token-Array** den Wert `$.tokens` ein, unter **Token-Feld** den Wert `access_token` und unter **Ziel-Umgebungsvariable** den Wert aus der Tabelle. Verwende unter **Erweitert** das **Status-Feld** `status`, den **Wert für aktiv** `active` und das **Ablauf-Feld** `expires_at`. Bei anderen Brokern können die Pfade abweichen. OpenAI-Pools müssen zusätzlich für jedes nutzbare Token die `account_id` des Anbieters liefern. Die brokerinterne `id` ist eine separate Kontokennung.
+Trage unter **Pfad zum Token-Array** den Wert `$.tokens` ein, unter **Token-Feld** den Wert `access_token` und unter **Ziel-Umgebungsvariable** den Wert aus der Tabelle. Verwende unter **Erweitert** das **Status-Feld** `status`, den **Wert für aktiv** `active` und das **Ablauf-Feld** `expires_at`, und lass **Sicherheitsabstand zum Ablauf (ms)** beim Standardwert. Das Gateway hält ein Konto, dessen Token bald erneuert wird, selbst zurück, solange ein anderes Konto die Arbeit übernehmen kann. Bei anderen Brokern können die Pfade abweichen. OpenAI-Pools müssen zusätzlich für jedes nutzbare Token die `account_id` des Anbieters liefern. Die brokerinterne `id` ist eine separate Kontokennung.
 
 Begrenze bei OpenAI **Erlaubte Modelle** auf Modell-IDs, die dein ChatGPT-Abonnement unterstützt. Der OpenAI-API-Katalog kann Modelle enthalten, die dieses Abonnement nicht nutzen kann.
 
@@ -53,7 +53,7 @@ Mit **Token-Auswahl** bestimmst du, wie neue Agentendurchläufe verteilt werden:
 - **Erstes nutzbares** nimmt immer das erste nutzbare Konto in der Reihenfolge des Brokers. Damit legst du eine bevorzugte Reihenfolge fest; die Arbeit wird dadurch nicht verteilt.
 - **Round-Robin** wählt das nutzbare Konto, dessen letzte Auswahl am längsten zurückliegt. Alle Backend-Prozesse teilen sich den Auswahlverlauf für diese Organisation und diese Zugangsdaten, auch bei gleichzeitigen Anfragen. Eine andere Antwortreihenfolge und Backend-Neustarts erhalten diesen Verlauf. Stabile Kontokennungen des Brokers erhalten ihn auch bei Tokenwechseln. So werden Auswahlen verteilt, nicht zwingend der Tokenverbrauch oder die Anzahl laufender Agenten.
 
-Speichere die Zugangsdaten und starte eine kurze Aufgabe oder Automatisierung mit dem passenden Anbieter und der passenden Agent-Laufzeit. Prüfe, ob der Agent eine Antwort abschließt. Ist kein Konto nutzbar, sollte der Betreiber Autorisierung, Token-Ablauf und gemeldetes Kontingent prüfen. Die [Broker-Konfigurationsreferenz](/de/self-hosted/configuration/providers#einen-abo-broker-verbinden) erklärt optionale Kontometadaten, Standardwerte und Abhilfe.
+Speichere die Zugangsdaten und starte eine kurze Aufgabe oder Automatisierung mit dem passenden Anbieter und der passenden Agent-Laufzeit. Prüfe, ob der Agent eine Antwort abschließt. Ist kein Konto nutzbar, sollte der Betreiber Autorisierung, Token-Ablauf und geplante Token-Erneuerungen sowie das gemeldete Kontingent prüfen. Die [Broker-Konfigurationsreferenz](/de/self-hosted/configuration/providers#einen-abo-broker-verbinden) erklärt optionale Kontometadaten, Standardwerte und Abhilfe.
 
 ## Azure oder einen eigenen Endpunkt einrichten
 

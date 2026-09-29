@@ -563,9 +563,11 @@ loaded, and reads **No teams** for an account in none.
   (`common.errors.contactSupport`) points at
   `https://support.example.com/help?source=tale&organizationId={orgId}` and
   opens in a new tab. Restart with
-  `TALE_CONTACT_SUPPORT_URL=mailto:help@example.com` and repeat → the
-  platform's log warns once that it ignored `TALE_CONTACT_SUPPORT_URL`, and
-  the same link points at `https://tale.dev/contact?organizationId={orgId}`.
+  `TALE_CONTACT_SUPPORT_URL=mailto:help@example.com` and repeat → the same
+  link points at `https://tale.dev/contact?organizationId={orgId}`. In a
+  deployment, the platform's log (`docker compose logs platform`) also warns
+  once that it ignored `TALE_CONTACT_SUPPORT_URL`; mode A's terminal never
+  shows that warning, so judge only the link there.
 
 - [ ] `NAV-B15` · **Recover the header after typing in an iPhone Safari overlay** → On a real iPhone or iOS Simulator, test both the software keyboard and hardware-keyboard accessory bar. Open an automation node, focus a field, then dismiss the keyboard and close the panel; repeat by closing while the keyboard is still open, with Safari's toolbar expanded and collapsed, and with another form dialog. The title/profile row returns fully into view after dismissal and stays visible when navigating away; panel content remains scrollable. Repeat in the installed home-screen app and with pinch zoom: neither regresses.
 
