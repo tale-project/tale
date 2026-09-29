@@ -10,6 +10,7 @@ import { Plus, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Image } from '@/app/components/image';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useSaveImage } from '../hooks/mutations';
@@ -90,7 +91,7 @@ export function ImageUploadField({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
   const prevCurrentUrlRef = useRef(currentUrl);
-  const saveImage = useSaveImage();
+  const saveImage = useSaveImage({ errorToast: false });
   const { toast } = useToast();
   const { t } = useT('settings');
   const { t: tToast } = useT('toast');
@@ -167,8 +168,12 @@ export function ImageUploadField({
         // diagnostics and show a destructive toast whose message reflects the
         // server's `AppError` code (too large / unsupported type, etc.).
         console.error('[ImageUploadField] image upload failed', err);
+        const key = imageUploadErrorToastKey(err);
         toast({
-          title: tToast(imageUploadErrorToastKey(err)),
+          title: tToast(key),
+          // A refusal the key names is the whole story; any other says why.
+          description:
+            key === 'error.imageUploadFailed' ? failureDetail(err) : undefined,
           variant: 'destructive',
         });
         setPreviewUrl(null);

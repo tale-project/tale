@@ -76,6 +76,7 @@ function serializeToken(handout: TokenHandout) {
     scopes: handout.scopes,
     available: handout.available,
     available_at: handout.availableAt,
+    hold: handout.hold,
     usage: handout.usage
       ? {
           checked_at: handout.usage.checkedAt,

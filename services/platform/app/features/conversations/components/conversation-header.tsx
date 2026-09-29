@@ -167,13 +167,6 @@ export function ConversationHeader({
           });
           onResolve?.();
         },
-        onError: (error) => {
-          console.error('Error closing conversation:', error);
-          toast({
-            title: t('header.toast.closeFailed'),
-            variant: 'destructive',
-          });
-        },
       },
     );
   }, [closeConversation, conversation.id, t, onResolve]);
@@ -189,13 +182,6 @@ export function ConversationHeader({
           });
           onReopen?.();
         },
-        onError: (error) => {
-          console.error('Error reopening conversation:', error);
-          toast({
-            title: t('header.toast.reopenFailed'),
-            variant: 'destructive',
-          });
-        },
       },
     );
   }, [reopenConversation, conversation.id, t, onReopen]);
@@ -210,13 +196,6 @@ export function ConversationHeader({
             variant: 'success',
           });
           onResolve?.();
-        },
-        onError: (error) => {
-          console.error('Error marking conversation as spam:', error);
-          toast({
-            title: t('header.toast.markAsSpamFailed'),
-            variant: 'destructive',
-          });
         },
       },
     );

@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
+
 import { TaskAgentRunEntry } from './task-agent-run-entry';
 
 vi.mock('@tale/ui/i18n/client', () => ({
@@ -26,6 +28,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
       }
       if (key === 'agentRun.autoRetrying') {
         return `Auto-retry ${String(values?.n)} of ${String(values?.max)}`;
+      }
+      if (key === 'agentRun.resumedAfterTokenRefresh') {
+        return 'Resumed after a token refresh';
       }
       if (key === 'runs.agentLog.title') return 'Agent log';
       if (key === 'runs.agentLog.visionModel') {
@@ -66,14 +71,15 @@ vi.mock('@tale/ui/responsive-dialog', () => ({
   ),
 }));
 
-const { startRun, toast } = vi.hoisted(() => ({
+const { startRun, cancelRun, toast } = vi.hoisted(() => ({
   startRun: vi.fn(),
+  cancelRun: vi.fn(),
   toast: vi.fn(),
 }));
 
 vi.mock('../hooks/mutations', () => ({
   useStartTaskAgentRun: () => ({ mutateAsync: startRun }),
-  useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
+  useCancelTaskAgentRun: () => ({ mutateAsync: cancelRun }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({ toast }));
@@ -140,6 +146,30 @@ describe('TaskAgentRunEntry details', () => {
       expect(screen.getByRole('button', { name: 'Start agent' })).toBeEnabled();
     },
   );
+  // A refused cancel said the run "could not start"; it names the cancel.
+  it('says the run could not be cancelled when a cancel is refused', async () => {
+    state.run = { ...settledRun(), status: 'running', settledAt: undefined };
+    cancelRun.mockRejectedValueOnce(
+      new AppError({ code: 'RUN_ALREADY_SETTLED', message: 'The run ended.' }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const user = userEvent.setup();
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'agentRun.cancel' }));
+    expect(toast).toHaveBeenCalledWith({
+      title: 'agentRun.cancelFailed',
+      description: 'The run ended.',
+      variant: 'destructive',
+    });
+  });
+
   it.each(['settled', 'failed', 'cancelled'])(
     'offers Start after reassigning a task with a %s run, while preserving its transcript',
     async (status) => {
@@ -305,6 +335,32 @@ describe('TaskAgentRunEntry details', () => {
       />,
     );
     expect(screen.getByText('Auto-retry 2 of 3')).toBeInTheDocument();
+  });
+
+  it('says a live resume after a token refresh is one, spending no attempt', () => {
+    // The broker refreshed the account under a run that had spent no retry:
+    // "Auto-retry 1 of 3" would claim an attempt the budget never spent.
+    state.run = {
+      ...settledRun(),
+      status: 'running',
+      settledAt: undefined,
+      trigger: 'auto_retry',
+      autoRetryAttempt: 0,
+      autoRetryMax: 3,
+    };
+    state.op = null;
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+    expect(
+      screen.getByText('Resumed after a token refresh'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Auto-retry/)).not.toBeInTheDocument();
   });
 
   it('drops the retry caption once the run stops', () => {

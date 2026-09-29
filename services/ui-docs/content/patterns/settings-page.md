@@ -42,8 +42,9 @@ The surrounding page header supplies the `h1`. Do not repeat it in the settings 
 | Integration | Why it matters |
 | --- | --- |
 | Keep server data separate from the draft | A failed request must not erase the person's edit. |
-| Wire native form submission to `editor.submit` | This updates the saved baseline after success; calling the persistence callback directly bypasses that step. |
+| Wire native form submission to `editor.submit` | This updates the saved baseline after success and reports a server failure with the same single toast `EditorActions` raises; calling the persistence callback directly bypasses both. |
 | Use `EditorActions` with the controller | Save/Discard availability follows dirty, valid, loading, and saving state. |
+| Keep the persistence call's own failure toast quiet | `EditorActions`, and `submit` for Enter or a `type="submit"` Save, raise the one toast for a rejected `save`, with the translated line it throws. A toast the write raises as well reports the same failure twice. |
 | Register related sections through `EditorGroup` | Their controllers contribute to one active-editor action area. The group does not draw a bar on its own. Save saves only the edited sections, so only those must be valid: an untouched section showing a field error does not block Save. |
 | Map server field errors where possible | Show repairable errors beside the relevant field rather than only in a disappearing toast. |
 | Pass `onReset` for state kept outside the form | A reveal toggle or local mode switch is not a form field, so `reset` cannot restore it. `onReset` runs after every reset — the section's own Discard and a group header's alike — so that state returns to the saved baseline with the fields. |

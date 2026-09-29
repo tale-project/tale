@@ -29,8 +29,22 @@ const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 
 vi.mock('../hooks/mutations', () => ({
-  useCreateKnowledgeEntry: () => ({ mutate: mockCreate, isPending: false }),
-  useUpdateKnowledgeEntry: () => ({ mutate: mockUpdate, isPending: false }),
+  // The dialogs report from the write's own promise; it stays pending here,
+  // so a dialog stays up after its save.
+  useCreateKnowledgeEntry: () => ({
+    mutateAsync: (args: unknown) => {
+      mockCreate(args);
+      return new Promise(() => {});
+    },
+    isPending: false,
+  }),
+  useUpdateKnowledgeEntry: () => ({
+    mutateAsync: (args: unknown) => {
+      mockUpdate(args);
+      return new Promise(() => {});
+    },
+    isPending: false,
+  }),
   useDeleteKnowledgeEntry: () => ({ mutateAsync: mockDelete }),
 }));
 

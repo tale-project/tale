@@ -8,6 +8,7 @@ import type { RowSelectionState } from '@tanstack/react-table';
 import { Plus, Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { useT } from '@/lib/i18n/client';
 import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
@@ -133,6 +134,7 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleDeleteComplete}
+            describeFailure={firstFailureDetail}
           />
         }
         {...list.tableProps}

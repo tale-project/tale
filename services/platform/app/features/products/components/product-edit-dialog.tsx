@@ -72,7 +72,8 @@ export function ProductEditDialog({
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const { t: tGlobal } = useT('global');
-  const { mutate: updateProduct, isPending: isSubmitting } = useUpdateProduct();
+  const { mutateAsync: updateProduct, isPending: isSubmitting } =
+    useUpdateProduct();
 
   const formSchema = useMemo(
     () =>
@@ -201,43 +202,40 @@ export function ProductEditDialog({
   }, [isOpen, product, reset]);
 
   const onSubmit = (data: ProductFormData) => {
-    updateProduct(
-      {
-        productId: product._id,
-        name: data.name.trim(),
-        description: data.description.trim() || undefined,
-        imageUrl: data.imageUrl.trim() || null,
-        stock: data.stock ? parseInt(data.stock) : undefined,
-        price: data.price ? parseFloat(data.price) : undefined,
-        currency: data.currency || undefined,
-        category: data.category.trim() || undefined,
-        status: data.status,
+    void updateProduct({
+      productId: product._id,
+      name: data.name.trim(),
+      description: data.description.trim() || undefined,
+      imageUrl: data.imageUrl.trim() || null,
+      stock: data.stock ? parseInt(data.stock) : undefined,
+      price: data.price ? parseFloat(data.price) : undefined,
+      currency: data.currency || undefined,
+      category: data.category.trim() || undefined,
+      status: data.status,
+    }).then(
+      () => {
+        toast({
+          title: tProducts('edit.toast.success'),
+          variant: 'success',
+        });
+        onSaved?.();
+        onClose();
       },
-      {
-        onSuccess: () => {
-          toast({
-            title: tProducts('edit.toast.success'),
-            variant: 'success',
+      (err: unknown) => {
+        console.error('Update error:', err);
+        // Duck-typed code check — Vite chunk splitting can yield multiple
+        // AppError copies that break `instanceof` (see extract-error-code).
+        if (extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME') {
+          setError('name', {
+            message: tProducts('edit.toast.duplicateName'),
           });
-          onSaved?.();
-          onClose();
-        },
-        onError: (err) => {
-          console.error('Update error:', err);
-          // Duck-typed code check — Vite chunk splitting can yield multiple
-          // AppError copies that break `instanceof` (see extract-error-code).
-          if (extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME') {
-            setError('name', {
-              message: tProducts('edit.toast.duplicateName'),
-            });
-            return;
-          }
-          toast({
-            title: tProducts('edit.toast.error'),
-            description: backendRefusalReason(err),
-            variant: 'destructive',
-          });
-        },
+          return;
+        }
+        toast({
+          title: tProducts('edit.toast.error'),
+          description: backendRefusalReason(err),
+          variant: 'destructive',
+        });
       },
     );
   };

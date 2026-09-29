@@ -310,7 +310,9 @@ describe('DocumentTeamTagsDialog', () => {
     });
   });
 
-  it('shows error toast on save failure', async () => {
+  // The dialog's toast is the failure's one report (the write's own toast
+  // stays quiet), so it says why.
+  it('shows error toast on save failure, with the reason', async () => {
     mockMutateAsync.mockRejectedValue(new Error('fail'));
     render(<DocumentTeamTagsDialog {...defaultProps} />);
 
@@ -321,6 +323,7 @@ describe('DocumentTeamTagsDialog', () => {
 
     expect(mockToast).toHaveBeenCalledWith({
       title: 'documents.teamTags.updateFailed',
+      description: 'fail',
       variant: 'destructive',
     });
   });

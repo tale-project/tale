@@ -21,19 +21,55 @@ the proxy settings through its launcher.
 Python document libraries are baked into the shared Python 3.12 environment:
 openpyxl and xlrd for spreadsheets, pypdf for PDFs, PyYAML for safe YAML
 parsing, and xmlschema for XSD validation. defusedxml enables openpyxl's XML
-entity protection. The complete version and wheel-hash lock is
+entity protection. The libraries the builtin document skills
+(`configs/platform/custom/skills/{docx,pdf,pptx,xlsx}`) import sit beside them:
+`markitdown[pptx]`, pandas, pdfplumber, pdf2image, Pillow, reportlab and lxml.
+The complete version and wheel-hash lock is
 [`document-python-requirements.txt`](document-python-requirements.txt), including
 the transitive libraries and Linux amd64/arm64 wheels. Image builds require
-those hashes and refuse source distributions. Keep PyYAML compatible with the
-Hermes pin when updating the lock; the vision tool's isolated Pillow environment
-is separate.
+those hashes and refuse source distributions. Hermes installs into the same
+environment afterwards and pins some of these libraries itself (PyYAML, Pillow,
+requests, certifi, cryptography, packaging), so resolve the lock against its
+pins; the vision tool's isolated Pillow environment is separate. To update it,
+compile `hermes-agent==<HERMES_AGENT_VERSION>` for Python 3.12 into a constraints
+file, compile the direct libraries against it with
+`uv pip compile --python-version 3.12 --python-platform x86_64-manylinux_2_36 --only-binary :all: --exclude-newer <date> -c <constraints>`
+(the aarch64 resolution must match), and hash every cp312 manylinux wheel of
+each pinned version for both architectures, one line per package. Versions
+added to either lock follow the repository's Renovate release-age policy:
+`<date>` lies 90 days back, and only a release that fixes a known advisory may
+be younger.
+
+The Node libraries the skills `require()` — docx, pptxgenjs, and react,
+react-dom, react-icons and sharp for the icon recipe in `pptxgenjs.md` — are
+locked with integrity hashes in [`document-node/`](document-node/) and installed
+with `npm ci --ignore-scripts` into `/opt/tale/document-node`. The image's
+`NODE_PATH` names that directory, and a session puts its own npm prefix
+(`/agent/.runtime/deps/node`) in front of it, so a package an exec installs
+wins over the baked copy. Refresh the lock with npm 11, the major the image's
+Node 24 ships, which records each platform package's `libc` so the image skips
+the musl builds. After changing an exact version in its `package.json`, run
+`npx npm@11 install --package-lock-only --ignore-scripts --before <date>` in
+that directory; to take a younger security release, set it and run the same
+command without `--before`, which keeps the other locked versions. Check the
+result with `npm audit --package-lock-only`. The repository's Trivy gate
+scans this lock, and a change to it alone triggers the security workflow.
+The `overrides` entry lifts image-size, which pptxgenjs declares but never
+loads, to a release without its denial-of-service advisories. The skills' own
+`npm install -g` and `pip install` lines stay as they are: with registry access
+they refresh the session copy, without it they fail while the baked library
+keeps working. OCR is not baked: the pdf skill's pytesseract route needs a
+tesseract binary the image does not carry.
 
 Both default and agent sessions can import these libraries without installing
 packages during a run. Existing per-session dependencies remain on the Python
 path, and application-specific bootstrap checks can stay as a fallback.
 `container-image-test.ts` verifies the baked lock bytes, exact versions and
-installed file hashes, then exercises synthetic PDF/XLSX/XLS/YAML/XML documents
-as both session users with networking disabled and a read-only root. The release's
+installed file hashes of both locks, then exercises synthetic
+PDF/XLSX/XLS/YAML/XML documents and the skills' paths — pandas over the XLSX,
+reportlab to pdfplumber, pypdfium2 and pdf2image, docx and pptxgenjs with a
+sharp-rasterized icon read back through pandoc and markitdown — as both session
+users with networking disabled and a read-only root. The release's
 shared container gate runs on amd64. Each native amd64/arm64 runtime build also
 runs this document check for both users against its pushed image digest, after
 verifying the source, revision and version labels. Both builds must pass before

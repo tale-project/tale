@@ -40,3 +40,13 @@ export function useSkillAsset(
     { enabled: !!path },
   );
 }
+
+/**
+ * Whether the viewer may give a skill the whole organization as its
+ * audience, and the organization's mode behind the answer — read off the
+ * library listing, which the server answers with the same rule every write
+ * door applies. `undefined` while the listing loads.
+ */
+export function useSkillPublishing(organizationId: string) {
+  return useSkills(organizationId).data?.publishing;
+}

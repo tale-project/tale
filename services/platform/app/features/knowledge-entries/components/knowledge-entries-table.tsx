@@ -8,6 +8,7 @@ import { BookOpen } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteKnowledgeEntry } from '../hooks/mutations';
@@ -113,6 +114,7 @@ export function KnowledgeEntriesTable({
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleClearSelection}
+            describeFailure={firstFailureDetail}
           />
         }
         {...list.tableProps}

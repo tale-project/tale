@@ -15,12 +15,12 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-// Controllable mutate so a test can drive its onError callback. The dialog uses
-// the callback form `mutate(args, { onSuccess, onError })`.
+// Controllable write: a test rejects the call's promise, which the dialog
+// reports from (`mutateAsync(args).then(onSuccess, onError)`).
 const createEntryMock = vi.fn();
 vi.mock('../hooks/mutations', () => ({
   useCreateKnowledgeEntry: () => ({
-    mutate: createEntryMock,
+    mutateAsync: createEntryMock,
     isPending: false,
   }),
 }));
@@ -55,15 +55,11 @@ describe('KnowledgeEntryCreateDialog', () => {
   // AppError({ code: 'KNOWLEDGE_ENTRY_DUPLICATE' }) and the dialog reads the
   // code, which survives the redaction.
   it('surfaces the duplicate toast when the server throws the duplicate code', async () => {
-    createEntryMock.mockImplementation(
-      (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-        opts.onError(
-          new AppError({
-            code: 'KNOWLEDGE_ENTRY_DUPLICATE',
-            topic: 'Refunds',
-          }),
-        );
-      },
+    createEntryMock.mockRejectedValue(
+      new AppError({
+        code: 'KNOWLEDGE_ENTRY_DUPLICATE',
+        topic: 'Refunds',
+      }),
     );
 
     const { user } = render(
@@ -86,11 +82,7 @@ describe('KnowledgeEntryCreateDialog', () => {
   });
 
   it('falls back to the generic error toast for a non-duplicate failure', async () => {
-    createEntryMock.mockImplementation(
-      (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-        opts.onError(new AppError({ code: 'SOMETHING_ELSE' }));
-      },
-    );
+    createEntryMock.mockRejectedValue(new AppError({ code: 'SOMETHING_ELSE' }));
 
     const { user } = render(
       <KnowledgeEntryCreateDialog

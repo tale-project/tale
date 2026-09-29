@@ -22,6 +22,7 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -235,6 +236,8 @@ function WebdavRowActions({ row }: { row: WebdavAppPasswordRow }) {
           code === 'NOT_FOUND'
             ? t('list.revokeErrorNotFound')
             : t('list.revokeError'),
+        // A gone password is the whole story; any other refusal says why.
+        description: code === 'NOT_FOUND' ? undefined : failureDetail(err),
         variant: 'destructive',
       });
     } finally {
@@ -299,13 +302,18 @@ function CreateAppPasswordDialog(props: {
     } catch (err) {
       console.error('webdav: create app-password failed', err);
       const code = extractErrorCode(err);
-      const title =
+      const known =
         code === 'LIMIT_EXCEEDED'
           ? t('create.errorLimit')
           : code === 'rate_limited'
             ? t('create.errorRateLimited')
-            : t('create.error');
-      toast({ title, variant: 'destructive' });
+            : undefined;
+      toast({
+        title: known ?? t('create.error'),
+        // A refusal named above is the whole story; any other says why.
+        description: known === undefined ? failureDetail(err) : undefined,
+        variant: 'destructive',
+      });
     } finally {
       setIsCreating(false);
     }

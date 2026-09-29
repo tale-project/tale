@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   getKnowledgePoolForOrg,
@@ -113,6 +113,13 @@ const RAG_STALE_AFTER_MS = 35 * 60 * 1000;
 const RAG_FAILED_RECONCILE_WINDOW_MS = 48 * 60 * 60 * 1000;
 const RAG_MAX_PER_RUN = 200;
 /**
+ * How many status writes must fail in a row to stop an organization's sweep.
+ * One failing write is its row's own (a lock held across ticks); a second
+ * straight after it points at the connection, which is not sent the rest of
+ * the batch.
+ */
+const RAG_SETTLE_FAULTS_IN_A_ROW = 2;
+/**
  * The `rag_error` a dead chain is settled with. It names the recovery the
  * failed badge already offers: the blob is still stored (every candidate has
  * a `storage_ref`) and Retry indexing re-runs the pipeline on it — the ingest
@@ -127,6 +134,29 @@ interface CorpusStatus {
   status: string;
   error: string | null;
   updatedAt: string | null;
+}
+
+/** A stalled RAG row the sweep reconciles. */
+interface RagCandidate {
+  id: string;
+  orgId: string;
+  storageRef: string;
+  ragStatus: string;
+  ragError: string | null;
+}
+
+/** What a sweep did, summed across its organizations. */
+interface RagReconcileCounts {
+  adopted: number;
+  failed: number;
+  revived: number;
+}
+
+/** What settling one candidate wrote: the rows it moved, and the count they
+ * add to (none for an already-failed row given its real error). */
+interface RagSettle {
+  moved: { id: string }[];
+  counts: keyof RagReconcileCounts | null;
 }
 
 /**
@@ -176,12 +206,22 @@ async function readCorpusStatuses(
  *    stale window;
  *  - a corpus lookup that THROWS leaves that org's rows for the next tick —
  *    a knowledge-db hiccup must not fail every file in the org;
- *  - a status write that throws leaves that org's unsettled rows for the
- *    next tick too, while the rows it already settled still reach the
- *    lists and the orgs after it are still swept;
- *  - a recent `failed` row is reconciled too, so a false failure heals;
+ *  - a status write that throws leaves only its own row for the next tick,
+ *    and the org's rows after it are still settled: the candidates come in
+ *    a fixed order, so a row whose write keeps failing (a lock held across
+ *    ticks) would otherwise hold back every row queued after it, tick after
+ *    tick. A write waits for its row's lock only briefly and then throws
+ *    ({@link settleWrite}), so a lock is such a fault too. Two writes
+ *    failing in a row stop that org's sweep, since the connection is the
+ *    likelier cause; the rows it already settled still reach the lists;
+ *  - any other fault in one org (its slug read) defers that org alone, and
+ *    the orgs after it are still swept;
+ *  - a recent `failed` row is reconciled too, so a false failure heals —
+ *    but only after every stuck row: one limit covers both kinds, and a
+ *    stuck row is what the sweep exists for;
  *  - an already-failed row is never overwritten with the generic interrupted
- *    text — its real error is the more useful one.
+ *    text — its real error is the more useful one — and one that already
+ *    reads the corpus's error is left exactly as it is.
  *
  * Every write here moves a status the document list renders, so each
  * organization's lists hear the sweep once — and only for rows a document
@@ -191,15 +231,17 @@ async function readCorpusStatuses(
 export async function recoverStuckRagIndexing(
   sql: Sql,
   options: { staleMs?: number; limit?: number } = {},
-): Promise<{ adopted: number; failed: number; revived: number }> {
+): Promise<RagReconcileCounts> {
   const staleMs = options.staleMs ?? RAG_STALE_AFTER_MS;
   const staleBefore = Date.now() - staleMs;
   const failedAfter = Date.now() - RAG_FAILED_RECONCILE_WINDOW_MS;
-  const candidates = await sql<
-    { id: string; orgId: string; storageRef: string; ragStatus: string }[]
-  >`
+  // The stuck rows first, then the failed ones, each oldest first, as 0.4
+  // read them. Ranked by queue time alone, the failed rows of the last two
+  // days sorted ahead of every row that got stuck after them, and two
+  // hundred of them filled the batch: those rows were never reached.
+  const candidates = await sql<RagCandidate[]>`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
-           rag_status AS "ragStatus"
+           rag_status AS "ragStatus", rag_error AS "ragError"
     FROM app.file_metadata
     WHERE storage_ref IS NOT NULL
       AND (
@@ -208,12 +250,11 @@ export async function recoverStuckRagIndexing(
         OR (rag_status = 'failed'
           AND coalesce(status_changed_at_ms, created_at_ms) > ${failedAfter})
       )
-    ORDER BY coalesce(rag_queued_at_ms, created_at_ms)
+    ORDER BY (rag_status = 'failed'), coalesce(rag_queued_at_ms, created_at_ms)
     LIMIT ${options.limit ?? RAG_MAX_PER_RUN}
   `;
   if (candidates.length === 0) return { adopted: 0, failed: 0, revived: 0 };
 
-  type RagCandidate = (typeof candidates)[number];
   const byOrg = new Map<string, RagCandidate[]>();
   for (const row of candidates) {
     const bucket = byOrg.get(row.orgId);
@@ -221,141 +262,242 @@ export async function recoverStuckRagIndexing(
     else byOrg.set(row.orgId, [row]);
   }
 
-  const now = Date.now();
-  let adopted = 0;
-  let failed = 0;
-  let revived = 0;
+  const timing = { now: Date.now(), staleMs };
+  const counts: RagReconcileCounts = { adopted: 0, failed: 0, revived: 0 };
   for (const [orgId, rows] of byOrg) {
-    const slugRows = await sql<{ slug: string }[]>`
-      SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
-    `;
-    const orgSlug = slugRows[0]?.slug;
-    if (orgSlug === undefined) continue;
-
-    let statuses: Map<string, CorpusStatus | null>;
     try {
-      statuses = await readCorpusStatuses(
-        orgSlug,
-        rows.map((row) => row.storageRef),
-      );
+      await settleOrganizationRagRows(sql, orgId, rows, timing, counts);
     } catch (error) {
-      // A knowledge-db fault must not fail this org's files — defer them.
+      // What an organization's sweep does not catch itself — its slug read
+      // on a dropped connection or a statement timeout — defers that
+      // organization alone. The cron handler does not catch either: a throw
+      // escaping here ended the tick, and every organization after this one
+      // went unswept.
       console.warn(
-        `[watchdog] corpus status lookup failed for org ${orgSlug}; deferring ${rows.length} row(s):`,
+        `[watchdog] rag sweep failed for org ${orgId}; deferring its ${rows.length} row(s):`,
         error instanceof Error ? error.message : String(error),
       );
-      continue;
-    }
-
-    // The rows this sweep moved: the document list renders the column, and
-    // without a hint the browser keeps showing whatever state the page was
-    // loaded with.
-    const moved: { id: string }[] = [];
-    try {
-      for (const row of rows) {
-        const status = statuses.get(row.storageRef) ?? null;
-        if (status?.status === 'completed') {
-          const changed = await sql<{ id: string }[]>`
-            UPDATE app.file_metadata SET
-              rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
-              rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
-            WHERE id = ${row.id}
-            RETURNING id
-          `;
-          moved.push(...changed);
-          adopted += changed.length;
-          continue;
-        }
-        if (status?.status === 'failed') {
-          // The corpus knows the REAL error; refresh the row with it.
-          const changed = await sql<{ id: string }[]>`
-            UPDATE app.file_metadata SET
-              rag_status = 'failed',
-              rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
-              status_changed_at_ms = ${now}
-            WHERE id = ${row.id}
-            RETURNING id
-          `;
-          moved.push(...changed);
-          if (row.ragStatus !== 'failed') failed += changed.length;
-          continue;
-        }
-        if (status?.status === 'processing') {
-          const updatedAt =
-            status.updatedAt === null
-              ? Number.NaN
-              : Date.parse(status.updatedAt);
-          const fresh =
-            Number.isFinite(updatedAt) && Date.now() - updatedAt < staleMs;
-          if (fresh) {
-            // A live chain under a `failed` row is a false failure — flip it
-            // back so the person watches real progress, not a wrong error.
-            if (row.ragStatus === 'failed') {
-              const changed = await sql<{ id: string }[]>`
-                UPDATE app.file_metadata SET
-                  rag_status = 'running', rag_error = NULL,
-                  rag_error_code = NULL, status_changed_at_ms = ${now}
-                WHERE id = ${row.id}
-                RETURNING id
-              `;
-              moved.push(...changed);
-              revived += changed.length;
-            }
-            continue;
-          }
-        }
-        // Stale `processing` or never ingested: the job will not finish. An
-        // already-failed row keeps its own (possibly real) error.
-        if (row.ragStatus === 'failed') continue;
-        const changed = await sql<{ id: string }[]>`
-          UPDATE app.file_metadata SET
-            rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
-            status_changed_at_ms = ${now}
-          WHERE id = ${row.id}
-          RETURNING id
-        `;
-        moved.push(...changed);
-        failed += changed.length;
-      }
-    } catch (error) {
-      // A write that throws — a lock or statement timeout, a dropped
-      // connection — defers this organization's unsettled rows to the next
-      // tick, as a corpus fault does. Each write is its own statement, so
-      // the rows already settled stay settled and are still told below,
-      // and the organizations after this one are still swept.
-      console.warn(
-        `[watchdog] rag settle failed for org ${orgSlug} after moving ${moved.length} row(s); deferring the rest:`,
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-    if (moved.length > 0) {
-      try {
-        // A document can bind a file while the corpus is read, or hold its
-        // metadata lock while a settle waits. Read ownership AFTER the writes
-        // in a fresh statement: an UPDATE RETURNING probe could still use the
-        // snapshot from before that bind committed. A later bind emits its
-        // own document hint after these settled statuses are visible.
-        const current = await sql<MovedStatusRow[]>`
-          SELECT fm.org_id AS "orgId",
-                 ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
-          FROM app.file_metadata fm
-          WHERE fm.org_id = ${orgId} AND fm.id = ANY(${moved.map((row) => row.id)})
-        `;
-        await hintDocumentLists(sql, current);
-      } catch (error) {
-        // The statuses are written; only the refetch nudge is lost. The
-        // organizations after this one are still swept.
-        console.warn(
-          `[watchdog] could not tell org ${orgSlug}'s document lists about ${moved.length} settled row(s):`,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
     }
   }
+  const { adopted, failed, revived } = counts;
   if (adopted + failed + revived > 0) {
     console.info(
       `[watchdog] rag reconcile: adopted ${adopted}, failed ${failed}, revived ${revived}`,
     );
   }
-  return { adopted, failed, revived };
+  return counts;
+}
+
+/**
+ * One organization's candidates, settled by the rules above and told to its
+ * document lists. Each settle is counted into `counts` as it lands, so a
+ * fault later in the organization never drops it from the sweep's total.
+ */
+async function settleOrganizationRagRows(
+  sql: Sql,
+  orgId: string,
+  rows: readonly RagCandidate[],
+  timing: { now: number; staleMs: number },
+  counts: RagReconcileCounts,
+): Promise<void> {
+  const slugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const orgSlug = slugRows[0]?.slug;
+  if (orgSlug === undefined) return;
+
+  let statuses: Map<string, CorpusStatus | null>;
+  try {
+    statuses = await readCorpusStatuses(
+      orgSlug,
+      rows.map((row) => row.storageRef),
+    );
+  } catch (error) {
+    // A knowledge-db fault must not fail this org's files — defer them.
+    console.warn(
+      `[watchdog] corpus status lookup failed for org ${orgSlug}; deferring ${rows.length} row(s):`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return;
+  }
+
+  // The rows this sweep moved: the document list renders the column, and
+  // without a hint the browser keeps showing whatever state the page was
+  // loaded with.
+  const moved: { id: string }[] = [];
+  let faultsInARow = 0;
+  for (const [index, row] of rows.entries()) {
+    let settled: RagSettle | null;
+    try {
+      settled = await settleRagRow(
+        sql,
+        row,
+        statuses.get(row.storageRef) ?? null,
+        timing,
+      );
+    } catch (error) {
+      // A write that throws — a row lock held past `settleWrite`'s timeout,
+      // a dropped connection — defers its own row to the next tick, and the
+      // rows after it are still tried. Each write commits on its own, so the
+      // rows already settled stay settled and are still told below.
+      console.warn(
+        `[watchdog] rag settle failed for file ${row.id} in org ${orgSlug}; deferring it:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      faultsInARow += 1;
+      if (faultsInARow < RAG_SETTLE_FAULTS_IN_A_ROW) continue;
+      console.warn(
+        `[watchdog] ${faultsInARow} rag settles in a row failed for org ${orgSlug}; deferring its ${rows.length - index - 1} remaining row(s)`,
+      );
+      break;
+    }
+    // A row the rules leave as it is wrote nothing, so it says nothing about
+    // the connection: only a write that went through ends a run of faults.
+    if (settled === null) continue;
+    faultsInARow = 0;
+    moved.push(...settled.moved);
+    if (settled.counts !== null) counts[settled.counts] += settled.moved.length;
+  }
+  if (moved.length === 0) return;
+  try {
+    // A document can bind a file while the corpus is read, or hold its
+    // metadata lock while a settle waits. Read ownership AFTER the writes
+    // in a fresh statement: an UPDATE RETURNING probe could still use the
+    // snapshot from before that bind committed. A later bind emits its
+    // own document hint after these settled statuses are visible.
+    const current = await sql<MovedStatusRow[]>`
+      SELECT fm.org_id AS "orgId",
+             ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+      FROM app.file_metadata fm
+      WHERE fm.org_id = ${orgId} AND fm.id = ANY(${moved.map((row) => row.id)})
+    `;
+    await hintDocumentLists(sql, current);
+  } catch (error) {
+    // The statuses are written; only the refetch nudge is lost. The
+    // organizations after this one are still swept.
+    console.warn(
+      `[watchdog] could not tell org ${orgSlug}'s document lists about ${moved.length} settled row(s):`,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+/**
+ * One candidate against its corpus row: at most one status write, whose
+ * fault is thrown to the caller. Null when the rules leave the row as it is
+ * and nothing was written.
+ */
+async function settleRagRow(
+  sql: Sql,
+  row: RagCandidate,
+  status: CorpusStatus | null,
+  timing: { now: number; staleMs: number },
+): Promise<RagSettle | null> {
+  const { now, staleMs } = timing;
+  if (status?.status === 'completed') {
+    const moved = await settleWrite(
+      sql,
+      (tx) => tx<{ id: string }[]>`
+        UPDATE app.file_metadata SET
+          rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
+          rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
+        WHERE id = ${row.id}
+        RETURNING id
+      `,
+    );
+    return { moved, counts: 'adopted' };
+  }
+  if (status?.status === 'failed') {
+    if (row.ragStatus !== 'failed') {
+      // The corpus knows the REAL error; the generic text stands in only
+      // for none.
+      const moved = await settleWrite(
+        sql,
+        (tx) => tx<{ id: string }[]>`
+          UPDATE app.file_metadata SET
+            rag_status = 'failed',
+            rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
+            status_changed_at_ms = ${now}
+          WHERE id = ${row.id}
+          RETURNING id
+        `,
+      );
+      return { moved, counts: 'failed' };
+    }
+    // Already failed: the corpus's error replaces the row's. Without one the
+    // row keeps its own — a secret scan's refusal records none on the corpus
+    // — and only a row with none either takes the generic text.
+    const error = status.error ?? row.ragError ?? RAG_INTERRUPTED_MESSAGE;
+    // Settled once the row reads that error, and left as it is. Writing it
+    // again moved `status_changed_at_ms`, the clock of the failed window, so
+    // the row never left the window: it was rewritten, and its lists told, on
+    // every tick. Another text is corrected in place — the status has not
+    // changed, so neither does its clock.
+    if (row.ragError === error) return null;
+    const moved = await settleWrite(
+      sql,
+      (tx) => tx<{ id: string }[]>`
+        UPDATE app.file_metadata SET rag_error = ${error}
+        WHERE id = ${row.id} AND rag_status = 'failed'
+        RETURNING id
+      `,
+    );
+    return { moved, counts: null };
+  }
+  if (status?.status === 'processing') {
+    const updatedAt =
+      status.updatedAt === null ? Number.NaN : Date.parse(status.updatedAt);
+    const fresh =
+      Number.isFinite(updatedAt) && Date.now() - updatedAt < staleMs;
+    if (fresh) {
+      // A live chain under a `failed` row is a false failure — flip it
+      // back so the person watches real progress, not a wrong error.
+      if (row.ragStatus !== 'failed') return null;
+      const moved = await settleWrite(
+        sql,
+        (tx) => tx<{ id: string }[]>`
+          UPDATE app.file_metadata SET
+            rag_status = 'running', rag_error = NULL,
+            rag_error_code = NULL, status_changed_at_ms = ${now}
+          WHERE id = ${row.id}
+          RETURNING id
+        `,
+      );
+      return { moved, counts: 'revived' };
+    }
+  }
+  // Stale `processing` or never ingested: the job will not finish. An
+  // already-failed row keeps its own (possibly real) error.
+  if (row.ragStatus === 'failed') return null;
+  const moved = await settleWrite(
+    sql,
+    (tx) => tx<{ id: string }[]>`
+      UPDATE app.file_metadata SET
+        rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
+        status_changed_at_ms = ${now}
+      WHERE id = ${row.id}
+      RETURNING id
+    `,
+  );
+  return { moved, counts: 'failed' };
+}
+
+/**
+ * One settle write, in a transaction of its own that waits at most two
+ * seconds for a lock. The app pool sets no lock timeout, so a row another
+ * transaction held kept the write waiting for as long as that transaction
+ * ran — and the whole sweep with it, every organization after this one
+ * included, until pg-boss expired the job. Past the timeout the write throws
+ * `lock_not_available`, and the caller defers that row alone to the next
+ * tick. Set for this transaction only: every other statement on the pool
+ * keeps waiting as it did.
+ */
+function settleWrite(
+  sql: Sql,
+  write: (tx: TransactionSql) => Promise<{ id: string }[]>,
+): Promise<{ id: string }[]> {
+  return sql.begin(async (tx) => {
+    await tx`SET LOCAL lock_timeout = '2s'`;
+    return write(tx);
+  });
 }

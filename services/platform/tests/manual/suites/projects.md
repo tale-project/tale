@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 52 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 53 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -371,6 +371,14 @@ projects-list row ⋯ menu.
   tab that still shows the agent and clicks **Retry** gets **The assigned
   agent no longer exists…** (`tasks.agentRun.agentMissing`); assigning a
   person or another agent brings the verbs back.
+- [ ] `PROJ-F35` · **New agents start with the document skills** — Agents tab
+  with all four document skills available → **New agent** → open **Skills,
+  connectors & tools** (`projects.agents.equipmentLabel`) → `docx`, `pptx`,
+  `xlsx` and `pdf` are already ticked and no other skill, connector or tool
+  is; untick `pdf`, fill the required fields and create the agent → its row
+  counts three skills, and reopening it shows `pdf` unticked. Editing an
+  existing agent leaves its equipment exactly as saved. (The catalog
+  lifecycle cases are automated: see `reference/automation.md`.)
 
 ## Boundary & error tests
 

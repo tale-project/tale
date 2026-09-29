@@ -9,6 +9,12 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
  * knowledge connection, embedding model, and object-storage connection. Each
  * save/delete invalidates its matching read so the form re-baselines from disk
  * truth.
+ *
+ * The saves, removals and the backfill start report a failure once, through
+ * the page: a section's `save` rethrows it as `mapOrgResidencyError`'s
+ * sentence for the Save cluster's toast, and a removal or the backfill toasts
+ * that sentence itself. Their default toast would report it a second time,
+ * so they opt out.
  */
 
 function useInvalidateOrgObjectStorage(organizationId: string) {
@@ -25,6 +31,7 @@ export function useSaveOrgObjectStorageConnection(organizationId: string) {
   return useBackendAction(
     'object_storage/actions:saveObjectStorageConnection',
     {
+      errorToast: false,
       onSuccess: () => invalidate(),
     },
   );
@@ -35,7 +42,7 @@ export function useDeleteOrgObjectStorageConnection(organizationId: string) {
   const invalidate = useInvalidateOrgObjectStorage(organizationId);
   return useBackendAction(
     'object_storage/actions:deleteObjectStorageConnection',
-    { onSuccess: () => invalidate() },
+    { errorToast: false, onSuccess: () => invalidate() },
   );
 }
 
@@ -52,6 +59,7 @@ export function useTestOrgObjectStorageConnection() {
 export function useStartObjectStorageBackfill() {
   return useBackendAction(
     'object_storage/actions:startObjectStorageBlobBackfill',
+    { errorToast: false },
   );
 }
 
@@ -67,6 +75,7 @@ function useInvalidateOrgKnowledge(organizationId: string) {
 export function useSaveOrgKnowledgeConnection(organizationId: string) {
   const invalidate = useInvalidateOrgKnowledge(organizationId);
   return useBackendAction('knowledge/actions:saveKnowledgeConnection', {
+    errorToast: false,
     onSuccess: () => invalidate(),
   });
 }
@@ -75,6 +84,7 @@ export function useSaveOrgKnowledgeConnection(organizationId: string) {
 export function useDeleteOrgKnowledgeConnection(organizationId: string) {
   const invalidate = useInvalidateOrgKnowledge(organizationId);
   return useBackendAction('knowledge/actions:deleteKnowledgeConnection', {
+    errorToast: false,
     onSuccess: () => invalidate(),
   });
 }
@@ -96,6 +106,7 @@ function useInvalidateOrgEmbedding(organizationId: string) {
 export function useSaveOrgKnowledgeEmbedding(organizationId: string) {
   const invalidate = useInvalidateOrgEmbedding(organizationId);
   return useBackendAction('knowledge/actions:saveKnowledgeEmbedding', {
+    errorToast: false,
     onSuccess: () => invalidate(),
   });
 }
@@ -104,6 +115,7 @@ export function useSaveOrgKnowledgeEmbedding(organizationId: string) {
 export function useDeleteOrgKnowledgeEmbedding(organizationId: string) {
   const invalidate = useInvalidateOrgEmbedding(organizationId);
   return useBackendAction('knowledge/actions:deleteKnowledgeEmbedding', {
+    errorToast: false,
     onSuccess: () => invalidate(),
   });
 }

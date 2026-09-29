@@ -16,8 +16,11 @@ Eine Zuweisung gilt nur in dieser Organisation. Tale protokolliert jede Zuweisun
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Benachrichtigungen exportieren** (`tale:notifications.export`) | Die Benachrichtigungen, die ein anderes Mitglied sieht, über die REST-API lesen, damit eine andere Anwendung sie spiegeln kann.                                                                      |
 | **Für ein anderes Mitglied handeln** (`tale:rest.act-as`)        | Bei einem API-Aufruf das Mitglied nennen, für das eine Frage beantwortet oder eine Prüfung entschieden wird. Zeitleiste der Aufgabe und Audit-Log zeigen dann diese Person statt des API-Schlüssels. |
+| **Skills für die Organisation veröffentlichen** (`tale:skills.publish`) | Einen Skill mit der ganzen Organisation teilen, auch wenn die [Richtlinie zur Skill-Freigabe](/de/platform/admin/governance/policies-and-limits#skill-sharing) das Redakteuren oder Admins vorbehält. |
 
-Inhaber und Admins haben beide über ihre Rolle. Jedes andere Mitglied, zum Beispiel ein Developer-Konto, dessen API-Schlüssel eine Integration verwendet, braucht die Zuweisung hier. Ohne sie beantwortet die REST-API eine solche Anfrage mit `403 ROLE_FORBIDDEN`. Die [API-Referenz](/de/develop/api-reference#das-mitglied-benennen-fuer-das-gehandelt-wird) beschreibt beide Anfragen.
+Inhaber und Admins haben alle drei über ihre Rolle. Jedes andere Mitglied, zum Beispiel ein Developer-Konto, dessen API-Schlüssel eine Integration verwendet, braucht die Zuweisung hier. Ohne sie beantwortet die REST-API einen Export oder einen `actor` mit `403 ROLE_FORBIDDEN`. Die [API-Referenz](/de/develop/api-reference#das-mitglied-benennen-fuer-das-gehandelt-wird) beschreibt beide Anfragen.
+
+**Skills für die Organisation veröffentlichen** zählt nur, solange die Richtlinie zur Skill-Freigabe organisationsweite Skills vorbehält. Bei **Redakteure und höher** haben Redakteure und Entwickler dieses Recht schon über ihre Rolle. Ohne es kann ein Mitglied Skills nur mit seinen eigenen Teams teilen; Skill-Editor, Uploads und REST-API lehnen einen organisationsweiten Skill mit `403 SKILL_PUBLISH_FORBIDDEN` ab.
 
 ## Eine Kompetenz zuweisen
 
@@ -48,6 +51,6 @@ Wer aus der Organisation entfernt wird, verliert jede aktive Zuweisung — Berec
 
 <Tip>
 
-Eine Integration kann ihren eigenen Schlüssel mit `GET /api/v1/me` prüfen: `capabilities.actAs` und `capabilities.notificationExport` sagen, ob der Schlüssel die jeweilige Berechtigung hat.
+Eine Integration kann ihren eigenen Schlüssel mit `GET /api/v1/me` prüfen: `capabilities.actAs`, `capabilities.notificationExport` und `capabilities.skillPublish` sagen, ob der Schlüssel die jeweilige Berechtigung nutzen darf, über seine Rolle oder eine Zuweisung.
 
 </Tip>

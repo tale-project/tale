@@ -28,12 +28,18 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  *
  * A suite that starts reading another file outside the workspace adds it to
  * `turbo.json` and to `OUTSIDE_READS`. The sources of the workspace packages
- * the platform depends on (`@tale/ui`, `@tale/shared`, `@tale/e2e`) are not
- * outside reads in this sense when a suite only imports them: turbo would
- * need a `^` dependency to hash those, which `.agents/repo.md` records as a
- * gap of its own. A suite that reads a package's files as text is an outside
- * read like any other: the accent palette's test reads `@tale/ui`'s
- * stylesheet, and the error-message guard all of `packages/ui/src`.
+ * the platform depends on (`@tale/shared`, `@tale/e2e`) are not outside
+ * reads in this sense when a suite only imports them: turbo would need a `^`
+ * dependency to hash those, which `.agents/repo.md` records as a gap of its
+ * own. A suite that reads a package's files as text is an outside read like
+ * any other: the accent palette's test reads `@tale/ui`'s stylesheet, and
+ * the error-message guard all of `packages/ui/src`.
+ *
+ * `@tale/ui` is the exception to that gap. The component suites (`test:ui`
+ * in jsdom, `test:browser` in Chromium) render its components, stylesheet
+ * and catalogs, and the automation editor's browser suite imports its test
+ * helpers (`@tale/ui/testing/flow`), so a design-system change alone must
+ * re-run them: both hash `packages/ui/src` whole, as `test` does.
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -56,7 +62,8 @@ const OUTSIDE_READS = [
   { path: 'compose.dev.yml', readers: 'scripts/dev-secrets.test.ts' },
   {
     path: 'configs/platform/custom',
-    readers: 'backend/core/provisioning/provision_default_automations.test.ts',
+    readers:
+      'backend/core/provisioning/provision_default_automations.test.ts and lib/shared/config/document-skills-catalog.test.ts',
   },
   {
     path: 'configs/platform/system',
@@ -135,12 +142,12 @@ function run(command: string, args: string[]): string {
   return result.stdout;
 }
 
-/** Repo-relative files turbo hashes for `@tale/platform#test`. */
-function hashedByTest(): Set<string> {
+/** Repo-relative files turbo hashes for `@tale/platform#<name>`. */
+function hashedBy(name: string): Set<string> {
   const stdout = run('bunx', [
     'turbo',
     'run',
-    'test',
+    name,
     '--filter=@tale/platform',
     '--dry=json',
     '--cache=local:,remote:',
@@ -148,8 +155,9 @@ function hashedByTest(): Set<string> {
   const { tasks } = dryRunSchema.parse(
     JSON.parse(stdout.slice(stdout.indexOf('{'))),
   );
-  const task = tasks.find(({ taskId }) => taskId === '@tale/platform#test');
-  if (!task) throw new Error('turbo --dry=json listed no @tale/platform#test');
+  const taskId = `@tale/platform#${name}`;
+  const task = tasks.find((entry) => entry.taskId === taskId);
+  if (!task) throw new Error(`turbo --dry=json listed no ${taskId}`);
   return new Set(
     Object.keys(task.inputs).map((file) =>
       toRepoPath(path.join(REPO_ROOT, task.directory, file)),
@@ -168,7 +176,7 @@ describe('@tale/platform#test turbo inputs', () => {
   let hashed: Set<string>;
 
   beforeAll(() => {
-    hashed = hashedByTest();
+    hashed = hashedBy('test');
   }, 60_000);
 
   it('still hashes its own workspace', () => {
@@ -216,4 +224,33 @@ describe('@tale/platform#test turbo inputs', () => {
       ).toEqual([]);
     });
   }
+});
+
+/** The tasks that run the component suites, which render `@tale/ui`. */
+const COMPONENT_TASKS = ['test:ui', 'test:browser'];
+
+describe.each(COMPONENT_TASKS)('@tale/platform#%s turbo inputs', (name) => {
+  let hashed: Set<string>;
+
+  beforeAll(() => {
+    hashed = hashedBy(name);
+  }, 60_000);
+
+  it('still hashes its own workspace', () => {
+    const self = toRepoPath(fileURLToPath(import.meta.url));
+    expect(
+      hashed.has(self),
+      `@tale/platform#${name} does not hash ${self}`,
+    ).toBe(true);
+  });
+
+  it('hashes packages/ui/src, the design system its suites render', () => {
+    const files = trackedFiles('packages/ui/src');
+    expect(files.length, 'packages/ui/src tracks no file').toBeGreaterThan(0);
+    const missing = files.filter((file) => !hashed.has(file));
+    expect(
+      missing.slice(0, 10),
+      `@tale/platform#${name} renders ${missing.length} @tale/ui file(s) that turbo does not hash — list \`$TURBO_ROOT$/packages/ui/src/**\` in services/platform/turbo.json tasks.${name}.inputs`,
+    ).toEqual([]);
+  });
 });

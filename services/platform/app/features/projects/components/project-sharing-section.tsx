@@ -16,6 +16,7 @@ import {
   useOrgTeams,
   useTeamNames,
 } from '@/app/features/settings/teams/hooks/queries';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -80,7 +81,11 @@ export function ProjectSharingSection({
           }
         }
         console.error('updateProjectSharing failed', error);
-        toast({ title: t('settings.saveError'), variant: 'destructive' });
+        toast({
+          title: t('settings.saveError'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       }
     },
     [projectId, t, updateSharing],

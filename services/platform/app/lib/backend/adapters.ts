@@ -13,6 +13,7 @@
  * branches, `backendErrorCode`, toast fallbacks — behaves exactly as on 0.4.
  */
 
+import { readableErrorMessage } from '@tale/ui/error-message';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { isLapsedSessionAnswer } from '@/app/lib/auth/session-lapse';
@@ -308,22 +309,12 @@ export function backendRefusalDetail(error: unknown): string | undefined {
   return backendRefusalReason(refusal) ?? code;
 }
 
-/** The error types the JavaScript runtime raises itself: a fault in the code
- * or in an answer, never words someone wrote for the person. */
-const RUNTIME_ERRORS = [
-  TypeError,
-  SyntaxError,
-  RangeError,
-  ReferenceError,
-  EvalError,
-  URIError,
-];
-
 /**
  * What a surface puts under its localized title for whatever a call threw:
  * a refusal's own words ({@link backendRefusalDetail}); for a request that
  * got no answer (the browser's "Failed to fetch"), the localized "couldn't
- * reach Tale" sentence; else the message of a plain `Error` the app or a
+ * reach Tale" sentence; else the design system's floor,
+ * `readableErrorMessage`: the message of a plain `Error` the app or a
  * library raised (the auth client's refusal, a translated line a surface
  * threw). Never a structured error's `message`: an `AppError` serializes its
  * whole payload there, for logs. Nor a fault's: a 5xx, or a `TypeError` the
@@ -340,15 +331,20 @@ export function failureDetail(error: unknown): string | undefined {
   if (isTransportFailure(error)) {
     return i18n.t('errors.connectionLost', { ns: 'common' });
   }
-  if (
-    !(error instanceof Error) ||
-    error instanceof BackendApiError ||
-    RUNTIME_ERRORS.some((type) => error instanceof type)
-  ) {
-    return undefined;
-  }
-  if ('data' in error || error.message.length === 0) return undefined;
-  return error.message;
+  if (error instanceof BackendApiError) return undefined;
+  return readableErrorMessage(error);
+}
+
+/**
+ * What a batch surface's one failure toast says under its title
+ * (`BulkDeleteBar` / `BulkArchiveBar`'s `describeFailure`): the first
+ * refusal's words, read through {@link failureDetail}. Each row's own write
+ * stays quiet, so this toast is the batch's only report of why.
+ */
+export function firstFailureDetail(
+  reasons: readonly unknown[],
+): string | undefined {
+  return failureDetail(reasons[0]);
 }
 
 /** Deterministic server answers never retry; transport errors retry 3×. */

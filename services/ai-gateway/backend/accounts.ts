@@ -178,6 +178,18 @@ export interface TokenHandout {
    * the planned refresh — or null when one of them has no known time.
    */
   availableAt: string | null;
+  /**
+   * Why an unavailable account is held back, null while it is available:
+   * `quota` while its quota is spent, `refresh` while only the hand-out
+   * floor holds it. The floor judges "another account can take the work"
+   * by this gateway's view of the pool, which knows nothing of a consumer's
+   * own rules — a cooldown after a rate limit, a vendor account id it
+   * requires. A consumer those rules leave with no available account may
+   * still start work on a `refresh` hold, the latest `refreshAt` first, as
+   * this gateway would itself for a pool with nothing else
+   * (`releaseLastServable`); never on a `quota` hold.
+   */
+  hold: 'quota' | 'refresh' | null;
 }
 
 type Availability = Pick<TokenHandout, 'available' | 'availableAt'>;
@@ -199,9 +211,19 @@ function combineAvailability(...parts: Availability[]): Availability {
   };
 }
 
+/** Which block holds an account back: the quota's, which no consumer may
+ * bypass, before the floor's. */
+function holdOf(
+  quota: Availability,
+  lifetime: Availability,
+): TokenHandout['hold'] {
+  if (!quota.available) return 'quota';
+  return lifetime.available ? null : 'refresh';
+}
+
 /** One account of a hand-out, before the pool settles its floor. */
 interface AssessedHandout {
-  handout: Omit<TokenHandout, 'available' | 'availableAt'>;
+  handout: Omit<TokenHandout, 'available' | 'availableAt' | 'hold'>;
   quota: Availability;
   lifetime: Availability;
   refreshAtMs: number | null;
@@ -1222,7 +1244,9 @@ export function createAccountService(
       );
       releaseLastServable(pool);
       return pool.map(({ handout, quota, lifetime }) =>
-        Object.assign(handout, combineAvailability(quota, lifetime)),
+        Object.assign(handout, combineAvailability(quota, lifetime), {
+          hold: holdOf(quota, lifetime),
+        }),
       );
     },
   };

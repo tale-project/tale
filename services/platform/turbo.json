@@ -18,6 +18,20 @@
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
         "$TURBO_ROOT$/services/sandbox/src/config.ts"
       ]
+    },
+    "test:browser": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/src/**"
+      ]
+    },
+    "test:ui": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/src/**"
+      ]
     }
   }
 }

@@ -13,6 +13,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Plus, X } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -61,7 +62,11 @@ export function TaskDependencies({
       return;
     }
     console.error('[tasks] dependency action failed', error);
-    toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+    toast({
+      title: tCommon('errors.generic'),
+      description: failureDetail(error),
+      variant: 'destructive',
+    });
   };
 
   // Exclude self and anything already linked in either direction — the inverse

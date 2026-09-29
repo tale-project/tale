@@ -1,5 +1,5 @@
 import type { Context, Env } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
@@ -29,6 +29,9 @@ export const SKILL_ERROR_STATUS: Readonly<Record<string, CodedRefusalStatus>> =
     INVALID_SKILL: 400,
     SKILL_PRIVATE_RETIRED: 400,
     SKILL_FORBIDDEN: 403,
+    // The organization-wide audience is reserved by the `skill_sharing`
+    // policy and the caller may not publish (`domains/skills/publish.ts`).
+    SKILL_PUBLISH_FORBIDDEN: 403,
     SKILL_EXISTS: 412,
     SKILL_STALE: 412,
     SKILL_MALFORMED: 422,
@@ -59,7 +62,7 @@ export function skillErrorResponse<E extends Env>(
  * the `AppError` shape the skill doors answer with the statuses above.
  */
 export function assertSkillTeamsAssignable(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   viewer: { organizationId: string; role: string; teamIds: readonly string[] },
 ): (teamIds: string[]) => Promise<void> {
   return async (teamIds) => {

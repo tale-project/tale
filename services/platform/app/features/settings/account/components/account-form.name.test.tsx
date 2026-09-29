@@ -140,6 +140,33 @@ describe('AccountForm name', () => {
     );
   });
 
+  // Enter in the field submits without the Save cluster; the form's own
+  // submit raises the one toast there, the write's own toast staying quiet.
+  it('names why on Enter too, in one toast', async () => {
+    updateUserName.mockRejectedValue(
+      new AppError({
+        code: 'too_long',
+        message: 'Name must be 100 characters or less',
+      }),
+    );
+    const { user } = renderAccountForm();
+    const name = screen.getByRole('textbox', { name: 'Name' });
+
+    await user.clear(name);
+    await user.type(name, 'Mia Rossi');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: 'Save',
+        description:
+          "Couldn't update profile: Name must be 100 characters or less",
+        variant: 'destructive',
+      }),
+    );
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the bare line for a save that got no answer', async () => {
     updateUserName.mockRejectedValue(new TypeError('Failed to fetch'));
     const { user } = renderAccountForm();

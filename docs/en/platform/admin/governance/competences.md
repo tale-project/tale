@@ -16,8 +16,11 @@ A grant applies in this organization only. Tale records every grant and revocati
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Export notifications** (`tale:notifications.export`) | Read the notifications another member can see through the REST API, so another application can mirror them.                                               |
 | **Act for another member** (`tale:rest.act-as`)        | Name the member an API call answers a question or decides a review for. The task timeline and the audit log then show that person instead of the API key. |
+| **Publish skills to the organization** (`tale:skills.publish`) | Share a skill with the whole organization even when the [skill sharing policy](/platform/admin/governance/policies-and-limits#skill-sharing) reserves that for Editors or admins. |
 
-Owners and Admins have both through their role. Any other member, for example a Developer account whose API key an integration uses, needs the capability granted here. Without it, the REST API answers such a request with `403 ROLE_FORBIDDEN`. The [API reference](/develop/api-reference#name-the-member-the-gesture-is-for) describes both requests.
+Owners and Admins have all three through their role. Any other member, for example a Developer account whose API key an integration uses, needs the capability granted here. Without it, the REST API answers an export or an `actor` with `403 ROLE_FORBIDDEN`. The [API reference](/develop/api-reference#name-the-member-the-gesture-is-for) describes both requests.
+
+**Publish skills to the organization** matters only while the skill sharing policy reserves organization-wide skills. Under **Editors and above**, Editors and Developers already have it through their role. Without it, a member can share skills with their own teams only, and the skill editor, uploads, and the REST API refuse an organization-wide skill with `403 SKILL_PUBLISH_FORBIDDEN`.
 
 ## Grant a competence
 
@@ -48,6 +51,6 @@ Removing a member revokes every active grant they hold — capabilities and qual
 
 <Tip>
 
-An integration can check its own key with `GET /api/v1/me`: `capabilities.actAs` and `capabilities.notificationExport` say whether the key holds each capability.
+An integration can check its own key with `GET /api/v1/me`: `capabilities.actAs`, `capabilities.notificationExport`, and `capabilities.skillPublish` say whether the key may use each capability, through its role or a grant.
 
 </Tip>

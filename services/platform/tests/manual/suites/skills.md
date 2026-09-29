@@ -1,9 +1,10 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 29 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
-assets) any chat or agent can read. Covers the settings table with its facets,
+assets) that project agents and automation agent nodes are equipped with; chat
+does not use them. Covers the settings table with its facets,
 authoring a blank skill, uploading a bundle (zip/folder), visibility scopes
 (org/team; private is retired), the detail pane with its bundle tree and asset
 viewer, edit/delete, and equipping a skill on a project agent. Supersedes the
@@ -37,16 +38,23 @@ builtin skill from `configs/platform/custom/skills/`.
 > `/settings/skills`, and reopening the row — never by the toast. For uploads
 > through the Playwright MCP, copy the zip into `.playwright-mcp/` first
 > (SETUP.md conventions). A fresh mode-A org seeds no skills — the empty state
-> (`emptyStates.skills.title`) is correct, not a defect; its click opens the
-> create pane directly.
+> (`emptyStates.skills.title`) is correct, not a defect; **Add skill > Blank
+> skill** (`skills.addMenu.label` / `skills.createMenu.blank`) opens the create
+> pane.
 
 ## Functional tests
 
 - [ ] `SKILL-F1` · **Table renders** — `/dashboard/{org}/settings/skills` →
   Under the section description (`skills.sectionDescription`) the table
-  renders columns **Name / Description / Visibility / Usage / Labels**
+  renders columns **Name / Description / Created by / Visibility / Labels**
   (`skills.columns.*`); search (`skills.searchPlaceholder`) narrows by slug,
   description, **and** label text; a fresh org shows the empty state
+  (`emptyStates.skills.title`) whose description
+  (`emptyStates.skills.description`) points at project agents and automation
+  agent nodes — never at chat, which does not use skills. **Add skill > Blank
+  skill** (`skills.addMenu.label` / `skills.createMenu.blank`) opens the create
+  pane by pointer or keyboard.
+  description, label text **and** creator name; a fresh org shows the empty state
   (`emptyStates.skills.title`) whose click opens the create pane.
 - [ ] `SKILL-F2` · **Facets** — Open the table filter → **Visibility**
   (`skills.library.scopeFilterLabel`) and **Filter by label**
@@ -133,17 +141,17 @@ builtin skill from `configs/platform/custom/skills/`.
   back.
 - [ ] `SKILL-F11` · **Delete a skill** — Detail pane of a throwaway skill →
   **Delete skill** (`skills.deleteSkill`) → confirm → The confirm
-  (`skills.deleteConfirmation`) names the slug and warns equipped chats/agents
-  lose access; on confirm toast `skills.skillDeleted` and after reload the row
-  is gone.
+  (`skills.deleteConfirmation`) names the slug and warns that every equipped
+  agent is unequipped; on confirm toast `skills.skillDeleted` and after reload
+  the row is gone.
 - [ ] `SKILL-F12` · **Equip on a project agent** —
   `/dashboard/{org}/projects/{projectId}/agents` → open an agent's dialog →
   under **Equipment** (`projects.agents.equipmentLabel`) open the skills menu
   (`chat.skills.label`) → The menu groups **Skills**
   (`chat.skills.sectionSkills`) and **Connectors**
-  (`chat.skills.sectionConnectors`); org-visible skills are listed (an
-  **Agents only**/**Chat and agents** skill appears, a **Chat only** one does
-  not); with none the empty line reads `chat.skills.emptySkills`; the trigger
+  (`chat.skills.sectionConnectors`); the org-visible skills and the
+  team-visible skills shared with one of the project's teams are listed; with
+  none the empty line reads `chat.skills.emptySkills`; the trigger
   shows the count (`chat.skills.labelWithCount`) and the selection survives
   reopening the dialog. Agent depth is [projects.md](projects.md)'s job.
 - [ ] `SKILL-F13` · **Deleting an equipped skill unequips it** — Create a
@@ -157,6 +165,68 @@ builtin skill from `configs/platform/custom/skills/`.
   skill that is merely unshared from the project's scope instead shows in
   the dialog's skills menu as **"<slug>" (unavailable)**
   (`chat.skills.unavailableOption`), checked, so it can be unticked.
+- [ ] `SKILL-F15` · **Agent picks a skill by its description** — Create a
+  skill `invoice-check` whose description reads "Use when a task asks to
+  check an invoice" and whose body asks for totals, VAT and due date under
+  the heading "Invoice skill review". Equip it together with `docx` on a
+  project agent, then create a task "Is the attached invoice correct?" with
+  a synthetic invoice attached and **no skill named** → The turn reads
+  `invoice-check/SKILL.md` and the report uses its unique heading and checks.
+  Repeat on a fresh task with `disable-model-invocation: true` in the skill
+  file: it is not used unless the task names it. Then name the skill in
+  another task and verify that its instructions are followed again.
+- [ ] `SKILL-F16` · **Created by** — As member A create a blank skill; keep a
+  seeded builtin (`docx`) in view; remove a member B who created a skill from
+  the organization (Settings → Members) → The table's **Created by** column
+  (`skills.columns.createdBy`) reads A's name on A's skill, **Built-in**
+  (`skills.attribution.builtin`) on `docx`, **Former member**
+  (`skills.attribution.formerMember`) on B's skill — never a raw user id —
+  and a skill a managed configuration release installed reads
+  **Configuration release · <installing member>**
+  (`skills.attribution.releaseBy`); a zip A uploads whose `SKILL.md`
+  frontmatter carries the release marker (`tale-release` under `metadata`)
+  reads **Configuration release · <A's name>**,
+  never the bare label; searching A's name keeps only A's skills; the skill
+  dialog's **Created by** row (`skills.attribution.createdBy`) says the
+  same; every cell of the row still fits the page at 1280 px in English,
+  German and French.
+- [ ] `SKILL-F17` · **Last edited by** — Open the skill A just created; then,
+  as an admin C, change its description and save; then edit its `SKILL.md`
+  on disk (`$TALE_CONFIG_DIR/<org>/skills/<slug>/SKILL.md`) and reload → A
+  skill nobody has edited since creating it shows no **Last edited by** row
+  (`skills.attribution.lastEditedBy`); after C's save the row names C, in
+  the dialog and on `GET /api/v1/skills/<slug>` (`updatedByName`); after
+  the out-of-band edit the row is gone again while **Created by** still
+  names A.
+- [ ] `SKILL-F18` · **Creator in the agent skill picker** —
+  `/dashboard/{org}/projects/{projectId}/agents` → open an agent's dialog →
+  open the skills menu (`chat.skills.label`), then an automation agent node's
+  skills menu → Under every skill row a caption names its creator: **By
+  <name>** (`skills.attribution.byMember`), **By a former member**
+  (`skills.attribution.byFormerMember`), **Built-in** or **Configuration
+  release · <installing member>**; connector and tool rows carry no such caption; the caption is
+  part of the row's accessible name and toggling a row still works by
+  keyboard.
+- [ ] `SKILL-F19` · **Skill writes in the audit log** — As an admin: create a
+  skill, edit its body, switch it from Organization to a team, save it again
+  unchanged, replace it by a zip upload that keeps its sharing, then install
+  an automation package that carries a new skill → Settings → Governance →
+  Logs, category **Skill**, lists in order **Skill created**, **Skill
+  updated**, **Skill updated** + **Skill sharing changed**, (nothing for the
+  unchanged save), **Skill updated**, **Skill created**
+  (`settings.logs.audit.actionLabels.skill.created` / `…skill.updated` /
+  `…skill.sharing_changed`), each naming the acting member; a row's details
+  show its changed fields, the sharing row the visibility and teams before
+  and after, and the metadata the door (`app`, `upload`,
+  `automation_package`) and the resulting `etag`.
+- [ ] `SKILL-F20` · **Create asks for the audience** — In an organization
+  without a skill sharing policy, **Add skill** → **Blank skill** → The
+  create dialog shows **Visibility** (`skills.visibility.label`) under the
+  description with **Organization** (`skills.visibility.org`) preselected;
+  picking **Teams** (`skills.visibility.team`) keeps **Create** off until a
+  team is picked; a skill created with a team reads that team's badge in the
+  table after reload, and one created with Organization reads
+  **Organization**.
 
 ## Boundary & error tests
 
@@ -183,6 +253,44 @@ builtin skill from `configs/platform/custom/skills/`.
   `skills.createDialog.namePatternError` and Create stays blocked; the same
   caps are enforced server-side (`convex/skills/bundle_zip.ts`), so a bypassed
   client still cannot persist a bad bundle.
+- [ ] `SKILL-B4` · **Uploads cannot borrow a name or a team** — As a Member in
+  team T1 only, upload a zip whose `SKILL.md` says `owner: <another member's
+  id>` → the new skill lists you as its owner. Upload one that says
+  `visibility: team` with the id of a team T2 you are not in (or an id that
+  does not exist) → the upload is refused because you cannot share with that
+  team, and no skill is written. As a Developer, upload an automation package
+  carrying the same two skills → the same outcomes; re-uploading an unchanged
+  package reports its skills as unchanged, with no overwrite prompt.
+- [ ] `SKILL-B5` · **A reserved organization-wide audience** — As an admin,
+  set Settings → Governance → Policies & Limits → **Skill sharing**
+  (`governance.skillSharing.title`) to **Owners and admins only**
+  (`governance.skillSharing.modes.admins`) while a Member in team T1 owns an
+  organization-wide skill; then, as that Member: open **Blank skill**; open
+  the owned skill and edit its body; switch it to **Teams** → T1 and save;
+  delete it; upload a zip without `visibility:` → The create dialog preselects
+  **Teams**, its **Organization** option is disabled with the reason
+  (`skills.publishing.reserved.admins`), and a T1 skill creates; the owned
+  skill still reads **Organization** (tightening narrowed nothing), its
+  dialog shows the notice (`skills.publishing.lockedEdit`) and **Save** stays
+  off until it is narrowed, after which it saves; delete works; the upload
+  preview shows the reason with `skills.publishing.uploadRefused` and
+  **Upload bundle** stays off. `PUT /api/v1/skills/{slug}` with the Member's
+  key and no `visibility` answers 403 `SKILL_PUBLISH_FORBIDDEN`, and
+  Governance → Logs lists **Skill publishing refused**
+  (`settings.logs.audit.actionLabels.skill.publish_denied`) as denied.
+  Restore **Every member** afterwards.
+- [ ] `SKILL-B6` · **Who may publish anyway** — With **Editors and above**
+  (`governance.skillSharing.modes.editors`) set: an Editor creates an
+  organization-wide skill; a Member cannot (the reason reads
+  `skills.publishing.reserved.editors`) until an admin grants them **Publish
+  skills to the organization**
+  (`governance.competences.capabilities.skillsPublish.label`) under
+  Governance → Competences, after which a reload offers **Organization** and
+  the create succeeds; `GET /api/v1/me` reports `skillPublish` among its
+  capabilities as `false`, then `true`; revoking the grant refuses the next organization-wide
+  save again. Under **Owners and admins only**, a Developer's automation
+  package carrying a skill without `visibility:` is refused with 403
+  `SKILL_PUBLISH_FORBIDDEN` and installs nothing. Restore **Every member**.
 
 ## Accessibility (WCAG 2.1 AA)
 

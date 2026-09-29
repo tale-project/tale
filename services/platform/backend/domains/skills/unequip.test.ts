@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import type { Sql, TransactionSql } from 'postgres';
+import type { TransactionSql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 const { createAuditLog, detachSkillFromAgents } = vi.hoisted(() => ({
@@ -14,10 +14,6 @@ import { unequipDeletedSkill } from './unequip.ts';
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
 const tx = {} as TransactionSql;
-const sql = {
-  begin: (run: (handle: TransactionSql) => Promise<unknown>) => run(tx),
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `begin` is exercised
-} as unknown as Sql;
 
 describe('unequipDeletedSkill', () => {
   it('detaches the slug from every agent in one transaction and audits the delete with them', async () => {
@@ -26,7 +22,7 @@ describe('unequipDeletedSkill', () => {
     ]);
 
     await expect(
-      unequipDeletedSkill(sql, {
+      unequipDeletedSkill(tx, {
         organizationId: 'org_1',
         slug: 'gone-skill',
         actor: { id: 'user-1', email: 'ada@example.com' },
@@ -61,7 +57,7 @@ describe('unequipDeletedSkill', () => {
   it('still audits a delete that touched no agent', async () => {
     detachSkillFromAgents.mockResolvedValueOnce([]);
     await expect(
-      unequipDeletedSkill(sql, {
+      unequipDeletedSkill(tx, {
         organizationId: 'org_1',
         slug: 'lonely',
         actor: { id: 'user-1' },

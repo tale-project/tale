@@ -7,7 +7,7 @@ Use **Settings > Governance > Guardrails** as an Admin or Owner to control how c
 
 <Frame caption="Governance > Guardrails — the three filter-layer status cards (content safety, PII detection, moderation provider) above the recent-events log.">
 
-![The Guardrails governance page showing three status cards — Content safety off, PII detection off, and the Moderation provider not configured — above a recent-events feed reporting no events yet and the organization's custom instructions.](/images/platform/governance-guardrails.webp)
+![The Guardrails governance page showing three status cards — Content safety on with two categories for input and output, PII detection on in mask mode, and the Moderation provider not configured — above a recent-events feed reporting no events yet and the organization's custom instructions.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 
@@ -45,7 +45,7 @@ Decide what should happen if the provider is unavailable: fail-open allows the m
 
 ## Set organization instructions
 
-**Custom instructions** adds organization instructions ahead of agent instructions. Members cannot edit this organization policy. Use it for shared behavior and terminology; use access rules and filters for restrictions that must be enforced independently of a model following prose instructions.
+**Custom instructions** adds organization instructions ahead of the chat assistant's instructions and ahead of every agent's own: project agents working tasks and agent nodes in automations. Members cannot edit this organization policy. Use it for shared behavior and terminology; use access rules and filters for restrictions that must be enforced independently of a model following prose instructions.
 
 ## Review and tune
 

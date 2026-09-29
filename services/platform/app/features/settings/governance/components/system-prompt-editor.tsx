@@ -86,7 +86,7 @@ export function SystemPromptEditor({
     organizationId,
     'system_prompt',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   const schema = useMemo(
     () =>

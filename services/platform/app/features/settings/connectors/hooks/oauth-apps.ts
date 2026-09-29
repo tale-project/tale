@@ -44,9 +44,12 @@ export function useUpsertConnectorOauthApp() {
 }
 
 /** Copy the Enterprise SSO Entra registration into the org's app — the
- * secret moves server-side and never enters the browser. */
+ * secret moves server-side and never enters the browser. The card's reuse
+ * dialog toasts a refusal itself, so the default toast stays quiet. */
 export function useReuseSsoOauthApp() {
-  return useBackendAction('connector_oauth_apps/actions:reuseSso');
+  return useBackendAction('connector_oauth_apps/actions:reuseSso', {
+    errorToast: false,
+  });
 }
 
 /** Drop the org's app — resolution falls back to the deployment env. */

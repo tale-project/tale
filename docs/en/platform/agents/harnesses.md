@@ -51,6 +51,8 @@ Tale’s connector broker keeps ordinary connector credentials at the platform a
 
 Outbound access normally permits package installation and repository cloning while blocking private addresses and cloud metadata targets. Operators can restrict permitted hosts further. If a command cannot reach a site, check the network policy instead of assuming the credential is wrong.
 
+Tale’s built-in document skills `docx`, `pptx`, `xlsx` and `pdf` find the libraries they call already installed in the sandbox, so an agent equipped with them creates and reads Word, PowerPoint, Excel and PDF files even where package installation is blocked. Their instructions still include install commands such as `npm install -g docx`; where the registry is blocked, that step fails while the preinstalled library stays available. Text recognition (OCR) for scanned PDFs is not included.
+
 ## Check the result
 
 The runtime determines when its turn is finished; Tale collects the report and output. Read both before marking the task complete. Confirm which checks actually ran and which depend on services unavailable in the sandbox. [Task automation](/platform/projects/task-automation) explains the review loop; [execution logs](/platform/automations/execution-logs) explains an automation’s agent-step result.

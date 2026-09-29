@@ -9,6 +9,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Bot, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProjectAgent } from '../hooks/mutations';
@@ -90,7 +91,7 @@ export function ProjectAgentsTab({
 
   if (!project) return projectLoading ? <ProjectAgentsSkeleton /> : null;
 
-  const skills = catalogQuery.data?.skills ?? [];
+  const skills = catalogQuery.data?.skills;
   const connectors = catalogQuery.data?.connectors ?? [];
   const canEdit = project.canEdit;
 
@@ -112,7 +113,11 @@ export function ProjectAgentsTab({
       setDeleting(undefined);
     } catch (error) {
       console.error('deleteProjectAgent failed', error);
-      toast({ title: t('agents.deleteError'), variant: 'destructive' });
+      toast({
+        title: t('agents.deleteError'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     } finally {
       setIsDeleting(false);
     }

@@ -9,6 +9,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Archive, ArchiveRestore, Copy, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -71,7 +72,11 @@ export function ProjectRowActions({
         }
       }
       console.error('duplicateProject failed', error);
-      toast({ title: t('rowActions.duplicateError'), variant: 'destructive' });
+      toast({
+        title: t('rowActions.duplicateError'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     } finally {
       setIsDuplicating(false);
     }

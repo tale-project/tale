@@ -5,12 +5,14 @@
  * (`trigger-failures.ts`): exactly the codes the next occurrence would
  * repeat. A transient code that counted would pause every schedule through
  * a provider's rate limit or outage; a permanent one that did not would let
- * a broken schedule fire forever (#3092).
+ * a broken schedule fire forever (#3092). Also locks which run code an
+ * agent step's own failure code reports as.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import {
+  agentFailureCodeOf,
   isPermanentFailureCode,
   PERMANENT_FAILURE_CODES,
   PERMANENT_FAILURES_BEFORE_PAUSE,
@@ -56,6 +58,39 @@ describe('isPermanentFailureCode', () => {
     for (const code of PERMANENT_FAILURE_CODES) {
       expect(RUN_FAILURE_CODES).toContain(code);
     }
+  });
+});
+
+describe('agentFailureCodeOf', () => {
+  it.each([
+    'harness_error',
+    'turn_crashed',
+    'session_gone',
+    'start_failed',
+    'resume_failed',
+    'deadline',
+    'budget_exceeded',
+  ])('keeps the agent code %s on the wire', (code) => {
+    expect(agentFailureCodeOf(code)).toBe(code);
+  });
+
+  it('reports a retry-only code as the code it refines, so the OpenAPI enum does not move', () => {
+    // Every account of the broker was cooling down: the turn never started,
+    // as `start_failed` said before the code was told apart.
+    expect(agentFailureCodeOf('credential_cooldown')).toBe('start_failed');
+    // The broker refreshed the account under the turn: a harness error, as
+    // it was before.
+    expect(agentFailureCodeOf('credential_rotated')).toBe('harness_error');
+    expect(RUN_FAILURE_CODES).not.toContain('credential_cooldown');
+    expect(RUN_FAILURE_CODES).not.toContain('credential_rotated');
+  });
+
+  it('files anything else, or nothing, under the harness', () => {
+    expect(agentFailureCodeOf(undefined)).toBe('harness_error');
+    expect(agentFailureCodeOf(null)).toBe('harness_error');
+    expect(agentFailureCodeOf('something_new')).toBe('harness_error');
+    // Not an own key of the alias table either.
+    expect(agentFailureCodeOf('toString')).toBe('harness_error');
   });
 });
 

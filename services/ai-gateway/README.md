@@ -16,7 +16,7 @@ one that serves the whole pool.
 | | |
 | --- | --- |
 | **One endpoint per vendor** | `GET /api/tokens/anthropic` and `GET /api/tokens/openai` answer with that vendor's access tokens, identities and quota availability; `GET /api/tokens` serves the whole pool |
-| **Compatible token fields** | Keeps cc-gateway's `id`, `label`, `account_email`, `status`, `access_token`, `expires_at` and `scopes`, adding metadata for selection — `refresh_at` among it — without changing those names |
+| **Compatible token fields** | Keeps cc-gateway's `id`, `label`, `account_email`, `status`, `access_token`, `expires_at` and `scopes`, adding metadata for selection — `refresh_at` and `hold` among it — without changing those names |
 | **Two providers, one shape** | Anthropic and OpenAI differ in their OAuth callback, their identity claims and their usage payload; the panel and the endpoint do not |
 | **Connects on its own** | A ChatGPT account connects through OpenAI's device sign-in, and a Claude account — when the panel is opened on localhost — through a redirect straight back to the gateway; there is no code to carry back |
 | **Token refresh** | Each account's token is refreshed on a schedule of its own, spread across the pool and spaced out per vendor, with a shared-expiry exception; while another account can take new work, one whose planned refresh (`refresh_at`) is closer than the hand-out floor waits for it; transient failures pause retries, and refused refresh grants require a new sign-in |
@@ -113,6 +113,7 @@ curl localhost:3004/api/tokens/openai    -H "Authorization: Bearer $AI_GATEWAY_A
       "scopes": "org:create_api_key user:profile user:inference",
       "available": true,
       "available_at": null,
+      "hold": null,
       "usage": {
         "checked_at": "2026-09-26T10:00:00Z",
         "limited": null,
@@ -146,7 +147,8 @@ token's usable life. It is null when the vendor stated no expiry.
 Both endpoint shapes include `provider`. A caller should require the expected
 vendor, an `active` status, and `available: true` before selecting a
 credential; `refresh_at` reports its planned refresh, which may be deferred by vendor spacing. The gateway
-reports the pool; the consumer owns distribution between its eligible entries.
+reports the pool; the consumer owns distribution between its eligible entries,
+and the fallback described below when its own rules leave it none.
 
 `available` says whether the account may take new work — its quota, and the
 hand-out floor below — independently of credential status. A session or
@@ -171,7 +173,15 @@ it, and the lifetime restriction ends once the refresh lands; quota restrictions
 account can take the work, the held-back account with the latest `refresh_at`
 is served as available anyway, so a pool of one account is never held back: a
 turn that a refresh may cut can still recover on a fresh token instead of a
-pool that refuses all work. When a due refresh keeps failing, the token may still
+pool that refuses all work. The gateway judges "another account can take the
+work" by its own view of the pool, which knows nothing of a consumer's rules —
+a cooldown after a rate limit, a vendor account id it requires. So an account
+held back only by the floor says `hold: "refresh"`, and a consumer those rules
+leave with no available account may start work on it anyway, the latest
+`refresh_at` first, as the gateway would itself; an account with
+`hold: "quota"` has no quota left for it. `hold` names which block holds an
+unavailable account back — `quota` when both do — and is null while the
+account is available. When a due refresh keeps failing, the token may still
 work but its end cannot be promised; the account is held back like one
 inside its floor, with `available_at: null`. A token whose whole planned life
 is shorter than the floor is handed out until its planned refresh is due, since

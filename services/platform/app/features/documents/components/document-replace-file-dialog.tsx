@@ -23,7 +23,6 @@ import {
   DOCUMENT_UPLOAD_ACCEPT,
   extractExtension,
   isRagIndexableFile,
-  resolveFileType,
 } from '@/lib/shared/file-types';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentRecordInfo } from '@/types/documents';
@@ -354,12 +353,7 @@ function DocumentReplaceFileDialogContent({
             bytesLoaded={trackedFile.bytesLoaded}
             bytesTotal={trackedFile.bytesTotal}
             error={trackedFile.error}
-            notIndexable={
-              !isRagIndexableFile(
-                trackedFile.file.name,
-                resolveFileType(trackedFile.file.name, trackedFile.file.type),
-              )
-            }
+            notIndexable={!isRagIndexableFile(trackedFile.file.name)}
             onRetry={
               isUploading || isBlocked || trackedFile.retryable === false
                 ? undefined

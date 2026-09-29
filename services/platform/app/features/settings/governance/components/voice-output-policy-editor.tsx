@@ -42,7 +42,7 @@ export function VoiceOutputPolicyEditor({
     organizationId,
     'voice_output',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   // Derived straight from the query: the optimistic update flips it the instant
   // the switch is toggled and Convex rolls it back on failure, so no local
@@ -52,20 +52,20 @@ export function VoiceOutputPolicyEditor({
   const cannotManage = ability.cannot('write', 'orgSettings');
 
   const handleToggleEnabled = (checked: boolean) => {
-    upsertMutation.mutate(
-      {
+    void upsertMutation
+      .mutateAsync({
         organizationId,
         policyType: 'voice_output',
         config: { enabled: checked },
-      },
-      {
-        onSuccess: () =>
+      })
+      .then(
+        () =>
           toast({
             title: t('toastSavedTitle'),
             description: t('voiceOutput.saved'),
             variant: 'success',
           }),
-        onError: (error) =>
+        (error: unknown) =>
           toast({
             title: t('toastSaveFailedTitle'),
             description: mapGovernanceSaveError(
@@ -75,8 +75,7 @@ export function VoiceOutputPolicyEditor({
             ),
             variant: 'destructive',
           }),
-      },
-    );
+      );
   };
 
   return (

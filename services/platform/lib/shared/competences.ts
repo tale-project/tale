@@ -26,6 +26,11 @@ export const PLATFORM_CAPABILITIES = [
    * (`actor` on a run's ask answer and a task's review decision —
    * `rest/actor.ts`), so a relayed gesture carries the person, not the key. */
   'tale:rest.act-as',
+  /** Give a skill an organization-wide audience whatever the
+   * organization's `skill_sharing` policy reserves it for — create one,
+   * widen one, change one in place (`backend/core/lib/audience.ts`
+   * `mayChooseOrgWideAudience`). */
+  'tale:skills.publish',
 ] as const;
 
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];

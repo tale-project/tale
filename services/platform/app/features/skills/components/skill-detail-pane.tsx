@@ -11,14 +11,21 @@ import { toast } from '@tale/ui/use-toast';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useSkillAttribution } from '@/app/components/skills/use-skill-attribution';
 import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteSkill, useSaveSkill } from '../hooks/mutations';
+import {
+  isSkillPublishRefusal,
+  useDeleteSkill,
+  useSaveSkill,
+} from '../hooks/mutations';
 import { useSkill } from '../hooks/queries';
+import { useOrgReservedReason } from '../hooks/use-org-reserved-reason';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import {
@@ -53,10 +60,12 @@ export function SkillDetailPane({
 }) {
   const { t } = useT('skills');
   const { t: tCommon } = useT('common');
+  const attribution = useSkillAttribution();
 
   const skillQuery = useSkill(organizationId, slug);
   const skill = skillQuery.data ?? null;
-  const saveSkill = useSaveSkill();
+  const orgReservedReason = useOrgReservedReason(organizationId);
+  const saveSkill = useSaveSkill({ errorToast: false });
   const deleteSkill = useDeleteSkill();
 
   const [selectedPath, setSelectedPath] = useState('SKILL.md');
@@ -103,12 +112,22 @@ export function SkillDetailPane({
     form !== null &&
     form.metadata.sharing.visibility === 'team' &&
     form.metadata.sharing.teams.length === 0;
+  // The organization reserves organization-wide skills and this viewer may
+  // not publish: a save that ends shared with the whole organization —
+  // an edit in place, or a widening — would be refused. Narrowing to their
+  // teams (with any other change in the same save) and deleting stay open.
+  const orgWideReserved =
+    orgReservedReason !== undefined &&
+    form !== null &&
+    form.metadata.sharing.visibility === 'org';
+  const lockedInPlace =
+    canEdit && orgReservedReason !== undefined && skill?.visibility === 'org';
 
   const files = skill?.files ?? [];
   const assets = files.filter((file) => file.path !== 'SKILL.md');
 
   const save = async () => {
-    if (!form || !skill || !canEdit || teamsMissing) return;
+    if (!form || !skill || !canEdit || teamsMissing || orgWideReserved) return;
     try {
       await saveSkill.mutateAsync({
         organizationId,
@@ -128,7 +147,15 @@ export function SkillDetailPane({
       toast({ title: t('editor.saved'), variant: 'success' });
     } catch (error) {
       console.error('Failed to save skill', error);
-      toast({ title: t('editor.saveFailed'), variant: 'destructive' });
+      toast({
+        title: t('editor.saveFailed'),
+        // A refused audience in the viewer's language, any other refusal
+        // in the door's words.
+        description: isSkillPublishRefusal(error)
+          ? t('publishing.refused')
+          : failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -139,7 +166,11 @@ export function SkillDetailPane({
       onDeleted();
     } catch (error) {
       console.error('Failed to delete skill', error);
-      toast({ title: t('skillDeleteFailed'), variant: 'destructive' });
+      toast({
+        title: t('skillDeleteFailed'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -164,6 +195,8 @@ export function SkillDetailPane({
   const savedSharing: SkillSharingValue | undefined = savedForm
     ? savedForm.metadata.sharing
     : undefined;
+  const createdBy = attribution.createdBy(skill);
+  const lastEditedBy = attribution.lastEditedBy(skill);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -182,13 +215,31 @@ export function SkillDetailPane({
           {selectedPath === 'SKILL.md' ? (
             <Stack gap={4}>
               {!canEdit && <Alert variant="info" description={t('readOnly')} />}
+              {lockedInPlace && (
+                <Alert
+                  variant="info"
+                  title={orgReservedReason}
+                  description={t('publishing.lockedEdit')}
+                />
+              )}
               {form && (
                 <SettingsFieldList className="w-full max-w-3xl">
+                  <SettingsFieldRow label={t('attribution.createdBy')}>
+                    <p className="text-muted-foreground text-sm">{createdBy}</p>
+                  </SettingsFieldRow>
+                  {lastEditedBy !== null && (
+                    <SettingsFieldRow label={t('attribution.lastEditedBy')}>
+                      <p className="text-muted-foreground text-sm">
+                        {lastEditedBy}
+                      </p>
+                    </SettingsFieldRow>
+                  )}
                   <SkillMetadataFields
                     values={form.metadata}
                     savedSharing={savedSharing}
                     onChange={(metadata) => setForm({ ...form, metadata })}
                     disabled={!canEdit}
+                    orgReservedReason={orgReservedReason}
                   />
                   <SettingsFieldRow
                     layout="stack"
@@ -235,7 +286,7 @@ export function SkillDetailPane({
           {canEdit && (
             <Button
               onClick={() => void save()}
-              disabled={!dirty || teamsMissing}
+              disabled={!dirty || teamsMissing || orgWideReserved}
               isLoading={saveSkill.isPending}
             >
               {tCommon('actions.save')}

@@ -1,5 +1,9 @@
 // @vitest-environment node
 
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
@@ -291,6 +295,7 @@ describe('GET /me capabilities', () => {
       developer: true,
       notificationExport: true,
       actAs: true,
+      skillPublish: true,
     });
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = 'someone-else@example.com';
     expect((await me()).capabilities).toEqual({
@@ -298,6 +303,7 @@ describe('GET /me capabilities', () => {
       developer: true,
       notificationExport: true,
       actAs: true,
+      skillPublish: true,
     });
   });
 
@@ -309,6 +315,7 @@ describe('GET /me capabilities', () => {
       developer: true,
       notificationExport: true,
       actAs: true,
+      skillPublish: true,
     });
   });
 });
@@ -356,6 +363,70 @@ describe('GET /me notificationExport', () => {
     expect((await meAs('member', [later])).exportable).toBe(true);
     const expired = { expiresAt: Date.now() - 1, revokedAt: null };
     expect((await meAs('developer', [expired])).exportable).toBe(false);
+  });
+});
+
+/**
+ * `GET /me` answers the skill write doors' organization-wide gate as
+ * `capabilities.skillPublish` — the organization's `skill_sharing` policy
+ * file, the role, and a live `tale:skills.publish` grant — so a sync learns
+ * before its first `PUT /skills/{slug}` whether an organization-wide skill
+ * would be refused.
+ */
+describe('GET /me skillPublish', () => {
+  let configDir: string;
+  let savedConfigDir: string | undefined;
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configDir = await mkdtemp(path.join(tmpdir(), 'tale-me-skill-publish-'));
+    process.env.TALE_CONFIG_DIR = configDir;
+  });
+  afterEach(async () => {
+    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = savedConfigDir;
+    await rm(configDir, { recursive: true, force: true });
+  });
+
+  const setPolicy = async (orgWide: string) => {
+    const dir = path.join(configDir, 'acme', 'governance');
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, 'skill-sharing.yml'),
+      `orgWide: ${orgWide}\n`,
+    );
+  };
+  const meAs = async (role: string, grants: object[]) => {
+    const { sql, queries } = fakeSql(
+      [{ organizationId: 'org-1', role, name: 'Acme', slug: 'acme' }],
+      (text) =>
+        text.includes('FROM app.competence_records')
+          ? grants
+          : answerKeyRow(keyRow())(text),
+    );
+    const res = await mount(sql, 'key-1', role).request('http://localhost/me');
+    expect(res.status).toBe(200);
+    const body: { capabilities: { skillPublish: boolean } } = await res.json();
+    return { publish: body.capabilities.skillPublish, queries };
+  };
+  const live = { expiresAt: null, revokedAt: null };
+
+  it('is true for every member while the organization has no policy', async () => {
+    expect((await meAs('member', [])).publish).toBe(true);
+  });
+
+  it('follows the role under a restricted mode, and a live grant beyond it', async () => {
+    await setPolicy('editors');
+    expect((await meAs('editor', [])).publish).toBe(true);
+    expect((await meAs('member', [])).publish).toBe(false);
+    await setPolicy('admins');
+    expect((await meAs('developer', [])).publish).toBe(false);
+    const { publish, queries } = await meAs('developer', [live]);
+    expect(publish).toBe(true);
+    expect(
+      queries
+        .filter((q) => q.text.includes('FROM app.competence_records'))
+        .map((q) => q.values),
+    ).toContainEqual(['org-1', 'user-1', 'tale:skills.publish']);
   });
 });
 

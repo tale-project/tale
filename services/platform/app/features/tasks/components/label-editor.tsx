@@ -8,6 +8,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import {
   TASK_LABEL_CHARS_MAX,
   TASK_LABELS_MAX,
@@ -97,6 +98,7 @@ export function LabelEditor({
     }
     toast({
       title: t('labels.errors.createFailed'),
+      description: failureDetail(error),
       variant: 'destructive',
     });
   };

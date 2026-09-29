@@ -18,7 +18,7 @@ Assistant names can include supporting work such as chat-title generation. A req
 
 ## Read cost alongside tokens
 
-The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice or image generation may have different billing units. A token total alone cannot explain every cost.
+The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice output may have different billing units. A token total alone cannot explain every cost.
 
 Treat the displayed cost as recorded application usage, not an invoice from your provider. Provider pricing, subscriptions, credits, and unmetered calls can affect how it compares with the bill. A displayed zero does not prove that a provider charged nothing.
 

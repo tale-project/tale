@@ -39,6 +39,9 @@ node_modules/
 
 # Bun is the package manager — ignore other package managers' lockfiles
 package-lock.json
+# except the sandbox runtime's document-skill libraries, which the image
+# installs with the npm that ships with its Node (`npm ci` needs this lock)
+!services/sandbox-runtime/document-node/package-lock.json
 
 # ---------------------------------------------------------------------------
 # Build output

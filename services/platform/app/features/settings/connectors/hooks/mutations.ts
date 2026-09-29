@@ -16,12 +16,16 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /** Create one credential for a connector. */
 export function useCreateCredential() {
-  return useBackendAction('connector_credentials/actions:createCredential');
+  return useBackendAction('connector_credentials/actions:createCredential', {
+    errorToast: false,
+  });
 }
 
 /** Patch one credential: label, endpoint, status, or its secret. */
 export function useUpdateCredential() {
-  return useBackendAction('connector_credentials/actions:updateCredential');
+  return useBackendAction('connector_credentials/actions:updateCredential', {
+    errorToast: false,
+  });
 }
 
 /** Delete one credential. */

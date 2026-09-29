@@ -9,6 +9,7 @@ import type { PlatformCapability } from '@/lib/shared/competences';
 const CAPABILITY_MESSAGE_KEYS: Record<PlatformCapability, string> = {
   'tale:notifications.export': 'notificationsExport',
   'tale:rest.act-as': 'restActAs',
+  'tale:skills.publish': 'skillsPublish',
 };
 
 export function capabilityMessageKey(capability: PlatformCapability): string {

@@ -5,11 +5,18 @@ export function useSetMemberPassword() {
 }
 
 export function useCreateMember() {
-  return useBackendMutation('users/mutations:createMember');
+  // The add dialog reports a failure itself: a member already there or a
+  // missing password under its field, anything else in its own toast.
+  return useBackendMutation('users/mutations:createMember', {
+    errorToast: false,
+  });
 }
 
-export function useRemoveMember() {
-  return useBackendMutation('members/mutations:removeMember');
+/** The members table's bulk remove passes `errorToast: false`: its
+ * `BulkDeleteBar` raises one toast for the batch, with the first refusal's
+ * words. The single-member remove dialog keeps the default toast. */
+export function useRemoveMember(options?: { errorToast?: false }) {
+  return useBackendMutation('members/mutations:removeMember', options);
 }
 
 export function useUpdateMemberRole() {

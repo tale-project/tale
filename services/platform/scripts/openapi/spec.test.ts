@@ -1331,6 +1331,10 @@ describe('skill views validate against the published Skill schemas', () => {
     description: 'Word documents',
     visibility: 'org',
     owner: 'user-1',
+    origin: 'member',
+    ownerName: 'Ada Lovelace',
+    updatedBy: 'user-2',
+    updatedByName: 'Grace Hopper',
     icon: 'lucide:file-text',
     labels: ['office'],
     disableModelInvocation: false,
@@ -1355,6 +1359,23 @@ describe('skill views validate against the published Skill schemas', () => {
     expect(validate(document), JSON.stringify(validate.errors)).toBe(true);
     expect(validate({ ...document, canEdit: undefined })).toBe(false);
     expect(validate({ ...document, stray: true })).toBe(false);
+  });
+
+  it('a skill with no recorded creator carries its origin and no names', () => {
+    const validate = responseValidator('/api/v1/skills/{slug}', 'get', '200');
+    const {
+      owner: _owner,
+      ownerName: _ownerName,
+      updatedBy: _updatedBy,
+      updatedByName: _updatedByName,
+      ...builtin
+    } = document;
+    expect(
+      validate({ ...builtin, origin: 'builtin' }),
+      JSON.stringify(validate.errors),
+    ).toBe(true);
+    expect(validate({ ...builtin, origin: undefined })).toBe(false);
+    expect(validate({ ...builtin, origin: 'vendor' })).toBe(false);
   });
 });
 
