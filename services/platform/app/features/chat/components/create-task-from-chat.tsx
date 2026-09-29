@@ -19,9 +19,14 @@ import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 import { TaskModal } from '@/app/features/tasks/components/task-modal';
+import { chatMessagesQuery } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 
-import { useChatMessages, useChatProjects } from '../data/chat-backend';
+import {
+  useChatMessages,
+  useChatProjects,
+  useChatQueryClient,
+} from '../data/chat-backend';
 import { chatTaskDraft } from '../lib/chat-task-draft';
 
 /** Long enough to read the toast and reach its action. */
@@ -77,11 +82,14 @@ export function CreateTaskFromChat({
   );
   const targetProjectId = homeProjectId ?? chosenProjectId;
 
+  // The draft is taken from a conversation that was actually read: the form
+  // keeps what it opened with, so a read that failed must not open it with
+  // the request and files missing. A chat with no messages is still a read.
   const draft = useMemo(() => {
-    if (messages.status === 'loading') return undefined;
+    if (messages.status !== 'ready') return undefined;
     return chatTaskDraft({
       title: threadTitle,
-      messages: messages.status === 'ready' ? messages.data : [],
+      messages: messages.data,
       chatUrl: `${window.location.origin}/dashboard/${organizationId}/chat/${threadId}`,
       linkLabel: {
         titled: (title) => t('createTask.fromChat', { title }),
@@ -90,6 +98,24 @@ export function CreateTaskFromChat({
       includeAttachments: viewerIsOwner,
     });
   }, [messages, threadTitle, organizationId, threadId, viewerIsOwner, t]);
+
+  const queryClient = useChatQueryClient();
+  const [retrying, setRetrying] = useState(false);
+  const retryRead = async () => {
+    setRetrying(true);
+    try {
+      await queryClient.refetchQueries({
+        queryKey: chatMessagesQuery(organizationId, viewThreadId).queryKey,
+      });
+    } catch (error) {
+      console.warn(
+        '[chat] re-reading the conversation for a task failed',
+        error,
+      );
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const close = () => {
     onOpenChange(false);
@@ -123,7 +149,29 @@ export function CreateTaskFromChat({
     });
   };
 
-  if (!open || projects.status === 'loading' || draft === undefined) {
+  if (!open) return null;
+
+  if (messages.status === 'unavailable') {
+    return (
+      <FormDialog
+        open
+        onOpenChange={(next) => {
+          if (!next) close();
+        }}
+        title={t('createTask.projectTitle')}
+        submitText={t('tryAgain')}
+        isSubmitting={retrying}
+        isValid
+        onSubmit={() => void retryRead()}
+      >
+        <Text variant="muted" className="text-sm" role="alert">
+          {t('createTask.readFailed')}
+        </Text>
+      </FormDialog>
+    );
+  }
+
+  if (projects.status === 'loading' || draft === undefined) {
     return null;
   }
 

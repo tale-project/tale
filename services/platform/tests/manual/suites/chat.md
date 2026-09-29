@@ -170,6 +170,10 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   with the file under **Attachments**; **Start agent** stages it for the run.
   A chat filed in a project skips the project step; opened by a reader of
   someone else's project-shared chat, the dialog starts without their files.
+  With `*/chat/threads/*/messages` blocked in DevTools, the flow opens no task
+  form: it says the conversation couldn't be read
+  (`chat.createTask.readFailed`) and offers **Try again** (`chat.tryAgain`);
+  unblock → **Try again** opens the form with the request and files.
 - [ ] `CHAT-F21` · **Share link** — **Share** (`chat.share.button`) → dialog
   **Share chat** (`chat.share.title`) → under **Who can view this chat**
   (`chat.share.accessPickerLabel`) pick **Share with organization**

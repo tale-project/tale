@@ -1053,6 +1053,7 @@ chat:
     created: Task created in {project}
     openTask: Open task
     openTaskAltText: Open the task you just created on its project's board
+    readFailed: Tale couldn't read this conversation, so the task can't carry your request and files yet. Try again, or create the task on the project's board.
   export:
     button: Export
     title: Export chat

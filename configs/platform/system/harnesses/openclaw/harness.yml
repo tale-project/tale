@@ -136,6 +136,9 @@ exec:
                 bridgeEnv:
                   TALE_CONNECTORS_URL: '${bridgeUrl}'
                   TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+                # OpenClaw gives up on an MCP call after 60 s and ignores
+                # progress reports; an image generation takes minutes.
+                bridgeCallTimeout: { field: requestTimeoutMs, unit: ms }
       - instructions: { key: system_prompt }
   env:
     # Session-relative OpenClaw state dir under HOME (/agent/.runtime/home).
