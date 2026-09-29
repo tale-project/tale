@@ -3,7 +3,7 @@
 > **Prefix** `SKILL-` · **Reset** none · **Cost** 20 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
-assets) that project agents and automation agent steps are equipped with; chat
+assets) that project agents and automation agent nodes are equipped with; chat
 does not use them. Covers the settings table with its facets,
 authoring a blank skill, uploading a bundle (zip/folder), visibility scopes
 (org/team; private is retired), the detail pane with its bundle tree and asset
@@ -51,7 +51,7 @@ builtin skill from `configs/platform/custom/skills/`.
   description, **and** label text; a fresh org shows the empty state
   (`emptyStates.skills.title`) whose description
   (`emptyStates.skills.description`) points at project agents and automation
-  agent steps — never at chat, which does not use skills. **Add skill > Blank
+  agent nodes — never at chat, which does not use skills. **Add skill > Blank
   skill** (`skills.addMenu.label` / `skills.createMenu.blank`) opens the create
   pane by pointer or keyboard.
 - [ ] `SKILL-F2` · **Facets** — Open the table filter → **Visibility**
@@ -139,17 +139,17 @@ builtin skill from `configs/platform/custom/skills/`.
   back.
 - [ ] `SKILL-F11` · **Delete a skill** — Detail pane of a throwaway skill →
   **Delete skill** (`skills.deleteSkill`) → confirm → The confirm
-  (`skills.deleteConfirmation`) names the slug and warns equipped chats/agents
-  lose access; on confirm toast `skills.skillDeleted` and after reload the row
-  is gone.
+  (`skills.deleteConfirmation`) names the slug and warns that every equipped
+  agent is unequipped; on confirm toast `skills.skillDeleted` and after reload
+  the row is gone.
 - [ ] `SKILL-F12` · **Equip on a project agent** —
   `/dashboard/{org}/projects/{projectId}/agents` → open an agent's dialog →
   under **Equipment** (`projects.agents.equipmentLabel`) open the skills menu
   (`chat.skills.label`) → The menu groups **Skills**
   (`chat.skills.sectionSkills`) and **Connectors**
-  (`chat.skills.sectionConnectors`); org-visible skills are listed (an
-  **Agents only**/**Chat and agents** skill appears, a **Chat only** one does
-  not); with none the empty line reads `chat.skills.emptySkills`; the trigger
+  (`chat.skills.sectionConnectors`); the org-visible skills and the
+  team-visible skills shared with one of the project's teams are listed; with
+  none the empty line reads `chat.skills.emptySkills`; the trigger
   shows the count (`chat.skills.labelWithCount`) and the selection survives
   reopening the dialog. Agent depth is [projects.md](projects.md)'s job.
 - [ ] `SKILL-F13` · **Deleting an equipped skill unequips it** — Create a
