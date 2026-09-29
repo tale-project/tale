@@ -147,9 +147,9 @@ beforeEach(() => {
 
 describe('TaskModal — a member works their own task', () => {
   it.each([
-    ['created', { createdBy: 'u-member' }],
-    ['is assigned to', { assigneeType: 'user', assigneeId: 'u-member' }],
-  ])('edits a task they %s', async (_how, owner) => {
+    ['they created', { createdBy: 'u-member' }],
+    ['assigned to them', { assigneeType: 'user', assigneeId: 'u-member' }],
+  ])('edits a task %s', async (_how, owner) => {
     openTask({ ...baseTask, ...owner });
 
     expect(
