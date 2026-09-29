@@ -4,7 +4,10 @@ import { parseRunStarter } from '../run-starter.ts';
 // owning the call. The governance/usage aggregation buckets each kind under
 // its own sentinel so the Top Assistants table renders precise labels
 // instead of collapsing everything into a single fallback.
-const DIRECT_API_SLUG = '__direct_api__';
+// `__direct_api__` also names the model endpoints for API keys: a request
+// relayed through `/api/v1/openai` or `/api/v1/anthropic` has no assistant,
+// so it books under this sentinel, beside the person and the key.
+export const DIRECT_API_AGENT_SLUG = '__direct_api__';
 const CONNECTOR_SLUG = '__connector__';
 export const TRANSCRIPTION_SLUG = '__transcription__';
 export const TTS_SLUG = '__tts__';
@@ -108,12 +111,12 @@ export function bucketAgentSlug(
     case 'transcription':
       return TRANSCRIPTION_SLUG;
     case 'llm':
-      return DIRECT_API_SLUG;
+      return DIRECT_API_AGENT_SLUG;
   }
 }
 
 export function isDirectApiSlug(slug: string): boolean {
-  return slug === DIRECT_API_SLUG;
+  return slug === DIRECT_API_AGENT_SLUG;
 }
 
 export function isConnectorSlug(slug: string): boolean {

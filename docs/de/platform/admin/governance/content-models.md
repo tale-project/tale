@@ -31,6 +31,17 @@ Bei Chats wird der Zugriff bei der Modellnutzung geprüft, auch bei ausdrücklic
 Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktionieren, ein gesperrtes für das betroffene Mitglied abgelehnt werden. Ein Test nur als Admin belegt keine rollenspezifische Regel.
 </Tip>
 
+### API-Schlüsseln die Modelle der Organisation öffnen {#model-endpoints}
+
+Mit **Modell-Endpunkte für API-Schlüssel** nutzen Personen die Modelle, die diese Richtlinie erlaubt, aus ihren eigenen Tools, etwa opencode, Claude Code oder Skripten mit den SDKs von OpenAI oder Anthropic, mit einem persönlichen API-Schlüssel über OpenAI- und Anthropic-kompatible Endpunkte. Standardmäßig ist das ausgeschaltet. Aktiviere den Schalter **Modell-Endpunkte für API-Schlüssel**; die Änderung wird sofort gespeichert.
+
+- **Wer aufrufen darf.** Inhaber, Admins und Entwickler über ihre Rolle. Jedes andere Mitglied nur mit der Kompetenz **Modelle über die API aufrufen**, die du unter [Kompetenzen](/de/platform/admin/governance/competences) zuweist.
+- **Welche Modelle.** Die Chatmodelle, die deine Anbieter-Zugangsdaten mit API-Schlüssel oder Umgebungsvariable bereitstellen, eingeschränkt durch die erlaubten Modelle der jeweiligen Zugangsdaten. Die Zugriffsregeln oben gelten für jeden Aufruf, und zwar für die Person, deren Schlüssel ihn gesendet hat. Der Schalter wirkt unabhängig von **Modellzugriffsrichtlinie aktivieren**: Ist diese Richtlinie aus, grenzen nur die erlaubten Modelle der Zugangsdaten die Liste ein.
+- **Was jeder Aufruf durchläuft.** Die Budgets unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) und die Eingabe-Guardrails unter [Guardrails](/de/platform/admin/governance/guardrails#model-endpoints). Die Antworten der Modelle werden nicht gefiltert.
+- **Wo er erscheint.** Jeder Aufruf wird unter der Person und dem Schlüssel verbucht, in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) als **Direkter API-Aufruf**.
+
+Schaltest du den Schalter aus, lehnt Tale den nächsten Aufruf mit `403 MODEL_API_DISABLED` ab. [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor#model-endpoints) zeigt Mitgliedern, wie sie ihre Tools verbinden.
+
 ## Das Modell zum Lesen von Bildern wählen
 
 Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell das Bild für den Agenten beschreibt. Kann das eigene Agentenmodell Bilder lesen, liest es sie selbst; das Vision-Modell bedient weiterhin die Bildwerkzeuge, die Skripte und Coding-Agenten in ihrer Sandbox aufrufen, etwa die Stapeltranskription gescannter Seiten. Jeder verwaltete Agent erhält deshalb eines, sobald ein erreichbares Modell existiert.

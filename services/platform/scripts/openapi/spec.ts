@@ -1240,7 +1240,10 @@ export function buildSpec(): Json {
         '`skillPublish` — whether a `PUT /api/v1/skills/{slug}` that shares ' +
         'a skill with the whole organization would, under the ' +
         'organization’s skill sharing policy, by role or through a ' +
-        '`tale:skills.publish` grant). ' +
+        '`tale:skills.publish` grant; `modelApi` — whether the compatible ' +
+        'model endpoints would serve the key holder, the organization having ' +
+        'turned them on and the role or a `tale:models.api` grant admitting ' +
+        'them). ' +
         '`key` names the API key that made the request — its `name` and ' +
         'its `expiresAt` (epoch ms, `null` for a key minted to never ' +
         'expire) — so an unattended caller can rotate before the 401. ' +
@@ -6393,6 +6396,302 @@ export function buildSpec(): Json {
     },
   };
 
+  // ── Compatible model endpoints ────────────────────────────────────────────
+
+  /** A refusal on a compatible model endpoint, in its wire's own shape. */
+  const wireError =
+    (schema: 'OpenAiError' | 'AnthropicError') =>
+    (description: string): Json => ({
+      description,
+      content: { 'application/json': { schema: ref(schema) } },
+    });
+  /** The refusals a compatible model endpoint answers, every one in its
+   * wire's shape — the REST door's own among them. */
+  const modelEndpointErrors = (
+    schema: 'OpenAiError' | 'AnthropicError',
+    relays: boolean,
+  ): Record<string, Json> => {
+    const refusal = wireError(schema);
+    return {
+      ...(relays
+        ? {
+            '400': refusal(
+              'A body the endpoint cannot relay: not JSON, a missing `model` or `messages` (`max_tokens` on Anthropic), a role or content part outside the wire’s own, an image URL that is neither `data:` nor `https:`, a file stored in the vendor account (`file_id`, a `file` source), more than 8 answers (`n`), a service tier other than `auto`/`default` (OpenAI) or `auto`/`standard_only` (Anthropic), audio output, `store: true` (`INVALID_BODY`, `param` naming the field); a `context-1m` beta in `anthropic-beta` (`INVALID_HEADER`); a tool the vendor would run (`MODEL_API_VENDOR_TOOL_UNSUPPORTED`); images for a model without vision (`MODEL_API_VISION_UNSUPPORTED`); tools for a model that takes none (`MODEL_API_TOOLS_UNSUPPORTED`); text the organization’s input guardrails block, or would mask in a name (`MODEL_API_GUARDRAIL_BLOCKED`); or the vendor refused the request itself (`MODEL_API_UPSTREAM_ERROR`, its message relayed unless it names the platform’s internal addresses)',
+            ),
+          }
+        : {}),
+      '401': refusal(
+        'Missing or invalid API key (`UNAUTHORIZED`) — the key rides `Authorization: Bearer <key>`; a request carrying `x-api-key` (where `ANTHROPIC_API_KEY` puts it) is refused whatever else it carries',
+      ),
+      '403': refusal(
+        'The organization has not turned the model endpoints on (`MODEL_API_DISABLED`); the key holder is neither owner, administrator nor developer and holds no `tale:models.api` grant (`MODEL_API_FORBIDDEN`)' +
+          (relays
+            ? '; the organization’s model access refuses the model (`MODEL_API_MODEL_FORBIDDEN`); or its PII policy tokenizes, a round trip a relayed answer cannot make (`MODEL_API_GUARDRAIL_UNSUPPORTED`)'
+            : ''),
+      ),
+      '404': refusal(
+        relays
+          ? 'No model this key holder may call carries the id (`MODEL_API_MODEL_UNKNOWN`); or the path is not one of the wire’s (`NOT_FOUND`)'
+          : 'The path is not one of the wire’s (`NOT_FOUND`)',
+      ),
+      '405': refusal(
+        'The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves',
+      ),
+      ...(relays
+        ? {
+            '413': refusal(
+              'The body exceeds 32 MiB (`BODY_TOO_LARGE`), the Anthropic Messages API’s own request limit; or, while the organization’s input guardrails are on, it carries more than 2 MB of text, more than 20,000 separate texts, or more new text than the guardrails read in one request (`MODEL_API_TEXT_TOO_LARGE`)',
+            ),
+          }
+        : {}),
+      '429': refusal(
+        relays
+          ? 'A budget cap that binds the key holder, one of their teams, the organization or the key is reached, or leaves less than the request’s worst case — its prompt plus its output cap, once per answer — in which case the message names the output cap that would fit (`BUDGET_EXCEEDED`, `Retry-After` naming when its period resets and `x-should-retry: false`); the key holder or the key already has 8 requests running in the organization (`MODEL_API_CONCURRENCY_EXCEEDED`, `Retry-After`); the key holder’s request budget is spent (`RATE_LIMITED`); or the vendor’s rate limit (`MODEL_API_UPSTREAM_ERROR`)'
+          : 'The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds',
+      ),
+      '500': refusal(
+        'Internal error (`INTERNAL_ERROR`); the answer carries the request id to quote',
+      ),
+      ...(relays
+        ? {
+            '502': refusal(
+              'The model gateway could not be reached, the vendor failed, or its stream broke off before the answer was complete (`MODEL_API_UPSTREAM_ERROR`); a whole answer that outlived the gateway’s request timeout answers 504 with the same code',
+            ),
+          }
+        : {}),
+      '503': refusal(
+        relays
+          ? 'The model gateway cannot serve the model right now, the provider credential cannot be used, or the model access policy cannot be read (`MODEL_API_UNAVAILABLE`, `Retry-After`); a fail-closed input guardrail could not judge the request, or a guardrail policy cannot be read (`MODEL_API_GUARDRAIL_UNAVAILABLE`); or the vendor is overloaded (`MODEL_API_UPSTREAM_ERROR`)'
+          : 'The model access policy cannot be read right now (`MODEL_API_UNAVAILABLE`, `Retry-After`)',
+      ),
+    };
+  };
+  const relayedAnswer = (
+    description: string,
+    answer: string,
+    events: string,
+  ): Json => ({
+    description,
+    content: {
+      'application/json': {
+        schema: { type: 'object', description: answer },
+      },
+      'text/event-stream': {
+        schema: { type: 'string', description: events },
+      },
+    },
+  });
+
+  paths['/api/v1/openai/chat/completions'] = {
+    post: {
+      tags: ['Model endpoints'],
+      summary: 'Create a chat completion (OpenAI-compatible)',
+      description:
+        'OpenAI Chat Completions, relayed to the organization’s provider ' +
+        'through the platform’s model gateway. An OpenAI SDK, opencode ' +
+        '(`@ai-sdk/openai-compatible`) or any OpenAI-compatible client takes ' +
+        'the base URL `https://<host>/api/v1/openai` and appends this path. ' +
+        '`model` is an id `GET /api/v1/openai/models` lists: ' +
+        '`<provider>/<model>`, the connector’s slug and the model’s id in its ' +
+        'catalog (`openrouter/anthropic/claude-sonnet-4.6`). The body is ' +
+        'OpenAI’s own and is relayed as sent, bar what the platform governs: ' +
+        '`stream: true` answers `text/event-stream` chunks ending in ' +
+        '`data: [DONE]` (the closing usage chunk only when ' +
+        '`stream_options.include_usage` asks for it); `tools` are the ' +
+        'caller’s own (`function`, `custom`) and come back as `tool_calls`; ' +
+        'images ride `image_url` parts (`data:` or `https:`) for a model with ' +
+        'vision; documents ride `file` parts (inline). The organization’s ' +
+        'input guardrails judge every text the caller wrote first — every ' +
+        'role, tool calls and results, tool definitions, a prediction, a ' +
+        'response schema — a block refuses the request, a mask rewrites the ' +
+        'text the model receives; the answer itself is not filtered. The ' +
+        'request’s worst case (its prompt plus its output cap, once per ' +
+        'answer; the catalog maximum is sent as `max_completion_tokens` when ' +
+        'the request names no cap) is held whole against every budget that ' +
+        'binds the key holder and the key before the call, and the spend is ' +
+        'booked after it under the person and the key (usage shows it as ' +
+        'Direct API). The answer is the vendor’s, `model` ' +
+        'naming the id the request sent; a vendor refusal is relayed in ' +
+        'this shape as `MODEL_API_UPSTREAM_ERROR`. Query parameters are ' +
+        'ignored.',
+      operationId: 'createOpenAiChatCompletion',
+      security: sec,
+      requestBody: jsonBody({
+        type: 'object',
+        description:
+          'An OpenAI Chat Completions request — relayed as sent, bar the gateway’s own `fallbacks`, which is dropped',
+        required: ['model', 'messages'],
+        properties: {
+          model: {
+            ...str,
+            description:
+              'A model id `GET /api/v1/openai/models` lists (`<provider>/<model>`)',
+          },
+          messages: {
+            type: 'array',
+            minItems: 1,
+            description:
+              'The conversation: `system`, `developer`, `user`, `assistant`, `tool` (and the older `function`) messages; user content is text, `image_url` and `file` parts',
+            items: { type: 'object' },
+          },
+          stream: {
+            ...bool,
+            description: 'Answer as a `text/event-stream` of chunks',
+          },
+          tools: {
+            type: 'array',
+            description:
+              'The caller’s own tools (`function`, `custom`); the model asks for them in `tool_calls`',
+            items: { type: 'object' },
+          },
+        },
+      }),
+      responses: {
+        '200': relayedAnswer(
+          'The completion — or, with `stream: true`, its chunks',
+          'A `chat.completion` object as OpenAI defines it, `model` the id the request named, `usage` as the vendor reported it',
+          'Server-Sent Events: one `data:` line per `chat.completion.chunk`, `data: [DONE]` last; a stream the vendor breaks off ends with a `data:` line carrying an `OpenAiError`',
+        ),
+        ...modelEndpointErrors('OpenAiError', true),
+      },
+    },
+  };
+
+  paths['/api/v1/openai/models'] = {
+    get: {
+      tags: ['Model endpoints'],
+      summary: 'List the models the key can call (OpenAI-compatible)',
+      description:
+        'The models this key holder may call through the compatible model ' +
+        'endpoints, in OpenAI’s list shape — the complete set, never ' +
+        'paginated: the organization’s configured chat models whose ' +
+        'provider serves them with a direct credential (an API key or an ' +
+        'environment variable), narrowed by each credential’s model ' +
+        'allowlist and by the key holder’s model access. `id` is what ' +
+        '`model` takes on both wires; `owned_by` is the provider’s slug; ' +
+        '`created` is 0 — the catalog records no release date. Context ' +
+        'windows, capabilities and prices are on `GET /api/v1/models`.',
+      operationId: 'listOpenAiModels',
+      security: sec,
+      responses: {
+        '200': jsonResponse('The models', {
+          type: 'object',
+          [PAGINATION]: 'none',
+          required: ['data', 'object'],
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['id', 'object', 'created', 'owned_by'],
+                properties: {
+                  id: {
+                    ...str,
+                    description:
+                      '`<provider>/<model>` — what `model` takes on both wires',
+                  },
+                  object: { type: 'string', enum: ['model'] },
+                  created: {
+                    type: 'integer',
+                    description:
+                      'Always 0 — the catalog records no release date',
+                  },
+                  owned_by: {
+                    ...str,
+                    description: 'The provider’s slug',
+                  },
+                },
+              },
+            },
+            object: { type: 'string', enum: ['list'] },
+          },
+        }),
+        ...modelEndpointErrors('OpenAiError', false),
+      },
+    },
+  };
+
+  paths['/api/v1/anthropic/v1/messages'] = {
+    post: {
+      tags: ['Model endpoints'],
+      summary: 'Create a message (Anthropic-compatible)',
+      description:
+        'Anthropic Messages, relayed to the organization’s provider through ' +
+        'the platform’s model gateway. Claude Code and the Anthropic SDKs ' +
+        'take the base URL `https://<host>/api/v1/anthropic` ' +
+        '(`ANTHROPIC_BASE_URL`) and append `/v1/messages`; the key rides as ' +
+        'a bearer token — `ANTHROPIC_AUTH_TOKEN` for Claude Code, ' +
+        '`authToken`/`auth_token` for an SDK — with `ANTHROPIC_API_KEY` ' +
+        'unset, since the `x-api-key` it sends is refused. A ' +
+        'multi-organization key names the organization in ' +
+        '`X-Organization-Slug` (Claude Code: `ANTHROPIC_CUSTOM_HEADERS`). ' +
+        '`model` is an id `GET /api/v1/openai/models` lists; a provider that ' +
+        'declares a native Anthropic endpoint is served through it, any ' +
+        'other through the gateway’s translation. The body is Anthropic’s ' +
+        'own and is relayed as sent, with `anthropic-version` and ' +
+        '`anthropic-beta`; query parameters (the SDKs’ `beta=true`) are ' +
+        'ignored. `max_tokens` is required; `stream: true` answers the ' +
+        'Messages event stream. Images ride `image` blocks (base64 or an ' +
+        '`https:` URL, in a tool result too) for a model with vision; ' +
+        'documents ride `document` blocks; the caller’s own tools — plain ' +
+        'ones and Anthropic’s client tools (`bash`, `text_editor`, ' +
+        '`computer`, `memory`) — are relayed, a tool the vendor would run ' +
+        '(web search, web fetch, code execution) and `mcp_servers` are not. ' +
+        'The organization’s input guardrails judge the system prompt and ' +
+        'the user text first; the answer is not filtered. The spend is held ' +
+        'and booked as on the OpenAI endpoint. `count_tokens` and the other ' +
+        'Messages routes are not served.',
+      operationId: 'createAnthropicMessage',
+      security: sec,
+      requestBody: jsonBody({
+        type: 'object',
+        description:
+          'An Anthropic Messages request — relayed as sent, bar the gateway’s own `fallbacks`, which is dropped',
+        required: ['model', 'messages', 'max_tokens'],
+        properties: {
+          model: {
+            ...str,
+            description:
+              'A model id `GET /api/v1/openai/models` lists (`<provider>/<model>`)',
+          },
+          max_tokens: {
+            type: 'integer',
+            minimum: 1,
+            description: 'The most output tokens the answer may take',
+          },
+          messages: {
+            type: 'array',
+            minItems: 1,
+            description:
+              '`user` and `assistant` turns; user content is `text`, `image`, `document`, `tool_result` and `search_result` blocks',
+            items: { type: 'object' },
+          },
+          system: {
+            description: 'The system prompt: a string or `text` blocks',
+          },
+          stream: {
+            ...bool,
+            description: 'Answer as the Messages event stream',
+          },
+          tools: {
+            type: 'array',
+            description:
+              'The caller’s own tools; the model asks for them in `tool_use` blocks',
+            items: { type: 'object' },
+          },
+        },
+      }),
+      responses: {
+        '200': relayedAnswer(
+          'The message — or, with `stream: true`, its events',
+          'A `message` object as Anthropic defines it, `model` the id the request named, `usage` as the vendor reported it',
+          'Server-Sent Events as Anthropic defines them (`message_start`, `content_block_*`, `message_delta`, `message_stop`, `ping`); a stream the vendor breaks off ends with an `error` event carrying an `AnthropicError`',
+        ),
+        ...modelEndpointErrors('AnthropicError', true),
+      },
+    },
+  };
+
   // ── Inbound automation webhook ────────────────────────────────────────────
 
   for (const projectScoped of [false, true]) {
@@ -6719,7 +7018,9 @@ string). Every body schema is strict — an unknown key answers 400
 \`INVALID_BODY\` naming it, and a key given twice keeps its last value — and
 so is every query string: a parameter a
 route does not take, one given twice, or a named filter left blank answers
-400 \`INVALID_QUERY\`, and writes take no query parameters at all. An
+400 \`INVALID_QUERY\`, and writes take no query parameters at all. The
+compatible model endpoints are the exception — see below: they relay the
+vendors' own bodies (a NUL included) and ignore query parameters. An
 out-of-range number is handled by where it travels: a query parameter
 (\`limit\`) is clamped into its range, while a body field (a search
 \`limit\`, \`maxOutputTokens\`) is refused with 400 \`INVALID_BODY\` naming it.
@@ -6744,7 +7045,8 @@ body together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408
 \`REQUEST_TIMEOUT\` in the envelope (with a fresh \`requestId\`) and the
 connection closes. Every answer is JSON whatever \`Accept\` says — \`application/xml\`,
 \`text/plain\`, even \`application/json;q=0\` — there is no 406: the surface has
-one representation. Bodies are read as JSON whatever Content-Type says; there is no
+one representation (a compatible model endpoint asked for \`stream: true\`
+answers \`text/event-stream\`). Bodies are read as JSON whatever Content-Type says; there is no
 415. Every served path answers HEAD (for a GET, with the \`Content-Length\`
 the uncompressed GET would carry — a HEAD is never compressed) and OPTIONS
 (204 with \`Allow\`, no key needed); a
@@ -6782,7 +7084,9 @@ header: only the platform knows the contract it implements.
 ## Errors
 
 Non-2xx responses carry a flat envelope: \`{"error": "<sentence>", "code":
-"<CODE>"}\`. Every refusal carries a stable \`code\` — the \`Error.code\` enum
+"<CODE>"}\` — except on the compatible model endpoints, which answer every
+refusal, the door's own included, in their vendor wire's shape with the same
+\`code\` (see below). Every refusal carries a stable \`code\` — the \`Error.code\` enum
 below, additive, so treat a value you do not know as a generic refusal of
 the status you got. A 429 carries a sentence in \`error\` like every other
 refusal, with the wait in \`data.retryAfterMs\` (milliseconds) and
@@ -6837,7 +7141,8 @@ loop from the document rather than from this prose:
   the operation names), never a cursor walk — no \`isDone\`, no cursor, no
   \`cursor\` or \`limit\` parameter: \`{automations}\`, \`{agents}\`,
   \`{skills}\`, \`{folders}\`, \`{models}\`, \`{sessions}\`, \`{versions}\`,
-  \`{triggers}\`, \`{teams}\`; search answers \`{hits, diagnostics}\`.
+  \`{triggers}\`, \`{teams}\`; search answers \`{hits, diagnostics}\`; the
+  OpenAI-compatible model list answers \`{data, object}\` in OpenAI's shape.
 
 Every cursor is an opaque signed token: one this list never answered is
 refused with 400 \`INVALID_CURSOR\`, never read as the first page — and a
@@ -6855,7 +7160,56 @@ its own (240/min, burst 300). A key that fails to authenticate is throttled
 per source IP instead (20/min, burst 40), so strangers never draw from a key
 holder's budget; the inbound webhook door, which carries no key, is budgeted
 per sender address (120/min, burst 240) and per trigger (20/min, burst 40).
-A 429 carries \`Retry-After\` in whole seconds.
+A call to a compatible model endpoint draws from the reads bucket like any
+other request. A 429 carries \`Retry-After\` in whole seconds.
+
+## Compatible model endpoints
+
+The organization's approved models, callable from a key holder's own tools
+over the two wires those tools already speak — so an OpenAI SDK, opencode,
+an Anthropic SDK or Claude Code uses Tale as its model provider:
+
+- **OpenAI** — base URL \`https://<host>/api/v1/openai\`:
+  \`POST /chat/completions\` (streamed or not, with tools and images) and
+  \`GET /models\`.
+- **Anthropic** — base URL \`https://<host>/api/v1/anthropic\`:
+  \`POST /v1/messages\` (streamed or not, with tools and images). Claude Code
+  takes it as \`ANTHROPIC_BASE_URL\`, the key as \`ANTHROPIC_AUTH_TOKEN\`
+  (an SDK: \`authToken\`), and the organization header, when the key needs
+  one, in \`ANTHROPIC_CUSTOM_HEADERS\`; leave \`ANTHROPIC_API_KEY\` unset, since
+  the \`x-api-key\` it sends is refused.
+
+Both sit inside this door — the same Bearer key, \`X-Organization-Slug\`,
+request budget and \`X-Request-Id\` — and both are governed: an organization
+turns them on in its model access policy (off until then: 403
+\`MODEL_API_DISABLED\`); owners, administrators and developers may call them,
+any other member only with a live \`tale:models.api\` grant (403
+\`MODEL_API_FORBIDDEN\`; \`capabilities.modelApi\` on \`GET /api/v1/me\`
+answers both gates). A model id is \`<provider>/<model>\` — the connector's
+slug and the model's id in its catalog — on both wires, and only a model the
+key holder's model access and the provider credential's allowlist admit
+answers (403 \`MODEL_API_MODEL_FORBIDDEN\`, 404 \`MODEL_API_MODEL_UNKNOWN\`).
+The organization's input guardrails judge every text the caller wrote into
+the request — every role, tool calls and results, tool definitions — before a
+call (400 \`MODEL_API_GUARDRAIL_BLOCKED\`; a mask rewrites what the model
+receives; 403 \`MODEL_API_GUARDRAIL_UNSUPPORTED\` for a PII policy that
+tokenizes; 503 \`MODEL_API_GUARDRAIL_UNAVAILABLE\` when a fail-closed step
+cannot judge or a policy cannot be read; 413 \`MODEL_API_TEXT_TOO_LARGE\`
+past 2 MB of text) — the answer is relayed unfiltered. A call's worst case
+is held whole against every budget that binds the key holder, their teams,
+the organization and the key (429 \`BUDGET_EXCEEDED\` with \`Retry-After\`,
+naming the output cap that would fit when the worst case does not), at most
+8 calls of a key holder or a key run at once (429
+\`MODEL_API_CONCURRENCY_EXCEEDED\`), and its spend is booked under the person
+and the key. A tool the vendor would
+run (400 \`MODEL_API_VENDOR_TOOL_UNSUPPORTED\`), images for a model without
+vision (400 \`MODEL_API_VISION_UNSUPPORTED\`) and tools for a model without
+them (400 \`MODEL_API_TOOLS_UNSUPPORTED\`) are refused before the call; a
+gateway that cannot serve the model answers 503 \`MODEL_API_UNAVAILABLE\`,
+and a vendor's own refusal is relayed as \`MODEL_API_UPSTREAM_ERROR\`.
+Bodies and answers are the vendors' own shapes, and so is every refusal:
+OpenAI \`{"error": {"message", "type", "param", "code"}}\`, Anthropic
+\`{"type": "error", "error": {"type", "message", "code"}, "request_id"}\`.
 
 ## Versioning
 
@@ -6959,6 +7313,11 @@ curl -H "Authorization: Bearer <api-key>" \\
         description: 'The platform MCP endpoint (JSON-RPC over HTTP).',
       },
       {
+        name: 'Model endpoints',
+        description:
+          'The organization’s approved models over two vendor wires — OpenAI Chat Completions under `/api/v1/openai` and Anthropic Messages under `/api/v1/anthropic` — for the OpenAI and Anthropic SDKs, opencode and Claude Code. Off until an administrator turns them on; governed and metered like chat. Bodies, answers and refusals are the vendors’ own shapes (see “Compatible model endpoints” above).',
+      },
+      {
         name: 'Conversations',
         description:
           'Mirroring external conversations into Inbox — versioned snapshots, reply claims, delivery receipts and staged uploads.',
@@ -6981,6 +7340,73 @@ curl -H "Authorization: Bearer <api-key>" \\
         },
       },
       schemas: {
+        OpenAiError: {
+          type: 'object',
+          description:
+            'A refusal on the OpenAI-compatible model endpoints, in OpenAI’s own error shape — the REST door’s refusals (a missing key, the organization header, the request budget) included. `code` is this API’s stable refusal code.',
+          required: ['error'],
+          properties: {
+            error: {
+              type: 'object',
+              required: ['message', 'type', 'param', 'code'],
+              properties: {
+                message: {
+                  type: 'string',
+                  description: 'What went wrong, in a sentence',
+                },
+                type: {
+                  type: 'string',
+                  description:
+                    'OpenAI’s error class: `invalid_request_error`, `authentication_error`, `permission_error`, `not_found_error`, `rate_limit_error`, `insufficient_quota` (a spent budget), `server_error`, or the vendor’s own on a relayed refusal',
+                },
+                param: {
+                  ...nullable(str),
+                  description:
+                    'The request field the refusal is about (`messages.2.content.0`), or null',
+                },
+                code: {
+                  type: 'string',
+                  enum: [...REST_ERROR_CODES],
+                  description: 'The stable refusal code',
+                },
+              },
+            },
+          },
+        },
+        AnthropicError: {
+          type: 'object',
+          description:
+            'A refusal on the Anthropic-compatible model endpoint, in Anthropic’s own error shape — the REST door’s refusals included. `error.code` is this API’s stable refusal code, an addition to Anthropic’s shape.',
+          required: ['type', 'error'],
+          properties: {
+            type: { type: 'string', enum: ['error'] },
+            error: {
+              type: 'object',
+              required: ['type', 'message', 'code'],
+              properties: {
+                type: {
+                  type: 'string',
+                  description:
+                    'Anthropic’s error class: `invalid_request_error`, `authentication_error`, `permission_error`, `not_found_error`, `request_too_large`, `rate_limit_error`, `api_error`, `overloaded_error`, or the vendor’s own on a relayed refusal',
+                },
+                message: {
+                  type: 'string',
+                  description: 'What went wrong, in a sentence',
+                },
+                code: {
+                  type: 'string',
+                  enum: [...REST_ERROR_CODES],
+                  description: 'The stable refusal code',
+                },
+              },
+            },
+            request_id: {
+              type: 'string',
+              description:
+                'The request id — the same value as the `request-id` and `X-Request-Id` headers',
+            },
+          },
+        },
         Error: {
           type: 'object',
           required: ['error', 'code'],
@@ -7851,6 +8277,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'notificationExport',
                 'actAs',
                 'skillPublish',
+                'modelApi',
               ],
               additionalProperties: false,
               properties: {
@@ -7878,6 +8305,11 @@ curl -H "Authorization: Bearer <api-key>" \\
                   ...bool,
                   description:
                     'True when the key holder may share a skill with the whole organization through `PUT /api/v1/skills/{slug}` — create a `visibility: org` skill, widen one to `org`, or change an `org` skill in place. Every member may while the organization has no skill sharing policy; under one it is Editors and above or owners and administrators only, plus any member holding a live `tale:skills.publish` capability an administrator granted in the competence register. False there answers 403 `SKILL_PUBLISH_FORBIDDEN`; sharing with the key holder’s own teams is unaffected',
+                },
+                modelApi: {
+                  ...bool,
+                  description:
+                    'True when the key holder may call the compatible model endpoints (`/api/v1/openai`, `/api/v1/anthropic`): the organization turned them on in its model access policy, and the key holder is an owner, administrator or developer by role, or any other member holding a live `tale:models.api` capability an administrator granted in the competence register. False there answers 403 `MODEL_API_DISABLED` or `MODEL_API_FORBIDDEN`',
                 },
               },
             },

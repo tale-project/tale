@@ -195,14 +195,15 @@ entries:
   # tie these back to their keys.
   - 'tasks.activity'
 
-  # Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV /
-  # Runtimes) are driven by the API_NAV_ITEMS catalog in
-  # app/routes/dashboard/$id/settings/api/nav-items.ts and rendered via
+  # Settings rail sub-section labels. The API sub-pages (REST / Models / MCP /
+  # WebDAV) are driven by the API_NAV_ITEMS catalog in
+  # app/routes/dashboard/$id/settings/api/-nav-items.ts and rendered via
   # `tNav(item.labelKey)` in settings-rail.tsx and the section's mobile tab
   # strip. Because the catalog is a data-only module (no `useT` call), the
   # scanner can't tie its `labelKey` literals back to the `navigation`
   # namespace.
   - 'navigation.apiRest'
+  - 'navigation.apiModels'
   - 'navigation.mcp'
   - 'navigation.webdav'
 

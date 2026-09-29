@@ -46,7 +46,11 @@ export class ChatBudgetExceededError extends AppError<ChatBudgetRefusal> {
   }
 }
 
-function toChatBudgetRefusal(violation: BudgetViolation): ChatBudgetRefusal {
+/** A reached cap as the coded refusal every budget lane answers — the chat
+ * turn's and the model endpoints'. */
+export function toChatBudgetRefusal(
+  violation: BudgetViolation,
+): ChatBudgetRefusal {
   return {
     code: 'BUDGET_EXCEEDED',
     message: budgetRefusalMessage(violation),

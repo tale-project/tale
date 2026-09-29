@@ -12,8 +12,15 @@ vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+const { upsert } = vi.hoisted(() => ({
+  upsert: { mutateAsync: vi.fn(async (_args: unknown) => undefined) },
+}));
+
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutateAsync: upsert.mutateAsync,
+    isPending: false,
+  }),
 }));
 
 // Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
@@ -86,7 +93,9 @@ describe('ModelAccessEditor', () => {
     it('renders the real enable switch (in the a11y tree)', () => {
       setLoaded();
       render(<ModelAccessEditor organizationId="org-1" />);
-      expect(screen.getByRole('switch')).toBeInTheDocument();
+      expect(
+        screen.getByRole('switch', { name: 'Enable model access policy' }),
+      ).toBeInTheDocument();
     });
 
     it('renders the section heading (static text, always real)', () => {
@@ -151,6 +160,81 @@ describe('ModelAccessEditor', () => {
       expect(
         screen.getByRole('heading', { name: /model access/i }),
       ).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * The model endpoints for API keys are switched on the same policy file:
+   * off until an admin turns them on, independent of the rules' own switch,
+   * and never dropped by a save of the rules.
+   */
+  describe('model endpoints for API keys', () => {
+    const endpointsSwitch = () =>
+      screen.getByRole('switch', {
+        name: 'Enable model endpoints for API keys',
+      });
+
+    it('reads off for a policy written before the switch existed', () => {
+      setLoaded();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('heading', { name: 'Model endpoints for API keys' }),
+      ).toBeInTheDocument();
+      expect(endpointsSwitch()).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('turns them on, writing the rules back beside the switch', async () => {
+      setLoaded();
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(endpointsSwitch());
+      expect(upsert.mutateAsync).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        policyType: 'model_access',
+        config: {
+          enabled: true,
+          mode: 'blocklist',
+          rules: [
+            {
+              scope: 'default',
+              allowedModels: [],
+              blockedModels: ['openai/gpt-4o'],
+            },
+          ],
+          modelApi: { enabled: true },
+        },
+      });
+      expect(endpointsSwitch()).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('keeps the switch when the rules’ own switch is saved', async () => {
+      setLoaded();
+      state.config = { ...state.config, modelApi: { enabled: true } };
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      expect(endpointsSwitch()).toHaveAttribute('aria-checked', 'true');
+      await user.click(
+        screen.getByRole('switch', { name: 'Enable model access policy' }),
+      );
+      expect(upsert.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            enabled: false,
+            modelApi: { enabled: true },
+          }),
+        }),
+      );
+    });
+
+    it('puts the switch back when the save fails', async () => {
+      setLoaded();
+      upsert.mutateAsync.mockClear();
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('validation'));
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(endpointsSwitch());
+      await vi.waitFor(() => {
+        expect(endpointsSwitch()).toHaveAttribute('aria-checked', 'false');
+      });
     });
   });
 });

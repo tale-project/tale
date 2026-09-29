@@ -12,19 +12,22 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/navigation/tab-navigation';
-import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
-import { API_NAV_ITEMS } from './-nav-items';
+import { API_NAV_ITEMS, visibleApiNavItems } from './-nav-items';
 
 /**
- * "API" settings section. Consolidates the former top-level API keys and
- * WebDAV pages into one section with REST / WebDAV subpages (the MCP endpoint
- * lives on the Connectors page). The unified settings rail (see
+ * "API" settings section: REST (API keys), Models (the model endpoints for
+ * API keys), MCP and WebDAV subpages. The unified settings rail (see
  * `SettingsRail`) owns the desktop sub-navigation — its expanded API section
  * lists these same pages — so this layout renders only a bounded content
  * pane, with a horizontal tab strip on mobile.
+ *
+ * Owners, admins and developers open every page; a member who may call the
+ * model endpoints (a `tale:models.api` grant) opens REST and Models — where
+ * their personal key is made and a tool is set up — and no other.
  */
 export const Route = createFileRoute('/dashboard/$id/settings/api')({
   head: () => ({ meta: seo('apiKeys') }),
@@ -38,11 +41,25 @@ function ApiSettingsLayout() {
   const { t: tAccessDenied } = useT('accessDenied');
   const { t: tNav } = useT('navigation');
 
-  const ability = useAbility();
-  const abilityLoading = useAbilityLoading();
+  const access = useApiSettingsAccess(organizationId);
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const basePath = `/dashboard/${organizationId}/settings/api`;
+  const visibleItems = useMemo(
+    () =>
+      visibleApiNavItems({
+        developer: access.developer,
+        modelApi: access.modelApi,
+      }),
+    [access.developer, access.modelApi],
+  );
+  // The page the path names: a tab this member may not open is denied, the
+  // way the whole section is for a member who may open none of it.
+  const openSlug = pathname.slice(basePath.length + 1).split('/')[0] ?? '';
+  const openItem = API_NAV_ITEMS.find((item) => item.slug === openSlug);
+  const denied =
+    visibleItems.length === 0 ||
+    (openItem !== undefined && !visibleItems.includes(openItem));
 
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -53,14 +70,14 @@ function ApiSettingsLayout() {
   // subpages without bouncing back to the settings list.
   const tabItems = useMemo<TabNavigationItem[]>(
     () =>
-      API_NAV_ITEMS.map((item) => ({
+      visibleItems.map((item) => ({
         label: tNav(item.labelKey),
         href: `${basePath}/${item.slug}`,
       })),
-    [basePath, tNav],
+    [basePath, tNav, visibleItems],
   );
 
-  if (abilityLoading) {
+  if (access.loading) {
     return (
       <Skeletonize loading className={CONTENT_CLASSNAME}>
         <SkeletonBox fullWidth>
@@ -70,7 +87,7 @@ function ApiSettingsLayout() {
     );
   }
 
-  if (ability.cannot('read', 'developerSettings')) {
+  if (denied) {
     return <AccessDenied message={tAccessDenied('apiKeys')} />;
   }
 

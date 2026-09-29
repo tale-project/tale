@@ -11,6 +11,7 @@ import {
 } from '../../lib/chat/types.ts';
 import { decodeChatError } from '../../lib/shared/chat-errors.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
+import { servedByDirectCredential } from '../core/chat/composer.ts';
 import {
   assertChatTurnBudget,
   budgetRetryAfterSeconds,
@@ -325,10 +326,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       organizationId: c.get('organizationId'),
       userId: c.get('userId'),
     });
-    return models.filter(
-      ({ credential }) =>
-        credential.authMethod === 'api-key' || credential.authMethod === 'env',
-    );
+    return models.filter(servedByDirectCredential);
   };
 
   /** The listing carries what a client needs to CHOOSE — context window,

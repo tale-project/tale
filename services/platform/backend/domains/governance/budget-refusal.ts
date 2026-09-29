@@ -13,9 +13,16 @@ const CAP_NAME: Record<BudgetViolation['code'], string> = {
   REQUEST_LIMIT: 'request',
 };
 
+/** The cap a violation names, as a sentence names it: "This API key's
+ * monthly cost limit". */
+export function budgetCapPhrase(violation: BudgetViolation): string {
+  return `${BUCKET_OWNER[violation.scope]} ${violation.period} ${CAP_NAME[violation.code]} limit`;
+}
+
 /** The sentence a refused caller reads, whichever lane refused it (a chat
- * turn, an agent's image generation) — it starts with "Usage limit reached"
- * so a client that only has the text still recognises it. */
+ * turn, an agent's image generation, a model-endpoint request) — it starts
+ * with "Usage limit reached" so a client that only has the text still
+ * recognises it. */
 export function budgetRefusalMessage(violation: BudgetViolation): string {
-  return `Usage limit reached. ${BUCKET_OWNER[violation.scope]} ${violation.period} ${CAP_NAME[violation.code]} limit is used up until ${new Date(violation.resetsAt).toISOString()}.`;
+  return `Usage limit reached. ${budgetCapPhrase(violation)} is used up until ${new Date(violation.resetsAt).toISOString()}.`;
 }

@@ -48,6 +48,10 @@ import { createKnowledgeRoutes } from './domains/knowledge/routes.ts';
 import { createKnowledgeEntryRoutes } from './domains/knowledge_entries/routes.ts';
 import { createLegalHoldRoutes } from './domains/legal_holds/routes.ts';
 import { createMemberRoutes } from './domains/members/routes.ts';
+import {
+  modelApiKeyHeaderHint,
+  modelApiWireErrors,
+} from './domains/model_api/wire-errors.ts';
 import { createNotificationRoutes } from './domains/notifications/routes.ts';
 import { createObjectStorageRoutes } from './domains/object_storage/routes.ts';
 import { createOneDriveRoutes } from './domains/onedrive/routes.ts';
@@ -155,6 +159,11 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // own refusals included: mounted here, ahead of them, rather than inside
   // the door behind them (lib/http-hygiene.ts).
   app.use('/api/v1/*', restDoorHeaders());
+  // The model endpoints answer every refusal in their vendor wire's error
+  // shape — the pre-route guards' and the door's own included, so this
+  // wraps them all (domains/model_api/wire-errors.ts).
+  app.use('/api/v1/openai/*', modelApiWireErrors());
+  app.use('/api/v1/anthropic/*', modelApiWireErrors());
   // The two inbound webhook doors live outside `/api/v1` but inside the
   // OpenAPI document, whose every operation promises `X-Tale-Api-Version`
   // — a webhook sender pinning to a contract version read no header at all
@@ -182,7 +191,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // The api-key plugin's header is the REST door's internal hand-off, never
   // a client credential: carried by a client it would open every session
   // gate below with the key holder's identity (lib/http-hygiene.ts).
-  app.use(apiKeyHeaderGuard([API_KEY_HEADER]));
+  app.use(
+    apiKeyHeaderGuard([API_KEY_HEADER], { hintFor: modelApiKeyHeaderHint }),
+  );
   // The URL budget the contract documents (414), then the NUL-byte refusal
   // (400) — both before any door decodes the path into a lookup.
   app.use(uriLengthGuard());
