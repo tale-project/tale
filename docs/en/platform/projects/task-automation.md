@@ -48,6 +48,39 @@ For an automation-owned task, mention the owning automation to request another r
 
 A task can have only one queued, running, or waiting run at a time, whichever automation started it. Repeating a start request while one is active returns the existing run, even when it names another automation. Once it finishes, another start can create a new run and repeat the work. Check the current run and its effects before requesting another attempt.
 
+## Let a manager agent keep the queue moving
+
+A manager agent is a project agent whose instructions are to read the whole board, hand out ready work and answer the routine questions other agents leave, so that people see only what needs them. It reads with **Find tasks** and **Read a task**; neither tool changes anything.
+
+### Read the whole queue in passes
+
+**Find tasks** answers at most 50 tasks at a time. While a page says `isDone: false`, its `continueCursor`, passed back as `cursor` with the same arguments, returns the next page; the last page says `isDone: true`. A cursor that comes back with other filters, another order or from another project's run is refused, and so is a damaged one: it is never read as the first page. A total appears only when one page holds every matching task.
+
+To walk a whole queue, use `order: "created"`. Tasks come oldest first and keep their place, so a pass lists each task at most once, as it stands when its page is read. The default order follows the board's columns, and a task that moves while the manager pages through them can be missed or listed twice.
+
+A pass can outlast one run. Before its run ends, the manager saves a checkpoint comment on its own task: the pass, its order and filters, the next `continueCursor` and the last task it examined. Its next run finds that checkpoint with **Read a task** and continues from it. When a pass ends, or its cursor is refused, the next pass starts at the first page. A read that fails is not an empty queue: the manager reports it and stops.
+
+### Tell running, finished and waiting work apart
+
+**Read a task** names subtasks, blockers and comments by their IDs and pages back through older comments with `commentCursor`. It also lists the task's project-agent runs, newest first, each with the first 500 characters of the message its start carried, along with the task's automation run and any pending review:
+
+- A run with `live: true` is queued or running, and nothing else starts on the task until it ends.
+- A run that has settled, failed or been cancelled is finished; `settledAt` says when.
+- A `workflowRun` waiting for an `ask` or an `approval`, and a `pendingReview`, wait on a person.
+
+The answer leaves out transcripts, error texts and results, and anything from another project.
+
+### Answer a routine question
+
+A routine question is one the manager can answer from what the project already records. Write the same protocol into the instructions of the working agents and of the manager:
+
+1. The working agent posts the question as a task comment with a stable question key, its evidence and the question. It names the comment's ID and its own run ID in its result and finishes the run instead of waiting inside it. Mentioning the manager in that comment starts nothing: a comment by an agent never starts an agent.
+2. On its next pass, the manager reads the task and answers only once the run that asked has finished and nothing is live on the task.
+3. It posts its answer as a comment that names the question's comment ID, then restarts the agent with **Start other agents on tasks**, with a message that names the question, the answer's comment ID and the run that asked. The restart withdraws the task's pending review without approving it.
+4. If the restart's response is lost, the manager reads the task again before trying anything else: a newer run whose message names the answer's comment ID means the restart went through.
+
+Accepting a result, answering an automation's question and deciding an approval stay with people. The manager sees them in **Read a task** so that it can leave them to the person concerned and report them.
+
 ## Handle waiting and failed runs
 
 | State or symptom | What to do |
