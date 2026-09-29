@@ -183,6 +183,26 @@ describe('resolveAutoRetryBudget', () => {
     ).toEqual({ retry: true, attempt: 0 });
   });
 
+  it('shows no count after a rotation that cut a quarter of an hour of work, whatever the cut run showed', () => {
+    // The last try of a spent budget worked twenty minutes before the
+    // refresh cut it: that progress refreshed the budget, so its retry is
+    // no "3 of 3" — the card reads "resumed after a token refresh", as the
+    // automation lane's stamp does.
+    const cut = rotated({ autoRetryAttempt: 3, ...LONG });
+    expect(
+      resolveAutoRetryBudget([
+        cut,
+        failed({ autoRetryAttempt: 2 }),
+        failed({ autoRetryAttempt: 1 }),
+        failed(),
+      ]),
+    ).toEqual({ retry: true, attempt: 0 });
+    // The next ordinary failure is the first attempt of the fresh budget.
+    expect(
+      resolveAutoRetryBudget([failed({ autoRetryAttempt: 0 }), cut]),
+    ).toEqual({ retry: true, attempt: 1 });
+  });
+
   it('spends no attempt waiting out the cooldown of the 429 it retried', () => {
     // A lone account answered 429 and cooled down; the retry's start was
     // refused at once. That is one event, not two attempts.

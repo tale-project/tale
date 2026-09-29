@@ -130,8 +130,9 @@ export interface AutoRetryBudget {
   readonly retry: boolean;
   /** The retry run's display stamp: the attempt of the budget it spends,
    * 1-based. A free retry spends none and shows what the run it replaces
-   * showed — 0 when that run showed no attempt, which the task card reads
-   * as a resume after a token refresh. */
+   * showed — 0 when that run showed no attempt or refreshed the budget by
+   * its own progress, which the task card reads as a resume after a token
+   * refresh. */
   readonly attempt: number;
 }
 
@@ -234,12 +235,21 @@ export function resolveAutoRetryBudget(
   }
   return {
     retry: free[0] || shortStreak <= AUTO_RETRY_MAX_ATTEMPTS,
-    // A free rotation spends nothing: its retry shows what the cut run
-    // showed — no attempt (0) after a run nothing retried, which is no
-    // "1 of 3". A free wait's run retried a counted 429, so it shows the
-    // count that 429 reached, as an ordinary retry would.
+    // A free wait's run retried a counted 429, so it shows the count that
+    // 429 reached, as an ordinary retry would.
     attempt: rotations[0]
-      ? (rows[0]?.autoRetryAttempt ?? 0)
+      ? freeRotationAttempt(rows[0])
       : Math.min(Math.max(shortStreak, 1), AUTO_RETRY_MAX_ATTEMPTS),
   };
+}
+
+/** The attempt a free rotation's retry shows. It spends nothing, so it shows
+ * what the cut run showed — no attempt (0) after a run nothing retried,
+ * which is no "1 of 3" — unless the cut run worked past the progress
+ * threshold: that refreshed the budget, so it shows none of it either (the
+ * automation lane's `planWorkflowAgentRetry` stamps the same), and the next
+ * counted failure is the first attempt of the fresh budget. */
+function freeRotationAttempt(cut: AutoRetryRunFacts | undefined): number {
+  if (cut === undefined || executedMs(cut) >= AUTO_RETRY_PROGRESS_MS) return 0;
+  return cut.autoRetryAttempt ?? 0;
 }
