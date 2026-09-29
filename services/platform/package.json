@@ -85,7 +85,7 @@
     "mammoth": "1.12.0",
     "micromark": "4.0.2",
     "mysql2": "3.23.1",
-    "nodemailer": "9.1.1",
+    "nodemailer": "10.0.2",
     "openai": "6.42.0",
     "p-queue": "9.3.0",
     "pdfjs-dist": "5.5.207",
