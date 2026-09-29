@@ -752,6 +752,72 @@ describe('ConnectorsSettings', () => {
       },
     );
 
+    // #3712: another session's write reaches the open page, so the list
+    // refetches under whatever the admin has open.
+    it('keeps an open, typed-into dialog across a refetch that changed the list', async () => {
+      const page = () => <ConnectorsSettings organizationId="org-1" />;
+      const { user, rerender } = render(page());
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Platform bot' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      await rename(user, form, 'Platform bot (typed)');
+
+      // A colleague added a credential: new rows, new objects, new counts.
+      fixtures.credentials = [
+        ...defaultCredentials.map((row) => ({ ...row })),
+        credential({ id: 'cred-9', name: 'Ops bot' }),
+      ];
+      rerender(page());
+
+      expect(screen.getByText('Ops bot')).toBeInTheDocument();
+      expect(
+        screen.getByRole('dialog', { name: 'Edit credential' }),
+      ).toBeInTheDocument();
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'Platform bot (typed)',
+      );
+    });
+
+    it('opens Edit on what the listing holds now, not what it held at mount', async () => {
+      const page = () => <ConnectorsSettings organizationId="org-1" />;
+      const { user, rerender } = render(page());
+      // A colleague renamed the credential while this page stayed open.
+      fixtures.credentials = [
+        credential({
+          id: 'cred-1',
+          name: 'Platform bot (ops)',
+          isDefault: true,
+        }),
+        defaultCredentials[1],
+      ];
+      rerender(page());
+
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Platform bot (ops)' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue(
+        'Platform bot (ops)',
+      );
+      // Saving an untouched form must not write the old name back.
+      expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
+    });
+
     it('keeps make-default visible but inert on a disabled credential', async () => {
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
       await user.click(
