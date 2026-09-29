@@ -26,6 +26,23 @@ function tokenCount(usage: Record<string, unknown>, key: string): number {
   return typeof value === 'number' ? value : 0;
 }
 
+/**
+ * The prompt an Anthropic usage frame reports, in full. Anthropic counts a
+ * prompt in three parts — `input_tokens` (read fresh), `cache_read_input_
+ * tokens` (served from the prompt cache) and `cache_creation_input_tokens`
+ * (written to it) — and bills all three, so the prompt is their sum; the
+ * cache read count rides along as the cached share. A server that folds the
+ * cached parts into `input_tokens` reports no cache fields, and reads the
+ * same.
+ */
+function anthropicPromptTokens(usage: Record<string, unknown>): number {
+  return (
+    tokenCount(usage, 'input_tokens') +
+    tokenCount(usage, 'cache_read_input_tokens') +
+    tokenCount(usage, 'cache_creation_input_tokens')
+  );
+}
+
 /** Like {@link tokenCount}, but absence stays `undefined` — for the cache
  * and reasoning counts only some dialects report, where a made-up zero
  * would render as a fact in the message-info panel. */
@@ -121,7 +138,7 @@ export function readEvent(
       const message = asRecord(event.message);
       const usage = asRecord(message?.usage);
       if (usage) {
-        runningUsage.input = tokenCount(usage, 'input_tokens');
+        runningUsage.input = anthropicPromptTokens(usage);
         const cached = optionalTokenCount(usage, 'cache_read_input_tokens');
         if (cached !== undefined) runningUsage.cached = cached;
         // Surfaced NOW, not on the closing delta: the prompt is billed in
@@ -170,6 +187,13 @@ export function readEvent(
       const usage = asRecord(event.usage);
       if (usage) {
         runningUsage.output = tokenCount(usage, 'output_tokens');
+        // The closing delta's counts are cumulative, and some servers report
+        // the prompt only here (a gateway that converts another dialect's
+        // stream puts its whole usage on this frame) — a prompt count on it
+        // is the prompt's final figure.
+        if (typeof usage.input_tokens === 'number') {
+          runningUsage.input = anthropicPromptTokens(usage);
+        }
         // Some Anthropic-compatible servers repeat the cache read count on
         // the closing delta rather than on message_start.
         const cached = optionalTokenCount(usage, 'cache_read_input_tokens');

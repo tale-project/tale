@@ -29,12 +29,12 @@ vi.mock('../domains/model_api/models.ts', async (importOriginal) => ({
   ...listing,
 }));
 
+interface JudgedRequest {
+  segments: { read(): string; write(text: string): void }[];
+}
+
 const guardrails = vi.hoisted(() => ({
-  apply: vi.fn(
-    async (
-      _segments: { read(): string; write(text: string): void }[],
-    ): Promise<void> => undefined,
-  ),
+  apply: vi.fn(async (_request: JudgedRequest): Promise<void> => undefined),
   buildModelApiGuardrails: vi.fn(),
 }));
 vi.mock('../domains/model_api/guardrails.ts', () => ({
@@ -334,13 +334,11 @@ describe('guardrails and budget', () => {
   });
 
   it('relays the text as the guardrails masked it', async () => {
-    guardrails.apply.mockImplementationOnce(
-      async (segments: { read(): string; write(text: string): void }[]) => {
-        for (const segment of segments) {
-          segment.write(segment.read().replace('jane@example.com', '[EMAIL]'));
-        }
-      },
-    );
+    guardrails.apply.mockImplementationOnce(async (request: JudgedRequest) => {
+      for (const segment of request.segments) {
+        segment.write(segment.read().replace('jane@example.com', '[EMAIL]'));
+      }
+    });
     gateway(() =>
       Response.json({
         id: 'msg',
@@ -397,11 +395,38 @@ describe('guardrails and budget', () => {
         organizationId: 'org-1',
         userId: 'user-1',
         apiKeyId: 'key-1',
+        requestId: expect.any(String),
         wire: 'openai',
         model: MODELS[0],
-        holdCents: expect.any(Number),
+        worstCase: expect.objectContaining({
+          outputCap: 1_000,
+          choiceCount: 1,
+          cents: expect.any(Number),
+        }),
       }),
     );
+    // The guardrail events are filed under the server's own request id,
+    // the caller's beside it.
+    const [, lease] = metering.openModelApiLease.mock.calls[0] as [
+      unknown,
+      { requestId: string },
+    ];
+    expect(guardrails.buildModelApiGuardrails).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        requestId: lease.requestId,
+        callerRequestId: 'req-7',
+      }),
+    );
+    expect(lease.requestId).not.toBe('req-7');
+  });
+
+  it('sends the held output cap upstream when the caller named none', async () => {
+    gateway(() => Response.json({ model: 'x', choices: [], usage: {} }));
+    await post('/openai/chat/completions', CHAT);
+    expect(gatewayCalls[0]?.body.max_completion_tokens).toBeGreaterThan(0);
   });
 });
 
@@ -464,8 +489,15 @@ describe('a relayed call', () => {
     expect(metering.closeModelApiLease).toHaveBeenCalledWith(
       expect.anything(),
       LEASE,
-      'completed',
-      { inputTokens: 40, outputTokens: 9 },
+      {
+        outcome: {
+          status: 'completed',
+          usage: { inputTokens: 40, outputTokens: 9 },
+          countedOutputTokens: expect.any(Number),
+        },
+        model: MODELS[0],
+        promptTokens: expect.any(Number),
+      },
     );
   });
 

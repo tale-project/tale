@@ -1,4 +1,7 @@
-import type { ProviderDefinition } from '@tale/shared/schemas/providers';
+import type {
+  ModelCatalogEntry,
+  ProviderDefinition,
+} from '@tale/shared/schemas/providers';
 import type { Sql } from 'postgres';
 
 import {
@@ -39,7 +42,9 @@ export interface ModelApiModel {
   tools: boolean;
   contextWindow: number;
   maxOutputTokens?: number;
-  pricing?: { inputCentsPerMillion: number; outputCentsPerMillion: number };
+  /** The catalog's price — with the cache rates where the catalog names
+   * them, which the settlement prices a reported cache read at. */
+  pricing?: ModelCatalogEntry['pricing'];
   /** The connector declares a native Anthropic endpoint for Anthropic-wire
    * clients (`harnessEndpoint`) — the Anthropic door rides it. */
   connector: Pick<ProviderDefinition, 'name' | 'harnessEndpoint'>;

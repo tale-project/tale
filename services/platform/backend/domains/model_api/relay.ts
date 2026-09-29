@@ -1,6 +1,6 @@
 import { Agent } from 'undici';
 
-import type { TurnUsage } from '../../../lib/chat/types.ts';
+import { estimateTokens, type TurnUsage } from '../../../lib/chat/types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   readEvent,
@@ -33,9 +33,18 @@ import {
  *    ledger; on an OpenAI stream the door asks for the closing usage chunk
  *    and drops it again when the caller did not ask for it;
  *  - a refusal the gateway or the vendor answers is said in the wire's error
- *    shape, with the routing names replaced;
- *  - the caller hanging up aborts the upstream request, so the vendor stops
- *    generating what nobody will read.
+ *    shape, with the routing names replaced and internal addresses kept out;
+ *  - the caller hanging up aborts the request to the gateway. What that
+ *    stops depends on the gateway: on a stream it cancels the vendor call
+ *    (and the gateway keeps none of its partial usage), but on a whole
+ *    answer the gateway does not notice and the vendor generates — and
+ *    bills — to the end. So the ending reports what the settlement needs
+ *    to book it anyway: the output the relay counted on a stream, and
+ *    whether a whole answer may still be generating (`metering.ts`);
+ *  - a request never outlives its lifetime: a whole answer the gateway's
+ *    request timeout plus a margin, a stream its idle budget between two
+ *    chunks and an overall ceiling — past either, the relay aborts the
+ *    gateway call, ends the caller's answer and reports the ending.
  *
  * Nothing but the body, the key and the Anthropic version headers is sent
  * upstream: the gateway reads its own instructions from `x-bf-*` headers,
@@ -45,7 +54,15 @@ import {
 /** How the answer ended, for the op row and the settlement. */
 export interface RelayOutcome {
   status: 'completed' | 'failed' | 'cancelled';
+  /** The counts the answer reported (the vendor's). */
   usage?: ModelApiUsage;
+  /** Tokens the relay counted in the stream's text, reasoning and tool
+   * arguments — what a stream that ended early had produced by then. */
+  countedOutputTokens?: number;
+  /** A whole answer the gateway may still be generating: the call to it
+   * failed or was abandoned after it was sent. The gateway books its cost
+   * only once the vendor answers. */
+  mayStillGenerate?: boolean;
 }
 
 export interface RelayArgs {
@@ -67,6 +84,36 @@ export interface RelayArgs {
   signal: AbortSignal;
   /** Called exactly once, when the answer has ended however it ended. */
   onDone: (outcome: RelayOutcome) => void;
+  /** Lifetime overrides — the unit layer's; production reads the
+   * gateway's budgets ({@link relayLifetime}). */
+  lifetime?: Partial<RelayLifetime>;
+}
+
+/** How long one relayed request may live. */
+export interface RelayLifetime {
+  /** A whole answer, start to end. */
+  wholeMs: number;
+  /** A stream, between two chunks from the gateway. */
+  streamIdleMs: number;
+  /** A stream, start to end. */
+  streamMs: number;
+}
+
+/** The margin the relay gives the gateway past its own budgets, so the
+ * gateway's own timeout (and its answer about it) comes first. */
+const LIFETIME_MARGIN_MS = 60_000;
+/** The longest a stream may run: generous for the longest answers a model
+ * writes, and a bound on the heartbeat and the hold of a stream that never
+ * ends. */
+const STREAM_CEILING_MS = 60 * 60_000;
+
+/** The gateway's budgets, plus the margin. */
+export function relayLifetime(): RelayLifetime {
+  return {
+    wholeMs: gatewayRequestTimeoutSeconds() * 1000 + LIFETIME_MARGIN_MS,
+    streamIdleMs: gatewayStreamIdleTimeoutSeconds() * 1000 + LIFETIME_MARGIN_MS,
+    streamMs: STREAM_CEILING_MS,
+  };
 }
 
 /** The gateway routes, per wire. */
@@ -120,28 +167,66 @@ export function setGatewayFetchForTests(fetcher: GatewayFetch): () => void {
   };
 }
 
+/**
+ * Text that tells where the platform's own traffic goes rather than what
+ * was wrong with the request: an IP address, a host with a port, a URL on an
+ * internal host, or a transport failure's wording (which names the address
+ * it failed on). A vendor's refusal of the request itself — a field out of
+ * range, a model it does not serve — carries none of it.
+ */
+const INTERNAL_DETAIL: readonly RegExp[] = [
+  /\b(?:\d{1,3}\.){3}\d{1,3}\b/,
+  /\b[0-9a-f]{1,4}::[0-9a-f]{0,4}\b/i,
+  /\[[0-9a-f:.]{3,}\]/i,
+  /\b[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*:\d{2,5}\b/i,
+  /\bhttps?:\/\/(?:localhost|[a-z0-9-]+|[a-z0-9.-]+\.(?:internal|local|lan|svc|cluster\.local))(?:[:/?#]|$)/i,
+  /\b(?:dial tcp|connection refused|connection reset|no such host|i\/o timeout|tls handshake|context deadline exceeded|broken pipe|unexpected eof)\b/i,
+];
+
+/** Whether a relayed message would name the platform's internals. */
+function namesInternalDetail(text: string): boolean {
+  return INTERNAL_DETAIL.some((pattern) => pattern.test(text));
+}
+
 /** Replace the gateway's routing names — the record carries the
  * organization's id — with what the caller named, and redact anything
- * secret-shaped. */
-function sanitizer(args: {
+ * secret-shaped. A message that would name an internal address or a
+ * transport failure is replaced by `fallback` whole (the detail is logged
+ * for the operator): redacting pieces of it would still leave the shape of
+ * the platform's network in the caller's hands. */
+function sanitizer({
+  gatewayModel,
+  publicModel,
+}: {
   gatewayModel: string;
   publicModel: string;
-}): (text: string) => string {
-  const record = args.gatewayModel.slice(0, args.gatewayModel.indexOf('/'));
-  return (text) => {
-    let out = text.split(args.gatewayModel).join(args.publicModel);
-    if (record.length > 0) {
-      const provider = args.publicModel.slice(0, args.publicModel.indexOf('/'));
-      out = out.split(record).join(provider);
+}): (text: string, fallback: string) => string {
+  const record = gatewayModel.slice(0, gatewayModel.indexOf('/'));
+  const provider = publicModel.slice(0, publicModel.indexOf('/'));
+  return (text, fallback) => {
+    let out = text.split(gatewayModel).join(publicModel);
+    if (record.length > 0) out = out.split(record).join(provider);
+    const safe = sanitizeError(out, 2_000);
+    if (namesInternalDetail(safe)) {
+      console.warn(
+        `[model-api] an upstream message named internal detail; the caller reads a generic one instead: ${safe}`,
+      );
+      return fallback;
     }
-    return sanitizeError(out, 2_000);
+    return safe;
   };
 }
 
 function usageOf(usage: TurnUsage | undefined): ModelApiUsage | undefined {
   return usage === undefined
     ? undefined
-    : { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+    : {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        ...(usage.cachedInputTokens !== undefined
+          ? { cachedInputTokens: usage.cachedInputTokens }
+          : {}),
+      };
 }
 
 /** The usage a whole (non-streamed) answer reports, through the same
@@ -177,7 +262,7 @@ function answerUsage(
 async function upstreamRefusal(
   wire: ModelApiWire,
   response: Response,
-  sanitize: (text: string) => string,
+  sanitize: (text: string, fallback: string) => string,
   requestId: string | undefined,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   let text = '';
@@ -200,7 +285,8 @@ async function upstreamRefusal(
   } catch (error) {
     console.warn('[model-api] reading the gateway refusal failed:', error);
   }
-  let message = `The model provider refused the request (HTTP ${response.status}).`;
+  const generic = `The model provider refused the request (HTTP ${response.status}).`;
+  let message = generic;
   let type: string | undefined;
   try {
     const parsed: unknown = JSON.parse(text);
@@ -235,7 +321,7 @@ async function upstreamRefusal(
       {
         status,
         code: 'MODEL_API_UPSTREAM_ERROR',
-        message: sanitize(message),
+        message: sanitize(message, generic),
         ...(status === upstream && type !== undefined ? { type } : {}),
       },
       requestId,
@@ -248,26 +334,93 @@ type EventRewrite = (
   data: Record<string, unknown>,
 ) => Record<string, unknown> | null;
 
+/** The generated text one streamed event carries — answer text, reasoning
+ * and tool-call arguments alike, since the vendor bills them all as output —
+ * for the relay's own count of a stream that ends early. */
+function generatedText(
+  wire: ModelApiWire,
+  event: Record<string, unknown>,
+): string {
+  let text = '';
+  if (wire === 'anthropic') {
+    const delta = isRecord(event.delta) ? event.delta : undefined;
+    if (event.type !== 'content_block_delta' || delta === undefined) return '';
+    for (const key of ['text', 'thinking', 'partial_json']) {
+      const value = delta[key];
+      if (typeof value === 'string') text += value;
+    }
+    return text;
+  }
+  const choices = Array.isArray(event.choices) ? event.choices : [];
+  for (const choice of choices) {
+    const delta =
+      isRecord(choice) && isRecord(choice.delta) ? choice.delta : undefined;
+    if (delta === undefined) continue;
+    for (const key of [
+      'content',
+      'reasoning_content',
+      'reasoning',
+      'refusal',
+    ]) {
+      const value = delta[key];
+      if (typeof value === 'string') text += value;
+    }
+    const calls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
+    for (const call of calls) {
+      const fn =
+        isRecord(call) && isRecord(call.function) ? call.function : undefined;
+      if (fn !== undefined && typeof fn.arguments === 'string') {
+        text += fn.arguments;
+      }
+    }
+  }
+  return text;
+}
+
+/** What a relayed stream reports when it ends. */
+interface StreamEnd {
+  status: RelayOutcome['status'];
+  usage?: ModelApiUsage;
+  countedOutputTokens: number;
+}
+
 /**
  * The relayed stream: the gateway's Server-Sent Events, event by event, each
- * `data:` JSON passed through `rewrite` (and the usage read off it), every
- * other line kept as it came. Ends the caller's stream with an error event
- * in the wire's shape when the upstream breaks off.
+ * `data:` JSON passed through `rewrite` (and the usage read off it, and its
+ * generated text counted), every other line kept as it came. Ends the
+ * caller's stream with an error event in the wire's shape when the upstream
+ * breaks off or the request outlives its lifetime.
  */
 function relayEventStream(
   upstream: ReadableStream<Uint8Array>,
   args: {
     wire: ModelApiWire;
     rewrite: EventRewrite;
-    sanitize: (text: string) => string;
+    sanitize: (text: string, fallback: string) => string;
     abortUpstream: () => void;
     /** Whether the caller has hung up — a read that fails then is the
      * abort, not a broken upstream. */
     callerGone: () => boolean;
+    /** Whether the relay itself stopped the request (its lifetime ran
+     * out): the break-off then says so. */
+    expired: () => boolean;
+    /** Called on every chunk from the gateway — the idle deadline's reset. */
+    onChunk: () => void;
     requestId: string | undefined;
-    onEnd: (status: RelayOutcome['status'], usage?: ModelApiUsage) => void;
+    onEnd: (end: StreamEnd) => void;
   },
 ): ReadableStream<Uint8Array> {
+  const {
+    wire,
+    rewrite,
+    sanitize,
+    abortUpstream,
+    callerGone,
+    expired,
+    onChunk,
+    requestId,
+    onEnd,
+  } = args;
   const reader = upstream.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
@@ -276,12 +429,18 @@ function relayEventStream(
     drafts: new Map(),
   };
   let usage: TurnUsage | undefined;
+  let countedOutputTokens = 0;
   let buffer = '';
   let ended = false;
   const end = (status: RelayOutcome['status']) => {
     if (ended) return;
     ended = true;
-    args.onEnd(status, usageOf(usage));
+    const reported = usageOf(usage);
+    onEnd({
+      status,
+      ...(reported !== undefined ? { usage: reported } : {}),
+      countedOutputTokens,
+    });
   };
 
   /** One event block (its lines, without the blank line that ended it), as
@@ -306,16 +465,21 @@ function relayEventStream(
     }
     if (!isRecord(event)) return `${block}\n\n`;
     const read = readEvent(
-      args.wire === 'openai' ? 'openai' : 'anthropic',
+      wire === 'openai' ? 'openai' : 'anthropic',
       event,
       state,
     );
     if (read.usage !== undefined) usage = read.usage;
+    const generated = generatedText(wire, event);
+    if (generated !== '') countedOutputTokens += estimateTokens(generated);
     const error = event.error;
     if (isRecord(error) && typeof error.message === 'string') {
-      error.message = args.sanitize(error.message);
+      error.message = sanitize(
+        error.message,
+        'The model provider stopped the answer with an error.',
+      );
     }
-    const rewritten = args.rewrite(event);
+    const rewritten = rewrite(event);
     if (rewritten === null) return '';
     const kept = lines.filter((line) => !line.startsWith('data:'));
     return `${[...kept, `data: ${JSON.stringify(rewritten)}`].join('\n')}\n\n`;
@@ -341,14 +505,19 @@ function relayEventStream(
   };
 
   const breakOff = (): string => {
-    const message =
-      'The model stream broke off before the answer was complete.';
+    const lapsed = expired();
     const body = wireErrorBody(
-      args.wire,
-      { status: 502, code: 'MODEL_API_UPSTREAM_ERROR', message },
-      args.requestId,
+      wire,
+      {
+        status: lapsed ? 504 : 502,
+        code: 'MODEL_API_UPSTREAM_ERROR',
+        message: lapsed
+          ? 'The model stream went quiet for too long, or ran past the longest answer this endpoint relays; it was stopped.'
+          : 'The model stream broke off before the answer was complete.',
+      },
+      requestId,
     );
-    return args.wire === 'anthropic'
+    return wire === 'anthropic'
       ? `event: error\ndata: ${JSON.stringify(body)}\n\n`
       : `data: ${JSON.stringify(body)}\n\n`;
   };
@@ -368,6 +537,7 @@ function relayEventStream(
             end('completed');
             return;
           }
+          onChunk();
           buffer += decoder.decode(value, { stream: true });
           const out = drain();
           if (out !== '') {
@@ -376,7 +546,7 @@ function relayEventStream(
           }
         }
       } catch (error) {
-        if (ended || args.callerGone()) {
+        if (ended || (callerGone() && !expired())) {
           // The caller hung up (the upstream read failed on the abort):
           // nobody reads on, so the stream is ended — never left open for
           // another pull to read the aborted upstream again.
@@ -391,7 +561,12 @@ function relayEventStream(
           }
           return;
         }
-        console.warn('[model-api] the gateway stream broke off:', error);
+        console.warn(
+          expired()
+            ? '[model-api] the gateway stream outlived its lifetime and was stopped:'
+            : '[model-api] the gateway stream broke off:',
+          error,
+        );
         try {
           controller.enqueue(encoder.encode(breakOff()));
           controller.close();
@@ -405,8 +580,9 @@ function relayEventStream(
       }
     },
     async cancel() {
-      // The caller hung up: stop the vendor too.
-      args.abortUpstream();
+      // The caller hung up: stop the gateway call (on a stream, the gateway
+      // cancels the vendor's in turn).
+      abortUpstream();
       await reader.cancel().catch((error: unknown) => {
         console.warn(
           '[model-api] cancelling the gateway stream failed:',
@@ -420,44 +596,92 @@ function relayEventStream(
 
 /**
  * Relay one governed request to the gateway and answer the caller. Throws a
- * {@link ModelApiRefusal} only when the gateway could not be reached at all
- * (`onDone` has been called by then); every other ending — a refusal
- * upstream, a finished or broken stream, the caller hanging up — calls
- * `onDone` once.
+ * {@link ModelApiRefusal} only when the gateway call failed before an answer
+ * could begin (`onDone` has been called by then); every other ending — a
+ * refusal upstream, a finished or broken stream, the caller hanging up, the
+ * lifetime running out — calls `onDone` once.
+ *
+ * Nothing the returned stream keeps alive holds the request body: every
+ * closure below reads the few scalars copied out of `args` first, so a
+ * multi-megabyte image payload is released once it has been sent, however
+ * long the answer streams.
  */
 export async function relayToGateway(args: RelayArgs): Promise<Response> {
+  const {
+    wire,
+    publicModel,
+    stream,
+    dropUsageChunk,
+    requestId,
+    signal,
+    onDone,
+  } = args;
+  const lifetime = { ...relayLifetime(), ...args.lifetime };
   const sanitize = sanitizer(args);
   const upstreamAbort = new AbortController();
   const abortUpstream = () => upstreamAbort.abort();
-  if (args.signal.aborted) abortUpstream();
-  args.signal.addEventListener('abort', abortUpstream, { once: true });
+  let lapsed = false;
+  const expire = () => {
+    lapsed = true;
+    abortUpstream();
+  };
+  const lifetimeTimer = setTimeout(
+    expire,
+    stream ? lifetime.streamMs : lifetime.wholeMs,
+  );
+  lifetimeTimer.unref?.();
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const armIdle = () => {
+    if (idleTimer !== undefined) clearTimeout(idleTimer);
+    idleTimer = setTimeout(expire, lifetime.streamIdleMs);
+    idleTimer.unref?.();
+  };
+  if (signal.aborted) abortUpstream();
+  signal.addEventListener('abort', abortUpstream, { once: true });
   let settled = false;
   const done = (outcome: RelayOutcome) => {
     if (settled) return;
     settled = true;
-    args.signal.removeEventListener('abort', abortUpstream);
-    args.onDone(outcome);
+    clearTimeout(lifetimeTimer);
+    if (idleTimer !== undefined) clearTimeout(idleTimer);
+    signal.removeEventListener('abort', abortUpstream);
+    onDone(outcome);
   };
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     authorization: `Bearer ${args.token}`,
-    accept: args.stream ? 'text/event-stream' : 'application/json',
-    ...(args.wire === 'anthropic' ? args.anthropicHeaders : {}),
+    accept: stream ? 'text/event-stream' : 'application/json',
+    ...(wire === 'anthropic' ? args.anthropicHeaders : {}),
   };
+  const payload = JSON.stringify(args.body);
+  if (stream) armIdle();
   let upstream: Response;
   try {
-    upstream = await gatewayFetch(
-      gatewayInferenceUrl(GATEWAY_ROUTES[args.wire]),
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(args.body),
-        signal: upstreamAbort.signal,
-      },
-    );
+    upstream = await gatewayFetch(gatewayInferenceUrl(GATEWAY_ROUTES[wire]), {
+      method: 'POST',
+      headers,
+      body: payload,
+      signal: upstreamAbort.signal,
+    });
   } catch (error) {
-    const cancelled = args.signal.aborted;
-    done({ status: cancelled ? 'cancelled' : 'failed' });
+    const cancelled = signal.aborted && !lapsed;
+    // The request may have reached the gateway before the call failed; on a
+    // whole answer the vendor then generates to the end regardless.
+    done({
+      status: cancelled ? 'cancelled' : 'failed',
+      ...(stream ? { countedOutputTokens: 0 } : { mayStillGenerate: true }),
+    });
+    if (lapsed) {
+      console.warn(
+        '[model-api] the gateway call outlived its lifetime:',
+        error,
+      );
+      throw new ModelApiRefusal(
+        504,
+        'MODEL_API_UPSTREAM_ERROR',
+        'The model did not answer in time; the request was stopped.',
+      );
+    }
     if (!cancelled) {
       console.error(
         '[model-api] the model gateway could not be reached:',
@@ -470,14 +694,9 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
       'The model gateway could not be reached; try again shortly.',
     );
   }
-  const answerHeaders = wireHeaders(args.wire, args.requestId);
+  const answerHeaders = wireHeaders(wire, requestId);
   if (!upstream.ok) {
-    const refusal = await upstreamRefusal(
-      args.wire,
-      upstream,
-      sanitize,
-      args.requestId,
-    );
+    const refusal = await upstreamRefusal(wire, upstream, sanitize, requestId);
     done({ status: 'failed' });
     return new Response(JSON.stringify(refusal.body), {
       status: refusal.status,
@@ -485,13 +704,12 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     });
   }
 
-  const publicModel = args.publicModel;
-  if (args.stream && upstream.body !== null) {
+  if (stream && upstream.body !== null) {
     const rewrite: EventRewrite =
-      args.wire === 'openai'
+      wire === 'openai'
         ? (event) => {
             if (
-              args.dropUsageChunk &&
+              dropUsageChunk &&
               Array.isArray(event.choices) &&
               event.choices.length === 0 &&
               isRecord(event.usage)
@@ -512,14 +730,15 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
             return event;
           };
     const body = relayEventStream(upstream.body, {
-      wire: args.wire,
+      wire,
       rewrite,
       sanitize,
       abortUpstream,
-      callerGone: () => args.signal.aborted,
-      requestId: args.requestId,
-      onEnd: (status, usage) =>
-        done({ status, ...(usage !== undefined ? { usage } : {}) }),
+      callerGone: () => signal.aborted,
+      expired: () => lapsed,
+      onChunk: armIdle,
+      requestId,
+      onEnd: (end) => done(end),
     });
     return new Response(body, {
       status: 200,
@@ -536,20 +755,25 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
   try {
     text = await upstream.text();
   } catch (error) {
-    const cancelled = args.signal.aborted;
-    done({ status: cancelled ? 'cancelled' : 'failed' });
+    const cancelled = signal.aborted && !lapsed;
+    done({
+      status: cancelled ? 'cancelled' : 'failed',
+      mayStillGenerate: true,
+    });
     console.warn('[model-api] reading the gateway answer failed:', error);
     throw new ModelApiRefusal(
-      502,
+      lapsed ? 504 : 502,
       'MODEL_API_UPSTREAM_ERROR',
-      'The model answer could not be read from the gateway; try again.',
+      lapsed
+        ? 'The model did not answer in time; the request was stopped.'
+        : 'The model answer could not be read from the gateway; try again.',
     );
   }
   let answer: unknown;
   try {
     answer = JSON.parse(text);
   } catch (error) {
-    done({ status: 'failed' });
+    done({ status: 'failed', mayStillGenerate: true });
     console.warn('[model-api] the gateway answer was not JSON:', error);
     throw new ModelApiRefusal(
       502,
@@ -558,14 +782,14 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     );
   }
   if (!isRecord(answer)) {
-    done({ status: 'failed' });
+    done({ status: 'failed', mayStillGenerate: true });
     throw new ModelApiRefusal(
       502,
       'MODEL_API_UPSTREAM_ERROR',
       'The model gateway answered something that is not a JSON object.',
     );
   }
-  const usage = answerUsage(args.wire, answer);
+  const usage = answerUsage(wire, answer);
   if (typeof answer.model === 'string') answer.model = publicModel;
   done({ status: 'completed', ...(usage !== undefined ? { usage } : {}) });
   return new Response(JSON.stringify(answer), {

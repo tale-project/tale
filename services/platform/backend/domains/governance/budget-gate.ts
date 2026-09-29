@@ -546,7 +546,67 @@ export type TurnAllowance =
        * period resets — for a door that answers the refusal as the chat
        * lane's coded `BUDGET_EXCEEDED` (the model endpoints). */
       violation?: BudgetViolation;
+      /** For a whole-hold admission refused because its worst case does not
+       * fit: what the tightest caps still leave — the cents under the cost
+       * caps and the tokens under the token caps (absent where no such cap
+       * binds) — so the door can name what WOULD fit. */
+      room?: { cents?: number; tokens?: number };
+      /** Refused because too many of the subject's (or its API key's)
+       * requests are already running — not a budget cap at all. */
+      concurrency?: {
+        scope: 'user' | 'apiKey';
+        running: number;
+        limit: number;
+      };
     };
+
+/** Whose bucket a cap is, as a refusal names it — at the start of a
+ * sentence, and inside one. */
+const BUCKET_OWNER: Record<BudgetScope, string> = {
+  user: 'Your',
+  team: "Your team's",
+  org: 'The organization’s',
+  apiKey: "This API key's",
+};
+const BUCKET_OWNER_INLINE: Record<BudgetScope, string> = {
+  user: 'your own',
+  team: "your team's",
+  org: 'the organization’s',
+  apiKey: "this API key's",
+};
+
+/** The bucket with the least room left under one kind of cap. */
+interface TightestBucket {
+  bucket: BudgetBucket;
+  period: BudgetRule['period'];
+  room: number;
+}
+
+function violationOf(
+  tightest: TightestBucket,
+  code: 'COST_LIMIT' | 'TOKEN_LIMIT',
+  reason: string,
+  now: number,
+): BudgetViolation {
+  const { bucket, period } = tightest;
+  const limit =
+    code === 'COST_LIMIT'
+      ? (bucket.rule.maxCostCents ?? 0)
+      : (bucket.rule.maxTokens ?? 0);
+  return {
+    scope: bucket.scope,
+    ...(bucket.teamId !== undefined ? { teamId: bucket.teamId } : {}),
+    code,
+    period,
+    used:
+      code === 'COST_LIMIT'
+        ? bucket.usage.costEstimate
+        : bucket.usage.totalTokens,
+    limit,
+    reason,
+    resetsAt: buildPeriodEndFromTimestamp(period, now),
+  };
+}
 
 /**
  * The gateway allowance a managed turn may be minted with: the deployment's
@@ -556,6 +616,13 @@ export type TurnAllowance =
  * turns sizing themselves off the same balance cannot collectively overshoot
  * it. A token or request cap that is already reached refuses outright (a
  * turn is one ledger request). Refused when less than one cent remains.
+ *
+ * `whole` admits the default as a whole or not at all: a request whose hold
+ * IS its worst case (a model-endpoint call — the prompt plus its output cap
+ * at the catalog price, and those tokens) is refused when that worst case
+ * does not fit under every cap, instead of being minted a smaller allowance
+ * it could spend past. The refusal names the tightest cap and carries what
+ * room is left.
  */
 export async function resolveTurnAllowance(
   sql: Sql | TransactionSql,
@@ -564,16 +631,17 @@ export async function resolveTurnAllowance(
     /** What every other turn in flight holds, per bucket — chat turns and
      * managed turns alike (`readInFlightReservations`). */
     reservations: BudgetReservations;
+    whole?: { prospectiveTokens: number };
   },
 ): Promise<TurnAllowance> {
   const { reservations } = args;
   const now = Date.now();
   let allowance = args.defaultCents;
   /** The cost bucket with the least room left — the cap to name when what
-   * remains is under a cent. */
-  let tightest:
-    | { bucket: BudgetBucket; period: BudgetRule['period'] }
-    | undefined;
+   * remains does not cover the turn. */
+  let tightestCost: TightestBucket | undefined;
+  /** The token bucket with the least room left — whole admissions only. */
+  let tightestTokens: TightestBucket | undefined;
   for (const { period, limits } of await applicableLimitsByPeriod(sql, args)) {
     for (const bucket of await bucketsFor(
       sql,
@@ -584,12 +652,21 @@ export async function resolveTurnAllowance(
       now,
     )) {
       // One more cent and one more request: refused means nothing usable
-      // remains under this rule — its own wording names the cap.
-      const violation = checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
+      // remains under this rule — its own wording names the cap. A whole
+      // admission asks only whether the cap is already reached: its own
+      // cost and tokens are measured whole below, and its request is the
+      // one a request cap still has room for.
+      const violation =
+        args.whole !== undefined
+          ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
+          : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
       if (violation?.code !== undefined) {
+        // The rule's own wording, and whose cap it is: a key's cap and the
+        // organization's read alike otherwise.
         const reason =
-          violation.reason ??
-          `The organization's ${period} spend cap has been reached.`;
+          violation.reason !== undefined
+            ? `${violation.reason}, under ${BUCKET_OWNER_INLINE[bucket.scope]} cap`
+            : `${BUCKET_OWNER[bucket.scope]} ${period} spend cap has been reached.`;
         return {
           allowed: false,
           reason,
@@ -607,35 +684,62 @@ export async function resolveTurnAllowance(
       }
       if (bucket.rule.maxCostCents != null) {
         const room = bucket.rule.maxCostCents - bucket.usage.costEstimate;
-        if (room < allowance) {
-          allowance = room;
-          tightest = { bucket, period };
+        if (tightestCost === undefined || room < tightestCost.room) {
+          tightestCost = { bucket, period, room };
+        }
+        if (room < allowance) allowance = room;
+      }
+      if (args.whole !== undefined && bucket.rule.maxTokens != null) {
+        const room = bucket.rule.maxTokens - bucket.usage.totalTokens;
+        if (tightestTokens === undefined || room < tightestTokens.room) {
+          tightestTokens = { bucket, period, room };
         }
       }
     }
   }
+  const room = {
+    ...(tightestCost !== undefined
+      ? { cents: Math.max(0, tightestCost.room) }
+      : {}),
+    ...(tightestTokens !== undefined
+      ? { tokens: Math.max(0, Math.floor(tightestTokens.room)) }
+      : {}),
+  };
+  if (args.whole !== undefined) {
+    if (
+      tightestTokens !== undefined &&
+      tightestTokens.room < args.whole.prospectiveTokens
+    ) {
+      const reason = `${BUCKET_OWNER[tightestTokens.bucket.scope]} ${tightestTokens.period} token cap leaves too few tokens for this request.`;
+      return {
+        allowed: false,
+        reason,
+        violation: violationOf(tightestTokens, 'TOKEN_LIMIT', reason, now),
+        room,
+      };
+    }
+    if (tightestCost !== undefined && tightestCost.room < args.defaultCents) {
+      const reason = `${BUCKET_OWNER[tightestCost.bucket.scope]} ${tightestCost.period} spend cap leaves too little for this request.`;
+      return {
+        allowed: false,
+        reason,
+        violation: violationOf(tightestCost, 'COST_LIMIT', reason, now),
+        room,
+      };
+    }
+    return { allowed: true, budgetCents: Math.floor(args.defaultCents) };
+  }
   const budgetCents = Math.floor(allowance);
   if (budgetCents < 1) {
     const reason =
-      'The organization’s spend cap leaves no allowance for this turn.';
+      tightestCost !== undefined
+        ? `${BUCKET_OWNER[tightestCost.bucket.scope]} ${tightestCost.period} spend cap leaves no allowance for this turn.`
+        : 'The spend caps leave no allowance for this turn.';
     return {
       allowed: false,
       reason,
-      ...(tightest !== undefined && tightest.bucket.rule.maxCostCents != null
-        ? {
-            violation: {
-              scope: tightest.bucket.scope,
-              ...(tightest.bucket.teamId !== undefined
-                ? { teamId: tightest.bucket.teamId }
-                : {}),
-              code: 'COST_LIMIT' as const,
-              period: tightest.period,
-              used: tightest.bucket.usage.costEstimate,
-              limit: tightest.bucket.rule.maxCostCents,
-              reason,
-              resetsAt: buildPeriodEndFromTimestamp(tightest.period, now),
-            },
-          }
+      ...(tightestCost !== undefined
+        ? { violation: violationOf(tightestCost, 'COST_LIMIT', reason, now) }
         : {}),
     };
   }

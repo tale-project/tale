@@ -84,7 +84,7 @@ describe('readInFlightReservations', () => {
     // An unsettled op holds against the key its reservation stamped — a
     // keyed run's turn and a model-endpoint request alike.
     expect(read).toContain(
-      'SELECT user_id, api_key_id, budget_cents::float8, 0::float8 FROM app.sandbox_session_ops',
+      'SELECT user_id, api_key_id, budget_cents::float8, coalesce(reserved_tokens, 0)::float8 FROM app.sandbox_session_ops',
     );
     expect(read).toContain('JOIN "teamMember" tm ON tm."userId" = h.user_id');
     expect(statements[0]?.values).toEqual(

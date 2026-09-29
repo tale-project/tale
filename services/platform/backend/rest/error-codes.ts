@@ -126,6 +126,7 @@ export const REST_ERROR_CODES = [
   // does not read images or take tools; the gateway cannot serve it; the
   // vendor refused or the relay broke; the request names a tool the vendor
   // would run.
+  'MODEL_API_CONCURRENCY_EXCEEDED',
   'MODEL_API_DISABLED',
   'MODEL_API_FORBIDDEN',
   'MODEL_API_GUARDRAIL_BLOCKED',
@@ -133,6 +134,7 @@ export const REST_ERROR_CODES = [
   'MODEL_API_GUARDRAIL_UNSUPPORTED',
   'MODEL_API_MODEL_FORBIDDEN',
   'MODEL_API_MODEL_UNKNOWN',
+  'MODEL_API_TEXT_TOO_LARGE',
   'MODEL_API_TOOLS_UNSUPPORTED',
   'MODEL_API_UNAVAILABLE',
   'MODEL_API_UPSTREAM_ERROR',

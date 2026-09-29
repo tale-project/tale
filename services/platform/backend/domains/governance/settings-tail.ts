@@ -864,6 +864,7 @@ export interface ChatFilterEventRow {
   durationMs: number | null;
   attempt: number | null;
   agentSlug: string | null;
+  requestId: string | null;
   createdAt: number;
 }
 
@@ -879,7 +880,7 @@ export async function recordChatFilterEvent(
       org_id, sanitization_run_id, thread_id, message_id, filter_name,
       direction, kind, category_ids, match_count, truncated, error_class,
       http_status, duration_ms, attempt, agent_slug, actor_type,
-      created_at_ms
+      request_id, created_at_ms
     ) VALUES (
       ${organizationId}, ${event.sanitizationRunId}, ${event.threadId},
       ${event.messageId ?? null}, ${event.filterName}, ${event.direction},
@@ -887,7 +888,8 @@ export async function recordChatFilterEvent(
       ${event.matchCount ?? null}, ${event.truncated ?? null},
       ${event.errorClass ?? null}, ${event.httpStatus ?? null},
       ${event.durationMs ?? null}, ${event.attempt ?? null},
-      ${event.agentSlug ?? null}, ${event.actorType ?? null}, ${Date.now()}
+      ${event.agentSlug ?? null}, ${event.actorType ?? null},
+      ${event.requestId ?? null}, ${Date.now()}
     )
   `;
 }
@@ -906,6 +908,7 @@ export async function listRecentChatFilterEvents(
            truncated, error_class AS "errorClass",
            http_status AS "httpStatus", duration_ms AS "durationMs",
            attempt, agent_slug AS "agentSlug", actor_type AS "actorType",
+           request_id AS "requestId",
            created_at_ms::float8 AS "createdAt"
     FROM app.chat_filter_events
     WHERE org_id = ${organizationId}

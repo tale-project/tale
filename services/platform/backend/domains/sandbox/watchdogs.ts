@@ -8,6 +8,7 @@ import {
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { closeStaleModelApiOps } from '../model_api/metering.ts';
+import { sweepSettledModelApiOps } from '../model_api/retention.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { RECOVERY_STALE_MS } from './recovery.ts';
@@ -232,6 +233,23 @@ export async function runSandboxWatchdog(
   } catch (error: unknown) {
     console.error(
       '[watchdog] closing lost model-endpoint requests failed:',
+      error,
+    );
+  }
+
+  // A model-endpoint request's op row only carries its hold and its key to
+  // the settlement — the ledger keeps the spend — so a week after the
+  // request started, a settled row goes (domains/model_api/retention.ts).
+  try {
+    const pruned = await sweepSettledModelApiOps(sql, { now });
+    if (pruned > 0) {
+      console.log(
+        `[watchdog] deleted the op rows of ${pruned} settled model-endpoint request(s)`,
+      );
+    }
+  } catch (error: unknown) {
+    console.error(
+      '[watchdog] deleting settled model-endpoint request rows failed:',
       error,
     );
   }

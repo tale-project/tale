@@ -9,6 +9,7 @@ import {
 } from '../../core/governance/erasure_constants.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
+import { MODEL_API_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
@@ -999,6 +1000,39 @@ export async function processErasure(
       RETURNING id
     `;
     return removed.length;
+  });
+
+  // Requests through the model endpoints for API keys: one op row per
+  // request (`app.sandbox_session_ops`, kind `model-api`), stamped with the
+  // key holder. A row whose spend is booked and whose key is deleted (or was
+  // never minted) has done its work — its spend went to the ledger, whose
+  // rows of the subject the pass below erases — so it is deleted. A row
+  // still in flight is not: it carries the request's budget hold, or names a
+  // live gateway key whose spend the settlement has yet to read and book, so
+  // deleting it would orphan that key and drop its spend from the
+  // organization's usage. It keeps its work and loses the identity instead,
+  // and the settlement books it under the pseudonym. The second statement
+  // takes every row of the subject the first left, so a row that settled in
+  // between is pseudonymised, never left under the subject's id. This runs
+  // BEFORE the ledger pass: a request that settles while the cascade runs
+  // books either before that pass (and is erased by it) or under the
+  // pseudonym — never under the subject after the ledger was cleared.
+  await pass('modelApiRequests', async () => {
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.sandbox_session_ops
+      WHERE org_id = ${organizationId} AND kind = ${MODEL_API_OP_KIND}
+        AND user_id = ${targetUserId}
+        AND spend_settled_at_ms IS NOT NULL
+        AND (key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL)
+      RETURNING id
+    `;
+    const pseudonymised = await sql<{ id: string }[]>`
+      UPDATE app.sandbox_session_ops SET user_id = ${ERASED_SUBJECT}
+      WHERE org_id = ${organizationId} AND kind = ${MODEL_API_OP_KIND}
+        AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return removed.length + pseudonymised.length;
   });
 
   // The ledger names its subject by bare user id (`governance/README.md`);

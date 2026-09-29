@@ -1,4 +1,3 @@
-import { estimateJsonTokens } from '../../../lib/chat/types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 
 /**
@@ -198,14 +197,31 @@ export function wireErrorResponse(
   );
 }
 
+/** Where a stretch of caller text sits in a request — what a guardrail
+ * refusal names. */
+export type SegmentPlace =
+  | 'system prompt'
+  | 'message'
+  | 'assistant turn'
+  | 'tool call'
+  | 'tool result'
+  | 'tool definition'
+  | 'document'
+  | 'prediction'
+  | 'response format';
+
 /**
  * One stretch of text in a request that the organization's input guardrails
- * judge — a system instruction or a person's message part — readable and,
- * when a guardrail masks it, rewritable in place in the body the door
- * relays.
+ * judge — any text the caller supplies, whatever its role, since the caller
+ * writes every role on this surface — readable and, when a guardrail masks
+ * it, rewritable in place in the body the door relays.
  */
 export interface TextSegment {
-  readonly role: 'system' | 'user';
+  readonly where: SegmentPlace;
+  /** False for an identifier (a tool's name, a signed reasoning block): it
+   * is judged like any text, but a guardrail that would rewrite it refuses
+   * the request instead — a renamed tool is a tool nobody defined. */
+  readonly maskable: boolean;
   read(): string;
   write(text: string): void;
 }
@@ -225,13 +241,28 @@ export interface WireRequest {
   choiceCount: number;
   /** Images anywhere the wire lets them ride (a message, a tool result). */
   imageCount: number;
-  /** Documents (PDF, text) the request carries — relayed, never scanned. */
+  /** Binary documents (PDF) the request carries inline or by URL — relayed
+   * unread; a document given as text is text, and judged. */
   documentCount: number;
+  /** The length of every inline media payload (base64 bytes, `data:` URLs),
+   * which the prompt estimate prices per image or document instead of as
+   * text. */
+  mediaChars: number;
   /** Whether the request offers the model tools. */
   offersTools: boolean;
-  /** The system and user text the input guardrails judge. */
+  /** Every stretch of caller text the input guardrails judge. */
   segments: TextSegment[];
+  /** Their size, in UTF-8 bytes. */
+  textBytes: number;
+  /** More stretches than {@link MAX_TEXT_SEGMENTS}: the rest were not
+   * collected, and a request under guardrails is refused. */
+  segmentOverflow: boolean;
 }
+
+/** The most separate stretches of text one request collects for the
+ * guardrails — past it the request is refused while guardrails are on
+ * (never collected without bound: each is an object held until the relay). */
+export const MAX_TEXT_SEGMENTS = 20_000;
 
 /** What one image costs a prompt, at the most a vendor charges for one
  * (Anthropic's ~1,600 tokens for a 1.15-megapixel image) — the hold is a
@@ -239,35 +270,53 @@ export interface WireRequest {
 const IMAGE_PROMPT_TOKENS = 1_600;
 /** A document's share of the hold when its pages cannot be counted here. */
 const DOCUMENT_PROMPT_TOKENS = 3_000;
+/** Characters per token for structured text — the chat lane's JSON rate. */
+const JSON_CHARS_PER_TOKEN = 3;
 
-/** A string long enough to be inline media rather than text: a data URL, or
- * base64 past a few KiB (image and document bytes ride as either). */
-function isInlineMedia(value: string): boolean {
-  if (value.startsWith('data:') && value.length > 256) return true;
-  return value.length > 4_096 && /^[A-Za-z0-9+/=\r\n]+$/.test(value);
-}
-
-/** The body with inline media emptied — what its text weighs. */
-function withoutInlineMedia(value: unknown): unknown {
-  if (typeof value === 'string') return isInlineMedia(value) ? '' : value;
-  if (Array.isArray(value)) return value.map(withoutInlineMedia);
-  if (isRecord(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [
-        key,
-        withoutInlineMedia(entry),
-      ]),
-    );
+/**
+ * The length a value takes as JSON, approximately (every string as its
+ * length plus its quotes), walked without building the string — a body can
+ * carry tens of megabytes of media the estimate would otherwise copy.
+ */
+function approximateJsonLength(value: unknown): number {
+  let length = 0;
+  const stack: unknown[] = [value];
+  while (stack.length > 0) {
+    const item = stack.pop();
+    if (typeof item === 'string') {
+      length += item.length + 2;
+    } else if (typeof item === 'number' || typeof item === 'boolean') {
+      length += String(item).length;
+    } else if (item === null || item === undefined) {
+      length += 4;
+    } else if (Array.isArray(item)) {
+      length += 2 + item.length;
+      for (const entry of item) stack.push(entry);
+    } else if (isRecord(item)) {
+      const entries = Object.entries(item);
+      length += 2 + entries.length;
+      for (const [key, entry] of entries) {
+        length += key.length + 3;
+        stack.push(entry);
+      }
+    }
   }
-  return value;
+  return length;
 }
 
 /** The prompt a request carries, in tokens, estimated the way the chat
  * lane sizes its hold: its text at the JSON rate (messages, system, tool
- * definitions), each image and document at a fixed worst case. */
+ * definitions — whatever shape the text takes), each image and document at
+ * a fixed worst case. Media is known by the part it rides in (the wire
+ * readers measure it), never guessed from how a string looks: text that
+ * merely looks like base64 is text, and billed as such. */
 export function estimatePromptTokens(request: WireRequest): number {
+  const textChars = Math.max(
+    0,
+    approximateJsonLength(request.body) - request.mediaChars,
+  );
   return (
-    estimateJsonTokens(withoutInlineMedia(request.body)) +
+    Math.ceil(textChars / JSON_CHARS_PER_TOKEN) +
     request.imageCount * IMAGE_PROMPT_TOKENS +
     request.documentCount * DOCUMENT_PROMPT_TOKENS
   );

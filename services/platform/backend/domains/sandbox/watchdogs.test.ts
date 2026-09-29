@@ -13,7 +13,10 @@
  * only when the spawner confirmed the session is gone or idle (busy and
  * errors leave it for the next tick), and the failed-create collect destroys
  * a session only when no newer or live incarnation carries its id, then
- * stamps that one row. The real-Postgres probe (`integration-check.ts`)
+ * stamps that one row. Every tick also deletes the settled model-endpoint
+ * request rows a week old, between closing the lost requests and the
+ * settlement sweep, and a failure there stops neither. The real-Postgres
+ * probe (`integration-check.ts`)
  * proves the live-turn spare, the rotation, the queued pinned recreate and
  * the reclaim and collect guards on the actual schema.
  */
@@ -75,9 +78,10 @@ interface Candidate {
 /**
  * Scripted `sql`: the EXPIRE update and the reconcile, reclaim and collect
  * SELECTs pop from their scripts; the supersession probe answers from
- * `superseded` (row ids) and a collected row's stamp settles it; the visit
- * stamps answer with no rows. Every statement is recorded for shape
- * assertions.
+ * `superseded` (row ids) and a collected row's stamp settles it; the sweep
+ * of settled model-endpoint rows pops from `sweep` (or fails with
+ * `sweepError`); the visit stamps answer with no rows. Every statement is
+ * recorded for shape assertions.
  */
 function fakeSql(script: {
   expire?: { orgId: string; sessionId: string }[][];
@@ -85,6 +89,8 @@ function fakeSql(script: {
   reclaim?: Candidate[][];
   collect?: Candidate[][];
   superseded?: string[];
+  sweep?: { id: string }[][];
+  sweepError?: Error;
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -92,6 +98,12 @@ function fakeSql(script: {
     statements.push({ text, values });
     if (text.includes("SET status = 'expired'")) {
       return Promise.resolve(script.expire?.shift() ?? []);
+    }
+    if (text.includes('DELETE FROM app.sandbox_session_ops')) {
+      if (script.sweepError !== undefined) {
+        return Promise.reject(script.sweepError);
+      }
+      return Promise.resolve(script.sweep?.shift() ?? []);
     }
     if (text.includes("s.owner_type = 'workflow_run'")) {
       return Promise.resolve(script.reclaim?.shift() ?? []);
@@ -624,6 +636,88 @@ describe('runSandboxWatchdog — collect of failed creates', () => {
     expect(select?.values[1]).toBe(25);
     expect(select?.text).toContain(
       'ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC',
+    );
+  });
+});
+
+describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
+  const NOW = 1_790_000_000_000;
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  let clock: MockInstance<() => number>;
+
+  beforeEach(() => {
+    clock = vi.spyOn(Date, 'now').mockReturnValue(NOW);
+  });
+
+  afterEach(() => {
+    clock.mockRestore();
+  });
+
+  const indexOf = (statements: Statement[], fragment: string): number =>
+    statements.findIndex((s) => s.text.includes(fragment));
+
+  it('deletes them on every tick, spawner or not, with the tick’s clock, after closing the lost requests and before the settlement sweep', async () => {
+    const { sql, statements } = fakeSql({
+      sweep: [[{ id: 'op-1' }, { id: 'op-2' }]],
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const result = await runSandboxWatchdog(sql, { skipReconcile: true });
+
+    const sweeps = statements.filter((s) =>
+      s.text.includes('DELETE FROM app.sandbox_session_ops'),
+    );
+    // Two rows came back from a batch of 1,000: one statement drained it.
+    expect(sweeps).toHaveLength(1);
+    expect(sweeps[0]?.values).toEqual([NOW - WEEK_MS, 1_000]);
+    const close = indexOf(statements, "status = 'failed', finished_at_ms");
+    const sweep = indexOf(statements, 'DELETE FROM app.sandbox_session_ops');
+    const settle = indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL');
+    expect(close).toBeGreaterThanOrEqual(0);
+    expect(sweep).toBeGreaterThan(close);
+    expect(settle).toBeGreaterThan(sweep);
+    // The count is logged; the tick's result keeps its shape.
+    expect(log).toHaveBeenCalledWith(
+      '[watchdog] deleted the op rows of 2 settled model-endpoint request(s)',
+    );
+    expect(result).toEqual({
+      expired: 0,
+      healed: 0,
+      recreating: 0,
+      reclaimed: 0,
+      collected: 0,
+      settled: 0,
+    });
+  });
+
+  it('logs nothing when no row was due', async () => {
+    const { sql } = fakeSql({});
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await runSandboxWatchdog(sql, { skipReconcile: true });
+
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('logs a failed sweep and still runs the settlement sweep behind it', async () => {
+    const failure = new Error('connection reset');
+    const { sql, statements } = fakeSql({ sweepError: failure });
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await expect(
+      runSandboxWatchdog(sql, { skipReconcile: true }),
+    ).resolves.toMatchObject({ settled: 0 });
+
+    expect(error).toHaveBeenCalledWith(
+      '[watchdog] deleting settled model-endpoint request rows failed:',
+      failure,
+    );
+    expect(
+      indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL'),
+    ).toBeGreaterThan(
+      indexOf(statements, 'DELETE FROM app.sandbox_session_ops'),
     );
   });
 });

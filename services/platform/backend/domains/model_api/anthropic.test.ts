@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   anthropicUpstreamBody,
   inspectAnthropicMessagesRequest,
+  refuseUnpricedAnthropicBetas,
 } from './anthropic.ts';
 import { ModelApiRefusal } from './wire.ts';
 
@@ -89,15 +90,29 @@ describe('inspectAnthropicMessagesRequest', () => {
     expect(request.stream).toBe(true);
     expect(request.maxOutputTokens).toBe(32_000);
     expect(request.offersTools).toBe(true);
-    // The tool result's image needs a vision model; its text is tool data.
+    // The tool result's image needs a vision model.
     expect(request.imageCount).toBe(1);
+    expect(request.mediaChars).toBe(64);
+    // Every text the caller wrote, whatever its role: the signed reasoning
+    // and the names are judged but never rewritten.
     expect(
-      request.segments.map((segment) => [segment.role, segment.read()]),
+      request.segments.map((segment) => [
+        segment.where,
+        segment.read(),
+        segment.maskable,
+      ]),
     ).toEqual([
-      ['system', 'You are Claude Code.'],
-      ['system', 'Project rules.'],
-      ['user', '<system-reminder>ctx</system-reminder>'],
-      ['user', 'Fix the bug.'],
+      ['system prompt', 'You are Claude Code.', true],
+      ['system prompt', 'Project rules.', true],
+      ['message', '<system-reminder>ctx</system-reminder>', true],
+      ['message', 'Fix the bug.', true],
+      ['assistant turn', '…', false],
+      ['tool call', 'Read', false],
+      ['tool call', 'a.png', true],
+      ['tool result', 'file bytes', true],
+      ['tool definition', 'Read', false],
+      ['tool definition', 'Grep', false],
+      ['tool definition', 'str_replace_based_edit_tool', false],
     ]);
   });
 
@@ -160,6 +175,36 @@ describe('inspectAnthropicMessagesRequest', () => {
       },
       'messages.0.content.0.source.url',
     ],
+    // A file stored in the organization's vendor account.
+    [
+      {
+        ...BASE,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'file', file_id: 'file_1' } },
+            ],
+          },
+        ],
+      },
+      'messages.0.content.0.source',
+    ],
+    // Billed at a rate the catalog does not know.
+    [{ ...BASE, service_tier: 'priority' }, 'service_tier'],
+    // An assistant block the door does not read.
+    [
+      {
+        ...BASE,
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'server_tool_use', id: 's', name: 'web_search' }],
+          },
+        ],
+      },
+      'messages.0.content.0.type',
+    ],
   ])('refuses %j at %s', (body, param) => {
     const error = refusal(body);
     expect(error.status).toBe(400);
@@ -182,5 +227,135 @@ describe('inspectAnthropicMessagesRequest', () => {
     const error = refusal(body);
     expect(error.code).toBe('MODEL_API_VENDOR_TOOL_UNSUPPORTED');
     expect(error.param).toBe(param);
+  });
+});
+
+describe('inspectAnthropicMessagesRequest — every text the caller wrote', () => {
+  it('serves the priced tiers', () => {
+    for (const tier of ['auto', 'standard_only']) {
+      expect(() =>
+        inspectAnthropicMessagesRequest({ ...BASE, service_tier: tier }),
+      ).not.toThrow();
+    }
+  });
+
+  it('collects documents given as text, search results and a prefill', () => {
+    const request = inspectAnthropicMessagesRequest({
+      ...BASE,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'text',
+                media_type: 'text/plain',
+                data: 'The memo.',
+              },
+              title: 'Memo',
+              context: 'From the archive.',
+            },
+            {
+              type: 'document',
+              source: {
+                type: 'content',
+                content: [{ type: 'text', text: 'Page one.' }],
+              },
+            },
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: 'J'.repeat(40),
+              },
+            },
+            {
+              type: 'search_result',
+              source: 'https://example.com/a',
+              title: 'Result',
+              content: [{ type: 'text', text: 'Snippet.' }],
+            },
+          ],
+        },
+        { role: 'assistant', content: 'The answer is' },
+      ],
+    });
+    expect(
+      request.segments.map((segment) => [segment.where, segment.read()]),
+    ).toEqual([
+      ['document', 'The memo.'],
+      ['document', 'Memo'],
+      ['document', 'From the archive.'],
+      ['document', 'Page one.'],
+      ['document', 'Result'],
+      ['document', 'https://example.com/a'],
+      ['document', 'Snippet.'],
+      ['assistant turn', 'The answer is'],
+    ]);
+    // Only the PDF is a binary document, and only its bytes are media.
+    expect(request.documentCount).toBe(1);
+    expect(request.mediaChars).toBe(40);
+  });
+
+  it('rewrites a tool call input in place', () => {
+    const request = inspectAnthropicMessagesRequest({
+      ...BASE,
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 't',
+              name: 'mail',
+              input: { to: ['jane@example.com'] },
+            },
+          ],
+        },
+      ],
+    });
+    request.segments
+      .find((segment) => segment.read() === 'jane@example.com')
+      ?.write('[EMAIL]');
+    expect(request.body.messages).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 't',
+            name: 'mail',
+            input: { to: ['[EMAIL]'] },
+          },
+        ],
+      },
+    ]);
+  });
+});
+
+describe('refuseUnpricedAnthropicBetas', () => {
+  it('refuses a million-token context beta, whose rate is not metered', () => {
+    let error: unknown;
+    try {
+      refuseUnpricedAnthropicBetas(
+        'interleaved-thinking-2025-05-14, context-1m-2025-08-07',
+      );
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(ModelApiRefusal);
+    expect((error as ModelApiRefusal).code).toBe('INVALID_HEADER');
+    expect((error as ModelApiRefusal).param).toBe('anthropic-beta');
+  });
+
+  it('lets every other beta through', () => {
+    expect(() =>
+      refuseUnpricedAnthropicBetas(
+        'interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14',
+      ),
+    ).not.toThrow();
+    expect(() => refuseUnpricedAnthropicBetas(undefined)).not.toThrow();
   });
 });

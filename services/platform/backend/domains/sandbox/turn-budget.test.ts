@@ -277,6 +277,93 @@ describe('reserveTurnBudget', () => {
     );
   });
 
+  it('admits a model-endpoint request whole, under the budget lock alone, and records the tokens it holds', async () => {
+    gate.resolveTurnAllowance.mockResolvedValue({
+      allowed: true,
+      budgetCents: 12,
+    });
+    const { sql, statements } = fakeSql([
+      { match: 'count(*) FILTER', rows: [{ user: 2, apiKey: 1 }] },
+    ]);
+
+    await reserveTurnBudget(sql, {
+      organizationId: 'org-1',
+      sessionId: 'model-api:key-9',
+      execId: 'req-2',
+      kind: 'model-api',
+      defaultBudgetCents: 12,
+      subject: {
+        userId: 'user-3',
+        agentSlug: '__direct_api__',
+        apiKeyId: 'key-9',
+      },
+      whole: { prospectiveTokens: 40_000 },
+      concurrencyLimit: 8,
+    });
+
+    // No sandbox is admitted: the sandbox admission lock is not taken.
+    expect(
+      statements.some((s) => s.text.includes("hashtextextended('sandbox:'")),
+    ).toBe(false);
+    expect(holds.lockBudgetAdmission).toHaveBeenCalled();
+    expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        defaultCents: 12,
+        whole: { prospectiveTokens: 40_000 },
+      }),
+    );
+    const upsert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.sandbox_session_ops'),
+    );
+    expect(upsert?.text).toContain('reserved_tokens');
+    expect(upsert?.values).toEqual(expect.arrayContaining([12, 40_000]));
+  });
+
+  it.each([
+    [{ user: 8, apiKey: 3 }, 'user', 'You already have 8'],
+    [{ user: 8, apiKey: 8 }, 'apiKey', 'This API key already has 8'],
+  ] as const)(
+    'refuses one request too many at once (%j), holding nothing',
+    async (running, scope, wording) => {
+      const { sql, statements } = fakeSql([
+        { match: 'count(*) FILTER', rows: [running] },
+      ]);
+
+      const result = await reserveTurnBudget(sql, {
+        organizationId: 'org-1',
+        sessionId: 'model-api:key-9',
+        execId: 'req-3',
+        kind: 'model-api',
+        defaultBudgetCents: 12,
+        subject: {
+          userId: 'user-3',
+          agentSlug: '__direct_api__',
+          apiKeyId: 'key-9',
+        },
+        whole: { prospectiveTokens: 100 },
+        concurrencyLimit: 8,
+      });
+
+      expect(result).toMatchObject({
+        allowed: false,
+        concurrency: { scope, limit: 8 },
+      });
+      expect(result.allowed ? '' : result.reason).toContain(wording);
+      const count = statements.find((s) => s.text.includes('count(*) FILTER'));
+      expect(count?.text).toContain("kind = ? AND status = 'running'");
+      expect(count?.values).toEqual(
+        expect.arrayContaining(['user-3', 'key-9', 'org-1', 'model-api']),
+      );
+      expect(gate.resolveTurnAllowance).not.toHaveBeenCalled();
+      expect(
+        statements.some((s) =>
+          s.text.includes('INSERT INTO app.sandbox_session_ops'),
+        ),
+      ).toBe(false);
+    },
+  );
+
   it('evaluates a trigger-started run as nobody: org caps only, booked under the automation sentinel', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: true,

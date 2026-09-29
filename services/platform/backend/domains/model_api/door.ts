@@ -12,12 +12,14 @@ import {
 import {
   anthropicUpstreamBody,
   inspectAnthropicMessagesRequest,
+  refuseUnpricedAnthropicBetas,
 } from './anthropic.ts';
 import { buildModelApiGuardrails } from './guardrails.ts';
 import {
+  assertModelApiBudgetRoom,
   closeModelApiLease,
   heartbeatModelApiOp,
-  modelApiHoldCents,
+  modelApiWorstCase,
   openModelApiLease,
 } from './metering.ts';
 import {
@@ -50,12 +52,13 @@ import {
  *     the model-access rules read fresh;
  *  4. the model can read what is sent: images need a vision model, tools a
  *     model that takes them;
- *  5. the organization's input guardrails pass (and mask) the system and
- *     user text (`guardrails.ts`);
- *  6. the hold is reserved and the request's gateway key minted
- *     (`metering.ts`);
+ *  5. the organization's input guardrails pass (and mask) every text the
+ *     caller wrote into the request (`guardrails.ts`);
+ *  6. the worst-case hold is admitted whole and the request's gateway key
+ *     minted (`metering.ts`);
  *  7. the request is relayed and the answer returned in the caller's wire
- *     (`relay.ts`); its spend is booked once it ends.
+ *     (`relay.ts`); its spend is booked once it ends, by what the relay saw
+ *     as well as by the gateway's figure.
  *
  * Every refusal is a {@link ModelApiRefusal} the route answers in the
  * wire's error shape.
@@ -66,7 +69,8 @@ export interface ModelApiRequestContext extends ModelApiCaller {
   orgSlug: string;
   /** The API key the bearer verified as — every request is keyed. */
   apiKeyId: string;
-  /** The request id the caller can quote (`X-Request-Id`). */
+  /** The request id the caller can quote (`X-Request-Id`) — possibly one
+   * the caller chose, so never a key the platform files anything under. */
   requestId: string | undefined;
   /** The caller's connection. */
   signal: AbortSignal;
@@ -186,6 +190,9 @@ export async function relayModelApiRequest(
   readBody: () => Promise<unknown>,
 ): Promise<Response> {
   const gate = await openDoor(sql, caller);
+  if (wire === 'anthropic') {
+    refuseUnpricedAnthropicBetas(caller.anthropicHeaders['anthropic-beta']);
+  }
   const rawBody = await readBody();
   const request =
     wire === 'openai'
@@ -194,36 +201,54 @@ export async function relayModelApiRequest(
   const model = await resolveModel(sql, caller, gate.policy, request.model);
   checkCapabilities(model, request);
 
-  // The op row's own id; the guardrail events carry the request id the
-  // caller can quote, so an admin can find the request they ask about.
+  // The request's own id — its op row, its gateway key's name, the key of
+  // its guardrail events. The caller's `X-Request-Id` (which it may have
+  // chosen) rides beside it on the events, never as their key.
   const requestId = randomUUID();
-  const guardrails = await buildModelApiGuardrails(sql, {
-    organizationId: caller.organizationId,
-    requestId: caller.requestId ?? requestId,
-  });
-  await guardrails.apply(request.segments);
-
-  const lease = await openModelApiLease(sql, {
+  const budgetHolder = {
     organizationId: caller.organizationId,
     userId: caller.userId,
     apiKeyId: caller.apiKeyId,
+  };
+  const guardrails = await buildModelApiGuardrails(sql, {
+    organizationId: caller.organizationId,
+    orgSlug: caller.orgSlug,
+    requestId,
+    callerRequestId: caller.requestId,
+    beforePaidCall: () => assertModelApiBudgetRoom(sql, budgetHolder),
+  });
+  await guardrails.apply(request);
+
+  const promptTokens = estimatePromptTokens(request);
+  const worstCase = modelApiWorstCase(
+    model,
+    promptTokens,
+    request.maxOutputTokens,
+    request.choiceCount,
+  );
+  const lease = await openModelApiLease(sql, {
+    ...budgetHolder,
     requestId,
     wire,
     model,
-    holdCents: modelApiHoldCents(
-      model,
-      estimatePromptTokens(request),
-      request.maxOutputTokens,
-      request.choiceCount,
-    ),
+    worstCase,
   });
+  // Everything the relay and the ending need, copied out of the request
+  // here: nothing that lives as long as the answer holds the parsed body.
+  const upstreamBody =
+    wire === 'openai'
+      ? openAiUpstreamBody(request, lease.gatewayModel, worstCase.outputCap)
+      : anthropicUpstreamBody(request, lease.gatewayModel);
+  const stream = request.stream;
+  const dropUsageChunk =
+    wire === 'openai' && stream && !openAiStreamIncludesUsage(request.body);
   const stopHeartbeat = heartbeatModelApiOp(sql, lease);
   let closed = false;
   const close = (outcome: RelayOutcome) => {
     if (closed) return;
     closed = true;
     stopHeartbeat();
-    closeModelApiLease(sql, lease, outcome.status, outcome.usage);
+    closeModelApiLease(sql, lease, { outcome, model, promptTokens });
   };
   try {
     return await relayToGateway({
@@ -231,15 +256,9 @@ export async function relayModelApiRequest(
       publicModel: model.id,
       gatewayModel: lease.gatewayModel,
       token: lease.token,
-      body:
-        wire === 'openai'
-          ? openAiUpstreamBody(request, lease.gatewayModel)
-          : anthropicUpstreamBody(request, lease.gatewayModel),
-      stream: request.stream,
-      dropUsageChunk:
-        wire === 'openai' &&
-        request.stream &&
-        !openAiStreamIncludesUsage(request.body),
+      body: upstreamBody,
+      stream,
+      dropUsageChunk,
       anthropicHeaders: caller.anthropicHeaders,
       requestId: caller.requestId,
       signal: caller.signal,
@@ -247,7 +266,8 @@ export async function relayModelApiRequest(
     });
   } catch (error) {
     // Whatever stopped the relay, the lease closes: its key is settled and
-    // deleted, its hold released.
+    // deleted, its hold released. (A relay that failed after sending has
+    // already closed it with what it knew.)
     close({ status: 'failed' });
     throw error;
   }

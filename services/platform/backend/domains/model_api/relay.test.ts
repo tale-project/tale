@@ -222,8 +222,13 @@ describe('relayToGateway — OpenAI streams', () => {
     });
     expect(received[2]).toMatchObject({ choices: toolCall.choices });
     expect(received[4]).toBe('[DONE]');
+    // The text, reasoning and tool arguments relayed, counted as output.
     expect(outcomes).toEqual([
-      { status: 'completed', usage: { inputTokens: 120, outputTokens: 30 } },
+      {
+        status: 'completed',
+        usage: { inputTokens: 120, outputTokens: 30 },
+        countedOutputTokens: 5,
+      },
     ]);
   });
 
@@ -290,7 +295,7 @@ describe('relayToGateway — OpenAI streams', () => {
         code: 'MODEL_API_UPSTREAM_ERROR',
       },
     });
-    expect(outcomes).toEqual([{ status: 'failed' }]);
+    expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 0 }]);
   });
 
   it('aborts the vendor when the caller hangs up', async () => {
@@ -317,7 +322,7 @@ describe('relayToGateway — OpenAI streams', () => {
     await reader?.cancel();
     expect(upstreamSignal?.aborted).toBe(true);
     expect(upstreamCancelled).toBe(true);
-    expect(outcomes).toEqual([{ status: 'cancelled' }]);
+    expect(outcomes).toEqual([{ status: 'cancelled', countedOutputTokens: 0 }]);
   });
 });
 
@@ -349,7 +354,7 @@ describe('relayToGateway — a hang-up while the vendor is silent', () => {
     const pending = reader?.read();
     caller.abort();
     await expect(pending).rejects.toBeDefined();
-    expect(outcomes).toEqual([{ status: 'cancelled' }]);
+    expect(outcomes).toEqual([{ status: 'cancelled', countedOutputTokens: 0 }]);
   });
 });
 
@@ -410,7 +415,11 @@ describe('relayToGateway — Anthropic streams', () => {
       delta: { type: 'input_json_delta', partial_json: '{"path":"a"}' },
     });
     expect(outcomes).toEqual([
-      { status: 'completed', usage: { inputTokens: 900, outputTokens: 42 } },
+      {
+        status: 'completed',
+        usage: { inputTokens: 900, outputTokens: 42 },
+        countedOutputTokens: 3,
+      },
     ]);
   });
 });
@@ -522,10 +531,191 @@ describe('relayToGateway — refusals', () => {
     expect((await relayToGateway(relay)).status).toBe(429);
   });
 
-  it('throws the 502 refusal when the gateway cannot be reached', async () => {
+  it('throws the 502 refusal when the gateway cannot be reached, a whole answer then possibly still generating', async () => {
     gateway(() => Promise.reject(new TypeError('fetch failed')));
     const { args: relay, outcomes } = args({});
     await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
-    expect(outcomes).toEqual([{ status: 'failed' }]);
+    expect(outcomes).toEqual([{ status: 'failed', mayStillGenerate: true }]);
+  });
+
+  it('keeps internal addresses out of a relayed refusal, answering a generic one instead', async () => {
+    gateway(() =>
+      Response.json(
+        {
+          error: {
+            message:
+              'Post "http://10.0.3.7:8000/v1/chat/completions": dial tcp 10.0.3.7:8000: connect: connection refused',
+          },
+        },
+        { status: 500 },
+      ),
+    );
+    const { args: relay } = args({});
+    const response = await relayToGateway(relay);
+    expect(response.status).toBe(502);
+    const body = (await response.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      'The model provider refused the request (HTTP 500).',
+    );
+    expect(JSON.stringify(body)).not.toContain('10.0.3.7');
+  });
+
+  it.each([
+    'upstream sandbox-llm-gateway:8080 unavailable',
+    'no such host: vllm.internal',
+    'see http://inference/v1 for details',
+    'failed on [fd00::12]:443',
+  ])('treats %j as internal detail', async (message) => {
+    gateway(() => Response.json({ error: { message } }, { status: 503 }));
+    const { args: relay } = args({});
+    const body = (await (await relayToGateway(relay)).json()) as {
+      error: { message: string };
+    };
+    expect(body.error.message).toBe(
+      'The model provider refused the request (HTTP 503).',
+    );
+  });
+
+  it('relays a vendor’s own refusal of the request, public links included', async () => {
+    gateway(() =>
+      Response.json(
+        {
+          error: {
+            message:
+              'max_tokens: 300000 > 64000, the most this model writes; see https://docs.example.com/limits',
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    const { args: relay } = args({});
+    const body = (await (await relayToGateway(relay)).json()) as {
+      error: { message: string };
+    };
+    expect(body.error.message).toContain('see https://docs.example.com/limits');
+  });
+});
+
+describe('relayToGateway — endings the settlement books', () => {
+  it('counts the output a stream relayed before the caller hung up', async () => {
+    const controller = new AbortController();
+    const encoder = new TextEncoder();
+    let sent = 0;
+    gateway(
+      (call) =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(stream) {
+              sent += 1;
+              if (sent <= 2) {
+                stream.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ model: 'gw', choices: [{ index: 0, delta: { content: 'twelve chars' } }] })}\n\n`,
+                  ),
+                );
+                return Promise.resolve();
+              }
+              return new Promise<void>((_resolve, reject) => {
+                call.init.signal?.addEventListener('abort', () =>
+                  reject(new Error('aborted')),
+                );
+              });
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    const { args: relay, outcomes } = args({
+      stream: true,
+      signal: controller.signal,
+    });
+    const response = await relayToGateway(relay);
+    const reader = response.body?.getReader();
+    await reader?.read();
+    await reader?.read();
+    controller.abort();
+    await reader?.cancel();
+    await vi.waitFor(() => expect(outcomes).toHaveLength(1));
+    expect(outcomes[0]).toEqual({
+      status: 'cancelled',
+      countedOutputTokens: 6,
+    });
+  });
+
+  it('stops a stream that goes silent past its idle budget, and ends it with the wire’s error', async () => {
+    const encoder = new TextEncoder();
+    let sent = false;
+    gateway(
+      (call) =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(stream) {
+              if (!sent) {
+                sent = true;
+                stream.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ model: 'gw', choices: [{ index: 0, delta: { content: 'abcd' } }] })}\n\n`,
+                  ),
+                );
+                return Promise.resolve();
+              }
+              return new Promise<void>((_resolve, reject) => {
+                call.init.signal?.addEventListener('abort', () =>
+                  reject(new Error('aborted')),
+                );
+              });
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+    const { args: relay, outcomes } = args({
+      stream: true,
+      lifetime: { streamIdleMs: 50, streamMs: 60_000 },
+    });
+    const received = events(await (await relayToGateway(relay)).text());
+    expect(received.at(-1)).toMatchObject({
+      error: { code: 'MODEL_API_UPSTREAM_ERROR', type: 'server_error' },
+    });
+    expect(
+      (received.at(-1) as { error: { message: string } }).error.message,
+    ).toContain('went quiet for too long');
+    expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 1 }]);
+  });
+
+  it('stops a whole answer past its lifetime, with a 504 and the answer possibly still generating', async () => {
+    gateway(
+      (call) =>
+        new Promise<Response>((_resolve, reject) => {
+          call.init.signal?.addEventListener('abort', () =>
+            reject(new Error('aborted')),
+          );
+        }),
+    );
+    const { args: relay, outcomes } = args({ lifetime: { wholeMs: 50 } });
+    const refusal = await relayToGateway(relay).catch(
+      (caught: unknown) => caught,
+    );
+    expect(refusal).toMatchObject({
+      status: 504,
+      code: 'MODEL_API_UPSTREAM_ERROR',
+    });
+    expect(outcomes).toEqual([{ status: 'failed', mayStillGenerate: true }]);
+  });
+
+  it('reports a whole answer the caller abandoned as possibly still generating', async () => {
+    const controller = new AbortController();
+    gateway(
+      (call) =>
+        new Promise<Response>((_resolve, reject) => {
+          call.init.signal?.addEventListener('abort', () =>
+            reject(new Error('aborted')),
+          );
+          setTimeout(() => controller.abort(), 5);
+        }),
+    );
+    const { args: relay, outcomes } = args({ signal: controller.signal });
+    await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
+    expect(outcomes).toEqual([{ status: 'cancelled', mayStillGenerate: true }]);
   });
 });

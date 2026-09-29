@@ -6405,7 +6405,7 @@ export function buildSpec(): Json {
       ...(relays
         ? {
             '400': refusal(
-              'A body the endpoint cannot relay: not JSON, a missing `model` or `messages` (`max_tokens` on Anthropic), a role or content part outside the wire’s own, an image URL that is neither `data:` nor `https:` (`INVALID_BODY`, `param` naming the field); a tool the vendor would run (`MODEL_API_VENDOR_TOOL_UNSUPPORTED`); images for a model without vision (`MODEL_API_VISION_UNSUPPORTED`); tools for a model that takes none (`MODEL_API_TOOLS_UNSUPPORTED`); text the organization’s input guardrails block (`MODEL_API_GUARDRAIL_BLOCKED`); or the vendor refused the request itself (`MODEL_API_UPSTREAM_ERROR`, its message relayed)',
+              'A body the endpoint cannot relay: not JSON, a missing `model` or `messages` (`max_tokens` on Anthropic), a role or content part outside the wire’s own, an image URL that is neither `data:` nor `https:`, a file stored in the vendor account (`file_id`, a `file` source), more than 8 answers (`n`), a service tier other than `auto`/`default` (OpenAI) or `auto`/`standard_only` (Anthropic), audio output, `store: true` (`INVALID_BODY`, `param` naming the field); a `context-1m` beta in `anthropic-beta` (`INVALID_HEADER`); a tool the vendor would run (`MODEL_API_VENDOR_TOOL_UNSUPPORTED`); images for a model without vision (`MODEL_API_VISION_UNSUPPORTED`); tools for a model that takes none (`MODEL_API_TOOLS_UNSUPPORTED`); text the organization’s input guardrails block, or would mask in a name (`MODEL_API_GUARDRAIL_BLOCKED`); or the vendor refused the request itself (`MODEL_API_UPSTREAM_ERROR`, its message relayed unless it names the platform’s internal addresses)',
             ),
           }
         : {}),
@@ -6429,13 +6429,13 @@ export function buildSpec(): Json {
       ...(relays
         ? {
             '413': refusal(
-              'The body exceeds 32 MiB (`BODY_TOO_LARGE`), the Anthropic Messages API’s own request limit',
+              'The body exceeds 32 MiB (`BODY_TOO_LARGE`), the Anthropic Messages API’s own request limit; or, while the organization’s input guardrails are on, it carries more than 2 MB of text, more than 20,000 separate texts, or more new text than the guardrails read in one request (`MODEL_API_TEXT_TOO_LARGE`)',
             ),
           }
         : {}),
       '429': refusal(
         relays
-          ? 'A budget cap that binds the key holder, one of their teams, the organization or the key is reached (`BUDGET_EXCEEDED`, `Retry-After` naming when its period resets and `x-should-retry: false`); the key holder’s request budget is spent (`RATE_LIMITED`); or the vendor’s rate limit (`MODEL_API_UPSTREAM_ERROR`)'
+          ? 'A budget cap that binds the key holder, one of their teams, the organization or the key is reached, or leaves less than the request’s worst case — its prompt plus its output cap, once per answer — in which case the message names the output cap that would fit (`BUDGET_EXCEEDED`, `Retry-After` naming when its period resets and `x-should-retry: false`); the key holder or the key already has 8 requests running in the organization (`MODEL_API_CONCURRENCY_EXCEEDED`, `Retry-After`); the key holder’s request budget is spent (`RATE_LIMITED`); or the vendor’s rate limit (`MODEL_API_UPSTREAM_ERROR`)'
           : 'The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds',
       ),
       '500': refusal(
@@ -6444,13 +6444,13 @@ export function buildSpec(): Json {
       ...(relays
         ? {
             '502': refusal(
-              'The model gateway could not be reached, the vendor failed, or its stream broke off before the answer was complete (`MODEL_API_UPSTREAM_ERROR`)',
+              'The model gateway could not be reached, the vendor failed, or its stream broke off before the answer was complete (`MODEL_API_UPSTREAM_ERROR`); a whole answer that outlived the gateway’s request timeout answers 504 with the same code',
             ),
           }
         : {}),
       '503': refusal(
         relays
-          ? 'The model gateway cannot serve the model right now, or the model access policy cannot be read (`MODEL_API_UNAVAILABLE`, `Retry-After`); a fail-closed input guardrail could not judge the request (`MODEL_API_GUARDRAIL_UNAVAILABLE`); or the vendor is overloaded (`MODEL_API_UPSTREAM_ERROR`)'
+          ? 'The model gateway cannot serve the model right now, the provider credential cannot be used, or the model access policy cannot be read (`MODEL_API_UNAVAILABLE`, `Retry-After`); a fail-closed input guardrail could not judge the request, or a guardrail policy cannot be read (`MODEL_API_GUARDRAIL_UNAVAILABLE`); or the vendor is overloaded (`MODEL_API_UPSTREAM_ERROR`)'
           : 'The model access policy cannot be read right now (`MODEL_API_UNAVAILABLE`, `Retry-After`)',
       ),
     };
@@ -6489,13 +6489,17 @@ export function buildSpec(): Json {
         '`stream_options.include_usage` asks for it); `tools` are the ' +
         'caller’s own (`function`, `custom`) and come back as `tool_calls`; ' +
         'images ride `image_url` parts (`data:` or `https:`) for a model with ' +
-        'vision; documents ride `file` parts. The organization’s input ' +
-        'guardrails judge the system, developer and user text first — a ' +
-        'block refuses the request, a mask rewrites the text the model ' +
-        'receives; the answer itself is not filtered. The spend is held ' +
-        'against every budget that binds the key holder and the key before ' +
-        'the call, and booked after it under the person and the key (usage ' +
-        'shows it as Direct API). The answer is the vendor’s, `model` ' +
+        'vision; documents ride `file` parts (inline). The organization’s ' +
+        'input guardrails judge every text the caller wrote first — every ' +
+        'role, tool calls and results, tool definitions, a prediction, a ' +
+        'response schema — a block refuses the request, a mask rewrites the ' +
+        'text the model receives; the answer itself is not filtered. The ' +
+        'request’s worst case (its prompt plus its output cap, once per ' +
+        'answer; the catalog maximum is sent as `max_completion_tokens` when ' +
+        'the request names no cap) is held whole against every budget that ' +
+        'binds the key holder and the key before the call, and the spend is ' +
+        'booked after it under the person and the key (usage shows it as ' +
+        'Direct API). The answer is the vendor’s, `model` ' +
         'naming the id the request sent; a vendor refusal is relayed in ' +
         'this shape as `MODEL_API_UPSTREAM_ERROR`. Query parameters are ' +
         'ignored.',
@@ -7174,14 +7178,19 @@ answers both gates). A model id is \`<provider>/<model>\` — the connector's
 slug and the model's id in its catalog — on both wires, and only a model the
 key holder's model access and the provider credential's allowlist admit
 answers (403 \`MODEL_API_MODEL_FORBIDDEN\`, 404 \`MODEL_API_MODEL_UNKNOWN\`).
-The organization's input guardrails judge the system and user text before a
+The organization's input guardrails judge every text the caller wrote into
+the request — every role, tool calls and results, tool definitions — before a
 call (400 \`MODEL_API_GUARDRAIL_BLOCKED\`; a mask rewrites what the model
 receives; 403 \`MODEL_API_GUARDRAIL_UNSUPPORTED\` for a PII policy that
 tokenizes; 503 \`MODEL_API_GUARDRAIL_UNAVAILABLE\` when a fail-closed step
-cannot judge) — the answer is relayed unfiltered. A call's worst case is held
-against every budget that binds the key holder, their teams, the
-organization and the key (429 \`BUDGET_EXCEEDED\` with \`Retry-After\`), and
-its spend is booked under the person and the key. A tool the vendor would
+cannot judge or a policy cannot be read; 413 \`MODEL_API_TEXT_TOO_LARGE\`
+past 2 MB of text) — the answer is relayed unfiltered. A call's worst case
+is held whole against every budget that binds the key holder, their teams,
+the organization and the key (429 \`BUDGET_EXCEEDED\` with \`Retry-After\`,
+naming the output cap that would fit when the worst case does not), at most
+8 calls of a key holder or a key run at once (429
+\`MODEL_API_CONCURRENCY_EXCEEDED\`), and its spend is booked under the person
+and the key. A tool the vendor would
 run (400 \`MODEL_API_VENDOR_TOOL_UNSUPPORTED\`), images for a model without
 vision (400 \`MODEL_API_VISION_UNSUPPORTED\`) and tools for a model without
 them (400 \`MODEL_API_TOOLS_UNSUPPORTED\`) are refused before the call; a
