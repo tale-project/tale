@@ -57,8 +57,19 @@ vi.mock('../hooks/actions', () => ({
 vi.mock('../hooks/mutations', () => ({
   useCancelOneDriveSync: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCancelGoogleDriveSync: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteFolder: () => ({ mutate: deleteFolderMutate, isPending: false }),
+  useDeleteDocument: () => ({
+    mutateAsync: () => new Promise(() => {}),
+    isPending: false,
+  }),
+  // The row reports from the call's own promise; a test settles it through
+  // `deleteFolderMutate(args, { onSuccess, onError })`.
+  useDeleteFolder: () => ({
+    mutateAsync: (args: unknown) =>
+      new Promise((resolve, reject) => {
+        deleteFolderMutate(args, { onSuccess: resolve, onError: reject });
+      }),
+    isPending: false,
+  }),
   useMarkDocumentControlled: () => ({
     mutateAsync: vi.fn(),
     isPending: false,

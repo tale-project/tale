@@ -18,15 +18,21 @@ vi.mock('@/app/hooks/use-ability', () => ({
   }),
 }));
 
-// Hoisted so tests can drive the `onSuccess`/`onError` callbacks the real
-// mutation hook would invoke (mirrors the component's `mutate(args, opts)`
-// call shape).
+// Hoisted so tests can settle the write the way the real hook would: the
+// component reports from the call's own promise, and a test drives it through
+// `mutateSpy(args, { onSuccess, onError })`.
 const { mutateSpy } = vi.hoisted(() => ({
   mutateSpy: vi.fn(),
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutate: mutateSpy, isPending: false }),
+  useUpsertGovernancePolicy: () => ({
+    mutateAsync: (args: unknown) =>
+      new Promise((resolve, reject) => {
+        mutateSpy(args, { onSuccess: resolve, onError: reject });
+      }),
+    isPending: false,
+  }),
 }));
 
 // Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above

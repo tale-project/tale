@@ -154,7 +154,8 @@ function ProjectFileRecordMenu({
   const { t: tGovernance } = useT('governance');
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
+  const { mutateAsync: deleteDocument, isPending: isDeleting } =
+    useDeleteDocument();
   const { actions, dialogs, isHeld, isRecordProtected } =
     useDocumentRecordActions({
       documentId: doc._id,
@@ -172,17 +173,14 @@ function ProjectFileRecordMenu({
     });
 
   const handleDeleteConfirm = useCallback(() => {
-    deleteDocument(
-      { documentId: doc._id },
-      {
-        onSuccess: () => setConfirmDelete(false),
-        onError: (error) => {
-          console.error('Failed to delete project document:', error);
-          toast({
-            title: tDocuments('actions.deleteFileFailed'),
-            variant: 'destructive',
-          });
-        },
+    void deleteDocument({ documentId: doc._id }).then(
+      () => setConfirmDelete(false),
+      (error: unknown) => {
+        console.error('Failed to delete project document:', error);
+        toast({
+          title: tDocuments('actions.deleteFileFailed'),
+          variant: 'destructive',
+        });
       },
     );
   }, [deleteDocument, doc._id, tDocuments]);

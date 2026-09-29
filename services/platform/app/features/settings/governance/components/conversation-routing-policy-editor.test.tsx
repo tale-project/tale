@@ -49,11 +49,9 @@ vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-const upsert = vi.fn();
 const upsertAsync = vi.fn(async (_args: unknown) => undefined);
 vi.mock('../hooks/mutations', () => ({
   useUpsertGovernancePolicy: () => ({
-    mutate: upsert,
     mutateAsync: upsertAsync,
     isPending: false,
   }),
@@ -243,7 +241,7 @@ describe('ConversationRoutingPolicyEditor', () => {
    */
   describe('where a conversation arrives', () => {
     it('saves a rule for one mailbox, with no address, into sourceRules', async () => {
-      upsert.mockClear();
+      upsertAsync.mockClear();
       state.isLoading = false;
       state.config = {
         enabled: true,
@@ -258,7 +256,7 @@ describe('ConversationRoutingPolicyEditor', () => {
       await user.click(screen.getByTestId('option-team:t1'));
       await user.click(screen.getByRole('button', { name: 'Save rule' }));
 
-      expect(upsert.mock.calls[0]?.[0]).toMatchObject({
+      expect(upsertAsync.mock.calls[0]?.[0]).toMatchObject({
         policyType: 'conversation_routing',
         config: {
           enabled: true,
@@ -290,7 +288,7 @@ describe('ConversationRoutingPolicyEditor', () => {
     });
 
     it('asks no address for an API app, and saves it by source', async () => {
-      upsert.mockClear();
+      upsertAsync.mockClear();
       state.isLoading = false;
       state.config = { enabled: true, rules: [] };
       const { user } = render(
@@ -304,7 +302,7 @@ describe('ConversationRoutingPolicyEditor', () => {
       await user.click(screen.getByTestId('option-team:t1'));
       await user.click(screen.getByRole('button', { name: 'Save rule' }));
 
-      expect(upsert.mock.calls[0]?.[0]).toMatchObject({
+      expect(upsertAsync.mock.calls[0]?.[0]).toMatchObject({
         config: {
           rules: [],
           sourceRules: [{ apiSource: 'helpdesk', teamId: 't1' }],

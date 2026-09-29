@@ -18,26 +18,18 @@ const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
 const mockDeleteAsync = vi.fn().mockResolvedValue(undefined);
 
-// The create dialog uses `mutate(args, { onSuccess, onError })`; invoke the
-// success callback so the dialog's close path runs exactly as in the app.
+// The dialogs report from the write's own promise; it resolves, so the
+// dialog's close path runs exactly as in the app.
 vi.mock('../hooks/mutations', () => ({
   useCreateProduct: () => ({
-    mutate: (
-      args: unknown,
-      cbs?: { onSuccess?: () => void; onError?: (e: unknown) => void },
-    ) => {
+    mutateAsync: async (args: unknown) => {
       mockCreate(args);
-      cbs?.onSuccess?.();
     },
     isPending: false,
   }),
   useUpdateProduct: () => ({
-    mutate: (
-      args: unknown,
-      cbs?: { onSuccess?: () => void; onError?: (e: unknown) => void },
-    ) => {
+    mutateAsync: async (args: unknown) => {
       mockUpdate(args);
-      cbs?.onSuccess?.();
     },
     isPending: false,
   }),

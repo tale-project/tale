@@ -105,8 +105,9 @@ export function DocumentRowActions({
     'teamTags',
     'move',
   ]);
-  const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
-  const { mutate: deleteFolder, isPending: isDeletingFolder } =
+  const { mutateAsync: deleteDocument, isPending: isDeleting } =
+    useDeleteDocument();
+  const { mutateAsync: deleteFolder, isPending: isDeletingFolder } =
     useDeleteFolder();
   const { mutateAsync: cancelOneDriveSync, isPending: isCancellingOneDrive } =
     useCancelOneDriveSync();
@@ -141,44 +142,38 @@ export function DocumentRowActions({
     sourceMode === 'manual' || !!isDirectlySelected || itemType === 'folder';
 
   const handleDeleteConfirm = useCallback(() => {
-    deleteDocument(
-      { documentId: documentId },
-      {
-        onSuccess: () => dialogs.setOpen.delete(false),
-        onError: (error) => {
-          console.error('Delete error:', error);
-          toast({
-            title: tDocuments('actions.deleteFileFailed'),
-            variant: 'destructive',
-          });
-        },
+    void deleteDocument({ documentId: documentId }).then(
+      () => dialogs.setOpen.delete(false),
+      (error: unknown) => {
+        console.error('Delete error:', error);
+        toast({
+          title: tDocuments('actions.deleteFileFailed'),
+          variant: 'destructive',
+        });
       },
     );
   }, [deleteDocument, documentId, dialogs.setOpen, tDocuments]);
 
   const handleDeleteFolderConfirm = useCallback(() => {
-    deleteFolder(
-      { folderId: documentId },
-      {
-        onSuccess: () => {
-          dialogs.setOpen.deleteFolder(false);
-          onFolderDeleted?.();
-        },
-        onError: (error) => {
-          console.error('Failed to delete folder:', error);
-          // `AppError.message` is the serialized payload by design; the
-          // readable sentence is `data.message`, and a retained record has
-          // its own explanation.
-          const message =
-            backendErrorCode(error) === 'DOCUMENT_RECORD_PROTECTED'
-              ? tDocuments('actions.deleteFolderProtectedRecord')
-              : backendErrorMessage(error, '');
-          toast({
-            title: tDocuments('actions.deleteFolderFailed'),
-            ...(message ? { description: message } : {}),
-            variant: 'destructive',
-          });
-        },
+    void deleteFolder({ folderId: documentId }).then(
+      () => {
+        dialogs.setOpen.deleteFolder(false);
+        onFolderDeleted?.();
+      },
+      (error: unknown) => {
+        console.error('Failed to delete folder:', error);
+        // `AppError.message` is the serialized payload by design; the
+        // readable sentence is `data.message`, and a retained record has
+        // its own explanation.
+        const message =
+          backendErrorCode(error) === 'DOCUMENT_RECORD_PROTECTED'
+            ? tDocuments('actions.deleteFolderProtectedRecord')
+            : backendErrorMessage(error, '');
+        toast({
+          title: tDocuments('actions.deleteFolderFailed'),
+          ...(message ? { description: message } : {}),
+          variant: 'destructive',
+        });
       },
     );
   }, [deleteFolder, documentId, dialogs.setOpen, tDocuments, onFolderDeleted]);

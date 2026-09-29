@@ -542,21 +542,21 @@ export function ConversationRoutingPolicyEditor({
   const saveRules = useCallback(
     (next: EditorRule[], revert: () => void) => {
       setRules(next);
-      upsertMutation.mutate(
-        {
+      void upsertMutation
+        .mutateAsync({
           organizationId,
           policyType: 'conversation_routing',
           // A rule edit is only reachable while the section is on.
           config: configOf(next, true),
-        },
-        {
-          onSuccess: () =>
+        })
+        .then(
+          () =>
             toast({
               title: t('toastSavedTitle'),
               description: t('conversationRouting.saved'),
               variant: 'success',
             }),
-          onError: (error) => {
+          (error: unknown) => {
             revert();
             toast({
               title: t('toastSaveFailedTitle'),
@@ -568,8 +568,7 @@ export function ConversationRoutingPolicyEditor({
               variant: 'destructive',
             });
           },
-        },
-      );
+        );
     },
     [organizationId, upsertMutation, toast, t],
   );

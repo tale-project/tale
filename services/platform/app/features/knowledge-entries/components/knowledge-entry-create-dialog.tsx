@@ -36,7 +36,7 @@ export function KnowledgeEntryCreateDialog({
   organizationId,
 }: KnowledgeEntryCreateDialogProps) {
   const { t } = useT('knowledgeEntries');
-  const { mutate: createEntry, isPending } = useCreateKnowledgeEntry();
+  const { mutateAsync: createEntry, isPending } = useCreateKnowledgeEntry();
 
   const formSchema = useMemo(
     () =>
@@ -66,31 +66,28 @@ export function KnowledgeEntryCreateDialog({
   });
 
   const onSubmit = (data: FormData) => {
-    createEntry(
-      {
-        organizationId,
-        topic: data.topic,
-        content: data.content,
+    void createEntry({
+      organizationId,
+      topic: data.topic,
+      content: data.content,
+    }).then(
+      () => {
+        toast({ title: t('toast.addSuccess'), variant: 'success' });
+        reset();
+        onClose();
       },
-      {
-        onSuccess: () => {
-          toast({ title: t('toast.addSuccess'), variant: 'success' });
-          reset();
-          onClose();
-        },
-        onError: (error) => {
-          console.error('Failed to add knowledge entry:', error);
-          const isDuplicate =
-            backendErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
-          toast({
-            title: isDuplicate
-              ? t('toast.addErrorDuplicate')
-              : t('toast.addError'),
-            // A duplicate is the whole story; any other refusal says why.
-            description: isDuplicate ? undefined : failureDetail(error),
-            variant: 'destructive',
-          });
-        },
+      (error: unknown) => {
+        console.error('Failed to add knowledge entry:', error);
+        const isDuplicate =
+          backendErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
+        toast({
+          title: isDuplicate
+            ? t('toast.addErrorDuplicate')
+            : t('toast.addError'),
+          // A duplicate is the whole story; any other refusal says why.
+          description: isDuplicate ? undefined : failureDetail(error),
+          variant: 'destructive',
+        });
       },
     );
   };
