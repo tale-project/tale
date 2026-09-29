@@ -2175,6 +2175,9 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
 
   it.each([
     ['stale_question', { staleBecause: 'review_changed' }],
+    // A resumption naming no agent and a run that is not the task's has no
+    // agent it would have resumed.
+    ['stale_question', { staleBecause: 'run_superseded', agentId: null }],
     ['already_running', { runId: 'run_live' }],
     ['in_review', {}],
     ['closed', { taskStatus: 'done' }],

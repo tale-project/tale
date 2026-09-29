@@ -203,8 +203,9 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'in_review for a human; false leaves the card where it is, only under ' +
     'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} ' +
     '(when you resume an agent with the answer to its question: the run ' +
-    'that asked and its pending review, as you read them — the start then ' +
-    'happens only while that is still the task’s open question)}. Answers ' +
+    'that asked and its pending review, as you read them — without agentId ' +
+    'it resumes that run’s agent, and only while that is still the task’s ' +
+    'open question)}. Answers ' +
     '{started, runId, reason?}: reason stale_question (that question is no ' +
     'longer open — a person decided, a newer run or review exists, or the ' +
     'assignee changed; nothing changed), already_running (the task is being ' +

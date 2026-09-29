@@ -29,7 +29,10 @@ import { createTaskList } from '../../jobs/task-list.ts';
 import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
 import { scanScheduledTriggers } from '../automations/triggers.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
-import { getProjectAuthContext } from '../projects/service.ts';
+import {
+  deleteProjectAgent,
+  getProjectAuthContext,
+} from '../projects/service.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
 import { completeAgentRunInTx } from './agent-run-completion.ts';
 import { cancelAgentRunInTx, failAgentRunFromTurn } from './agent-runs.ts';
@@ -1186,7 +1189,7 @@ export async function checkDelegatedAgentStartTool(
   const w4 = randomUUID();
   const w5 = randomUUID();
   const w6 = randomUUID();
-  const questionAgents = Array.from({ length: 7 }, () => randomUUID());
+  const questionAgents = Array.from({ length: 10 }, () => randomUUID());
   const outsider = randomUUID();
   const editor = `delegate-editor-${suffix}`;
   const member = `delegate-member-${suffix}`;
@@ -1927,6 +1930,120 @@ export async function checkDelegatedAgentStartTool(
         JSON.stringify(await reviewStates(qe)) ===
           JSON.stringify(reviewsBeforeE),
       `late=${JSON.stringify(lateE)} runs=${describeRuns(runsE)} reviews=${JSON.stringify(reviewsBeforeE)}`,
+    );
+
+    // G, H: handed to a person, or to nobody, in between. A resumption that
+    // names no agent resumes the agent that asked, so the guard answers that
+    // the assignee changed, as it does for one naming that agent.
+    const handedOff: Record<string, unknown> = {};
+    const handedTasks: Record<string, string> = {};
+    for (const [index, to] of (['person', 'nobody'] as const).entries()) {
+      const asked = asAgent(7 + index);
+      const task = await fx.insertTask({
+        projectId: projectA,
+        title: `Asks, handed to ${to}`,
+      });
+      handedTasks[to] = task;
+      const from = await parkWithQuestion(task, asked);
+      await sql.begin((tx) =>
+        assignTask(
+          tx,
+          personAuth,
+          to === 'person'
+            ? { taskId: task, assigneeType: 'user', assigneeId: editor }
+            : { taskId: task },
+        ),
+      );
+      const reviewsBefore = await reviewStates(task);
+      const late = await resume(task, from);
+      const named = await dispatch(managerRun.token, 'task_start_agent', {
+        taskId: task,
+        agentId: asked,
+        feedback: labelAnswer,
+        resumeFrom: from,
+      });
+      const holders = await sql<{ type: string | null; id: string | null }[]>`
+        SELECT assignee_type AS type, assignee_id AS id FROM app.tasks
+        WHERE id = ${task}
+      `;
+      handedOff[to] = {
+        late: outputOf(late),
+        named: outputOf(named),
+        asked,
+        card: await cardStatus(task),
+        runs: describeRuns(await runsOf(sql, task)),
+        holder: holders[0],
+        reviewsKept:
+          JSON.stringify(await reviewStates(task)) ===
+          JSON.stringify(reviewsBefore),
+      };
+    }
+    const handedOk = (
+      to: string,
+      holder: { type: string | null; id: string | null },
+    ): boolean => {
+      const entry = handedOff[to];
+      if (!isRecord(entry) || !isRecord(entry.late) || !isRecord(entry.named)) {
+        return false;
+      }
+      return (
+        entry.late.started === false &&
+        entry.late.reason === 'stale_question' &&
+        entry.late.staleBecause === 'assignee_changed' &&
+        entry.late.agentId === entry.asked &&
+        entry.named.started === false &&
+        entry.named.reason === 'stale_question' &&
+        entry.named.staleBecause === 'assignee_changed' &&
+        entry.card === 'in_review' &&
+        entry.runs === 'settled/delegated' &&
+        JSON.stringify(entry.holder) === JSON.stringify(holder) &&
+        entry.reviewsKept === true
+      );
+    };
+    record(
+      'resumption: after a person handed the task to a person or to nobody, a resumption that names no agent answers stale_question (assignee_changed) for the agent that asked, as one naming that agent does — nothing assigned, started, withdrawn or moved',
+      handedOk('person', { type: 'user', id: editor }) &&
+        handedOk('nobody', { type: null, id: null }),
+      `handed=${JSON.stringify(handedOff)}`,
+    );
+
+    // I: the agent that asked was deleted in between (which unassigns its
+    // tasks), or the run named is not the task's: nobody to resume.
+    const asker = asAgent(9);
+    const qi = await fx.insertTask({
+      projectId: projectA,
+      title: 'Asks, then its agent is deleted',
+    });
+    const fromI = await parkWithQuestion(qi, asker);
+    await sql.begin((tx) => deleteProjectAgent(tx, personAuth, asker));
+    const reviewsBeforeI = await reviewStates(qi);
+    const lateI = await resume(qi, fromI);
+    const handedToPerson = handedTasks.person ?? '';
+    const reviewsBeforeForeign = await reviewStates(handedToPerson);
+    const foreign = await resume(handedToPerson, {
+      runId: fromA.runId,
+      approvalId: reviewsBeforeForeign.at(-1)?.id ?? '',
+    });
+    record(
+      'resumption: once the agent that asked is deleted, or when the run named is not the task’s, a resumption that names no agent answers stale_question — with the deleted agent, or no agent, as the one it would have resumed — and changes nothing',
+      outputOf(lateI).started === false &&
+        outputOf(lateI).reason === 'stale_question' &&
+        outputOf(lateI).staleBecause === 'assignee_changed' &&
+        outputOf(lateI).agentId === asker &&
+        (await cardStatus(qi)) === 'in_review' &&
+        describeRuns(await runsOf(sql, qi)) === 'settled/delegated' &&
+        JSON.stringify(await reviewStates(qi)) ===
+          JSON.stringify(reviewsBeforeI) &&
+        outputOf(foreign).started === false &&
+        outputOf(foreign).reason === 'stale_question' &&
+        outputOf(foreign).staleBecause === 'run_superseded' &&
+        outputOf(foreign).agentId === null &&
+        (await cardStatus(handedToPerson)) === 'in_review' &&
+        describeRuns(await runsOf(sql, handedToPerson)) ===
+          'settled/delegated' &&
+        JSON.stringify(await reviewStates(handedToPerson)) ===
+          JSON.stringify(reviewsBeforeForeign),
+      `deleted=${JSON.stringify(lateI)} foreign=${JSON.stringify(foreign)}`,
     );
 
     // F: two transactions — a person's Done holds the task row while the

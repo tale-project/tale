@@ -60,10 +60,11 @@ import {
  *   the default start moves the card and withdraws the review instead;
  * - `stale_question` — a resumption (`resumeFrom`) whose question is no
  *   longer the task's open question: a person decided (Done, Cancelled, a
- *   move), a newer run or review exists, the assignee changed, or the task is
- *   being worked. Checked under the task's row lock before anything is
- *   assigned, withdrawn, moved or started, so a decision a person made
- *   between the requester's read and this start is never undone;
+ *   move), a newer run or review exists, the assignee changed (another
+ *   agent, a person, nobody), or the task is being worked. Checked under the
+ *   task's row lock before anything is assigned, withdrawn, moved or
+ *   started, so a decision a person made between the requester's read and
+ *   this start is never undone;
  * - `agent_busy` — the agent is working another task in its standing
  *   workspace, which every run it is started for here shares: one active
  *   piece of work per agent workspace;
@@ -180,7 +181,9 @@ export interface DelegatedAgentStartArgs {
    * is still the task's open question — that run the task's newest and
    * ended, that review pending and bound to it, the card at In review, the
    * run's agent still the assignee, no live work — and otherwise answers
-   * `stale_question` and changes nothing. A deliberate start leaves it out.
+   * `stale_question` and changes nothing. Without `agentId` it resumes that
+   * run's agent, never whoever holds the task now. A deliberate start leaves
+   * it out.
    */
   resumeFrom?: { runId: string; approvalId: string };
 }
@@ -211,7 +214,9 @@ export type DelegatedAgentStart =
       /** A resumption whose question is no longer the open one. */
       outcome: 'stale_question';
       taskId: string;
-      agentId: string;
+      /** The agent it would have resumed; null when no agent was named and
+       * the run it names is not this task's. */
+      agentId: string | null;
       staleBecause: StaleQuestionCause;
     }
   | {
@@ -315,18 +320,33 @@ function actorOf(via: StartedVia): string {
   return via.kind === 'agent' ? via.agentId : WORKFLOW_ACTOR_ID;
 }
 
+/** The agent of one of the task's runs; null when the run is not the
+ * task's. */
+async function agentOfTaskRun(
+  tx: TransactionSql,
+  args: { organizationId: string; taskId: string; runId: string },
+): Promise<string | null> {
+  const rows = await tx<{ agentId: string }[]>`
+    SELECT agent_id AS "agentId" FROM app.project_agent_runs
+    WHERE id = ${args.runId} AND task_id = ${args.taskId}
+      AND org_id = ${args.organizationId}
+  `;
+  return rows[0]?.agentId ?? null;
+}
+
 /**
- * The resumption's precondition, judged on the task row the caller has just
- * locked: whether the question the requester answered is still the task's
- * open question. `null` when it is; otherwise the first cause that says why
- * not. Reads only — the caller refuses before it writes anything.
+ * The resumption's precondition, judged on the task row it locks: whether
+ * the question the requester answered is still the task's open question.
+ * `null` when it is; otherwise the first cause that says why not. Reads
+ * only — the caller refuses before it writes anything.
  */
 async function staleQuestionCause(
   tx: TransactionSql,
   args: {
     organizationId: string;
     taskId: string;
-    agentId: string;
+    /** The agent the resumption would start; null when there is none. */
+    agentId: string | null;
     resumeFrom: { runId: string; approvalId: string };
   },
 ): Promise<StaleQuestionCause | null> {
@@ -465,15 +485,24 @@ export async function startDelegatedAgentRun(
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
 
-  const agentId = args.agentId ?? task.assigneeId;
-  if (agentId === undefined || agentId === null) {
+  let agentId = args.agentId ?? task.assigneeId;
+  if (args.agentId === undefined && args.resumeFrom !== undefined) {
+    // A resumption resumes the agent that asked — its run's own agent, never
+    // whoever holds the task now: a task handed to a person, unassigned or
+    // passed to another agent since the requester's read is the question's
+    // guard to judge (`assignee_changed`), like any other change.
+    agentId = await agentOfTaskRun(tx, {
+      organizationId: args.organizationId,
+      taskId: task.id,
+      runId: args.resumeFrom.runId,
+    });
+  } else if (agentId === null) {
     throw new TaskError(
       'TASK_NO_AGENT_ASSIGNEE',
       'The task has no agent assignee; name the agent to start',
       409,
     );
-  }
-  if (args.agentId === undefined && task.assigneeType !== 'agent') {
+  } else if (args.agentId === undefined && task.assigneeType !== 'agent') {
     throw new TaskError(
       'TASK_NO_AGENT_ASSIGNEE',
       'The task is assigned to someone other than an agent; name the agent to start',
@@ -485,21 +514,41 @@ export async function startDelegatedAgentRun(
   // cannot miss a run another start is minting. A write rather than a
   // SELECT FOR UPDATE, as `lockTaskRunStart` does for the task: the loser's
   // serializable snapshot is invalidated too, and its retry sees the winner.
-  const agents = await tx<
-    {
-      id: string;
-      harness: string;
-      model: string;
-      modelProvider: string | null;
-    }[]
-  >`
-    UPDATE app.project_agents SET updated_at_ms = updated_at_ms
-    WHERE id = ${agentId} AND org_id = ${args.organizationId}
-      AND project_id = ${task.projectId}
-    RETURNING id, harness, model, model_provider AS "modelProvider"
-  `;
+  const agents =
+    agentId === null
+      ? []
+      : await tx<
+          {
+            id: string;
+            harness: string;
+            model: string;
+            modelProvider: string | null;
+          }[]
+        >`
+          UPDATE app.project_agents SET updated_at_ms = updated_at_ms
+          WHERE id = ${agentId} AND org_id = ${args.organizationId}
+            AND project_id = ${task.projectId}
+          RETURNING id, harness, model, model_provider AS "modelProvider"
+        `;
   const agent = agents[0];
   if (agent === undefined) {
+    if (args.agentId === undefined && args.resumeFrom !== undefined) {
+      // Nobody to resume: the run named is not this task's, or its agent is
+      // gone (deleting an agent unassigns its tasks). Not the open question
+      // either way; the guard, under the task's row lock, says what changed.
+      return {
+        outcome: 'stale_question',
+        taskId: task.id,
+        agentId,
+        staleBecause:
+          (await staleQuestionCause(tx, {
+            organizationId: args.organizationId,
+            taskId: task.id,
+            agentId: null,
+            resumeFrom: args.resumeFrom,
+          })) ?? 'assignee_changed',
+      };
+    }
     throw new TaskError(
       'AGENT_NOT_FOUND',
       'No agent with that id works in this project',
