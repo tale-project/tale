@@ -41,7 +41,7 @@ Kontakte und Produkte sind nach `updatedAt`, dann `id`, jeweils absteigend sorti
 
 ## Authentifizierung
 
-Erstelle Schlüssel unter **Einstellungen > API > REST** als Inhaber, Admin oder Entwickler oder als Mitglied, dem ein Admin **Modelle über die API aufrufen** zugewiesen hat; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller. Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
+Erstelle Schlüssel unter **Einstellungen > API > REST** als Inhaber, Admin oder Entwickler oder als Mitglied, dem ein Admin eine Kompetenz zugewiesen hat, die mit einem Schlüssel genutzt wird (`tale:models.api`, `tale:notifications.export` oder `tale:rest.act-as`); alle anderen lehnt Tale mit `403 API_KEY_CREATE_FORBIDDEN` ab; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller. Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
 
 | Header | Regel |
 | --- | --- |

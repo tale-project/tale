@@ -2,9 +2,9 @@ accessDenied:
   title: Zugriff verweigert
   connectors: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
     Connector-Einstellungen zuzugreifen.
-  apiKeys:
-    Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu
-    verwalten.
+  apiKeys: API-Schlüssel nutzen Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
+  apiTab: Diese Seite ist Inhabern, Admins und Entwicklern vorbehalten.
+  apiModels: Die Einrichtung der Modell-Endpunkte ist Inhabern, Admins und Entwicklern vorbehalten und Mitgliedern mit der Kompetenz „Modelle über die API aufrufen“.
   organization: Du benötigst Admin-Berechtigungen, um auf die
     Organisationseinstellungen zuzugreifen.
   branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
@@ -1081,6 +1081,21 @@ chat:
   markAsRead: Als gelesen markieren
   markAsUnread: Als ungelesen markieren
   readOnlyShared: Mit dem Projekt geteilt — nur Lesen
+  createTask:
+    button: Aufgabe aus Chat erstellen
+    projectTitle: Aufgabe aus diesem Chat erstellen
+    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. Ein Projekt-Agent dort kann sie bearbeiten und die Dateien liefern.
+    projectLabel: Projekt
+    projectPlaceholder: Projekt wählen
+    projectEmpty: Kein passendes Projekt
+    noProjects: Es gibt noch kein Projekt für die Aufgabe. Bitte einen Redakteur oder Admin, eines anzulegen.
+    continue: Weiter
+    fromChat: 'Aus dem Chat: {title}'
+    fromChatUntitled: Aus dem Chat
+    created: Aufgabe in {project} erstellt
+    openTask: Aufgabe öffnen
+    openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
+    readFailed: Tale konnte dieses Gespräch nicht lesen, deshalb kann die Aufgabe deine Anfrage und Dateien noch nicht übernehmen. Versuche es erneut oder lege die Aufgabe auf dem Board des Projekts an.
   export:
     button: Exportieren
     title: Chat exportieren
@@ -2090,6 +2105,7 @@ documents:
   tableCaption: Dokumente und Ordner
   searchPlaceholder: Dokumente suchen
   refreshFailed: Die neuesten Dokumente konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
+  loadFailed: Die Dokumente hier konnten nicht geladen werden. Bis sie geladen sind, werden nur die Ordner angezeigt.
   record:
     badge: 'v{version} · {state}'
     state:
@@ -2690,6 +2706,7 @@ emptyStates:
   apiKeys:
     title: Noch keine API-Schlüssel
     description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
+    descriptionNoCreate: Einen Schlüssel erstellen können Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
 governance:
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert
@@ -5174,7 +5191,16 @@ skills:
     notFound:
       Diese Datei ist nicht mehr im Bundle. Wähle eine andere Datei aus dem
       Baum.
+    loadFailed: Diese Datei konnte nicht geladen werden.
+    refreshFailed:
+      Diese Datei konnte nicht aktualisiert werden. Du siehst den zuvor
+      geladenen Stand.
+    empty: Diese Datei ist leer.
   detail:
+    loadFailed: Dieser Skill konnte nicht geladen werden.
+    refreshFailed:
+      Dieser Skill konnte nicht aktualisiert werden. Du siehst den zuvor
+      geladenen Stand.
     tree:
       heading: Bundle
       empty:
@@ -5316,6 +5342,12 @@ skills:
     labels: Labels
     labelsPlaceholder: recherche, pdf, finanzen
     labelsHelp: Kommagetrennt, bis zu 8 — zum Stöbern, nicht für das Modell.
+    labelsTooMany:
+      'Ein Skill hat höchstens {max} Labels. Entferne {excess, plural, one {#
+      Label} other {# Labels}}, damit du speichern kannst.'
+    labelTooLong:
+      'Das Label „{label}“ ist länger als {max} Zeichen. Kürze es, damit du
+      speichern kannst.'
     bodyHelp:
       Markdown, das das Modell liest, wenn es den Skill lädt — Playbooks,
       Konventionen, Referenzmaterial. Wird nie ausgeführt.

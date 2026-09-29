@@ -15,6 +15,7 @@ import type {
   PaginatedName,
 } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
+import { readStateOf } from '@/app/lib/backend/read-state';
 
 /** How far a listing has walked. Kept as the 0.4 vocabulary because every
  *  consumer branches on these four words. */
@@ -36,8 +37,12 @@ export interface UsePaginatedQueryReturnType<Item> {
   /** Re-issue the request that failed: the first page, or the next one. */
   retry: () => void;
   /** A request is in flight again after a failure — a retry, or a refresh —
-   * while the failure still stands. */
+   * while the failure still stands, for a listing that never answered too. */
   isRetrying: boolean;
+  /** The listing never answered and its last attempt failed; a retry may be
+   * running. `error` is `null` while one does — react-query resets such a
+   * read to its first-load state — and this holds still until it settles. */
+  unavailable: boolean;
   /** How many times a request has settled in error: a notice keyed on it
    * appears afresh, and is announced again, for each new failure. */
   errorCount: number;
@@ -112,6 +117,7 @@ function useBackendPaginatedQuery<Item>(
     if (isFetchNextPageError) void fetchNextPage();
     else void refetch();
   }, [isFetchNextPageError, fetchNextPage, refetch]);
+  const read = readStateOf({ data, isError, isFetching, errorUpdateCount });
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter's page rows are the contract's page item by construction (both keyed by the same name)
     results: results as Item[],
@@ -123,7 +129,8 @@ function useBackendPaginatedQuery<Item>(
     // retry; with pages loaded the rows stay and a later refetch heals it.
     error: isError ? (error ?? new Error('request failed')) : null,
     retry,
-    isRetrying: isError && isFetching,
+    isRetrying: read.retrying,
+    unavailable: read.unavailable,
     errorCount: errorUpdateCount,
   };
 }

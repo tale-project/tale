@@ -1,10 +1,10 @@
 'use client';
 
-// Shared file-tree vocabulary for the workspace panes: the external-agent
-// "Workspace files" explorer and the canvas file tree render the same row
-// primitive (WAI-ARIA treeitem, depth indentation, mono filename), the same
-// per-extension icons, and the same keyboard navigation, so the two trees
-// cannot drift apart visually or behaviourally.
+// Shared file-tree vocabulary: the project Files tab, an automation's uploads
+// panel and the skill bundle tree render the same row primitive (WAI-ARIA
+// treeitem, depth indentation, mono filename), the same per-extension icons,
+// and the same keyboard navigation, so the trees cannot drift apart visually
+// or behaviourally.
 
 import { cn } from '@tale/ui/cn';
 import {
@@ -98,6 +98,9 @@ export interface TreeRowButtonProps {
    * navigation ({@link treeNavigationKeyDown}) works in both modes.
    */
   semantics?: 'tree' | 'list';
+  /** Merged over the row's own classes — e.g. the larger type of a tree
+   *  whose top level reads as headings (the skill bundle tree). */
+  className?: string;
   children: ReactNode;
 }
 
@@ -118,6 +121,7 @@ export function TreeRowButton({
   dataDirPath,
   dataParentPath,
   semantics = 'tree',
+  className,
   children,
 }: TreeRowButtonProps) {
   const state = isActive
@@ -148,6 +152,7 @@ export function TreeRowButton({
         state,
         'focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none',
         disabled === true && 'cursor-not-allowed opacity-50',
+        className,
       )}
     >
       {children}

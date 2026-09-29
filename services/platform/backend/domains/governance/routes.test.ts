@@ -29,6 +29,7 @@ const {
   getSandboxDeploymentLimits,
   getUserTeamIds,
   listModelApiModels,
+  mayCreateApiKeys,
   restoreSoftDeletedRow,
   syncRagDocumentScope,
 } = vi.hoisted(() => ({
@@ -43,6 +44,7 @@ const {
   getSandboxDeploymentLimits: vi.fn(),
   getUserTeamIds: vi.fn(),
   listModelApiModels: vi.fn(),
+  mayCreateApiKeys: vi.fn(),
   restoreSoftDeletedRow: vi.fn(),
   syncRagDocumentScope: vi.fn(),
 }));
@@ -60,6 +62,7 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
 vi.mock('../model_api/models.ts', () => ({ listModelApiModels }));
+vi.mock('../../auth/api-key-create-gate.ts', () => ({ mayCreateApiKeys }));
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
   getUserTeamIds,
@@ -538,6 +541,37 @@ describe('GET /my/model-api', () => {
     // Nothing to list for a member the endpoints would refuse.
     expect(listModelApiModels).not.toHaveBeenCalled();
   });
+});
+
+describe('GET /my/api-keys', () => {
+  it.each([
+    [true, true],
+    [false, true],
+    [false, false],
+  ])(
+    'answers whether the caller may create a personal API key (%s) and holds one (%s)',
+    async (mayCreate, holdsKeys) => {
+      caller.role = 'member';
+      mayCreateApiKeys.mockReset().mockResolvedValue(mayCreate);
+      const keyReads: unknown[][] = [];
+      const sql = (async (
+        _strings: TemplateStringsArray,
+        ...values: unknown[]
+      ) => {
+        keyReads.push(values);
+        return holdsKeys ? [{ id: 'key-1' }] : [];
+      }) as never;
+      const res = await createGovernanceRoutes({
+        sql,
+        auth: {} as never,
+      }).request('/my/api-keys?orgId=o1');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ mayCreate, holdsKeys });
+      // The person's right and keys, whichever organization's page asks.
+      expect(mayCreateApiKeys).toHaveBeenCalledWith(expect.anything(), 'u1');
+      expect(keyReads).toEqual([['u1']]);
+    },
+  );
 });
 
 describe('GET /my/budget-usage', () => {

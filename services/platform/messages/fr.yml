@@ -2,8 +2,9 @@ accessDenied:
   title: Accès refusé
   connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
     aux paramètres de connectors.
-  apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
-    clés API.
+  apiKeys: Utiliser des clés API demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
+  apiTab: Cette page est réservée aux propriétaires, admins et développeurs.
+  apiModels: La configuration des endpoints de modèles est réservée aux propriétaires, admins et développeurs, et aux membres qui ont la compétence « Appeler les modèles par l'API ».
   organization:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
@@ -1092,6 +1093,21 @@ chat:
   markAsRead: Marquer comme lu
   markAsUnread: Marquer comme non lu
   readOnlyShared: Partagé avec le projet — lecture seule
+  createTask:
+    button: Créer une tâche depuis le chat
+    projectTitle: Créer une tâche à partir de ce chat
+    projectDescription: Choisis le projet auquel la tâche appartient. Un agent de ce projet peut la traiter et livrer les fichiers.
+    projectLabel: Projet
+    projectPlaceholder: Choisir un projet
+    projectEmpty: Aucun projet ne correspond
+    noProjects: Il n’y a encore aucun projet où créer la tâche. Demande à un éditeur ou à un admin d’en créer un.
+    continue: Continuer
+    fromChat: 'Depuis le chat : {title}'
+    fromChatUntitled: Depuis le chat
+    created: Tâche créée dans {project}
+    openTask: Ouvrir la tâche
+    openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
+    readFailed: 'Tale n’a pas pu lire cette conversation : la tâche ne peut pas encore reprendre ta demande et tes fichiers. Réessaie, ou crée la tâche depuis le tableau du projet.'
   export:
     button: Exporter
     title: Exporter le chat
@@ -2099,6 +2115,7 @@ documents:
   tableCaption: Documents et dossiers
   searchPlaceholder: Rechercher des documents
   refreshFailed: Impossible de charger les derniers documents. La liste est peut-être incomplète ou obsolète.
+  loadFailed: Impossible de charger les documents ici. Seuls les dossiers sont affichés tant que les documents ne sont pas chargés.
   record:
     badge: 'v{version} · {state}'
     state:
@@ -2717,6 +2734,7 @@ emptyStates:
   apiKeys:
     title: Aucune clé API pour l'instant
     description: Génère une clé pour connecter des outils et scripts externes.
+    descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
@@ -5248,7 +5266,16 @@ skills:
     notFound:
       Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
       l'arborescence.
+    loadFailed: Impossible de charger ce fichier.
+    refreshFailed:
+      Impossible d'actualiser ce fichier. Tu vois la version chargée
+      précédemment.
+    empty: Ce fichier est vide.
   detail:
+    loadFailed: Impossible de charger ce skill.
+    refreshFailed:
+      Impossible d'actualiser ce skill. Tu vois la version chargée
+      précédemment.
     tree:
       heading: Bundle
       empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
@@ -5391,6 +5418,12 @@ skills:
     labels: Libellés
     labelsPlaceholder: recherche, pdf, finance
     labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
+    labelsTooMany:
+      "Un skill accepte au plus {max} libellés. Retire {excess, plural, one {#
+      libellé} other {# libellés}} pour pouvoir enregistrer."
+    labelTooLong:
+      "Le libellé « {label} » dépasse {max} caractères. Raccourcis-le pour
+      pouvoir enregistrer."
     bodyHelp:
       Le markdown que le modèle lit quand il charge le skill — playbooks,
       conventions, référence. Jamais exécuté.

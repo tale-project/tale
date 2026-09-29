@@ -6,7 +6,7 @@ import { Button } from '@tale/ui/button';
 import { ConfigIcon } from '@tale/ui/catalog/config-icon';
 import { cn } from '@tale/ui/cn';
 import { Search } from 'lucide-react';
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -23,6 +23,13 @@ const ALL_ICON_NAMES: readonly string[] = Object.keys(lucideIcons.icons).sort();
  * move, Enter to pick, the leading cell clears. Writes `lucide:<name>` —
  * exactly the frontmatter shape — and leaves an icon from another set
  * untouched until the user actively picks a replacement.
+ *
+ * One focus model, `SearchableSelect`'s: the search box keeps focus and owns
+ * the grid through `aria-activedescendant`, so the options stay out of the
+ * Tab order (a Tab from the search box does not walk 97 cells), the
+ * highlighted option scrolls into view, and a click — pointer, or a key on
+ * an option assistive technology focused — picks through the same `pick`
+ * as Enter in the search box.
  */
 export function SkillIconPicker({
   value,
@@ -38,6 +45,7 @@ export function SkillIconPicker({
   const [query, setQuery] = useState('');
   const [highlighted, setHighlighted] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
 
   const matches = useMemo(() => {
@@ -95,6 +103,13 @@ export function SkillIconPicker({
   };
 
   const cellId = (index: number) => `${listboxId}-cell-${index}`;
+
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector(`[data-index="${highlighted}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [highlighted, open]);
 
   return (
     <PopoverPrimitive.Root
@@ -157,6 +172,7 @@ export function SkillIconPicker({
           </div>
 
           <div
+            ref={listRef}
             id={listboxId}
             role="listbox"
             aria-label={t('iconPicker.label')}
@@ -165,14 +181,15 @@ export function SkillIconPicker({
             <button
               type="button"
               id={cellId(0)}
+              data-index={0}
               role="option"
+              tabIndex={-1}
               aria-selected={value === undefined}
               title={t('iconPicker.none')}
               aria-label={t('iconPicker.none')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                pick(0);
-              }}
+              // Keep focus in the search box; the click picks.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(0)}
               onMouseEnter={() => setHighlighted(0)}
               className={cn(
                 'text-muted-foreground flex size-8 items-center justify-center rounded-md text-xs',
@@ -189,14 +206,14 @@ export function SkillIconPicker({
                   key={name}
                   type="button"
                   id={cellId(cell)}
+                  data-index={cell}
                   role="option"
+                  tabIndex={-1}
                   aria-selected={value === iconId}
                   title={name}
                   aria-label={name}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    pick(cell);
-                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(cell)}
                   onMouseEnter={() => setHighlighted(cell)}
                   className={cn(
                     'flex size-8 items-center justify-center rounded-md',

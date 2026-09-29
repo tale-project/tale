@@ -475,11 +475,3 @@ default means deleting the override and fixing what surfaces:
   Paying it down means moving to a Bifrost release that cancels the upstream call on a client
   disconnect and books the partial usage of a cut stream (v2.2.0 or later), then dropping the
   deferred settle and the floor in `metering.ts` for the gateway's figure.
-- **A turn's image spend sits beside its model allowance, not inside it** — `generate_image`
-  admits an image only when its estimate fits what the turn's allowance has left after the
-  model's live spend (`services/platform/backend/domains/sandbox/image-generation.ts`), but the
-  turn's gateway key keeps its full cap, so the model may still spend the whole allowance
-  afterwards: a turn's worst case is about two allowances, and budget caps still count both
-  (2026-09). Paying it down means lowering the key's budget by the booked image spend in the
-  settle (`core/node_only/sandbox/llm_gateway_admin.ts`), once it is verified that the pinned
-  Bifrost keeps `current_usage` across a budget update.

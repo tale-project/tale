@@ -103,3 +103,32 @@ export function collectDirPaths(
   for (const n of nodes) visit(n);
   return out;
 }
+
+/**
+ * The row that carries a bundle tree's one Tab stop (roving tabindex): the
+ * selected entry while it is on screen, else the folder row that hides it —
+ * the outermost collapsed ancestor — so collapsing the folder around the
+ * selection never takes the tree out of the Tab order. A selection that has
+ * left the bundle falls back to its nearest folder still in it. `null` when
+ * no row of the tree qualifies (nothing selected, `SKILL.md`, a file whose
+ * folders are all gone): the caller's first row takes the stop.
+ */
+export function bundleTreeEntryPath(
+  nodes: ReadonlyArray<BundleTreeNode>,
+  expanded: ReadonlySet<string>,
+  selectedPath: string | null,
+): string | null {
+  if (selectedPath === null) return null;
+  let level: ReadonlyArray<BundleTreeNode> = nodes;
+  let entry: string | null = null;
+  for (const segment of selectedPath.split('/')) {
+    const node = level.find((candidate) => candidate.name === segment);
+    if (node === undefined) return entry;
+    if (node.path === selectedPath) return node.path;
+    if (node.kind !== 'dir' || node.children === undefined) return entry;
+    entry = node.path;
+    if (!expanded.has(node.path)) return entry;
+    level = node.children;
+  }
+  return entry;
+}

@@ -41,7 +41,7 @@ Automations, agents, skills, folders, models, browser sessions, versions, and tr
 
 ## Authentication
 
-Create keys in **Settings > API > REST** as an Owner, Admin, or Developer, or as a member an Admin granted **Call models over the API**; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
+Create keys in **Settings > API > REST** as an Owner, Admin, or Developer, or as a member an Admin granted a competence that is used with a key (`tale:models.api`, `tale:notifications.export`, or `tale:rest.act-as`); anyone else is refused with `403 API_KEY_CREATE_FORBIDDEN`; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
 
 | Header | Rule |
 | --- | --- |
