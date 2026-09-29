@@ -16,6 +16,8 @@ vi.mock('./mention-textarea', () => ({
     onValueChange,
     onKeyDown,
     errorMessage,
+    counterMax,
+    counterValue,
     autoFocus,
   }: {
     label?: string;
@@ -24,6 +26,8 @@ vi.mock('./mention-textarea', () => ({
     onValueChange: (value: string) => void;
     onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
     errorMessage?: string;
+    counterMax?: number;
+    counterValue?: number;
     autoFocus?: boolean;
   }) => (
     <>
@@ -37,8 +41,15 @@ vi.mock('./mention-textarea', () => ({
           onChange={(event) => onValueChange(event.target.value)}
         />
       </label>
-      {/* The real field renders its error the way `Textarea` does. */}
+      {/* The real field renders its error, and its counter outside that
+          live region, the way `Textarea` does — showing the length the
+          caller measured, else the raw one. */}
       {errorMessage !== undefined && <p role="alert">{errorMessage}</p>}
+      {counterMax !== undefined && (
+        <p data-testid="counter">
+          {counterValue ?? value.length} / {counterMax}
+        </p>
+      )}
     </>
   ),
 }));
@@ -230,16 +241,16 @@ describe('EditableDescription', () => {
   it('names the cap under a draft past it and holds the save until it fits', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     const { user } = renderField('d'.repeat(TASK_DESCRIPTION_MAX + 1), onSave);
+    const capSentence =
+      'This description is too long to save. It can have up to 20,000 ' +
+      'characters, and most emoji count as 2.';
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'This description has 20,001 characters; the limit is 20,000. ' +
-        'Shorten it to save. Most emoji count as 2.',
-    );
+    expect(screen.getByRole('alert')).toHaveTextContent(capSentence);
+    expect(screen.getByTestId('counter')).toHaveTextContent('20001 / 20000');
 
     const field = screen.getByRole('textbox', { name: 'Description' });
     await user.type(field, ' and more');
-    expect(screen.getByRole('alert')).toHaveTextContent('20,010 characters');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.keyboard('{Control>}{Enter}{/Control}');
     expect(onSave).not.toHaveBeenCalled();
@@ -248,8 +259,31 @@ describe('EditableDescription', () => {
     await user.type(field, '{Backspace}'.repeat(10));
     expect(field).toHaveValue('d'.repeat(TASK_DESCRIPTION_MAX));
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('counter')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSave).toHaveBeenCalledWith('d'.repeat(TASK_DESCRIPTION_MAX));
+  });
+
+  // The field's error is a live `role="alert"` region, and the `Textarea`
+  // shakes it on every new sentence: a running length in it was read out
+  // again on each keystroke past the cap. The count moves in the counter;
+  // the alert keeps its words until the draft crosses back.
+  it('keeps the alert still while the draft stays past the cap', async () => {
+    const { user } = renderField('d'.repeat(TASK_DESCRIPTION_MAX + 5));
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const alert = screen.getByRole('alert');
+    const before = alert.textContent;
+    const field = screen.getByRole('textbox', { name: 'Description' });
+
+    await user.type(field, '{Backspace}');
+    expect(screen.getByTestId('counter')).toHaveTextContent('20004 / 20000');
+    await user.type(field, 'dd');
+
+    expect(screen.getByRole('alert')).toBe(alert);
+    expect(alert.textContent).toBe(before);
+    expect(alert).not.toHaveTextContent(/20,00[4-6]/);
+    expect(screen.getByTestId('counter')).toHaveTextContent('20006 / 20000');
   });
 
   it('measures the draft as the save sends it, trimmed', async () => {
@@ -263,5 +297,19 @@ describe('EditableDescription', () => {
 
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  // The counter counts what the cap does: the raw length read a pasted
+  // draft's surrounding whitespace as more to delete (TALE-75 review).
+  it('counts the draft past the cap as the save sends it, trimmed', async () => {
+    const { user } = renderField('Short.');
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const field = screen.getByRole('textbox', { name: 'Description' });
+    await user.clear(field);
+    await user.click(field);
+    await user.paste(`  ${'d'.repeat(TASK_DESCRIPTION_MAX + 1)}\n\n`);
+
+    expect(screen.getByTestId('counter')).toHaveTextContent('20001 / 20000');
   });
 });

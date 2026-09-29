@@ -49,7 +49,10 @@ import {
   agentTurnShimHandlers,
   taskAgentShimScheduler,
 } from '../domains/tasks/agent-turn-shim.ts';
-import { resolveTaskKickStartArgs } from '../domains/tasks/kick-plan.ts';
+import {
+  loadTaskRetryHistory,
+  resolveTaskKickStartArgs,
+} from '../domains/tasks/kick-plan.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
   runVideoCloneJob,
@@ -1012,44 +1015,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         ) {
           return 'reassigned';
         }
-        const runs = await tx<
-          {
-            id: string;
-            status: string;
-            agentId: string;
-            startedBy: string;
-            launchedAt: number | null;
-            settledAt: number | null;
-          }[]
-        >`
-          SELECT id, status, agent_id AS "agentId",
-                 started_by AS "startedBy",
-                 launched_at_ms::float8 AS "launchedAt",
-                 settled_at_ms::float8 AS "settledAt"
-          FROM app.project_agent_runs
-          WHERE task_id = ${input.taskId}
-          ORDER BY seq DESC
-          LIMIT 8
-        `;
+        const runs = await loadTaskRetryHistory(tx, input.taskId);
         const newest = runs[0];
         if (newest === undefined || newest.id !== input.expectedRunId) {
           return 'superseded';
         }
         if (newest.status !== 'failed') return 'not_failed';
-        const budget = resolveAutoRetryBudget(
-          runs.map((row) => ({
-            agentId: row.agentId,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
-            status: row.status as
-              | 'queued'
-              | 'running'
-              | 'settled'
-              | 'failed'
-              | 'cancelled',
-            launchedAt: row.launchedAt ?? undefined,
-            settledAt: row.settledAt ?? undefined,
-          })),
-        );
+        const budget = resolveAutoRetryBudget(runs);
         if (!budget.retry) return 'budget_exhausted';
         const agents = await tx<
           { harness: string; model: string; modelProvider: string | null }[]

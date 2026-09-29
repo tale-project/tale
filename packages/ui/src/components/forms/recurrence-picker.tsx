@@ -16,6 +16,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -266,7 +267,11 @@ export function RecurrencePicker<Extra = never>(
   // event (Enter in a number field commits the number, then saves).
   const sessionRef = useRef(session);
   const propsRef = useRef(props);
-  propsRef.current = props;
+  // Event handlers must see committed props, never props from a concurrent
+  // render that React later discards.
+  useLayoutEffect(() => {
+    propsRef.current = props;
+  });
   // False from the moment a session ends, so one event can never save twice.
   const openRef = useRef(false);
   // The saved values the open session last took in, to tell a clean draft
