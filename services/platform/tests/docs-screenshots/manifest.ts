@@ -996,19 +996,24 @@ export const SHOTS: readonly Shot[] = [
     name: 'settings-providers',
     section: 'get-started',
     route: '/dashboard/:orgId/settings/providers',
+    // Until the vendor catalog answers, the row names its provider by the
+    // bare slug and carries no tag: wait for the display name.
     readyWhen: (page) =>
       page
         .getByRole('row')
         .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
+        .filter({ hasText: MOCK_PROVIDER_DISPLAY_NAME })
         .first(),
     sanitize: async (page) => {
       await replaceRigNames(page);
       // The rig defines the mock inside the organization, so its row carries
       // the Custom tag; the shipped vendor it stands in for carries none.
+      // Remove the whole tag, which the badge titles with its label: its text
+      // alone would leave an empty pill behind.
       await page
         .getByRole('row')
         .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
-        .getByText(t('settings.providers.custom.badge'), { exact: true })
+        .getByTitle(t('settings.providers.custom.badge'), { exact: true })
         .evaluateAll((badges) => {
           for (const badge of badges) badge.remove();
         });
