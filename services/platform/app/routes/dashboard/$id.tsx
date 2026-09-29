@@ -316,7 +316,9 @@ function DashboardLayout() {
                   <HomePanelProvider organizationId={organizationId}>
                     {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
-                  inside #main-content pushed those headers down and looked broken. */}
+                  inside #main-content pushed those headers down and looked broken.
+                  They lead the shell: whichever stands first pads the notch
+                  (`layout/shell-alert.tsx`, `layout/shell-mobile-header.tsx`). */}
                     <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
                       <SessionLapseNotice />
                       {hasRole && (

@@ -2283,6 +2283,8 @@ documents:
     openFolder: Ouvrir le dossier {name}
     openDocument: Ouvrir le document {name}
     navigateToFolder: Accéder au dossier {name}
+    selectFolder: Sélectionner le dossier {name}
+    selectFile: Sélectionner le fichier {name}
   folderNotFound: Dossier introuvable ou plus accessible
   filter:
     ragStatus:

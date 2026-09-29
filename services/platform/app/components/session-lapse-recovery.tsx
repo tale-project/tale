@@ -101,9 +101,10 @@ export function SessionLapseNotice() {
 /**
  * The notice's one row, wherever it stands. A narrow or short viewport keeps
  * it to its title and Sign in; the sentence stays for screen readers. It pads
- * the notch itself, since it sits above the header that otherwise would; the
- * shell's header drops its own pad while it stands
- * (`data-session-lapse-notice`, `layout/shell-mobile-header.tsx`).
+ * the notch itself, since it stands first, above the header that otherwise
+ * would; like every shell alert (`data-shell-alert`, `layout/shell-alert.tsx`)
+ * it has the shell's header drop its own pad while it stands
+ * (`layout/shell-mobile-header.tsx`).
  *
  * While the confirmation is open the notice steps aside, unseen and out of
  * the accessibility tree, but keeps its place: removed, it grew the page
@@ -115,7 +116,7 @@ function StandingNotice({ recovery }: { recovery: SessionLapseRecoveryState }) {
   return (
     <Row
       role="status"
-      data-session-lapse-notice
+      data-shell-alert
       aria-hidden={recovery.open || undefined}
       gap={2}
       className={cn(

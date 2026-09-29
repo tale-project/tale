@@ -17,21 +17,22 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
   useLocation: () => ({ href: '/dashboard/org-a' }),
 }));
+// A query result as TanStack Query v5 shapes it: pending until it has an
+// answer, whether or not it is fetching one yet, and a failed re-read keeps
+// the answer it had (an error, but not a loading error).
 vi.mock('@/app/features/organization/hooks/queries', () => ({
   useOrganizationCapabilities: () => ({
     data:
       state.canCreate === undefined
         ? undefined
         : { canCreate: state.canCreate },
+    isPending: state.canCreate === undefined && !state.isError,
     isLoading: state.isLoading,
     isError: state.isError,
+    isLoadingError: state.isError && state.canCreate === undefined,
     refetch: retry,
   }),
-  useUserOrganizations: () => ({
-    isLoading: false,
-    isAuthLoading: false,
-    isAuthenticated: true,
-  }),
+  useUserOrganizations: () => ({ isLoading: false }),
   useUserOrganizationsWithDetails: () => ({ organizations: [] }),
 }));
 vi.mock(
@@ -97,6 +98,28 @@ describe('deployment-owned organization provisioning', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText('Resolving workspace')).toBeInTheDocument();
     expect(screen.queryByText('Workspace wizard')).not.toBeInTheDocument();
+  });
+
+  // A read waiting on the session probe has not started: it is pending, but
+  // not loading. Guarded on `isLoading`, the page would read that as a no.
+  it('does not refuse while the capability waits to be read', () => {
+    state.canCreate = undefined;
+    render(<CreatePage />);
+    expect(screen.getByText('Resolving workspace')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/You cannot create an organization/),
+    ).not.toBeInTheDocument();
+  });
+
+  // A re-read that failed, the one a session ending under the page meets,
+  // keeps its last answer, and the wizard with it.
+  it('keeps the wizard when a re-read of the capability fails', () => {
+    state.isError = true;
+    render(<CreatePage />);
+    expect(screen.getByText('Workspace wizard')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Try again' }),
+    ).not.toBeInTheDocument();
   });
 
   it('allows retry when the capability lookup fails', async () => {

@@ -1,8 +1,8 @@
 'use client';
 
-import { Row } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 
+import { ShellAlert } from '@/app/components/layout/shell-alert';
 import { useProviderCredentials } from '@/app/features/settings/providers/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
@@ -29,7 +29,7 @@ import { useOrgKnowledgeEmbedding } from '../hooks/queries';
  *  - **Only for a reader who can act.** Viewing data residency needs
  *    `read orgSettings`, so a member who cannot open the page never sees it.
  *
- * Mirrors `TwoFactorLowBackupCodesBanner`'s structure — same row, same warning
+ * A `ShellAlert`, as the two-factor banners are — same row, same warning
  * tint, same trailing link — so every dashboard-level nudge reads the same.
  */
 export function EmbeddingSetupBanner({
@@ -60,12 +60,7 @@ function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
   if ((credentialsQuery.data ?? []).length === 0) return null;
 
   return (
-    <Row
-      role="status"
-      gap={2}
-      wrap
-      className="bg-warning/10 border-warning/30 shrink-0 border-b px-4 py-3 text-sm"
-    >
+    <ShellAlert>
       <span className="grow">
         <span className="font-medium">
           {t('dataResidency.orgEmbedding.banner.title')}
@@ -87,6 +82,6 @@ function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
       >
         {t('dataResidency.orgEmbedding.banner.link')}
       </Link>
-    </Row>
+    </ShellAlert>
   );
 }

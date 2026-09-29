@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { deleteOrganization } from '../domains/organizations/service.ts';
 import { findOrCreateSsoUser } from '../domains/sso/service.ts';
+import { cookieHeaderFrom } from '../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../lib/org-config.ts';
 import type { Auth } from './auth.ts';
 import {
@@ -67,10 +68,7 @@ export async function checkNativeIdentity(
       email,
       name,
       id: body.user.id,
-      cookie: response.headers
-        .getSetCookie()
-        .map((entry) => entry.split(';')[0])
-        .join('; '),
+      cookie: cookieHeaderFrom(response),
     };
   };
   const owner = await freshUser('owner');

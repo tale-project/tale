@@ -114,9 +114,14 @@ describe.each(DIALOGS)(
           </QueryClientProvider>,
         );
 
-        // The rows' checkboxes carry no name; the first is "select all".
-        const [, row] = screen.getAllByRole('checkbox');
-        await user.click(row as HTMLElement);
+        await user.click(
+          screen.getByRole('checkbox', {
+            name: documents(
+              item.isFolder ? 'aria.selectFolder' : 'aria.selectFile',
+              { name: item.name },
+            ),
+          }),
+        );
         await user.click(
           screen.getByRole('button', {
             name: documents(`${ns}.importCount`, { count: 1 }),
