@@ -254,8 +254,9 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
       organizationId: 'org-1',
       refs: ['s3:org-1/mail/orphan.pdf'],
     });
+    // The job retries the delete: the line says so, never reading as final.
     expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
-      '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (blob): s3 down',
+      '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (blob): s3 down — re-queued to knowledge.release_refs',
     ]);
   });
 
@@ -285,8 +286,37 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
     const outcome = await releaseUnbacked(['s3:org-1/mail/orphan.pdf']);
     expect(outcome.failures).toHaveLength(1);
     expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
-      '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (blob): s3 down',
+      '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (blob): s3 down — not re-queued',
       '[knowledge] could not re-queue a byte release for org org-1 (refs=1), their bytes stay:',
+    ]);
+  });
+
+  it('says of each failed byte delete whether its job was queued, when only one job failed', async () => {
+    deleteOrgObject.mockRejectedValue(new Error('s3 down'));
+    addJobInTx.mockRejectedValueOnce(new Error('queue down'));
+    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    const { releaseUnbacked } = await wiredReleases(sql);
+    const refs = Array.from(
+      { length: 501 },
+      (_, at) => `s3:org-1/mail/orphan-${String(at).padStart(3, '0')}.pdf`,
+    );
+    await releaseUnbacked(refs);
+    // The first job of 500 failed to queue, the second went.
+    expect(addJobInTx).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      ...refs
+        .slice(0, 500)
+        .map(
+          (ref) =>
+            `[knowledge] reconcile release failed for ${ref} (blob): s3 down — not re-queued`,
+        ),
+      ...refs
+        .slice(500)
+        .map(
+          (ref) =>
+            `[knowledge] reconcile release failed for ${ref} (blob): s3 down — re-queued to knowledge.release_refs`,
+        ),
+      '[knowledge] could not re-queue a byte release for org org-1 (refs=500), their bytes stay:',
     ]);
   });
 
@@ -336,6 +366,9 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
       organizationId: 'org-1',
       refs: ['s3:org-1/docs/rotated.pdf'],
     });
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[knowledge] reconcile release failed for s3:org-1/docs/rotated.pdf (blob): s3 down — re-queued to knowledge.release_refs',
+    ]);
 
     // A failed corpus delete keeps the row, which the next night lists.
     addJobInTx.mockClear();

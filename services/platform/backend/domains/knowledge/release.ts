@@ -11,10 +11,10 @@ import {
   listKnowledgeDocumentRefs,
 } from '../../core/legacy/knowledge_delete.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { assessMessageRefLiveness, assessRefLiveness } from './liveness.ts';
+import { queueRefRelease } from './release-queue.ts';
 import {
   reconcileDocumentScopeStamps,
   reconcileMailAttachmentStamps,
@@ -345,21 +345,19 @@ async function reconcileRange(
   return { scanned, released, failures };
 }
 
-/** Log each failure of a release the reconcile ran — the next run retries
- * what its walks still find, the release job what they never would
- * (`requeueBlobFailures`) — and hand the outcome on. */
+/** Log each corpus-stage failure of a release the reconcile ran — the next
+ * run retries it, since its rows still list the ref — and hand the outcome
+ * on. A blob-stage failure is `requeueBlobFailures`' to log: whether the
+ * release job took it is half of what its line has to say. */
 function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
   for (const failure of outcome.failures) {
+    if (failure.stage !== 'corpus') continue;
     console.warn(
-      `[knowledge] reconcile release failed for ${failure.ref} (${failure.stage}): ${failure.message}`,
+      `[knowledge] reconcile release failed for ${failure.ref} (corpus): ${failure.message}`,
     );
   }
   return outcome;
 }
-
-/** Refs per re-queued `knowledge.release_refs` job — the bound the mail
- * lanes queue theirs in (`conversations/message-corpus.ts`). */
-const REQUEUE_REFS_PER_JOB = 500;
 
 /**
  * Queue the durable release job for every ref of a release the reconcile ran
@@ -369,31 +367,45 @@ const REQUEUE_REFS_PER_JOB = 500;
  * refs, and no sweep lists bucket objects — and its bytes would stay for
  * good. The job re-decides liveness and reads the absent corpus rows as
  * released, so pg-boss's retries redo the blob stage only. A corpus-stage
- * failure is not queued: its rows still list the ref for the next night. An
- * enqueue that fails is logged, not thrown, so the organization's other
- * passes still run.
+ * failure is not queued: its rows still list the ref for the next night. The
+ * jobs are bounded as the mail lanes' are (`queueRefRelease`), and an
+ * enqueue that fails is logged, not thrown, so the next job is still queued
+ * and the organization's other passes still run.
+ *
+ * Each failed byte delete is logged with what became of it — re-queued, or
+ * not re-queued when its job could not be queued — so a failure the job
+ * retries never reads as final.
  */
 async function requeueBlobFailures(
   sql: Sql,
   organizationId: string,
   outcome: ReleaseOutcome,
 ): Promise<ReleaseOutcome> {
-  const refs = outcome.failures
-    .filter((failure) => failure.stage === 'blob')
-    .map((failure) => failure.ref);
-  for (let at = 0; at < refs.length; at += REQUEUE_REFS_PER_JOB) {
-    const job = refs.slice(at, at + REQUEUE_REFS_PER_JOB);
-    try {
-      await addJobInTx(sql, 'knowledge.release_refs', {
-        organizationId,
-        refs: job,
-      });
-    } catch (error) {
-      console.warn(
-        `[knowledge] could not re-queue a byte release for org ${organizationId} (refs=${job.length}), their bytes stay:`,
-        error,
-      );
-    }
+  const failures = outcome.failures.filter(
+    (failure) => failure.stage === 'blob',
+  );
+  const unqueued: { refs: string[]; error: unknown }[] = [];
+  await queueRefRelease(
+    sql,
+    organizationId,
+    failures.map((failure) => failure.ref),
+    {
+      onChunkError: (refs, error) => {
+        unqueued.push({ refs, error });
+      },
+    },
+  );
+  const stranded = new Set(unqueued.flatMap((job) => job.refs));
+  for (const failure of failures) {
+    console.warn(
+      `[knowledge] reconcile release failed for ${failure.ref} (blob): ${failure.message} — ${stranded.has(failure.ref) ? 'not re-queued' : 're-queued to knowledge.release_refs'}`,
+    );
+  }
+  for (const job of unqueued) {
+    console.warn(
+      `[knowledge] could not re-queue a byte release for org ${organizationId} (refs=${job.refs.length}), their bytes stay:`,
+      job.error,
+    );
   }
   return outcome;
 }
