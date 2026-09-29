@@ -40,8 +40,8 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * and catalogs, and the automation editor's browser suite imports its test
  * helpers (`@tale/ui/testing/flow`), so a design-system change alone must
  * re-run them: both hash `packages/ui/src` whole, as `test` does. All three
- * tasks also hash two of the package's files outside `src/`
- * (`UI_PACKAGE_FILES`).
+ * tasks also hash the package's manifest and every file it exports from
+ * outside `src/` (`UI_PACKAGE_FILES`).
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -110,25 +110,47 @@ const OUTSIDE_READS = [
   },
 ];
 
+/** The slice of `packages/ui/package.json` this guard reads. */
+const uiManifestSchema = z.object({
+  exports: z.record(z.string(), z.unknown()),
+});
+
+/** Every path an `exports` value names: a string, or conditions around one. */
+function exportTargets(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  if (typeof value === 'object' && value !== null)
+    return Object.values(value).flatMap(exportTargets);
+  return [];
+}
+
 /**
  * The `@tale/ui` files outside `packages/ui/src` that `test`, `test:ui` and
- * `test:browser` all hash beside it, and why.
+ * `test:browser` all hash beside it, read from the package's manifest so an
+ * export added outside `src/` cannot go unhashed: the manifest itself, whose
+ * `exports` resolve every `@tale/ui/*` import (both vitest configs load
+ * `@tale/ui/vite/yaml`, and the suites import `@tale/ui/testing/flow` among
+ * others, so an export renamed or dropped breaks them with no file under
+ * `src/` changed), and every file an export names outside `src/`.
  */
 const UI_PACKAGE_FILES = [
   {
-    // Both vitest configs load `@tale/ui/vite/yaml`, and the suites import
-    // `@tale/ui/*` throughout (`@tale/ui/testing/flow` among them): an export
-    // renamed or dropped breaks them with no file under `src/` changed.
     path: 'packages/ui/package.json',
     why: 'its `exports` resolve every `@tale/ui/*` import',
   },
-  {
-    // Tailwind 4 loads `tailwind.config.ts` only through an `@config` rule,
-    // which no stylesheet the suites import carries today. Hashed anyway, so
-    // the day one does, an edit to the preset alone still re-runs them.
-    path: 'packages/ui/tailwind-preset.ts',
-    why: 'the preset `tailwind.config.ts` names',
-  },
+  ...Object.entries(
+    uiManifestSchema.parse(
+      JSON.parse(
+        readFileSync(path.join(REPO_ROOT, 'packages/ui/package.json'), 'utf8'),
+      ),
+    ).exports,
+  ).flatMap(([name, value]) =>
+    exportTargets(value)
+      .filter((target) => !target.startsWith('./src/'))
+      .map((target) => ({
+        path: path.posix.join('packages/ui', target),
+        why: `the \`${name}\` export`,
+      })),
+  ),
 ];
 
 /** The slice of `turbo run --dry=json` this guard reads. */
@@ -199,13 +221,14 @@ function trackedFiles(repoPath: string): string[] {
 function itHashesUiPackageFiles(name: string, hashed: () => Set<string>) {
   for (const { path: repoPath, why } of UI_PACKAGE_FILES) {
     it(`hashes ${repoPath} (${why})`, () => {
-      expect(trackedFiles(repoPath), `${repoPath} is not tracked`).toEqual([
-        repoPath,
-      ]);
+      // A path, or the pattern of a wildcard export.
+      const files = trackedFiles(repoPath);
+      expect(files.length, `${repoPath} tracks no file`).toBeGreaterThan(0);
+      const missing = files.filter((file) => !hashed().has(file));
       expect(
-        hashed().has(repoPath),
-        `@tale/platform#${name} does not hash ${repoPath} — list \`$TURBO_ROOT$/${repoPath}\` in services/platform/turbo.json tasks.${name}.inputs`,
-      ).toBe(true);
+        missing.slice(0, 10),
+        `@tale/platform#${name} does not hash ${missing.length} file(s) at ${repoPath} — list \`$TURBO_ROOT$/${repoPath}\` in services/platform/turbo.json tasks.${name}.inputs`,
+      ).toEqual([]);
     });
   }
 }
