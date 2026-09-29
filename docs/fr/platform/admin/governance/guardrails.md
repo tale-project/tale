@@ -7,7 +7,7 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Garde
 
 <Frame caption="Gouvernance > Garde-fous — les trois cartes de statut des couches de filtres (sécurité du contenu, détection PII, fournisseur de modération), au-dessus du journal des événements récents.">
 
-![La page de gouvernance Garde-fous montrant trois cartes de statut — Sécurité du contenu inactive, Détection DCP inactive et Fournisseur de modération non configuré — au-dessus du flux des événements récents, qui n’en signale encore aucun, et des instructions personnalisées de l’organisation.](/images/platform/governance-guardrails.webp)
+![La page de gouvernance Garde-fous montrant trois cartes de statut — Sécurité du contenu active avec deux catégories en entrée et en sortie, Détection DCP active en mode masquage et Fournisseur de modération non configuré — au-dessus du flux des événements récents, qui n’en signale encore aucun, et des instructions personnalisées de l’organisation.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 

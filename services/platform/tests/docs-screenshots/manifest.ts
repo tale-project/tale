@@ -35,6 +35,7 @@ import {
   DEMO_PROJECT_FILES,
   DEMO_PROJECTS,
   DEMO_PROVIDER_CREDENTIAL,
+  DEMO_SKILLS,
   DEMO_SSO_EXAMPLE,
   DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
@@ -113,6 +114,13 @@ const dataNoticeSection = (page: Page): Locator =>
 const dataNoticeSwitch = (page: Page): Locator =>
   dataNoticeSection(page).getByRole('switch', {
     name: t('governance.dataNotice.enabledLabel'),
+    exact: true,
+  });
+
+/** The Skill sharing section on Governance > Policies & Limits. */
+const skillSharingSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.skillSharing.title'),
     exact: true,
   });
 
@@ -454,6 +462,48 @@ export const SHOTS: readonly Shot[] = [
     },
   },
   {
+    // A new project agent starts with the document skills ticked, each row
+    // naming who made it. The gate is the ticked docx row: the pre-tick only
+    // lands once the skill catalog has answered.
+    name: 'project-agent-document-skills',
+    section: 'platform',
+    route: '/dashboard/:orgId/projects',
+    prepare: async (page, ctx) => {
+      await page.goto(projectRoute(ctx, '/agents'), {
+        waitUntil: 'domcontentloaded',
+      });
+      await page
+        .getByRole('button', {
+          name: t('projects.agents.newAgent'),
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('projects.agents.dialogCreateTitle'),
+        exact: true,
+      });
+      await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+      await dialog
+        .getByRole('button', { name: t('chat.skills.label'), exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('menuitemcheckbox', { name: /^docx/, checked: true }),
+  },
+  {
+    // Settings > Skills — the built-in document skills beside the house
+    // skills, each row naming who created it. Gate on a house skill's
+    // creator: the table paints its chrome before its rows arrive.
+    name: 'skill-library-list',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/skills',
+    readyWhen: (page) =>
+      page
+        .getByRole('row')
+        .filter({ has: page.getByText(DEMO_SKILLS[0].slug, { exact: true }) })
+        .getByText(DEMO_OWNER.name, { exact: true }),
+  },
+  {
     name: 'skill-library-detail',
     section: 'platform',
     route: '/dashboard/:orgId/settings/skills',
@@ -469,6 +519,10 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) =>
       page.getByRole('dialog', { name: 'docx', exact: true }),
     capture: (page) => page.getByRole('dialog', { name: 'docx', exact: true }),
+    // The dialog is 85% of the viewport tall; this height keeps the
+    // Organization choice and the Instructions heading below Created by in
+    // the frame.
+    viewport: { width: 1440, height: 1100 },
   },
   {
     // Knowledge > Knowledge entries with the seeded manual facts.
@@ -1058,6 +1112,31 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured), not mid-row: any height is
     // a cut somewhere, so cut where the page already has a seam.
     viewport: { width: 1440, height: 1530 },
+  },
+  {
+    // Governance > Policies & Limits — who may share a skill with the whole
+    // organization. The section renders inside a busy skeleton until the
+    // policy loads, so wait that out before the crop.
+    name: 'governance-skill-sharing',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/policies-limits',
+    prepare: async (page) => {
+      await expect(skillSharingSection(page)).toBeVisible({
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      await expect(
+        page.getByRole('status', {
+          name: t('governance.skillSharing.title'),
+          exact: true,
+        }),
+      ).toHaveCount(0, { timeout: TIMEOUT.FIRST_PAINT });
+    },
+    readyWhen: (page) =>
+      skillSharingSection(page).getByRole('combobox', {
+        name: t('governance.skillSharing.label'),
+        exact: true,
+      }),
+    capture: (page) => skillSharingSection(page),
   },
   {
     // Governance > Policies & Limits — the chat confidentiality notice

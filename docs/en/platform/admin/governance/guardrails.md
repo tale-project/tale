@@ -7,7 +7,7 @@ Use **Settings > Governance > Guardrails** as an Admin or Owner to control how c
 
 <Frame caption="Governance > Guardrails — the three filter-layer status cards (content safety, PII detection, moderation provider) above the recent-events log.">
 
-![The Guardrails governance page showing three status cards — Content safety off, PII detection off, and the Moderation provider not configured — above a recent-events feed reporting no events yet and the organization's custom instructions.](/images/platform/governance-guardrails.webp)
+![The Guardrails governance page showing three status cards — Content safety on with two categories for input and output, PII detection on in mask mode, and the Moderation provider not configured — above a recent-events feed reporting no events yet and the organization's custom instructions.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 

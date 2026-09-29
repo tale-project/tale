@@ -34,7 +34,7 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 504
+      "height": 688
     },
     {
       "file": "images/get-started/settings-organization-members.webp",
@@ -301,9 +301,33 @@
       "height": 2520
     },
     {
+      "file": "images/platform/governance-skill-sharing.webp",
+      "shot": "governance-skill-sharing",
+      "route": "/dashboard/:orgId/settings/governance/policies-limits",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 356
+    },
+    {
       "file": "images/platform/knowledge-entries-list.webp",
       "shot": "knowledge-entries-list",
       "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
+      "file": "images/platform/project-agent-document-skills.webp",
+      "shot": "project-agent-document-skills",
+      "route": "/dashboard/:orgId/projects",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -498,11 +522,23 @@
       "route": "/dashboard/:orgId/settings/skills",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 1100
       },
       "dpr": 2,
       "width": 1536,
-      "height": 1532
+      "height": 1872
+    },
+    {
+      "file": "images/platform/skill-library-list.webp",
+      "shot": "skill-library-list",
+      "route": "/dashboard/:orgId/settings/skills",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
     },
     {
       "file": "images/platform/websites-add-dialog.webp",

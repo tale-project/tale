@@ -88,6 +88,12 @@ By default, every member can share a skill with the whole organization. Use **Sk
 - **Editors and above** admits Editors, Developers, Admins, and Owners: the roles that equip agents.
 - **Owners and admins only** admits Owners and Admins.
 
+<Frame caption="Governance > Policies & Limits — Skill sharing decides who may share a skill with the whole organization.">
+
+![The Skill sharing section with Share skills with the organization set to Every member, and the hint that Owners and Admins always may and one more member can be granted Publish skills to the organization under Competences.](/images/platform/governance-skill-sharing.webp)
+
+</Frame>
+
 Owners and Admins can always share with everyone. To let one more person do it without a higher role, grant them **Publish skills to the organization** under [Competences](/platform/admin/governance/competences).
 
 Everyone else can still create skills and share them with their own teams. They cannot create a skill for the whole organization, widen one of theirs to **Organization**, or change an organization-wide skill in place. They can narrow a skill of theirs to their teams, with other changes in the same save, or delete it. The rule applies in the skill editor, to zip and folder uploads, to automation packages that carry skills, and to the REST API. Each refusal appears in the [audit logs](/platform/admin/governance/audit-logs) as **Skill publishing refused**.
