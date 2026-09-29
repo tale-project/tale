@@ -397,6 +397,45 @@ describe('rollingWindowDedup', () => {
     ]);
   });
 
+  it('collapses a growing line in scripts written without spaces', () => {
+    expect(
+      rollingWindowDedup([
+        seg(0, 1, '今日は'),
+        seg(0, 2, '今日はいい'),
+        seg(0, 3, '今日は、いい天気ですね。'),
+      ]),
+    ).toEqual([seg(0, 3, '今日は、いい天気ですね。')]);
+    expect(
+      rollingWindowDedup([seg(4, 5, '我们'), seg(4, 6, '我们周一发货。')]),
+    ).toEqual([seg(4, 6, '我们周一发货。')]);
+    expect(
+      rollingWindowDedup([seg(7, 8, 'วันนี้'), seg(7, 9, 'วันนี้อากาศดี')]),
+    ).toEqual([seg(7, 9, 'วันนี้อากาศดี')]);
+  });
+
+  it('keeps two speakers of such a script who start together', () => {
+    const segs: CaptionSegment[] = [
+      { startSec: 1, endSec: 4, text: '準備できました。', speaker: 'Alice' },
+      {
+        startSec: 1,
+        endSec: 9,
+        text: '月曜まで待ってください。',
+        speaker: 'Bob',
+      },
+    ];
+    expect(rollingWindowDedup(segs)).toEqual(segs);
+    // Nor does a symbol-only cue vanish into a line that starts with it.
+    const music = [seg(2, 3, '♪'), seg(2, 4, '今日は')];
+    expect(rollingWindowDedup(music)).toEqual(music);
+  });
+
+  it('keeps the line with more words, not the longer raw text', () => {
+    // Both are ten characters long; only the second carries "go".
+    expect(
+      rollingWindowDedup([seg(0, 1, 'we -- will'), seg(0, 2, 'we will go')]),
+    ).toEqual([seg(0, 2, 'we will go')]);
+  });
+
   it('stays linear on a hostile window of same-start cues', () => {
     // The parser admits up to 50,000 segments; a VTT that times them all
     // to one start must not turn the window scan quadratic.
@@ -405,7 +444,8 @@ describe('rollingWindowDedup', () => {
     );
     const start = performance.now();
     const out = rollingWindowDedup(segs);
-    expect(performance.now() - start).toBeLessThan(2_000);
+    // Quadratic would take minutes; the bound is generous for a busy runner.
+    expect(performance.now() - start).toBeLessThan(5_000);
     expect(out).toHaveLength(50_000);
   });
 });

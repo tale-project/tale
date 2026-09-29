@@ -263,12 +263,13 @@ const ROLLING_LOOKBACK = 8;
  *
  * A cue collapses into an earlier cue of its window (same `startSec`) only
  * when it is that line again: the same speaker, and one text's words begin
- * the other's (compared blind to case and punctuation). The longer text is
- * kept — the last cue of a rolling window has the most complete text and
- * the latest `endSec`. Any other cue that shares the start is an utterance
- * of its own and stays, in order: a human track times two speakers who talk
- * at once to the same start, and keeping only the longest cue deleted the
- * other speaker's line from a transcript that still read as complete.
+ * the other's (compared blind to case and punctuation; by character in a
+ * script written without spaces). The more complete line is kept — the
+ * last cue of a rolling window has the most text and the latest `endSec`.
+ * Any other cue that shares the start is an utterance of its own and stays,
+ * in order: a human track times two speakers who talk at once to the same
+ * start, and keeping only the longest cue deleted the other speaker's line
+ * from a transcript that still read as complete.
  *
  * Manual captions and Whisper segments rarely share a start, so each cue is
  * usually its own "window of one".
@@ -292,9 +293,13 @@ export function rollingWindowDedup(
     const oldest = Math.max(windowFrom, out.length - ROLLING_LOOKBACK);
     for (let i = out.length - 1; i >= oldest; i--) {
       const kept = out[i];
+      const keptWords = outWords[i];
       if (kept.speaker !== seg.speaker) continue;
-      if (!sameGrowingLine(outWords[i], words)) continue;
-      if (seg.text.length > kept.text.length) {
+      if (!sameGrowingLine(keptWords, words)) continue;
+      // The line with more words wins; the raw text only breaks a tie, so a
+      // cue padded with punctuation cannot displace the one that grew.
+      const grown = lineWeight(words) - lineWeight(keptWords);
+      if (grown > 0 || (grown === 0 && seg.text.length > kept.text.length)) {
         out[i] = seg;
         outWords[i] = words;
       }
@@ -320,11 +325,29 @@ function lineWords(text: string): string {
     .trim();
 }
 
-/** Whether one line's words begin the other's, whole words only (`no` does
- * not begin `now we`). */
+/** Scripts that run a sentence's words together without spaces. A line in
+ * one of them grows by characters (`今日は` → `今日はいい天気`), not by
+ * words. */
+const UNSPACED_SCRIPT =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
+
+/** Whether one line begins the other: whole words (`no` does not begin
+ * `now we`), or, when the shorter line is in a script without spaces,
+ * characters — spaces aside, since punctuation that appears as such a line
+ * grows reads as one. */
 function sameGrowingLine(a: string, b: string): boolean {
+  if (a === b) return true;
   const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  return longer === shorter || longer.startsWith(`${shorter} `);
+  if (shorter.length > 0 && longer.startsWith(`${shorter} `)) return true;
+  const [x, y] = [a.replaceAll(' ', ''), b.replaceAll(' ', '')];
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return UNSPACED_SCRIPT.test(short) && long.startsWith(short);
+}
+
+/** How much of a line a cue carries: its compared characters, spaces
+ * aside. */
+function lineWeight(words: string): number {
+  return words.replaceAll(' ', '').length;
 }
 
 /**
