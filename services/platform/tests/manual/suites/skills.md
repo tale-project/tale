@@ -157,6 +157,16 @@ builtin skill from `configs/platform/custom/skills/`.
   skill that is merely unshared from the project's scope instead shows in
   the dialog's skills menu as **"<slug>" (unavailable)**
   (`chat.skills.unavailableOption`), checked, so it can be unticked.
+- [ ] `SKILL-F15` · **Agent picks a skill by its description** — Create a
+  skill `invoice-check` whose description reads "Use when a task asks to
+  check an invoice" and whose body asks for totals, VAT and due date under
+  the heading "Invoice skill review". Equip it together with `docx` on a
+  project agent, then create a task "Is the attached invoice correct?" with
+  a synthetic invoice attached and **no skill named** → The turn reads
+  `invoice-check/SKILL.md` and the report uses its unique heading and checks.
+  Repeat on a fresh task with `disable-model-invocation: true` in the skill
+  file: it is not used unless the task names it. Then name the skill in
+  another task and verify that its instructions are followed again.
 
 ## Boundary & error tests
 
