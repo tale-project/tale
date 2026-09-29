@@ -2526,10 +2526,6 @@ onboarding:
       Next to try again.
     creationForbidden: You cannot create an organization on this deployment. Contact the operator to request a workspace.
     nameTakenError: That name is already taken. Pick a different one.
-  provider:
-    heading: Connect OpenRouter
-    why: One key unlocks hundreds of models for chat, agents, voice, and more —
-      we'll preconfigure a recommended set so you're ready right away.
   finish:
     heading: Ready to go
     subtitle: "Here's what you can do next:"
@@ -2560,7 +2556,7 @@ emptyStates:
     description: Save facts from chat or add entries agents can reuse.
   skills:
     title: No skills yet
-    description: Write a skill once, then equip project agents or automation agent steps with it.
+    description: Write a skill once, then equip project agents or automation agent nodes with it.
   members:
     title: No members found
     description: Invite people to collaborate in this workspace.
@@ -5420,7 +5416,7 @@ settings:
     sandboxes:
       description: Manage always-on remote sandboxes.
     skills:
-      description: Reusable instructions and tools the assistant can load.
+      description: Reusable instruction bundles for project agents and automation agent nodes.
     enterpriseSso:
       description: Single sign-on and directory sync for your organization.
     dataResidency:

@@ -2622,12 +2622,6 @@ onboarding:
       Verbindung und klicke erneut auf „Weiter“.
     creationForbidden: Du kannst in dieser Bereitstellung keine Organisation erstellen. Wende dich an den Betreiber, um einen Arbeitsbereich anzufordern.
     nameTakenError: Dieser Name ist schon vergeben. Wähle einen anderen.
-  provider:
-    heading: OpenRouter verbinden
-    why:
-      Ein Schlüssel schaltet Hunderte Modelle für Chat, Agenten, Sprache und mehr
-      frei – wir konfigurieren eine empfohlene Auswahl vor, damit du sofort
-      loslegen kannst.
   finish:
     heading: Bereit
     subtitle: 'Das kannst du als Nächstes tun:'
@@ -2658,7 +2652,7 @@ emptyStates:
     description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können.
   skills:
     title: Noch keine Skills
-    description: Schreib einen Skill einmal und rüste dann Projekt-Agenten oder Agenten-Schritte in Automatisierungen damit aus.
+    description: Schreib einen Skill einmal und rüste dann Projekt-Agenten oder Agent-Knoten in Automatisierungen damit aus.
   members:
     title: Keine Mitglieder gefunden
     description: Lade Personen ein, in diesem Workspace zusammenzuarbeiten.
@@ -5222,7 +5216,7 @@ settings:
     sandboxes:
       description: Always-on Remote-Sandboxes verwalten.
     skills:
-      description: Wiederverwendbare Anleitungen und Werkzeuge, die der Assistent laden kann.
+      description: Wiederverwendbare Anleitungspakete für Projekt-Agenten und Agent-Knoten in Automatisierungen.
     enterpriseSso:
       description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
     dataResidency:

@@ -9,7 +9,7 @@
  * widen it. Org voice still applies through the governance mandatory
  * instructions; personas with their own instructions, skills and allowlists
  * are project agents working tasks (`backend/domains/projects/`) and
- * automation agent steps.
+ * automation agent nodes.
  *
  * The instructions are authored in English only. The runtime-directives block
  * of the context contract already sets the reply language — the user's own,
