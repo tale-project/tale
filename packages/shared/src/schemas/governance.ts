@@ -478,12 +478,36 @@ export const modelAccessRuleSchema = z.object({
 });
 export type ModelAccessRule = z.infer<typeof modelAccessRuleSchema>;
 
+/**
+ * The model endpoints for personal API keys — the OpenAI-compatible
+ * `/api/v1/openai` and the Anthropic-compatible `/api/v1/anthropic` wires,
+ * through which a key holder calls the organization's models from their own
+ * tools. Off unless an admin turns it on: an absent object, like an absent
+ * file, reads as off. It lives on the model-access policy because every call
+ * is held to that policy's allow and block rules; who may call is fixed —
+ * owners, admins and developers, plus members granted `tale:models.api` —
+ * and is not configured here.
+ */
+export const modelApiSettingsSchema = z.object({
+  enabled: z.boolean(),
+});
+export type ModelApiSettings = z.infer<typeof modelApiSettingsSchema>;
+
 export const modelAccessConfigSchema = z.object({
+  /** Whether the allow and block `rules` bind — the door's switch below is
+   * independent of it. */
   enabled: z.boolean(),
   mode: z.enum(['allowlist', 'blocklist']),
   rules: z.array(modelAccessRuleSchema),
+  modelApi: modelApiSettingsSchema.optional(),
 });
 export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;
+
+/** Whether the model endpoints for API keys are on under a stored model
+ * access policy — absent policy, absent switch and `false` all read as off. */
+export function modelApiEnabledOf(config: ModelAccessConfig | null): boolean {
+  return config?.modelApi?.enabled === true;
+}
 
 export const DEFAULT_LOGIN_BACKOFF_MS = [1_000, 10_000, 60_000, 600_000];
 export const DEFAULT_LOGIN_MAX_ATTEMPTS = 5;
