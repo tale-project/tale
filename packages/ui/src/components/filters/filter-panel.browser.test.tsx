@@ -202,14 +202,27 @@ describe('A single-choice facet by keyboard (real focus)', () => {
       screen.getAllByRole('radio').map((option) => option.tabIndex),
     ).toEqual([-1, 0, -1]);
 
-    // A quick press, its key up before Radix's deferred focus lands (as on a
-    // page still busy with the last choice), still takes the choice along.
-    await userEvent.keyboard('{ArrowDown}');
-    await waitFor(() => expect(radio('Medium')).toHaveFocus());
-    await waitFor(() => expect(radio('Medium')).toBeChecked());
-    await userEvent.keyboard('{ArrowUp}');
-    await waitFor(() => expect(radio('High')).toHaveFocus());
-    await waitFor(() => expect(radio('High')).toBeChecked());
+    // A page still busy with the last choice: a task queued ahead of Radix's
+    // deferred focus holds the main thread, so the key comes up before the
+    // focus lands and Radix checks nothing. The choice still follows.
+    const busyPage = () =>
+      setTimeout(() => {
+        const until = performance.now() + 150;
+        let spins = 0;
+        while (performance.now() < until) spins += 1;
+        return spins;
+      });
+    document.addEventListener('keydown', busyPage, { capture: true });
+    try {
+      await userEvent.keyboard('{ArrowDown}');
+      await waitFor(() => expect(radio('Medium')).toHaveFocus());
+      await waitFor(() => expect(radio('Medium')).toBeChecked());
+      await userEvent.keyboard('{ArrowUp}');
+      await waitFor(() => expect(radio('High')).toHaveFocus());
+      await waitFor(() => expect(radio('High')).toBeChecked());
+    } finally {
+      document.removeEventListener('keydown', busyPage, { capture: true });
+    }
     expect(screen.getByTestId('priority')).toHaveTextContent('p1');
 
     // Tab leaves the group for the next facet; Shift+Tab returns to the

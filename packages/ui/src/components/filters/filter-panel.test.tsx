@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import {
   FilterPanel,
@@ -450,6 +450,64 @@ describe('FilterPanel', () => {
         );
       }
       expect(onChange.mock.calls).toEqual([[['p2']], [['p0']], [['p1']]]);
+    });
+
+    it('moves the choice with Home and End too', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar initial={['p1']} onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+
+      await user.keyboard('{End}');
+      await waitFor(() =>
+        expect(screen.getByRole('radio', { name: 'Medium' })).toHaveFocus(),
+      );
+      expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
+      await user.keyboard('{Home}');
+      await waitFor(() =>
+        expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus(),
+      );
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toBeChecked();
+      expect(onChange.mock.calls).toEqual([[['p2']], [['p0']]]);
+    });
+
+    it('keeps the chosen option chosen when an arrow key lands on it', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar initial={['p2']} onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+      // The focus off the choice, as a choice made elsewhere leaves it.
+      const high = screen.getByRole('radio', { name: 'High' });
+      act(() => high.focus());
+
+      await pressArrow(user, 'ArrowDown', 'Medium');
+      expect(screen.getByRole('radio', { name: 'Medium' })).toBeChecked();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('chooses nothing on the way in, even after a key that moved nothing', async () => {
+      const onChange = vi.fn();
+      const { user } = render(<Toolbar onChange={onChange} />);
+      await openPriority(user);
+      await user.tab();
+      // Radix moves nothing for an arrow with a modifier.
+      await user.keyboard('{Shift>}{ArrowDown}{/Shift}');
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+
+      // Out of the group both ways, and back in: the focus returns to the
+      // first option and still nothing is chosen.
+      await user.tab({ shift: true });
+      expect(
+        screen.getByRole('button', {
+          name: (name) => name.startsWith('Priority'),
+        }),
+      ).toHaveFocus();
+      await user.tab();
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+      await user.tab();
+      await user.tab({ shift: true });
+      expect(screen.getByRole('radio', { name: 'Urgent' })).toHaveFocus();
+      expect(onChange).not.toHaveBeenCalled();
     });
 
     it('clears an optional facet with Space on the chosen option, as a click does', async () => {

@@ -62,7 +62,18 @@ function toSegments(options: readonly FilterOption[]): OptionSegment[] {
   return segments;
 }
 
-/** The keys that move a radio group's focus, and with it its choice. */
+/** The keys Radix moves a radio group's focus with, and the choice with it. */
+const FOCUS_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+]);
+/** The keys Radix checks the option for itself, while the key is down. */
 const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 export interface FilterConfig {
@@ -192,10 +203,9 @@ export function FilterPanel({
   // it leaves the focus there instead of handing it back to the button.
   const interactedOutside = useRef(false);
   const facetsRef = useRef<HTMLDivElement>(null);
-  // The option an arrow key was pressed on, until the focus it sent lands on
-  // another option of the group, and whether that key is still down (see the
-  // option's `onFocus`).
-  const arrowFrom = useRef<EventTarget | null>(null);
+  // The option a focus key was pressed on, and whether an arrow key is down —
+  // what the options' `onClick` and `onFocus` read.
+  const navigatedFrom = useRef<EventTarget | null>(null);
   const arrowDown = useRef(false);
   const headingId = useId();
   const [expandedSections, setExpandedSections] = useState<
@@ -405,21 +415,23 @@ export function FilterPanel({
                     </div>
                   ) : (
                     // The radio group primitive `RadioGroup` is built on: one
-                    // Tab stop (the chosen option, else the first), the arrow
-                    // keys move the choice, Tab and Shift+Tab leave the group.
+                    // Tab stop (the chosen option, else the first), keys that
+                    // move the focus and the choice together, and Tab and
+                    // Shift+Tab to leave the group.
                     <RadioGroupPrimitive.Root
                       value={filter.selectedValues[0] ?? null}
                       onValueChange={(value) => filter.onChange([value])}
                       onKeyDown={(event) => {
-                        const isArrow = ARROW_KEYS.has(event.key);
-                        arrowFrom.current = isArrow ? event.target : null;
-                        if (isArrow) arrowDown.current = true;
+                        if (FOCUS_KEYS.has(event.key)) {
+                          navigatedFrom.current = event.target;
+                        }
+                        if (ARROW_KEYS.has(event.key)) arrowDown.current = true;
                       }}
                       onKeyUp={() => {
                         arrowDown.current = false;
                       }}
                       onPointerDown={() => {
-                        arrowFrom.current = null;
+                        navigatedFrom.current = null;
                       }}
                       aria-label={segment.group ?? filter.title}
                       className={cn(
@@ -436,26 +448,28 @@ export function FilterPanel({
                             value={option.value}
                             // Pressing the chosen option again (a click or
                             // Space) sets the facet back to its resting
-                            // selection: how an optional one is cleared.
+                            // selection: how an optional one is cleared. The
+                            // click Radix sends an option an arrow key lands
+                            // on is no such press.
                             onClick={() => {
-                              if (isSelected) {
+                              if (isSelected && !arrowDown.current) {
                                 filter.onChange(filter.defaultValues ?? []);
                               }
                             }}
-                            // An arrow key moves the choice with the focus.
-                            // Radix checks the option only while the key is
-                            // still down when its deferred focus lands; a page
-                            // busy with the last choice lets the key come up
-                            // first, which left the focus on one option and
-                            // the choice on another. Then this chooses it, and
-                            // otherwise Radix does, never both.
+                            // A key that moves the focus to this option moves
+                            // the choice with it. Radix checks the option only
+                            // for an arrow key still down when its deferred
+                            // focus lands; Home, End, and an arrow key a busy
+                            // page lets come up first left the focus on one
+                            // option and the choice on another. Those choose
+                            // here, so one of the two chooses, never both.
                             onFocus={(event) => {
-                              const movedByArrow =
-                                arrowFrom.current !== null &&
-                                arrowFrom.current !== event.currentTarget;
-                              arrowFrom.current = null;
+                              const navigated =
+                                event.relatedTarget !== null &&
+                                event.relatedTarget === navigatedFrom.current;
+                              navigatedFrom.current = null;
                               if (
-                                movedByArrow &&
+                                navigated &&
                                 !arrowDown.current &&
                                 !isSelected
                               ) {
@@ -463,7 +477,7 @@ export function FilterPanel({
                               }
                             }}
                             className={cn(
-                              'focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-lg p-2 focus-visible:ring-2 focus-visible:outline-none',
+                              'focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-lg p-2 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
                               isSelected ? 'bg-muted' : 'hover:bg-muted/70',
                             )}
                           >
