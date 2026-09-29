@@ -2,6 +2,8 @@
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BOARD_TASK_STATUSES } from '@/app/features/tasks/lib/display';
+
 import { backendKey } from './query-keys';
 import {
   taskPaginatedAdapters,
@@ -234,6 +236,31 @@ describe('task read adapters', () => {
       '/api/app/tasks?includeArchived=false&q=needle&orgId=org-1',
       expect.anything(),
     );
+  });
+
+  // #3939: the dependency picker of an open task lists every task of its
+  // project. Asked for the board's statuses and nothing else, it keys the
+  // unfiltered board's own read, so the dialog reuses the rows its board
+  // already holds instead of reading the whole project again.
+  it('keys the unfiltered board and the dependency picker alike', () => {
+    const adapter = taskReadAdapters['tasks/queries:listTasksByProject'];
+    const statuses = BOARD_TASK_STATUSES;
+    const board = adapter?.(
+      {
+        organizationId: 'org-1',
+        projectId: 'p1',
+        statuses,
+        includeArchived: false,
+        assigneeId: undefined,
+        query: '',
+      },
+      {},
+    );
+    const picker = adapter?.(
+      { organizationId: 'org-1', projectId: 'p1', statuses },
+      {},
+    );
+    expect(picker?.queryKey).toEqual(board?.queryKey);
   });
 
   // A start or due date stored before the doors held it to the epoch bound
