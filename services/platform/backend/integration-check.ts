@@ -64,6 +64,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
@@ -49944,6 +49945,100 @@ async function checkAccountAuthzHardening(
   );
 }
 
+/**
+ * The budget editor's per-key picker (`GET /api/app/governance/api-keys`):
+ * an admin lists every live key held by a member of the organization — never
+ * a non-member's, never an expired one, never a secret — and a non-admin is
+ * refused. Run against the real auth tables, so a wrong column name in the
+ * listing's query fails here rather than leaving the picker silently empty.
+ */
+async function checkOrgApiKeyListing(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  suffix: string,
+): Promise<void> {
+  const mint = async (cookie: string, name: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ name }),
+    });
+    const parsed = z
+      .object({ id: z.string(), key: z.string() })
+      .loose()
+      .safeParse(await res.json());
+    return parsed.success ? parsed.data : null;
+  };
+  const list = (cookie: string) =>
+    fetch(`${base}/api/app/governance/api-keys?orgId=${ctx.orgId}`, {
+      headers: { cookie },
+    });
+
+  const member = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keylist-member-${suffix}`,
+    'developer',
+  );
+  const outsider = await signUpUser(base, `keylist-outsider-${suffix}`);
+  const memberKey = await mint(member.cookie, `keylist-live-${suffix}`);
+  const expiredKey = await mint(member.cookie, `keylist-expired-${suffix}`);
+  const outsiderKey = await mint(outsider.cookie, `keylist-out-${suffix}`);
+  if (expiredKey !== null) {
+    await sql`
+      UPDATE "apikey" SET "expiresAt" = now() - interval '1 day'
+      WHERE "id" = ${expiredKey.id}
+    `;
+  }
+
+  const adminRes = await list(ctx.cookie);
+  const adminText = await adminRes.text();
+  let adminBody: unknown = null;
+  try {
+    adminBody = JSON.parse(adminText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the admin read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const listed = z
+    .object({
+      keys: z.array(
+        z.object({
+          id: z.string(),
+          userId: z.string(),
+          ownerEmail: z.string().nullable(),
+        }),
+      ),
+    })
+    .safeParse(adminBody);
+  const ids = listed.success ? listed.data.keys.map((k) => k.id) : [];
+  const memberRow = listed.success
+    ? listed.data.keys.find((k) => k.id === memberKey?.id)
+    : undefined;
+  const leaked = [memberKey, expiredKey, outsiderKey].some(
+    (minted) => minted !== null && adminText.includes(minted.key),
+  );
+  const memberRes = await list(member.cookie);
+  record(
+    "org api-key listing: an admin sees members' live keys, masked; a non-admin is refused",
+    adminRes.status === 200 &&
+      memberKey !== null &&
+      memberRow?.userId === member.userId &&
+      memberRow.ownerEmail === member.email &&
+      expiredKey !== null &&
+      !ids.includes(expiredKey.id) &&
+      outsiderKey !== null &&
+      !ids.includes(outsiderKey.id) &&
+      !leaked &&
+      memberRes.status === 403,
+    `admin → ${adminRes.status}, member key listed=${memberRow !== undefined} (owner ${memberRow?.ownerEmail ?? 'MISSING'}), expired listed=${expiredKey !== null && ids.includes(expiredKey.id)}, outsider listed=${outsiderKey !== null && ids.includes(outsiderKey.id)}, secret leaked=${leaked}, non-admin → ${memberRes.status} (want 403)`,
+  );
+}
+
 async function checkTwoFactor(
   sql: Sql,
   base: string,
@@ -55444,6 +55539,10 @@ async function main(): Promise<void> {
         'checkAccountAuthzHardening',
         () => checkAccountAuthzHardening(sql, baseUrl, authCtx, orgSuffix),
       ],
+      [
+        'checkOrgApiKeyListing',
+        () => checkOrgApiKeyListing(sql, baseUrl, authCtx, orgSuffix),
+      ],
       ['checkLegalHolds', () => checkLegalHolds(sql, baseUrl, authCtx)],
       [
         'checkRetention',
@@ -55509,6 +55608,23 @@ async function main(): Promise<void> {
       [
         'checkAutomationsDeadSchemaDropped',
         () => checkAutomationsDeadSchemaDropped(sql),
+      ],
+      [
+        'checkAutomationProjectVisibility',
+        async () =>
+          checkAutomationProjectVisibility(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'automation-project-reader',
+              'member',
+            ),
+            record,
+          ),
       ],
       [
         'checkAutomationRunLifecycle',

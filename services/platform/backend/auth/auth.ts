@@ -24,7 +24,10 @@ import {
   ORG_SLUG_IMMUTABLE_MESSAGE,
 } from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
-import { TEAM_HINT_ENTITY } from '../../lib/shared/hint-entities.ts';
+import {
+  API_KEY_HINT_ENTITY,
+  TEAM_HINT_ENTITY,
+} from '../../lib/shared/hint-entities.ts';
 import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
 import { getString, isRecord } from '../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
@@ -39,6 +42,7 @@ import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
 import {
   recordUserScopedSecurityEvent,
   userEmail,
+  userOrgIds,
 } from '../domains/audit_logs/user-scoped.ts';
 import {
   clearOnSuccess,
@@ -623,6 +627,33 @@ export function createAuth(config: AuthConfig) {
   };
 
   /**
+   * One `api_key` invalidation hint per organization the key's holder belongs
+   * to, emitted after the api-key plugin's own write has committed — a key
+   * works in each of them, so each lists it in the budget editor's picker.
+   * Non-fatal like the team hint: the key change already landed, so a failed
+   * hint costs a live refresh, never the user's request.
+   */
+  const hintApiKeyChange = async (
+    userId: string,
+    keyId: string,
+  ): Promise<void> => {
+    try {
+      for (const organizationId of await userOrgIds(sql, userId)) {
+        await emitHintInTx(sql, {
+          orgId: organizationId,
+          entity: API_KEY_HINT_ENTITY,
+          entityId: keyId,
+        });
+      }
+    } catch (error) {
+      console.error(
+        '[api-key] failed to emit the api-key invalidation hint',
+        error instanceof Error ? error.message : error,
+      );
+    }
+  };
+
+  /**
    * One `team.*` audit row for a plugin-door team write, in its own
    * serializable transaction after the plugin's commit — the posture the
    * `joined_organization` rows take. Non-fatal for the same reason as the
@@ -1093,6 +1124,7 @@ export function createAuth(config: AuthConfig) {
               error instanceof Error ? error.message : error,
             );
           }
+          await hintApiKeyChange(apiKeyEvent.userId, apiKeyEvent.keyId);
         }
         return undefined;
       }),

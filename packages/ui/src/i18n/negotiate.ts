@@ -4,6 +4,7 @@ import {
   isUrlPrefixedLocale,
   localizedPath,
   type SupportedLocale,
+  URL_PREFIXED_LOCALES,
   type UrlPrefixedLocale,
 } from './locales';
 
@@ -85,8 +86,10 @@ function urlPrefixLocale(pathname: string): UrlPrefixedLocale | null {
 }
 
 /**
- * The same path with a leading `/de` or `/fr` segment removed, or null when it
- * carries none. For a site served as ONE untranslated tree (`ui-docs`): those
+ * The same path with an allowed leading locale segment removed, or null when
+ * it carries none or the result would be an off-site URL. Defaults to `/de`
+ * and `/fr`; docs passes `['en']` for its guessed English alias. For a site
+ * served as ONE untranslated tree (`ui-docs`): those
  * URLs address nothing there, so the server sends them home instead of
  * answering a 404 for a prefix only a translated site ever mints.
  *
@@ -95,10 +98,16 @@ function urlPrefixLocale(pathname: string): UrlPrefixedLocale | null {
  * stripLocalePrefix('/fr/docs/button')     // '/docs/button'
  * stripLocalePrefix('/docs/button')        // null
  */
-export function stripLocalePrefix(pathname: string): string | null {
+export function stripLocalePrefix(
+  pathname: string,
+  locales: readonly SupportedLocale[] = URL_PREFIXED_LOCALES,
+): string | null {
   const [, first = '', ...rest] = pathname.split('/');
-  if (!isUrlPrefixedLocale(first)) return null;
-  return rest.length === 0 ? '/' : `/${rest.join('/')}`;
+  if (!locales.some((locale) => locale === first)) return null;
+  const unprefixed = rest.length === 0 ? '/' : `/${rest.join('/')}`;
+  // Browsers read both `//host` and `/\\host` as an off-site Location.
+  if (unprefixed[1] === '/' || unprefixed[1] === '\\') return null;
+  return unprefixed;
 }
 
 /** Best path-locale (`'en' | 'de' | 'fr'`) implied by the user's

@@ -14,14 +14,14 @@ Use **Settings > Governance > Policies & Limits** as an Admin or Owner to contro
 ## Add a spending budget
 
 1. Under **Budget rules**, select **Add rule**.
-2. Choose the scope and its target. Use a role for a group such as Editors, a team for a shared workload, a user for an individual, an API key for one credential, or the organization for a shared ceiling.
+2. Choose the scope and its target. Use a role for a group such as Editors, a team for a shared workload, a user for an individual, an API key for one credential, or the organization for a shared ceiling. The API key list offers every active key held by a member of the organization, named with its owner, so you can cap one person's script or coding tool.
 3. Select a daily, weekly, or monthly period. Enter at least one positive token, cost, or request limit. Cost is entered in USD; an empty field leaves that dimension uncapped by this rule.
 4. Optionally set **Warning threshold (%)** between 0 and 100 to warn before the cap is reached.
 5. Select **Confirm**, save the pending page changes, and check the saved rule's scope, target, period, and limits.
 
 For example, a monthly role rule can give Editors a USD 50 personal spending limit, while an organization rule caps everyone's combined spend at USD 500. These are example amounts, not recommended defaults.
 
-Budgets apply to new billable work, including chat, voice output, and managed agent runs. Tale checks every chat request before it runs — a sent message, a regenerated or edited reply, both sides of a model comparison, a message waiting for an attachment, and a send through the REST API — and refuses it once a cap that applies is reached, naming the cap and when it resets. Replies still being written hold what they may spend, so requests sent at the same moment cannot pass a nearly reached cap together. Image generation needs cost or request limits because its usage is not measured as text tokens. Investigate warnings in [Usage analytics](/platform/admin/governance/usage-analytics).
+Budgets apply to new billable work, including chat, voice output, and managed agent runs. Tale checks every chat request before it runs — a sent message, a regenerated or edited reply, both sides of a model comparison, a message waiting for an attachment, and a send through the REST API — and refuses it once a cap that applies is reached, naming the cap and when it resets. Replies still being written hold what they may spend, so requests sent at the same moment cannot pass a nearly reached cap together. Investigate warnings in [Usage analytics](/platform/admin/governance/usage-analytics).
 
 ## Understand which caps apply
 
