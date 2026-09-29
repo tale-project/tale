@@ -22,6 +22,8 @@ Das Bundle enthält `SKILL.md` und kann Referenzen, Dateien oder Skripte mitbrin
 
 Alte private Skills können nicht für einen Projekt-Agenten ausgewählt werden. Dieselbe Zugriffsregel wird beim Start einer Aufgabe geprüft. Die Auswahl eines Skills gewährt dem Projekt keinen dauerhaften Zugriff darauf.
 
+Bei einem neuen Projekt-Agenten sind die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf` vorausgewählt, sofern das Projekt auf sie zugreifen kann. Entferne die Häkchen bei Skills, die die Aufgabe nicht braucht.
+
 ## Skills in einer Automation verwenden
 
 Die Agent-Knoten einer Automation geben an, welche Skills sie brauchen. Ein an ein Projekt gebundener Lauf nutzt dessen Zugriff. Ein Lauf auf Organisationsebene kann nur organisationsweite Skills verwenden. Deine persönliche Mitgliedschaft in weiteren Teams erweitert diesen Zugriff nicht.

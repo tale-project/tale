@@ -24,7 +24,7 @@ Fehlen die Agentenseite oder die Modellauswahl, kläre zuerst Zugriff und Einric
 1. Gib unter **Name** `Triage-Assistent` ein.
 2. Wähle eine **Agent-Laufzeit**, die dein Administrator eingerichtet hat.
 3. Suche unter **Modell** nach Modellname oder API-ID und wähle den Eintrag des gewünschten Providers. Dasselbe Modell kann von mehreren Providern angeboten werden.
-4. Lass **Skills, Connectors & Tools** und **Secrets** für diese Übung leer.
+4. Entferne unter **Skills, Connectors & Tools** die Häkchen bei vorausgewählten Dokument-Skills und lass **Secrets** für diese Übung leer.
 5. Füge die folgenden Anweisungen unter **Anweisungen** ein und klicke auf **Agent erstellen**.
 
 ```text

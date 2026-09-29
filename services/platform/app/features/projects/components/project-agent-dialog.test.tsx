@@ -1,4 +1,5 @@
 import { toast } from '@tale/ui/use-toast';
+import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -168,5 +169,116 @@ describe('ProjectAgentDialog model pin', () => {
     expect(updateAgent.mock.calls.at(-1)?.[0]).not.toHaveProperty(
       'modelProvider',
     );
+  });
+});
+
+describe('ProjectAgentDialog document skills', () => {
+  // What the project can see: two seeded document skills and a house skill.
+  const VISIBLE_SKILLS = [
+    { slug: 'docx', label: 'Word documents' },
+    { slug: 'pptx', label: 'Presentations' },
+    { slug: 'brief-summary', label: 'Brief summary' },
+  ];
+
+  function dialogWithSkills(
+    overrides: Partial<ComponentProps<typeof ProjectAgentDialog>> = {},
+  ) {
+    return (
+      <ProjectAgentDialog
+        open
+        onOpenChange={() => undefined}
+        projectId={'p1' as string}
+        organizationId="org-1"
+        harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
+        models={MODELS}
+        skills={VISIBLE_SKILLS}
+        connectors={[]}
+        {...overrides}
+      />
+    );
+  }
+
+  function renderWithSkills(agent?: ProjectAgentRow) {
+    return render(dialogWithSkills(agent ? { agent } : {}));
+  }
+
+  async function checkedState(
+    user: ReturnType<typeof renderWithSkills>['user'],
+    label: string,
+  ) {
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const item = await screen.findByRole('menuitemcheckbox', { name: label });
+    const state = item.getAttribute('aria-checked');
+    await user.keyboard('{Escape}');
+    return state;
+  }
+
+  it('ticks the document skills the project can see on a new agent', async () => {
+    const { user } = renderWithSkills();
+    expect(await checkedState(user, 'Word documents')).toBe('true');
+    expect(await checkedState(user, 'Presentations')).toBe('true');
+    expect(await checkedState(user, 'Brief summary')).toBe('false');
+  });
+
+  it('never changes the equipment of an agent being edited', async () => {
+    const { user } = renderWithSkills(LEGACY_AGENT);
+    expect(await checkedState(user, 'Word documents')).toBe('false');
+    expect(await checkedState(user, 'Presentations')).toBe('false');
+  });
+
+  it.each([{ skills: [] }, { skills: [VISIBLE_SKILLS[2]] }])(
+    'does not add defaults after a loaded catalog had no document skills: %j',
+    async ({ skills }) => {
+      const { user, rerender } = render(dialogWithSkills({ skills }));
+      rerender(dialogWithSkills());
+
+      expect(await checkedState(user, 'Word documents')).toBe('false');
+      expect(await checkedState(user, 'Presentations')).toBe('false');
+    },
+  );
+
+  it('keeps an unticked default across refreshes, then resets on reopening', async () => {
+    const { user, rerender } = renderWithSkills();
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    await user.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Word documents' }),
+    );
+    await user.keyboard('{Escape}');
+
+    rerender(dialogWithSkills({ skills: [...VISIBLE_SKILLS] }));
+    expect(await checkedState(user, 'Word documents')).toBe('false');
+
+    rerender(dialogWithSkills({ open: false }));
+    rerender(dialogWithSkills());
+    expect(await checkedState(user, 'Word documents')).toBe('true');
+  });
+
+  it('waits for the first catalog and keeps equipment chosen while it loads', async () => {
+    const connectors = [{ slug: 'review-files', label: 'Review files' }];
+    const { user, rerender } = render(
+      dialogWithSkills({ skills: undefined, connectors }),
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    await user.click(
+      await screen.findByRole('menuitemcheckbox', { name: 'Review files' }),
+    );
+    await user.keyboard('{Escape}');
+
+    rerender(dialogWithSkills({ connectors }));
+    expect(await checkedState(user, 'Word documents')).toBe('true');
+    expect(await checkedState(user, 'Presentations')).toBe('true');
+    expect(await checkedState(user, 'Review files')).toBe('true');
+  });
+
+  it('keeps an edited agent unchanged when the catalog arrives later', async () => {
+    const agent = { ...LEGACY_AGENT, skills: ['brief-summary'] };
+    const { user, rerender } = render(
+      dialogWithSkills({ agent, skills: undefined }),
+    );
+
+    rerender(dialogWithSkills({ agent }));
+    expect(await checkedState(user, 'Word documents')).toBe('false');
+    expect(await checkedState(user, 'Presentations')).toBe('false');
+    expect(await checkedState(user, 'Brief summary')).toBe('true');
   });
 });
