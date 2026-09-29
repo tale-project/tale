@@ -7313,7 +7313,7 @@ tasks:
     deleteConfirmDescription: Removes "{label}" from the project and from every task that uses it.
     errors:
       TASK_LABEL_NAME_TAKEN: A label with that name already exists.
-      TASK_LABEL_UNKNOWN: That label isn't in this project — type its name in the picker to create it.
+      TASK_LABEL_UNKNOWN: That label isn't in this project — pick one it already has. Editors and higher roles add new labels in the picker.
       TASK_LABELS_INVALID: Invalid label name.
       TASK_LABEL_IN_USE: That label is still on a task.
       createFailed: Couldn't create the label.

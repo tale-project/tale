@@ -7298,7 +7298,7 @@ tasks:
     deleteConfirmDescription: Retire « {label} » du projet et de toutes les tâches qui l'utilisent.
     errors:
       TASK_LABEL_NAME_TAKEN: Une étiquette porte déjà ce nom.
-      TASK_LABEL_UNKNOWN: Cette étiquette n'existe pas dans le projet — tape son nom dans le sélecteur pour la créer.
+      TASK_LABEL_UNKNOWN: Cette étiquette n'existe pas dans le projet — choisis-en une qu'il a déjà. Les Éditeurs et les rôles supérieurs ajoutent de nouvelles étiquettes dans le sélecteur.
       TASK_LABELS_INVALID: Nom d'étiquette invalide.
       TASK_LABEL_IN_USE: Cette étiquette est encore sur une tâche.
       createFailed: Impossible de créer l'étiquette.
