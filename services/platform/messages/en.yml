@@ -2191,6 +2191,7 @@ documents:
     openFolder: Open folder {name}
     openDocument: Open document {name}
     navigateToFolder: Navigate to folder {name}
+    selectItem: Select {name}
   folderNotFound: Folder not found or no longer accessible
   filter:
     ragStatus:

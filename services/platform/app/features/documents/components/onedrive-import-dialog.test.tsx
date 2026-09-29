@@ -14,6 +14,10 @@ import {
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, unknown>) => {
+      // A row's checkbox is named after its item: keep the name in the label.
+      if (key === 'aria.selectItem') {
+        return `${ns}.${key} ${String(params?.name)}`;
+      }
       if (params) {
         return Object.entries(params).reduce(
           (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
@@ -116,6 +120,10 @@ import { toast } from '@tale/ui/use-toast';
 
 import { OneDriveImportDialog } from './onedrive-import-dialog';
 
+/** The "Meetings" folder's row checkbox, found by the name it is read by. */
+const meetingsCheckbox = () =>
+  screen.getByRole('checkbox', { name: 'documents.aria.selectItem Meetings' });
+
 describe('OneDriveImportDialog', () => {
   const defaultProps = {
     open: true,
@@ -150,8 +158,7 @@ describe('OneDriveImportDialog', () => {
     const user = userEvent.setup();
     render(<OneDriveImportDialog {...defaultProps} />);
 
-    const [, rowCheckbox] = screen.getAllByRole('checkbox');
-    await user.click(rowCheckbox);
+    await user.click(meetingsCheckbox());
     await user.click(
       screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
     );
@@ -174,8 +181,7 @@ describe('OneDriveImportDialog', () => {
     const user = userEvent.setup();
     render(<OneDriveImportDialog {...defaultProps} />);
 
-    const [, rowCheckbox] = screen.getAllByRole('checkbox');
-    await user.click(rowCheckbox);
+    await user.click(meetingsCheckbox());
     await user.click(
       screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
     );
@@ -220,8 +226,7 @@ describe('OneDriveImportDialog', () => {
 
     // Select the folder, then proceed — this is the stage transition that
     // used to change the parent's hook count.
-    const [, rowCheckbox] = screen.getAllByRole('checkbox');
-    await user.click(rowCheckbox);
+    await user.click(meetingsCheckbox());
     await user.click(
       screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
     );
@@ -243,8 +248,7 @@ describe('OneDriveImportDialog', () => {
     const user = userEvent.setup();
     render(<OneDriveImportDialog {...defaultProps} />);
 
-    const [, rowCheckbox] = screen.getAllByRole('checkbox');
-    await user.click(rowCheckbox);
+    await user.click(meetingsCheckbox());
     await user.click(
       screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
     );
@@ -272,8 +276,7 @@ describe('OneDriveImportDialog', () => {
       const user = userEvent.setup();
       render(<OneDriveImportDialog {...defaultProps} />);
 
-      const [, rowCheckbox] = screen.getAllByRole('checkbox');
-      await user.click(rowCheckbox);
+      await user.click(meetingsCheckbox());
       await user.click(
         screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
       );

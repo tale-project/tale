@@ -14,6 +14,10 @@ import {
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
     t: (key: string, params?: Record<string, unknown>) => {
+      // A row's checkbox is named after its item: keep the name in the label.
+      if (key === 'aria.selectItem') {
+        return `${ns}.${key} ${String(params?.name)}`;
+      }
       if (params) {
         return Object.entries(params).reduce(
           (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
@@ -115,8 +119,11 @@ import { GoogleDriveImportDialog } from './google-drive-import-dialog';
 async function selectMeetingsAndImport(
   user: ReturnType<typeof userEvent.setup>,
 ) {
-  const [, rowCheckbox] = screen.getAllByRole('checkbox');
-  await user.click(rowCheckbox);
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: 'documents.aria.selectItem Meetings',
+    }),
+  );
   await user.click(
     screen.getByRole('button', { name: 'documents.googledrive.importCount' }),
   );
