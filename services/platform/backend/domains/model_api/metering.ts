@@ -71,16 +71,11 @@ import { ModelApiRefusal, type ModelApiWire } from './wire.ts';
  *     it ends ({@link spendFactsOf}), and every attempt that settles it —
  *     this one, the reconcile job, the sandbox watchdog's sweep — books it
  *     the same way (`adjustSpendReading`):
- *       - a WHOLE answer the caller hung up on (or whose read failed) may
- *         still be generating: the gateway does not notice the caller
- *         leaving and books the cost only when the vendor answers. Its
- *         spend is not read before the gateway's request timeout has passed
- *         since the request started, plus a margin — the key stays alive
- *         until then (it never left this process);
- *       - a STREAM that ended early — the caller hung up, the vendor broke
- *         off, its lifetime ran out — is booked at least at its prompt and
- *         the output the relay counted, at the catalog price: the gateway
- *         drops the partial usage of a cancelled stream;
+ *       - an answer that ended early — the caller hung up, the vendor broke
+ *         off, its lifetime ran out, whole answer or stream — is booked at
+ *         least at its prompt and the output the relay counted, at the
+ *         catalog price: the gateway cancels the vendor call and books only
+ *         the usage the vendor had reported by then;
  *       - a finished answer whose usage the vendor reported but whose key
  *         reads 0 has not been booked by the gateway yet: the settlement
  *         waits and retries, and past its grace books the reported usage at
@@ -96,8 +91,6 @@ const CONCURRENCY_RETRY_AFTER_SECONDS = 2;
  * spend is read: its budget accounting runs after the answer has left, off
  * the request's own path. */
 const SETTLE_DELAY_MS = 2_000;
-/** A deferred settlement's first attempt waits this long past its moment. */
-const DEFERRED_SETTLE_SLACK_MS = 5_000;
 /** How often a request in flight tells the sweep it is alive. */
 const HEARTBEAT_MS = 60_000;
 /** A request silent this long (no heartbeat) was lost with its process: the
@@ -185,7 +178,6 @@ function provisioningCtx(sql: Sql): ActionCtx {
 
 /** What the op row records about a request's spend when it ends. */
 export interface ModelApiSpendFacts {
-  settleAfterMs: number | null;
   floorCents: number | null;
   expectedCents: number | null;
   inputTokens: number | null;
@@ -193,7 +185,6 @@ export interface ModelApiSpendFacts {
 }
 
 const NO_FACTS: ModelApiSpendFacts = {
-  settleAfterMs: null,
   floorCents: null,
   expectedCents: null,
   inputTokens: null,
@@ -212,7 +203,6 @@ async function finalizeModelApiOp(
     UPDATE app.sandbox_session_ops SET
       status = ${status}, finished_at_ms = ${now},
       finalized_at_ms = coalesce(finalized_at_ms, ${now}),
-      settle_after_ms = ${facts.settleAfterMs},
       floor_cents = ${facts.floorCents},
       expected_cents = ${facts.expectedCents},
       input_tokens = ${facts.inputTokens},
@@ -492,18 +482,11 @@ export interface ModelApiEnding {
  * every settlement attempt books by, beside the gateway's figure:
  *  - a finished answer: the usage it reported, and that usage at the
  *    catalog price (a zero gateway reading is then not final);
- *  - a whole answer that may still be generating: no read before its
- *    lifetime (the gateway's request timeout plus the margin) has passed
- *    since it started;
- *  - a stream that ended early: its prompt (the vendor's count, else the
+ *  - an answer that ended early: its prompt (the vendor's count, else the
  *    estimate) and the output the relay counted, at the catalog price —
  *    the floor of what is booked.
  */
-export function spendFactsOf(
-  lease: Pick<ModelApiLease, 'startedAtMs'>,
-  ending: ModelApiEnding,
-  wholeLifetimeMs: number = relayLifetime().wholeMs,
-): ModelApiSpendFacts {
+export function spendFactsOf(ending: ModelApiEnding): ModelApiSpendFacts {
   const { outcome, model } = ending;
   if (outcome.status === 'completed') {
     const usage = outcome.usage;
@@ -522,9 +505,6 @@ export function spendFactsOf(
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
     };
-  }
-  if (outcome.mayStillGenerate === true) {
-    return { ...NO_FACTS, settleAfterMs: lease.startedAtMs + wholeLifetimeMs };
   }
   if (outcome.countedOutputTokens === undefined) return NO_FACTS;
   const reported = outcome.usage;
@@ -568,29 +548,21 @@ export async function settleModelApiOp(
 }
 
 /** End a request: close its op with the facts its settlement books by, then
- * settle it — shortly, once the gateway has booked the cost, or, for a
- * whole answer that may still be generating, through the reconcile job at
- * the moment its spend may be read. Never throws — the settlement's own
- * backstops own a failure. */
+ * settle it shortly, once the gateway has booked the cost. Never throws —
+ * the settlement's own backstops own a failure. */
 export function closeModelApiLease(
   sql: Sql,
   lease: ModelApiLease,
   ending: ModelApiEnding,
 ): void {
-  const facts = spendFactsOf(lease, ending);
+  const facts = spendFactsOf(ending);
   const op = {
     organizationId: lease.organizationId,
     sessionId: lease.sessionId,
     execId: lease.execId,
   };
   void finalizeModelApiOp(sql, op, ending.outcome.status, facts)
-    .then(async () => {
-      if (facts.settleAfterMs !== null) {
-        await addJobInTx(sql, 'sandbox.gateway_key_reconcile', op, {
-          startAfter: new Date(facts.settleAfterMs + DEFERRED_SETTLE_SLACK_MS),
-        });
-        return;
-      }
+    .then(() => {
       const timer = setTimeout(() => {
         settleModelApiOp(sql, op).catch((error: unknown) => {
           console.error(
@@ -615,7 +587,10 @@ export function closeModelApiLease(
  * {@link MODEL_API_OP_STALE_MS} is closed as failed, which hands it to the
  * settlement sweep — the gateway's figure is booked and the key deleted,
  * though not before a whole answer it may have been waiting for could have
- * been booked (its lifetime since it started).
+ * been booked (its lifetime since it started). The gateway cancels a call
+ * only once its caller's connection closes, and a process that stopped
+ * beating may be hung rather than gone, its connection still open while the
+ * vendor answers.
  */
 export async function closeStaleModelApiOps(
   sql: Sql,

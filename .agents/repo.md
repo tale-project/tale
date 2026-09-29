@@ -193,7 +193,7 @@ Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` 
 | Skill                                                      | Read before…                                                                                     |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | [`create-migration`](skills/create-migration/SKILL.md)     | adding/changing/testing a versioned data migration, or a red `backend:integration` / corpus gate |
-| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing product or component guides — follow the affected content tree’s contract |
+| [`write-docs`](skills/write-docs/SKILL.md)                 | writing/editing product or component guides — follow the affected content tree’s contract        |
 | [`write-translations`](skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                             |
 
 The product skills are not repo-dev workflows: they live under
@@ -265,7 +265,7 @@ default means deleting the override and fixing what surfaces:
   `attachmentRefs`). A data URI pasted into `content` reaches the model as text and is answered as
   text, billed (2026-09, round f). The surface now says so. Paying it down means an `attachments`
   field on the REST send naming staged uploads the key holder minted — `POST
-  /api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
+/api/v1/projects/{id}/uploads` for a project thread, plus an organization-level upload mint the
   unfiled `/api/v1/threads` lane lacks today — handed to `runChatTurn` as the app's
   `{fileId: <s3Ref>, fileName, fileType, fileSize}`, with the spec's send body, the `Message`
   `attachment` part on the read side, the upload allowlist (`UNSUPPORTED_FILE_TYPE`) and a
@@ -342,7 +342,7 @@ default means deleting the override and fixing what surfaces:
   `POST /api/v1/websites/{id}/search` is BM25 only (`paradedb.score`), and when the knowledge
   database lacks ParadeDB it falls back to an ILIKE match stamping `score: 0` on every hit with
   nothing on the wire saying so (2026-09, round g). Paying it down means `diagnostics: {leg:
-  'keyword' | 'substring'}` on the response, and a `websiteId` filter on
+'keyword' | 'substring'}` on the response, and a `websiteId` filter on
   `POST /api/v1/knowledge/search` (`corpus: "web"`) for a per-site cosine without a second
   search stack.
 - **No `Idempotency-Key` on the task start** — `POST …/tasks/{taskId}/start` runs behind a
@@ -363,7 +363,7 @@ default means deleting the override and fixing what surfaces:
 - **A corrupt Office document still fails as a raw parse error** — a PDF that does not parse
   now lands `unsupported` with `errorCode: malformed`, but `docx`/`pptx`/`xlsx`/`odt` parse
   failures ("Invalid or corrupt file" in `backend/core/lib/knowledge/extraction/{ooxml,pptx,
-  xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
+xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are retried five
   times (2026-09, round g). Paying it down means wrapping those throws in
   `ExtractionError('malformed')` the way `pdf.ts` does.
 - **No `/.well-known/security.txt`** — nothing serves RFC 9116's disclosure channel; the path
@@ -462,12 +462,15 @@ default means deleting the override and fixing what surfaces:
   and hand them to the same predicate), or at least reporting `truncated` when a cap stopped a
   pre-pass and the answer came back short of its limit, with a case in
   `search-chat.privacy.test.ts` where 50 unreadable body matches sit ahead of the member's own.
-- **The pinned model gateway does not notice a caller leaving** — Bifrost v1.6.11
-  (`services/sandbox-llm-gateway/Dockerfile`) keeps a whole (non-streamed) answer running at the
-  vendor after the caller hangs up, and drops the partial usage of a stream that ends early, so
-  the model endpoints for API keys (`services/platform/backend/domains/model_api/`) settle a
-  broken-off call late — after the gateway's request timeout — or at a local floor (the prompt
-  and the relayed output at the catalog price) instead of the vendor's own figure (2026-09).
-  Paying it down means moving to a Bifrost release that cancels the upstream call on a client
-  disconnect and books the partial usage of a cut stream (v2.2.0 or later), then dropping the
-  deferred settle and the floor in `metering.ts` for the gateway's figure.
+- **The pinned model gateway books nothing for a call cut short** — Bifrost
+  (`services/sandbox-llm-gateway/Dockerfile`) cancels the vendor call when its caller hangs up,
+  whole answer or stream, but keeps none of the usage the call had reached unless the vendor
+  reported it before the cut (an Anthropic stream's input tokens; an OpenAI-wire stream reports
+  usage only in its closing frame). It also ends an OpenAI-wire stream on two keepalive comments
+  after the finish reason, so an upstream that sends them before its usage frame is booked at
+  nothing. So the model endpoints for API keys (`services/platform/backend/domains/model_api/`)
+  book an answer that ended early at a local floor (the prompt and the relayed output at the
+  catalog price) instead of the vendor's own figure, and a sandbox turn's call cut mid-answer
+  books only what the gateway kept (2026-09). Paying it down means a gateway release that keeps
+  the usage a cancelled call had reached, then booking the gateway's figure alone in
+  `metering.ts`.

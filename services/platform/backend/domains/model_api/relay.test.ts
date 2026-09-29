@@ -577,11 +577,11 @@ describe('relayToGateway — refusals', () => {
     expect((await relayToGateway(relay)).status).toBe(429);
   });
 
-  it('throws the 502 refusal when the gateway cannot be reached, a whole answer then possibly still generating', async () => {
+  it('throws the 502 refusal when the gateway cannot be reached, a whole answer then ended early with no output', async () => {
     gateway(() => Promise.reject(new TypeError('fetch failed')));
     const { args: relay, outcomes } = args({});
     await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
-    expect(outcomes).toEqual([{ status: 'failed', mayStillGenerate: true }]);
+    expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 0 }]);
   });
 
   it('keeps internal addresses out of a relayed refusal, answering a generic one instead', async () => {
@@ -729,7 +729,7 @@ describe('relayToGateway — endings the settlement books', () => {
     expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 1 }]);
   });
 
-  it('stops a whole answer past its lifetime, with a 504 and the answer possibly still generating', async () => {
+  it('stops a whole answer past its lifetime, with a 504 and the answer ended early with no output', async () => {
     gateway(
       (call) =>
         new Promise<Response>((_resolve, reject) => {
@@ -746,10 +746,10 @@ describe('relayToGateway — endings the settlement books', () => {
       status: 504,
       code: 'MODEL_API_UPSTREAM_ERROR',
     });
-    expect(outcomes).toEqual([{ status: 'failed', mayStillGenerate: true }]);
+    expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 0 }]);
   });
 
-  it('reports a whole answer the caller abandoned as possibly still generating', async () => {
+  it('reports a whole answer the caller abandoned as ended early with no output', async () => {
     const controller = new AbortController();
     gateway(
       (call) =>
@@ -762,6 +762,6 @@ describe('relayToGateway — endings the settlement books', () => {
     );
     const { args: relay, outcomes } = args({ signal: controller.signal });
     await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
-    expect(outcomes).toEqual([{ status: 'cancelled', mayStillGenerate: true }]);
+    expect(outcomes).toEqual([{ status: 'cancelled', countedOutputTokens: 0 }]);
   });
 });

@@ -34,13 +34,12 @@ import {
  *    and drops it again when the caller did not ask for it;
  *  - a refusal the gateway or the vendor answers is said in the wire's error
  *    shape, with the routing names replaced and internal addresses kept out;
- *  - the caller hanging up aborts the request to the gateway. What that
- *    stops depends on the gateway: on a stream it cancels the vendor call
- *    (and the gateway keeps none of its partial usage), but on a whole
- *    answer the gateway does not notice and the vendor generates — and
- *    bills — to the end. So the ending reports what the settlement needs
- *    to book it anyway: the output the relay counted on a stream, and
- *    whether a whole answer may still be generating (`metering.ts`);
+ *  - the caller hanging up aborts the request to the gateway, and the
+ *    gateway cancels its call to the vendor, whole answer or stream — but
+ *    books only the usage the vendor had reported by then (on an OpenAI
+ *    stream, none). So an answer that ends early reports what the
+ *    settlement books it at anyway (`metering.ts`): the output the relay
+ *    counted, which on a whole answer is none;
  *  - a request never outlives its lifetime: a whole answer the gateway's
  *    request timeout plus a margin, a stream its idle budget between two
  *    chunks and an overall ceiling — past either, the relay aborts the
@@ -56,13 +55,10 @@ export interface RelayOutcome {
   status: 'completed' | 'failed' | 'cancelled';
   /** The counts the answer reported (the vendor's). */
   usage?: ModelApiUsage;
-  /** Tokens the relay counted in the stream's text, reasoning and tool
-   * arguments — what a stream that ended early had produced by then. */
+  /** Set on an answer that ended early: the tokens the relay counted in the
+   * stream's text, reasoning and tool arguments by then — 0 on a whole
+   * answer, which relays nothing before it is complete. */
   countedOutputTokens?: number;
-  /** A whole answer the gateway may still be generating: the call to it
-   * failed or was abandoned after it was sent. The gateway books its cost
-   * only once the vendor answers. */
-  mayStillGenerate?: boolean;
 }
 
 export interface RelayArgs {
@@ -679,11 +675,11 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     });
   } catch (error) {
     const cancelled = signal.aborted && !lapsed;
-    // The request may have reached the gateway before the call failed; on a
-    // whole answer the vendor then generates to the end regardless.
+    // The request may have reached the gateway, and the vendor its prompt,
+    // before the call failed.
     done({
       status: cancelled ? 'cancelled' : 'failed',
-      ...(stream ? { countedOutputTokens: 0 } : { mayStillGenerate: true }),
+      countedOutputTokens: 0,
     });
     if (lapsed) {
       console.warn(
@@ -773,7 +769,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     const cancelled = signal.aborted && !lapsed;
     done({
       status: cancelled ? 'cancelled' : 'failed',
-      mayStillGenerate: true,
+      countedOutputTokens: 0,
     });
     console.warn('[model-api] reading the gateway answer failed:', error);
     throw new ModelApiRefusal(
@@ -788,7 +784,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
   try {
     answer = JSON.parse(text);
   } catch (error) {
-    done({ status: 'failed', mayStillGenerate: true });
+    done({ status: 'failed', countedOutputTokens: 0 });
     console.warn('[model-api] the gateway answer was not JSON:', error);
     throw new ModelApiRefusal(
       502,
@@ -797,7 +793,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     );
   }
   if (!isRecord(answer)) {
-    done({ status: 'failed', mayStillGenerate: true });
+    done({ status: 'failed', countedOutputTokens: 0 });
     throw new ModelApiRefusal(
       502,
       'MODEL_API_UPSTREAM_ERROR',
