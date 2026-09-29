@@ -232,9 +232,11 @@ export async function listMailAttachments(
  * stamped one keeps an unstamped row until the backfill reaches it. The
  * retrievable filter decides such a row from its file row as mail, so it can
  * be served to that door — and a door that read provenance from the corpus
- * alone would then hand an outsider's text to the model unwrapped. The same
- * rule the filter and the indexer use: a file row bound to a conversation
- * and to no document.
+ * alone would then hand an outsider's text to the model unwrapped. The
+ * filter's rule: a file row bound to a conversation and to no document. The
+ * indexer stamps no conversation on a ref an active document also holds —
+ * the file indexes as that document — and reading such a hit as mail here
+ * only errs on the untrusted side.
  */
 export async function emailedAttachmentConversations(
   sql: Sql,

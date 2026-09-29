@@ -1,7 +1,14 @@
 // @vitest-environment node
 
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest';
 
 import { MESSAGE_REF_LIKE_PATTERN } from '../../../lib/knowledge/message-ref.ts';
 import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
@@ -72,14 +79,38 @@ interface Query {
 
 const REF = 's3:org-1/mail/cv.txt';
 
-/** The app database: one file row, bound as the fixture says, alive. */
+/** An active document, as both the indexer and the stamp pass's walks read
+ * one: the rule that sends a ref such a document holds to the document. */
+const ACTIVE_DOCUMENT =
+  "(d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')";
+
+/** The indexer's read of an active document holding the file's ref. */
+const isHolderRead = (query: Query) =>
+  query.text.includes('d.team_tags AS "teamTags"');
+
+/** A document's scope, as the indexer reads it. */
+interface DocumentScope {
+  teamTags: string[];
+  projectId: string | null;
+  folderId: string | null;
+  folderPath: string | null;
+}
+
+/** The app database: one file row, bound as the fixture says, alive — and,
+ * when `heldBy` says so, an active document holding the file's ref. */
 function fakeSql(
   log: Query[],
   file: { documentId: string | null; conversationId: string | null },
+  heldBy?: DocumentScope,
 ): Sql {
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$');
     log.push({ text, values });
+    if (isHolderRead({ text, values })) {
+      return Promise.resolve(
+        heldBy === undefined ? [] : [{ teamId: null, ...heldBy }],
+      );
+    }
     if (text.includes('FROM app.file_metadata WHERE id')) {
       return Promise.resolve([
         {
@@ -130,6 +161,7 @@ beforeEach(() => {
   vi.mocked(indexWholeDocument).mockReset();
   vi.mocked(indexWholeDocument).mockResolvedValue(indexed);
   vi.spyOn(console, 'info').mockImplementation(() => undefined);
+  timeline.length = 0;
 });
 
 describe('indexUploadedFile — the conversation stamp', () => {
@@ -157,6 +189,47 @@ describe('indexUploadedFile — the conversation stamp', () => {
       conversationId: null,
       teamIds: ['team-a'],
     });
+  });
+
+  it('indexes an attachment whose ref an active document holds as that document, under no conversation', async () => {
+    // The corpus row is the ref's: stamped with the conversation, it would
+    // hide the document from every document door until the nightly clear,
+    // and under no scope it would blank the document's until the scope pass.
+    const log: Query[] = [];
+    await indexUploadedFile(
+      fakeSql(
+        log,
+        { documentId: null, conversationId: 'conv-1' },
+        {
+          teamTags: ['team-h'],
+          projectId: 'project-1',
+          folderId: null,
+          folderPath: 'Contracts',
+        },
+      ),
+      'file-1',
+    );
+    expect(vi.mocked(indexWholeDocument).mock.calls[0]?.[0]).toMatchObject({
+      fileId: REF,
+      conversationId: null,
+      teamIds: ['team-h'],
+      projectId: 'project-1',
+      folderPath: 'Contracts',
+    });
+    // The walks' rule: an active document with the ref as its file.
+    const holder = log.find(isHolderRead);
+    expect(holder?.values).toEqual(['org-1', REF]);
+    expect(holder?.text).toContain('d.file_ref = $');
+    expect(holder?.text).toContain(ACTIVE_DOCUMENT);
+  });
+
+  it('asks for a holding document only for an unbound file', async () => {
+    const log: Query[] = [];
+    await indexUploadedFile(
+      fakeSql(log, { documentId: 'doc-1', conversationId: 'conv-1' }),
+      'file-1',
+    );
+    expect(log.filter(isHolderRead)).toEqual([]);
   });
 
   it('stamps no conversation on an ordinary upload', async () => {
@@ -199,6 +272,23 @@ describe('emailedAttachmentConversation', () => {
     ).toBeNull();
     expect(emailedAttachmentConversation({ documentId: null })).toBeNull();
   });
+
+  it('is no conversation for an unbound file whose ref an active document holds', () => {
+    expect(
+      emailedAttachmentConversation({
+        documentId: null,
+        conversationId: 'conv-1',
+        heldByActiveDocument: true,
+      }),
+    ).toBeNull();
+    expect(
+      emailedAttachmentConversation({
+        documentId: null,
+        conversationId: 'conv-1',
+        heldByActiveDocument: false,
+      }),
+    ).toBe('conv-1');
+  });
 });
 
 /** One emailed attachment row, as the stamp pass's statement answers it. */
@@ -223,26 +313,75 @@ function boundBefore(
   return index > 0 ? values[index - 1] : undefined;
 }
 
+/** Both databases' statements in the order they ran, one label each —
+ * `app …` or `corpus …` — so a test can tell which side held what when. */
+const timeline: string[] = [];
+
 /** The app side: the attachment rows, served as the one statement both
- * walks read asks — a keyset page, or the rows of given refs. */
-function attachmentsSql(rows: AttachmentRow[], log: Query[]): Sql {
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('$');
-    log.push({ text, values });
-    if (!text.includes('FROM app.file_metadata')) return Promise.resolve([]);
-    const afterId = boundBefore(strings, values, '::text IS NULL OR fm.id');
-    const refs = boundBefore(strings, values, '::text[] IS NULL');
-    const limit = values.at(-1);
-    return Promise.resolve(
-      rows
-        .filter((row) => typeof afterId !== 'string' || row.id > afterId)
-        .filter((row) => !Array.isArray(refs) || refs.includes(row.storageRef))
-        .slice(0, typeof limit === 'number' ? limit : rows.length)
-        .map((row) => Object.assign({ conversationLive: true }, row)),
-    );
+ * walks read asks — a keyset page, or the rows of given refs. A transaction
+ * hands its callback a handle of its own, whose statements the timeline
+ * labels `app tx …`: a read on it is the clear's backing recheck, and
+ * `failRecheck` may fail the n-th of those; `failCommit` fails its COMMIT. */
+function attachmentsSql(
+  rows: AttachmentRow[],
+  log: Query[],
+  options: {
+    failRecheck?: (recheck: number) => Error | undefined;
+    failCommit?: Error;
+  } = {},
+): Sql {
+  let rechecks = 0;
+  const on =
+    (side: 'app' | 'app tx') =>
+    (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('$');
+      log.push({ text, values });
+      if (!text.includes('FROM app.file_metadata')) {
+        timeline.push(`${side} ${text.trim()}`);
+        return Promise.resolve([]);
+      }
+      timeline.push(`${side} read`);
+      if (side === 'app tx') {
+        const failure = options.failRecheck?.(rechecks);
+        rechecks += 1;
+        if (failure !== undefined) return Promise.reject(failure);
+      }
+      const afterId = boundBefore(strings, values, '::text IS NULL OR fm.id');
+      const refs = boundBefore(strings, values, '::text[] IS NULL');
+      const limit = values.at(-1);
+      return Promise.resolve(
+        rows
+          .filter((row) => typeof afterId !== 'string' || row.id > afterId)
+          .filter(
+            (row) => !Array.isArray(refs) || refs.includes(row.storageRef),
+          )
+          .slice(0, typeof limit === 'number' ? limit : rows.length)
+          .map((row) => Object.assign({ conversationLive: true }, row)),
+      );
+    };
+  const begin = async <T>(
+    callback: (atx: unknown) => Promise<T>,
+  ): Promise<T> => {
+    log.push({ text: 'BEGIN', values: [] });
+    timeline.push('app BEGIN');
+    let result: T;
+    try {
+      result = await callback(on('app tx'));
+    } catch (error) {
+      log.push({ text: 'ROLLBACK', values: [] });
+      timeline.push('app ROLLBACK');
+      throw error;
+    }
+    if (options.failCommit !== undefined) {
+      timeline.push('app COMMIT failed');
+      throw options.failCommit;
+    }
+    log.push({ text: 'COMMIT', values: [] });
+    timeline.push('app COMMIT');
+    return result;
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return tag as unknown as Sql;
+  return Object.assign(on('app'), { begin }) as unknown as Sql;
 }
 
 /** A corpus row carrying a conversation stamp. */
@@ -261,7 +400,7 @@ interface Statement {
  * the ones of `held` it was asked about; a stamp UPDATE, the next of
  * `corrected`; a clear, every row it was handed, as its `RETURNING` does —
  * after `onClear`, which stands for an app-side write that commits as the
- * clear lands. */
+ * clear lands. A transaction whose callback throws rolls back. */
 function corpusPool(
   corpus: {
     corrected?: number[];
@@ -276,12 +415,29 @@ function corpusPool(
     json: (value: unknown) => ({ json: value }),
     begin: async <T>(callback: (tx: unknown) => Promise<T>): Promise<T> => {
       statements.push({ text: 'BEGIN', params: [] });
-      const result = await callback(pool);
-      statements.push({ text: 'COMMIT', params: [] });
-      return result;
+      timeline.push('corpus BEGIN');
+      try {
+        const result = await callback(pool);
+        statements.push({ text: 'COMMIT', params: [] });
+        timeline.push('corpus COMMIT');
+        return result;
+      } catch (error) {
+        statements.push({ text: 'ROLLBACK', params: [] });
+        timeline.push('corpus ROLLBACK');
+        throw error;
+      }
     },
     unsafe: (text: string, params: unknown[]) => {
       statements.push({ text, params });
+      timeline.push(
+        `corpus ${
+          text.includes('SET conversation_id = NULL')
+            ? 'clear'
+            : text.includes('SET conversation_id = v.conversation_id')
+              ? 'stamp'
+              : 'read'
+        }`,
+      );
       if (text.includes('conversation_id IS NOT NULL')) {
         const afterRef = params[2];
         return Promise.resolve(
@@ -360,14 +516,20 @@ const QUIET = {
   failures: 0,
   stampsScanned: 0,
   cleared: 0,
+  restamped: 0,
   unbackedReleased: 0,
   unbackedFailures: 0,
+  recheckReleased: 0,
+  recheckFailures: 0,
 };
 
 const isStamp = (statement: Statement) =>
   statement.text.includes('SET conversation_id = v.conversation_id');
 const isClear = (statement: Statement) =>
   statement.text.includes('SET conversation_id = NULL');
+/** The app side's reads of attachment rows, its transactions aside. */
+const attachmentReads = (log: Query[]) =>
+  log.filter((query) => query.text.includes('FROM app.file_metadata'));
 
 const rows: AttachmentRow[] = [
   { id: 'f1', storageRef: 's3:org-1/a.pdf', conversationId: 'conv-1' },
@@ -457,6 +619,8 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
     const read = log[0]?.text ?? '';
     expect(read).toContain('NOT EXISTS');
     expect(read).toContain('d.file_ref = fm.storage_ref');
+    // The indexer's own rule for such a ref (`activeDocumentHoldingRef`).
+    expect(read).toContain(ACTIVE_DOCUMENT);
   });
 
   it('releases the corpus copy of an attachment whose conversation is gone or spam, and stamps only the live', async () => {
@@ -569,7 +733,9 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
     expect(clear?.text).toContain('d.conversation_id = v.conversation_id');
     // It answers the rows it cleared, for the backing to be read again.
     expect(clear?.text).toContain('RETURNING d.file_id');
-    expect(log.at(-1)?.values).toContainEqual(['s3:org-1/filed.pdf']);
+    expect(attachmentReads(log).at(-1)?.values).toContainEqual([
+      's3:org-1/filed.pdf',
+    ]);
     // Still no attachment: the stamp stays off.
     expect(statements.slice(clearAt).filter(isStamp)).toEqual([]);
     // Taking a stamp off is no more an edit than putting one on.
@@ -617,8 +783,8 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
     expect(restamp?.text).toContain(
       'd.conversation_id IS DISTINCT FROM v.conversation_id',
     );
-    // The stamp did not stay off: nothing counts as cleared.
-    expect(result).toEqual({ ...QUIET, stampsScanned: 1 });
+    // The stamp did not stay off: it counts as put back, not as cleared.
+    expect(result).toEqual({ ...QUIET, stampsScanned: 1, restamped: 1 });
   });
 
   it.each([false, true])(
@@ -676,11 +842,14 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
       expect(
         statements.findIndex((statement) => statement.text === 'BEGIN'),
       ).toBeLessThan(statements.findIndex(isClear));
+      // The recheck's release, apart from the walk's own: its stamp was
+      // put back first.
       expect(result).toEqual({
         ...QUIET,
         stampsScanned: 1,
-        unbackedReleased: fails ? 0 : 1,
-        unbackedFailures: fails ? 1 : 0,
+        restamped: 1,
+        recheckReleased: fails ? 0 : 1,
+        recheckFailures: fails ? 1 : 0,
       });
     },
   );
@@ -804,7 +973,7 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
         ...releaser({ keep: ['s3:org-1/filed.pdf'] }).releases,
       },
     );
-    const [page, byRef, again, ...rest] = log;
+    const [page, byRef, again, ...rest] = attachmentReads(log);
     expect(rest).toEqual([]);
     // One rule for both walks, so a row the first stamps is never one the
     // second clears — and the same rule reads the backing again after the
@@ -816,5 +985,226 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
     ]);
     expect(again?.text).toBe(page?.text);
     expect(again?.values).toContainEqual(['s3:org-1/filed.pdf']);
+  });
+});
+
+/** `count` corpus rows stamped with conv-1, in ref order. */
+function stampedRows(count: number): StampedRow[] {
+  return Array.from({ length: count }, (_, at) => ({
+    fileId: `s3:org-1/f${String(at).padStart(3, '0')}.pdf`,
+    conversationId: 'conv-1',
+  }));
+}
+
+const timedOut = Object.assign(
+  new Error('canceling statement due to statement timeout'),
+  { code: '57014' },
+);
+
+const firstWord = (statement: Statement) =>
+  statement.text.trimStart().split(/\s/)[0];
+
+describe('reconcileMailAttachmentStamps — how long a clear holds its rows', () => {
+  // The rows a clear takes the stamp off stay locked until its backing
+  // recheck answers, and an indexer claiming one of those refs waits behind
+  // them.
+
+  let warn: MockInstance<typeof console.warn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    warn.mockClear();
+  });
+
+  it('clears at most a hundred stamps per corpus transaction', async () => {
+    const stamped = stampedRows(250);
+    const statements = corpusPool({ stamped });
+    const log: Query[] = [];
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql([], log),
+      {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        ...releaser({ keep: stamped.map((row) => row.fileId) }).releases,
+      },
+    );
+    expect(
+      statements
+        .filter((statement) => ['BEGIN', 'COMMIT'].includes(statement.text))
+        .map((statement) => statement.text),
+    ).toEqual(['BEGIN', 'COMMIT', 'BEGIN', 'COMMIT', 'BEGIN', 'COMMIT']);
+    expect(
+      statements
+        .filter(isClear)
+        .map(
+          (statement) =>
+            (statement.params[1] as { json: unknown[] }).json.length,
+        ),
+    ).toEqual([100, 100, 50]);
+    // Each recheck reads in an app transaction of its own, bounded.
+    expect(
+      log
+        .filter(
+          (query) =>
+            query.text === 'BEGIN' ||
+            query.text.includes('SET LOCAL statement_timeout'),
+        )
+        .map((query) => query.text),
+    ).toEqual([
+      'BEGIN',
+      "SET LOCAL statement_timeout = '10s'",
+      'BEGIN',
+      "SET LOCAL statement_timeout = '10s'",
+      'BEGIN',
+      "SET LOCAL statement_timeout = '10s'",
+    ]);
+    expect(result).toEqual({ ...QUIET, stampsScanned: 250, cleared: 250 });
+  });
+
+  it('takes the app connection of its recheck, its statement timeout set, before it locks a corpus row', async () => {
+    // A wait for a free app connection never counts against the lock: the
+    // rows stay locked for the clear, one bounded read and the stamp put back.
+    const attachments: AttachmentRow[] = [];
+    corpusPool({
+      stamped: [{ fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' }],
+      onClear: () => {
+        attachments.push({
+          id: 'f9',
+          storageRef: 's3:org-1/filed.pdf',
+          conversationId: 'conv-1',
+        });
+      },
+    });
+    await reconcileMailAttachmentStamps(attachmentsSql(attachments, []), {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      ...releaser({ keep: ['s3:org-1/filed.pdf'] }).releases,
+    });
+    // Both the timeout and the recheck on the clear's own app transaction:
+    // a read on the pool would wait for a second connection, rows locked.
+    expect(timeline.slice(timeline.indexOf('app BEGIN'))).toEqual([
+      'app BEGIN',
+      "app tx SET LOCAL statement_timeout = '10s'",
+      'corpus BEGIN',
+      'corpus clear',
+      'app tx read',
+      'corpus stamp',
+      'corpus COMMIT',
+      'app COMMIT',
+    ]);
+  });
+
+  it('rolls a clear back when its recheck times out: the stamps stay on and nothing counts as cleared', async () => {
+    const statements = corpusPool({
+      stamped: [{ fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' }],
+    });
+    const { unbackedCalls, releases } = releaser({
+      keep: ['s3:org-1/filed.pdf'],
+    });
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql([], [], { failRecheck: () => timedOut }),
+      { organizationId: 'org-1', orgSlug: 'acme', ...releases },
+    );
+    // No COMMIT: the clear is undone, the stamp back on.
+    expect(statements.map(firstWord)).toEqual([
+      'SELECT',
+      'BEGIN',
+      'UPDATE',
+      'ROLLBACK',
+    ]);
+    expect(timeline.slice(timeline.indexOf('app BEGIN'))).toEqual([
+      'app BEGIN',
+      "app tx SET LOCAL statement_timeout = '10s'",
+      'corpus BEGIN',
+      'corpus clear',
+      'app tx read',
+      'corpus ROLLBACK',
+      'app ROLLBACK',
+    ]);
+    expect(result).toEqual({ ...QUIET, stampsScanned: 1 });
+    // Only the walk's own release ran; the recheck released nothing.
+    expect(unbackedCalls).toEqual([['s3:org-1/filed.pdf']]);
+    expect(warn.mock.calls).toEqual([
+      [
+        '[knowledge] stale conversation stamps for acme: a clear did not finish (rows=1), the next night retries it:',
+        timedOut,
+      ],
+    ]);
+  });
+
+  it('counts a clear whose corpus side committed when only its app transaction failed to end', async () => {
+    // That transaction only read: nothing it could undo is left undone, so
+    // the clear stands — the dead attachment it found is released, and the
+    // counts say what was committed.
+    const attachments: AttachmentRow[] = [];
+    corpusPool({
+      stamped: [{ fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' }],
+      onClear: () => {
+        attachments.push({
+          id: 'f9',
+          storageRef: 's3:org-1/filed.pdf',
+          conversationId: 'conv-1',
+          conversationLive: false,
+        });
+      },
+    });
+    const lost = new Error('Connection terminated');
+    const releaseUnbacked = vi.fn(async (refs: string[]) =>
+      releaseUnbacked.mock.calls.length === 1
+        ? { kept: refs, released: [], failures: [] }
+        : { kept: [], released: refs, failures: [] },
+    );
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql(attachments, [], { failCommit: lost }),
+      {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        ...releaser().releases,
+        releaseUnbacked,
+      },
+    );
+    expect(timeline.slice(timeline.indexOf('app BEGIN'))).toEqual([
+      'app BEGIN',
+      "app tx SET LOCAL statement_timeout = '10s'",
+      'corpus BEGIN',
+      'corpus clear',
+      'app tx read',
+      'corpus stamp',
+      'corpus COMMIT',
+      'app COMMIT failed',
+    ]);
+    expect(releaseUnbacked).toHaveBeenLastCalledWith(['s3:org-1/filed.pdf']);
+    expect(result).toEqual({
+      ...QUIET,
+      stampsScanned: 1,
+      restamped: 1,
+      recheckReleased: 1,
+    });
+    expect(warn.mock.calls).toEqual([
+      [
+        "[knowledge] stale conversation stamps for acme: a clear committed (rows=1), but its recheck's app transaction did not end cleanly:",
+        lost,
+      ],
+    ]);
+  });
+
+  it('goes on with the next clear after one that did not finish', async () => {
+    const stamped = stampedRows(150);
+    const statements = corpusPool({ stamped });
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql([], [], {
+        failRecheck: (recheck) => (recheck === 0 ? timedOut : undefined),
+      }),
+      {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        ...releaser({ keep: stamped.map((row) => row.fileId) }).releases,
+      },
+    );
+    expect(
+      statements
+        .map(firstWord)
+        .filter((word) => ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(word ?? '')),
+    ).toEqual(['BEGIN', 'ROLLBACK', 'BEGIN', 'COMMIT']);
+    expect(result).toEqual({ ...QUIET, stampsScanned: 150, cleared: 50 });
   });
 });
