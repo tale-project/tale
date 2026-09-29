@@ -397,7 +397,8 @@ default means deleting the override and fixing what surfaces:
   `GET /api/v1/skills/{slug}/versions` over the app's history rows, same shape as the knowledge
   entries' `…/{id}/versions`.
 - **The per-task circuit breaker covers project agents only** — starts of a project agent by an
-  automation step or another agent stop after three per task in a rolling hour
+  automation step or another agent stop after three per task in a rolling hour, their automatic
+  retries included
   (`AUTOMATED_STARTS_PER_TASK_PER_HOUR`, `backend/domains/tasks/delegated-start.ts`, refused as
   `paused` with an `agent_run.refused` timeline row, 2026-09-29), but nothing counts AUTOMATION
   runs on a task: between two automations that keep mentioning each other the one-engine rule and

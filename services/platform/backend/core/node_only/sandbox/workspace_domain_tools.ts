@@ -413,7 +413,8 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'Open tasks block this one (blockedBy); nothing started. Start it once ' +
     'they are done.',
   paused:
-    'This task took three starts by automations and agents within the hour; ' +
+    'This task took three starts by automations and agents within the hour, ' +
+    'their automatic retries included; ' +
     'its circuit breaker admits the next one at retryAfter. Report the task ' +
     'instead of restarting it.',
 };

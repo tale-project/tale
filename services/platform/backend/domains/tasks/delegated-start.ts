@@ -16,6 +16,7 @@ import {
   loadTaskOrThrow,
   recordActivity,
   TERMINAL_STATUSES,
+  type TaskRow,
 } from './service.ts';
 
 /**
@@ -61,12 +62,14 @@ import {
  *   workspace, which every run it is started for here shares: one active
  *   piece of work per agent workspace;
  * - `blocked` — a task this one depends on is still open;
- * - `paused` — the per-task circuit breaker: at most
- *   {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by automations and
- *   agents per task in any rolling hour, so two agents (or an agent and a
- *   schedule) cannot restart one task in a loop. The refusal lands on the
- *   task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's
- *   own Start is never counted or refused by it.
+ * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
+ *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
+ *   automations and agents per task in any rolling hour, their automatic
+ *   retries included, so two agents (or an agent and a schedule) cannot
+ *   restart one task in a loop, and failing retries cannot stretch the
+ *   budget. The refusal lands on the task's timeline (`agent_run.refused`,
+ *   `task_circuit_breaker`); a person's own Start, and its retries, are
+ *   never counted or refused by it.
  *
  * The slot receipt: an automation step starts a task at most once per
  * automation run (the 0139 unique index) — a step the engine delivers again
@@ -86,11 +89,64 @@ import {
 export const SCHEDULE_REVOKED_BEFORE_LAUNCH =
   'The schedule that started this run was paused or removed, or its automation is no longer bound to the project, before the run launched — nothing ran.';
 
-/** Starts by automations and agents one task takes in any rolling hour
- * before the circuit breaker refuses the next. */
+/** Starts by automations and agents one task takes in any rolling hour —
+ * their automatic retries included — before the circuit breaker refuses the
+ * next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * The per-task circuit breaker: ONE admission for every automated start of a
+ * project agent — a direct one (an automation's `task.start_agent` step,
+ * another agent's `task_start_agent`) and the automatic retry that continues
+ * one (`task.agent_retry`: a retry inherits `started_via`, so it stays
+ * automated). It admits while the task has taken fewer than
+ * {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} such starts in the last hour —
+ * every run row carrying `started_via`, whatever its trigger — and records a
+ * refusal on the task's timeline as the refused agent (`agent_run.refused`,
+ * `task_circuit_breaker`: "<agent> could not start: agent runs are paused on
+ * this task"). Runs a person started carry no `started_via`, so neither they
+ * nor their retries count, and neither is ever refused here.
+ *
+ * Transactional: it locks the task row before counting, so two admissions of
+ * one task — two agents' starts, a start racing a retry — count one after the
+ * other, each inside the transaction that then inserts its run.
+ */
+export async function admitAutomatedStart(
+  tx: TransactionSql,
+  args: {
+    task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
+    agentId: string;
+  },
+): Promise<{ admitted: true } | { admitted: false; retryAfter: number }> {
+  await tx`
+    SELECT id FROM app.tasks
+    WHERE id = ${args.task.id} AND org_id = ${args.task.organizationId}
+    FOR UPDATE
+  `;
+  const now = Date.now();
+  const recent = await tx<{ startedAt: number }[]>`
+    SELECT started_at_ms::float8 AS "startedAt" FROM app.project_agent_runs
+    WHERE task_id = ${args.task.id} AND started_via IS NOT NULL
+      AND started_at_ms > ${now - HOUR_MS}
+    ORDER BY started_at_ms
+  `;
+  if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
+    return { admitted: true };
+  }
+  await recordActivity(tx, {
+    task: args.task,
+    actorType: 'agent',
+    actorId: args.agentId,
+    action: 'agent_run.refused',
+    toValue: 'task_circuit_breaker',
+  });
+  return {
+    admitted: false,
+    retryAfter: (recent[0]?.startedAt ?? now) + HOUR_MS,
+  };
+}
 
 /** The actor an automation's writes are recorded as on the task timeline —
  * the engine's task natives use the same sentinel. */
@@ -442,29 +498,13 @@ export async function startDelegatedAgentRun(
     };
   }
 
-  const now = Date.now();
-  const recent = await tx<{ startedAt: number }[]>`
-    SELECT started_at_ms::float8 AS "startedAt" FROM app.project_agent_runs
-    WHERE task_id = ${task.id} AND trigger IN ('automation', 'delegated')
-      AND started_at_ms > ${now - HOUR_MS}
-    ORDER BY started_at_ms
-  `;
-  if (recent.length >= AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
-    // Recorded as the agent whose run was refused — the refusal banner and
-    // the history read "<agent> could not start: agent runs are paused on
-    // this task".
-    await recordActivity(tx, {
-      task,
-      actorType: 'agent',
-      actorId: agent.id,
-      action: 'agent_run.refused',
-      toValue: 'task_circuit_breaker',
-    });
+  const budget = await admitAutomatedStart(tx, { task, agentId: agent.id });
+  if (!budget.admitted) {
     return {
       outcome: 'paused',
       taskId: task.id,
       agentId: agent.id,
-      retryAfter: (recent[0]?.startedAt ?? now) + HOUR_MS,
+      retryAfter: budget.retryAfter,
     };
   }
 

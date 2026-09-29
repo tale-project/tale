@@ -53,6 +53,9 @@ interface World {
   /** Whether the schedule a `trigger:` starter names may still act in the
    * project — enabled, its automation bound there (default: it may). */
   schedule?: boolean;
+  /** When the task's automated starts of the last hour began, as the
+   * per-task budget reads them (default: none). */
+  automatedStarts?: number[];
 }
 
 /** A transaction that answers the job's reads: the task, its runs newest
@@ -80,9 +83,23 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
         },
       ]);
     }
+    if (
+      text.includes('FROM app.project_agent_runs') &&
+      text.includes('started_via IS NOT NULL')
+    ) {
+      return Promise.resolve(
+        (world.automatedStarts ?? []).map((startedAt) => ({ startedAt })),
+      );
+    }
     if (text.includes('FROM app.project_agent_runs')) {
       reads.push({ text, values });
       return Promise.resolve(runs);
+    }
+    if (
+      text.includes('INSERT INTO app.task_activity') ||
+      text.includes('INSERT INTO app_realtime.outbox')
+    ) {
+      return Promise.resolve([]);
     }
     if (text.includes('FROM app.project_agents')) {
       return Promise.resolve([
@@ -413,6 +430,64 @@ describe('task.agent_retry admission', () => {
       expect.anything(),
       expect.objectContaining({ trigger: 'auto_retry', startedVia: via }),
     );
+  });
+
+  it('counts an automated run’s retry against the per-task budget, and kicks it while the hour has room', async () => {
+    startedViaOfRun.mockResolvedValueOnce({
+      kind: 'agent',
+      runId: 'run-manager',
+      agentId: 'agent-9',
+    });
+    const now = Date.now();
+
+    await deliver({ automatedStarts: [now - 30_000, now - 20_000] });
+
+    const budget = statements.find((text) =>
+      text.includes('started_via IS NOT NULL'),
+    );
+    expect(budget).toContain('FROM app.project_agent_runs');
+    expect(budget).not.toContain('trigger');
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(
+      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
+    ).toBe(false);
+  });
+
+  it('refuses an automated run’s retry once the hour holds three automated starts, retries included, and records why', async () => {
+    startedViaOfRun.mockResolvedValueOnce({
+      kind: 'automation',
+      runId: 'run-occurrence',
+      nodeId: 'start',
+      automation: 'autonomous-cycle/fleet-manager',
+    });
+    const now = Date.now();
+
+    const lines = await deliver({
+      automatedStarts: [now - 50_000, now - 40_000, now - 30_000],
+    });
+
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(lines).toEqual([
+      '[task-agent] auto-retry skipped: task_circuit_breaker',
+    ]);
+    const refusal = statements.find((text) =>
+      text.includes('INSERT INTO app.task_activity'),
+    );
+    expect(refusal).toBeDefined();
+  });
+
+  it('never counts or refuses the retry of a run a person started', async () => {
+    const now = Date.now();
+
+    const lines = await deliver({
+      automatedStarts: [now - 50_000, now - 40_000, now - 30_000],
+    });
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(lines).toEqual([]);
+    expect(
+      statements.some((text) => text.includes('started_via IS NOT NULL')),
+    ).toBe(false);
   });
 
   it('refuses a starter that names nobody', async () => {

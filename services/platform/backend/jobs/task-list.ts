@@ -54,7 +54,10 @@ import {
   agentTurnShimHandlers,
   taskAgentShimScheduler,
 } from '../domains/tasks/agent-turn-shim.ts';
-import { SCHEDULE_REVOKED_BEFORE_LAUNCH } from '../domains/tasks/delegated-start.ts';
+import {
+  admitAutomatedStart,
+  SCHEDULE_REVOKED_BEFORE_LAUNCH,
+} from '../domains/tasks/delegated-start.ts';
 import {
   loadTaskRetryHistory,
   resolveTaskKickStartArgs,
@@ -1109,8 +1112,22 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         });
         if (refusal !== null) return refusal;
         // A run an automation step or another agent started stays one when
-        // retried: it still counts as automated and may not delegate.
+        // retried: it still counts as automated and may not delegate, and
+        // the retry is an automated start the per-task budget admits like
+        // any other (`admitAutomatedStart`). A person's run carries no
+        // provenance, so its retries are never counted or refused there.
         const startedVia = await startedViaOfRun(tx, newest.id);
+        if (startedVia !== undefined) {
+          const admitted = await admitAutomatedStart(tx, {
+            task: {
+              id: input.taskId,
+              organizationId: input.organizationId,
+              projectId: task.projectId,
+            },
+            agentId: input.agentId,
+          });
+          if (!admitted.admitted) return 'task_circuit_breaker';
+        }
         await kickAgentRun(tx, {
           organizationId: input.organizationId,
           projectId: task.projectId,

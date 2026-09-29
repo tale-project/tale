@@ -1140,6 +1140,8 @@ export async function checkDelegatedAgentStartTool(
   const w2 = randomUUID();
   const w3 = randomUUID();
   const w4 = randomUUID();
+  const w5 = randomUUID();
+  const w6 = randomUUID();
   const outsider = randomUUID();
   const editor = `delegate-editor-${suffix}`;
   const member = `delegate-member-${suffix}`;
@@ -1229,6 +1231,8 @@ export async function checkDelegatedAgentStartTool(
     await fx.insertAgent(w2, projectA, 'Implementer two');
     await fx.insertAgent(w3, projectA, 'Implementer three');
     await fx.insertAgent(w4, projectA, 'Standing reporter');
+    await fx.insertAgent(w5, projectA, 'Retrying implementer');
+    await fx.insertAgent(w6, projectA, 'Person-started implementer');
     await fx.insertAgent(outsider, projectB, 'Neighbour agent');
     const roleTask = await fx.insertTask({
       projectId: projectA,
@@ -1267,6 +1271,14 @@ export async function checkDelegatedAgentStartTool(
       title: 'Shipped already',
       status: 'done',
       agentId: w4,
+    });
+    const retryTask = await fx.insertTask({
+      projectId: projectA,
+      title: 'Keeps failing',
+    });
+    const personTask = await fx.insertTask({
+      projectId: projectA,
+      title: 'Restarted by agents, then by a person',
     });
     const race1 = await fx.insertTask({
       projectId: projectA,
@@ -1562,6 +1574,135 @@ export async function checkDelegatedAgentStartTool(
         standingRow[0]?.status === 'todo' &&
         standingReviews[0]?.count === 0,
       `closed=${JSON.stringify(closedStart)} card=${closedRow[0]?.status} runs=${describeRuns(closedRuns)} standing=${JSON.stringify(standing)} card=${standingRow[0]?.status} runs=${describeRuns(standingRuns)} reviews=${standingReviews[0]?.count}`,
+    );
+
+    // ---- the hourly budget counts automatic retries, a person's never ------
+    // A delegated start, then each failure's actual queued retry payload
+    // through the real retry worker (turns held inert): the retries inherit
+    // `started_via`, so the third automated start fills the hour's budget
+    // and the retry that would be the fourth is refused, as is the manager's
+    // next restart. A person's Start in that hour, and its retry, are not.
+    const retrySkips: string[] = [];
+    const retryWorker = createTaskList({ sql })['task.agent_retry'];
+    const failAndRetry = async (taskId: string): Promise<void> => {
+      const newest = (await runsOf(sql, taskId)).at(-1);
+      if (newest === undefined) return;
+      await failAgentRunFromTurn(sql, {
+        runId: newest.id,
+        execId: newest.execId,
+        error: 'itest: the harness exited before the turn completed',
+        failureCode: 'turn_crashed',
+      });
+      const jobs = await sql<{ data: unknown }[]>`
+        SELECT data FROM pgboss.job
+        WHERE name = 'task.agent_retry'
+          AND data ->> 'expectedRunId' = ${newest.id}
+      `;
+      const log = console.log;
+      console.log = (...args: unknown[]) => {
+        const match = /auto-retry skipped: (\S+)/.exec(
+          args.map(String).join(' '),
+        );
+        if (match?.[1] !== undefined) retrySkips.push(match[1]);
+        else log(...args);
+      };
+      try {
+        for (const job of jobs) await retryWorker?.(job.data);
+      } finally {
+        console.log = log;
+      }
+    };
+    const budgetStart = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: retryTask,
+      agentId: w5,
+    });
+    for (let failure = 0; failure < 3; failure++) await failAndRetry(retryTask);
+    const budgetRuns = await runsOf(sql, retryTask);
+    const budgetRefusals = await sql<
+      { actorId: string; toValue: string | null }[]
+    >`
+      SELECT actor_id AS "actorId", to_value AS "toValue"
+      FROM app.task_activity
+      WHERE task_id = ${retryTask} AND action = 'agent_run.refused'
+    `;
+    record(
+      `delegation: a delegated chain's automatic retries count against the hourly budget — after ${AUTOMATED_STARTS_PER_TASK_PER_HOUR} automated starts the next retry is refused, nothing is kicked, and the timeline says why`,
+      outputOf(budgetStart).started === true &&
+        describeRuns(budgetRuns) ===
+          'failed/delegated,failed/auto_retry,failed/auto_retry' &&
+        budgetRuns.every((run) => run.startedVia === 'agent') &&
+        retrySkips.join(',') === 'task_circuit_breaker' &&
+        budgetRefusals.length === 1 &&
+        budgetRefusals[0]?.actorId === w5 &&
+        budgetRefusals[0].toValue === 'task_circuit_breaker',
+      `start=${JSON.stringify(budgetStart)} runs=${describeRuns(budgetRuns)} via=${budgetRuns.map((run) => run.startedVia).join(',')} skips=${retrySkips.join(',')} budgetRefusals=${JSON.stringify(budgetRefusals)}`,
+    );
+    const budgetRestart = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: retryTask,
+    });
+    const budgetAfterRestart = await runsOf(sql, retryTask);
+    record(
+      "delegation: the manager's next restart in that hour answers paused and starts no further run",
+      budgetRestart.status === 'ok' &&
+        outputOf(budgetRestart).started === false &&
+        outputOf(budgetRestart).reason === 'paused' &&
+        typeof outputOf(budgetRestart).retryAfter === 'number' &&
+        budgetAfterRestart.length === 3,
+      `restart=${JSON.stringify(budgetRestart)} runs=${describeRuns(budgetAfterRestart)}`,
+    );
+    // A person's work in a full hour: three delegated starts of another task
+    // (each cancelled, so no failure streak builds) fill its budget and the
+    // manager's fourth is paused; a person's Start still runs, and when it
+    // fails its retry is still kicked.
+    const personRefusedBefore: string[] = [];
+    const skipsBeforePerson = retrySkips.length;
+    for (let start = 0; start < AUTOMATED_STARTS_PER_TASK_PER_HOUR; start++) {
+      const delegated = await dispatch(managerRun.token, 'task_start_agent', {
+        taskId: personTask,
+        agentId: w6,
+      });
+      if (outputOf(delegated).started !== true) {
+        personRefusedBefore.push(JSON.stringify(delegated));
+      }
+      const live = (await runsOf(sql, personTask)).at(-1);
+      if (live !== undefined) {
+        await sql.begin((tx) =>
+          cancelAgentRunInTx(tx, {
+            organizationId: orgId,
+            runId: live.id,
+            taskId: personTask,
+          }),
+        );
+      }
+    }
+    const fourth = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: personTask,
+    });
+    const personBudgetStart = await fetch(
+      `${base}/api/app/tasks/${personTask}/agent-runs/start?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { cookie: ctx.cookie, origin: base },
+      },
+    );
+    const personBudgetBody: unknown = await personBudgetStart
+      .json()
+      .catch(() => null);
+    await failAndRetry(personTask);
+    const budgetWithPerson = await runsOf(sql, personTask);
+    record(
+      "delegation: in an hour whose automated budget is spent, a person's Start still starts the agent, and its automatic retry is still kicked — neither is counted or refused",
+      personRefusedBefore.length === 0 &&
+        outputOf(fourth).reason === 'paused' &&
+        personBudgetStart.status === 200 &&
+        isRecord(personBudgetBody) &&
+        personBudgetBody.started === true &&
+        describeRuns(budgetWithPerson) ===
+          'cancelled/delegated,cancelled/delegated,cancelled/delegated,failed/manual,queued/auto_retry' &&
+        budgetWithPerson[3]?.startedVia === null &&
+        budgetWithPerson[4]?.startedVia === null &&
+        retrySkips.length === skipsBeforePerson,
+      `refused before=${JSON.stringify(personRefusedBefore)} fourth=${JSON.stringify(fourth)} person=${personBudgetStart.status} ${JSON.stringify(personBudgetBody)} runs=${describeRuns(budgetWithPerson)} new skips=${retrySkips.slice(skipsBeforePerson).join(',') || 'none'}`,
     );
 
     // ---- two starts racing for one free agent start one run -------------
