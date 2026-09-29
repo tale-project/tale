@@ -283,22 +283,22 @@ export function useTaskBoardDnd(
       // Resolve back to typed task ids via the row map (no unsafe casts).
       const row = byId.get(activeIdStr);
       if (!row) return;
+      const placement = {
+        beforeTaskId: beforeIdStr ? byId.get(beforeIdStr)?._id : undefined,
+        afterTaskId: afterIdStr ? byId.get(afterIdStr)?._id : undefined,
+      };
       const move = () =>
-        moveTask.mutate({
-          taskId: row._id,
-          status: container,
-          beforeTaskId: beforeIdStr ? byId.get(beforeIdStr)?._id : undefined,
-          afterTaskId: afterIdStr ? byId.get(afterIdStr)?._id : undefined,
-        });
+        moveTask.mutate({ taskId: row._id, status: container, ...placement });
       if (origContainer === container) {
         move();
         return;
       }
       // Cross-column: let the owning automation's choreography interpret the
       // board verb first. 'move' → the plain write still lands the drop;
-      // 'handled' → the workflow drives the status (keep the optimistic
-      // placement); 'blocked' → snap the card back where it came from.
-      void choreograph(row, container).then((outcome) => {
+      // 'handled' → the stop already landed it at this placement, or the
+      // workflow drives the status (keep the optimistic placement);
+      // 'blocked' → snap the card back where it came from.
+      void choreograph(row, container, placement).then((outcome) => {
         if (outcome === 'move') move();
         else if (outcome === 'blocked') setColumns(columnsFromProps);
       });

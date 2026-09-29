@@ -57,7 +57,8 @@ vi.mock('./service.ts', () => ({
   reconcileMailAttachmentStamps,
 }));
 
-const { runCorpusReconcile } = await import('./release.ts');
+const { runCorpusReconcile, settleReleaseOutcome } =
+  await import('./release.ts');
 
 type Release = (refs: string[]) => Promise<{
   released: string[];
@@ -398,14 +399,18 @@ describe('runCorpusReconcile — what the log says', () => {
   const lines = (spy: MockInstance<typeof console.info>) =>
     spy.mock.calls.map((call) => String(call[0]));
 
-  it('reports scope drift as the failed per-edit sync it is', async () => {
+  // A corrected row is a scope write that failed or never ran: a failed
+  // per-edit sync, one that wrote less than the change needed, or a shared
+  // ref's holder that changed on a lane that does not re-stamp it. The line
+  // used to blame a failed sync for all of them.
+  it('reports scope drift with each of its causes, not as a failed sync alone', async () => {
     reconcileDocumentScopeStamps.mockResolvedValue({
       scanned: 9,
       corrected: 2,
     });
     await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
     expect(lines(warn)).toEqual([
-      '[knowledge] corpus scope drift for acme: corrected=2 of scanned=9 — the per-edit sync had failed for these',
+      "[knowledge] corpus scope drift for acme: corrected=2 of scanned=9 — a per-edit scope sync failed or did not cover the change, or a shared ref's holder changed without a re-stamp",
     ]);
   });
 
@@ -481,5 +486,61 @@ describe('runCorpusReconcile — what the log says', () => {
     await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
     expect(lines(info)).toEqual([]);
     expect(lines(warn)).toEqual([]);
+  });
+});
+
+describe('settleReleaseOutcome — one step for both stages', () => {
+  // Two helpers used to settle a release: one logged the corpus stage and
+  // skipped the blob stage, trusting every caller to pipe the outcome
+  // through the other, which re-queued and logged the bytes. A caller using
+  // the first alone would have dropped a failed byte delete silently.
+  it('logs a corpus failure, re-queues and logs a blob failure, and hands the outcome on', async () => {
+    const outcome = {
+      released: ['s3:org-1/ok.pdf'],
+      kept: [],
+      failures: [
+        {
+          ref: 's3:org-1/listed.pdf',
+          stage: 'corpus' as const,
+          message: 'corpus down',
+        },
+        {
+          ref: 's3:org-1/bytes.pdf',
+          stage: 'blob' as const,
+          message: 's3 down',
+        },
+      ],
+    };
+
+    const settled = await settleReleaseOutcome(
+      fakeSql([]).sql,
+      'org-1',
+      outcome,
+    );
+
+    expect(settled).toBe(outcome);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[knowledge] reconcile release failed for s3:org-1/listed.pdf (corpus): corpus down',
+      '[knowledge] reconcile release failed for s3:org-1/bytes.pdf (blob): s3 down — re-queued to knowledge.release_refs',
+    ]);
+    // Only the bytes go to the job: the corpus failure's rows still list
+    // its ref for the next night.
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.release_refs',
+      { organizationId: 'org-1', refs: ['s3:org-1/bytes.pdf'] },
+    );
+  });
+
+  it('queues nothing and says nothing for a release that failed nowhere', async () => {
+    await settleReleaseOutcome(fakeSql([]).sql, 'org-1', {
+      released: ['s3:org-1/ok.pdf'],
+      kept: [],
+      failures: [],
+    });
+
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
   });
 });

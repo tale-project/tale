@@ -27,6 +27,7 @@ import {
 } from '../conversations/message-corpus.ts';
 import { emitDocumentChangeHints } from '../documents/hints.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
+import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import {
   markEntryChainDeletedForDocument,
   markEntryChainsDeletedForDocuments,
@@ -859,7 +860,10 @@ export class PurgeIncompleteError extends Error {
  * funnels here (user delete, folder cascade, REST, retention sweep, erasure
  * cascade, sync prune), and each retries from its own loop: the daily
  * sweep re-selects the row, an erasure lands `partial` and can be re-armed,
- * a user sees the failure instead of a false receipt. Idempotent. */
+ * a user sees the failure instead of a false receipt. Idempotent. Once the
+ * row is gone, a ref a twin keeps is re-stamped with its holder's scope:
+ * the deleted document may have been that holder (`syncRagRefHolderScopes`,
+ * best-effort). */
 export async function purgeDocument(
   sql: Sql,
   orgSlug: string | null,
@@ -890,6 +894,9 @@ export async function purgeDocument(
     `;
     await tx`DELETE FROM app.documents WHERE id = ${doc.id}`;
   });
+  if (orgSlug !== null && doc.fileRef !== null) {
+    await syncRagRefHolderScopes(sql, doc.organizationId, [doc.fileRef]);
+  }
 }
 
 async function sweepDocuments(

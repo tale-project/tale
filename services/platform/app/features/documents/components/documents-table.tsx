@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { useDebounce } from '@tale/ui/use-debounce';
@@ -14,6 +15,7 @@ import {
   useTeamNames,
   useTeams,
 } from '@/app/features/settings/teams/hooks/queries';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 import { scopeTeamIds } from '@/lib/knowledge/types';
@@ -70,6 +72,7 @@ export function DocumentsTable({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t: tDocuments } = useT('documents');
+  const { t: tKnowledge } = useT('knowledge');
 
   const { data: docCount } = useApproxDocumentCount(organizationId);
   const [query, setQuery] = useState(searchQuery ?? '');
@@ -111,6 +114,8 @@ export function DocumentsTable({
     folderId: currentFolderId,
     initialNumItems: 20,
   });
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery(paginatedResult);
 
   // Search and filters run client-side over `paginatedResult.results`, which
   // only holds loaded pages. The default infinite-scroll list has nothing to
@@ -415,7 +420,7 @@ export function DocumentsTable({
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
       error: paginatedResult.error,
-      retry: paginatedResult.retry,
+      retry: retryRead,
     },
     pageSize,
     search: {
@@ -455,35 +460,55 @@ export function DocumentsTable({
         />
       )}
 
-      <DataTable
-        columns={columns}
-        caption={tDocuments('tableCaption')}
-        onRowClick={handleRowClick}
-        onRowMouseEnter={handleRowMouseEnter}
-        rowClassName={getRowClassName}
-        stickyLayout
-        actionMenu={
-          <DocumentsActionMenu
-            organizationId={organizationId}
-            currentFolderId={currentFolderId}
-            parentFolderTeamId={parentFolderTeamId}
-            oneDriveOpen={oneDriveOpen}
-            onOneDriveOpenChange={onOneDriveOpenChange}
-            googleDriveOpen={googleDriveOpen}
-            onGoogleDriveOpenChange={onGoogleDriveOpenChange}
+      {/* Rows already on screen outlive a failed read — a refresh, or a page
+          a search asked for — and the failure is named above them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={tKnowledge('documents')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={paginatedResult.errorCount}
+            onFocusLost={focusRegion}
+            message={tDocuments('refreshFailed')}
+            onRetry={retryRead}
+            isRetrying={paginatedResult.isRetrying}
           />
-        }
-        emptyState={{
-          icon: FileText,
-          title: tDocuments('emptyState.title'),
-          description: tDocuments('emptyState.description'),
-          // The documents table sits directly under the page `h1` ("Knowledge")
-          // with no intervening section heading, so the empty-state title is an
-          // `h2` — otherwise the heading outline skips `h1`→`h3`.
-          headingLevel: 2,
-        }}
-        {...list.tableProps}
-      />
+        )}
+        <DataTable
+          columns={columns}
+          caption={tDocuments('tableCaption')}
+          onRowClick={handleRowClick}
+          onRowMouseEnter={handleRowMouseEnter}
+          rowClassName={getRowClassName}
+          stickyLayout
+          actionMenu={
+            <DocumentsActionMenu
+              organizationId={organizationId}
+              currentFolderId={currentFolderId}
+              parentFolderTeamId={parentFolderTeamId}
+              oneDriveOpen={oneDriveOpen}
+              onOneDriveOpenChange={onOneDriveOpenChange}
+              googleDriveOpen={googleDriveOpen}
+              onGoogleDriveOpenChange={onGoogleDriveOpenChange}
+            />
+          }
+          emptyState={{
+            icon: FileText,
+            title: tDocuments('emptyState.title'),
+            description: tDocuments('emptyState.description'),
+            // The documents table sits directly under the page `h1` ("Knowledge")
+            // with no intervening section heading, so the empty-state title is an
+            // `h2` — otherwise the heading outline skips `h1`→`h3`.
+            headingLevel: 2,
+          }}
+          {...list.tableProps}
+        />
+      </div>
 
       <DocumentPreviewDialog
         open={!!docId}

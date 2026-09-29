@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 53 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 56 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -399,7 +399,7 @@ projects-list row ⋯ menu.
   **Add file** → select three supported files plus one unsupported (e.g.
   `.bin`) in ONE pick → No error toast flashes before the upload; once it
   settles a single toast reads **3 of 4 files added**
-  (`projects.files.attachPartial`) with **Skipped: <name> — <reason>**
+  (`projects.files.attachPartial`) with **Skipped: ‹name› — ‹reason›**
   (`projects.files.skippedList`, the unsupported-format sentence) and stays
   until dismissed; the three files appear in the tree. Picking the `.bin`
   alone still shows the destructive **Unsupported file type** toast; a pick
@@ -452,6 +452,27 @@ projects-list row ⋯ menu.
   {'content-type': 'application/json'}, body: JSON.stringify({reviewerUserId:
   '{userId}'})})` → 400 `TASK_REVIEWER_NO_EDIT_ACCESS`, and after reload
   **Reviewer** still names the previous reviewer and the Member has no bell.
+- [ ] `PROJ-B10` · **A folder read that fails keeps the files** — On a
+  project with a root file, a folder and a file inside it, block
+  `*/api/app/folders?projectId=*` in DevTools and reload its Files tab →
+  after the retries one notice above the tree
+  (`projects.files.foldersLoadFailed`) with **Try again**; the root file
+  stays in place and the nested file is listed under **Files inside
+  folders** (`projects.files.unplacedGroup`), never an empty list or
+  **Add files for this project** (`projects.files.emptyTitle`); unblock →
+  **Try again** → the folder returns with the file inside it, and Network
+  shows no second `documents/by-project` read. Blocking
+  `*/api/app/documents/by-project/*` instead → the folders stay and the
+  notice reads `projects.files.loadFailed`; both blocked →
+  `projects.files.treeLoadFailed`. No toast.
+- [ ] `PROJ-B11` · **A Member is offered no project create** — Sign in as a
+  Member and open the Home panel, then `/dashboard/{org}/projects` → the
+  **Projects** section header offers **All projects** but no **New project**
+  (`home.projects.newProject`), and the list has no **Create project**
+  (`projects.list.createButton`); with no project shared with them the list
+  reads **A project appears here once someone shares it with you or one of
+  your teams.** (`projects.list.emptyReaderDescription`). As an Editor both
+  doors are back. The server refuses a create below the Editor role.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)
@@ -496,6 +517,14 @@ projects-list row ⋯ menu.
   (`projects.sharing.noTeamsCreateLink`) on the right. The **Instructions**
   textarea (`projects.instructions.label`) is labelled by its section header
   alone, with its counter under it.
+- [ ] `PROJ-A8` · **Files retry from the keyboard** → In the `PROJ-B10`
+  state, Tab reaches **Try again**; Enter runs it and focus moves to the
+  **Files** group above the tree — never to the page body; a screen reader
+  announces the notice once per failure and reads **Files inside folders**
+  as the name of the nested list; ↓/↑ still walk every row, those in the
+  group included. With focus on **Try again** (not pressed), a background
+  refresh that fails again leaves it there; one that works moves it to the
+  **Files** group.
 
 ## Performance
 

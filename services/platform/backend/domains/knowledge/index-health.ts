@@ -22,6 +22,7 @@ import {
   setCorpusBootstrapHook,
 } from '../../core/knowledge/pool.ts';
 import {
+  INDEX_PARKED_RAG_ERROR_CODES,
   RAG_ERROR_INDEX_REBUILDING,
   RAG_ERROR_INDEX_REPAIR_FAILED,
 } from '../../core/knowledge/rag_error_codes.ts';
@@ -655,13 +656,9 @@ function notificationArgs(
 /** Rows per requeue transaction — bounded work per lock hold. */
 const REQUEUE_BATCH = 200;
 
-/** The codes a file parks under while its corpus's index is bad: refused
- * during a rebuild, or after a failed one. A healthy index resumes both —
- * a repair the job could not do, an operator may have. */
-const PARKED_BY_INDEX = [
-  RAG_ERROR_INDEX_REBUILDING,
-  RAG_ERROR_INDEX_REPAIR_FAILED,
-] as const;
+/** The codes a file parks under while its corpus's index is bad
+ * (`INDEX_PARKED_RAG_ERROR_CODES`). */
+const PARKED_BY_INDEX = INDEX_PARKED_RAG_ERROR_CODES;
 
 /**
  * Re-queue every file whose indexing was refused because the index was bad,

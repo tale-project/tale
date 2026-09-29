@@ -602,8 +602,10 @@ subject.
   options are labelled `checkbox`es, single-select options are `radio`s inside
   a labelled `radiogroup`, and a grouped facet labels each `radiogroup` by its
   group heading; the panel is NOT modal, so the list stays in the
-  accessibility tree behind it; Escape closes it and returns focus to the
-  button; fully keyboard-operable.
+  accessibility tree behind it; it opens with the focus on its first facet's
+  header; each `radiogroup` is one Tab stop whose arrow keys move the choice
+  ([accessibility.md](accessibility.md) A11Y-A19); Escape closes it and returns
+  focus to the button.
 - [ ] `CONV-A5` · **Inbox entry** → The Inbox is reached through the Home
   panel's switcher: a `radio` named **Inbox** (`home.views.inbox`) in the
   **Show** radiogroup (`home.views.label`), reachable with the arrow keys; the

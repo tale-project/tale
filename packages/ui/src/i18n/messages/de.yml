@@ -227,11 +227,14 @@ common:
     showing: "{start}–{end} von {total}"
     showingAll: "{count, plural, one {# {entityOne} wird angezeigt} other {Alle # {entityOther} werden angezeigt}}"
     showingLoaded: "{count, plural, one {# {entityOne} geladen – scrolle für mehr} other {Die ersten # {entityOther} werden angezeigt – scrolle für mehr}}"
+    showingLoadedFailed: "{count, plural, one {# {entityOne} geladen – der Rest konnte nicht geladen werden} other {Die ersten # {entityOther} werden angezeigt – der Rest konnte nicht geladen werden}}"
     showingFiltered: "{total, plural, one {{filtered} von # {entityOne} wird angezeigt} other {{filtered} von # {entityOther} werden angezeigt}}"
     showingRange: "{total, plural, one {{start}-{end} von # {entityOne} wird angezeigt} other {{start}-{end} von # {entityOther} werden angezeigt}}"
   search:
+    noLoadedResults: Keine Ergebnisse unter den geladenen Einträgen
     noResults: Keine Ergebnisse gefunden
     placeholder: Suchen
+    restNotSearched: Der Rest konnte nicht geladen werden und wurde daher nicht durchsucht.
     tryAdjusting: Passe deine Suchkriterien an
   select:
     noOptionsHint: Noch nichts zum Auswählen.

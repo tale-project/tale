@@ -31,7 +31,7 @@ The application roles use the same Tale platform image. `TALE_ROLE=api` starts t
 | `config-data` | Organization configuration files, including agents, skills, provider definitions, governance settings, SSO configuration, and branding. |
 | `object-store-data` | Uploaded documents, attachments, audio, and generated files. |
 | `caddy-data`, `caddy-config` | Certificates and proxy state. |
-| `llm-gateway-data` | Gateway configuration and session access state. |
+| `llm-gateway-data` | Gateway configuration, session access state, and the gateway's request log of model, tokens and timing, without prompts or answers. |
 
 The packaged stack puts the two databases in one Postgres service and exposes its knowledge connection through the `knowledge-db` network alias. They remain separate databases. A source Compose deployment with a separate knowledge service also has `knowledge-db-data`.
 

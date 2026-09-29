@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 58 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -417,7 +417,7 @@ records and delete them after.
   teams**, a row's **Assign team**, **New folder** → **Team**, and the
   OneDrive / Google Drive import dialogs' team picker → Each lists every team
   of the organization, synced ones included, as the documents guide says. As
-  a plain Member of one team → the same pickers list that team only. Assign a
+  an Editor of one team → the same pickers list that team only. Assign a
   document to a team you are not in → its preview sidebar names that team.
 
 ## Boundary & error tests
@@ -574,6 +574,32 @@ records and delete them after.
   Google Drive connected, `*/api/app/google-drive/list-files*` and **From
   Google Drive** (`documents.upload.fromGoogleDrive`) →
   `documents.googledrive.loadFailed`.
+- [ ] `KNOW-B17` · **A library that cannot load says so** — With more than
+  20 knowledge entries, block `*/api/app/knowledge-entries?limit=*` in
+  DevTools (Network → request blocking) and reload **Knowledge entries** →
+  after the retries (a few seconds) the table shows the error state with
+  **Try again** (`common.errors.tryAgain`), never **No knowledge entries
+  yet** (`emptyStates.knowledgeEntries.title`); unblock → **Try again** → the
+  rows return without a reload. Then block only
+  `*/api/app/knowledge-entries?limit=20&cursor=*`, search for an entry on the
+  second page → one notice above the table
+  (`knowledgeEntries.refreshFailed`) with **Try again**, the body reads **No
+  results among the loaded items** (`common.search.noLoadedResults`) — no
+  skeleton — and Network shows one run of four requests for that page, not a
+  stream; a search the first page matches keeps its rows over **the rest
+  couldn't be loaded** (`common.pagination.showingLoadedFailed`); unblock →
+  **Try again** → the match appears with the search text and any selected
+  rows kept. No toast in either case.
+- [ ] `KNOW-B18` · **A version history that cannot load says so** — Open an
+  entry edited at least once with `*/api/app/knowledge-entries/*/versions*`
+  blocked → **Version history** (`knowledgeEntries.viewDialog.history`)
+  reads **Couldn't load the version history.**
+  (`knowledgeEntries.viewDialog.historyLoadFailed`) with **Try again**, the
+  current content stays readable, and the disabled **Retry indexing** badge
+  is not the history's retry; unblock → **Try again** → the replaced version
+  appears. An entry never edited reads
+  `knowledgeEntries.viewDialog.historyEmpty`; while the read runs, the
+  section reads `knowledgeEntries.viewDialog.historyLoading`.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -601,6 +627,17 @@ records and delete them after.
   the record is editable; Escape closes them and returns focus to that row's
   **Open menu** button — also after **Edit** → **Cancel** has brought the
   details back, and after a document preview opened from **View** closes.
+- [ ] `KNOW-A7` · **Retry from the keyboard** → In the `KNOW-B17` and
+  `KNOW-B18` states, Tab reaches **Try again** with a visible focus ring;
+  Enter or Space runs it and focus moves to the **Knowledge entries** region
+  or the **Version history** section — never to the page body; a screen
+  reader announces each failure once (the notice is an alert), reads the
+  retry as busy while it runs, and announces the notice again when a retry
+  fails again. Tab to **Try again** without pressing it and let a background
+  refresh fail again (keep the read blocked, then make any write that
+  refreshes the list, or a hub upload for an open history) → focus stays on
+  that **Try again**; unblock and let the next refresh work → focus lands on
+  the region or the section, never on the page or the dialog frame.
 
 ## Performance
 

@@ -69,12 +69,14 @@ import { checkAutomationProjectVisibility } from './domains/automations/project-
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
+import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
@@ -95,6 +97,7 @@ import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tabl
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
@@ -104,7 +107,9 @@ import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integ
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
+import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { cookieHeaderFrom, signUpUser } from './integration-lane-helpers.ts';
@@ -55968,6 +55973,10 @@ async function main(): Promise<void> {
         'checkConnectorOauthIntent',
         () => checkConnectorOauthIntent(sql, baseUrl, record),
       ],
+      [
+        'checkConnectorCredentialLiveListing',
+        () => checkConnectorCredentialLiveListing(sql, baseUrl, record),
+      ],
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
@@ -56015,6 +56024,27 @@ async function main(): Promise<void> {
         () => checkTaskRunStartFence(sql, authCtx, record),
       ],
       [
+        'checkTaskRetryProjectEligibility',
+        () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskWorkflowParentMoves',
+        async () =>
+          checkTaskWorkflowParentMoves(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'workflow-parent-reader',
+              'member',
+            ),
+            record,
+          ),
+      ],
+      [
         'checkCredentialRotationRetry',
         () => checkCredentialRotationRetry(sql, authCtx, record),
       ],
@@ -56037,6 +56067,10 @@ async function main(): Promise<void> {
       [
         'checkProjectTaskMetrics',
         () => checkProjectTaskMetrics(sql, authCtx, record),
+      ],
+      [
+        'checkTaskBoardSearch',
+        () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
       [
@@ -56302,6 +56336,10 @@ async function main(): Promise<void> {
       [
         'checkDocumentWriteGuards',
         () => checkDocumentWriteGuards(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkHubFolderWriteRole',
+        () => checkHubFolderWriteRole(sql, baseUrl, record),
       ],
       [
         'checkLoginThrottleAndAuditChain',

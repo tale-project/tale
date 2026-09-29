@@ -487,37 +487,64 @@ describe('committed source runtime preparation', () => {
       expect(bundle.source.composeSha256).toBe(
         hash(readFileSync(join(fixture.repoRoot, 'compose.yml'))),
       );
-      const source = parseCompose(
-        readFileSync(join(fixture.repoRoot, 'compose.yml'), 'utf8'),
-      );
-      expect(verified.compose.services.sandbox.ports).toEqual(
-        source.services.sandbox.ports,
-      );
+      // The spawner and its device hub are reached over `internal` alone.
+      expect(verified.compose.services.sandbox.ports).toEqual([]);
     },
   );
 
   // A managed host's runtime pin may lag the CLI pin (ops keeps the CLI at
-  // or ahead of every runtime), so this CLI still prepares and reads the
-  // runtimes from before the device hub, whose sandbox publishes 8003 alone.
+  // or ahead of every runtime), so this CLI still prepares the runtimes from
+  // before the device hub, whose sandbox publishes 8003 alone — into a bundle
+  // that publishes nothing, as it does for a runtime with the hub.
   test.each([
     [['127.0.0.1:8003:8003']],
     [['127.0.0.1:8003:8003', '127.0.0.1:8004:8004']],
-  ])('prepares and reads back a sandbox that publishes %j', async (ports) => {
-    const { fixture, prepare } = create();
-    fixture.source.services.sandbox.ports = ports;
-    writeFileSync(
-      join(fixture.repoRoot, 'compose.yml'),
-      stringify(fixture.source),
-    );
-    fixture.git('add', '.');
-    fixture.git('commit', '--allow-empty', '-qm', 'publish sandbox ports');
-    fixture.revision = fixture.git('rev-parse', 'HEAD');
-    await prepare();
-    expect(
-      readRuntimeBundle(fixture.options.bundleDirectory).compose.services
-        .sandbox.ports,
-    ).toEqual(ports);
-  });
+  ])(
+    'prepares a sandbox that publishes %j into one that publishes nothing',
+    async (ports) => {
+      const { fixture, prepare } = create();
+      fixture.source.services.sandbox.ports = ports;
+      writeFileSync(
+        join(fixture.repoRoot, 'compose.yml'),
+        stringify(fixture.source),
+      );
+      fixture.git('add', '.');
+      fixture.git('commit', '--allow-empty', '-qm', 'publish sandbox ports');
+      fixture.revision = fixture.git('rev-parse', 'HEAD');
+      await prepare();
+      expect(
+        readRuntimeBundle(fixture.options.bundleDirectory).compose.services
+          .sandbox.ports,
+      ).toEqual([]);
+    },
+  );
+
+  // Earlier CLIs kept the source's loopback publishes in the bundle; a bundle
+  // one of them prepared still reads back.
+  test.each([
+    [['127.0.0.1:8003:8003']],
+    [['127.0.0.1:8003:8003', '127.0.0.1:8004:8004']],
+  ])(
+    'reads back an earlier bundle whose sandbox publishes %j',
+    async (ports) => {
+      const { fixture, prepare } = create();
+      const bundle = await prepare();
+      const file = join(fixture.options.bundleDirectory, 'compose.yml');
+      const compose = parse(readFileSync(file, 'utf8'));
+      compose.services.sandbox.ports = ports;
+      const earlier = stringify(compose);
+      writeFileSync(file, earlier);
+      bundle.files['compose.yml'] = hash(earlier);
+      writeFileSync(
+        join(fixture.options.bundleDirectory, 'runtime.json'),
+        JSON.stringify(bundle),
+      );
+      expect(
+        readRuntimeBundle(fixture.options.bundleDirectory).compose.services
+          .sandbox.ports,
+      ).toEqual(ports);
+    },
+  );
 
   test.each([['8004:8004'], ['0.0.0.0:8004:8004'], ['127.0.0.1:8005:8005']])(
     'refuses a sandbox hub port published as %s',

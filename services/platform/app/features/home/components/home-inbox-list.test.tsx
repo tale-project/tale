@@ -110,6 +110,8 @@ function pages(
     loadMore: vi.fn(),
     error: null,
     retry: vi.fn(),
+    isRetrying: false,
+    errorCount: 0,
   };
 }
 

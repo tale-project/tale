@@ -35,6 +35,12 @@ export interface UsePaginatedQueryReturnType<Item> {
   error: Error | null;
   /** Re-issue the request that failed: the first page, or the next one. */
   retry: () => void;
+  /** A request is in flight again after a failure — a retry, or a refresh —
+   * while the failure still stands. */
+  isRetrying: boolean;
+  /** How many times a request has settled in error: a notice keyed on it
+   * appears afresh, and is announced again, for each new failure. */
+  errorCount: number;
 }
 
 /** The listing lane: react-query `useInfiniteQuery` over the backend's keyset
@@ -69,15 +75,22 @@ function useBackendPaginatedQuery<Item>(
     isFetchNextPageError,
     data,
     isLoading,
+    isFetching,
     isError,
     error,
+    errorUpdateCount,
     refetch,
   } = infinite;
+  // A next page that failed is not asked for again by scrolling or by a
+  // search draining the list — both call this on every render, which would
+  // re-issue the failing request in a loop. `retry` is the way on.
   const loadMore = useCallback(
     (_numItems: number) => {
-      if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+      if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+        void fetchNextPage();
+      }
     },
-    [fetchNextPage, hasNextPage, isFetchingNextPage],
+    [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError],
   );
   const results = data?.pages.flatMap((page) => page.page) ?? [];
   // A failed first page reads as an exhausted empty list (never an eternal
@@ -110,6 +123,8 @@ function useBackendPaginatedQuery<Item>(
     // retry; with pages loaded the rows stay and a later refetch heals it.
     error: isError ? (error ?? new Error('request failed')) : null,
     retry,
+    isRetrying: isError && isFetching,
+    errorCount: errorUpdateCount,
   };
 }
 

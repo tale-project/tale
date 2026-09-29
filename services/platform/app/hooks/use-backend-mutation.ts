@@ -75,6 +75,13 @@ export function useBackendMutation<Name extends MutationName>(
     onError: (error, ...rest) => {
       // Never swallow a mutation failure, even when the visible toast is opted out.
       console.error(`Mutation failed: ${name}`, error);
+      // A refusal that proves the cache stale refreshes it like a success.
+      if (
+        adapter?.invalidate !== undefined &&
+        adapter.refusalInvalidates?.(error) === true
+      ) {
+        adapter.invalidate(queryClient, rest[0], adapterCtx);
+      }
       if (errorToast !== false) {
         toast({
           title: errorToast?.title ?? t('error.generic.title'),

@@ -9,10 +9,12 @@
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
   API_KEY_HINT_ENTITY,
+  CONNECTOR_CREDENTIAL_HINT_ENTITY,
   MEMBER_HINT_ENTITY,
   PROVIDER_CREDENTIAL_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { invalidateMyPasswordPolicy } from './account';
 import type {
@@ -497,7 +499,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(
         orgId,
-        'connector_credential',
+        CONNECTOR_CREDENTIAL_HINT_ENTITY,
         'list',
         connectorSlug ?? null,
       ),
@@ -1042,8 +1044,19 @@ function invalidateConnectorCredentials(
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
   void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'connector_credential'),
+    queryKey: backendEntityPrefix(orgId, CONNECTOR_CREDENTIAL_HINT_ENTITY),
   });
+}
+
+/**
+ * A credential write refused because its credential is gone — another
+ * session deleted it, and this tab missed the hint (its stream was down).
+ * The listing the reader acted on is stale, so the same reads refetch: the
+ * row drops, and its menu or confirm with it, instead of failing the same
+ * way on every click.
+ */
+function credentialGone(error: unknown): boolean {
+  return backendErrorCode(error) === 'CREDENTIAL_NOT_FOUND';
 }
 
 function invalidateSandboxSessions(
@@ -1348,6 +1361,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'provider_credentials/actions:updateCredentialWithDefinition': {
     run: (args, ctx) =>
@@ -1385,6 +1399,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'provider_credentials/mutations:setDefaultCredential': {
     run: (args, ctx) =>
@@ -1393,6 +1408,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: { isDefault: true } },
       ).then(() => null),
     invalidate: invalidateProviderReads,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/actions:createCredential': {
     run: (args, ctx) =>
@@ -1433,6 +1449,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null);
     },
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
@@ -1441,6 +1458,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_credentials/mutations:setDefaultCredential': {
     run: (args, ctx) =>
@@ -1449,6 +1467,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+    refusalInvalidates: credentialGone,
   },
   'connector_oauth_apps/actions:upsert': {
     run: (args, ctx) =>

@@ -53,6 +53,7 @@ import {
   loadTaskRetryHistory,
   resolveTaskKickStartArgs,
 } from '../domains/tasks/kick-plan.ts';
+import { deferredAgentKickRefusal } from '../domains/tasks/service.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
   runVideoCloneJob,
@@ -987,9 +988,12 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // transaction — the failed run must still be the task's newest (a
       // raced manual kick supersedes the retry), the card must still sit at
       // in_progress with THIS agent assigned (a person intervening must not
-      // be overridden), and the consecutive-failure budget (reused pure
-      // module) must have room. Attribution stays with the failed run's own
-      // starter — the retry continues THEIR kick.
+      // be overridden), the consecutive-failure budget (reused pure
+      // module) must have room, and the run's starter must still be able to
+      // start it (the manual Start's gate, as the project and their access
+      // stand now).
+      // Attribution stays with the failed run's own starter — the retry
+      // continues THEIR kick.
       const outcome = await deps.sql.begin(async (tx) => {
         const tasks = await tx<
           {
@@ -998,11 +1002,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             projectId: string;
             assigneeType: string | null;
             assigneeId: string | null;
+            createdBy: string;
+            createdByType: string;
+            parentTaskId: string | null;
           }[]
         >`
           SELECT status, archived_at_ms::float8 AS "archivedAt",
                  project_id AS "projectId",
-                 assignee_type AS "assigneeType", assignee_id AS "assigneeId"
+                 assignee_type AS "assigneeType", assignee_id AS "assigneeId",
+                 created_by AS "createdBy", created_by_type AS "createdByType",
+                 parent_task_id AS "parentTaskId"
           FROM app.tasks
           WHERE id = ${input.taskId} AND org_id = ${input.organizationId}
           FOR UPDATE
@@ -1034,6 +1043,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         `;
         const agent = agents[0];
         if (!agent) return 'agent_gone';
+        const refusal = await deferredAgentKickRefusal(tx, {
+          organizationId: input.organizationId,
+          projectId: task.projectId,
+          task,
+          startedBy: newest.startedBy,
+        });
+        if (refusal !== null) return refusal;
         await kickAgentRun(tx, {
           organizationId: input.organizationId,
           projectId: task.projectId,

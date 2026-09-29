@@ -58,7 +58,9 @@ the dialog title.
 `facts` renders aligned label/value rows; items with `colSpan: 2` use the full width
 for longer content. Put pages or version history in `EntityViewSection`, and pass
 `identifier={{ label, value, hint? }}` for a compact copyable ID after all sections;
-`hint` is a caption saying what the value does and does not identify.
+`hint` is a caption saying what the value does and does not identify. Give a section
+`focusRef` when the host moves focus into it — for instance when a retry replaces the
+control that held focus — so focus lands on the named section rather than the dialog.
 Keep descriptions in one place rather than repeating them in the summary and body.
 
 ## Base dialog options
@@ -72,7 +74,7 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 | `customHeader` | Replaces the visible header; the required title remains available to assistive technology. |
 | `hideClose` | Hides the close control; provide an accessible dismiss path unless the current operation deliberately blocks it. |
 | `className`, `headerClassName`, `bodyClassName`, `footerClassName` | Targeted layout adjustments. |
-| `restoreFocusRef` | Stable fallback when the captured opener unmounts, for example after a menu closes. |
+| `restoreFocusRef` | Stable fallback when the captured opener unmounts or moves, for example a toolbar button the first row replaces. A dialog opened from a menu item needs none: it returns to that menu's button. |
 | `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. |
 
 ## Handle lifecycle and focus deliberately

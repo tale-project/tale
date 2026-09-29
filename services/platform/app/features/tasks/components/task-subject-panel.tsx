@@ -20,11 +20,11 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
-import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useAddTaskComment, useUpdateTaskStatus } from '../hooks/mutations';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-contract';
+import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { deriveSubjectState } from '../lib/subject-state';
 import { TaskRunDetailsDialog } from './task-run-details-dialog';
@@ -186,7 +186,14 @@ export function TaskSubjectPanel({
       toast({ title: t('run.cancelled') });
     } catch (error) {
       console.error('[tasks] subject-panel cancel failed', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      // Cancel parks the task at Cancelled, which closes it: open subtasks
+      // refuse that, and the run keeps running. Say so, not "went wrong".
+      const refusal = parentCloseRefusal(error, t);
+      toast({
+        title: refusal ?? tCommon('errors.generic'),
+        description: refusal === undefined ? failureDetail(error) : undefined,
+        variant: 'destructive',
+      });
     } finally {
       setBusy(false);
       setCancelOpen(false);
@@ -204,11 +211,9 @@ export function TaskSubjectPanel({
       // review, so the org's review_policy can refuse it too. The user should
       // hear the reason, not a generic error.
       const reviewRefusal = reviewPolicyErrorMessage(error, t);
-      if (
-        error instanceof AppError &&
-        error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
-      ) {
-        toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+      const closeRefusal = parentCloseRefusal(error, t);
+      if (closeRefusal !== undefined) {
+        toast({ title: closeRefusal, variant: 'destructive' });
       } else if (reviewRefusal !== undefined) {
         toast({ title: reviewRefusal, variant: 'destructive' });
       } else {

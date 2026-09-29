@@ -35,6 +35,16 @@ Eine Integration kann Dateien ohne Indexierung hochladen. Sie bleiben im Dateiba
 
 Kommen nicht alle Dateien an, nennt der Bericht des Uploads die übrigen mit Grund: **Übersprungen** sind Dateien, die schon vor dem Hochladen an der Typ- oder Größenprüfung gescheitert sind. **Nicht hinzugefügt** sind Dateien, die Tale abgelehnt hat. Organisationsregeln können Datei- und Speichergrenzen weiter einschränken. Versuche bei einem fehlgeschlagenen Upload zuerst eine kleine unterstützte Datei. Ein Admin kann [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), Speicher und Embedding-Modell prüfen.
 
+## Wenn Dateien oder Ordner nicht laden
+
+Kann der Tab die Dateien oder Ordner des Projekts nicht laden, sagt ein Hinweis über dem Dateibaum, was fehlgeschlagen ist, und bietet **Erneut versuchen** an. Tale zeigt das Projekt wegen eines Ladefehlers nie als leer an:
+
+- Scheitern nur die Ordner, bleiben alle geladenen Dateien aufgeführt. Dateien auf der obersten Ebene stehen an ihrem Platz, Dateien in Ordnern erscheinen unter **Dateien in Ordnern**, bis die Ordner geladen sind.
+- Scheitern nur die Dateien, bleiben die Ordner sichtbar, und der Hinweis sagt, dass die Dateien fehlen.
+- Scheitert eine Aktualisierung, nachdem der Baum geladen war, behält er seinen Stand, und der Hinweis sagt, dass er veraltet sein kann.
+
+**Erneut versuchen** wiederholt nur den fehlgeschlagenen Abruf; aufgeklappte und ausgewählte Ordner bleiben erhalten. Scheitert es immer wieder, bitte einen Administrator zu prüfen, ob die Dienste von Tale laufen.
+
 ## Im Projektchat nach Dateien fragen
 
 Öffne **Chats** in diesem Projekt, starte ein Gespräch und frage nach Dateiname oder Thema. Der Assistent kann Dateien dieses Projekts und zugängliche Dokumente der Wissensbibliothek abrufen. Dateien anderer Projekte erreicht er von hier aus nicht.

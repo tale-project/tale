@@ -194,6 +194,31 @@ describe('UploadFileRow', () => {
     );
   });
 
+  // A stored file the index skips says why: a format no extractor reads, or
+  // a name that is only an extension — the upload allowlist reads `.md` as
+  // Markdown, the indexer reads no format from it, and "(legacy format)"
+  // was a false reason for it.
+  it('names a legacy format as why a stored file is not indexed', () => {
+    render(<UploadFileRow {...baseProps} fileName="legacy.doc" notIndexable />);
+
+    expect(
+      screen.getByText(
+        'Stored and downloadable, but not indexed for search (legacy format).',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('names the bare extension, not a legacy format, for a file named only by one', () => {
+    render(<UploadFileRow {...baseProps} fileName=".md" notIndexable />);
+
+    expect(
+      screen.getByText(
+        'Stored and downloadable, but not indexed for search: the file name is only an extension.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/legacy format/)).not.toBeInTheDocument();
+  });
+
   it('applies red background for failed state', () => {
     const { container } = render(
       <UploadFileRow {...baseProps} status="failed" error="Network error" />,

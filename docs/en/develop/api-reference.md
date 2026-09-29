@@ -383,6 +383,7 @@ Branch on `indexing.errorCode`, not the wording of `error`. The OpenAPI schema e
 | `failed`: `embedding_upstream`, `indexer_error`, `index_rebuilding` | The background job retries these failures. Poll before requesting another attempt. |
 | `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Ask the operator to correct provider configuration, permissions, or index health, then retry. `embedding_provider_refused` also covers a model that answers vectors of another width than the settings state, and an embedding credential the platform cannot use (none configured, deleted, disabled, or unreadable); saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model. |
 | `failed`: `secret_detected`, `pii_blocked` | Correct the source or the organization’s approved content policy before retrying. |
+| `failed` with no `errorCode` | The platform settled the failure without classifying it, usually because the indexing run stopped before it finished (a lost job or a stopped worker). Don't wait for an automatic retry: request `retry-indexing`. |
 
 `POST` and `PATCH` bodies are strict: `projectId` is refused with **400**. Create project files through the project upload and file routes below.
 
