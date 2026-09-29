@@ -331,11 +331,19 @@ describe('in-thread dedup', () => {
     ['an already sent', { message_bound_at_ms: NOW - 30_000 }],
     ['another member’s', { uploaded_by: 'user-2' }],
     ['a day-old', { created_at_ms: NOW - 25 * 60 * 60 * 1000 }],
+    ['a trashed', { lifecycle_status: 'trashed' }],
   ] as const)('does not reuse %s job', async (_label, overrides) => {
     const hash = await urlHash();
     const fake = fakeSql([job(hash, overrides)]);
 
     expect(await ingestVideoUrl(fake.sql, paste('thread-a'))).toBe('job-new');
+  });
+
+  it('reuses a job whose lifecycle was never stamped', async () => {
+    const hash = await urlHash();
+    const fake = fakeSql([job(hash, { lifecycle_status: null })]);
+
+    expect(await ingestVideoUrl(fake.sql, paste('thread-a'))).toBe('job-a');
   });
 
   it('finds the eligible job behind a newer failed one in the same chat', async () => {

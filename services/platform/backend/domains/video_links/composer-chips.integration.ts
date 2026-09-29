@@ -6,9 +6,10 @@
  * membership is back; a worker result held across that cancel lands nothing.
  *
  * No job runs. Every `video.ingest` this lane enqueues is held a day out by
- * a trigger that lives only while the lane does, so the in-process worker
- * never takes one: nothing resolves, downloads or spawns, and each paste
- * sees the rows the previous one left.
+ * a trigger that lives only while the lane does and touches only this
+ * lane's organizations, so the in-process worker never takes one: nothing
+ * resolves, downloads or spawns, and each paste sees the rows the previous
+ * one left.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -43,45 +44,6 @@ export async function checkVideoLinkComposerChips(
   const threadB = `itest-video-chips-b-${suffix}`;
   const url = `https://www.youtube.com/watch?v=chips${suffix}`;
   const now = Date.now();
-
-  // A private organization: its in-flight cap, its jobs and the membership
-  // this lane disables are nobody else's.
-  await sql`
-    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
-    VALUES (${orgId}, 'Video chips', ${orgId}, now())
-  `;
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
-    VALUES (${memberId}, ${orgId}, ${ctx.userId}, 'member', now())
-  `;
-  for (const threadId of [threadA, threadB]) {
-    await sql`
-      INSERT INTO app.threads (id, org_id, user_id, kind, created_at_ms,
-                               updated_at_ms)
-      VALUES (${threadId}, ${orgId}, ${ctx.userId}, 'chat', ${now}, ${now})
-    `;
-    await sql`
-      INSERT INTO app.thread_metadata (
-        thread_id, org_id, user_id, chat_type, status, created_at_ms
-      ) VALUES (${threadId}, ${orgId}, ${ctx.userId}, 'assistant', 'active',
-                ${now})
-    `;
-  }
-  await sql`
-    CREATE OR REPLACE FUNCTION app.itest_hold_video_ingest() RETURNS trigger
-    LANGUAGE plpgsql AS $$
-    BEGIN
-      NEW.start_after := now() + interval '1 day';
-      RETURN NEW;
-    END
-    $$
-  `;
-  await sql`DROP TRIGGER IF EXISTS itest_hold_video_ingest ON pgboss.job`;
-  await sql`
-    CREATE TRIGGER itest_hold_video_ingest BEFORE INSERT ON pgboss.job
-    FOR EACH ROW WHEN (NEW.name = 'video.ingest')
-    EXECUTE FUNCTION app.itest_hold_video_ingest()
-  `;
 
   const send = (route: string, body?: unknown): Promise<Response> =>
     fetch(`${base}/api/app/video-links${route}?orgId=${orgId}`, {
@@ -140,6 +102,53 @@ export async function checkVideoLinkComposerChips(
   };
 
   try {
+    // A private organization: its in-flight cap, its jobs and the membership
+    // this lane disables are nobody else's.
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${orgId}, 'Video chips', ${orgId}, now())
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${memberId}, ${orgId}, ${ctx.userId}, 'member', now())
+    `;
+    for (const threadId of [threadA, threadB]) {
+      await sql`
+        INSERT INTO app.threads (id, org_id, user_id, kind, created_at_ms,
+                                 updated_at_ms)
+        VALUES (${threadId}, ${orgId}, ${ctx.userId}, 'chat', ${now}, ${now})
+      `;
+      await sql`
+        INSERT INTO app.thread_metadata (
+          thread_id, org_id, user_id, chat_type, status, created_at_ms
+        ) VALUES (${threadId}, ${orgId}, ${ctx.userId}, 'assistant', 'active',
+                  ${now})
+      `;
+    }
+    await sql`
+      CREATE OR REPLACE FUNCTION app.itest_hold_video_ingest() RETURNS trigger
+      LANGUAGE plpgsql AS $$
+      BEGIN
+        -- Only this lane's jobs: a trigger left behind by a killed run must
+        -- not hold another lane's ingest on a reused database.
+        IF EXISTS (
+          SELECT 1 FROM app.video_link_jobs
+          WHERE id = NEW.data ->> 'jobId'
+            AND org_id LIKE 'itest-video-chips-%'
+        ) THEN
+          NEW.start_after := now() + interval '1 day';
+        END IF;
+        RETURN NEW;
+      END
+      $$
+    `;
+    await sql`DROP TRIGGER IF EXISTS itest_hold_video_ingest ON pgboss.job`;
+    await sql`
+      CREATE TRIGGER itest_hold_video_ingest BEFORE INSERT ON pgboss.job
+      FOR EACH ROW WHEN (NEW.name = 'video.ingest')
+      EXECUTE FUNCTION app.itest_hold_video_ingest()
+    `;
+
     // Same chat, consecutive pastes: a tracking/fragment variant of the URL
     // is the same video and replaces the token the send will strip.
     const first = await paste(threadA, url);
