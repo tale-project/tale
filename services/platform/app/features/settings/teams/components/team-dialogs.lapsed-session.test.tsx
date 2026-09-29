@@ -287,7 +287,7 @@ describe('a lapsed session raises one toast per refused save', () => {
         expect(toasts()).toEqual([
           {
             title: common('bulkActions.deleteFailed'),
-            description: undefined,
+            description: SESSION_ENDED[locale],
             variant: 'destructive',
           },
         ]),
