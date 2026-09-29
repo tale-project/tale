@@ -1304,6 +1304,7 @@ chat:
       notFound: Video-Link nicht gefunden — möglicherweise wurde er entfernt
       notUploader: Nur die Person, die dieses Video hinzugefügt hat, kann es ändern
       notRetryable: Erneuter Versuch gerade nicht möglich — das Video wird womöglich schon wieder verarbeitet
+      threadNotFound: Dieser Chat ist nicht mehr verfügbar
     actions:
       removeLink: Entfernen
       retry: Erneut versuchen
@@ -1314,6 +1315,8 @@ chat:
     toast:
       ingestFailedTitle: Video konnte nicht hinzugefügt werden
       retryFailedTitle: Erneuter Versuch fehlgeschlagen
+      removeFailedTitle: Video konnte nicht entfernt werden
+      removeFailedDescription: Das Video ist noch an deine Nachricht angehängt — bitte erneut entfernen
   fallback:
     image: Bild
   loadingConversation: Lädt die Unterhaltung…
@@ -1810,6 +1813,7 @@ conversations:
   updating: Konversationen werden aktualisiert...
   bulk:
     progress: 'Konversationen werden aktualisiert... {settled} von {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Nachrichten senden
     close: Schließen
     reopen: Erneut öffnen
