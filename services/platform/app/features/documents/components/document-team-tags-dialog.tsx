@@ -12,6 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateDocument, useUpdateFolderTeams } from '../hooks/mutations';
@@ -96,6 +97,7 @@ function DocumentTeamDialogContent({
       console.error(error);
       toast({
         title: tDocuments('teamTags.updateFailed'),
+        description: failureDetail(error),
         variant: 'destructive',
       });
     } finally {

@@ -18,6 +18,7 @@ import { useMemo, useCallback, useRef } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import {
   backendErrorCode,
@@ -208,9 +209,11 @@ export function DocumentRowActions({
           variant: 'destructive',
         });
       }
-    } catch {
+    } catch (error) {
+      console.error('Failed to retry indexing:', error);
       toast({
         title: tDocuments('rag.toast.unexpectedError'),
+        description: failureDetail(error),
         variant: 'destructive',
       });
     }
@@ -232,9 +235,11 @@ export function DocumentRowActions({
         title: tDocuments('actions.stopSyncDone'),
         variant: 'success',
       });
-    } catch {
+    } catch (error) {
+      console.error('Failed to stop the sync:', error);
       toast({
         title: tDocuments('actions.stopSyncFailed'),
+        description: failureDetail(error),
         variant: 'destructive',
       });
     }

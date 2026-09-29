@@ -11,6 +11,7 @@ import * as z from 'zod';
 
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useCreateFolder } from '../hooks/mutations';
@@ -92,6 +93,8 @@ export function CreateFolderDialog({
         title: isDuplicate
           ? tDocuments('folder.duplicateName')
           : tDocuments('folder.createFailed'),
+        // A taken name is the whole story; any other refusal says why.
+        description: isDuplicate ? undefined : failureDetail(error),
         variant: 'destructive',
       });
     } finally {

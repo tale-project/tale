@@ -105,12 +105,19 @@ export function useFolders(organizationId: string, parentFolderId?: string) {
   });
 }
 
+// The cloud pickers' listings below run their write as a query that retries
+// it twice, so the write's own toast would fire once per attempt: each opts
+// out, and the import dialog reports the query's final error once
+// (`useListingFailureToast`) or hands a lapsed grant to the connect dialog.
+
 export function useOneDriveFiles(
   organizationId: string,
   folderId: string | undefined,
   enabled: boolean,
 ) {
-  const listOneDriveFiles = useBackendAction('onedrive/actions:listFiles');
+  const listOneDriveFiles = useBackendAction('onedrive/actions:listFiles', {
+    errorToast: false,
+  });
 
   return useReactQuery({
     queryKey: ['onedrive-items', organizationId, folderId],
@@ -139,6 +146,7 @@ export function useGoogleDriveFiles(
 ) {
   const listGoogleDriveFiles = useBackendAction(
     'google_drive/actions:listFiles',
+    { errorToast: false },
   );
 
   return useReactQuery({
@@ -164,6 +172,7 @@ export function useGoogleDriveFiles(
 export function useSharePointSites(organizationId: string, enabled: boolean) {
   const listSharePointSites = useBackendAction(
     'onedrive/actions:listSharePointSites',
+    { errorToast: false },
   );
 
   return useReactQuery({
@@ -188,6 +197,7 @@ export function useSharePointDrives(
 ) {
   const listSharePointDrives = useBackendAction(
     'onedrive/actions:listSharePointDrives',
+    { errorToast: false },
   );
 
   return useReactQuery({
@@ -238,6 +248,7 @@ export function useSharePointFiles(
 ) {
   const listSharePointFiles = useBackendAction(
     'onedrive/actions:listSharePointFiles',
+    { errorToast: false },
   );
 
   return useReactQuery({
