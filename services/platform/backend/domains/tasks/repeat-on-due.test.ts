@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -262,6 +263,18 @@ describe('which candidates are due', () => {
 });
 
 describe('what the writer answers', () => {
+  it('continues healthy work after a candidate whose calendar cannot be represented', async () => {
+    const { sql } = fakeSql([
+      [
+        candidate('calendar-overflow', { dueDate: EPOCH_MS_MAX }),
+        candidate('healthy-after-overflow'),
+      ],
+    ]);
+    const result = await createDueRepeatCopies(sql, { now: EPOCH_MS_MAX });
+    expect(result).toMatchObject({ failed: 1, created: 1 });
+    expect(continued()).toEqual(['healthy-after-overflow']);
+  });
+
   it(`a series at ${REPEAT_OPEN_COPIES_MAX} open tasks waits, named at most once an hour per task`, async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.mocked(createDueRepeatCopy).mockResolvedValue({

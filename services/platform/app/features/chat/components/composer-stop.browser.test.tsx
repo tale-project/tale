@@ -3,6 +3,7 @@ import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 
+import { deriveAccentPalette } from '@/lib/utils/color';
 import { render, screen } from '@/tests/utils/render';
 
 import { Composer } from './composer';
@@ -51,17 +52,21 @@ function focusRingColor(el: HTMLElement): string | undefined {
 describe.each([
   ['light', undefined],
   ['dark', undefined],
-  // `#FF00FF` as the branding provider paints it on the light theme: the
-  // pick as the fill, its text shade `#a300a3` as `--ring`.
-  ['light', { base: '#ff00ff', fg: '#030712', ring: '300 100% 32%' }],
-] as const)('the Stop button in the %s theme, accent %j', (theme, accent) => {
+  // `#FF00FF` fills the button in both themes. Its text shade, `--ring`, is
+  // `#a300a3` on the light theme and the pick itself on the dark, where a
+  // ring in `--ring` is exactly the fill.
+  ['light', '#FF00FF'],
+  ['dark', '#FF00FF'],
+] as const)('the Stop button in the %s theme, accent %s', (theme, accent) => {
   it('draws its focus ring in its ink, on the fill', async () => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     if (accent) {
+      // As the branding provider paints it.
+      const palette = deriveAccentPalette(accent, theme);
       const root = document.documentElement.style;
-      root.setProperty('--color-accent-base', accent.base);
-      root.setProperty('--color-accent-fg', accent.fg);
-      root.setProperty('--ring', accent.ring);
+      root.setProperty('--color-accent-base', palette.base);
+      root.setProperty('--color-accent-fg', palette.fg);
+      root.setProperty('--ring', palette.textHsl);
     }
     render(
       <Composer

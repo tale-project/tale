@@ -28,6 +28,9 @@ export type SecretName = (typeof secretNames)[number];
 const positiveSeconds = (fallback: number) =>
   z.coerce.number().int().positive().default(fallback);
 
+const nonNegativeSeconds = (fallback: number) =>
+  z.coerce.number().int().nonnegative().default(fallback);
+
 const schema = z.object({
   AI_GATEWAY_API_KEY: z.string().min(1),
   AI_GATEWAY_ENCRYPTION_KEY: z.string().min(1),
@@ -35,6 +38,7 @@ const schema = z.object({
   AI_GATEWAY_REFRESH_INTERVAL_SECONDS: positiveSeconds(300),
   AI_GATEWAY_USAGE_MIN_INTERVAL_SECONDS: positiveSeconds(180),
   AI_GATEWAY_TOKEN_REFRESH_SKEW_SECONDS: positiveSeconds(300),
+  AI_GATEWAY_TOKEN_MIN_HANDOUT_SECONDS: nonNegativeSeconds(3600),
   AI_GATEWAY_CLAUDE_CODE_VERSION: z.string().min(1).default('1.0.0'),
   AI_GATEWAY_ANTHROPIC_CLIENT_ID: z.string().min(1).optional(),
   AI_GATEWAY_OPENAI_CLIENT_ID: z.string().min(1).optional(),
@@ -47,8 +51,14 @@ export interface GatewayConfig {
   refreshIntervalSeconds: number;
   /** Floor between two usage reads for one account; the endpoints throttle. */
   usageMinIntervalSeconds: number;
-  /** How long before expiry an access token is refreshed anyway. */
+  /** How long before expiry an access token is refreshed at the latest. */
   tokenRefreshSkewSeconds: number;
+  /**
+   * How long a handed-out token must still have before its planned refresh
+   * ends it; closer than that, the account is served as unavailable until
+   * the refresh. 0 turns the floor off.
+   */
+  tokenMinHandoutSeconds: number;
   claudeCodeVersion: string;
   anthropicClientId: string | undefined;
   openAiClientId: string | undefined;
@@ -136,6 +146,7 @@ export function loadConfig(
         parsed.data.AI_GATEWAY_USAGE_MIN_INTERVAL_SECONDS,
       tokenRefreshSkewSeconds:
         parsed.data.AI_GATEWAY_TOKEN_REFRESH_SKEW_SECONDS,
+      tokenMinHandoutSeconds: parsed.data.AI_GATEWAY_TOKEN_MIN_HANDOUT_SECONDS,
       claudeCodeVersion: parsed.data.AI_GATEWAY_CLAUDE_CODE_VERSION,
       anthropicClientId: parsed.data.AI_GATEWAY_ANTHROPIC_CLIENT_ID,
       openAiClientId: parsed.data.AI_GATEWAY_OPENAI_CLIENT_ID,

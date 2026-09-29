@@ -177,6 +177,8 @@ function lockedState(task: TaskRow) {
   return {
     repeat: task.repeat,
     repeatContinuedAt: null,
+    seriesId: null,
+    seriesPosition: null,
     archivedAt: task.archivedAt,
     parentTaskId: task.parentTaskId,
     assigneeType: task.assigneeType,
@@ -398,7 +400,7 @@ describe('closing a repeating task creates its next copy', () => {
       /outputs|external_|thread_id|sla_level|completed_at|claimed_at|agent_run/,
     );
 
-    expect(pointerWrites(statements)).toEqual([['t-2', NOW, 't-1']]);
+    expect(pointerWrites(statements)).toEqual([['t-2', NOW, 't-1', 0, 't-1']]);
     expect(
       activityRows(statements).filter((row) => row.action !== 'status.changed'),
     ).toEqual([
@@ -1266,7 +1268,7 @@ describe('the due-date lane continues an open task through the same writer', () 
     expect(
       statements.some((s) => s.text.startsWith('UPDATE app.tasks SET status')),
     ).toBe(false);
-    expect(pointerWrites(statements)).toEqual([['t-2', NOW, 't-1']]);
+    expect(pointerWrites(statements)).toEqual([['t-2', NOW, 't-1', 0, 't-1']]);
     expect(
       activityRows(statements).map((row) => [
         row.taskId,
@@ -1435,7 +1437,9 @@ describe('the due-date lane continues an open task through the same writer', () 
 
   it(`stops at ${REPEAT_OPEN_COPIES_MAX} open tasks in a series`, async () => {
     const series = (open: number) => (text: string) =>
-      text.startsWith('WITH RECURSIVE series AS') ? [{ open }] : undefined;
+      text.startsWith('SELECT count(*)::int AS open FROM app.tasks')
+        ? [{ open }]
+        : undefined;
     const full = fakeTx(dueToday(), series(REPEAT_OPEN_COPIES_MAX));
     await expect(
       createDueRepeatCopy(full.tx, {
@@ -1449,11 +1453,11 @@ describe('the due-date lane continues an open task through the same writer', () 
     });
     expect(copyInsert(full.statements)).toBeNull();
     const walk = full.statements.find((s) =>
-      s.text.startsWith('WITH RECURSIVE series AS'),
+      s.text.startsWith('SELECT count(*)::int AS open FROM app.tasks'),
     );
-    // Counted back along the pointers from the task it would continue.
-    expect(walk?.text).toContain('t.repeat_next_task_id = series.id');
-    expect(walk?.values[0]).toBe('t-1');
+    // Counted by durable membership, explicitly scoped to org and project.
+    expect(walk?.text).toContain('repeat_series_id = ?');
+    expect(walk?.values).toEqual(['org-1', 'p-1', 't-1', 't-1']);
 
     const room = fakeTx(dueToday(), series(REPEAT_OPEN_COPIES_MAX - 1));
     await expect(
@@ -1642,7 +1646,7 @@ describe('the copy brings the work back whole', () => {
       s.text.startsWith('WITH RECURSIVE tree AS'),
     );
     expect(read?.text).toContain('t.archived_at_ms IS NULL');
-    expect(read?.text).toContain('ORDER BY tree.depth');
+    expect(read?.text).toContain('t.project_id = ?');
   });
 
   it('a parent with no dates dates its subtasks from today', async () => {
@@ -1669,7 +1673,7 @@ describe('the copy brings the work back whole', () => {
     expect(step?.dueDate).toBe(Date.UTC(2026, 9, 6, 22));
   });
 
-  it('copies only the first 200 subtasks, and says so', async () => {
+  it('copies the complete subtree beyond 200 subtasks', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const many = Array.from({ length: 201 }, (_, index) =>
       subtask({
@@ -1680,14 +1684,8 @@ describe('the copy brings the work back whole', () => {
     );
     const { tx, statements } = workTx(undefined, many);
     await updateTaskStatus(tx, auth, 't-1', 'done');
-    expect(copyInserts(statements)).toHaveLength(201);
-    const read = statements.find((s) =>
-      s.text.startsWith('WITH RECURSIVE tree AS'),
-    );
-    expect(read?.values.at(-1)).toBe(201);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('only the first 200 subtasks'),
-    );
+    expect(copyInserts(statements)).toHaveLength(202);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('draws the dependencies among the copied tasks again, and leaves the rest', async () => {
