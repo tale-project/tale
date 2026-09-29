@@ -154,6 +154,16 @@ export function TasksWorkspace({
       ),
     [pendingReviews],
   );
+  // One array per answer: a new one each render would rebuild the board's
+  // context and re-render every card that reads it.
+  const pendingReviewRefs = useMemo(
+    () =>
+      pendingReviews.map((review) => ({
+        taskId: review.taskId,
+        requestedFor: review.requestedFor,
+      })),
+    [pendingReviews],
+  );
   const tasks = useMemo(
     () =>
       filterTasksByFacets(loadedTasks, {
@@ -205,14 +215,25 @@ export function TasksWorkspace({
       if (fromRow) setOpenTaskProjectId(fromRow.projectId);
     }
   }
-  const setOpenTaskId = (taskId: string | null, taskProjectId?: string) => {
-    setOpenTaskIdState(taskId);
-    if (taskProjectId) setOpenTaskProjectId(taskProjectId);
-    onOpenTaskParamChange?.(taskId);
-  };
+  // The route hands a new callback on every render, and a `?task=` change is
+  // one. Read the latest through a ref so the open handler keeps one
+  // identity: the memoized board and list then skip every render the dialog
+  // causes, where each open and close re-rendered all cards twice (#3939).
+  const onOpenTaskParamChangeRef = useRef(onOpenTaskParamChange);
+  onOpenTaskParamChangeRef.current = onOpenTaskParamChange;
+  const setOpenTaskId = useCallback(
+    (taskId: string | null, taskProjectId?: string) => {
+      setOpenTaskIdState(taskId);
+      if (taskProjectId) setOpenTaskProjectId(taskProjectId);
+      onOpenTaskParamChangeRef.current?.(taskId);
+    },
+    [],
+  );
 
-  const handleOpenTask = (task: TaskRow) =>
-    setOpenTaskId(task._id, task.projectId);
+  const handleOpenTask = useCallback(
+    (task: TaskRow) => setOpenTaskId(task._id, task.projectId),
+    [setOpenTaskId],
+  );
 
   const handleAssigneeFilterChange = useCallback((values: string[]) => {
     setAssigneeFilter(values[0] ?? ALL_ASSIGNEE_FILTER);
@@ -478,10 +499,7 @@ export function TasksWorkspace({
             dependencyEdges={edges}
             runningTaskIds={runningTaskIds}
             askingTaskIds={askingTaskIds}
-            pendingReviews={pendingReviews.map((review) => ({
-              taskId: review.taskId,
-              requestedFor: review.requestedFor,
-            }))}
+            pendingReviews={pendingReviewRefs}
           >
             <div
               ref={boardRegionRef}

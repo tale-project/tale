@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
 
-import { useTask } from './queries';
+import {
+  useProjectDependencies,
+  useTask,
+  useTaskOpsIndicators,
+  useTaskOpsIndicatorsAcrossProjects,
+} from './queries';
 
 const mocks = vi.hoisted(() => ({
   result: {
@@ -82,5 +87,47 @@ describe('useTask', () => {
     expect(result.current.task).toEqual({ _id: 'task-1', title: 'Ship it' });
     expect(result.current.notFound).toBe(false);
     expect(result.current.canEdit).toBe(true);
+  });
+});
+
+// The board's context is rebuilt whenever one of these arrays changes, and
+// every card reads the context: a fresh `[]` per render while a read is
+// pending or failed re-rendered the whole board on each open of a task
+// (#3939).
+describe('board read defaults', () => {
+  it.each([
+    ['pending', { data: undefined, isLoading: true, error: null }],
+    [
+      'failed',
+      {
+        data: undefined,
+        isLoading: false,
+        error: new AppError({ code: 'INTERNAL', message: 'boom' }),
+        status: 'error',
+      },
+    ],
+  ])('keep one empty array per field while a read is %s', (_state, read) => {
+    mocks.result = read;
+    const ops = renderHook(() => useTaskOpsIndicators('project-1'));
+    const across = renderHook(() => useTaskOpsIndicatorsAcrossProjects());
+    const deps = renderHook(() => useProjectDependencies('project-1'));
+    const first = {
+      running: ops.result.current.runningTaskIds,
+      asking: ops.result.current.askingTaskIds,
+      reviews: ops.result.current.pendingReviews,
+      acrossRunning: across.result.current.runningTaskIds,
+      acrossReviews: across.result.current.pendingReviews,
+      edges: deps.result.current.edges,
+    };
+    ops.rerender();
+    across.rerender();
+    deps.rerender();
+    expect(first.running).toHaveLength(0);
+    expect(ops.result.current.runningTaskIds).toBe(first.running);
+    expect(ops.result.current.askingTaskIds).toBe(first.asking);
+    expect(ops.result.current.pendingReviews).toBe(first.reviews);
+    expect(across.result.current.runningTaskIds).toBe(first.acrossRunning);
+    expect(across.result.current.pendingReviews).toBe(first.acrossReviews);
+    expect(deps.result.current.edges).toBe(first.edges);
   });
 });
