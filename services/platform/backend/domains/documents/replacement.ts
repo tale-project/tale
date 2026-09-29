@@ -753,7 +753,7 @@ async function bindReplacement(
     );
   }
 
-  const shouldIndex = isRagIndexableFile(intent.fileName, verifiedContentType);
+  const shouldIndex = isRagIndexableFile(intent.fileName);
   const now = Date.now();
   const insertedMeta = await tx<{ id: string }[]>`
     INSERT INTO app.file_metadata (

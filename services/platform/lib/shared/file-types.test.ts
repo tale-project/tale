@@ -443,7 +443,6 @@ describe('shouldRagIndexOnUpload', () => {
       'report.docx',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ],
-    ['README', 'text/plain'],
   ])('queues indexing for %s', (fileName, contentType) => {
     expect(shouldRagIndexOnUpload(fileName, contentType)).toBe(true);
   });
@@ -460,68 +459,61 @@ describe('shouldRagIndexOnUpload', () => {
     // No extractor exists for these at all.
     ['archive.zip', 'application/zip'],
     ['legacy.doc', 'application/msword'],
+    // The indexer reads a file by its name, and refuses one without an
+    // extension whatever its type says.
+    ['README', 'text/plain'],
+    ['export', 'application/pdf'],
   ])('leaves %s out of the corpus queue', (fileName, contentType) => {
     expect(shouldRagIndexOnUpload(fileName, contentType)).toBe(false);
   });
 
   it('is the subset of isRagIndexableFile that is not an image', () => {
-    expect(isRagIndexableFile('photo.png', 'image/png')).toBe(true);
+    expect(isRagIndexableFile('photo.png')).toBe(true);
     expect(shouldRagIndexOnUpload('photo.png', 'image/png')).toBe(false);
   });
 });
 
 describe('isRagIndexableFile', () => {
   it.each([
-    ['report.pdf', 'application/pdf'],
-    [
-      'report.docx',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ],
-    ['report.odt', 'application/vnd.oasis.opendocument.text'],
-    [
-      'sheet.xlsx',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ],
-    ['notes.md', 'text/markdown'],
-    ['data.csv', 'text/csv'],
-    ['photo.png', 'image/png'],
-  ])('accepts indexable file %s', (fileName, contentType) => {
-    expect(isRagIndexableFile(fileName, contentType)).toBe(true);
+    'report.pdf',
+    'report.docx',
+    'report.odt',
+    'sheet.xlsx',
+    'notes.md',
+    'data.csv',
+    'photo.png',
+    'REPORT.PDF',
+    // A dotfile whose name goes on past its dot.
+    '.eslintrc.json',
+  ])('accepts indexable file %s', (fileName) => {
+    expect(isRagIndexableFile(fileName)).toBe(true);
   });
 
   it.each([
-    ['legacy.doc', 'application/msword'],
-    ['legacy.xls', 'application/vnd.ms-excel'],
-    ['legacy.ppt', 'application/vnd.ms-powerpoint'],
-    ['.env', 'application/octet-stream'],
-    ['.gitignore', 'text/plain'],
-    ['archive.zip', 'application/zip'],
+    'legacy.doc',
+    'legacy.xls',
+    'legacy.ppt',
+    '.env',
+    '.gitignore',
+    'archive.zip',
     // A Microsoft Loop page as OneDrive serves it: no extractor reads it, so
     // a sync lands it on the terminal `unsupported` state (#2599).
-    ['standup.loop', 'application/octet-stream'],
-  ])('rejects non-indexable file %s', (fileName, contentType) => {
-    expect(isRagIndexableFile(fileName, contentType)).toBe(false);
+    'standup.loop',
+  ])('rejects non-indexable file %s', (fileName) => {
+    expect(isRagIndexableFile(fileName)).toBe(false);
   });
 
-  it('falls back to the MIME type when the filename has no extension', () => {
-    // Mirrors ensureExtension in the RAG upload helper, which appends
-    // the canonical extension for the MIME before RAG's gate sees it.
-    expect(isRagIndexableFile('README', 'text/plain')).toBe(true);
-    expect(isRagIndexableFile('export', 'application/pdf')).toBe(true);
-  });
-
-  it('rejects extension-less files with unknown MIME', () => {
-    expect(isRagIndexableFile('README', 'application/octet-stream')).toBe(
-      false,
-    );
-    expect(isRagIndexableFile('blob', '')).toBe(false);
-  });
-
-  it('does not fall back to MIME when the extension is non-indexable', () => {
-    // Extension wins over MIME — a .doc reported as text/plain is still
-    // a .doc to RAG's extension gate.
-    expect(isRagIndexableFile('legacy.doc', 'text/plain')).toBe(false);
-  });
+  // The indexer reads a file by its name alone and refuses one without an
+  // extension as `unsupported_type`, whatever its content type: a lane that
+  // queued `README` on its `text/plain` promised an index that never came.
+  // `backend/core/knowledge/rag_unsupported.test.ts` holds the two rules
+  // side by side.
+  it.each(['README', 'export', 'blob', 'notes.', '.md', 'drafts/.txt'])(
+    'rejects %s, a name without an extension',
+    (fileName) => {
+      expect(isRagIndexableFile(fileName)).toBe(false);
+    },
+  );
 });
 
 describe('RAG-indexable and audio/video are disjoint', () => {
@@ -541,17 +533,10 @@ describe('RAG-indexable and audio/video are disjoint', () => {
   });
 
   it('an audio file is not indexable, whatever its reported type', () => {
-    for (const [name, contentType] of [
-      ['call.mp3', 'audio/mpeg'],
-      ['call.m4a', 'audio/mp4'],
-      ['clip.mp4', 'video/mp4'],
-      ['clip.mov', 'video/quicktime'],
-      // A mislabelled upload must not sneak in on its content type either.
-      ['call.mp3', 'text/plain'],
-    ] as const) {
-      expect(isRagIndexableFile(name, resolveFileType(name, contentType))).toBe(
-        false,
-      );
+    // The name decides, so a mislabelled upload cannot sneak in on its
+    // content type either.
+    for (const name of ['call.mp3', 'call.m4a', 'clip.mp4', 'clip.mov']) {
+      expect(isRagIndexableFile(name)).toBe(false);
     }
   });
 });

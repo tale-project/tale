@@ -803,17 +803,26 @@ export const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Whether the RAG service can index this file. Keyed on the filename
- * extension, falling back to the canonical extension for the MIME type
- * when the filename has none (mirrors `ensureExtension` in the RAG
- * upload helper, which applies the same fallback before the service's
- * extension gate).
+ * The extension the indexer reads a file by: its extraction router decides
+ * on the name alone (Node's `extname`, lower-cased), so a name with no dot
+ * past its first character — `README`, `export`, a dotfile such as `.md` —
+ * has none, whatever its content type says. Lowercase, no dot.
  */
-export function isRagIndexableFile(
-  fileName: string,
-  contentType: string,
-): boolean {
-  const ext = extractExtension(fileName) ?? mimeToExtension(contentType);
+function indexedExtension(fileName: string): string | undefined {
+  const baseName = fileName.slice(fileName.lastIndexOf('/') + 1);
+  const dot = baseName.lastIndexOf('.');
+  return dot > 0 ? baseName.slice(dot + 1).toLowerCase() : undefined;
+}
+
+/**
+ * Whether the RAG service can index this file — decided on its name, as the
+ * indexer decides it ({@link indexedExtension}). A name without an extension
+ * is not indexable even when its content type names an indexable format: the
+ * indexer refuses it as `unsupported_type`, so a lane that queued it on its
+ * type promised an index that never came.
+ */
+export function isRagIndexableFile(fileName: string): boolean {
+  const ext = indexedExtension(fileName);
   return ext !== undefined && RAG_INDEXABLE_EXTENSIONS.has(ext);
 }
 
@@ -838,14 +847,16 @@ const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
  * take the transcription lane instead (their transcript is indexed after it
  * lands), and an image can only be read by a vision model — a lane the 0.5
  * ingest refuses up front — so queueing one buys an `unsupported` badge and
- * nothing else.
+ * nothing else. The format is the name's, as it is for
+ * {@link isRagIndexableFile}: a name without an extension is never queued,
+ * whatever its content type.
  */
 export function shouldRagIndexOnUpload(
   fileName: string,
   contentType: string,
 ): boolean {
   if (isAudioOrVideo(contentType) || isImage(contentType)) return false;
-  const ext = extractExtension(fileName) ?? mimeToExtension(contentType);
+  const ext = indexedExtension(fileName);
   if (ext === undefined || IMAGE_EXTENSIONS.has(ext)) return false;
   return RAG_INDEXABLE_EXTENSIONS.has(ext);
 }
