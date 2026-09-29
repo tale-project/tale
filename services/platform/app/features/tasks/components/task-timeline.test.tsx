@@ -1,27 +1,29 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TaskActivityRow } from '../utils/task-timeline';
+import type { TaskActivityRow, TaskAgentRunRow } from '../utils/task-timeline';
 import { TaskTimeline } from './task-timeline';
 
 // Typed as the row the timeline actually consumes, so a fixture can carry any
 // real `actorType` and the shape cannot drift from `TaskActivityRow`.
-const timelineMocks: { activity: TaskActivityRow[] } = {
-  activity: [
-    {
-      _id: 'activity_1' as string,
-      actorType: 'agent',
-      actorId: 'issue-triager',
-      action: 'agent_run.refused',
-      toValue: 'agent_disabled',
-      createdAt: Date.now(),
-    },
-  ],
-};
+const timelineMocks: { activity: TaskActivityRow[]; runs: TaskAgentRunRow[] } =
+  {
+    runs: [],
+    activity: [
+      {
+        _id: 'activity_1' as string,
+        actorType: 'agent',
+        actorId: 'issue-triager',
+        action: 'agent_run.refused',
+        toValue: 'agent_disabled',
+        createdAt: Date.now(),
+      },
+    ],
+  };
 
 vi.mock('../hooks/queries', () => ({
   useTaskActivity: () => ({ activity: timelineMocks.activity }),
-  useTaskAgentRuns: () => ({ runs: [] }),
+  useTaskAgentRuns: () => ({ runs: timelineMocks.runs }),
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
@@ -29,7 +31,14 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: (type: string, id: string) => ({
       type,
       id,
-      name: id === 'issue-triager' ? 'Issue Triager' : id,
+      name:
+        (
+          {
+            'issue-triager': 'Issue Triager',
+            'agent-manager': 'Fleet manager',
+            'agent-worker': 'Implementer',
+          } as Record<string, string>
+        )[id] ?? id,
       isAgent: type === 'agent',
     }),
     resolveAssigneeId: (id: string) =>
@@ -40,8 +49,25 @@ vi.mock('../hooks/use-actor-directory', () => ({
         }) as Record<string, string>
       )[id] ?? id,
     resolveActorPreview: () => null,
-    resolveAgentRunPreview: () => null,
-    resolveWorkflowRunPreview: () => null,
+    resolveAgentRunPreview: (run: { agentSlug: string }) => ({
+      kind: 'agent',
+      name: run.agentSlug === 'agent-worker' ? 'Implementer' : run.agentSlug,
+      viewTo: '/dashboard/$id',
+      viewParams: { id: 'org_1' },
+    }),
+    resolveWorkflowRunPreview: (run: {
+      workflowSlug?: string;
+      wfExecutionId?: string;
+    }) =>
+      run.workflowSlug === undefined
+        ? null
+        : {
+            kind: 'workflow',
+            name: 'Fleet manager cycle',
+            viewTo: '/dashboard/$id/automations/$automationSlug',
+            viewParams: { id: 'org_1', automationSlug: run.workflowSlug },
+            viewSearch: { execution: run.wfExecutionId },
+          },
   }),
 }));
 
@@ -71,6 +97,11 @@ vi.mock('@tale/ui/i18n/client', () => ({
         never: 'Never',
         'agentRuns.refused.agent_disabled':
           'agent is not installed or is disabled',
+        'timeline.runLabel': 'Agent run',
+        'timeline.startedByAgent': 'started by',
+        'agentRuns.trigger.automation': 'automation',
+        'agentRuns.trigger.delegated': 'delegated',
+        'agentRuns.trigger.manual': 'manual',
       };
       return (
         labels[key] ?? (values ? `${key}(${JSON.stringify(values)})` : key)
@@ -323,5 +354,84 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
     );
 
     expect(screen.getByText('next task created: OPS-12')).toBeInTheDocument();
+  });
+});
+
+describe('TaskTimeline — runs no person started', () => {
+  beforeEach(() => {
+    timelineMocks.activity = [];
+    timelineMocks.runs = [];
+  });
+
+  it('names the automation run that started an agent run', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_1',
+        agentSlug: 'agent-worker',
+        trigger: 'automation',
+        status: 'running',
+        startedAt: Date.now(),
+        costCents: 0,
+        workflowSlug: 'autonomous-cycle/fleet-manager',
+        wfExecutionId: 'automation_run_1',
+      },
+    ];
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+    expect(screen.getByText('automation')).toBeInTheDocument();
+    expect(screen.getByText('Fleet manager cycle')).toBeInTheDocument();
+    expect(screen.queryByText(/started by/)).not.toBeInTheDocument();
+  });
+
+  it('names the agent whose run started a delegated one', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_2',
+        agentSlug: 'agent-worker',
+        trigger: 'delegated',
+        status: 'running',
+        startedAt: Date.now(),
+        costCents: 0,
+        delegatedByAgentId: 'agent-manager',
+      },
+    ];
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+    expect(screen.getByText('delegated')).toBeInTheDocument();
+    expect(screen.getByText(/started by/)).toBeInTheDocument();
+    expect(screen.getByText('Fleet manager')).toBeInTheDocument();
+  });
+
+  it('names neither for a run a person started', () => {
+    timelineMocks.runs = [
+      {
+        runId: 'run_3',
+        agentSlug: 'agent-worker',
+        trigger: 'manual',
+        status: 'running',
+        startedAt: Date.now(),
+        costCents: 0,
+      },
+    ];
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+    expect(screen.getByText('manual')).toBeInTheDocument();
+    expect(screen.queryByText(/started by/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Fleet manager cycle')).not.toBeInTheDocument();
   });
 });

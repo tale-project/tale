@@ -566,3 +566,70 @@ describe('task write adapters', () => {
     ).resolves.toBe('t-new');
   });
 });
+
+describe('the task run list adapter', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** One wire run: a person's kick unless the provenance says otherwise. */
+  function wireRun(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'run-1',
+      agentId: 'agent-worker',
+      status: 'running',
+      error: null,
+      trigger: 'manual',
+      startedAt: 1_000,
+      launchedAt: 1_100,
+      settledAt: null,
+      startedVia: null,
+      startedViaRunId: null,
+      startedViaAutomation: null,
+      startedViaAgentId: null,
+      ...overrides,
+    };
+  }
+
+  it('links a run an automation step started to that automation run, and names the agent behind a delegated one', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        runs: [
+          wireRun({
+            id: 'run-auto',
+            trigger: 'automation',
+            startedVia: 'automation',
+            startedViaRunId: 'automation-run-1',
+            startedViaAutomation: 'autonomous-cycle/fleet-manager',
+          }),
+          wireRun({
+            id: 'run-delegated',
+            trigger: 'delegated',
+            startedVia: 'agent',
+            startedViaRunId: 'run-manager',
+            startedViaAgentId: 'agent-manager',
+          }),
+          wireRun({ id: 'run-manual' }),
+        ],
+      }),
+    );
+    const runs = (await taskReadAdapters['tasks/queries:listTaskAgentRuns']?.(
+      { organizationId: 'org-1', taskId: 't1' },
+      {},
+    )?.queryFn()) as Record<string, unknown>[];
+    expect(runs[0]).toMatchObject({
+      runId: 'run-auto',
+      trigger: 'automation',
+      workflowSlug: 'autonomous-cycle/fleet-manager',
+      wfExecutionId: 'automation-run-1',
+    });
+    expect(runs[0]).not.toHaveProperty('delegatedByAgentId');
+    expect(runs[1]).toMatchObject({
+      runId: 'run-delegated',
+      trigger: 'delegated',
+      delegatedByAgentId: 'agent-manager',
+    });
+    expect(runs[1]).not.toHaveProperty('workflowSlug');
+    for (const key of ['workflowSlug', 'wfExecutionId', 'delegatedByAgentId']) {
+      expect(runs[2]).not.toHaveProperty(key);
+    }
+  });
+});

@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-1003 boxes across 21 suites. Every suite declares the ID prefix its
+1007 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -38,7 +38,7 @@ directory and greppable as one token.
 | [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep | 28 |
 | [approvals](suites/approvals.md) | `APV-` | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval | 20 |
 | [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 51 |
-| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings | 76 |
+| [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings | 78 |
 | [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 90 |
 | [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 40 |
 | [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 58 |
@@ -54,7 +54,7 @@ directory and greppable as one token.
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 32 |
 | [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 108 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 29 |
-| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, review | 100 |
+| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, review | 102 |
 | [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 15 |
 
 ## How a round runs

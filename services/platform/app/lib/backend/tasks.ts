@@ -449,6 +449,10 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
             startedAt: number;
             launchedAt: number | null;
             settledAt: number | null;
+            startedVia?: 'automation' | 'agent' | null;
+            startedViaRunId?: string | null;
+            startedViaAutomation?: string | null;
+            startedViaAgentId?: string | null;
           }[];
         }>(`/tasks/${encodeURIComponent(taskId)}/agent-runs`, { orgId }).then(
           (body) =>
@@ -458,6 +462,20 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               trigger: run.trigger ?? 'manual',
               status: run.status,
               ...(run.error !== null ? { error: run.error } : {}),
+              // A run an automation step started links to that automation
+              // run; one another agent started names that agent.
+              ...(run.startedVia === 'automation' &&
+              typeof run.startedViaAutomation === 'string' &&
+              typeof run.startedViaRunId === 'string'
+                ? {
+                    workflowSlug: run.startedViaAutomation,
+                    wfExecutionId: run.startedViaRunId,
+                  }
+                : {}),
+              ...(run.startedVia === 'agent' &&
+              typeof run.startedViaAgentId === 'string'
+                ? { delegatedByAgentId: run.startedViaAgentId }
+                : {}),
               startedAt: run.startedAt,
               ...(run.launchedAt !== null && run.settledAt !== null
                 ? { durationMs: run.settledAt - run.launchedAt }
