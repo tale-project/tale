@@ -23,5 +23,8 @@
         "qwen/qwen3-coder"
       ]
     }
-  ]
+  ],
+  "modelApi": {
+    "enabled": true
+  }
 }

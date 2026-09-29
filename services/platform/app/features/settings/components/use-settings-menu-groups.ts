@@ -24,6 +24,7 @@ import type {
   SettingsSectionListGroup,
   SettingsSectionListItem,
 } from '@/app/features/settings/components/settings-section-list';
+import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import type { AppAction, AppSubject } from '@/lib/permissions/ability';
@@ -35,6 +36,9 @@ interface SectionConfig {
   icon: LucideIcon;
   path: string;
   can?: [AppAction, AppSubject];
+  /** Shown only when true — for an entry whose audience a role alone does
+   * not decide (API: a member granted the model endpoints sees it too). */
+  visible?: boolean;
 }
 
 /**
@@ -51,6 +55,8 @@ export function useSettingsMenuGroups(
   const ability = useAbility();
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
+  const apiAccess = useApiSettingsAccess(organizationId);
+  const apiVisible = apiAccess.developer || apiAccess.modelApi;
 
   return useMemo<SettingsSectionListGroup[]>(() => {
     const personalConfig: SectionConfig[] = [
@@ -135,7 +141,9 @@ export function useSettingsMenuGroups(
         key: 'api',
         icon: KeyRound,
         path: 'api',
-        can: ['read', 'developerSettings'],
+        // Owners, admins and developers; and a member who may call the
+        // model endpoints (REST and Models only).
+        visible: apiVisible,
       },
       {
         key: 'enterpriseSso',
@@ -160,7 +168,12 @@ export function useSettingsMenuGroups(
     });
 
     const filter = (cfgs: SectionConfig[]) =>
-      cfgs.filter((c) => !c.can || ability.can(c.can[0], c.can[1])).map(toItem);
+      cfgs
+        .filter(
+          (c) =>
+            c.visible !== false && (!c.can || ability.can(c.can[0], c.can[1])),
+        )
+        .map(toItem);
 
     const youGroup: SettingsSectionListGroup = {
       key: 'you',
@@ -189,5 +202,5 @@ export function useSettingsMenuGroups(
           ];
 
     return groups.filter((group) => group.items.length > 0);
-  }, [ability, organizationId, scope, tNav, tSettings]);
+  }, [ability, apiVisible, organizationId, scope, tNav, tSettings]);
 }

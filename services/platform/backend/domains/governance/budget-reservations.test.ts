@@ -81,6 +81,12 @@ describe('readInFlightReservations', () => {
     expect(read).toContain('FROM app.generations');
     expect(read).toContain('FROM app.sandbox_session_ops');
     expect(read).toContain('spend_settled_at_ms IS NULL');
+    // An unsettled op holds against the key its reservation stamped — a
+    // keyed run's turn and a model-endpoint request alike — with the tokens
+    // its hold sized and an image generation it has in flight.
+    expect(read).toContain(
+      'SELECT user_id, api_key_id, (coalesce(budget_cents, 0) + image_hold_cents)::float8, coalesce(reserved_tokens, 0)::float8,',
+    );
     expect(read).toContain('JOIN "teamMember" tm ON tm."userId" = h.user_id');
     expect(statements[0]?.values).toEqual(
       expect.arrayContaining(['org-1', 'user-1', 'key-1', ['team-1']]),

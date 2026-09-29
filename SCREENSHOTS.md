@@ -48,7 +48,7 @@ Choose the integration a credential belongs to. Available authentication methods
 
 ## Review organization controls
 
-Check which guardrail layers are enabled and review their events. This example shows content filters before activation and a configured organization instruction; opening this page does not enable protection.
+Check which guardrail layers are enabled and review their events. This example shows content safety and PII detection switched on, no moderation provider configured, and an organization instruction; opening this page does not change any protection.
 
 [![Guardrail status cards above recent events and organization instructions.](services/docs/public/images/platform/governance-guardrails.webp)](services/docs/public/images/platform/governance-guardrails.webp)
 
