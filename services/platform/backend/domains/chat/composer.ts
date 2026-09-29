@@ -64,13 +64,29 @@ function toSkillCapability(skill: SkillSummaryView): SkillCapability {
   return option;
 }
 
-/** The equippable skills of a listing, attributed and sorted by label. */
+/** How a capability listing is read. */
+export interface CapabilityListingOptions {
+  /**
+   * Resolve each skill's creator for the picker (default). A caller that
+   * only checks which slugs are equippable passes `false` and skips the
+   * audit-trail and member reads behind the names.
+   */
+  attribution?: boolean;
+}
+
+/** The equippable skills of a listing, sorted by label — attributed unless
+ * the caller opts out. */
 async function toSkillCapabilities(
   sql: Sql,
   organizationId: string,
   skills: readonly SkillSummaryView[],
+  options: CapabilityListingOptions,
 ): Promise<SkillCapability[]> {
-  return (await withSkillAttribution(sql, organizationId, skills))
+  const listed =
+    options.attribution === false
+      ? skills
+      : await withSkillAttribution(sql, organizationId, skills);
+  return listed
     .map(toSkillCapability)
     .sort((a, b) => a.label.localeCompare(b.label));
 }
@@ -210,6 +226,7 @@ async function projectTeamIds(sql: Sql, projectId: string): Promise<string[]> {
 export async function listProjectCapabilities(
   sql: Sql,
   args: { organizationId: string; userId: string; projectId: string },
+  options: CapabilityListingOptions = {},
 ): Promise<{ skills: SkillCapability[]; connectors: ComposerCapability[] }> {
   const access = await projectChatAccess(sql, {
     projectId: args.projectId,
@@ -233,7 +250,12 @@ export async function listProjectCapabilities(
     },
   });
   return {
-    skills: await toSkillCapabilities(sql, args.organizationId, listing.skills),
+    skills: await toSkillCapabilities(
+      sql,
+      args.organizationId,
+      listing.skills,
+      options,
+    ),
     connectors: await listConnectorCapabilities(sql, args.organizationId),
   };
 }
@@ -261,7 +283,12 @@ export async function listAutomationCapabilities(
         : { kind: 'org' },
   });
   return {
-    skills: await toSkillCapabilities(sql, args.organizationId, listing.skills),
+    skills: await toSkillCapabilities(
+      sql,
+      args.organizationId,
+      listing.skills,
+      {},
+    ),
     connectors: await listConnectorCapabilities(sql, args.organizationId),
   };
 }
