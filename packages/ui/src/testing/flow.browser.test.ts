@@ -50,12 +50,12 @@ describe('viewportAtRest', () => {
     );
   });
 
-  it('gives up when the frames stop coming, naming where the view was', async () => {
+  it('gives up when no frame comes, naming where the view was and why', async () => {
     const { host } = canvas('translate(12px, 34px) scale(1.5)');
     // A hidden or throttled page draws no frame: the callback never runs.
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
     await expect(viewportAtRest(host, { timeout: 300 })).rejects.toThrow(
-      'React Flow viewport never came to rest within 300 ms (last transform: translate(12px, 34px) scale(1.5))',
+      'React Flow viewport never came to rest within 300 ms (last transform: translate(12px, 34px) scale(1.5); no animation frame ran)',
     );
   });
 

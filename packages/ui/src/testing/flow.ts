@@ -15,10 +15,11 @@
  * A view that never settles — an ease that does not end, a refit loop —
  * would otherwise keep this waiting until the test's own timeout, whose
  * message names neither the viewport nor where it was. So once `timeout`
- * milliseconds (5 s by default) have passed and the view is still moving,
- * it rejects, naming the last transform it read. It does as much when the
- * frames stop coming: a hidden or throttled page draws none, and no read can
- * then tell whether the view still moves.
+ * milliseconds (5 s by default) pass without two frames going by that leave
+ * the view where it was, it rejects, naming the last transform it read.
+ * Frames that stop coming end the wait the same way — a hidden or throttled
+ * page draws none, and no read can then tell whether the view still moves —
+ * and a wait in which not one frame came says so.
  */
 export async function viewportAtRest(
   within: ParentNode = document,
@@ -31,9 +32,12 @@ export async function viewportAtRest(
   };
   const deadline = performance.now() + timeout;
   let seen = read();
+  // Whether any frame came at all: without one, the failure is the page's
+  // (hidden, throttled), not a view that kept moving.
+  let framed = false;
   const unsettled = () =>
     new Error(
-      `React Flow viewport never came to rest within ${timeout} ms (last transform: ${seen})`,
+      `React Flow viewport never came to rest within ${timeout} ms (last transform: ${seen}${framed ? '' : '; no animation frame ran'})`,
     );
   for (;;) {
     // Two frames, so the ease has stepped at least once between the reads
@@ -43,7 +47,10 @@ export async function viewportAtRest(
     try {
       await Promise.race([
         new Promise((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
+          requestAnimationFrame(() => {
+            framed = true;
+            requestAnimationFrame(resolve);
+          });
         }),
         new Promise((_resolve, reject) => {
           timer = setTimeout(
