@@ -235,7 +235,9 @@ export function OneDriveImportDialog({
     (!cloudImportAuthLoading &&
       (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError) ||
-    isCloudImportAuthError(sitesError);
+    isCloudImportAuthError(sitesError) ||
+    isCloudImportAuthError(drivesError) ||
+    isCloudImportAuthError(spFilesError);
 
   // Safety net: if the picker opens without a grant (or the grant dies
   // mid-session), hand off to the connect dialog instead of resizing.
