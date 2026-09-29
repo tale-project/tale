@@ -72,6 +72,18 @@ Bei **Nicht unterstützt** gibt es keine Wiederholungsaktion: Dieselben Dateiinh
 
 </Frame>
 
+## Wenn die Dokumente nicht geladen werden
+
+**Dokumente** listet Ordner und Dokumente aus zwei getrennten Abrufen auf. Lassen sich die Dokumente nicht laden, gibt Tale die Ordner nicht als den ganzen Inhalt aus:
+
+- Die Ordner bleiben in der Liste, und du kannst sie weiter öffnen. Ein Hinweis über der Tabelle sagt, dass die Dokumente nicht geladen werden konnten, und bietet **Erneut versuchen** an. Das wiederholt den Abruf, ohne dass du die Seite neu laden musst.
+- Die Anzahl unter der Tabelle sagt, dass nur die ersten Einträge angezeigt werden und der Rest nicht geladen werden konnte. Eine Suche umfasst nur, was aufgelistet ist.
+- Waren bereits Dokumente zu sehen, als eine Aktualisierung fehlschlug, bleiben sie stehen, und der Hinweis sagt, dass die Liste unvollständig oder veraltet sein kann.
+- Während du es erneut versuchst, bleiben die Zeilen sichtbar, und deine Suche, deine Filter und ein geöffneter Dialog bleiben erhalten.
+- Lässt sich gar nichts laden, zeigt die Tabelle statt des leeren Zustands den Fehler mit **Erneut versuchen**.
+
+Ein Ordner, der wirklich keine Dokumente enthält, zeigt seine Unterordner ohne Hinweis. Scheitert **Erneut versuchen** immer wieder, bitte einen Administrator zu prüfen, ob die Dienste von Tale laufen.
+
 ## Festlegen, wer das Dokument lesen kann
 
 Bibliotheksdokumente sind standardmäßig **Organisationsweit** zugänglich. Begrenze den Zugriff über **Team zuweisen** im Zeilenmenü auf die gewählten Teams: Die Mitglieder eines dieser Teams können das Dokument lesen, Inhaber und Admins immer. Sofern du nicht Inhaber oder Admin bist, kannst du nur Teams wählen, denen du selbst angehörst. Ein Dokument in einem Team-Ordner übernimmt die Teams des Ordners und kann kein Team außerhalb davon nennen; wird ein Dokument in einen solchen Ordner verschoben, gelten die Teams des Ordners. Diese Beschränkungen gelten auch bei der Wissenssuche. Ein Agent kann unzugängliche Dokumente nicht über die Suche sichtbar machen.

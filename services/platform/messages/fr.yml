@@ -2115,6 +2115,7 @@ documents:
   tableCaption: Documents et dossiers
   searchPlaceholder: Rechercher des documents
   refreshFailed: Impossible de charger les derniers documents. La liste est peut-être incomplète ou obsolète.
+  loadFailed: Impossible de charger les documents ici. Seuls les dossiers sont affichés tant que les documents ne sont pas chargés.
   record:
     badge: 'v{version} · {state}'
     state:

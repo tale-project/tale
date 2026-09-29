@@ -102,6 +102,39 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
     expect(cursors).toEqual([null, null, null, null, null]);
   });
 
+  // A host that lists rows of its own beside the listing (a documents
+  // table's folders) must still know the listing is missing while a retry
+  // runs, when react-query has reset its error to nothing.
+  it('stays unavailable, and retrying, through the retry of a first page that never answered', async () => {
+    let answerRetry = (): void => {};
+    listDoor([
+      unavailable,
+      unavailable,
+      unavailable,
+      unavailable,
+      () =>
+        new Promise((resolve) => {
+          answerRetry = () =>
+            resolve(json(200, { items: [], isDone: true, continueCursor: '' }));
+        }),
+    ]);
+    const { result } = renderListing();
+
+    await waitFor(() => expect(result.current.unavailable).toBe(true));
+    expect(result.current.isRetrying).toBe(false);
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.isRetrying).toBe(true));
+    expect(result.current.error).toBeNull();
+    expect(result.current.unavailable).toBe(true);
+
+    // An empty answer is an answer: the listing is no longer unavailable.
+    act(() => answerRetry());
+    await waitFor(() => expect(result.current.unavailable).toBe(false));
+    expect(result.current.isRetrying).toBe(false);
+    expect(result.current.results).toEqual([]);
+  });
+
   it('settles a refused first page at once', async () => {
     const cursors = listDoor([
       () => json(403, { error: 'FORBIDDEN', message: 'Forbidden' }),
