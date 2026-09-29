@@ -43,12 +43,12 @@ The cards report **Total turns**, the **Success rate**, the **Timeout rate**, th
 | --- | --- |
 | **Completed** | Tasks that reached Done in the period, split by current assignee into tasks assigned to an agent and all other tasks. |
 | **Avg cycle time** | The average time from a task's first move to In progress until it reached Done. A task that skipped In progress has no cycle time. |
-| **Intervention rate** | Changes requested in review plus the questions agents asked people, answered or not, per agent run started in the period. |
+| **Intervention rate** | Changes requested in review plus escalations (questions that agent steps in automations asked people), per agent run started in the period. |
 | **Spend** | The cost of the project's agent runs, with how many started and how many failed. |
 
-The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, each day's completions split into **Agents** and **Humans**, and the daily spend. That split, like the one under **Completed**, goes by each task's assignee as it is now, not by who completed the task: a task assigned to an agent counts for agents even when a person moved it to Done, and a task assigned to a person, an automation, or no one counts for humans. Past days change too: when a task is later assigned to an agent or loses its agent, for example because the agent was deleted, its completion moves to the other side.
+The charts below show the open tasks by status at the end of each day, the tasks created and completed each day, the cycle-time trend, each day's completions split into **Agents** and **Humans**, and the daily spend. That split, like the one under **Completed**, goes by each task's assignee as it is now, not by who completed the task. A task assigned to an agent counts for agents, although a person moved it to Done; a task assigned to a person, an automation, or no one counts for humans. Past days change too: when a task is later assigned to an agent or loses its agent, for example because the agent was deleted, its completion moves to the other side.
 
-A rising intervention rate with a steady number of runs means people are sending more work back or agents are asking more questions. Every question counts on the day an agent asks it, whether or not anyone answers it. Read the tasks in review before changing the agent's instructions under [Project agents](/platform/projects/project-agents).
+A rising intervention rate with a steady number of runs means people are sending more work back or agents are asking more questions. Escalations come from agent steps in automations working on the project, and each one counts on the day it is raised, whether or not anyone answers. For work sent back, read the tasks in review before changing an agent's instructions under [Project agents](/platform/projects/project-agents); for questions, read the runs of the automation that asked them, as [Read automation runs](/platform/automations/execution-logs) explains.
 
 ## Read the figures correctly
 
