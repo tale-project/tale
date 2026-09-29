@@ -1749,6 +1749,7 @@ conversations:
     sent: Email sent
   updating: Updating conversations...
   bulk:
+    progress: 'Updating conversations... {settled} of {total}'
     sendMessages: Send messages
     close: Close
     reopen: Reopen
@@ -1861,6 +1862,8 @@ conversations:
     discard: Delete
   list:
     empty: No conversations in this tab
+    loadFailed: Couldn't load conversations
+    loadFailedDescription: Something went wrong while loading these conversations.
   activate:
     title: No conversations yet
     description: Incoming conversations from your connected channels will appear here.

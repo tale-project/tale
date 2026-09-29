@@ -1519,20 +1519,7 @@ interface Allowance {
  * the same pair fails with every one listed, and one holding fewer marks the
  * entry stale.
  */
-const ALLOWED: readonly Allowance[] = [
-  'useBulkArchiveConversations',
-  'useBulkCloseConversations',
-  'useBulkReopenConversations',
-  'useBulkSpamConversations',
-  'useBulkUnarchiveConversations',
-].map((hook) => ({
-  write: `app/features/conversations/hooks/mutations.ts#${hook}`,
-  file: 'app/features/conversations/hooks/use-bulk-actions.ts',
-  reason:
-    '#3784 (open) passes `errorToast: false` to the five bulk verbs and ' +
-    'rewrites both files, so their fix is its. Delete these entries when ' +
-    'it lands: this suite reports them stale.',
-}));
+const ALLOWED: readonly Allowance[] = [];
 
 function sitesOf(entry: Allowance, found: readonly Violation[]): Violation[] {
   return found.filter(

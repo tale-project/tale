@@ -1806,6 +1806,7 @@ conversations:
     sent: E-Mail gesendet
   updating: Konversationen werden aktualisiert...
   bulk:
+    progress: 'Konversationen werden aktualisiert... {settled} von {total}'
     sendMessages: Nachrichten senden
     close: Schließen
     reopen: Erneut öffnen
@@ -1929,6 +1930,8 @@ conversations:
     discard: Löschen
   list:
     empty: Keine Konversationen in diesem Tab
+    loadFailed: Konversationen konnten nicht geladen werden
+    loadFailedDescription: Beim Laden dieser Konversationen ist ein Fehler aufgetreten.
   activate:
     title: Noch keine Konversationen
     description: Eingehende Konversationen aus deinen verbundenen Kanälen erscheinen hier.

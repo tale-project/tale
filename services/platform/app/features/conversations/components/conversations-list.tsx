@@ -28,6 +28,7 @@ import { isKeyOf } from '@/lib/utils/type-utils';
 import { useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
 import type { Conversation } from '../types';
+import { ConversationListLoadError } from './conversation-list-load-error';
 
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {
@@ -91,6 +92,11 @@ interface ConversationsListProps {
    * rather than only already-loaded pages (#2054).
    */
   isFiltering?: boolean;
+  /** The list read's error once its retries gave up, else `null`. With no
+   * row to show, the list says it failed instead of claiming it is empty. */
+  loadError?: Error | null;
+  /** Re-issue the failed read — the error state's **Try again**. */
+  onRetry?: () => void;
 }
 
 const priorityConfig = {
@@ -371,6 +377,8 @@ export function ConversationsList({
   loadMore,
   skeletonRows = 12,
   isFiltering = false,
+  loadError = null,
+  onRetry,
 }: ConversationsListProps) {
   const { formatDateSmart } = useFormatDate();
   const { t } = useT('conversations');
@@ -452,7 +460,12 @@ export function ConversationsList({
       className={cn(isEmpty && 'flex min-h-0 flex-1 flex-col')}
     >
       {isEmpty ? (
-        isSearchingMore ? (
+        loadError !== null && onRetry !== undefined ? (
+          <ConversationListLoadError
+            onRetry={onRetry}
+            className="min-h-0 flex-1 justify-center px-4 py-16"
+          />
+        ) : isSearchingMore ? (
           // Still draining backend pages for a match — show a spinner rather
           // than the empty message so we don't flash a false "no results".
           <Center className="min-h-0 flex-1 px-4 py-16">
