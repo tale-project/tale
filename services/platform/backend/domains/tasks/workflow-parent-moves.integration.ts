@@ -356,6 +356,33 @@ export async function checkTaskWorkflowParentMoves(
         idleAfter.run === 'success',
       `door=${idleMove.status} ${show(idleMove.body)} (want 200, nothing cancelled), task=${idleAfter.task} run=${idleAfter.run} (want todo, success)`,
     );
+
+    // ---- a stop that lost the race: the drop still names its place ---------
+    // Another session stopped the run and moved the task to To do while this
+    // one confirmed: the task already sits there, and this drop's place
+    // between two cards still applies, as a reorder with no status change.
+    const raced = await mkParent('Stopped elsewhere meanwhile', ['todo']);
+    const elsewhere = await stopAndMove(raced.taskId, { status: 'todo' });
+    const racedBefore = await state(raced);
+    const racedMove = await stopAndMove(raced.taskId, {
+      status: 'todo',
+      beforeTaskId: above,
+      afterTaskId: below,
+    });
+    const racedAfter = await state(raced);
+    record(
+      'workflow parent: a stop that finds the task already moved there still places the card where it was dropped, as a reorder',
+      elsewhere.status === 200 &&
+        racedMove.status === 200 &&
+        racedMove.body?.executionCancelled === false &&
+        racedAfter.task === 'todo' &&
+        aboveRank !== undefined &&
+        belowRank !== undefined &&
+        racedAfter.rank > aboveRank.rank &&
+        racedAfter.rank < belowRank.rank &&
+        show(racedAfter.activity) === show(racedBefore.activity),
+      `first stop=${elsewhere.status}, second=${racedMove.status} ${show(racedMove.body)} (want 200, nothing left to cancel), task=${racedAfter.task}, rank ${aboveRank?.rank} < ${racedAfter.rank} < ${belowRank?.rank} (want between its neighbours), history unchanged=${show(racedAfter.activity) === show(racedBefore.activity)} (want true: a reorder is no status change)`,
+    );
   } finally {
     await sql`
       DELETE FROM app.approvals
