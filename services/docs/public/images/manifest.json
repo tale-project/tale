@@ -225,7 +225,7 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1538,
+      "width": 1536,
       "height": 660
     },
     {
@@ -309,7 +309,7 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1538,
+      "width": 1536,
       "height": 356
     },
     {
@@ -354,11 +354,11 @@
       "route": "/dashboard/:orgId/projects",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 1200
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 2400
     },
     {
       "file": "images/platform/project-knowledge-files.webp",
@@ -401,12 +401,12 @@
       "shot": "projects-task-board",
       "route": "/dashboard/:orgId/projects",
       "viewport": {
-        "width": 1920,
-        "height": 1200
+        "width": 2240,
+        "height": 1400
       },
       "dpr": 2,
-      "width": 3840,
-      "height": 2400
+      "width": 4480,
+      "height": 2800
     },
     {
       "file": "images/platform/sandbox-infrastructure-capacity.webp",
