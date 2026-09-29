@@ -34,6 +34,12 @@ Die Endpunkte sind ausgeschaltet, bis ein Admin unter **Einstellungen > Richtlin
 
 **Einstellungen > API > Modelle** bündelt, was deine Tools brauchen: beide Basis-URLs, den Organisations-Slug, die Modelle, die du aufrufen kannst, mit einer Kopierschaltfläche für jede ID, und Konfigurationen zum Kopieren für opencode, Claude Code und das OpenAI-SDK für Python. Solange deine Organisation die Endpunkte nicht eingeschaltet hat, zeigt der Tab **Die Modell-Endpunkte sind für deine Organisation nicht aktiviert**; Inhaber und Admins finden dort **Modellzugriff öffnen**.
 
+<Frame caption="Einstellungen > API > Modelle — die Basis-URLs, der Organisations-Slug und die Modelle, die du aufrufen kannst.">
+
+![Der Tab Modelle unter Einstellungen > API mit den OpenAI- und Anthropic-kompatiblen Basis-URLs, dem Authorization-Header für einen API-Schlüssel, dem Organisations-Slug northlight-labs und fünf Modell-IDs mit je einem Kopierknopf.](/images/develop/settings-api-models.webp)
+
+</Frame>
+
 ### Verbindungsdaten
 
 | Angabe | Wert |

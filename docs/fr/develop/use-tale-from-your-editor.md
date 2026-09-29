@@ -34,6 +34,12 @@ Les endpoints restent désactivés tant qu’un admin n’a pas activé **Endpoi
 
 **Paramètres > API > Modèles** rassemble ce dont tes outils ont besoin : les deux URL de base, le slug de l’organisation, les modèles que tu peux appeler avec un bouton de copie pour chaque identifiant, et des configurations à copier pour opencode, Claude Code et le SDK OpenAI pour Python. Tant que ton organisation n’a pas activé les endpoints, l’onglet affiche **Les endpoints de modèles ne sont pas activés pour ton organisation**, et les propriétaires et les admins y trouvent **Ouvrir l'accès aux modèles**.
 
+<Frame caption="Paramètres > API > Modèles — les URL de base, le slug de l’organisation et les modèles que tu peux appeler.">
+
+![L’onglet Modèles sous Paramètres > API avec les URL de base compatibles OpenAI et Anthropic, l’en-tête Authorization pour une clé API, le slug d’organisation northlight-labs et cinq identifiants de modèles, chacun avec un bouton de copie.](/images/develop/settings-api-models.webp)
+
+</Frame>
+
 ### Paramètres de connexion
 
 | Réglage | Valeur |

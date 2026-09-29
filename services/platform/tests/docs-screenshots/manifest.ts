@@ -39,6 +39,7 @@ import {
   DEMO_SSO_EXAMPLE,
   DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
+  MOCK_PROVIDER_SLUG,
 } from './demo-content';
 
 export interface ShotContext {
@@ -123,6 +124,60 @@ const skillSharingSection = (page: Page): Locator =>
     name: t('governance.skillSharing.title'),
     exact: true,
   });
+
+/** The Image generation section on Governance > Models. */
+const imageGenerationSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.imageGeneration.title'),
+    exact: true,
+  });
+
+/** The Model endpoints for API keys section on Governance > Models. */
+const modelEndpointsSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.modelAccess.modelApi.title'),
+    exact: true,
+  });
+
+/**
+ * Sanitizer for frames that name the capture rig's model gateway or origin:
+ * the mock provider's slug and display name, and the local app origin, in
+ * text and in read-only fields alike, become what a customer's page shows.
+ */
+const replaceRigNames = async (page: Page): Promise<void> => {
+  await page.evaluate(
+    ({ swaps }) => {
+      const swap = (text: string): string =>
+        swaps.reduce((out, [rig, real]) => out.split(rig).join(real), text);
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent ?? '';
+        const next = swap(text);
+        if (next !== text) node.textContent = next;
+      }
+      for (const field of document.querySelectorAll<
+        HTMLInputElement | HTMLTextAreaElement
+      >('input, textarea')) {
+        const next = swap(field.value);
+        if (next !== field.value) field.value = next;
+      }
+    },
+    {
+      swaps: [
+        ['http://localhost:3000', 'https://tale.yourcompany.com'],
+        [MOCK_PROVIDER_DISPLAY_NAME, 'OpenRouter'],
+        [`${MOCK_PROVIDER_SLUG}/`, 'openrouter/'],
+        [MOCK_PROVIDER_SLUG, 'openrouter'],
+        // The mock catalog's placeholder model, as a model the demo
+        // organization's model access already names.
+        ['e2e-chat-model', 'google/gemini-3-flash-preview'],
+      ] as [string, string][],
+    },
+  );
+};
 
 /** Flip the notice switch and wait for its instant save to land. */
 async function setDataNotice(page: Page, on: boolean): Promise<void> {
@@ -884,6 +939,19 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
+    // Settings > API > Models — the two base URLs, the models the member may
+    // call and the tool setups. Gate on a listed model id: the list arrives
+    // after the page chrome.
+    name: 'settings-api-models',
+    section: 'develop',
+    route: '/dashboard/:orgId/settings/api/models',
+    readyWhen: (page) =>
+      page
+        .getByText(`${MOCK_PROVIDER_SLUG}/anthropic/claude-sonnet-4.6`)
+        .first(),
+    sanitize: replaceRigNames,
+  },
+  {
     // Four shipped triage examples, found with the real list search, show
     // their versions and deployment state beside Create automation.
     name: 'automations-catalog',
@@ -1117,6 +1185,35 @@ export const SHOTS: readonly Shot[] = [
         name: t('governance.transcriptionModel.title'),
         exact: true,
       }),
+  },
+  {
+    // Governance > Models — image generation switched on with a pinned image
+    // model (the demo organization's fixture pins the mock gateway's image
+    // model). Gate on the resolved sentence, not the static title above a
+    // skeleton; the frame names the vendor a customer's page names.
+    name: 'governance-image-generation',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/content-models',
+    readyWhen: (page) =>
+      imageGenerationSection(page).getByText(
+        /^Agents currently generate images with/,
+      ),
+    sanitize: replaceRigNames,
+    capture: (page) => imageGenerationSection(page),
+  },
+  {
+    // Governance > Models — the model endpoints for API keys, switched on in
+    // the demo organization's model access policy. The switch reads on only
+    // once the policy has loaded.
+    name: 'governance-model-endpoints',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/content-models',
+    readyWhen: (page) =>
+      modelEndpointsSection(page).getByRole('switch', {
+        name: t('governance.modelAccess.modelApi.enabled'),
+        checked: true,
+      }),
+    capture: (page) => modelEndpointsSection(page),
   },
   {
     // Governance > Policies & Limits — budget rules, upload/retention policy,
