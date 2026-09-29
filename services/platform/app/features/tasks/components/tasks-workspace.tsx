@@ -15,7 +15,6 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -95,10 +94,13 @@ export function TasksWorkspace({
     assigneeFilter,
     currentUserId,
   );
+  // The search is a board filter: the server matches it with the others
+  // before the board's cap, so every matching task is reachable (#3745).
   const listOptions = {
     statuses: BOARD_TASK_STATUSES,
     includeArchived,
     assigneeId: assigneeQueryFilter,
+    query: trimmedSearchQuery,
   };
   const projectList = useTasksByProject(
     allProjects ? undefined : typedProjectId,
@@ -152,21 +154,7 @@ export function TasksWorkspace({
       ),
     [pendingReviews],
   );
-  const searchHits = useBackendQuery(
-    'tasks/search:searchTasks',
-    trimmedSearchQuery.length > 0
-      ? {
-          organizationId,
-          query: trimmedSearchQuery,
-          ...(allProjects ? {} : { projectId: typedProjectId }),
-        }
-      : 'skip',
-  );
-  const searchMatchedIds = useMemo(() => {
-    if (trimmedSearchQuery.length === 0 || !searchHits.data) return null;
-    return new Set(searchHits.data.map((hit) => hit.taskId));
-  }, [searchHits.data, trimmedSearchQuery]);
-  const facetFilteredTasks = useMemo(
+  const tasks = useMemo(
     () =>
       filterTasksByFacets(loadedTasks, {
         assignee: assigneeFilter,
@@ -184,10 +172,6 @@ export function TasksWorkspace({
       reviewRequestedFor,
     ],
   );
-  const tasks = useMemo(() => {
-    if (!searchMatchedIds) return facetFilteredTasks;
-    return facetFilteredTasks.filter((task) => searchMatchedIds.has(task._id));
-  }, [facetFilteredTasks, searchMatchedIds]);
   const { project } = useProject(typedProjectId);
   const projectKey = allProjects ? null : (project?.key ?? null);
 

@@ -20,6 +20,9 @@ export function useTasksByProject(
     /** Only tasks whose status is in this set (server-side view scoping). */
     statuses?: TaskStatusFilter[];
     assigneeId?: string;
+    /** The toolbar's search: the server applies it with the other filters,
+     * before the board's cap, so the rows ARE the search result (#3745). */
+    query?: string;
   },
 ) {
   const organizationId = useOrganizationId();
@@ -33,6 +36,7 @@ export function useTasksByProject(
           status: options?.status,
           statuses: options?.statuses,
           assigneeId: options?.assigneeId,
+          query: options?.query,
         }
       : 'skip',
   );
@@ -58,6 +62,8 @@ export function useTasksAcrossProjects(options?: {
   assigneeId?: string;
   /** Only tasks naming this person as the reviewer of their result. */
   reviewerId?: string;
+  /** The toolbar's search, as on a project's board. */
+  query?: string;
   /** When false the query is skipped (single-project mode owns the board). */
   enabled?: boolean;
 }) {
@@ -73,6 +79,7 @@ export function useTasksAcrossProjects(options?: {
           statuses: options?.statuses,
           assigneeId: options?.assigneeId,
           reviewerId: options?.reviewerId,
+          query: options?.query,
         }
       : 'skip',
   );

@@ -2819,6 +2819,10 @@ export interface TaskListFilters {
   /** The person named to review the task's result (`reviewer_user_id`). */
   reviewerId?: string;
   externalSystem?: string;
+  /** The toolbar's search: the palette's token-AND match, applied with the
+   * other filters before the board's cap rather than after a capped search
+   * (#3745). Blank matches everything. */
+  query?: string;
 }
 
 /** Batch-resolve the page's label ids to catalog DTOs (color derived, the
@@ -2922,7 +2926,12 @@ async function decorateProjectPage(
   return tasks.map((task) => decorateTaskRow(task, labelMap, facts));
 }
 
-/** The shared board filter clause (each filter optional, ANDed). */
+/**
+ * The shared board filter clause over `t`, the `app.tasks` row (each filter
+ * optional, ANDed). A search is one of these filters, so it narrows the same
+ * statement that carries the board's `LIMIT`: every match stays reachable,
+ * whatever the other filters leave.
+ */
 function boardFilterClause(sql: Sql, filters: TaskListFilters) {
   const includeArchived = filters.includeArchived ?? false;
   const status = filters.status ?? null;
@@ -2930,13 +2939,15 @@ function boardFilterClause(sql: Sql, filters: TaskListFilters) {
   const assigneeId = filters.assigneeId ?? null;
   const reviewerId = filters.reviewerId ?? null;
   const externalSystem = filters.externalSystem ?? null;
+  const patterns = taskSearchPatterns(filters.query ?? '');
   return sql`
-    (${includeArchived} OR archived_at_ms IS NULL)
-    AND (${status}::text IS NULL OR status = ${status})
-    AND (${statuses === null} OR status = ANY(${statuses ?? []}))
-    AND (${assigneeId}::text IS NULL OR assignee_id = ${assigneeId})
-    AND (${reviewerId}::text IS NULL OR reviewer_user_id = ${reviewerId})
-    AND (${externalSystem}::text IS NULL OR external_system = ${externalSystem})
+    (${includeArchived} OR t.archived_at_ms IS NULL)
+    AND (${status}::text IS NULL OR t.status = ${status})
+    AND (${statuses === null} OR t.status = ANY(${statuses ?? []}))
+    AND (${assigneeId}::text IS NULL OR t.assignee_id = ${assigneeId})
+    AND (${reviewerId}::text IS NULL OR t.reviewer_user_id = ${reviewerId})
+    AND (${externalSystem}::text IS NULL OR t.external_system = ${externalSystem})
+    ${patterns.length > 0 ? sql`AND ${taskSearchMatch(sql, patterns)}` : sql``}
   `;
 }
 
@@ -2955,7 +2966,7 @@ export async function listTasksByProject(
   assertTaskReadable(project, auth);
   const access = boardTaskAccess(project, auth);
   const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
+    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE project_id = ${projectId}
       AND ${boardFilterClause(sql, filters)}
     ORDER BY status ASC, rank ASC
@@ -3003,7 +3014,7 @@ export async function listTasksForAgent(
     ...(args.assigneeId !== undefined ? { assigneeId: args.assigneeId } : {}),
   };
   const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
+    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${args.organizationId}
       AND (${scoped === null} OR project_id = ANY(${scoped ?? []}))
       AND ${boardFilterClause(sql, filters)}
@@ -3044,7 +3055,7 @@ export async function listTasksForAccessibleProjects(
     projects.map((project) => [project.id, project.key]),
   );
   const rows = await sql<TaskRow[]>`
-    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
+    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${auth.organizationId}
       AND project_id = ANY(${[...projectKeys.keys()]})
       AND ${boardFilterClause(sql, filters)}
@@ -3186,11 +3197,63 @@ export async function listTaskActivity(
 }
 
 // ---------------------------------------------------------------------------
-// Search (the palette + the tasks toolbar)
+// Search (the palette, and the board's `query` filter)
 // ---------------------------------------------------------------------------
 
 const SEARCH_MAX_RESULTS = 25;
 const SEARCH_SNIPPET_MAX = 600;
+
+/**
+ * A search query's `LIKE ALL` patterns: its whitespace-separated tokens,
+ * lowercased, each one's `LIKE` metacharacters escaped. None for a blank
+ * query. The palette and the board search with the same patterns, so one
+ * query finds the same tasks through either.
+ */
+export function taskSearchPatterns(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
+    .map((token) => `%${token.replaceAll(/([%_\\])/g, String.raw`\$1`)}%`);
+}
+
+/**
+ * A task's own fields hold every token: title, description, external id and
+ * `KEY-number`, read together. `t` is the `app.tasks` row.
+ */
+function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
+  return sql`lower(
+    t.title || ' ' || coalesce(t.description, '') || ' ' ||
+    coalesce(t.external_id, '') || ' ' ||
+    coalesce(
+      (SELECT p.key FROM app.projects p WHERE p.id = t.project_id) || '-' ||
+        t.number::text,
+      ''
+    )
+  ) LIKE ALL(${patterns})`;
+}
+
+/** One discussion comment holds every token; `m` is its `app.messages` row. */
+function commentSearchMatch(sql: Sql, patterns: string[]) {
+  return sql`lower(coalesce(m.text, '')) LIKE ALL(${patterns})`;
+}
+
+/**
+ * The board's search filter on `t`: the task's own fields hold every token,
+ * or one comment on it does — the palette's two legs, judged row by row and
+ * never capped, so the board's filters and `LIMIT` see every match.
+ */
+function taskSearchMatch(sql: Sql, patterns: string[]) {
+  return sql`(
+    ${taskFieldsSearchMatch(sql, patterns)}
+    OR EXISTS (
+      SELECT 1 FROM app.task_discussion_message_meta meta
+      JOIN app.messages m ON m.id = meta.message_id
+      WHERE meta.task_id = t.id AND meta.org_id = t.org_id
+        AND ${commentSearchMatch(sql, patterns)}
+    )
+  )`;
+}
 
 export interface TaskSearchHit {
   taskId: string;
@@ -3209,24 +3272,20 @@ export interface TaskSearchHit {
 }
 
 /**
- * Token-AND search over the field haystack (title + description +
- * externalId + `KEY-number`), with a comment-body fallback for tasks whose
- * fields don't match (the 0.4 walk; unbounded here — SQL searches the whole
- * visible set instead of the newest-80 window Convex's read limits forced).
+ * The palette's search: token-AND over the field haystack (title +
+ * description + externalId + `KEY-number`), with a comment-body fallback for
+ * tasks whose fields don't match (the 0.4 walk; unbounded here — SQL searches
+ * the whole visible set instead of the newest-80 window Convex's read limits
+ * forced), answering the first page of hits. The board filters by the same
+ * two legs uncapped (`TaskListFilters.query`).
  */
 export async function searchTasks(
   sql: Sql,
   auth: ProjectAuthContext,
   args: { query: string; projectId?: string },
 ): Promise<TaskSearchHit[]> {
-  const tokens = args.query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((token) => token.length > 0);
-  if (tokens.length === 0) return [];
-  const patterns = tokens.map(
-    (token) => `%${token.replaceAll(/([%_\\])/g, String.raw`\$1`)}%`,
-  );
+  const patterns = taskSearchPatterns(args.query);
+  if (patterns.length === 0) return [];
 
   let projectIds: string[];
   const projectKeys = new Map<string, string | null>();
@@ -3265,14 +3324,9 @@ export async function searchTasks(
            t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
            t.archived_at_ms::float8 AS "archivedAt"
     FROM app.tasks t
-    JOIN app.projects p ON p.id = t.project_id
     WHERE t.org_id = ${auth.organizationId}
       AND t.project_id = ANY(${projectIds})
-      AND lower(
-        t.title || ' ' || coalesce(t.description, '') || ' ' ||
-        coalesce(t.external_id, '') || ' ' ||
-        coalesce(p.key || '-' || t.number::text, '')
-      ) LIKE ALL(${patterns})
+      AND ${taskFieldsSearchMatch(sql, patterns)}
     ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC
     LIMIT ${SEARCH_MAX_RESULTS}
   `;
@@ -3310,7 +3364,7 @@ export async function searchTasks(
       JOIN app.tasks t ON t.id = meta.task_id
       WHERE meta.org_id = ${auth.organizationId}
         AND t.project_id = ANY(${projectIds})
-        AND lower(coalesce(m.text, '')) LIKE ALL(${patterns})
+        AND ${commentSearchMatch(sql, patterns)}
       ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
                m.created_at_ms DESC
       LIMIT ${SEARCH_MAX_RESULTS}
