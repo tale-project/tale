@@ -10,7 +10,15 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from 'vitest';
 
 const h = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -517,10 +525,13 @@ describe('a live session the backend has no user for, once the reload is spent',
   const member = { userId: 'wizard-user', name: 'Synthetic member' };
   let probe: () => Response;
   let reload: ReturnType<typeof vi.fn>;
-  let fetch: ReturnType<typeof vi.spyOn<typeof globalThis, 'fetch'>>;
+  let fetch: MockInstance<typeof globalThis.fetch>;
   const probeCalls = () =>
-    fetch.mock.calls.filter(([input]) => String(input).endsWith('/users/me'))
-      .length;
+    fetch.mock.calls.filter(([input]) =>
+      (input instanceof Request ? input.url : String(input)).endsWith(
+        '/users/me',
+      ),
+    ).length;
   beforeEach(() => {
     h.realSession = true;
     href = '/dashboard/create-organization';
