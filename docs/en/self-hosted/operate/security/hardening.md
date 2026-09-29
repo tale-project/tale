@@ -49,7 +49,7 @@ The sandbox egress proxy allows public HTTPS destinations by default while enfor
 SANDBOX_EGRESS_ALLOWLIST=^pypi\.org$|^files\.pythonhosted\.org$
 ```
 
-Recreate the egress service with the updated environment. Confirm required destinations work and an unlisted destination is refused. Add other registries or source hosts only when your workloads need them. The built-in document skills need none: the libraries they use ship in the sandbox image. Model traffic uses the separate sandbox model gateway, so this allowlist is not a policy for every outbound connection in Tale.
+Recreate the egress service with the updated environment. Confirm required destinations work and an unlisted destination is refused. Add other registries or source hosts only when your workloads need them. The built-in document skills need none to create and read Word, PowerPoint, Excel and PDF files: the libraries they use ship in the sandbox image. Text recognition (OCR) for scanned PDFs is not included. Model traffic uses the separate sandbox model gateway, so this allowlist is not a policy for every outbound connection in Tale.
 
 Review private-network opt-ins separately. `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1` admits model-provider destinations, including the sandbox model gateway; it does not open general sandbox egress. `TALE_ALLOW_PRIVATE_CRAWL_HOSTS=1` admits intranet crawl targets and private product image URL values. Enable only the needed path and keep its configuration under operator control. [Providers](/self-hosted/configuration/providers) explains the model checks; the [environment reference](/self-hosted/configuration/environment-reference) distinguishes both flags.
 
