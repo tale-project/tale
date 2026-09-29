@@ -7072,6 +7072,7 @@ tasks:
     agentMissing: Der zugewiesene Agent existiert nicht mehr. Weise einen anderen Agenten zu, damit die Aufgabe läuft.
     noAgentAssignee: Dieser Aufgabe ist kein Agent zugewiesen. Weise einen zu, um einen Lauf zu starten.
     cancelled: Der Agenten-Lauf wurde abgebrochen.
+    cancelFailed: Der Agenten-Lauf konnte nicht abgebrochen werden.
     start: Agent starten
     willStart: Hier ablegen startet den Agenten-Lauf.
     willCancel: Hier ablegen bricht den laufenden Agenten-Lauf ab.

@@ -195,7 +195,7 @@ export function TaskAgentRunEntry({
     } catch (error) {
       console.error('cancelTaskAgentRun failed', error);
       toast({
-        title: t('agentRun.notStarted'),
+        title: t('agentRun.cancelFailed'),
         description: failureDetail(error),
         variant: 'destructive',
       });

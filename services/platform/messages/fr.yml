@@ -7179,6 +7179,7 @@ tasks:
     agentMissing: L'agent assigné n'existe plus. Assigne un autre agent pour exécuter cette tâche.
     noAgentAssignee: Aucun agent n'est assigné à cette tâche. Assignes-en un pour lancer une exécution.
     cancelled: L'exécution de l'agent a été annulée.
+    cancelFailed: L'exécution de l'agent n'a pas pu être annulée.
     start: Démarrer l'agent
     willStart: "Déposer ici démarre l'exécution de l'agent."
     willCancel: "Déposer ici annule l'exécution en cours de l'agent."
