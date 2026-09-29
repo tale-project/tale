@@ -15,10 +15,10 @@ A project agent works on a task and returns a result for a person to review. Cho
 
 1. Create a [task](/platform/projects/tasks) with the desired result, completion criteria, and input files.
 2. Choose a [project agent](/platform/projects/project-agents) under **Assignee**.
-3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator. Reviewers need project edit access, so a Member who created the task is not sent the review request; they follow the task and hear when it reaches **In review**, and they can accept the result themselves.
+3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator. Reviewers need project edit access, so a Member who created the task is not sent the review request; they follow the task and hear when it reaches **In review**, and they can accept the result themselves unless your organization requires an independent reviewer and they started the run.
 4. Click **Start agent**, or move the task to **In progress**.
 
-Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed. When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working.
+Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed. When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working. A run a Member starts keeps to its task and goes without the agent's secrets; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
 
 Agents are instructed to keep task updates, reports, related tasks and questions in the language of the task's title and description. If those do not establish a language, they use the organization's default agent language. An identifier, quarter or generated title template does not choose a language. Changing your interface language does not change the task's language; an explicit request to the agent can.
 
@@ -32,13 +32,15 @@ Tale lists delivered or skipped files in a separate system comment that follows 
 
 Read the report, open the deliverables, and compare them with the completion criteria. Move the task to **Done** only when you accept the work. Tale records the human decision; the agent cannot mark its own task Done.
 
-**Reviewer** routes the notification and review queue. It does not exclude anyone else who can change the task, an Editor or higher or the Member the task belongs to, from accepting the result, and changing the reviewer does not reassign the work away from the agent.
+**Reviewer** routes the notification and review queue. It does not exclude anyone else who can change the task, an Editor or higher or the Member the task belongs to, from accepting the result, and changing the reviewer does not reassign the work away from the agent. When your organization requires an independent reviewer, whoever started the run can't accept its result, so a run a Member started on their own task waits for an Editor or higher; [Choose an owner and a reviewer](/platform/projects/tasks#choose-an-owner-and-a-reviewer) has the details.
 
 Changing **Reviewer** while the task waits in **In review** hands the pending request to the new reviewer: it leaves the previous reviewer's queue, and the new reviewer receives the notification and, when email delivery is configured, an email. **Clear reviewer** returns the request to the task creator or project creator.
 
 ## Ask for changes
 
 Add a task comment that names what needs to change and **@mention the assigned agent**. The mention is an instruction: an active agent can receive it during its run, and an idle agent starts a rework run that continues the previous conversation. The result returns to **In review**.
+
+If you started a run, your mentions keep guiding it even after the task has passed to the agent, for example because your mention handed it a task that was assigned to you. When the agent's runtime restarts to take in a comment, which every runtime except Claude Code does, the rest of the run belongs to the comment's author: it counts against their limits, and its connector calls act for them.
 
 A plain comment keeps a note without starting that agent action. The mention picker indicates when an agent cannot respond, for example because task automation is disabled or paused, or because you can comment on the task but not change it.
 
@@ -65,12 +67,12 @@ A run can also fail to start because every account of its subscription broker is
 
 ## Cancel or pause work
 
-Use **Cancel run** to stop the active agent. Moving a running agent-owned task out of **In progress** can also cancel the run; read the confirmation before proceeding. A task cannot have two active agent runs at once.
+Use **Cancel run** to stop the active agent. Anyone who can change the task can cancel its run, and so can the person who started the run, even after the task has passed to the agent. Moving a running agent-owned task out of **In progress** can also cancel the run; read the confirmation before proceeding. A task cannot have two active agent runs at once.
 
 An admin can disable task automation for the organization. That blocks new starts while existing work finishes. Organization limits and budget policies still apply to each run; see [Policies and limits](/platform/admin/governance/policies-and-limits).
 
 ## Choose the right assignee
 
-Assign a person when the task needs human judgment or work outside an agent’s permitted access. Assign a project agent for a bounded job using its configured files and tools. Use an automation when the work follows a defined process with stages, triggers, or connector approvals.
+Assign a person when the task needs human judgment or work outside an agent’s permitted access. Assign a project agent for a bounded job using its configured files and tools. Use an automation when the work follows a defined process with stages, triggers, or connector approvals. A Member can choose only an automation built for tasks, one of those listed under **Automations** in **Assignee**.
 
 For a first run, follow [Build your first agent](/tutorials/editor/first-agent-end-to-end). Keep the task small enough that you can inspect its result yourself.

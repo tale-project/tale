@@ -15,10 +15,10 @@ Un agent de projet travaille sur une tâche et remet son résultat à une person
 
 1. Crée une [tâche](/fr/platform/projects/tasks) avec le résultat attendu, les critères de fin et les fichiers d’entrée.
 2. Choisis un [agent de projet](/fr/platform/projects/project-agents) sous **Assigné à**.
-3. Désigne dans **Relecteur** la personne qui vérifiera le résultat. À défaut, la demande revient à la personne qui a créé la tâche ou le projet. Un relecteur doit pouvoir modifier le projet : un Membre qui a créé la tâche ne reçoit donc pas la demande de revue, mais il suit la tâche, est prévenu quand elle passe à **En revue** et peut accepter le résultat lui-même.
+3. Désigne dans **Relecteur** la personne qui vérifiera le résultat. À défaut, la demande revient à la personne qui a créé la tâche ou le projet. Un relecteur doit pouvoir modifier le projet : un Membre qui a créé la tâche ne reçoit donc pas la demande de revue, mais il suit la tâche, est prévenu quand elle passe à **En revue** et peut accepter le résultat lui-même, sauf si ton organisation exige une relecture indépendante et qu’il a démarré l’exécution.
 4. Clique sur **Démarrer l'agent** ou passe la tâche à **En cours**.
 
-L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille.
+L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille. Une exécution qu’un Membre démarre s’en tient à sa tâche et se passe des secrets de l’agent ; [Exécutions démarrées par un Membre](/fr/platform/projects/tasks#executions-demarrees-par-un-membre) détaille ce qui change.
 
 Les agents reçoivent la consigne de rédiger les mises à jour, les comptes rendus, les tâches associées et les questions dans la langue du titre et de la description de la tâche. Si ces éléments ne permettent pas de déterminer une langue, ils utilisent la langue par défaut de l’organisation pour les agents. Un identifiant, un trimestre ou un titre issu d’un modèle ne détermine pas cette langue. Changer la langue de ton interface ne change pas celle de la tâche ; tu peux demander explicitement à l’agent d’en changer.
 
@@ -32,13 +32,15 @@ Tale liste les fichiers livrés ou ignorés dans un commentaire système distinc
 
 Lis le compte rendu, ouvre les livrables et compare-les aux critères de fin. Passe la tâche à **Terminé** seulement lorsque tu acceptes le travail. Tale enregistre la décision humaine ; un agent ne peut pas marquer sa propre tâche comme terminée.
 
-**Relecteur** détermine la notification et la file de revue. Ce rôle n’empêche pas les autres personnes qui peuvent modifier la tâche, un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient, d’accepter le résultat. Changer de relecteur ne retire pas l’assignation de l’agent.
+**Relecteur** détermine la notification et la file de revue. Ce rôle n’empêche pas les autres personnes qui peuvent modifier la tâche, un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient, d’accepter le résultat. Changer de relecteur ne retire pas l’assignation de l’agent. Si ton organisation exige une relecture indépendante, la personne qui a démarré l’exécution ne peut pas en accepter le résultat : une exécution qu’un Membre a démarrée sur sa propre tâche est alors acceptée par un Éditeur ou un rôle supérieur. [Désigner un responsable et un relecteur](/fr/platform/projects/tasks#designer-un-responsable-et-un-relecteur) donne les détails.
 
 Si tu modifies le champ **Relecteur** alors que la tâche est **En revue**, la demande en cours passe au nouveau relecteur : elle quitte la file de revue de l’ancien, et le nouveau reçoit la notification et, si l’envoi d’e-mails est configuré, un e-mail. **Retirer le relecteur** renvoie la demande à la personne qui a créé la tâche ou le projet.
 
 ## Demander des modifications
 
 Explique les changements attendus dans un commentaire et **mentionne l’agent assigné avec @**. Cette mention est une instruction : un agent actif peut la recevoir pendant son exécution, tandis qu’un agent inactif démarre une reprise de la conversation précédente. Le résultat revient à **En revue**.
+
+Si tu as démarré une exécution, tes mentions continuent de la guider même après que la tâche est passée à l’agent, par exemple parce que ta mention lui a confié une tâche qui t’était attribuée. Quand l’environnement de l’agent redémarre pour prendre en compte un commentaire, comme le font tous les environnements sauf Claude Code, la suite de l’exécution revient à l’auteur du commentaire : elle compte dans ses limites, et ses appels de connecteurs se font en son nom.
 
 Un commentaire sans mention conserve une note sans déclencher cette action. Le sélecteur de mentions indique si l’agent ne peut pas répondre, par exemple lorsque l’automatisation des tâches est désactivée ou suspendue, ou lorsque tu peux commenter la tâche sans pouvoir la modifier.
 
@@ -65,12 +67,12 @@ Une exécution peut aussi ne pas démarrer du tout, parce que tous les comptes d
 
 ## Annuler ou suspendre le travail
 
-Utilise **Annuler l'exécution** pour arrêter l’agent actif. Déplacer une tâche d’agent hors de **En cours** peut aussi annuler son exécution : lis la confirmation avant de continuer. Une tâche ne peut pas avoir deux exécutions d’agent actives en même temps.
+Utilise **Annuler l'exécution** pour arrêter l’agent actif. Toute personne qui peut modifier la tâche peut annuler son exécution, tout comme la personne qui a démarré celle-ci, même si la tâche est passée depuis à l’agent. Déplacer une tâche d’agent hors de **En cours** peut aussi annuler son exécution : lis la confirmation avant de continuer. Une tâche ne peut pas avoir deux exécutions d’agent actives en même temps.
 
 Un admin peut désactiver l’automatisation des tâches pour l’organisation. Cela bloque les nouveaux démarrages pendant que le travail déjà lancé se termine. Les limites et budgets de l’organisation s’appliquent toujours ; consulte [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
 
 ## Choisir le bon responsable
 
-Assigne une personne lorsque le travail demande un jugement humain ou un accès hors des droits de l’agent. Choisis un agent de projet pour une tâche délimitée utilisant ses fichiers et outils configurés. Une automatisation convient à un processus défini avec des étapes, des déclencheurs ou des approbations pour les opérations des connecteurs.
+Assigne une personne lorsque le travail demande un jugement humain ou un accès hors des droits de l’agent. Choisis un agent de projet pour une tâche délimitée utilisant ses fichiers et outils configurés. Une automatisation convient à un processus défini avec des étapes, des déclencheurs ou des approbations pour les opérations des connecteurs. Un Membre ne peut choisir qu’une automatisation conçue pour les tâches, c’est-à-dire l’une de celles listées sous **Automatisations** dans **Assigné à**.
 
 Pour commencer, suis [Créer ton premier agent](/fr/tutorials/editor/first-agent-end-to-end). Choisis une tâche assez petite pour en vérifier toi-même le résultat.

@@ -23,6 +23,8 @@ A title can have up to 200 characters and a description up to 20,000; most emoji
 
 Tale gives the task an identifier built from the project key, such as `WEB-1`. Use that identifier when referring to the work so similarly named tasks remain distinguishable.
 
+An automation built for tasks can also offer a template in **Create task**: its name then appears beside **Blank task** above the form. Choose it, enter the name the automation asks for, such as a quarter, and click **Create task**; the automation becomes the task's assignee. If a task already exists for that name, Tale opens it instead of creating a second one and says **A task for this subject already exists.** A Member can read and comment on it there, but change it only if it's theirs. Templates that set up folders or settings files in the project are offered to Editors and higher roles only.
+
 <Tip>
 
 A useful description states the input, the requested output, and a check for completion. For example: “Compare the review date in the attached brief with the meeting notes. Comment with any mismatch and cite both files.”
@@ -40,14 +42,31 @@ A useful description states the input, the requested output, and a check for com
 Every member who can open a project can create tasks in it. Editors and higher roles can change every task in the project. A Member can change the tasks they created and the tasks assigned to them, with the same controls an Editor has there:
 
 - Edit the title, description, attachments, subtasks, dates, priority, labels, reviewer, and repeat.
-- Assign the task to themselves, to another member of the project, or to one of its agents.
+- Assign the task to themselves, to another member of the project, to one of its agents, or to an automation built for tasks.
 - Start, guide, or stop the agent, including with an @mention in a comment.
 - Move the status, including accepting a result by moving the task to **Done**.
 - Archive the task, or restore it.
 
-On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing.
+The same goes for the subtasks under such a task, whoever added them, for example an agent that split up the work, so they never keep the Member from closing their task.
 
-Handing a task that was assigned to you to someone else, a person or an agent, also hands over the right to change it, unless you created the task. A dependency belongs to the task it blocks, so a Member can mark their own tasks as blocked, but not other people's. The project's settings, agents, files, and label catalog stay with Editors and higher roles; a Member picks from the labels the project already has. Only Owners and Admins can delete a task; everyone else who can change it archives it instead.
+On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing. Everyone can edit and delete their own comments on any task they can read, and Owners and Admins can also delete other people's comments.
+
+Handing a task that was assigned to you to someone else, a person or an agent, also hands over the right to change it, unless you created the task. A run you started still answers to you, though: when your @mention hands the task to an agent, you can guide that run with further mentions and stop it with **Cancel run** until it ends.
+
+A dependency belongs to the task it blocks, so a Member records dependencies for their own tasks only: under **Blocked by** on a task of theirs, or under **Blocks** on any task they can open, picking one of their tasks as the blocked one. The project's settings, agents, files, and label catalog stay with Editors and higher roles; a Member picks from the labels the project already has. Only Owners and Admins can delete a task; everyone else who can change it archives it instead.
+
+Automations follow a narrower rule, because an automation acts as itself, with the organization's connector credentials, not as the person who starts it. A Member can hand a task only to an automation built for tasks, the ones listed under **Automations** in **Assignee**, or to the automation that already owns the task, and those are also the only ones they can start or ask for changes. Every other automation stays with Editors and higher roles.
+
+### Agent runs a Member starts
+
+A run started by someone who can't edit the project, such as a Member, keeps to its task:
+
+- Its platform tools change only that task and the subtasks under it: the agent creates new tasks only as subtasks of that task, uses only labels the project already has, and can't sync items from other systems into the project.
+- It can't save documents to the project. The files it produces still arrive on the task under **Deliverables**.
+- The run gets neither the agent's **Secrets** nor the token of an equipped GitHub connection. The agent learns which credentials were held back and is asked to say so in its report when the work needs them; an Editor or higher then has to start it. Connectors equipped on the agent keep working and act for the person who started the run.
+- It works in a workspace of its own, kept for that person's runs with this agent: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The same person's later runs with the agent find it again.
+
+The run can still read the project's tasks and knowledge, and it keeps these limits when an Editor guides it later. A run that an Editor or higher starts has the agent's full equipment, on any task. A Member's comment can change that: when the agent's runtime restarts to take in the comment, as [every runtime except Claude Code](/platform/agents/harnesses) does, the rest of the run counts as the Member's, with the same limits on its tools and credentials.
 
 ## Choose an owner and a reviewer
 
@@ -55,7 +74,7 @@ Handing a task that was assigned to you to someone else, a person or an agent, a
 
 Assigning an agent and starting its run are separate choices. After assigning it, click **Start agent**, or move the task to **In progress**. Read [Task automation](/platform/projects/task-automation) before starting work that can use connected services or produce files.
 
-The reviewer receives the review request, but the designation does not reserve the decision exclusively to that person. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to.
+The reviewer receives the review request, but the designation does not reserve the decision exclusively to that person. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to. When your organization requires an independent reviewer, though, the person who started the agent run under review can't accept its result, and when no agent run produced the result, the task's creator can't. A run a Member started on their own task then waits for an Editor or higher, while the Member can still accept a run an Editor started there.
 
 ## Use statuses to communicate progress
 
@@ -124,6 +143,8 @@ Under **Repeat**, the earlier task links to the next one, such as **Next task: W
 ### Stop a series
 
 When you close a repeating task, the message **Next task created** tells you when the next one is due and offers **Stop repeating**. The same button stays under **Repeat** on the task that created the next one, beside **Next task**, while the next task still repeats. If nobody has touched the next task yet (it is still in **To do**, unchanged, with no comments or agent runs), it is removed together with its subtasks. Otherwise it stays and no longer repeats. Either way, the series ends: on the task you stopped it from, **Repeat** reads **Never**, and its tooltip says **This series has stopped.** If you used the button under **Repeat**, the focus then moves to **Repeat**. You can also set **Repeat** to **Never** on the latest task of the series.
+
+**Stop repeating** reaches only tasks you can change: the one you use it on, and the later tasks of the series that you can change too. Earlier tasks keep showing their repeat. If a later task belongs to someone else by now, for example after it was reassigned, it keeps its repeat and the series goes on from it; no next task is removed then.
 
 Deleting the latest task of a series ends the series. The task before it doesn't create another one, even if you reopen it and close it again: it shows no repeat icon, and its **Repeat** stays locked, with the tooltip **Its next task was deleted. This task cannot repeat again.** Deleting an earlier task leaves the series going on from the latest one.
 
