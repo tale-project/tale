@@ -321,8 +321,7 @@ RUN python3 -m pip install --no-cache-dir --require-hashes --only-binary=:all: \
 # the session entrypoint puts the per-session npm prefix in front of it, so a
 # skill's own `npm install -g` still wins over the baked copy.
 COPY services/sandbox-runtime/document-node/package.json services/sandbox-runtime/document-node/package-lock.json /opt/tale/document-node/
-RUN cd /opt/tale/document-node \
-    && npm ci --ignore-scripts --omit=dev --no-audit --no-fund \
+RUN npm ci --prefix /opt/tale/document-node --ignore-scripts --omit=dev --no-audit --no-fund \
     && npm cache clean --force \
     && NODE_PATH=/opt/tale/document-node/node_modules node -e "for (const m of ['docx', 'pptxgenjs', 'react', 'react-dom/server', 'react-icons/fa', 'sharp']) require(m)"
 ENV NODE_PATH=/opt/tale/document-node/node_modules
