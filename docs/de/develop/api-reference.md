@@ -412,7 +412,7 @@ Verzweige nach `indexing.errorCode`, nicht nach dem Wortlaut von `error`. Das Op
 | `failed`: `embedding_upstream`, `indexer_error`, `index_rebuilding` | Der Hintergrundauftrag wiederholt diese Fehler. Prüfe den Status, bevor du selbst erneut anstößt. |
 | `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Lass Anbieter-Konfiguration, Berechtigungen oder Indexzustand vom Betreiber korrigieren und versuche es danach erneut. `embedding_provider_refused` deckt auch ein Modell ab, das Vektoren mit einer anderen Breite liefert, als die Einstellungen angeben, sowie Embedding-Zugangsdaten, die die Plattform nicht verwenden kann (keine konfiguriert, gelöscht, deaktiviert oder nicht lesbar); das Speichern korrigierter Embedding-Einstellungen oder das Anlegen beziehungsweise Reparieren der Zugangsdaten, die das Embedding-Modell verwendet, stellt jedes Dokument, das am Embedding-Modell gescheitert ist, erneut in die Warteschlange. |
 | `failed`: `secret_detected`, `pii_blocked` | Korrigiere die Quelle oder die freigegebene Inhaltsrichtlinie der Organisation vor dem nächsten Versuch. |
-| `failed` ohne `errorCode` | Die Indexierung brach vor dem Ende ab (ein verlorener Auftrag oder ein angehaltener Worker), und die Plattform hat sie als fehlgeschlagen markiert. Nichts wiederholt sie von selbst: Stoße `retry-indexing` an. |
+| `failed` ohne `errorCode` | Die Plattform hat den Fehler abgeschlossen, ohne ihn einzuordnen, meist weil die Indexierung vor dem Ende abbrach (ein verlorener Auftrag oder ein angehaltener Worker). Warte nicht auf einen automatischen neuen Versuch: Stoße `retry-indexing` an. |
 
 ## Benachrichtigungen eines Mitglieds spiegeln
 

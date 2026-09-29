@@ -1798,8 +1798,10 @@ const SCOPE_RECONCILE_PAGE = 1000;
  * scope write failed to write it — and is the stamp pass's to take off
  * (`reconcileMailAttachmentStamps`), so the count stays what the reconcile
  * reports it as: scope writes that failed or never ran — a per-edit sync the
- * corpus refused, or a shared ref's holder that changed on a lane that does
- * not re-stamp it ({@link syncRagRefHolderScopes}).
+ * corpus refused, an edit whose sync writes less than the whole scope (a
+ * WebDAV folder MOVE into a team folder re-stamps the paths alone), or a
+ * shared ref's holder that changed on a lane that does not re-stamp it
+ * ({@link syncRagRefHolderScopes}).
  *
  * The corpus row is the ref's, and several documents can hold one ref (a
  * WebDAV COPY shares it), so the walk reads each ref's holder alone — the

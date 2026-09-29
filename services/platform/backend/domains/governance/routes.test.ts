@@ -765,6 +765,22 @@ describe('POST /trash/restore — the corpus row of a restored document', () => 
   });
 
   it('re-stamps a restored document’s ref from its holder, after the restore commits', async () => {
+    // The transaction counts as committed once its body has resolved; the
+    // re-stamp records whether it had.
+    let committed = false;
+    let restampedAfterCommit: boolean | undefined;
+    transactSerializable.mockImplementation(
+      async (_sql: unknown, callback: (tx: unknown) => Promise<unknown>) => {
+        const result = await callback(TX);
+        committed = true;
+        return result;
+      },
+    );
+    syncRagDocumentScope.mockImplementation(() => {
+      restampedAfterCommit = committed;
+      return Promise.resolve();
+    });
+
     const response = await post('/trash/restore?orgId=o1', {
       resourceType: 'document',
       id: 'doc-1',
@@ -776,9 +792,7 @@ describe('POST /trash/restore — the corpus row of a restored document', () => 
       'o1',
       'doc-1',
     );
-    expect(syncRagDocumentScope.mock.invocationCallOrder[0]).toBeGreaterThan(
-      transactSerializable.mock.invocationCallOrder[0] ?? Infinity,
-    );
+    expect(restampedAfterCommit).toBe(true);
   });
 
   it('re-stamps nothing for a row that is not a document', async () => {

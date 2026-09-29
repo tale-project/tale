@@ -430,12 +430,32 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
     // failed rows filled it ahead of a row that got stuck after them, and
     // the same two hundred settled failures filled it ahead of every other
     // failed row. The stuck tier keeps its queue order; the failed tier
-    // reads the never-reconciled rows first, then the stalest stamp. The
-    // effect on a real batch is `watchdogs.integration.ts`'s to prove.
+    // reads the row read longest ago first, one not read yet counting as
+    // read when its run was queued. The effect on a real batch is
+    // `watchdogs.integration.ts`'s to prove.
     const read = statements.find((s) => s.text.startsWith('SELECT id,'));
     expect(read?.text).toMatch(
-      /ORDER BY \(rag_status = 'failed'\), CASE WHEN rag_status = 'failed' THEN rag_reconciled_at_ms END NULLS FIRST, coalesce\(rag_queued_at_ms, created_at_ms\) LIMIT \?$/,
+      /ORDER BY \(rag_status = 'failed'\), CASE WHEN rag_status = 'failed' THEN coalesce\(rag_reconciled_at_ms, rag_queued_at_ms, created_at_ms\) END, coalesce\(rag_queued_at_ms, created_at_ms\) LIMIT \?$/,
     );
+  });
+
+  // Index health re-queues a parked file under `FOR UPDATE SKIP LOCKED` and
+  // stops at a short batch: a stamp holding the row's lock at that moment
+  // would leave it parked until the next healthy report.
+  it('leaves a file parked by a bad search index to the index health report', async () => {
+    const { sql, statements } = fakeSql([]);
+    corpusAnswering([]);
+
+    await recoverStuckRagIndexing(sql);
+
+    const read = statements.find((s) => s.text.startsWith('SELECT id,'));
+    expect(read?.text).toContain(
+      "OR (rag_status = 'failed' AND coalesce(status_changed_at_ms, created_at_ms) > ? AND (rag_error_code IS NULL OR rag_error_code <> ALL(?)))",
+    );
+    expect(read?.values).toContainEqual([
+      'index_rebuilding',
+      'index_repair_failed',
+    ]);
   });
 });
 
@@ -470,16 +490,52 @@ describe('recoverStuckRagIndexing — a failure keeps its code with its text', (
     expect(writes[0]?.values).not.toContain('embedding_not_configured');
   });
 
-  it('settles it with its corpus row’s error, without the code, when the corpus has one', async () => {
-    const { sql, statements } = fakeSql([
-      candidate('fm_retried', 'queued', {
-        ragError: NO_MODEL,
-        ragErrorCode: 'embedding_not_configured',
-      }),
-    ]);
+  // The usual shape of that lost retry: `recordIndexingFailure` upserted
+  // the corpus row as failed with the same sentence. Its copy carries no
+  // code, but the row still carries the app's pair: failing the row with
+  // the corpus's sentence and no code dropped the Settings link, and the
+  // embedding save's re-queue, scoped by the code, passed the file over.
+  it.each([
+    ['the same sentence, as the failure recorded it', NO_MODEL],
+    ['an earlier attempt’s sentence', 'The embedding server answered 503.'],
+  ])(
+    'fails a retried row with its own classified pair when its corpus row holds %s',
+    async (_label, corpusError) => {
+      const { sql, statements } = fakeSql([
+        candidate('fm_retried', 'queued', {
+          ragError: NO_MODEL,
+          ragErrorCode: 'embedding_not_configured',
+        }),
+      ]);
+      corpusAnswering([
+        {
+          file_id: 's3:fm_retried',
+          status: 'failed',
+          error: corpusError,
+          updated_at: null,
+        },
+      ]);
+
+      const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+      expect(result).toEqual({ adopted: 0, failed: 1, revived: 0 });
+      const writes = writesOf(statements);
+      expect(writes).toHaveLength(1);
+      // The status moves; the sentence and its code stay together as the app
+      // wrote them — only while the row still carries that code.
+      expect(writes[0]?.text).toMatch(
+        /^UPDATE app\.file_metadata SET rag_status = 'failed', status_changed_at_ms = \? WHERE id = \? AND rag_error_code = \? RETURNING id$/,
+      );
+      expect(writes[0]?.values).toContain('embedding_not_configured');
+      expect(writes[0]?.values).not.toContain(corpusError);
+    },
+  );
+
+  it('settles a stuck row without a code with its corpus row’s error, and no code', async () => {
+    const { sql, statements } = fakeSql([candidate('fm_codeless', 'running')]);
     corpusAnswering([
       {
-        file_id: 's3:fm_retried',
+        file_id: 's3:fm_codeless',
         status: 'failed',
         error: 'The embedding server answered 503.',
         updated_at: null,
@@ -489,16 +545,25 @@ describe('recoverStuckRagIndexing — a failure keeps its code with its text', (
     const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
 
     expect(result).toEqual({ adopted: 0, failed: 1, revived: 0 });
-    const write = failWriteFor(statements, 'fm_retried');
+    const write = failWriteFor(statements, 'fm_codeless');
     expect(write?.values).toContain('The embedding server answered 503.');
     expect(write?.text).toContain('rag_error_code = NULL');
+    // Only while it still has none: a retry may have classified it since.
+    expect(write?.text).toContain('AND rag_error_code IS NULL');
   });
 
-  it('clears the code on every failure it writes, and on every text it corrects', async () => {
+  it('writes no sentence without its code: it sets both, or neither', async () => {
     const { sql, statements } = fakeSql([
-      candidate('fm_copy', 'running', { ragErrorCode: 'indexer_error' }),
-      candidate('fm_dead', 'running', { ragErrorCode: 'indexer_error' }),
+      candidate('fm_copy', 'running'),
+      candidate('fm_dead', 'queued', {
+        ragError: NO_MODEL,
+        ragErrorCode: 'embedding_not_configured',
+      }),
       candidate('fm_known', 'failed', { ragError: RAG_INTERRUPTED_MESSAGE }),
+      candidate('fm_kept', 'queued', {
+        ragError: NO_MODEL,
+        ragErrorCode: 'embedding_not_configured',
+      }),
     ]);
     corpusAnswering([
       {
@@ -513,18 +578,28 @@ describe('recoverStuckRagIndexing — a failure keeps its code with its text', (
         error: 'The embedding server answered 503.',
         updated_at: null,
       },
+      {
+        file_id: 's3:fm_kept',
+        status: 'failed',
+        error: NO_MODEL,
+        updated_at: null,
+      },
     ]);
 
     await recoverStuckRagIndexing(sql, { staleMs: 1000 });
 
-    // Every write that sets `rag_error` sets `rag_error_code` beside it.
-    const erroring = writesOf(statements).filter((s) =>
-      s.text.includes('rag_error ='),
-    );
-    expect(erroring).toHaveLength(3);
-    for (const write of erroring) {
-      expect(write.text).toContain('rag_error_code = NULL');
+    // The corpus copy, the interrupted text and the correction each set
+    // `rag_error_code` beside `rag_error`; the kept pair sets neither.
+    const writes = writesOf(statements);
+    expect(writes).toHaveLength(4);
+    for (const write of writes) {
+      expect(write.text.includes('rag_error =')).toBe(
+        write.text.includes('rag_error_code = NULL'),
+      );
     }
+    expect(writes.filter((s) => s.text.includes('rag_error ='))).toHaveLength(
+      3,
+    );
   });
 });
 

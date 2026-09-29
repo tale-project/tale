@@ -616,9 +616,10 @@ describe('syncRagDocumentScope', () => {
  * `syncRagRefHolderScopes` re-stamps refs whose holder may have changed — a
  * copy inserted, a holder trashed, restored, deleted or moved off the ref —
  * from the holders it reads: the ref's lowest-id ACTIVE document, answered
- * here from `rows` (a `trashed` row is not active). A trashed row is read
- * only when the statement lacks its own active filter, and only the rows no
- * lower-id active row shares a ref with when it carries the holder clause.
+ * here from `rows` (a `trashed` row is not active). The statement is read
+ * literally: a trashed row only without the outer active filter, and the
+ * `NOT EXISTS` over a lower id sharing the ref — over active rows only when
+ * the subquery carries its own active filter.
  */
 function fakeSqlByRefs(
   rows: (DocRow & { trashed?: boolean })[],
@@ -639,10 +640,19 @@ function fakeSqlByRefs(
     )
       ? active
       : rows;
-    const read = readsHoldersOnly(text)
+    const lowerIdClause =
+      text.includes('NOT EXISTS') &&
+      text.includes('o.org_id = d.org_id AND o.file_ref = d.file_ref') &&
+      text.includes('o.id < d.id');
+    const lowerIds = text.includes(
+      "(o.lifecycle_status IS NULL OR o.lifecycle_status = 'active')",
+    )
+      ? active
+      : rows;
+    const read = lowerIdClause
       ? candidates.filter(
           (row) =>
-            !active.some(
+            !lowerIds.some(
               (other) => other.fileRef === row.fileRef && other.id < row.id,
             ),
         )

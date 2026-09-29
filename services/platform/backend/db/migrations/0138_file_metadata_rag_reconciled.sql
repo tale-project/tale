@@ -13,21 +13,23 @@
 -- failure queued after them was never reached.
 --
 --   rag_reconciled_at_ms  when a tick last read the row as a failed candidate.
---                         The failed rows are read never-reconciled first,
---                         then the one reconciled longest ago, so every
---                         failed row in the window is read within a bounded
---                         number of ticks. Written by the watchdog alone and
---                         never read as a status: it moves neither
---                         `status_changed_at_ms` (the clock of the 48-hour
---                         window) nor any list, and it is not cleared when
---                         the row changes status — a stamp older than every
---                         other row's is simply read early.
+--                         The failed rows are read least recently read first
+--                         — a row no tick has read yet counts as read when
+--                         its run was queued (`rag_queued_at_ms`) — so a row
+--                         is read again once every row read or queued before
+--                         it has had its turn, however many fail meanwhile.
+--                         Written by the watchdog alone and never read as a
+--                         status: it moves neither `status_changed_at_ms`
+--                         (the clock of the 48-hour window) nor any list, and
+--                         it is not cleared when the row changes status — a
+--                         stamp older than every other row's is simply read
+--                         early.
 --
--- Nullable, no backfill: a row no tick has read yet is read first. No index:
--- no index serves the candidate read's two status windows, so it scans the
--- table either way. Rolling-deploy safe: the previous image neither reads nor
--- writes the column, and its watchdog keeps reading by queue time until it
--- stops.
+-- Nullable, no backfill: a row no tick has read yet takes its queue time. No
+-- index: no index serves the candidate read's two status windows, so it
+-- scans the table either way. Rolling-deploy safe: the previous image neither
+-- reads nor writes the column, and its watchdog keeps reading by queue time
+-- until it stops.
 
 ALTER TABLE app.file_metadata
   ADD COLUMN IF NOT EXISTS rag_reconciled_at_ms bigint;

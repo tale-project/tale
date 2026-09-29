@@ -4,6 +4,7 @@ import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
 } from '../../core/knowledge/pool.ts';
+import { INDEX_PARKED_RAG_ERROR_CODES } from '../../core/knowledge/rag_error_codes.ts';
 import {
   HELD_BY_DOCUMENT_SQL,
   hintDocumentLists,
@@ -219,21 +220,29 @@ async function readCorpusStatuses(
  *    the orgs after it are still swept;
  *  - a recent `failed` row is reconciled too, so a false failure heals —
  *    but only after every stuck row: one limit covers both kinds, and a
- *    stuck row is what the sweep exists for;
+ *    stuck row is what the sweep exists for. A file parked while its
+ *    corpus's search index is bad is not the sweep's: the index health
+ *    report re-queues it (`requeueRefusedFiles`);
  *  - the failed rows are read in rotation: each tick stamps the ones it read
- *    ({@link stampReconciled}) and reads the never-read ones first, then the
- *    one read longest ago, so every failed row in the window is reached — a
- *    batch ranked by queue time was the same oldest failures, settled ones
- *    included, on every tick until they left the window;
+ *    ({@link stampReconciled}) and reads the one read longest ago first — a
+ *    row not read yet counts as read when its run was queued — so every
+ *    failed row in the window is reached within a bounded number of ticks,
+ *    however many fail meanwhile. A batch ranked by queue time was the same oldest
+ *    failures, settled ones included, on every tick until they left the
+ *    window;
  *  - an already-failed row is never overwritten with the generic interrupted
  *    text — its real error is the more useful one — and one that already
- *    reads the corpus's error is left exactly as it is, as is one whose code
- *    says the app classified its failure itself;
- *  - a failure the sweep writes carries no code: it classifies nothing, and
- *    the code a retried row still carries from its previous failure
- *    (`markRagQueued` keeps it until the job's first write) would pair that
- *    failure's guidance — the Settings link for a missing embedding model —
- *    with the sweep's sentence.
+ *    reads the corpus's error is left exactly as it is;
+ *  - a row that carries a code keeps its sentence and code together: the app
+ *    classified that failure (`recordIndexingFailure` writes the pair), and
+ *    the corpus holds a best-effort copy of a sentence at most — a row that
+ *    Retry indexing queued still carries the pair (`markRagQueued` keeps it
+ *    until the job's first write), and a lost retry re-surfaces it whole;
+ *  - a failure the sweep writes itself — the interrupted text, or the
+ *    corpus's copy of a sentence on a row without a code — carries no code:
+ *    the sweep classifies nothing, and a code left beside such a sentence
+ *    would pair another failure's guidance (the Settings link for a missing
+ *    embedding model) with it.
  *
  * Every write here moves a status the document list renders, so each
  * organization's lists hear the sweep once — and only for rows a document
@@ -251,7 +260,11 @@ export async function recoverStuckRagIndexing(
   // time alone, the failed rows of the last two days sorted ahead of every
   // row that got stuck after them, and two hundred of them filled the batch:
   // those rows were never reached. The failed rows after them, in rotation:
-  // never reconciled first, then the one reconciled longest ago.
+  // the one read longest ago first, a row not read yet counting as read when
+  // its run was queued, so a burst of fresh failures cannot starve the older
+  // ones either. A row parked while its corpus's index is bad is left to the
+  // index health report: its re-queue skips a row another transaction holds
+  // (`FOR UPDATE SKIP LOCKED`), and a stamp holding it would leave it parked.
   const candidates = await sql<RagCandidate[]>`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
            rag_status AS "ragStatus", rag_error AS "ragError",
@@ -262,11 +275,15 @@ export async function recoverStuckRagIndexing(
         (rag_status IN ('queued', 'running')
           AND coalesce(rag_queued_at_ms, created_at_ms) < ${staleBefore})
         OR (rag_status = 'failed'
-          AND coalesce(status_changed_at_ms, created_at_ms) > ${failedAfter})
+          AND coalesce(status_changed_at_ms, created_at_ms) > ${failedAfter}
+          AND (rag_error_code IS NULL
+            OR rag_error_code <> ALL(${[...INDEX_PARKED_RAG_ERROR_CODES]})))
       )
     ORDER BY (rag_status = 'failed'),
-             CASE WHEN rag_status = 'failed' THEN rag_reconciled_at_ms END
-               NULLS FIRST,
+             CASE WHEN rag_status = 'failed'
+               THEN coalesce(rag_reconciled_at_ms, rag_queued_at_ms,
+                             created_at_ms)
+             END,
              coalesce(rag_queued_at_ms, created_at_ms)
     LIMIT ${options.limit ?? RAG_MAX_PER_RUN}
   `;
@@ -310,8 +327,12 @@ export async function recoverStuckRagIndexing(
  * Stamp the failed candidates a tick read, so the next tick reads the failed
  * rows after them: the rotation that keeps settled failures — rows the rules
  * leave as they are, and write nothing for — from holding the batch's slots
- * tick after tick, ahead of a false failure queued after them. Every failed
- * candidate is stamped, whatever its settle does: a row deferred by a fault
+ * tick after tick, ahead of a false failure queued after them. The failed
+ * rows are read least recently read first, a row not read yet counting as
+ * read when its run was queued, so a row read at one tick is read again
+ * once every row read or queued before it has had its turn — a fresh
+ * failure queues behind it, however many there are. Every failed candidate
+ * is stamped, whatever its settle does: a row deferred by a fault
  * is read again on its next turn, and an organization whose corpus stays
  * unreachable cannot pin the head of the rotation.
  *
@@ -467,10 +488,29 @@ async function settleRagRow(
   }
   if (status?.status === 'failed') {
     if (row.ragStatus !== 'failed') {
-      // The corpus knows the REAL error; the generic text stands in only
-      // for none. It keeps the sentence alone, never its code, and the code
-      // on a retried row is its previous failure's: the pair goes as one,
-      // with no code.
+      if (row.ragErrorCode !== null) {
+        // A classified pair on a row still queued or running: Retry
+        // indexing queued it and its job was lost, and `markRagQueued` kept
+        // the previous failure's sentence and code. The corpus row holds that
+        // failure's copy of the sentence at best — its write is best-effort —
+        // so the row fails with its own pair, which keeps its guidance and
+        // the re-queue its code is scoped by (an embedding save re-queues an
+        // `embedding_not_configured` failure). Only while the row still
+        // carries that code: a job that started since cleared it.
+        const moved = await settleWrite(
+          sql,
+          (tx) => tx<{ id: string }[]>`
+            UPDATE app.file_metadata SET
+              rag_status = 'failed', status_changed_at_ms = ${now}
+            WHERE id = ${row.id} AND rag_error_code = ${row.ragErrorCode}
+            RETURNING id
+          `,
+        );
+        return { moved, counts: 'failed' };
+      }
+      // No classified pair: the corpus knows the REAL error; the generic
+      // text stands in only for none. It keeps the sentence alone, so the
+      // row takes it without a code — while it still has none.
       const moved = await settleWrite(
         sql,
         (tx) => tx<{ id: string }[]>`
@@ -479,7 +519,7 @@ async function settleRagRow(
             rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
             rag_error_code = NULL,
             status_changed_at_ms = ${now}
-          WHERE id = ${row.id}
+          WHERE id = ${row.id} AND rag_error_code IS NULL
           RETURNING id
         `,
       );

@@ -486,15 +486,18 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       });
       if (scope.corrected > 0) {
         // Loud on purpose: a corrected row is a scope write that failed or
-        // never ran, and until now nothing said so. Either a per-edit sync
-        // the corpus refused, or a change of a shared ref's holder on a lane
-        // that does not re-stamp it (`syncRagRefHolderScopes`) — a failed
-        // sync is only the first. And once, on the first night after the
+        // never ran, and until now nothing said so. A failed sync is one
+        // cause of three: a per-edit sync the corpus refused; an edit whose
+        // sync writes less than the whole scope (a WebDAV folder MOVE into a
+        // team folder re-stamps the paths alone); a change of a shared ref's
+        // holder on a lane that does not re-stamp it
+        // (`syncRagRefHolderScopes`). And once, on the first night after the
         // upgrade to the release where every scope writer writes the holder
         // (#3808), the rows older releases stamped from a copy of the ref
-        // rather than its holder: a burst no sync failed to write.
+        // rather than its holder: a burst no sync failed to write, which
+        // `MIGRATION.md` records rather than this line on every night.
         console.warn(
-          `[knowledge] corpus scope drift for ${org.slug}: corrected=${scope.corrected} of scanned=${scope.scanned} — a per-edit scope sync failed, or a shared ref's holder changed without a re-stamp (and, once after an upgrade, rows an older release stamped from a copy rather than the holder)`,
+          `[knowledge] corpus scope drift for ${org.slug}: corrected=${scope.corrected} of scanned=${scope.scanned} — a per-edit scope sync failed or did not cover the change, or a shared ref's holder changed without a re-stamp`,
         );
       }
       // The emailed attachments' conversation stamp: the backfill of every

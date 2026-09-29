@@ -90,6 +90,16 @@ export const RAG_ERROR_CODES = [
   RAG_ERROR_INDEXER_ERROR,
 ] as const;
 
+/** The codes a file parks under while its corpus's index is bad: refused
+ * during a rebuild, or after a failed one. A healthy index resumes both — a
+ * repair the job could not do, an operator may have — and the index health
+ * report re-queues every such file then (`requeueRefusedFiles`); the RAG
+ * watchdog leaves them to it. */
+export const INDEX_PARKED_RAG_ERROR_CODES = [
+  RAG_ERROR_INDEX_REBUILDING,
+  RAG_ERROR_INDEX_REPAIR_FAILED,
+] as const;
+
 /** The codes that land on `unsupported`: a retry reproduces the answer, so
  * the retry door refuses instead of queueing. */
 export const TERMINAL_RAG_ERROR_CODES: ReadonlySet<string> = new Set([
