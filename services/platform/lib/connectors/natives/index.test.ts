@@ -135,6 +135,15 @@ const NATIVE_ACTIONS: Array<{
     input: { taskId: 'tsk_1', authorTypes: ['user'], limit: 20 },
   },
   {
+    impl: 'task.start_agent',
+    connector: 'task',
+    action: 'start_agent',
+    input: {
+      taskId: 'tsk_1',
+      feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.',
+    },
+  },
+  {
     impl: 'document.list',
     connector: 'document',
     action: 'list',
@@ -334,6 +343,13 @@ const taskStore: WorkflowTaskStore = {
         },
       ],
       truncated: false,
+    }),
+  startAgent: ({ taskId }) =>
+    Promise.resolve({
+      started: true,
+      runId: 'run_double',
+      taskId,
+      agentId: 'agent_double',
     }),
 };
 
