@@ -417,7 +417,7 @@ records and delete them after.
   teams**, a row's **Assign team**, **New folder** → **Team**, and the
   OneDrive / Google Drive import dialogs' team picker → Each lists every team
   of the organization, synced ones included, as the documents guide says. As
-  a plain Member of one team → the same pickers list that team only. Assign a
+  an Editor of one team → the same pickers list that team only. Assign a
   document to a team you are not in → its preview sidebar names that team.
 
 ## Boundary & error tests

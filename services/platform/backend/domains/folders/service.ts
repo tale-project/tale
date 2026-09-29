@@ -11,6 +11,10 @@ import {
 } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import {
+  assertDocumentsWriteRole,
+  DocumentError,
+} from '../documents/service.ts';
 import { loadSyncHealthIndex } from '../onedrive/sync-health.ts';
 import {
   loadProjectOrThrow,
@@ -29,6 +33,13 @@ import {
  * `convex/folders`): a folder is EITHER a project folder (project_id set,
  * access = the project matrix) OR a hub folder (team rules; teamless =
  * org-wide). Children inherit the parent's scope; depth is capped.
+ *
+ * Writing a hub folder — creating, renaming, re-teaming — takes the
+ * documents write role on top of seeing the folder
+ * (`assertHubFolderWriteRole`): a folder's scope is its documents' scope,
+ * so a read-only member who could re-team one would publish documents
+ * they may not change themselves. A project folder answers to the project
+ * matrix instead (`assertProjectFolderWrite`).
  *
  * Deletion lives with the documents domain: `DELETE /folders/:folderId`
  * runs `documents/service.ts` `deleteFolderCascade` (subtree trash with the
@@ -180,6 +191,28 @@ export async function assertProjectFolderWrite(
 }
 
 /**
+ * The hub-folder WRITE role: the documents write gate
+ * (`assertDocumentsWriteRole` — owner, admin, developer and editor pass;
+ * the read-only `member`, `disabled` and any unknown role refuse) in this
+ * domain's refusal vocabulary, with the sentence the project gate's role
+ * refusal reads. It runs where the project gate runs for a project folder:
+ * once the caller is known to see the folder (for a create, its parent),
+ * before anything is written.
+ */
+function assertHubFolderWriteRole(
+  auth: Pick<ProjectAuthContext, 'role'>,
+): void {
+  try {
+    assertDocumentsWriteRole(auth);
+  } catch (error) {
+    if (error instanceof DocumentError) {
+      throw new FolderError('RBAC_FORBIDDEN', 'Editor role required', 403);
+    }
+    throw error;
+  }
+}
+
+/**
  * `assertTeamsAssignable` in this domain's refusal vocabulary: a team the
  * caller is not in keeps the code the folder doors always answered
  * (`FOLDER_TEAM_FORBIDDEN`); an id that is not one of the organization's
@@ -287,8 +320,9 @@ export async function createFolder(
   if (effectiveProjectId) {
     effectiveTeamIds = [];
     await assertProjectFolderWrite(tx, auth, effectiveProjectId);
-  } else if (effectiveTeamIds === null) {
-    effectiveTeamIds = await assignableTeams(tx, auth, requestedTeamIds);
+  } else {
+    assertHubFolderWriteRole(auth);
+    effectiveTeamIds ??= await assignableTeams(tx, auth, requestedTeamIds);
   }
   const mirror = audienceMirror(effectiveTeamIds);
 
@@ -337,6 +371,11 @@ export async function createFolder(
   return id;
 }
 
+/**
+ * The folder WRITE gate: the caller's organization, then the project gate
+ * for a project folder; a hub folder must be within the caller's audience
+ * and the caller must hold the documents write role.
+ */
 export async function assertFolderMutable(
   tx: TransactionSql | Sql,
   auth: ProjectAuthContext,
@@ -356,6 +395,7 @@ export async function assertFolderMutable(
       403,
     );
   }
+  assertHubFolderWriteRole(auth);
 }
 
 /**
@@ -643,6 +683,9 @@ export async function updateFolderTeams(
   if (!canSeeAudience({ teamIds: folder.teamTags }, auth)) {
     throw new FolderError('FOLDER_ACCESS_DENIED', 'Access denied', 403);
   }
+  // The re-team cascades to every descendant document: the same write role
+  // those documents' own team change takes.
+  assertHubFolderWriteRole(auth);
   const teamTags = await assignableTeams(tx, auth, args.teamIds);
   const { teamId } = audienceMirror(teamTags);
   await tx`
