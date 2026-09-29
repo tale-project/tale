@@ -227,6 +227,10 @@ function makeCtx() {
         return { userId: run.startedBy };
       }
       if (name === 'governance/queries:getContextCapInternal') return null;
+      // An editor's run: the agent's full equipment.
+      if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
+        return { confined: false };
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
@@ -240,6 +244,8 @@ function makeCtx() {
       }
       if (name === 'tasks/agent_runs:rotateTaskAgentRunExec') {
         run.execId = 'exec-rotated';
+        // The restarted turn is booked to the person who steered it.
+        if (typeof args.startedBy === 'string') run.startedBy = args.startedBy;
         return { execId: 'exec-rotated' };
       }
       if (name === 'sandbox/session_mutations:reserveTurnBudget') {
@@ -358,7 +364,8 @@ describe('a task run of an agent equipped with a connector', () => {
     });
   });
 
-  it('keeps acting for the starter after a steer restart, and retires the first exec’s token', async () => {
+  it('acts for the person who steered after a steer restart, and retires the first exec’s token', async () => {
+    io.members.set('user-dana', 'member');
     const { ctx } = makeCtx();
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
     io.nextKey = 'vk-turn-2';
@@ -378,11 +385,12 @@ describe('a task run of an agent equipped with a connector', () => {
       connectorGrants: ['glitchtip'],
       connectorCaller: { kind: 'task-run', execId: 'exec-rotated' },
     });
-    // The comment's author steers; the run still acts for its starter.
+    // The restarted turn is the steering person's gesture: from here on the
+    // run is booked to them, and its connector calls act for them.
     const res = await callBridge('execute', 'vk-turn-2', LIST_ISSUES);
     expect(await res.json()).toMatchObject({ status: 'ok' });
     expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
-      caller: { kind: 'user', userId: 'user-starter' },
+      caller: { kind: 'user', userId: 'user-dana' },
     });
     // The superseded exec's token no longer acts for anyone.
     const stale = await refusalOf(

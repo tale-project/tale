@@ -22,6 +22,9 @@ vi.mock('./helpers/session_client', async (importOriginal) => ({
 interface Scenario {
   owner: AgentSessionOwner;
   ownerId: string;
+  /** What else the owner lookup names: a project agent owns more than one
+   * workspace, so its row is found by session id too. */
+  lookup: Record<string, string>;
   createdBy: string;
   release: string;
   releaseArgs: Record<string, string>;
@@ -31,6 +34,7 @@ const scenarios: Scenario[] = [
   {
     owner: { type: 'project_agent', agentId: 'agent_1' },
     ownerId: 'agent_1',
+    lookup: { sessionId: 'session_1' },
     createdBy: 'system:task-agent',
     release: 'releaseProjectAgentSessionSlot',
     releaseArgs: { organizationId: 'org_1', agentId: 'agent_1' },
@@ -38,6 +42,7 @@ const scenarios: Scenario[] = [
   {
     owner: { type: 'workflow_run', runId: 'run_1' },
     ownerId: 'run_1:@workflow',
+    lookup: {},
     createdBy: 'system:automation',
     release: 'hibernateAutomationScopedSession',
     releaseArgs: { executionId: 'run_1' },
@@ -97,6 +102,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     expect(f.ctx.runQuery).toHaveBeenCalledWith(expect.anything(), {
       ownerType: scenario.owner.type,
       ownerId: scenario.ownerId,
+      ...scenario.lookup,
     });
     expect(runtime.sessionAcquire).toHaveBeenCalledWith('session_1');
     expect(f.events).toEqual(['resumeSessionSlotWithCapCheck']);

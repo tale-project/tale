@@ -13,7 +13,12 @@
  * explicitly equipped the agent with them (they are in no lane baseline), and
  * the async work lanes have no per-call approval card — so every handler
  * answers a structured refusal instead of throwing, and every write lands the
- * domain's full audit/event trail via the internal mutation it calls.
+ * domain's full audit/event trail via the internal mutation it calls. The
+ * grant is an editor's, so it reaches as far as the person who started the
+ * run: a project agent's run a member started is confined to its own task
+ * (`confinedToTaskId`) — its writes stay on that task and its subtasks, it
+ * creates no labels, and it neither syncs external items nor saves project
+ * documents.
  */
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
@@ -340,6 +345,53 @@ async function loadTaskInScope(
   return { task };
 }
 
+/** The one blocker a run a member started answers for a write beyond its
+ * own task: the model is told what it may still do, and what an editor
+ * would have to do instead. */
+function memberRunRefusal(guidance: string): ToolResult {
+  return {
+    status: 'unavailable',
+    blockers: [
+      {
+        code: 'member_run',
+        guidance:
+          'This run was started by a member who can work only their own ' +
+          `task. ${guidance}`,
+      },
+    ],
+  };
+}
+
+/** How many parents the confinement walk reads before it gives up — real
+ * subtask trees are a level or two deep. */
+const CONFINED_TREE_DEPTH_MAX = 16;
+
+/**
+ * Whether the task is the confined run's own task or hangs under it — a
+ * bounded walk up the parent chain over the org-scoped point read.
+ */
+async function withinConfinedTask(
+  ctx: ActionCtx,
+  organizationId: string,
+  task: Doc<'tasks'>,
+  rootTaskId: string,
+): Promise<boolean> {
+  let current: Doc<'tasks'> | null = task;
+  for (
+    let depth = 0;
+    current !== null && depth <= CONFINED_TREE_DEPTH_MAX;
+    depth++
+  ) {
+    if (String(current._id) === rootTaskId) return true;
+    if (current.parentTaskId === undefined) return false;
+    current = await ctx.runQuery(
+      internal.tasks.internal_queries.getTaskByIdInternal,
+      { organizationId, taskId: current.parentTaskId },
+    );
+  }
+  return false;
+}
+
 export async function runTaskTool(
   ctx: ActionCtx,
   args: {
@@ -351,6 +403,13 @@ export async function runTaskTool(
 ): Promise<ToolResult> {
   const { organizationId, callArgs, authority } = args;
   const actorId = authority.actorId;
+  const confinedTo = authority.confinedToTaskId;
+  const outsideOwnTask = (): ToolResult =>
+    memberRunRefusal(
+      `It may change only task ${confinedTo ?? ''} and the subtasks under ` +
+        'it; leave other tasks as they are, and mention in your result ' +
+        'anything that should change on them.',
+    );
 
   try {
     if (args.tool === 'task_find') {
@@ -510,6 +569,12 @@ export async function runTaskTool(
       }
       const description = readString(callArgs.description);
       const parentTaskId = readString(callArgs.parentTaskId);
+      if (confinedTo !== undefined && parentTaskId === undefined) {
+        return memberRunRefusal(
+          'task_create here only adds a subtask under the task this run ' +
+            `works on: pass parentTaskId "${confinedTo}".`,
+        );
+      }
       if (parentTaskId !== undefined) {
         // Route the parent through the same scope gate so a foreign-project or
         // nonexistent parent both return the IDENTICAL refusal — the mutation
@@ -522,6 +587,17 @@ export async function runTaskTool(
           authority,
         );
         if ('refusal' in parent) return parent.refusal;
+        if (
+          confinedTo !== undefined &&
+          !(await withinConfinedTask(
+            ctx,
+            organizationId,
+            parent.task,
+            confinedTo,
+          ))
+        ) {
+          return outsideOwnTask();
+        }
       }
       const created = await ctx.runMutation(
         internal.tasks.internal_mutations.agentCreateTask,
@@ -543,6 +619,8 @@ export async function runTaskTool(
           ...(parentTaskId !== undefined
             ? { parentTaskId: asTaskId(parentTaskId) }
             : {}),
+          // The label catalog is the project editors' to grow.
+          ...(confinedTo !== undefined ? { mintLabels: false } : {}),
         },
       );
       return {
@@ -588,6 +666,17 @@ export async function runTaskTool(
         authority,
       );
       if ('refusal' in scoped) return scoped.refusal;
+      if (
+        confinedTo !== undefined &&
+        !(await withinConfinedTask(
+          ctx,
+          organizationId,
+          scoped.task,
+          confinedTo,
+        ))
+      ) {
+        return outsideOwnTask();
+      }
       const posted = await ctx.runMutation(
         internal.tasks.internal_mutations.agentAddComment,
         {
@@ -619,6 +708,17 @@ export async function runTaskTool(
         authority,
       );
       if ('refusal' in scoped) return scoped.refusal;
+      if (
+        confinedTo !== undefined &&
+        !(await withinConfinedTask(
+          ctx,
+          organizationId,
+          scoped.task,
+          confinedTo,
+        ))
+      ) {
+        return outsideOwnTask();
+      }
       const moved = await ctx.runMutation(
         internal.tasks.internal_mutations.agentUpdateTaskStatus,
         { organizationId, actorId, taskId: asTaskId(taskId), status },
@@ -644,6 +744,12 @@ export async function runTaskTool(
     }
 
     // task_upsert_by_external_ref — the idempotent external-item sync.
+    if (confinedTo !== undefined) {
+      return memberRunRefusal(
+        'It cannot sync external items into the project. Say so in your ' +
+          'result: an editor has to start the agent for that.',
+      );
+    }
     const externalSystem = readString(callArgs.externalSystem);
     const externalId = readString(callArgs.externalId);
     if (
@@ -763,6 +869,13 @@ export async function runDocumentCreate(
     authority: WorkspaceActionAuthority;
   },
 ): Promise<ToolResult> {
+  if (args.authority.confinedToTaskId !== undefined) {
+    return memberRunRefusal(
+      'It cannot save documents into the project. Write the file into this ' +
+        "task's delivery box instead: files there are attached to the task " +
+        'when the run ends.',
+    );
+  }
   const name = readString(args.callArgs.name);
   const content =
     typeof args.callArgs.content === 'string' ? args.callArgs.content : '';

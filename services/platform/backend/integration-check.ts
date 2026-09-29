@@ -37014,10 +37014,13 @@ async function checkSandboxSessions(
     status: 'active',
   });
   await reserve(2, 'project_agent');
+  // One live session per workspace: a project agent owns several (its
+  // standing one and one per member who starts its runs), so the duplicate
+  // is a second live row for the same workspace.
   const dupOwner = await sessions
     .reserveSessionSlot(sql, {
       organizationId: orgId,
-      sessionId: 'itest-sb-1b',
+      sessionId: 'itest-sb-1',
       profile: {},
       ownerType: 'project_agent',
       ownerId: 'owner-1',

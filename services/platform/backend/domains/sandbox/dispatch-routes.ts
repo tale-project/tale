@@ -21,9 +21,9 @@ import { sandboxToolShimHandlers } from './shim.ts';
  * is relayed verbatim to the model as tool-result text).
  *
  * Auth: `Authorization: Bearer <session VK>` → sha256 → the session-token
- * row; the org, user, and grant set come FROM THAT ROW, never the body — a
- * container cannot spoof another org, widen its grants, or claim another
- * thread/user. The body itself is capped before it is read (the 413 is the
+ * row; the org, user, grant set and task run come FROM THAT ROW, never the
+ * body — a container cannot spoof another org, widen its grants, or claim
+ * another thread, user or run. The body itself is capped before it is read (the 413 is the
  * one other non-2xx; see door-body-limit.ts). The dispatch itself is the
  * REUSED bridge running on the ctx shim.
  */
@@ -36,6 +36,8 @@ interface DispatchAuth {
   toolGrants: string[];
   userId?: string;
   mintedKeyId?: string;
+  /** A task turn's run, named by its exec. */
+  taskRunExecId?: string;
 }
 
 async function authSessionToken(
@@ -56,6 +58,9 @@ async function authSessionToken(
     ...(row.scope.userId !== undefined ? { userId: row.scope.userId } : {}),
     ...(row.llmGatewayKeyId !== null
       ? { mintedKeyId: row.llmGatewayKeyId }
+      : {}),
+    ...(row.scope.taskRun !== undefined
+      ? { taskRunExecId: row.scope.taskRun.execId }
       : {}),
   };
 }
@@ -114,6 +119,9 @@ export function createToolDispatchRoutes(deps: { sql: Sql }): Hono {
         ...(auth.userId !== undefined ? { userId: auth.userId } : {}),
         ...(auth.mintedKeyId !== undefined
           ? { mintedKeyId: auth.mintedKeyId }
+          : {}),
+        ...(auth.taskRunExecId !== undefined
+          ? { taskRunExecId: auth.taskRunExecId }
           : {}),
         tool,
         callArgs,

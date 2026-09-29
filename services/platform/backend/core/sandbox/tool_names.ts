@@ -114,6 +114,31 @@ export function secretsGuidance(secretNames: readonly string[]): string[] {
 }
 
 /**
+ * The instructions line of a run a MEMBER started — someone who may work
+ * their own tasks but not edit the project (`tasks/run-authority.ts`). It
+ * takes the place of {@link secretsGuidance}: the run is told what it may
+ * change, and which of the agent's credentials were held back and why, so
+ * it can say what it could not reach instead of failing on a missing
+ * variable. `withheld` names the credentials (secret names, the GitHub
+ * token) the agent is equipped with.
+ */
+export function memberRunGuidance(withheld: readonly string[]): string {
+  return (
+    'This run was started by a member who can work only their own task. ' +
+    'Your task tools change only this task and the subtasks under it, and ' +
+    'you cannot sync external items into the project or save documents ' +
+    "there — deliver files through this task's delivery box." +
+    (withheld.length > 0
+      ? " The agent's credentials (" +
+        withheld.join(', ') +
+        ') are not available in a run a member starts. If the work needs ' +
+        'them, say so in your result: an editor has to start the agent ' +
+        'for that.'
+      : '')
+  );
+}
+
+/**
  * The instructions line that makes CONFIGURED tool grants discoverable —
  * same reason {@link KNOWLEDGE_TOOLS_GUIDANCE} exists: the shim only
  * advertises generic `workspace_tool`, so the turn is told the names.

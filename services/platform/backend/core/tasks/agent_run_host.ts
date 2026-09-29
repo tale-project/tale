@@ -87,6 +87,7 @@ import {
   grantedToolsGuidance,
   KNOWLEDGE_READ_TOOLS,
   KNOWLEDGE_TOOLS_GUIDANCE,
+  memberRunGuidance,
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
@@ -99,6 +100,43 @@ import {
 } from './task_auto_retry';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
+
+/** The workspace line of a run in the agent's standing session. */
+const STANDING_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`;
+
+/** The workspace line of a run a member started: its workspace is the
+ * member's own with this agent, kept apart from the standing one. */
+const MEMBER_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is kept for the runs this member starts with you — files already there may belong to their other tasks. Trust the task brief and its staged inputs over anything found lying around.`;
+
+/**
+ * Whether the turn is confined to its own task — a run a member started
+ * (`domains/tasks/run-authority.ts`): it gets none of the agent's secrets
+ * or brokered credentials. Judged at every launch and steer restart; a run
+ * the question cannot be answered for is treated as confined, since a
+ * credential gap only downgrades a turn.
+ */
+async function isTurnConfined(
+  ctx: ActionCtx,
+  runId: Id<'projectAgentRuns'>,
+): Promise<boolean> {
+  const authority: { confined: boolean } | null = await ctx.runQuery(
+    internal.tasks.agent_runs.getTaskAgentRunAuthority,
+    { runId },
+  );
+  return authority?.confined !== false;
+}
+
+/** The agent's credentials a confined run goes without, by the names the
+ * model would look for. */
+function withheldCredentials(args: {
+  secrets: readonly string[];
+  connectors: readonly string[];
+}): string[] {
+  return [
+    ...args.secrets,
+    ...(args.connectors.includes('github') ? ['GITHUB_TOKEN'] : []),
+  ];
+}
 
 interface TurnKeys {
   organizationId: string;
@@ -755,6 +793,10 @@ export async function insertTaskTurnSessionToken(
       // a user-keyed session, and would fall back to reading org-wide as the
       // starter wherever this session's project binding stops resolving.
       ...(connectorCaller !== undefined ? { connectorCaller } : {}),
+      // The run this turn serves, for the workspace tools: they judge each
+      // call by the live run on this exec — a run a member started acts on
+      // its own task alone.
+      taskRun: { execId: args.execId },
     },
     expiresAt: args.deadlineAt,
   });
@@ -1104,6 +1146,8 @@ export async function startTaskAgentTurnImpl(
         args.organizationId,
         '[task-agent]',
       );
+      // A run a member started holds none of the agent's credentials.
+      const confined = await isTurnConfined(ctx, args.runId);
       const instructions = [
         // The organization's Custom instructions lead, as on a chat turn.
         ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
@@ -1121,22 +1165,27 @@ export async function startTaskAgentTurnImpl(
         ),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
-        `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+        confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...(visionGuidance !== '' ? [visionGuidance] : []),
-        ...secretsGuidance(args.secrets),
+        ...(confined
+          ? [memberRunGuidance(withheldCredentials(args))]
+          : secretsGuidance(args.secrets)),
       ].join('\n\n');
 
       // Per-exec credential env: the agent's referenced secrets + any
       // brokerable connector (github). Dies with the exec, so a revoked grant
       // is gone next turn; harness env wins on collision (extraEnv is under).
-      const extraEnv = await resolveTurnEquipmentEnv(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        connectors: args.connectors,
-        secrets: args.secrets,
-      });
+      // A confined run gets none of it.
+      const extraEnv = confined
+        ? {}
+        : await resolveTurnEquipmentEnv(ctx, {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            connectors: args.connectors,
+            secrets: args.secrets,
+          });
 
       // The serving model's window, so the harness compacts before the
       // prompt outgrows what the model serves; unknown leaves it to the
@@ -2112,11 +2161,14 @@ export async function steerTaskAgentTurnImpl(
   // with the comment in hand. The superseded chain orphans itself: its
   // settle marks are exec-guarded and the slot release refuses while the
   // incarnation's op runs.
+  // The restarted turn is the steering person's gesture: its spend books to
+  // them from here on, as a fresh run they kicked would.
   const rotated = await ctx.runMutation(
     internal.tasks.agent_runs.rotateTaskAgentRunExec,
     {
       runId: args.runId,
       fromExecId: args.execId,
+      startedBy: args.authorId,
     },
   );
   if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer
@@ -2257,6 +2309,7 @@ export async function steerTaskAgentTurnImpl(
       args.organizationId,
       '[task-agent]',
     );
+    const confined = await isTurnConfined(ctx, args.runId);
     const instructions = [
       // The organization's Custom instructions lead, as on a chat turn.
       ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
@@ -2271,19 +2324,25 @@ export async function steerTaskAgentTurnImpl(
       ),
       ...(skillsAddendum !== '' ? [skillsAddendum] : []),
       `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
-      `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+      confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
       KNOWLEDGE_TOOLS_GUIDANCE,
       ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
       ...(visionGuidance !== '' ? [visionGuidance] : []),
-      ...secretsGuidance(args.secrets),
+      ...(confined
+        ? [memberRunGuidance(withheldCredentials(args))]
+        : secretsGuidance(args.secrets)),
     ].join('\n\n');
 
-    const extraEnv = await resolveTurnEquipmentEnv(ctx, {
-      organizationId: args.organizationId,
-      sessionId: args.sessionId,
-      connectors: args.connectors,
-      secrets: args.secrets,
-    });
+    // Judged again for the restart: the steer re-books the run to the person
+    // who steered it, and a run in a member's workspace stays confined.
+    const extraEnv = confined
+      ? {}
+      : await resolveTurnEquipmentEnv(ctx, {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          connectors: args.connectors,
+          secrets: args.secrets,
+        });
 
     // Same window resolution as the fresh start, under the rotated exec.
     const contextWindow = await resolveHarnessTurnContextWindow(ctx, {

@@ -142,6 +142,10 @@ function makeCtx(run: RunState) {
       if (name === 'governance/internal_queries:getPolicyConfigInternal') {
         return null;
       }
+      // An editor's run: the agent's full equipment.
+      if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
+        return { confined: false };
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {

@@ -1942,6 +1942,9 @@ export async function agentCreateTaskTrusted(
     priority?: TaskPriority;
     labels?: string[];
     parentTaskId?: string;
+    /** `false` for a run a member started: it names only labels the
+     * catalog already has, which stays its editors' to grow. */
+    mintLabels?: boolean;
   },
 ): Promise<{ taskId: string }> {
   const project = await loadProjectOrThrow(tx, args.projectId);
@@ -1979,7 +1982,7 @@ export async function agentCreateTaskTrusted(
       projectId: args.projectId,
       names: args.labels,
       createdBy: args.actorId,
-      createIfMissing: true,
+      createIfMissing: args.mintLabels ?? true,
     })) ?? [];
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);

@@ -16,9 +16,10 @@ import {
 
 type SessionContext = Pick<ActionCtx, 'runQuery' | 'runMutation'>;
 
-/** Project agents retain their workspace across tasks; a workflow's agent
- * and script nodes share one workspace for that execution. Admission and
- * recovery are identical, but quota release must keep the owner's policy. */
+/** Project agents retain their workspace across tasks — the standing one,
+ * and one per member who starts their runs; a workflow's agent and script
+ * nodes share one workspace for that execution. Admission and recovery are
+ * identical, but quota release must keep the owner's policy. */
 export type AgentSessionOwner =
   | { type: 'project_agent'; agentId: string }
   | { type: 'workflow_run'; runId: string };
@@ -78,10 +79,16 @@ export async function ensureAgentSession(
 ): Promise<{ liveCreatedAt: number | undefined }> {
   const { organizationId, sessionId } = args;
   const policy = ownerPolicy(ctx, organizationId, args.owner);
+  // A project agent owns more than one workspace — its standing one and one
+  // per member who starts its runs — so its row is found by session id too.
   const existing: { status: string; createdAt: number } | null =
     await ctx.runQuery(
       internal.sandbox.session_queries.getActiveSessionByOwner,
-      { ownerType: policy.ownerType, ownerId: policy.ownerId },
+      {
+        ownerType: policy.ownerType,
+        ownerId: policy.ownerId,
+        ...(args.owner.type === 'project_agent' ? { sessionId } : {}),
+      },
     );
 
   if (existing !== null) {

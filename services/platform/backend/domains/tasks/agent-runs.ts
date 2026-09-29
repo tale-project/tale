@@ -13,6 +13,7 @@ import {
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
+import { sessionIdForAgentRun } from './run-authority.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
 
@@ -72,11 +73,6 @@ const RUN_COLUMNS = `
   started_at_ms::float8 AS "startedAt", launched_at_ms::float8 AS "launchedAt",
   deadline_at_ms::float8 AS "deadlineAt", settled_at_ms::float8 AS "settledAt"
 `;
-
-/** The agent's STANDING session id — the workspace persists across runs. */
-function sessionIdForProjectAgent(agentId: string): string {
-  return `pa-${agentId}`;
-}
 
 export interface KickAgentRunArgs {
   organizationId: string;
@@ -141,6 +137,10 @@ export async function kickAgentRun(
     return { runId: standing.id, execId: standing.execId, reused: true };
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
+  // The workspace follows the starter: a project editor's run joins the
+  // agent's standing session, a member's run works in its own
+  // (`run-authority.ts`).
+  const sessionId = await sessionIdForAgentRun(tx, args);
   const now = Date.now();
   const execId = randomUUID();
   // "At most one live run per task" is the schema's rule (migration 0080's
@@ -161,7 +161,7 @@ export async function kickAgentRun(
       updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
-      ${args.agentId}, ${execId}, ${sessionIdForProjectAgent(args.agentId)},
+      ${args.agentId}, ${execId}, ${sessionId},
       'queued', ${args.harness}, ${args.model},
       ${args.modelProvider ?? null}, ${args.trigger ?? 'manual'},
       ${args.feedback ?? null}, ${args.mentionSource ?? null},
