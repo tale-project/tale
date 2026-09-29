@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@tale/ui/use-list-page';
@@ -7,6 +8,7 @@ import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { BookOpen } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
@@ -67,6 +69,9 @@ export function KnowledgeEntriesTable({
     [deleteEntry],
   );
 
+  const { regionRef, retryRead, failedWithRows } =
+    useListReadRecovery(paginatedResult);
+
   const list = useListPage<KnowledgeEntryItem>({
     dataSource: {
       type: 'paginated',
@@ -74,6 +79,10 @@ export function KnowledgeEntriesTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
+      // A failed first page is the table's error state with its retry,
+      // never "No knowledge entries yet" (#3777).
+      error: paginatedResult.error,
+      retry: retryRead,
     },
     pageSize,
     search: {
@@ -89,36 +98,57 @@ export function KnowledgeEntriesTable({
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        stickyLayout
-        enableRowSelection
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onRowClick={handleRowClick}
-        actionMenu={
-          <KnowledgeEntriesActionMenu
-            organizationId={organizationId}
-            createOpen={createOpen}
-            onCreateOpenChange={setCreateOpen}
+      {/* Rows already on screen outlive a failed read — a refresh, or a page
+          a search or a scroll asked for — and the failure is named above
+          them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={t('title')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
+        {failedWithRows && (
+          <CatalogLoadError
+            // A fresh alert for each failure, so a retry that fails again
+            // is announced again.
+            key={paginatedResult.errorCount}
+            message={t('refreshFailed')}
+            onRetry={retryRead}
+            isRetrying={paginatedResult.isRetrying}
           />
-        }
-        emptyState={{
-          icon: BookOpen,
-          title: tEmpty('knowledgeEntries.title'),
-          description: tEmpty('knowledgeEntries.description'),
-        }}
-        footer={
-          <BulkDeleteBar
-            rowSelection={rowSelection}
-            onClearSelection={handleClearSelection}
-            onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
-            describeFailure={firstFailureDetail}
-          />
-        }
-        {...list.tableProps}
-      />
+        )}
+        <DataTable
+          columns={columns}
+          stickyLayout
+          enableRowSelection
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          onRowClick={handleRowClick}
+          actionMenu={
+            <KnowledgeEntriesActionMenu
+              organizationId={organizationId}
+              createOpen={createOpen}
+              onCreateOpenChange={setCreateOpen}
+            />
+          }
+          emptyState={{
+            icon: BookOpen,
+            title: tEmpty('knowledgeEntries.title'),
+            description: tEmpty('knowledgeEntries.description'),
+          }}
+          footer={
+            <BulkDeleteBar
+              rowSelection={rowSelection}
+              onClearSelection={handleClearSelection}
+              onDeleteItem={handleDeleteItem}
+              onDeleteComplete={handleClearSelection}
+              describeFailure={firstFailureDetail}
+            />
+          }
+          {...list.tableProps}
+        />
+      </div>
 
       {viewedRecord && (
         <KnowledgeEntryViewDialog

@@ -2095,6 +2095,7 @@ documents:
   entityLabelOne: document
   tableCaption: Documents et dossiers
   searchPlaceholder: Rechercher des documents
+  refreshFailed: Impossible de charger les derniers documents. La liste est peut-être incomplète ou obsolète.
   record:
     badge: 'v{version} · {state}'
     state:
@@ -4520,6 +4521,7 @@ knowledgeEntries:
   title: Entrées de connaissances
   entityLabelOne: entrée de connaissance
   searchPlaceholder: Rechercher des entrées de connaissances
+  refreshFailed: Impossible de charger les dernières entrées de connaissances. La liste est peut-être incomplète ou obsolète.
   addButton: Ajouter une entrée
   addEntry: Ajouter une entrée de connaissances
   addDescription: Choisis un sujet, puis rédige la connaissance pour qu'elle soit compréhensible seule.
@@ -4568,6 +4570,10 @@ knowledgeEntries:
       précédentes}}'
     superseded: Remplacée
     supersededOn: Remplacée le {date}
+    historyLoading: "Chargement de l'historique des versions…"
+    historyEmpty: "Aucune version précédente pour l'instant — chaque modification conserve ici le texte qu'elle remplace."
+    historyLoadFailed: "Impossible de charger l'historique des versions."
+    historyRefreshFailed: "Impossible d'actualiser l'historique des versions. Les versions affichées ne sont peut-être plus à jour."
 metadata:
   suffix: Tale
   default:

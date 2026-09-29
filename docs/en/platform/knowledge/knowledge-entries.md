@@ -55,7 +55,7 @@ Click **Save**. The entry appears in the table with its topic, content, source (
 
 Open the entry's row menu, choose **Edit**, change the content, and **Save**. Editing creates a new current version and queues its updated text for indexing. There is one current entry per topic, so correcting the existing fact avoids competing answers.
 
-Open the entry's details to inspect **Version history** after a correction. Previous versions record what changed and when they were replaced; they are not additional current facts. The **Version ID** shown in the details belongs to the current version and changes with every edit; the topic identifies the entry across versions. An application can also create or update entries through the [REST API](/develop/api-reference).
+Open the entry's details to inspect **Version history** after a correction. Previous versions record what changed and when they were replaced; they are not additional current facts. An entry that was never edited says it has no earlier versions yet. The **Version ID** shown in the details belongs to the current version and changes with every edit; the topic identifies the entry across versions. An application can also create or update entries through the [REST API](/develop/api-reference).
 
 <Tip>
 
@@ -72,3 +72,13 @@ Use **Delete** in its row menu and read the confirmation. Deletion removes the e
 Check the current entry before changing the prompt. Has it been saved, is its indexing complete, and does the question use a clear topic? If indexing failed, use the retry control after resolving the reported cause. Repeated failures need an administrator to check the organization's embedding configuration and indexing services.
 
 Ask the assistant to cite the source, then open that source and compare it with the entry. A plausible answer alone does not establish that the latest fact was used. [Documents](/platform/knowledge/documents) explains the shared indexing states in more detail.
+
+## If the list or the history doesn't load
+
+When a read fails, Tale says so where the content belongs. It never shows the failure as an empty library or as an entry without history. **Try again** repeats the read without reloading the page:
+
+- If no entries can be loaded, the table shows the error and **Try again** instead of the empty state.
+- If entries are already on screen, they stay, and a notice above the table says the list may be incomplete or out of date. Your search and selected rows are kept while you retry. When further entries could not be loaded, the count below the table says so, and a search covers only the entries that loaded.
+- In an entry's details, if **Version history** cannot be loaded, the section says so and offers **Try again**. The current content stays readable.
+
+If **Try again** keeps failing, ask an administrator to check that Tale's services are running.

@@ -91,9 +91,13 @@ describe('KnowledgeEntryViewDialog', () => {
     expect(
       within(dialog).getByText(/A new ID is issued on every edit/),
     ).toBeInTheDocument();
+    // Never edited: the history says so rather than being left out, which
+    // looked the same as a history that failed to load (#3777).
     expect(
-      within(dialog).queryByRole('region', { name: 'Version history' }),
-    ).not.toBeInTheDocument();
+      within(
+        within(dialog).getByRole('region', { name: 'Version history' }),
+      ).getByText(/No earlier versions yet/),
+    ).toBeInTheDocument();
   });
 
   // Regression: the content is documented as Markdown but was printed as its

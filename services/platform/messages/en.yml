@@ -2012,6 +2012,7 @@ documents:
   entityLabelOne: document
   tableCaption: Documents and folders
   searchPlaceholder: Search documents
+  refreshFailed: "Couldn't load the latest documents. What's listed may be incomplete or out of date."
   record:
     badge: 'v{version} · {state}'
     state:
@@ -4291,6 +4292,7 @@ knowledgeEntries:
   title: Knowledge entries
   entityLabelOne: knowledge entry
   searchPlaceholder: Search knowledge entries
+  refreshFailed: "Couldn't load the latest knowledge entries. What's listed may be incomplete or out of date."
   addButton: Add entry
   addEntry: Add knowledge entry
   addDescription: Name a topic, then write the knowledge so it makes sense on its own.
@@ -4338,6 +4340,10 @@ knowledgeEntries:
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded
     supersededOn: Replaced on {date}
+    historyLoading: Loading version history…
+    historyEmpty: No earlier versions yet — each edit keeps the text it replaces here.
+    historyLoadFailed: "Couldn't load the version history."
+    historyRefreshFailed: "Couldn't refresh the version history. The versions shown may be out of date."
 metadata:
   suffix: Tale
   default:

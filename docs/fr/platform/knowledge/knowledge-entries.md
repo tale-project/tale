@@ -55,7 +55,7 @@ Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source (**
 
 Dans le menu de la ligne, choisis **Modifier**, corrige le contenu et clique sur **Enregistrer**. Cela crée une nouvelle version courante et programme l’indexation de son texte. Chaque sujet possède une seule entrée courante ; corriger l’entrée existante évite les réponses contradictoires.
 
-Après une correction, ouvre les détails pour consulter l’**Historique des versions**. Les anciennes versions permettent de retrouver ce qui a changé et leur date de remplacement. Elles ne constituent pas des informations courantes supplémentaires. L’**ID de version** affiché dans les détails appartient à la version courante et change à chaque modification ; c’est le sujet qui identifie l’entrée d’une version à l’autre. Une application peut également créer et modifier des entrées via l’[API REST](/fr/develop/api-reference).
+Après une correction, ouvre les détails pour consulter l’**Historique des versions**. Les anciennes versions permettent de retrouver ce qui a changé et leur date de remplacement. Elles ne constituent pas des informations courantes supplémentaires. Pour une entrée jamais modifiée, l’historique indique qu’il n’existe encore aucune version précédente. L’**ID de version** affiché dans les détails appartient à la version courante et change à chaque modification ; c’est le sujet qui identifie l’entrée d’une version à l’autre. Une application peut également créer et modifier des entrées via l’[API REST](/fr/develop/api-reference).
 
 <Tip>
 
@@ -72,3 +72,13 @@ Choisis **Supprimer** dans le menu de la ligne et lis la confirmation. L’entr�
 Vérifie d’abord l’entrée courante : est-elle enregistrée et indexée ? La question désigne-t-elle clairement son sujet ? Si l’indexation a échoué, résous la cause indiquée avant de la relancer. En cas d’échecs répétés, un administrateur doit vérifier la configuration des embeddings et les services d’indexation.
 
 Demande une citation à l’assistant, ouvre la source et compare-la à l’entrée. Une réponse plausible ne prouve pas qu’elle utilise la dernière information. La page [Documents](/fr/platform/knowledge/documents) détaille les états d’indexation communs.
+
+## Si la liste ou l’historique ne se charge pas
+
+Quand un chargement échoue, Tale le signale à l’endroit où le contenu devrait apparaître. L’échec n’apparaît jamais comme une bibliothèque vide ni comme une entrée sans historique. **Réessayer** relance le chargement sans que tu aies à recharger la page :
+
+- Si aucune entrée ne peut être chargée, le tableau affiche l’erreur et **Réessayer** au lieu de l’état vide.
+- Si des entrées sont déjà affichées, elles restent en place, et un avis au-dessus du tableau indique que la liste est peut-être incomplète ou obsolète. Ta recherche et les lignes sélectionnées sont conservées pendant la nouvelle tentative. Si d’autres entrées n’ont pas pu être chargées, le décompte sous le tableau le précise, et une recherche ne porte que sur les entrées chargées.
+- Dans les détails d’une entrée, si l’**Historique des versions** ne peut pas être chargé, la section le signale et propose **Réessayer**. Le contenu actuel reste lisible.
+
+Si **Réessayer** échoue à chaque fois, demande à un administrateur de vérifier que les services de Tale fonctionnent.
