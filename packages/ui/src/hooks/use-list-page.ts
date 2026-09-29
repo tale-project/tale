@@ -331,25 +331,30 @@ export function useListPage<TData>(
     return data;
   }, [rawData, searchValue, filterValues, search]);
 
+  // A halted source has no scroll to page its loaded rows in (the table
+  // stops watching the end of the list), so every processed row is on
+  // screen while it holds — whatever last reset the window: a search or a
+  // filter that matched them all, or its clearing (#3944). The effect
+  // carries that window over, so it stays open once the retry succeeds and
+  // nothing leaves the screen on recovery.
+  const windowCount = loadFailed
+    ? Math.max(displayCount, processed.length)
+    : displayCount;
+  useEffect(() => {
+    if (loadFailed && displayCount < processed.length) {
+      setDisplayCount(processed.length);
+    }
+  }, [loadFailed, displayCount, processed.length]);
+
   // 6. Slice for display — a sort takes the whole set (see `hasActiveSort`)
   const displayed = useMemo(
-    () => (hasActiveSort ? processed : processed.slice(0, displayCount)),
-    [processed, displayCount, hasActiveSort],
+    () => (hasActiveSort ? processed : processed.slice(0, windowCount)),
+    [processed, windowCount, hasActiveSort],
   );
-
-  // A halted source has no scroll to page its loaded rows in (the table
-  // stops watching the end of the list), so the window opens to all of
-  // them — and stays open once the retry succeeds, so nothing leaves the
-  // screen on recovery.
-  useEffect(() => {
-    if (loadFailed) {
-      setDisplayCount((prev) => Math.max(prev, processed.length));
-    }
-  }, [loadFailed, processed.length]);
 
   // 7. Compute hasMore. `displayed` already holds every processed row while a
   // sort is active, so only an un-drained backend can still add to it.
-  const localRemaining = !hasActiveSort && displayCount < processed.length;
+  const localRemaining = !hasActiveSort && windowCount < processed.length;
   const hasMore =
     dataSource.type === 'paginated'
       ? localRemaining ||
@@ -487,7 +492,7 @@ export function useListPage<TData>(
         isLoadingMore:
           dataSource.type === 'paginated'
             ? dataSource.status === 'LoadingMore' &&
-              (hasActiveSort || displayCount >= processed.length)
+              (hasActiveSort || windowCount >= processed.length)
             : false,
         isInitialLoading: isLoading,
         loadFailed,
