@@ -26,50 +26,56 @@ dashboard URL.
 ## Preconditions
 
 Bring the stack up and sign in per [SETUP.md](../setup.md). Decide and
-**record two axes** for every number, because both move it by an order of
+**record three axes** for every number, because each moves it by an order of
 magnitude:
 
 - **Mode** — `mockA` (the `lib/mocks` gateway on :4141, deterministic) or
-`live`
-  (a real provider configured in Settings → Providers).
-- **Backend** — `local` (self-hosted Convex at `:3210`, what dev/SETUP.md
-gives
-  you) or `hosted` (a cloud Convex deployment).
+  `live` (a real provider configured in Settings → Providers).
+- **Backend** — `local` (the platform's own backend on this machine: the
+  process `bun scripts/dev.ts` starts on `:3005` behind the app's proxy, or
+  the containers of `docker:dev`) or `hosted` (a deployed instance).
+- **Build** — `dev` (the Vite dev server) or `prod` (a production build). For
+  `prod` on a local stack, add `TALE_E2E_SERVE_BUILD=1` to the environment of
+  mode A's or B's `bun scripts/dev.ts`: it serves `dist/` through
+  `vite preview`, which proxies the backend like the dev server, and runs
+  `bun --bun vite build` first when `dist/` is missing. Delete `dist/` to
+  build again; the build alone needs about 3 GB of memory.
 
-> **Agent / measurement note**:  - The app emits a **dev-only cold-load
-> trace** to the browser console: `[cold-load] <label>: <ms>` for
-> `module-load`, `convex-authenticated`, `member-context`, `account-bootstrap`
-> (source: `app/lib/perf/cold-load-trace.ts`). One hard refresh prints all
-> four; the deltas localise the cost (bundle vs. auth handshake vs. gate
-> queries). On a **warm reload** (same tab, previous sign-in) a fifth label,
-> `convex-preauth`, prints when the persisted last-known token
-> pre-authenticated the websocket (epic #2386) — `convex-authenticated` should
-> then land within a round trip of `module-load`. Every mark is also
-> machine-readable: `performance.getEntriesByType('mark')` returns them as
-> `cold-load:<label>` entries, and `getColdLoadTrace()` exposes them to
-> tests/tooling. In a **production** build enable it with
-> `localStorage.tale_perf = '1'` then hard-refresh. - **The dev server is NOT
-> a perf target.** Under `bun scripts/dev.ts` the first hit on a cold route
-> triggers a Vite transform, so `module-load` alone is multiple seconds
-> (measured 5.5–9.6 s here) and is pure dev tooling, not the product. Treat
-> dev numbers as **relative** (compare deltas / warm-vs-cold) and reserve
-> absolute pass/fail to a **production build** (`bun run build` + serve) —
-> note which you used. - A chat turn reaches a terminal state when the chat
-> input toggles **Stop generating** (`chat.stopGenerating`) back to **Send
-> message** (`chat.send`). Time/await on that toggle, never on streamed text.
-> "TTFT ≈ 150 ms" describes only the mock gateway's SSE first byte — the
-> **observed turn round-trip** in `mockA` + `local` is far longer (~14 s here)
-> because the Auto classifier hop plus the local self-hosted backend amplify
-> per-query latency ~5–10×.
+> **Agent / measurement note**:
+>
+> - The app records a **cold-load trace**, `[cold-load] <label>: <ms>` in the
+>   console, for `module-load` (the bundle has run), `router-loaded` (the
+>   first route's matches are resolved), `session-resolved` (the session
+>   check answered), `member-context` (the membership gate query) and
+>   `account-bootstrap` (the 2FA / password-expiry gate query); source:
+>   `app/lib/perf/cold-load-trace.ts`. One hard refresh prints all five; the
+>   deltas localise the cost (bundle vs. session vs. gate queries). Every mark
+>   is also machine-readable: `performance.getEntriesByType('mark')` returns
+>   them as `cold-load:<label>` entries, and `getColdLoadTrace()` exposes them
+>   to tests/tooling. The dev server always records it; in a **production**
+>   build enable it with `localStorage.tale_perf = '1'` then hard-refresh.
+> - **The dev server is NOT a perf target.** Under `bun scripts/dev.ts` the
+>   first hit on a cold route triggers a Vite transform, so `module-load`
+>   alone is multiple seconds (measured 5.5–9.6 s here) and is pure dev
+>   tooling, not the product. Treat dev numbers as **relative** (compare
+>   deltas / warm-vs-cold) and reserve absolute pass/fail to a **production
+>   build** — note which you used.
+> - A chat turn reaches a terminal state when the chat input toggles **Stop
+>   generating** (`chat.stopGenerating`) back to **Send message**
+>   (`chat.send`). Time/await on that toggle, never on streamed text. "TTFT ≈
+>   150 ms" describes only the mock gateway's SSE first byte — the **observed
+>   turn round-trip** in `mockA` + `local` is far longer (~14 s here) because
+>   the Auto classifier hop plus the local self-hosted backend amplify
+>   per-query latency ~5–10×.
 
 ## Functional / performance tests
 
 - [ ] `PERF-P1` · **Cold load → first paint** — Clear cache, hard-reload
-  `/dashboard/{org}`. Watch the console for `[cold-load]` lines. → All four
-  `[cold-load]` labels print (`module-load`, `convex-authenticated`,
-  `member-context`, `account-bootstrap`); the **Send message** button
-  (`chat.send`) becomes visible. Prod build: usable < 3 s (`mockA`/`live`,
-  `hosted`). Dev/local: record absolute + note it's dev.
+  `/dashboard/{org}`. Watch the console for `[cold-load]` lines. → All five
+  `[cold-load]` labels print (`module-load`, `router-loaded`,
+  `session-resolved`, `member-context`, `account-bootstrap`); the **Send
+  message** button (`chat.send`) becomes visible. Prod build: usable < 3 s
+  (`mockA`/`live`, `hosted`). Dev/local: record absolute + note it's dev.
 - [ ] `PERF-P2` · **Chat TTFT / turn** — On `/dashboard/{org}/chat` type
   `hello`, click **Send message** (`chat.send`). → **Stop generating**
   (`chat.stopGenerating`) appears, then disappears (turn done) and the URL
