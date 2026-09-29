@@ -50,7 +50,8 @@ import {
  * daily `knowledge.reconcile_corpus` sweep walks each org's corpus and
  * releases every ref both predicates declare dead — the backstop that also
  * heals historically stranded rows on existing deployments — and hands the
- * job the bytes it fails to delete once their corpus rows are gone.
+ * job the bytes it fails to delete once their corpus rows are gone
+ * (`settleReleaseOutcome`).
  */
 
 export interface ReleaseFailure {
@@ -327,16 +328,14 @@ async function reconcileRange(
     if (page.length === 0) break;
     scanned += page.length;
     cursor = page.at(-1) ?? null;
-    const outcome = await requeueBlobFailures(
+    const outcome = await settleReleaseOutcome(
       sql,
       args.organizationId,
-      warnReleaseFailures(
-        await releaseRefs(sql, {
-          organizationId: args.organizationId,
-          orgSlug: args.orgSlug,
-          refs: page,
-        }),
-      ),
+      await releaseRefs(sql, {
+        organizationId: args.organizationId,
+        orgSlug: args.orgSlug,
+        refs: page,
+      }),
     );
     released += outcome.released.length;
     failures += outcome.failures.length;
@@ -345,42 +344,43 @@ async function reconcileRange(
   return { scanned, released, failures };
 }
 
-/** Log each corpus-stage failure of a release the reconcile ran — the next
- * run retries it, since its rows still list the ref — and hand the outcome
- * on. A blob-stage failure is `requeueBlobFailures`' to log: whether the
- * release job took it is half of what its line has to say. */
-function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
+/**
+ * Settle what a release the reconcile ran could not do, and hand the outcome
+ * on — the ONE step every release of the reconcile goes through, so that no
+ * caller reports one kind of failure and drops the other. Logging the
+ * corpus stage in one helper and the blob stage in another left each
+ * caller to pipe the outcome through both; one that used the first alone
+ * would have lost a failed byte delete without a line or a re-queue.
+ *
+ *  - A corpus-stage failure is logged and not queued: its rows still list
+ *    the ref, and the next night retries it.
+ *  - A blob-stage failure queues the durable release job. The ref's corpus
+ *    rows are gone by then, so nothing the reconcile walks lists it again —
+ *    the stamp pass reads stamped corpus rows, the blob walk corpus refs,
+ *    and no sweep lists bucket objects — and its bytes would stay for good.
+ *    The job re-decides liveness and reads the absent corpus rows as
+ *    released, so pg-boss's retries redo the blob stage only. The jobs are
+ *    bounded as the mail lanes' are (`queueRefRelease`), and an enqueue that
+ *    fails is logged, not thrown, so the next job is still queued and the
+ *    organization's other passes still run. Each failed byte delete is
+ *    logged with what became of it — re-queued, or not re-queued when its
+ *    job could not be queued — so a failure the job retries never reads as
+ *    final.
+ *
+ * A corpus-only release (`releaseCorpusRefs`) never reaches the blob stage,
+ * so for it the second branch queues nothing.
+ */
+export async function settleReleaseOutcome(
+  sql: Sql,
+  organizationId: string,
+  outcome: ReleaseOutcome,
+): Promise<ReleaseOutcome> {
   for (const failure of outcome.failures) {
     if (failure.stage !== 'corpus') continue;
     console.warn(
       `[knowledge] reconcile release failed for ${failure.ref} (corpus): ${failure.message}`,
     );
   }
-  return outcome;
-}
-
-/**
- * Queue the durable release job for every ref of a release the reconcile ran
- * whose bytes it could not delete, and hand the outcome on. The corpus rows
- * of such a ref are gone by then, so nothing the reconcile walks lists it
- * again — the stamp pass reads stamped corpus rows, the blob walk corpus
- * refs, and no sweep lists bucket objects — and its bytes would stay for
- * good. The job re-decides liveness and reads the absent corpus rows as
- * released, so pg-boss's retries redo the blob stage only. A corpus-stage
- * failure is not queued: its rows still list the ref for the next night. The
- * jobs are bounded as the mail lanes' are (`queueRefRelease`), and an
- * enqueue that fails is logged, not thrown, so the next job is still queued
- * and the organization's other passes still run.
- *
- * Each failed byte delete is logged with what became of it — re-queued, or
- * not re-queued when its job could not be queued — so a failure the job
- * retries never reads as final.
- */
-async function requeueBlobFailures(
-  sql: Sql,
-  organizationId: string,
-  outcome: ReleaseOutcome,
-): Promise<ReleaseOutcome> {
   const failures = outcome.failures.filter(
     (failure) => failure.stage === 'blob',
   );
@@ -416,7 +416,7 @@ async function requeueBlobFailures(
  * versions, rotated knowledge entries, swept temp files) and the backstop
  * for a release job that exhausted its retries while the ref's corpus rows
  * stood. A ref whose bytes the walk cannot delete goes to the release job
- * (`requeueBlobFailures`). Bounded per run; the daily schedule drains large
+ * (`settleReleaseOutcome`). Bounded per run; the daily schedule drains large
  * backlogs incrementally.
  *
  * Email bodies (`msg:` refs) get a walk of their own with its own budget, so
@@ -506,14 +506,16 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       const mail = await reconcileMailAttachmentStamps(sql, {
         ...orgRef,
         releaseCorpus: async (refs) =>
-          warnReleaseFailures(
+          settleReleaseOutcome(
+            sql,
+            org.id,
             await releaseCorpusRefs(sql, { ...orgRef, refs }),
           ),
         releaseUnbacked: async (refs) =>
-          requeueBlobFailures(
+          settleReleaseOutcome(
             sql,
             org.id,
-            warnReleaseFailures(await releaseRefs(sql, { ...orgRef, refs })),
+            await releaseRefs(sql, { ...orgRef, refs }),
           ),
       });
       if (mail.corrected > 0 || mail.released > 0 || mail.failures > 0) {
