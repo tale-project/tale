@@ -131,6 +131,27 @@ describe('TasksWorkspace — who creates and who works', () => {
     expect(screen.getByText('Task others: read-only')).toBeInTheDocument();
   });
 
+  it('gives a member the subtasks an agent added under their own task', () => {
+    state.tasks = [
+      task('own', { createdBy: 'u-member' }),
+      task('split', {
+        parentTaskId: 'own',
+        createdBy: 'agent-1',
+        createdByType: 'agent',
+      }),
+      task('others'),
+      task('theirs', {
+        parentTaskId: 'others',
+        createdBy: 'agent-1',
+        createdByType: 'agent',
+      }),
+    ];
+    renderWorkspace();
+
+    expect(screen.getByText('Task split: workable')).toBeInTheDocument();
+    expect(screen.getByText('Task theirs: read-only')).toBeInTheDocument();
+  });
+
   it('gives an editor every task to work, as before', () => {
     state.canEdit = true;
     renderWorkspace();

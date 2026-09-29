@@ -286,12 +286,14 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           canEdit: boolean;
           canCreate: boolean;
           canComment: boolean;
+          ancestors?: NonNullable<GetTaskResult>['ancestors'];
         }>(`/tasks/${encodeURIComponent(taskId)}`, { orgId }).then(
           (body): GetTaskResult => ({
             task: taskView(body.task),
             canEdit: body.canEdit,
             canCreate: body.canCreate,
             canComment: body.canComment,
+            ancestors: body.ancestors ?? [],
           }),
           (error: unknown): GetTaskResult => {
             // 0.4 answers null for a missing task — never an error state.

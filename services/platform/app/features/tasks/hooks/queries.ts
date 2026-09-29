@@ -1,6 +1,7 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import type { TaskOwnership } from '@/backend/core/tasks/access';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
 type TaskStatusFilter =
@@ -91,6 +92,9 @@ const TASK_MISSING_CODES: ReadonlySet<string> = new Set([
   'TASK_FORBIDDEN',
 ]);
 
+/** One stable empty ancestry, so a root task's access decision memoizes. */
+const NO_ANCESTORS: readonly TaskOwnership[] = [];
+
 export function useTask(taskId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading, error } = useBackendQuery(
@@ -105,6 +109,9 @@ export function useTask(taskId: string | undefined) {
     // theirs).
     canEdit: data?.canEdit ?? false,
     canCreate: data?.canCreate ?? false,
+    // Whose the task's parents are: a subtask under the viewer's own task is
+    // theirs to work too.
+    ancestors: data?.ancestors ?? NO_ANCESTORS,
     // Commenting is read-level: default false until the read resolves so the
     // composer doesn't flash, then true for any member who can open the task.
     canComment: data?.canComment ?? false,

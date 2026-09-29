@@ -430,6 +430,54 @@ describe('TaskAgentRunEntry details', () => {
 
 // A deleted agent's task: its runs stay readable, but Start/Retry would only
 // kick a run for an agent that cannot exist, and a refusal names its reason.
+describe('TaskAgentRunEntry — who may stop a live run', () => {
+  const liveRun = () => ({
+    ...settledRun(),
+    status: 'running',
+    settledAt: undefined,
+    startedBy: 'u-member',
+  });
+
+  it('offers Stop to the person who started it on a task no longer theirs', async () => {
+    cancelRun.mockReset().mockResolvedValue(null);
+    state.run = liveRun();
+    const canStopRun = vi.fn(
+      (startedBy: string | undefined) => startedBy === 'u-member',
+    );
+    const user = userEvent.setup();
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit={false}
+        canStopRun={canStopRun}
+      />,
+    );
+    // Reading it is not working it: no Start or Retry.
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'agentRun.cancel' }));
+    expect(canStopRun).toHaveBeenCalledWith('u-member');
+    expect(cancelRun).toHaveBeenCalledWith({ taskId });
+  });
+
+  it('offers no Stop to someone who neither works the task nor started the run', () => {
+    state.run = liveRun();
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit={false}
+        canStopRun={() => false}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: 'agentRun.cancel' }),
+    ).toBeNull();
+  });
+});
+
 describe('TaskAgentRunEntry with a missing agent', () => {
   it('withholds Retry (and Start) when the assignee is no longer a live agent', () => {
     state.run = { ...settledRun(), status: 'failed', error: 'boom' };

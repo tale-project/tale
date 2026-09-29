@@ -598,6 +598,8 @@ export interface TaskAgentRunCard {
   trigger?: string;
   autoRetryAttempt?: number;
   autoRetryMax: number;
+  /** The run's starter — a bare user id for every project-agent run. */
+  startedBy: string;
   startedAt: number;
   settledAt?: number;
 }
@@ -620,6 +622,7 @@ export async function getLatestAgentRunCardForTask(
       waitingForCapacityAt: number | null;
       trigger: string | null;
       autoRetryAttempt: number | null;
+      startedBy: string;
       startedAt: number;
       settledAt: number | null;
     }[]
@@ -628,6 +631,7 @@ export async function getLatestAgentRunCardForTask(
            r.harness, r.model, r.error, r.result_text AS "resultText",
            r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
            r.trigger, r.auto_retry_attempt AS "autoRetryAttempt",
+           r.started_by AS "startedBy",
            r.started_at_ms::float8 AS "startedAt",
            r.settled_at_ms::float8 AS "settledAt"
     FROM app.project_agent_runs r
@@ -653,6 +657,9 @@ export async function getLatestAgentRunCardForTask(
       ? { autoRetryAttempt: run.autoRetryAttempt }
       : {}),
     autoRetryMax: AUTO_RETRY_MAX_ATTEMPTS,
+    // Who the run answers to — the person who may stop and steer it even
+    // once the task is no longer theirs.
+    startedBy: run.startedBy,
     startedAt: run.startedAt,
     ...(run.settledAt !== null ? { settledAt: run.settledAt } : {}),
   };

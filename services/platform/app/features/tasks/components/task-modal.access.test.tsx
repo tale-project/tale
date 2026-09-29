@@ -17,6 +17,7 @@ import { TaskModal } from './task-modal';
 const state = vi.hoisted(() => ({
   task: null as Record<string, unknown> | null,
   access: { canEdit: false, canCreate: true },
+  ancestors: [] as Record<string, unknown>[],
   projectCanEdit: false,
   isAdmin: false,
 }));
@@ -47,7 +48,12 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
         data:
           state.task === null
             ? undefined
-            : { task: state.task, ...state.access, canComment: true },
+            : {
+                task: state.task,
+                ...state.access,
+                canComment: true,
+                ancestors: state.ancestors,
+              },
         isLoading: false,
       };
     }
@@ -141,6 +147,7 @@ function openCreate() {
 beforeEach(() => {
   state.task = null;
   state.access = { canEdit: false, canCreate: true };
+  state.ancestors = [];
   state.projectCanEdit = false;
   state.isAdmin = false;
 });
@@ -161,6 +168,23 @@ describe('TaskModal — a member works their own task', () => {
     // project's editors.
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Manage labels' })).toBeNull();
+  });
+
+  it('edits a subtask someone else added under their own task', async () => {
+    state.ancestors = [
+      { createdBy: 'u-member', createdByType: 'user', assigneeType: null },
+    ];
+    openTask({
+      ...baseTask,
+      parentTaskId: 'task-parent',
+      createdBy: 'agent-1',
+      createdByType: 'agent',
+    });
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Title' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Status' })).toBeEnabled();
   });
 
   it("reads someone else's task without a control to change it", async () => {

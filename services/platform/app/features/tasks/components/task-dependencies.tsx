@@ -38,8 +38,10 @@ type TaskRow = TaskDoc;
  *
  * An edge is the BLOCKED task's record — the server holds it to that task's
  * work gate. So "Blocked by" is editable with this task, and "Blocks" offers
- * (and takes back) only the tasks the viewer may work themselves: every task
- * for an editor, their own for anyone else.
+ * (and takes back) the tasks the viewer may work themselves — every task for
+ * an editor, their own for anyone else — whoever this task belongs to: a
+ * member reading someone else's task may still record that it blocks one of
+ * theirs.
  */
 export function TaskDependencies({
   task,
@@ -58,10 +60,15 @@ export function TaskDependencies({
   const { blockedBy, blocks } = useTaskDependencies(task._id);
   const projectList = useTasksByProject(task.projectId);
   const projectTasks = projectList.tasks;
-  const { canWorkTask } = useTaskAccess(task.organizationId, {
-    canEdit: projectList.canEdit,
-    canCreate: projectList.canCreate,
-  });
+  const byId = useMemo(
+    () => new Map(projectTasks.map((row) => [row._id, row])),
+    [projectTasks],
+  );
+  const { canWorkTask } = useTaskAccess(
+    task.organizationId,
+    { canEdit: projectList.canEdit, canCreate: projectList.canCreate },
+    (taskId) => byId.get(taskId),
+  );
   const addDependency = useAddTaskDependency();
   const removeDependency = useRemoveTaskDependency();
 
@@ -92,7 +99,20 @@ export function TaskDependencies({
     return projectTasks.filter((p) => !excluded.has(p._id) && !p.archivedAt);
   }, [projectTasks, blockedBy, blocks, task._id]);
 
-  if (!canEdit && blockedBy.length === 0 && blocks.length === 0) return null;
+  // "Blocks" follows the task it marks, not this one: an active task may be
+  // named as the blocker of any task the viewer works.
+  const blockable =
+    task.archivedAt == null ? candidates.filter((c) => canWorkTask(c)) : [];
+  const canLinkBlocks = canEdit || blockable.length > 0;
+
+  if (
+    !canEdit &&
+    !canLinkBlocks &&
+    blockedBy.length === 0 &&
+    blocks.length === 0
+  ) {
+    return null;
+  }
 
   return (
     // Lives in the modal's side property panel — the heading is the section
@@ -123,10 +143,10 @@ export function TaskDependencies({
       <DependencyGroup
         label={t('detail.blocks')}
         items={blocks}
-        // Marking another task as blocked changes that task.
-        candidates={candidates.filter(canWorkTask)}
-        canEdit={canEdit}
-        canRemove={(item) => canEdit && canWorkTask(item)}
+        // Marking another task as blocked changes that task, not this one.
+        candidates={blockable}
+        canEdit={canLinkBlocks}
+        canRemove={(item) => canWorkTask(item)}
         projectKey={projectKey}
         onOpenTask={onOpenTask}
         onAdd={(blockedTaskId) =>

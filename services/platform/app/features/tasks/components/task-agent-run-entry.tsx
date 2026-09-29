@@ -45,6 +45,10 @@ interface TaskAgentRunEntryProps {
   /** The viewer may work the task (`useTaskAccess`): start, retry and
    * cancel its agent. Reading the run is for everyone. */
   canEdit: boolean;
+  /** Whether the viewer may stop the live run this person started — the
+   * work gate's, and the starter's own even once the task is no longer
+   * theirs. Absent: stopping follows `canEdit`. */
+  canStopRun?: (startedBy: string | undefined) => boolean;
   /**
    * Whether the task's assignee is an agent that still exists in the project
    * (default `true`). A deleted agent's runs stay readable — Details is a
@@ -139,6 +143,7 @@ export function TaskAgentRunEntry({
   taskId,
   assigneeId,
   canEdit,
+  canStopRun,
   assigneeLive = true,
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
@@ -160,6 +165,8 @@ export function TaskAgentRunEntry({
   if (run === undefined) return null;
   const live =
     run !== null && (run.status === 'queued' || run.status === 'running');
+  const canStop =
+    live && (canStopRun === undefined ? canEdit : canStopRun(run.startedBy));
   const previousAssignee = run !== null && run.agentId !== assigneeId;
 
   const handleRetry = async () => {
@@ -301,7 +308,7 @@ export function TaskAgentRunEntry({
         <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)}>
           {t('run.details')}
         </Button>
-        {canEdit && live ? (
+        {canStop ? (
           <Button
             variant="ghost"
             size="sm"

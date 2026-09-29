@@ -110,12 +110,23 @@ export function TasksWorkspace({
   });
   const loadedTasks = allProjects ? acrossList.tasks : projectList.tasks;
   const list = allProjects ? acrossList : projectList;
+  // A subtask's parents are looked up among the loaded cards: work rights
+  // run down the subtask tree.
+  const loadedById = useMemo(
+    () => new Map(loadedTasks.map((task) => [task._id, task])),
+    [loadedTasks],
+  );
+  const resolveLoadedTask = useCallback(
+    (taskId: string) => loadedById.get(taskId),
+    [loadedById],
+  );
   // Editors work every task; every reader creates tasks and works their own —
   // one decision per task, the server's own rule.
-  const access = useTaskAccess(organizationId, {
-    canEdit: list.canEdit,
-    canCreate: list.canCreate,
-  });
+  const access = useTaskAccess(
+    organizationId,
+    { canEdit: list.canEdit, canCreate: list.canCreate },
+    resolveLoadedTask,
+  );
   const { canCreate } = access;
   const isLoading = allProjects ? acrossList.isLoading : projectList.isLoading;
   const { edges } = useProjectDependencies(

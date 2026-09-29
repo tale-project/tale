@@ -84,8 +84,9 @@ export function TaskCommentView({
   organizationId: string;
   projectId: string;
   canComment: boolean;
-  /** Whether the viewer may work the task — the server's gate for editing
-   * or deleting a comment on it, beside being its author (or an admin). */
+  /** Whether the viewer may work the task — the gate an admin's moderation
+   * of someone else's comment passes. Authors change their own comments
+   * with the read access posting took. */
   canWork?: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
@@ -110,7 +111,7 @@ export function TaskCommentView({
     : null;
   const displayBody = pickCommentBody(c.body, c.bodyByLocale, locale);
   const canManage =
-    canWork &&
+    canComment &&
     c.authorType === 'user' &&
     !!currentUserId &&
     c.authorId === currentUserId;
@@ -419,9 +420,10 @@ export function useTaskCommentDelete() {
  * author identity (resolved name + avatar), relative timestamps, the `(edited)`
  * marker, and inline edit/delete. The composer is gated on `canComment`
  * (read-level — any org member who can open the task, mirroring a project
- * discussion reply); edit and delete also need `canWork`, the task's work
- * gate — edit author-only, delete author-or-admin (all re-enforced
- * server-side). Agent replies (from `run_on_task`) render as
+ * discussion reply), and so are an author's edit and delete of their own
+ * comment; an admin's delete of someone else's also needs `canWork`, the
+ * task's work gate (all re-enforced server-side). Agent replies (from
+ * `run_on_task`) render as
  * agent-authored messages here. A task with no comments yet shows just the
  * composer when the viewer can comment — the placeholder teaches; a second
  * "No comments yet" line is omitted (empty-state craft). Read-only empty
@@ -453,7 +455,7 @@ export function TaskComments({
   organizationId: string;
   projectId: string;
   canComment: boolean;
-  /** The viewer may work the task: their comments take edit and delete. */
+  /** The viewer may work the task: an admin's moderation passes it. */
   canWork?: boolean;
   currentUserId?: string;
   isAdmin?: boolean;

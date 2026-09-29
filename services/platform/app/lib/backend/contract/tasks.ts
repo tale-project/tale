@@ -276,6 +276,9 @@ export interface TasksContract {
     returns: null | {
       settledAt?: number;
       autoRetryMax: number;
+      /** Who started the run: the person who may stop and steer it even
+       * once the task is no longer theirs. */
+      startedBy?: string;
       startedAt: number;
       autoRetryAttempt?: number;
       trigger?: 'manual' | 'mention' | 'auto_retry';
@@ -381,6 +384,14 @@ export interface TasksContract {
        * their own (`canWorkTask`). */
       canCreate: boolean;
       canComment: boolean;
+      /** Whose the task's parents are, nearest first: a subtask under the
+       * viewer's own task is theirs to work too. */
+      ancestors: Array<{
+        createdBy: string;
+        createdByType: string;
+        assigneeType?: string | null;
+        assigneeId?: string | null;
+      }>;
     };
   };
   'tasks/queries:getTaskAgentRunSandboxOp': {

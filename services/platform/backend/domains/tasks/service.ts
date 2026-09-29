@@ -3102,12 +3102,19 @@ export async function getTask(
   {
     task: DecoratedTaskRow;
     canComment: boolean;
+    /** The owners up the task's subtask tree, nearest parent first — the
+     * sheet decides with them whether the viewer may work a subtask. */
+    ancestors: TaskOwnership[];
   } & TaskAccess
 > {
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   const access = boardTaskAccess(project, auth);
+  const ancestors =
+    task.parentTaskId === null
+      ? []
+      : await loadTaskAncestry(sql, auth.organizationId, task.parentTaskId);
   const [decorated] = await decorateProjectPage(
     sql,
     auth.organizationId,
@@ -3123,6 +3130,7 @@ export async function getTask(
     // Reaching here means the caller passed the project read gate — exactly
     // the requirement to comment (a READ-level action, the 0.4 posture).
     canComment: true,
+    ancestors,
   };
 }
 

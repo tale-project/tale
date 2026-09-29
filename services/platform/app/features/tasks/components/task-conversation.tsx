@@ -67,7 +67,7 @@ export function TaskConversation({
   organizationId: string;
   projectId: string;
   canComment: boolean;
-  /** The viewer may work the task: their comments take edit and delete. */
+  /** The viewer may work the task: an admin's moderation passes it. */
   canWork?: boolean;
   currentUserId?: string;
   isAdmin?: boolean;

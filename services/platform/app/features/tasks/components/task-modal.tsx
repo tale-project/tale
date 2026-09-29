@@ -1184,15 +1184,17 @@ export function EditTaskBody({
     canEdit,
     canCreate,
     canComment,
+    ancestors,
     notFound,
     error: readError,
   } = useTask(taskId);
   // Editors work every task; any other reader of the project works the
-  // tasks they created or are assigned to — the server's own rule.
-  const { canWorkTask } = useTaskAccess(task?.organizationId, {
-    canEdit,
-    canCreate,
-  });
+  // tasks they created or are assigned to, and the subtasks under them —
+  // the server's own rule.
+  const { canWorkTask, canControlLiveRun } = useTaskAccess(
+    task?.organizationId,
+    { canEdit, canCreate },
+  );
   const { project } = useProject(task?.projectId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const { copy } = useCopy();
@@ -1430,7 +1432,7 @@ export function EditTaskBody({
   const isArchived = task.archivedAt != null;
   // Whoever may work the task changes it; the label catalog and the
   // project's files around it stay the project editors'.
-  const canWork = canWorkTask(task);
+  const canWork = canWorkTask(task, ancestors);
   const canMutate = canWork && !isArchived;
   const canEditProject = canEdit && !isArchived;
   // The rule is the open task's to change. A closed one keeps the rule it
@@ -2075,6 +2077,9 @@ export function EditTaskBody({
             taskId={task._id}
             assigneeId={task.assigneeId}
             canEdit={canMutate}
+            canStopRun={(startedBy) =>
+              !isArchived && canControlLiveRun(task, startedBy, ancestors)
+            }
             assigneeLive={assigneeLive}
           />
         </PropertyField>
