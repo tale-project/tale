@@ -3,7 +3,7 @@ title: API-Schlüssel
 description: Erstelle, prüfe, rotiere und widerrufe Zugangsdaten für Software, die Tale aufruft.
 ---
 
-Erstelle einen API-Schlüssel, wenn ein Skript oder Dienst die REST-API von Tale aufrufen soll. Ein Schlüssel gehört der Person, die ihn erstellt hat, nicht der Organisation, auf deren Einstellungsseite er entstand: Er handelt im Namen dieser Person, verwendet ihre aktuellen Rechte und gilt in jeder Organisation, der sie angehört. Eine REST-Anfrage nennt die angesprochene Organisation im Header `X-Organization-Slug`; gehört der Inhaber nur einer Organisation an, darf er entfallen. Inhaber, Admins und Entwickler verwalten ihre Schlüssel unter **Einstellungen > API > REST**, ebenso ein Mitglied mit der Kompetenz **Modelle über die API aufrufen**.
+Erstelle einen API-Schlüssel, wenn ein Skript oder Dienst die REST-API von Tale aufrufen soll. Ein Schlüssel gehört der Person, die ihn erstellt hat, nicht der Organisation, auf deren Einstellungsseite er entstand: Er handelt im Namen dieser Person, verwendet ihre aktuellen Rechte und gilt in jeder Organisation, der sie angehört. Eine REST-Anfrage nennt die angesprochene Organisation im Header `X-Organization-Slug`; gehört der Inhaber nur einer Organisation an, darf er entfallen. Inhaber, Admins und Entwickler verwalten ihre Schlüssel unter **Einstellungen > API > REST**, ebenso ein Mitglied, dem ein Admin eine Kompetenz zugewiesen hat, die mit einem Schlüssel genutzt wird: **Modelle über die API aufrufen**, **Benachrichtigungen exportieren** oder **Für ein anderes Mitglied handeln**. Allen anderen verweigert Tale einen neuen Schlüssel mit `403 API_KEY_CREATE_FORBIDDEN`.
 
 <Frame caption="Einstellungen > API > REST — wo Schlüssel erstellt, rotiert und widerrufen werden.">
 
@@ -49,7 +49,7 @@ Ein altes Datum unter **Zuletzt verwendet** reicht allein nicht als Grund zum Wi
 
 ## Rechte und Limits verstehen
 
-Rollenänderungen gelten bei folgenden Anfragen auch für bestehende Schlüssel. Wird die Mitgliedschaft des Inhabers deaktiviert, endet sein Zugriff. Der Schlüssel behält nicht die Rolle vom Erstellungszeitpunkt.
+Rollenänderungen gelten bei folgenden Anfragen auch für bestehende Schlüssel. Wird die Mitgliedschaft des Inhabers deaktiviert, endet sein Zugriff. Der Schlüssel behält nicht die Rolle vom Erstellungszeitpunkt. Verlierst du die Rolle oder Kompetenz, mit der du Schlüssel erstellen durftest, bleiben deine bestehenden Schlüssel erhalten: **Einstellungen > API > REST** listet sie weiter, damit du sie widerrufen kannst, bietet aber keinen neuen an.
 
 Gib einer Integration nur den Zugriff, den sie braucht. Ein Dienst, der Benachrichtigungen spiegelt, benötigt zum Beispiel kein Admin-Konto: Ein Admin kann einem gewöhnlichen Mitglied die Berechtigung `tale:notifications.export` erteilen. Sie erlaubt diesen Export, aber keines der übrigen Rechte der Admin-Rolle, gilt nur in der Organisation, kann ablaufen und endet, wenn das Mitglied entfernt wird. Weise sie unter [Kompetenzen](/de/platform/admin/governance/competences) zu. Dort erhält auch eine Integration, die Antworten und Prüfentscheidungen von Personen weiterreicht, auf dieselbe Weise `tale:rest.act-as`; [Export ohne Admin-Rolle delegieren](/de/develop/api-reference#export-ohne-admin-rolle-delegieren) beschreibt die API-Seite.
 

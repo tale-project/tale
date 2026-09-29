@@ -3,7 +3,7 @@ title: Clés API
 description: Crée, vérifie, renouvelle et révoque les identifiants des logiciels qui appellent Tale.
 ---
 
-Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de Tale. Une clé appartient à la personne qui l’a créée, pas à l’organisation depuis laquelle elle a été créée : elle agit au nom de cette personne, suit ses permissions actuelles et fonctionne dans chaque organisation dont elle est membre. Une requête REST nomme l’organisation visée dans l’en-tête `X-Organization-Slug` ; si le détenteur n’appartient qu’à une seule organisation, l’en-tête peut être omis. Les propriétaires, admins et développeurs gèrent leurs clés dans **Paramètres > API > REST**, tout comme un membre qui détient la compétence **Appeler les modèles par l'API**.
+Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de Tale. Une clé appartient à la personne qui l’a créée, pas à l’organisation depuis laquelle elle a été créée : elle agit au nom de cette personne, suit ses permissions actuelles et fonctionne dans chaque organisation dont elle est membre. Une requête REST nomme l’organisation visée dans l’en-tête `X-Organization-Slug` ; si le détenteur n’appartient qu’à une seule organisation, l’en-tête peut être omis. Les propriétaires, admins et développeurs gèrent leurs clés dans **Paramètres > API > REST**, tout comme un membre à qui un admin a attribué une compétence qui s’utilise avec une clé : **Appeler les modèles par l'API**, **Exporter les notifications** ou **Agir pour un autre membre**. Tale refuse une nouvelle clé à toute autre personne avec `403 API_KEY_CREATE_FORBIDDEN`.
 
 <Frame caption="Paramètres > API > REST — là où les clés sont créées, renouvelées et révoquées.">
 
@@ -49,7 +49,7 @@ Une ancienne date de **Dernière utilisation** ne suffit pas à justifier une r�
 
 ## Comprendre les permissions et les limites
 
-Un changement de rôle s’applique aux requêtes suivantes des clés existantes. Désactiver l’adhésion de leur propriétaire retire ses accès ; la clé ne conserve pas le rôle qu’elle avait à sa création.
+Un changement de rôle s’applique aux requêtes suivantes des clés existantes. Désactiver l’adhésion de leur propriétaire retire ses accès ; la clé ne conserve pas le rôle qu’elle avait à sa création. Perdre le rôle ou la compétence qui te permettait de créer des clés laisse en place celles que tu détiens : **Paramètres > API > REST** continue de les lister pour que tu les révoques, mais n’en propose plus de nouvelle.
 
 Donne à une intégration uniquement les accès dont elle a besoin. Un service qui synchronise les notifications n’a par exemple pas besoin d’un compte Admin : un Admin peut accorder à un membre ordinaire la capacité `tale:notifications.export`. Elle permet cet export sans aucun autre droit du rôle Admin, ne vaut que dans l’organisation, peut expirer et prend fin quand le membre est retiré. Attribue-la dans [Compétences](/fr/platform/admin/governance/competences), où une intégration qui relaie les réponses et les décisions de relecture de personnes reçoit de la même façon `tale:rest.act-as` ; [Déléguer l’export sans rôle Admin](/fr/develop/api-reference#deleguer-lexport-sans-role-admin) décrit le côté API.
 
