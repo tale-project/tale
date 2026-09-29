@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
@@ -34,6 +35,8 @@ import {
 } from '@/lib/utils/text-file-types';
 
 import { useSkillAsset } from '../hooks/queries';
+import { useRetryFocus } from '../hooks/use-retry-focus';
+import { readFailureMessage, skillReadState } from '../utils/skill-read-state';
 
 interface SkillAssetViewerProps {
   organizationId: string;
@@ -108,16 +111,23 @@ export function SkillAssetViewer({
     skipFetch ? null : assetPath,
   );
 
+  // Failed, missing and empty stay three different answers: a failed read
+  // offers Try again, `null` is the door's 404, and an empty file is shown
+  // as one.
+  const read = skillReadState(assetQuery);
+  const asset = read.status === 'ready' ? read.data : null;
+  const loadFailed = !skipFetch && read.status === 'failed';
+  const notFound = read.status === 'ready' && read.data === null;
+  const refreshFailed =
+    read.status === 'ready' && read.data !== null && read.refreshFailed;
+  const retryFocus = useRetryFocus(read.status);
+  const retry = () => {
+    retryFocus.arm();
+    void assetQuery.refetch();
+  };
   // The wire carries base64 bytes; everything shown here is text.
-  const content =
-    assetQuery.data != null
-      ? decodeBase64Utf8(assetQuery.data.contentBase64)
-      : '';
-  const loadError = assetQuery.isError
-    ? String(assetQuery.error)
-    : assetQuery.isSuccess && assetQuery.data === null
-      ? 'not_found'
-      : null;
+  const content = asset !== null ? decodeBase64Utf8(asset.contentBase64) : '';
+  const isEmpty = asset !== null && content.length === 0;
   const size = new TextEncoder().encode(content).length;
   const oversize = useShiki && content.length > MAX_SHIKI_BYTES;
 
@@ -170,8 +180,8 @@ export function SkillAssetViewer({
   };
 
   const langLabel = resolveLanguage(ext);
-  const isLoading = !skipFetch && assetQuery.isPending;
-  const canCopy = !isLoading && content.length > 0 && loadError === null;
+  const isLoading = !skipFetch && read.status === 'loading';
+  const canCopy = !isLoading && asset !== null && content.length > 0;
 
   return (
     <Skeletonize
@@ -188,7 +198,7 @@ export function SkillAssetViewer({
           <Text variant="caption" className="truncate font-mono">
             {assetPath}
           </Text>
-          {!skipFetch && !loadError ? (
+          {!skipFetch && !loadFailed && !notFound ? (
             <Text variant="caption" className="text-muted-foreground shrink-0">
               <SkeletonBox>
                 {`${formatBytes(size, locale)} · ${langLabel}`}
@@ -218,6 +228,17 @@ export function SkillAssetViewer({
             {copied ? tCommon('actions.copied') : tCommon('actions.copy')}
           </Button>
         </HStack>
+        {refreshFailed ? (
+          <div className="px-3 pt-3">
+            <CatalogLoadError
+              message={readFailureMessage(
+                t('viewer.refreshFailed'),
+                assetQuery.error,
+              )}
+              onRetry={retry}
+            />
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1 overflow-auto">
           {isLoading ? (
             <div
@@ -252,12 +273,23 @@ export function SkillAssetViewer({
                 {assetPath}
               </Text>
             </Stack>
-          ) : loadError === 'not_found' ? (
+          ) : loadFailed && read.status === 'failed' ? (
+            <div ref={retryFocus.ref} className="p-4">
+              <CatalogLoadError
+                message={readFailureMessage(t('viewer.loadFailed'), read.error)}
+                onRetry={retry}
+              />
+            </div>
+          ) : notFound ? (
             <Text variant="muted" className="text-destructive p-4">
               {t('viewer.notFound', {
                 defaultValue:
                   'This file is no longer in the bundle. Pick another file from the tree.',
               })}
+            </Text>
+          ) : isEmpty ? (
+            <Text variant="muted" className="p-4">
+              {t('viewer.empty')}
             </Text>
           ) : isMarkdown ? (
             <div className={`${markdownWrapperStyles} p-4`}>

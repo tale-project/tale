@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -26,6 +27,8 @@ import {
 } from '../hooks/mutations';
 import { useSkill } from '../hooks/queries';
 import { useOrgReservedReason } from '../hooks/use-org-reserved-reason';
+import { useRetryFocus } from '../hooks/use-retry-focus';
+import { readFailureMessage, skillReadState } from '../utils/skill-read-state';
 import { SkillAssetViewer } from './skill-asset-viewer';
 import { SkillBundleTreePanel } from './skill-bundle-tree-panel';
 import {
@@ -63,7 +66,9 @@ export function SkillDetailPane({
   const attribution = useSkillAttribution();
 
   const skillQuery = useSkill(organizationId, slug);
-  const skill = skillQuery.data ?? null;
+  // A failed read is not a missing skill: `null` is the door's 404 only.
+  const read = skillReadState(skillQuery);
+  const skill = read.status === 'ready' ? read.data : null;
   const orgReservedReason = useOrgReservedReason(organizationId);
   const saveSkill = useSaveSkill({ errorToast: false });
   const deleteSkill = useDeleteSkill();
@@ -122,6 +127,11 @@ export function SkillDetailPane({
     form.metadata.sharing.visibility === 'org';
   const lockedInPlace =
     canEdit && orgReservedReason !== undefined && skill?.visibility === 'org';
+  const retryFocus = useRetryFocus(read.status);
+  const retry = () => {
+    retryFocus.arm();
+    void skillQuery.refetch();
+  };
 
   const files = skill?.files ?? [];
   const assets = files.filter((file) => file.path !== 'SKILL.md');
@@ -174,7 +184,7 @@ export function SkillDetailPane({
     }
   };
 
-  if (skillQuery.isPending) {
+  if (read.status === 'loading') {
     return (
       <Skeletonize loading>
         <Stack gap={3}>
@@ -186,6 +196,16 @@ export function SkillDetailPane({
           </SkeletonBox>
         </Stack>
       </Skeletonize>
+    );
+  }
+  if (read.status === 'failed') {
+    return (
+      <div ref={retryFocus.ref}>
+        <CatalogLoadError
+          message={readFailureMessage(t('detail.loadFailed'), read.error)}
+          onRetry={retry}
+        />
+      </div>
     );
   }
   if (!skill) {
@@ -200,6 +220,15 @@ export function SkillDetailPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
+      {read.refreshFailed && (
+        <CatalogLoadError
+          message={readFailureMessage(
+            t('detail.refreshFailed'),
+            skillQuery.error,
+          )}
+          onRetry={retry}
+        />
+      )}
       <div className="grid min-h-0 flex-1 gap-4 overflow-hidden md:grid-cols-[16rem_1fr]">
         <div className="min-h-0 overflow-y-auto">
           <SkillBundleTreePanel

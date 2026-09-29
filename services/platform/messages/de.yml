@@ -5142,7 +5142,16 @@ skills:
     notFound:
       Diese Datei ist nicht mehr im Bundle. Wähle eine andere Datei aus dem
       Baum.
+    loadFailed: Diese Datei konnte nicht geladen werden.
+    refreshFailed:
+      Diese Datei konnte nicht aktualisiert werden. Du siehst den zuvor
+      geladenen Stand.
+    empty: Diese Datei ist leer.
   detail:
+    loadFailed: Dieser Skill konnte nicht geladen werden.
+    refreshFailed:
+      Dieser Skill konnte nicht aktualisiert werden. Du siehst den zuvor
+      geladenen Stand.
     tree:
       heading: Bundle
       empty:

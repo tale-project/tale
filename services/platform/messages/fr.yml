@@ -5215,7 +5215,16 @@ skills:
     notFound:
       Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
       l'arborescence.
+    loadFailed: Impossible de charger ce fichier.
+    refreshFailed:
+      Impossible d'actualiser ce fichier. Tu vois la version chargée
+      précédemment.
+    empty: Ce fichier est vide.
   detail:
+    loadFailed: Impossible de charger ce skill.
+    refreshFailed:
+      Impossible d'actualiser ce skill. Tu vois la version chargée
+      précédemment.
     tree:
       heading: Bundle
       empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
