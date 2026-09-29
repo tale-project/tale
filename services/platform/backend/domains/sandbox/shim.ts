@@ -534,6 +534,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         agentId?: string;
         feedback?: string;
         moveToInProgress?: boolean;
+        resumeFrom?: { runId: string; approvalId: string };
       };
       // A project agent's live run delegates on behalf of whoever it answers
       // to (`delegated-start.ts`); the session proves the agent and the
@@ -596,6 +597,9 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
             ...(args.moveToInProgress !== undefined
               ? { moveToInProgress: args.moveToInProgress }
+              : {}),
+            ...(args.resumeFrom !== undefined
+              ? { resumeFrom: args.resumeFrom }
               : {}),
           });
         });

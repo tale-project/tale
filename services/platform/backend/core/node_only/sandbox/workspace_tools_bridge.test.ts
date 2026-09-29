@@ -2130,7 +2130,51 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     });
   });
 
+  it('hands a resumption’s source run and review to the start, as they were read', async () => {
+    const { dispatch } = await getActions();
+    const { ctx, start } = startCtx();
+    await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: {
+        taskId: 'task_1',
+        feedback: 'Answer: yes.',
+        resumeFrom: { runId: ' run_asked ', approvalId: 'apr_pending' },
+      },
+    });
+    expect(start.mock.calls[0]?.[1]).toMatchObject({
+      taskId: 'task_1',
+      feedback: 'Answer: yes.',
+      resumeFrom: { runId: 'run_asked', approvalId: 'apr_pending' },
+    });
+  });
+
   it.each([
+    ['a bare string', 'run_asked'],
+    ['no review', { runId: 'run_asked' }],
+    ['a blank run', { runId: ' ', approvalId: 'apr_pending' }],
+    ['an extra key', { runId: 'r', approvalId: 'a', taskId: 'task_2' }],
+    ['an over-long id', { runId: 'r'.repeat(201), approvalId: 'a' }],
+  ])(
+    'refuses a resumption with %s before anything starts',
+    async (_label, resumeFrom) => {
+      const { dispatch } = await getActions();
+      const { ctx, start } = startCtx();
+      const result = await dispatch(ctx, {
+        ...BASE,
+        ...TASK_RUN,
+        tool: 'task_start_agent',
+        callArgs: { taskId: 'task_1', resumeFrom },
+      });
+      expect(result.status).toBe('invalid_args');
+      expect(JSON.stringify(result)).toContain('resumeFrom');
+      expect(start).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['stale_question', { staleBecause: 'review_changed' }],
     ['already_running', { runId: 'run_live' }],
     ['in_review', {}],
     ['closed', { taskStatus: 'done' }],
@@ -2322,6 +2366,8 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
       'paused',
       'in_review',
       'closed',
+      'stale_question',
+      'resumeFrom',
     ]) {
       expect(tools[0]?.description).toContain(word);
     }

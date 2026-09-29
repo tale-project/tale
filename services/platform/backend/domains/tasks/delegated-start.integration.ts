@@ -29,6 +29,7 @@ import { createTaskList } from '../../jobs/task-list.ts';
 import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
 import { scanScheduledTriggers } from '../automations/triggers.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
+import { getProjectAuthContext } from '../projects/service.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
 import { completeAgentRunInTx } from './agent-run-completion.ts';
 import { cancelAgentRunInTx, failAgentRunFromTurn } from './agent-runs.ts';
@@ -37,7 +38,11 @@ import {
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from './delegated-start.ts';
 import { isTaskRunConfined } from './run-authority.ts';
-import { agentUpdateTaskStatusTrusted } from './service.ts';
+import {
+  agentUpdateTaskStatusTrusted,
+  assignTask,
+  updateTaskStatus,
+} from './service.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
 
@@ -1144,6 +1149,7 @@ export async function checkDelegatedAgentStartTool(
   const w4 = randomUUID();
   const w5 = randomUUID();
   const w6 = randomUUID();
+  const questionAgents = Array.from({ length: 7 }, () => randomUUID());
   const outsider = randomUUID();
   const editor = `delegate-editor-${suffix}`;
   const member = `delegate-member-${suffix}`;
@@ -1235,6 +1241,9 @@ export async function checkDelegatedAgentStartTool(
     await fx.insertAgent(w4, projectA, 'Standing reporter');
     await fx.insertAgent(w5, projectA, 'Retrying implementer');
     await fx.insertAgent(w6, projectA, 'Person-started implementer');
+    for (const [index, agent] of questionAgents.entries()) {
+      await fx.insertAgent(agent, projectA, `Asking implementer ${index + 1}`);
+    }
     await fx.insertAgent(outsider, projectB, 'Neighbour agent');
     const roleTask = await fx.insertTask({
       projectId: projectA,
@@ -1705,6 +1714,243 @@ export async function checkDelegatedAgentStartTool(
         budgetWithPerson[4]?.startedVia === null &&
         retrySkips.length === skipsBeforePerson,
       `refused before=${JSON.stringify(personRefusedBefore)} fourth=${JSON.stringify(fourth)} person=${personBudgetStart.status} ${JSON.stringify(personBudgetBody)} runs=${describeRuns(budgetWithPerson)} new skips=${retrySkips.slice(skipsBeforePerson).join(',') || 'none'}`,
+    );
+
+    // ---- a resumption answers the open question, or changes nothing ------
+    // The manager answers an agent's question by resuming it with
+    // `resumeFrom: {runId, approvalId}` — the run that asked and the review it
+    // waits at, as the manager read them. Under the task's row lock, before
+    // any write, the start requires that question to still be the open one.
+    const personAuth = await getProjectAuthContext(sql, {
+      organizationId: orgId,
+      userId: editor,
+      role: 'editor',
+    });
+    const asAgent = (index: number): string => questionAgents[index] ?? '';
+    /** Delegate the task to the agent, complete its run with a question
+     * through the real completion path: the card waits at In review with
+     * the review bound to that run. */
+    const parkWithQuestion = async (
+      taskId: string,
+      agentId: string,
+    ): Promise<{ runId: string; approvalId: string }> => {
+      await dispatch(managerRun.token, 'task_start_agent', { taskId, agentId });
+      const asked = (await runsOf(sql, taskId)).at(-1);
+      if (asked !== undefined) {
+        await transactSerializable(sql, (tx) =>
+          completeAgentRunInTx(tx, {
+            organizationId: orgId,
+            taskId,
+            agentId,
+            execId: asked.execId,
+            runId: asked.id,
+            resultText: 'Question: which label should the export use?',
+            body: 'Question: which label should the export use?',
+            files: [],
+          }),
+        );
+      }
+      const reviews = await sql<{ id: string }[]>`
+        SELECT id FROM app.approvals
+        WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+          AND status = 'pending'
+      `;
+      return { runId: asked?.id ?? '', approvalId: reviews[0]?.id ?? '' };
+    };
+    const reviewStates = (taskId: string) => sql<
+      { id: string; status: string; withdrawn: boolean | null }[]
+    >`
+      SELECT id, status, (metadata ->> 'withdrawn')::boolean AS withdrawn
+      FROM app.approvals
+      WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+      ORDER BY seq
+    `;
+    const cardStatus = async (taskId: string) =>
+      (
+        await sql<{ status: string }[]>`
+          SELECT status FROM app.tasks WHERE id = ${taskId}
+        `
+      )[0]?.status;
+    const labelAnswer = 'Answer from the manager: use the German label.';
+    const resume = (
+      taskId: string,
+      from: { runId: string; approvalId: string },
+    ) =>
+      dispatch(managerRun.token, 'task_start_agent', {
+        taskId,
+        feedback: labelAnswer,
+        resumeFrom: from,
+      });
+
+    // A: the open question is answered once; a repeated call (a response the
+    // manager lost) starts nothing more.
+    const qa = await fx.insertTask({ projectId: projectA, title: 'Asks A' });
+    const fromA = await parkWithQuestion(qa, asAgent(0));
+    const resumedA = await resume(qa, fromA);
+    const againA = await resume(qa, fromA);
+    const runsA = await runsOf(sql, qa);
+    const reviewsA = await reviewStates(qa);
+    record(
+      'resumption: an answer to the open question resumes the agent once — the review it waited at is withdrawn, never approved — and a repeated call after a lost response changes nothing',
+      outputOf(resumedA).started === true &&
+        runsA.length === 2 &&
+        runsA[1]?.status === 'queued' &&
+        runsA[1].feedback === labelAnswer &&
+        (await cardStatus(qa)) === 'in_progress' &&
+        reviewsA.length === 1 &&
+        reviewsA[0]?.status === 'rejected' &&
+        reviewsA[0].withdrawn === true &&
+        outputOf(againA).started === false &&
+        outputOf(againA).reason === 'stale_question' &&
+        // The first call moved the card to In progress: the question it
+        // answered is closed.
+        outputOf(againA).staleBecause === 'task_moved',
+      `from=${JSON.stringify(fromA)} resumed=${JSON.stringify(resumedA)} again=${JSON.stringify(againA)} runs=${describeRuns(runsA)} reviews=${JSON.stringify(reviewsA)}`,
+    );
+
+    // B, C: a person decided in between — Done, or Cancelled.
+    const decided: Record<string, unknown> = {};
+    for (const [index, status] of (['done', 'cancelled'] as const).entries()) {
+      const task = await fx.insertTask({
+        projectId: projectA,
+        title: `Asks, then ${status}`,
+      });
+      const from = await parkWithQuestion(task, asAgent(1 + index));
+      const reviewsBefore = await reviewStates(task);
+      await sql.begin((tx) => updateTaskStatus(tx, personAuth, task, status));
+      const reviewsDecided = await reviewStates(task);
+      const late = await resume(task, from);
+      decided[status] = {
+        late: outputOf(late),
+        card: await cardStatus(task),
+        runs: describeRuns(await runsOf(sql, task)),
+        reviewsBefore,
+        reviewsDecided,
+        reviewsAfter: await reviewStates(task),
+      };
+    }
+    const decidedOk = (status: string, want: string): boolean => {
+      const entry = decided[status];
+      if (!isRecord(entry) || !isRecord(entry.late)) return false;
+      return (
+        entry.late.started === false &&
+        entry.late.reason === 'stale_question' &&
+        entry.late.staleBecause === 'task_moved' &&
+        entry.card === want &&
+        entry.runs === 'settled/delegated' &&
+        JSON.stringify(entry.reviewsDecided) ===
+          JSON.stringify(entry.reviewsAfter)
+      );
+    };
+    record(
+      'resumption: after a person moved the card to Done or Cancelled, a stale resumption answers stale_question and reopens nothing — no run, no card move, the person’s review decision kept',
+      decidedOk('done', 'done') && decidedOk('cancelled', 'cancelled'),
+      `decided=${JSON.stringify(decided)}`,
+    );
+
+    // D: a newer run and review exist — the stale resumption must not
+    // withdraw the newer review.
+    const qd = await fx.insertTask({
+      projectId: projectA,
+      title: 'Asks twice',
+    });
+    const fromD = await parkWithQuestion(qd, asAgent(3));
+    const personRestart = await fetch(
+      `${base}/api/app/tasks/${qd}/agent-runs/start?orgId=${orgId}`,
+      { method: 'POST', headers: { cookie: ctx.cookie, origin: base } },
+    );
+    const restarted = (await runsOf(sql, qd)).at(-1);
+    if (restarted !== undefined && restarted.id !== fromD.runId) {
+      await transactSerializable(sql, (tx) =>
+        completeAgentRunInTx(tx, {
+          organizationId: orgId,
+          taskId: qd,
+          agentId: asAgent(3),
+          execId: restarted.execId,
+          runId: restarted.id,
+          resultText: 'Question: and the date format?',
+          body: 'Question: and the date format?',
+          files: [],
+        }),
+      );
+    }
+    const reviewsNewer = await reviewStates(qd);
+    const lateD = await resume(qd, fromD);
+    const reviewsAfterD = await reviewStates(qd);
+    const runsD = await runsOf(sql, qd);
+    record(
+      'resumption: once a newer run asked again and a newer review waits, a resumption of the older question answers stale_question and leaves the newer review pending',
+      personRestart.status === 200 &&
+        reviewsNewer.at(-1)?.status === 'pending' &&
+        outputOf(lateD).started === false &&
+        outputOf(lateD).reason === 'stale_question' &&
+        outputOf(lateD).staleBecause === 'run_superseded' &&
+        JSON.stringify(reviewsAfterD) === JSON.stringify(reviewsNewer) &&
+        runsD.length === 2 &&
+        (await cardStatus(qd)) === 'in_review',
+      `restart=${personRestart.status} late=${JSON.stringify(lateD)} reviews=${JSON.stringify(reviewsAfterD)} runs=${describeRuns(runsD)}`,
+    );
+
+    // E: the assignee changed in between.
+    const qe = await fx.insertTask({
+      projectId: projectA,
+      title: 'Asks, reassigned',
+    });
+    const fromE = await parkWithQuestion(qe, asAgent(4));
+    await sql.begin((tx) =>
+      assignTask(tx, personAuth, {
+        taskId: qe,
+        assigneeType: 'agent',
+        assigneeId: asAgent(5),
+      }),
+    );
+    const reviewsBeforeE = await reviewStates(qe);
+    const lateE = await resume(qe, fromE);
+    const runsE = await runsOf(sql, qe);
+    record(
+      'resumption: after a person reassigned the task, a resumption of the old question answers stale_question — nothing assigned, started, withdrawn or moved',
+      outputOf(lateE).started === false &&
+        outputOf(lateE).reason === 'stale_question' &&
+        outputOf(lateE).staleBecause === 'assignee_changed' &&
+        runsE.length === 1 &&
+        (await cardStatus(qe)) === 'in_review' &&
+        JSON.stringify(await reviewStates(qe)) ===
+          JSON.stringify(reviewsBeforeE),
+      `late=${JSON.stringify(lateE)} runs=${describeRuns(runsE)} reviews=${JSON.stringify(reviewsBeforeE)}`,
+    );
+
+    // F: two transactions — a person's Done holds the task row while the
+    // resumption arrives; the resumption waits, then sees the decision.
+    const qf = await fx.insertTask({
+      projectId: projectA,
+      title: 'Asks, decided meanwhile',
+    });
+    const fromF = await parkWithQuestion(qf, asAgent(6));
+    let resumeF: Promise<Record<string, unknown>> | undefined;
+    let waited = false;
+    await sql.begin(async (tx) => {
+      await tx`SELECT id FROM app.tasks WHERE id = ${qf} FOR UPDATE`;
+      resumeF = resume(qf, fromF);
+      waited = await waitFor(async () => {
+        const rows = await sql<{ count: number }[]>`
+          SELECT count(*)::int AS count FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock'
+        `;
+        return (rows[0]?.count ?? 0) > 0;
+      }, 15_000);
+      await updateTaskStatus(tx, personAuth, qf, 'done');
+    });
+    const lateF = resumeF === undefined ? {} : await resumeF;
+    const runsF = await runsOf(sql, qf);
+    record(
+      'resumption: a resumption that arrives while a person’s Done holds the task waits for it, then answers stale_question — the decision is never undone',
+      waited &&
+        outputOf(lateF).started === false &&
+        outputOf(lateF).reason === 'stale_question' &&
+        outputOf(lateF).staleBecause === 'task_moved' &&
+        runsF.length === 1 &&
+        (await cardStatus(qf)) === 'done',
+      `waited=${waited} late=${JSON.stringify(lateF)} runs=${describeRuns(runsF)} card=${await cardStatus(qf)}`,
     );
 
     // ---- two starts racing for one free agent start one run -------------

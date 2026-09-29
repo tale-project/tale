@@ -58,6 +58,12 @@ import {
  *   judgment (or as finished) while new work runs under it, and the pending
  *   review would refer to superseded work. Nothing is assigned or started;
  *   the default start moves the card and withdraws the review instead;
+ * - `stale_question` — a resumption (`resumeFrom`) whose question is no
+ *   longer the task's open question: a person decided (Done, Cancelled, a
+ *   move), a newer run or review exists, the assignee changed, or the task is
+ *   being worked. Checked under the task's row lock before anything is
+ *   assigned, withdrawn, moved or started, so a decision a person made
+ *   between the requester's read and this start is never undone;
  * - `agent_busy` — the agent is working another task in its standing
  *   workspace, which every run it is started for here shares: one active
  *   piece of work per agent workspace;
@@ -168,7 +174,23 @@ export interface DelegatedAgentStartArgs {
   feedback?: string;
   /** Move the card to In progress (default) or leave it where it is. */
   moveToInProgress?: boolean;
+  /**
+   * Resume the agent with the answer to the question it asked: the run that
+   * asked and the review it is waiting at. The start happens only while that
+   * is still the task's open question — that run the task's newest and
+   * ended, that review pending and bound to it, the card at In review, the
+   * run's agent still the assignee, no live work — and otherwise answers
+   * `stale_question` and changes nothing. A deliberate start leaves it out.
+   */
+  resumeFrom?: { runId: string; approvalId: string };
 }
+
+/** Why a resumption's question is no longer the task's open question. */
+export type StaleQuestionCause =
+  | 'task_moved'
+  | 'run_superseded'
+  | 'review_changed'
+  | 'assignee_changed';
 
 export type DelegatedAgentStart =
   | {
@@ -184,6 +206,13 @@ export type DelegatedAgentStart =
       runId: string;
       taskId: string;
       agentId: string;
+    }
+  | {
+      /** A resumption whose question is no longer the open one. */
+      outcome: 'stale_question';
+      taskId: string;
+      agentId: string;
+      staleBecause: StaleQuestionCause;
     }
   | {
       /** An in-place start refused: a person's review is pending. */
@@ -284,6 +313,74 @@ async function assertDelegatingRun(
  * sentinel for an automation step. */
 function actorOf(via: StartedVia): string {
   return via.kind === 'agent' ? via.agentId : WORKFLOW_ACTOR_ID;
+}
+
+/**
+ * The resumption's precondition, judged on the task row the caller has just
+ * locked: whether the question the requester answered is still the task's
+ * open question. `null` when it is; otherwise the first cause that says why
+ * not. Reads only — the caller refuses before it writes anything.
+ */
+async function staleQuestionCause(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    taskId: string;
+    agentId: string;
+    resumeFrom: { runId: string; approvalId: string };
+  },
+): Promise<StaleQuestionCause | null> {
+  const tasks = await tx<
+    {
+      status: string;
+      assigneeType: string | null;
+      assigneeId: string | null;
+    }[]
+  >`
+    SELECT status, assignee_type AS "assigneeType",
+           assignee_id AS "assigneeId"
+    FROM app.tasks
+    WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
+  const card = tasks[0];
+  if (card === undefined || card.status !== 'in_review') return 'task_moved';
+  const newest = await tx<{ id: string; status: string; agentId: string }[]>`
+    SELECT id, status, agent_id AS "agentId" FROM app.project_agent_runs
+    WHERE task_id = ${args.taskId} AND org_id = ${args.organizationId}
+    ORDER BY seq DESC
+    LIMIT 1
+  `;
+  const source = newest[0];
+  if (
+    source === undefined ||
+    source.id !== args.resumeFrom.runId ||
+    !['settled', 'failed', 'cancelled'].includes(source.status)
+  ) {
+    return 'run_superseded';
+  }
+  const reviews = await tx<{ id: string; runId: string | null }[]>`
+    SELECT id, metadata ->> 'runId' AS "runId" FROM app.approvals
+    WHERE org_id = ${args.organizationId} AND resource_type = 'task_review'
+      AND resource_id = ${args.taskId} AND status = 'pending'
+      AND wf_execution_id IS NULL
+    ORDER BY seq DESC
+  `;
+  if (
+    reviews.length !== 1 ||
+    reviews[0]?.id !== args.resumeFrom.approvalId ||
+    reviews[0].runId !== source.id
+  ) {
+    return 'review_changed';
+  }
+  if (
+    card.assigneeType !== 'agent' ||
+    card.assigneeId !== source.agentId ||
+    args.agentId !== source.agentId
+  ) {
+    return 'assignee_changed';
+  }
+  return null;
 }
 
 export async function startDelegatedAgentRun(
@@ -415,6 +512,25 @@ export async function startDelegatedAgentRun(
       'The agent has no model configured; an editor has to choose one first',
       409,
     );
+  }
+
+  // A resumption checks, under the task's row lock and before anything is
+  // written, that it still answers the task's open question.
+  if (args.resumeFrom !== undefined) {
+    const cause = await staleQuestionCause(tx, {
+      organizationId: args.organizationId,
+      taskId: task.id,
+      agentId: agent.id,
+      resumeFrom: args.resumeFrom,
+    });
+    if (cause !== null) {
+      return {
+        outcome: 'stale_question',
+        taskId: task.id,
+        agentId: agent.id,
+        staleBecause: cause,
+      };
+    }
   }
 
   // The task's own live run carries the work: a schedule's occurrence that

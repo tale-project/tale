@@ -116,6 +116,9 @@ function workflowAgentStartOf(
         taskId: outcome.taskId,
         agentId: outcome.agentId,
       };
+    case 'stale_question':
+      // A step never resumes a question (it passes no `resumeFrom`).
+      throw new Error('an automation step does not resume a question');
     case 'in_review':
       return {
         started: false,

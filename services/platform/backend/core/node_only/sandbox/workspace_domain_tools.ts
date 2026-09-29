@@ -402,6 +402,11 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'The task waits for a person to review its earlier work; nothing ' +
     'started. Start it without moveToInProgress: false to withdraw that ' +
     'review and resume the task, or leave the decision to the person.',
+  stale_question:
+    'The question you answered is no longer the task’s open question ' +
+    '(staleBecause: a person decided, a newer run or review exists, the ' +
+    'assignee changed, or the task is being worked); nothing started and ' +
+    'nothing changed. Read the task again before acting.',
   closed:
     'The task is closed (taskStatus); nothing started. An in-place start ' +
     'never works under a Done or Cancelled card: start it without ' +
@@ -465,18 +470,36 @@ async function runTaskStartAgent(
     typeof callArgs.moveToInProgress === 'boolean'
       ? callArgs.moveToInProgress
       : undefined;
+  // A resumption names the run that asked and the review it waits at — both
+  // ids, nothing else (`delegated-start.ts`, `resumeFrom`).
+  const resume = isRecord(callArgs.resumeFrom) ? callArgs.resumeFrom : null;
+  const resumeRunId = resume === null ? undefined : readString(resume.runId);
+  const resumeApprovalId =
+    resume === null ? undefined : readString(resume.approvalId);
+  const resumeFrom =
+    resume !== null &&
+    Object.keys(resume).length === 2 &&
+    resumeRunId !== undefined &&
+    resumeRunId.length <= 200 &&
+    resumeApprovalId !== undefined &&
+    resumeApprovalId.length <= 200
+      ? { runId: resumeRunId, approvalId: resumeApprovalId }
+      : undefined;
   if (
     taskId === undefined ||
     (callArgs.agentId !== undefined && agentId === undefined) ||
     (callArgs.feedback !== undefined &&
       typeof callArgs.feedback !== 'string') ||
-    (callArgs.moveToInProgress !== undefined && moveToInProgress === undefined)
+    (callArgs.moveToInProgress !== undefined &&
+      moveToInProgress === undefined) ||
+    (callArgs.resumeFrom !== undefined && resumeFrom === undefined)
   ) {
     return {
       status: 'invalid_args',
       message:
         'task_start_agent needs {taskId: string, agentId?: string, ' +
-        'feedback?: string, moveToInProgress?: boolean}.',
+        'feedback?: string, moveToInProgress?: boolean, ' +
+        'resumeFrom?: {runId: string, approvalId: string}}.',
     };
   }
   if (feedback !== undefined) {
@@ -502,6 +525,7 @@ async function runTaskStartAgent(
       ...(agentId !== undefined ? { agentId } : {}),
       ...(feedback !== undefined ? { feedback } : {}),
       ...(moveToInProgress !== undefined ? { moveToInProgress } : {}),
+      ...(resumeFrom !== undefined ? { resumeFrom } : {}),
     },
   );
   if (!isRecord(answer) || typeof answer.outcome !== 'string') {

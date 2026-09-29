@@ -201,8 +201,14 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'moveToInProgress?: boolean (default true: the card moves to ' +
     'in_progress, withdrawing a pending review, and the result waits at ' +
     'in_review for a human; false leaves the card where it is, only under ' +
-    'backlog, todo or in_progress)}. Answers {started, runId, reason?}: ' +
-    'reason already_running (the task is being worked), in_review or ' +
+    'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} ' +
+    '(when you resume an agent with the answer to its question: the run ' +
+    'that asked and its pending review, as you read them — the start then ' +
+    'happens only while that is still the task’s open question)}. Answers ' +
+    '{started, runId, reason?}: reason stale_question (that question is no ' +
+    'longer open — a person decided, a newer run or review exists, or the ' +
+    'assignee changed; nothing changed), already_running (the task is being ' +
+    'worked), in_review or ' +
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
     'agent_busy (that agent is working another task — pick another or ' +
     'wait), blocked (an open task blocks it) or paused (three automated ' +
