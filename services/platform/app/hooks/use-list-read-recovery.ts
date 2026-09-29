@@ -11,9 +11,12 @@ import { useCallback, useRef } from 'react';
  * Either retry replaces the control that ran it — with the table's loading
  * state, or with the rows once they are back — so it moves focus onto the
  * list region (`regionRef`, a focusable named `role="region"` around the
- * notice and the table) before it re-reads. `focusRegion` is the notice's
- * `onFocusLost`: a background refresh that heals the list takes the notice
- * away, and focus a reader had put on its **Try again** lands on the list.
+ * notice and the table) before it re-reads. A refresh the reader did not
+ * start takes a control away too, so `focusRegion` is also the notice's
+ * `onFocusLost` (a refresh that heals the list takes the notice away) and
+ * the table's `onErrorFocusLost` (a refresh of a list that never loaded
+ * swaps the error state for the loading state): focus a reader had put on
+ * either **Try again** lands on the list, not on the page.
  */
 export function useListReadRecovery(read: {
   error: Error | null;

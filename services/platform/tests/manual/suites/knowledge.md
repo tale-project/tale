@@ -637,7 +637,11 @@ records and delete them after.
   refresh fail again (keep the read blocked, then make any write that
   refreshes the list, or a hub upload for an open history) → focus stays on
   that **Try again**; unblock and let the next refresh work → focus lands on
-  the region or the section, never on the page or the dialog frame.
+  the region or the section, never on the page or the dialog frame. In the
+  first `KNOW-B17` state (nothing loaded), focus **Try again** without
+  pressing it, switch to another window and back → while the refresh runs,
+  and after the error state returns, focus is on the **Knowledge entries**
+  region, never on the page.
 
 ## Performance
 

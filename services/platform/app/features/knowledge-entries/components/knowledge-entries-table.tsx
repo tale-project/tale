@@ -125,6 +125,10 @@ export function KnowledgeEntriesTable({
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           onRowClick={handleRowClick}
+          // A refresh the reader did not start takes the table's error state
+          // away while it runs; a focused Try again hands its focus to the
+          // list, not to the page.
+          onErrorFocusLost={focusRegion}
           actionMenu={
             <KnowledgeEntriesActionMenu
               organizationId={organizationId}
