@@ -1,7 +1,11 @@
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 
+// The status badge and the row menu toast a failed retry themselves, with
+// the reason; the default toast would report it a second time.
 export function useRetryRagIndexing() {
-  return useBackendAction('documents/actions:retryRagIndexing');
+  return useBackendAction('documents/actions:retryRagIndexing', {
+    errorToast: false,
+  });
 }
 
 // The import dialogs report a failed import in their own toast, under the

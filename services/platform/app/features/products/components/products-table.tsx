@@ -9,6 +9,7 @@ import { Package } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import type { ProductDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
@@ -170,6 +171,7 @@ export function ProductsTable({
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleClearSelection}
+            describeFailure={firstFailureDetail}
           />
         }
         {...list.tableProps}

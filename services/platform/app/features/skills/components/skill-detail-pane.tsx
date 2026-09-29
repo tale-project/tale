@@ -16,9 +16,14 @@ import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteSkill, useSaveSkill } from '../hooks/mutations';
+import {
+  isSkillPublishRefusal,
+  useDeleteSkill,
+  useSaveSkill,
+} from '../hooks/mutations';
 import { useSkill } from '../hooks/queries';
 import { useOrgReservedReason } from '../hooks/use-org-reserved-reason';
 import { SkillAssetViewer } from './skill-asset-viewer';
@@ -60,7 +65,7 @@ export function SkillDetailPane({
   const skillQuery = useSkill(organizationId, slug);
   const skill = skillQuery.data ?? null;
   const orgReservedReason = useOrgReservedReason(organizationId);
-  const saveSkill = useSaveSkill();
+  const saveSkill = useSaveSkill({ errorToast: false });
   const deleteSkill = useDeleteSkill();
 
   const [selectedPath, setSelectedPath] = useState('SKILL.md');
@@ -142,7 +147,15 @@ export function SkillDetailPane({
       toast({ title: t('editor.saved'), variant: 'success' });
     } catch (error) {
       console.error('Failed to save skill', error);
-      toast({ title: t('editor.saveFailed'), variant: 'destructive' });
+      toast({
+        title: t('editor.saveFailed'),
+        // A refused audience in the viewer's language, any other refusal
+        // in the door's words.
+        description: isSkillPublishRefusal(error)
+          ? t('publishing.refused')
+          : failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -153,7 +166,11 @@ export function SkillDetailPane({
       onDeleted();
     } catch (error) {
       console.error('Failed to delete skill', error);
-      toast({ title: t('skillDeleteFailed'), variant: 'destructive' });
+      toast({
+        title: t('skillDeleteFailed'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 

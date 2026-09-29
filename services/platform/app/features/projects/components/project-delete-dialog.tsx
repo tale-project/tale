@@ -8,6 +8,7 @@ import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -145,7 +146,11 @@ export function ProjectDeleteDialog({
         }
       }
       console.error('deleteProject failed', error);
-      toast({ title: t('settings.deleteError'), variant: 'destructive' });
+      toast({
+        title: t('settings.deleteError'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     } finally {
       setIsDeleting(false);
     }

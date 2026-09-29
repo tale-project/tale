@@ -62,7 +62,9 @@ export function SkillSharingPolicyEditor({
     organizationId,
     'skill_sharing',
   );
-  const { mutateAsync: upsertPolicy } = useUpsertGovernancePolicy();
+  const { mutateAsync: upsertPolicy } = useUpsertGovernancePolicy({
+    errorToast: false,
+  });
 
   const data = useMemo<SkillSharingForm>(
     () => ({ orgWide: skillOrgWideModeOf(parseConfig(policy?.config)) }),

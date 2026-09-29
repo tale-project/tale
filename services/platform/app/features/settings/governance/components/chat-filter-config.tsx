@@ -124,7 +124,7 @@ export function ChatFilterConfigView({
     organizationId,
     'chat_filter',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   const initial = useMemo(() => deriveDraft(policy), [policy]);
 

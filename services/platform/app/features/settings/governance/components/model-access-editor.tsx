@@ -336,7 +336,7 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
     const parsed = parseDefaultModelsConfig(defaultPolicy?.config);
     return parsed?.enabled ? parsed.rules : [];
   }, [defaultPolicy]);
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
   const { providers } = useListProviders(organizationId);

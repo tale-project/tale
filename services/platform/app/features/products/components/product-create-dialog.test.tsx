@@ -51,7 +51,15 @@ vi.mock('../hooks/use-product-image-upload', () => ({
 // test sets via `mockMutate.mockImplementation`.
 const mockMutate = vi.fn();
 vi.mock('../hooks/mutations', () => ({
-  useCreateProduct: () => ({ mutate: mockMutate, isPending: false }),
+  // The dialog reports from the call's own promise; a test settles it
+  // through `mockMutate(args, { onSuccess, onError })`.
+  useCreateProduct: () => ({
+    mutateAsync: (args: unknown) =>
+      new Promise((resolve, reject) => {
+        mockMutate(args, { onSuccess: resolve, onError: reject });
+      }),
+    isPending: false,
+  }),
 }));
 
 import { ProductCreateDialog } from './product-create-dialog';

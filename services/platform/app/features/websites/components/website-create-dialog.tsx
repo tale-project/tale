@@ -90,11 +90,7 @@ export function WebsiteCreateDialog({
   organizationId,
 }: WebsiteCreateDialogProps) {
   const { t: tWebsites } = useT('websites');
-  const {
-    mutate: createWebsite,
-    mutateAsync: createWebsiteAsync,
-    isPending,
-  } = useCreateWebsite();
+  const { mutateAsync: createWebsiteAsync, isPending } = useCreateWebsite();
 
   const formSchema = useMemo(
     () =>
@@ -202,33 +198,30 @@ export function WebsiteCreateDialog({
   };
 
   const submitSite = (data: FormData) => {
-    createWebsite(
-      {
-        organizationId,
-        domain: data.domain,
-        scanInterval: data.scanInterval,
+    void createWebsiteAsync({
+      organizationId,
+      domain: data.domain,
+      scanInterval: data.scanInterval,
+    }).then(
+      () => {
+        toast({
+          title: tWebsites('toast.addSuccess'),
+          variant: 'success',
+        });
+        reset();
+        onClose();
       },
-      {
-        onSuccess: () => {
-          toast({
-            title: tWebsites('toast.addSuccess'),
-            variant: 'success',
-          });
-          reset();
-          onClose();
-        },
-        onError: (error) => {
-          console.error('Failed to add website:', error);
-          const isDuplicate =
-            backendErrorCode(error) === 'WEBSITE_DUPLICATE_DOMAIN';
-          toast({
-            title: isDuplicate
-              ? tWebsites('toast.addErrorDuplicate')
-              : tWebsites('toast.addError'),
-            description: isDuplicate ? undefined : refusalReason(error),
-            variant: 'destructive',
-          });
-        },
+      (error: unknown) => {
+        console.error('Failed to add website:', error);
+        const isDuplicate =
+          backendErrorCode(error) === 'WEBSITE_DUPLICATE_DOMAIN';
+        toast({
+          title: isDuplicate
+            ? tWebsites('toast.addErrorDuplicate')
+            : tWebsites('toast.addError'),
+          description: isDuplicate ? undefined : refusalReason(error),
+          variant: 'destructive',
+        });
       },
     );
   };

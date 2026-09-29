@@ -335,6 +335,18 @@ export function failureDetail(error: unknown): string | undefined {
   return readableErrorMessage(error);
 }
 
+/**
+ * What a batch surface's one failure toast says under its title
+ * (`BulkDeleteBar` / `BulkArchiveBar`'s `describeFailure`): the first
+ * refusal's words, read through {@link failureDetail}. Each row's own write
+ * stays quiet, so this toast is the batch's only report of why.
+ */
+export function firstFailureDetail(
+  reasons: readonly unknown[],
+): string | undefined {
+  return failureDetail(reasons[0]);
+}
+
 /** Deterministic server answers never retry; transport errors retry 3×. */
 export function retryAdaptedRead(
   failureCount: number,

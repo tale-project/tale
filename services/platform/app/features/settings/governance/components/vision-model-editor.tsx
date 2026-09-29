@@ -70,7 +70,9 @@ export function VisionModelEditor({ organizationId }: VisionModelEditorProps) {
   );
   const { data: catalogs } = useProviderCatalogs(organizationId);
   const { data: resolved } = useResolvedVisionModel(organizationId);
-  const { mutateAsync: upsertMutation } = useUpsertGovernancePolicy();
+  const { mutateAsync: upsertMutation } = useUpsertGovernancePolicy({
+    errorToast: false,
+  });
 
   const savedConfig = useMemo(
     () => parseConfig(policy?.config),

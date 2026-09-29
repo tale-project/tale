@@ -9,6 +9,7 @@ import { toast } from '@tale/ui/use-toast';
 import { type RefObject, useEffect, useMemo, useRef } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
@@ -36,7 +37,8 @@ export function WebsiteEditDialog({
   restoreFocusRef,
 }: WebsiteEditDialogProps) {
   const { t: tWebsites } = useT('websites');
-  const { mutate: updateWebsite, isPending: isLoading } = useUpdateWebsite();
+  const { mutateAsync: updateWebsite, isPending: isLoading } =
+    useUpdateWebsite();
 
   const formSchema = useMemo(
     () =>
@@ -88,27 +90,25 @@ export function WebsiteEditDialog({
   }, [isOpen, website.scanInterval, reset]);
 
   const onSubmit = (data: FormData) => {
-    updateWebsite(
-      {
-        websiteId: website._id,
-        scanInterval: data.scanInterval,
+    void updateWebsite({
+      websiteId: website._id,
+      scanInterval: data.scanInterval,
+    }).then(
+      () => {
+        toast({
+          title: tWebsites('toast.updateSuccess'),
+          variant: 'success',
+        });
+        onSaved?.();
+        onClose();
       },
-      {
-        onSuccess: () => {
-          toast({
-            title: tWebsites('toast.updateSuccess'),
-            variant: 'success',
-          });
-          onSaved?.();
-          onClose();
-        },
-        onError: (error) => {
-          console.error('Failed to update website:', error);
-          toast({
-            title: tWebsites('toast.updateError'),
-            variant: 'destructive',
-          });
-        },
+      (error: unknown) => {
+        console.error('Failed to update website:', error);
+        toast({
+          title: tWebsites('toast.updateError'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       },
     );
   };

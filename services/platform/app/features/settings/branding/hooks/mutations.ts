@@ -12,6 +12,10 @@ function useInvalidateBranding() {
 export function useSaveBranding() {
   const invalidate = useInvalidateBranding();
   return useBackendAction('branding/file_actions:saveBranding', {
+    // The branding form's `save` rethrows a failure as its own sentence for
+    // the Save cluster's one toast, and the reset toasts its own: this
+    // write's toast would report it a second time.
+    errorToast: false,
     onSuccess: () => invalidate(),
   });
 }
@@ -20,9 +24,13 @@ export function useSnapshotBrandingHistory() {
   return useBackendAction('branding/file_actions:snapshotToHistory');
 }
 
-export function useSaveImage() {
+/** An image upload field toasts a failed upload itself (too large, wrong
+ * type, …) and passes `errorToast: false`; the logo's derived favicon only
+ * logs, so it keeps the default toast. */
+export function useSaveImage(options?: { errorToast?: false }) {
   const invalidate = useInvalidateBranding();
   return useBackendAction('branding/file_actions:saveImage', {
+    ...options,
     onSuccess: () => invalidate(),
   });
 }

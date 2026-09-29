@@ -8,7 +8,7 @@ import type { RowSelectionState } from '@tanstack/react-table';
 import { Plus, Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { useT } from '@/lib/i18n/client';
 import { TEAM_HINT_ENTITY } from '@/lib/shared/hint-entities';
@@ -42,12 +42,6 @@ function TeamMembersPreloader({ teamIds }: { teamIds: string[] }) {
 function TeamMemberSubscription({ teamId }: { teamId: string }) {
   useTeamMembers(teamId);
   return null;
-}
-
-/** Why a bulk delete failed, in the first refusal's words: `useDeleteTeam`
- * keeps its own toast silent, so the bar's one toast says it. */
-function describeDeleteFailure(reasons: unknown[]): string | undefined {
-  return failureDetail(reasons[0]);
 }
 
 export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
@@ -140,7 +134,7 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
             onClearSelection={handleClearSelection}
             onDeleteItem={handleDeleteItem}
             onDeleteComplete={handleDeleteComplete}
-            describeFailure={describeDeleteFailure}
+            describeFailure={firstFailureDetail}
           />
         }
         {...list.tableProps}

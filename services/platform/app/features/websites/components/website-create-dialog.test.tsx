@@ -23,14 +23,12 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
-// Controllable mutate so a test can drive its onError callback. The dialog uses
-// the callback form `mutate(args, { onSuccess, onError })` for site mode and
-// awaits `mutateAsync(args)` once per domain group in URL-list mode.
-const createWebsiteMock = vi.fn();
+// Controllable write: the dialog reports from each call's own promise —
+// `mutateAsync(args).then(onSuccess, onError)` in site mode, one awaited
+// `mutateAsync(args)` per domain group in URL-list mode.
 const createWebsiteAsyncMock = vi.fn();
 vi.mock('../hooks/mutations', () => ({
   useCreateWebsite: () => ({
-    mutate: createWebsiteMock,
     mutateAsync: createWebsiteAsyncMock,
     isPending: false,
   }),
@@ -106,15 +104,11 @@ describe('WebsiteCreateDialog', () => {
     });
 
     it('surfaces the duplicate toast when the server throws the duplicate code', async () => {
-      createWebsiteMock.mockImplementation(
-        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-          opts.onError(
-            new AppError({
-              code: 'WEBSITE_DUPLICATE_DOMAIN',
-              domain: 'example.com',
-            }),
-          );
-        },
+      createWebsiteAsyncMock.mockRejectedValue(
+        new AppError({
+          code: 'WEBSITE_DUPLICATE_DOMAIN',
+          domain: 'example.com',
+        }),
       );
 
       const { user } = render(
@@ -137,10 +131,8 @@ describe('WebsiteCreateDialog', () => {
     });
 
     it('falls back to the generic error toast for a non-duplicate failure', async () => {
-      createWebsiteMock.mockImplementation(
-        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-          opts.onError(new AppError({ code: 'SOMETHING_ELSE' }));
-        },
+      createWebsiteAsyncMock.mockRejectedValue(
+        new AppError({ code: 'SOMETHING_ELSE' }),
       );
 
       const { user } = render(
@@ -190,7 +182,7 @@ describe('WebsiteCreateDialog', () => {
           /http:\/\/ addresses are not crawled/,
         ),
       );
-      expect(createWebsiteMock).not.toHaveBeenCalled();
+      expect(createWebsiteAsyncMock).not.toHaveBeenCalled();
       expect(toast).not.toHaveBeenCalled();
     });
   });
@@ -207,10 +199,8 @@ describe('WebsiteCreateDialog', () => {
       ['WEBSITE_DOMAIN_INVALID', /Enter a public https:\/\/ host/],
       ['WEBSITE_DOMAIN_NOT_CRAWLABLE', /The crawler cannot reach this host/],
     ])('says why a %s refusal happened', async (code, reason) => {
-      createWebsiteMock.mockImplementation(
-        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-          opts.onError(new AppError({ code, message: 'server sentence' }));
-        },
+      createWebsiteAsyncMock.mockRejectedValue(
+        new AppError({ code, message: 'server sentence' }),
       );
 
       const { user } = render(
@@ -234,15 +224,11 @@ describe('WebsiteCreateDialog', () => {
     });
 
     it("keeps the server's own sentence for a code it has no copy for", async () => {
-      createWebsiteMock.mockImplementation(
-        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-          opts.onError(
-            new AppError({
-              code: 'WEBSITE_LIMIT_REACHED',
-              message: 'This organization has reached its website limit',
-            }),
-          );
-        },
+      createWebsiteAsyncMock.mockRejectedValue(
+        new AppError({
+          code: 'WEBSITE_LIMIT_REACHED',
+          message: 'This organization has reached its website limit',
+        }),
       );
 
       const { user } = render(
@@ -394,11 +380,7 @@ describe.each(SHIPPED_LOCALES)(
     afterEach(forgetSavedLocale);
 
     it('says the session has ended when the website cannot be added', async () => {
-      createWebsiteMock.mockImplementation(
-        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-          void lapsedSessionRefusal().catch(opts.onError);
-        },
-      );
+      createWebsiteAsyncMock.mockImplementation(lapsedSessionRefusal);
       const { user } = render(
         <WebsiteCreateDialog
           isOpen={true}

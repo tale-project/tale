@@ -115,8 +115,8 @@ export function TaskCommentView({
       await editComment.mutateAsync({ messageId: c.messageId, body });
       setEditing(false);
     } catch (error) {
+      // The comment write's own toast reports the failure.
       console.error('[tasks] comment action failed', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
     }
   };
 
@@ -277,8 +277,8 @@ export function TaskCommentComposer({
       toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
       clearDraft();
     } catch (error) {
+      // The comment write's own toast reports the failure.
       console.error('[tasks] comment action failed', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
     }
   };
 
@@ -377,7 +377,6 @@ export function TaskCommentComposer({
 /** Confirms a comment delete — one dialog per list, not per comment. */
 export function useTaskCommentDelete() {
   const { t } = useT('tasks');
-  const { t: tCommon } = useT('common');
   const deleteComment = useDeleteTaskComment();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -387,8 +386,8 @@ export function useTaskCommentDelete() {
       await deleteComment.mutateAsync({ messageId: pendingDeleteId });
       setPendingDeleteId(null);
     } catch (error) {
+      // The comment write's own toast reports the failure.
       console.error('[tasks] comment action failed', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
     }
   };
 

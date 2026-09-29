@@ -21,6 +21,7 @@ import {
   type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -271,7 +272,11 @@ export function ProjectAgentDialog({
         toast({ title: t(`errors.${code}`), variant: 'destructive' });
       } else {
         console.error('saveProjectAgent failed', error);
-        toast({ title: t('agents.mutationError'), variant: 'destructive' });
+        toast({
+          title: t('agents.mutationError'),
+          description: failureDetail(error),
+          variant: 'destructive',
+        });
       }
     } finally {
       setIsSubmitting(false);

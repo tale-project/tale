@@ -21,6 +21,7 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { createConfigParser } from '../config-parser';
@@ -55,7 +56,7 @@ export function TwoFactorPolicyEditor({
     organizationId,
     'two_factor_policy',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
 
@@ -84,9 +85,11 @@ export function TwoFactorPolicyEditor({
         });
         toast({ title: t('twoFactorPolicy.saved'), variant: 'success' });
         return true;
-      } catch {
+      } catch (error) {
+        console.error('[two_factor_policy] save failed', error);
         toast({
           title: t('twoFactorPolicy.saveFailed'),
+          description: failureDetail(error),
           variant: 'destructive',
         });
         return false;

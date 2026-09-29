@@ -26,6 +26,7 @@ import {
   useCloudImportAuthorizationStatus,
   useGoogleDriveFiles,
 } from '../hooks/queries';
+import { useListingFailureToast } from '../hooks/use-listing-failure-toast';
 import { GoogleDisconnectButton } from './google-disconnect-button';
 import { OneDriveFileTable } from './onedrive-import/onedrive-file-table';
 import { OneDriveSettingsStage } from './onedrive-import/onedrive-settings-stage';
@@ -129,6 +130,14 @@ export function GoogleDriveImportDialog({
   const listingTruncatedCount = listing?.truncated
     ? listing.items.length
     : null;
+
+  // A listing that failed is reported once, after its retries; a lapsed
+  // grant hands off to the connect dialog below instead.
+  useListingFailureToast(
+    loadError,
+    t('googledrive.loadFailed'),
+    isCloudImportAuthError,
+  );
 
   const isGoogleAccountError =
     (!cloudImportAuthLoading &&

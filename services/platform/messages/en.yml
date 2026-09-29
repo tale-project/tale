@@ -7199,6 +7199,7 @@ tasks:
     agentMissing: The assigned agent no longer exists. Assign another agent to run this task.
     noAgentAssignee: No agent is assigned to this task. Assign one to start a run.
     cancelled: The agent run was cancelled.
+    cancelFailed: The agent run could not be cancelled.
     start: Start agent
     willStart: Dropping here starts the agent run.
     willCancel: Dropping here cancels the agent's live run.

@@ -39,6 +39,14 @@ interface EntityDeleteDialogProps<TEntity> {
   /** Optional callback after successful deletion */
   onSuccess?: () => void;
   /**
+   * The words under the failure toast, read from what the delete threw (for
+   * example the refusal's reason, read through a helper that never shows an
+   * error's payload). This toast is the failure's only report, so
+   * `deleteMutation` keeps its own quiet. Without it the toast carries only
+   * its title.
+   */
+  describeFailure?: (error: unknown) => string | undefined;
+  /**
    * Stable element to restore focus to when the captured opener unmounts before
    * close (e.g. the row menu item that opened the dialog).
    */
@@ -75,6 +83,7 @@ export function EntityDeleteDialog<TEntity>({
   deleteMutation,
   translations,
   onSuccess,
+  describeFailure,
   restoreFocusRef,
 }: EntityDeleteDialogProps<TEntity>) {
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -95,12 +104,20 @@ export function EntityDeleteDialog<TEntity>({
       console.error('Error deleting entity:', error);
       toast({
         title: translations.errorMessage,
+        description: describeFailure?.(error),
         variant: 'destructive',
       });
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteMutation, entity, translations, onClose, onSuccess]);
+  }, [
+    deleteMutation,
+    entity,
+    translations,
+    onClose,
+    onSuccess,
+    describeFailure,
+  ]);
 
   const description = React.useMemo(() => {
     const parts = translations.description.split('{name}');

@@ -79,7 +79,8 @@ export function ProductCreateDialog({
 }: ProductCreateDialogProps) {
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
-  const { mutate: createProduct, isPending: isSubmitting } = useCreateProduct();
+  const { mutateAsync: createProduct, isPending: isSubmitting } =
+    useCreateProduct();
 
   const statusOptions = useMemo(
     () =>
@@ -208,42 +209,38 @@ export function ProductCreateDialog({
 
   const onSubmit = (data: ProductFormData) => {
     const statusValue = data.status || undefined;
-    createProduct(
-      {
-        organizationId,
-        name: data.name.trim(),
-        description: data.description.trim() || undefined,
-        imageUrl: data.imageUrl.trim() || undefined,
-        stock: data.stock ? parseInt(data.stock) : undefined,
-        price: data.price ? parseFloat(data.price) : undefined,
-        currency: data.currency || undefined,
-        category: data.category.trim() || undefined,
-        status:
-          statusValue && isProductStatus(statusValue) ? statusValue : undefined,
+    void createProduct({
+      organizationId,
+      name: data.name.trim(),
+      description: data.description.trim() || undefined,
+      imageUrl: data.imageUrl.trim() || undefined,
+      stock: data.stock ? parseInt(data.stock) : undefined,
+      price: data.price ? parseFloat(data.price) : undefined,
+      currency: data.currency || undefined,
+      category: data.category.trim() || undefined,
+      status:
+        statusValue && isProductStatus(statusValue) ? statusValue : undefined,
+    }).then(
+      () => {
+        toast({
+          title: tProducts('create.toast.success'),
+          variant: 'success',
+        });
+        handleClose();
       },
-      {
-        onSuccess: () => {
-          toast({
-            title: tProducts('create.toast.success'),
-            variant: 'success',
-          });
-          handleClose();
-        },
-        onError: (err) => {
-          console.error('Create error:', err);
-          // Duck-typed code check — Vite chunk splitting can yield multiple
-          // AppError copies that break `instanceof` (see extract-error-code).
-          const isDuplicate =
-            extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME';
-          toast({
-            title: isDuplicate
-              ? tProducts('create.toast.duplicateName')
-              : tProducts('create.toast.error'),
-            // A refused body names its field ("price: …"); keep it.
-            description: isDuplicate ? undefined : backendRefusalReason(err),
-            variant: 'destructive',
-          });
-        },
+      (err: unknown) => {
+        console.error('Create error:', err);
+        // Duck-typed code check — Vite chunk splitting can yield multiple
+        // AppError copies that break `instanceof` (see extract-error-code).
+        const isDuplicate = extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME';
+        toast({
+          title: isDuplicate
+            ? tProducts('create.toast.duplicateName')
+            : tProducts('create.toast.error'),
+          // A refused body names its field ("price: …"); keep it.
+          description: isDuplicate ? undefined : backendRefusalReason(err),
+          variant: 'destructive',
+        });
       },
     );
   };
