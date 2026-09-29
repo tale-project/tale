@@ -133,13 +133,16 @@ actions:
       answers to that person, or to the schedule (booked as automation spend,
       with no person's connector access). feedback is what the run addresses
       first. moveToInProgress (default true) moves the card to In progress and
-      the finished work waits at In review; false leaves the card where it is
-      and asks for no review, for a standing task that reports on every
-      occurrence. Starts nothing, without failing, when the task's live run
-      already carries the work (already_running), the agent is working another
-      task (agent_busy), an open task blocks this one (blocked), or the task
-      took three starts by automations and agents in the last hour (paused).
-      A step delivered again answers the run its first delivery started.
+      the finished work waits at In review, withdrawing a review still pending
+      on earlier work; false leaves the card where it is and asks for no
+      review, for a standing task in To do that reports on every occurrence.
+      Starts nothing, without failing, when the task's live run already
+      carries the work (already_running), an in-place start meets a card
+      waiting for a person's review (in_review) or one already Done or
+      Cancelled (closed), the agent is working another task (agent_busy), an
+      open task blocks this one (blocked), or the task took three starts by
+      automations and agents in the last hour (paused). A step delivered again
+      answers the run its first delivery started.
     effects: write
     input:
       type: object
@@ -156,8 +159,8 @@ actions:
           description: What the run addresses first, such as the occurrence it serves or the receipts of earlier steps.
         moveToInProgress:
           type: boolean
-          description: Move the card to In progress and park the result at In review (default), or leave it where it is.
-    output: '{ started: boolean, runId: string | null, taskId: string, agentId: string, reason?: "already_running" | "agent_busy" | "blocked" | "paused", replayed?: boolean, busyTaskId?: string, blockedBy?: string[], retryAfter?: number }'
+          description: Move the card to In progress and park the result at In review (default), or leave it where it is — only under open work (Backlog, To do, In progress).
+    output: '{ started: boolean, runId: string | null, taskId: string, agentId: string, reason?: "already_running" | "in_review" | "closed" | "agent_busy" | "blocked" | "paused", replayed?: boolean, taskStatus?: string, busyTaskId?: string, blockedBy?: string[], retryAfter?: number }'
     mock: |
       return {
         started: true,

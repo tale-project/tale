@@ -199,12 +199,14 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'agentId?: string, feedback?: string (what the run addresses first — ' +
     `your answer to its question, or its brief; ${atMost(TASK_COMMENT_MAX)}), ` +
     'moveToInProgress?: boolean (default true: the card moves to ' +
-    'in_progress and the result waits at in_review for a human; false ' +
-    'leaves the card where it is)}. Answers {started, runId, reason?}: ' +
-    'reason already_running (the task is being worked), agent_busy (that ' +
-    'agent is working another task — pick another or wait), blocked (an ' +
-    'open task blocks it) or paused (three automated starts on this task ' +
-    'within the hour) start nothing. The run answers to whoever your run ' +
+    'in_progress, withdrawing a pending review, and the result waits at ' +
+    'in_review for a human; false leaves the card where it is, only under ' +
+    'backlog, todo or in_progress)}. Answers {started, runId, reason?}: ' +
+    'reason already_running (the task is being worked), in_review or ' +
+    'closed (false met a card awaiting review, or a done/cancelled one), ' +
+    'agent_busy (that agent is working another task — pick another or ' +
+    'wait), blocked (an open task blocks it) or paused (three automated ' +
+    'starts on this task within the hour) start nothing. The run answers to whoever your run ' +
     'answers to and names you as the agent that started it; an agent you ' +
     'start cannot start further agents. Keep the run id in your report. ' +
     LENGTH_UNIT_NOTE,

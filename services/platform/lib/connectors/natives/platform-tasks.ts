@@ -154,8 +154,9 @@ export interface WorkflowTaskStore {
 
 /** What `task.start_agent` answers: the run it started (or found), or why
  * it started none without failing — the task's live run already carries the
- * work, the agent is busy on another task, an open dependency blocks the
- * task, or the task's circuit breaker is open. */
+ * work, an in-place start met a card waiting for a person's review or a
+ * closed one, the agent is busy on another task, an open dependency blocks
+ * the task, or the task's circuit breaker is open. */
 export interface WorkflowAgentStart {
   started: boolean;
   /** The run started, the one already working the task, or the agent's
@@ -163,9 +164,17 @@ export interface WorkflowAgentStart {
   runId: string | null;
   taskId: string;
   agentId: string;
-  reason?: 'already_running' | 'agent_busy' | 'blocked' | 'paused';
+  reason?:
+    | 'already_running'
+    | 'in_review'
+    | 'closed'
+    | 'agent_busy'
+    | 'blocked'
+    | 'paused';
   /** The step's first delivery started this run; this delivery found it. */
   replayed?: boolean;
+  /** The closed card's status (`closed`): done or cancelled. */
+  taskStatus?: string;
   busyTaskId?: string;
   blockedBy?: string[];
   /** When the circuit breaker admits the next start (epoch ms). */

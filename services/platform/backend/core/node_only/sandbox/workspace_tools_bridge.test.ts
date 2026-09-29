@@ -2132,6 +2132,8 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
 
   it.each([
     ['already_running', { runId: 'run_live' }],
+    ['in_review', {}],
+    ['closed', { taskStatus: 'done' }],
     ['agent_busy', { runId: 'run_other', busyTaskId: 'task_2' }],
     ['blocked', { blockedBy: ['task_3'] }],
     ['paused', { retryAfter: 1_790_000_000_000 }],
@@ -2160,7 +2162,9 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
         reason: outcome,
         ...extra,
       });
+      // Each reason carries its own next step, never the generic fallback.
       expect(String(output.guidance)).not.toBe('');
+      expect(output.guidance).not.toBe('Nothing started.');
     },
   );
 
@@ -2311,7 +2315,14 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     }[];
     expect(tools[0]?.name).toBe('task_start_agent');
     expect(tools[0]?.readOnly).toBe(false);
-    for (const word of ['agent_busy', 'blocked', 'already_running', 'paused']) {
+    for (const word of [
+      'agent_busy',
+      'blocked',
+      'already_running',
+      'paused',
+      'in_review',
+      'closed',
+    ]) {
       expect(tools[0]?.description).toContain(word);
     }
   });

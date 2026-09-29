@@ -115,6 +115,23 @@ function workflowAgentStartOf(
         taskId: outcome.taskId,
         agentId: outcome.agentId,
       };
+    case 'in_review':
+      return {
+        started: false,
+        reason: 'in_review',
+        runId: null,
+        taskId: outcome.taskId,
+        agentId: outcome.agentId,
+      };
+    case 'closed':
+      return {
+        started: false,
+        reason: 'closed',
+        runId: null,
+        taskStatus: outcome.taskStatus,
+        taskId: outcome.taskId,
+        agentId: outcome.agentId,
+      };
     case 'agent_busy':
       return {
         started: false,

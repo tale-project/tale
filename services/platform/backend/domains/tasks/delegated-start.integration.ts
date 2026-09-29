@@ -290,6 +290,7 @@ export async function checkScheduledAgentStarts(
   const projectB = randomUUID();
   const manager = randomUUID();
   const worker = randomUUID();
+  const parked = randomUUID();
   const outsider = randomUUID();
   const editor = `cycle-editor-${suffix}`;
   const name = `itest/cycle-${suffix}`;
@@ -372,11 +373,24 @@ export async function checkScheduledAgentStarts(
     await fx.insertProject(projectB, 'Neighbour project');
     await fx.insertAgent(manager, projectA, 'Fleet manager');
     await fx.insertAgent(worker, projectA, 'Implementer');
+    await fx.insertAgent(parked, projectA, 'Parked implementer');
     await fx.insertAgent(outsider, projectB, 'Neighbour agent');
     const roleTask = await fx.insertTask({
       projectId: projectA,
       title: 'Autonomous cycle — manager',
       agentId: manager,
+    });
+    const reviewCard = await fx.insertTask({
+      projectId: projectA,
+      title: 'Waiting for its review',
+      status: 'in_progress',
+      agentId: parked,
+    });
+    const closedCard = await fx.insertTask({
+      projectId: projectA,
+      title: 'Called off',
+      status: 'cancelled',
+      agentId: parked,
     });
     const activation = await fx.insertTask({
       projectId: projectA,
@@ -528,6 +542,87 @@ export async function checkScheduledAgentStarts(
         listedRun.startedViaAutomation === name &&
         listedRun.startedBy === `trigger:${triggerId}`,
       `status=${listed.status} run=${JSON.stringify(listedRun)}`,
+    );
+
+    // ---- in place only under open work, on the connector's door ---------
+    await sql.begin((tx) =>
+      agentUpdateTaskStatusTrusted(tx, {
+        organizationId: orgId,
+        actorId: parked,
+        taskId: reviewCard,
+        status: 'in_review',
+      }),
+    );
+    const stepOf = (nodeId: string) => ({
+      kind: 'workflow' as const,
+      runId: first.runId,
+      nodeId,
+    });
+    const inPlaceReview = await store.startAgent({
+      organizationId: orgId,
+      caller: stepOf('in_place_review'),
+      taskId: reviewCard,
+      moveToInProgress: false,
+    });
+    const inPlaceClosed = await store.startAgent({
+      organizationId: orgId,
+      caller: stepOf('in_place_closed'),
+      taskId: closedCard,
+      moveToInProgress: false,
+    });
+    const reviewPending = await sql<{ status: string }[]>`
+      SELECT status FROM app.approvals
+      WHERE resource_type = 'task_review' AND resource_id = ${reviewCard}
+    `;
+    const cards = await sql<{ id: string; status: string }[]>`
+      SELECT id, status FROM app.tasks WHERE id IN (${reviewCard}, ${closedCard})
+    `;
+    const cardStatus = (id: string) =>
+      cards.find((card) => card.id === id)?.status;
+    const parkedRuns = [
+      ...(await runsOf(sql, reviewCard)),
+      ...(await runsOf(sql, closedCard)),
+    ];
+    record(
+      'scheduled starts: an in-place step (moveToInProgress false) under a card awaiting review or a closed one starts nothing and leaves the review and both cards as they were',
+      !inPlaceReview.started &&
+        inPlaceReview.reason === 'in_review' &&
+        inPlaceReview.runId === null &&
+        !inPlaceClosed.started &&
+        inPlaceClosed.reason === 'closed' &&
+        inPlaceClosed.taskStatus === 'cancelled' &&
+        reviewPending.length === 1 &&
+        reviewPending[0]?.status === 'pending' &&
+        cardStatus(reviewCard) === 'in_review' &&
+        cardStatus(closedCard) === 'cancelled' &&
+        parkedRuns.length === 0,
+      `review=${JSON.stringify(inPlaceReview)} closed=${JSON.stringify(inPlaceClosed)} reviews=${JSON.stringify(reviewPending)} cards=${cardStatus(reviewCard)}/${cardStatus(closedCard)} runs=${describeRuns(parkedRuns)}`,
+    );
+    const moved = await store.startAgent({
+      organizationId: orgId,
+      caller: stepOf('resume_review'),
+      taskId: reviewCard,
+    });
+    const reviewAfterMove = await sql<
+      { status: string; approvedBy: string | null; withdrawn: boolean | null }[]
+    >`
+      SELECT status, approved_by AS "approvedBy",
+             (metadata ->> 'withdrawn')::boolean AS withdrawn
+      FROM app.approvals
+      WHERE resource_type = 'task_review' AND resource_id = ${reviewCard}
+    `;
+    const reviewCardAfter = await sql<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${reviewCard}
+    `;
+    record(
+      'scheduled starts: the default step on that card starts the agent, withdraws the pending review without approving it and moves the card to In progress',
+      moved.started &&
+        reviewAfterMove.length === 1 &&
+        reviewAfterMove[0]?.status === 'rejected' &&
+        reviewAfterMove[0].approvedBy === null &&
+        reviewAfterMove[0].withdrawn === true &&
+        reviewCardAfter[0]?.status === 'in_progress',
+      `start=${JSON.stringify(moved)} reviews=${JSON.stringify(reviewAfterMove)} card=${reviewCardAfter[0]?.status}`,
     );
 
     // ---- a role still working: the next occurrence is coalesced --------
@@ -1044,6 +1139,7 @@ export async function checkDelegatedAgentStartTool(
   const w1 = randomUUID();
   const w2 = randomUUID();
   const w3 = randomUUID();
+  const w4 = randomUUID();
   const outsider = randomUUID();
   const editor = `delegate-editor-${suffix}`;
   const member = `delegate-member-${suffix}`;
@@ -1132,6 +1228,7 @@ export async function checkDelegatedAgentStartTool(
     await fx.insertAgent(w1, projectA, 'Implementer one');
     await fx.insertAgent(w2, projectA, 'Implementer two');
     await fx.insertAgent(w3, projectA, 'Implementer three');
+    await fx.insertAgent(w4, projectA, 'Standing reporter');
     await fx.insertAgent(outsider, projectB, 'Neighbour agent');
     const roleTask = await fx.insertTask({
       projectId: projectA,
@@ -1159,6 +1256,17 @@ export async function checkDelegatedAgentStartTool(
       title: 'Parked with a question',
       status: 'in_progress',
       agentId: w2,
+    });
+    const standingTask = await fx.insertTask({
+      projectId: projectA,
+      title: 'Standing report',
+      agentId: w4,
+    });
+    const closedTask = await fx.insertTask({
+      projectId: projectA,
+      title: 'Shipped already',
+      status: 'done',
+      agentId: w4,
     });
     const race1 = await fx.insertTask({
       projectId: projectA,
@@ -1358,6 +1466,33 @@ export async function checkDelegatedAgentStartTool(
         status: 'in_review',
       }),
     );
+    // In place (moveToInProgress false) under a card awaiting review:
+    // nothing starts, and the review and the card stay as they were.
+    const inPlace = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: reviewTask,
+      moveToInProgress: false,
+      feedback: 'Answer from the manager: yes, keep the German label.',
+    });
+    const inPlaceReviews = await sql<{ status: string }[]>`
+      SELECT status FROM app.approvals
+      WHERE resource_type = 'task_review' AND resource_id = ${reviewTask}
+    `;
+    const inPlaceTask = await sql<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${reviewTask}
+    `;
+    const inPlaceRuns = await runsOf(sql, reviewTask);
+    record(
+      'delegation: an in-place start (moveToInProgress false) on a task awaiting review starts nothing and leaves its pending review and card untouched',
+      inPlace.status === 'ok' &&
+        outputOf(inPlace).started === false &&
+        outputOf(inPlace).reason === 'in_review' &&
+        typeof outputOf(inPlace).guidance === 'string' &&
+        inPlaceReviews.length === 1 &&
+        inPlaceReviews[0]?.status === 'pending' &&
+        inPlaceTask[0]?.status === 'in_review' &&
+        inPlaceRuns.length === 0,
+      `result=${JSON.stringify(inPlace)} reviews=${JSON.stringify(inPlaceReviews)} task=${inPlaceTask[0]?.status} runs=${describeRuns(inPlaceRuns)} (want in_review, the review still pending, the card at in_review, no run)`,
+    );
     const resumed = await dispatch(managerRun.token, 'task_start_agent', {
       taskId: reviewTask,
       feedback: 'Answer from the manager: yes, keep the German label.',
@@ -1389,6 +1524,44 @@ export async function checkDelegatedAgentStartTool(
         complete.status === 'unavailable' &&
         JSON.stringify(complete).includes('AGENTS_CANNOT_COMPLETE'),
       `resume=${JSON.stringify(resumed)} reviews=${JSON.stringify(reviewRows)} task=${reviewTaskRow[0]?.status} done=${JSON.stringify(complete)}`,
+    );
+
+    // ---- in place only under open work: closed refused, To do kept -------
+    const closedStart = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: closedTask,
+      moveToInProgress: false,
+    });
+    const closedRow = await sql<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${closedTask}
+    `;
+    const closedRuns = await runsOf(sql, closedTask);
+    const standing = await dispatch(managerRun.token, 'task_start_agent', {
+      taskId: standingTask,
+      moveToInProgress: false,
+    });
+    const standingRow = await sql<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${standingTask}
+    `;
+    const standingRuns = await runsOf(sql, standingTask);
+    const standingReviews = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.approvals
+      WHERE resource_type = 'task_review' AND resource_id = ${standingTask}
+    `;
+    record(
+      'delegation: an in-place start never works under a Done card (closed, nothing started), and still starts a To do standing task in place without a review',
+      closedStart.status === 'ok' &&
+        outputOf(closedStart).started === false &&
+        outputOf(closedStart).reason === 'closed' &&
+        outputOf(closedStart).taskStatus === 'done' &&
+        closedRow[0]?.status === 'done' &&
+        closedRuns.length === 0 &&
+        standing.status === 'ok' &&
+        outputOf(standing).started === true &&
+        standingRuns.length === 1 &&
+        standingRuns[0]?.trigger === 'delegated' &&
+        standingRow[0]?.status === 'todo' &&
+        standingReviews[0]?.count === 0,
+      `closed=${JSON.stringify(closedStart)} card=${closedRow[0]?.status} runs=${describeRuns(closedRuns)} standing=${JSON.stringify(standing)} card=${standingRow[0]?.status} runs=${describeRuns(standingRuns)} reviews=${standingReviews[0]?.count}`,
     );
 
     // ---- two starts racing for one free agent start one run -------------

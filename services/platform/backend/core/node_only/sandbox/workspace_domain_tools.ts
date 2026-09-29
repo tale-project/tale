@@ -398,6 +398,14 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
   already_running:
     'The task already has a live run carrying the work; nothing new started. ' +
     'Leave it to that run.',
+  in_review:
+    'The task waits for a person to review its earlier work; nothing ' +
+    'started. Start it without moveToInProgress: false to withdraw that ' +
+    'review and resume the task, or leave the decision to the person.',
+  closed:
+    'The task is closed (taskStatus); nothing started. An in-place start ' +
+    'never works under a Done or Cancelled card: start it without ' +
+    'moveToInProgress: false to reopen it deliberately, or report it.',
   agent_busy:
     'That agent is working another task (busyTaskId) in its workspace; ' +
     'nothing started. Pick another agent or leave the task queued.',

@@ -51,6 +51,12 @@ import {
  * - `already_running` — the task's live run carries the work (one live run
  *   per task, 0080): a schedule's occurrence that finds its role still
  *   working is coalesced, not queued behind it;
+ * - `in_review` / `closed` — an in-place start (`moveToInProgress: false`)
+ *   under a card that waits for a person's review, or one already Done or
+ *   Cancelled: the card would go on presenting the previous work for
+ *   judgment (or as finished) while new work runs under it, and the pending
+ *   review would refer to superseded work. Nothing is assigned or started;
+ *   the default start moves the card and withdraws the review instead;
  * - `agent_busy` — the agent is working another task in its standing
  *   workspace, which every run it is started for here shares: one active
  *   piece of work per agent workspace;
@@ -69,8 +75,10 @@ import {
  * The card: `moveToInProgress` (the default) moves it to In progress, as
  * Start agent does, withdrawing a pending review (never approving one), and
  * the settle parks it at In review for a person. `false` leaves it where it
- * is — a standing task that reports on every occurrence — and a settle only
- * parks a card that is In progress, so such a run asks for no review.
+ * is — a standing task in To do that reports on every occurrence — and a
+ * settle only parks a card that is In progress, so such a run asks for no
+ * review. It starts only under open work (Backlog, To do, In progress):
+ * see `in_review` / `closed` above.
  */
 
 /** Why a run a schedule began failed without launching: the schedule was
@@ -119,6 +127,19 @@ export type DelegatedAgentStart =
       runId: string;
       taskId: string;
       agentId: string;
+    }
+  | {
+      /** An in-place start refused: a person's review is pending. */
+      outcome: 'in_review';
+      taskId: string;
+      agentId: string;
+    }
+  | {
+      /** An in-place start refused: the card is Done or Cancelled. */
+      outcome: 'closed';
+      taskId: string;
+      agentId: string;
+      taskStatus: string;
     }
   | {
       outcome: 'agent_busy';
@@ -361,6 +382,29 @@ export async function startDelegatedAgentRun(
       taskId: task.id,
       agentId: agent.id,
     };
+  }
+
+  // An in-place start leaves the card where it stands, so it starts only
+  // under open work. Checked before anything is assigned: a refused start
+  // changes nothing on the task.
+  if (args.moveToInProgress === false) {
+    const pendingReviews = await tx<{ id: string }[]>`
+      SELECT id FROM app.approvals
+      WHERE org_id = ${args.organizationId} AND resource_type = 'task_review'
+        AND resource_id = ${task.id} AND status = 'pending'
+      LIMIT 1
+    `;
+    if (task.status === 'in_review' || pendingReviews.length > 0) {
+      return { outcome: 'in_review', taskId: task.id, agentId: agent.id };
+    }
+    if (TERMINAL_STATUSES.has(task.status)) {
+      return {
+        outcome: 'closed',
+        taskId: task.id,
+        agentId: agent.id,
+        taskStatus: task.status,
+      };
+    }
   }
 
   const busy = await tx<{ id: string; taskId: string }[]>`
