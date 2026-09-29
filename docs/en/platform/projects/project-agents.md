@@ -59,7 +59,7 @@ Select **Create agent**. Check the new row’s runtime, provider and model, then
 
 ## Assign and start work
 
-Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting.
+Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting. You don't need project edit access for this: a Member can put an agent to work on a task they created or that is assigned to them, and an Editor or higher on any task in the project.
 
 The agent’s report appears in task comments and collected files appear as deliverables. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
 

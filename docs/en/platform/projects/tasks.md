@@ -3,7 +3,7 @@ title: Manage tasks on a project board
 description: Create a task, name its owner, track progress, and review the result in one place.
 ---
 
-A task keeps a piece of work together: its purpose, owner, status, files, and the conversation about the result. Use the project board for work a person will do as well as work you delegate to an agent. You need permission to edit the project to change its tasks, and the project must be active: an archived project is read-only until an administrator restores it.
+A task keeps a piece of work together: its purpose, owner, status, files, and the conversation about the result. Use the project board for work a person will do as well as work you delegate to an agent. Every member who can open the project can create tasks in it; [who can change a task](#who-can-create-and-change-tasks) depends on your role and on whether the task is yours. The project must be active: an archived project is read-only until an administrator restores it.
 
 <Frame caption="The board groups the same tasks by status. Switch to List when you prefer rows.">
 
@@ -35,13 +35,27 @@ A useful description states the input, the requested output, and a check for com
 
 </Frame>
 
+## Who can create and change tasks
+
+Every member who can open a project can create tasks in it. Editors and higher roles can change every task in the project. A Member can change the tasks they created and the tasks assigned to them, with the same controls an Editor has there:
+
+- Edit the title, description, attachments, subtasks, dates, priority, labels, reviewer, and repeat.
+- Assign the task to themselves, to another member of the project, or to one of its agents.
+- Start, guide, or stop the agent, including with an @mention in a comment.
+- Move the status, including accepting a result by moving the task to **Done**.
+- Archive the task, or restore it.
+
+On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing.
+
+Handing a task that was assigned to you to someone else, a person or an agent, also hands over the right to change it, unless you created the task. A dependency belongs to the task it blocks, so a Member can mark their own tasks as blocked, but not other people's. The project's settings, agents, files, and label catalog stay with Editors and higher roles; a Member picks from the labels the project already has. Only Owners and Admins can delete a task; everyone else who can change it archives it instead.
+
 ## Choose an owner and a reviewer
 
 **Assignee** identifies who does the work: a person, a project agent, or an automation available to the project. **Reviewer** identifies the person to notify when an agent’s result needs review. Only members who can edit the project can be reviewers.
 
 Assigning an agent and starting its run are separate choices. After assigning it, click **Start agent**, or move the task to **In progress**. Read [Task automation](/platform/projects/task-automation) before starting work that can use connected services or produce files.
 
-The reviewer receives the review request, but the designation does not reserve the decision exclusively to that person. Another member with project edit access can also accept the result.
+The reviewer receives the review request, but the designation does not reserve the decision exclusively to that person. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to.
 
 ## Use statuses to communicate progress
 
@@ -148,4 +162,4 @@ In **Board** and **List**, press **Tab** until the task title is focused, then p
 
 If you can edit the task, press **Space** on its title to pick it up, move it with the arrow keys, and press **Space** again to drop it. **Escape** cancels the move and leaves the task where it was. A screen reader names the task when you pick it up and announces its status and position as you move it.
 
-If a change is refused, check the task’s current state before trying again: a live agent run blocks reassignment, open subtasks block closure, and project access determines whether you can edit at all.
+If a change is refused, check the task’s current state before trying again: a live agent run blocks reassignment, open subtasks block closure, and your role and whether the task is yours determine whether you can change it at all.

@@ -3,7 +3,7 @@ title: Delegate a task to an agent
 description: Start an agent on a project task, review its result, request changes, and recover or cancel a run.
 ---
 
-A project agent works on a task and returns a result for a person to review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need project edit access; the organization also needs a working provider, compatible harness, and available sandbox capacity.
+A project agent works on a task and returns a result for a person to review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need to be able to change the task: an Editor or higher can on every task in the project, and a Member on the tasks they created or that are assigned to them. The organization also needs a working provider, compatible harness, and available sandbox capacity.
 
 <Frame caption="Agent work uses the same board as human work: start at In progress and review the result at In review.">
 
@@ -15,7 +15,7 @@ A project agent works on a task and returns a result for a person to review. Cho
 
 1. Create a [task](/platform/projects/tasks) with the desired result, completion criteria, and input files.
 2. Choose a [project agent](/platform/projects/project-agents) under **Assignee**.
-3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator.
+3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator. Reviewers need project edit access, so a Member who created the task is not sent the review request; they follow the task and hear when it reaches **In review**, and they can accept the result themselves.
 4. Click **Start agent**, or move the task to **In progress**.
 
 Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed. When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working.
@@ -32,7 +32,7 @@ Tale lists delivered or skipped files in a separate system comment that follows 
 
 Read the report, open the deliverables, and compare them with the completion criteria. Move the task to **Done** only when you accept the work. Tale records the human decision; the agent cannot mark its own task Done.
 
-**Reviewer** routes the notification and review queue. It does not exclude other project editors from accepting the result, and changing the reviewer does not reassign the work away from the agent.
+**Reviewer** routes the notification and review queue. It does not exclude anyone else who can change the task, an Editor or higher or the Member the task belongs to, from accepting the result, and changing the reviewer does not reassign the work away from the agent.
 
 Changing **Reviewer** while the task waits in **In review** hands the pending request to the new reviewer: it leaves the previous reviewer's queue, and the new reviewer receives the notification and, when email delivery is configured, an email. **Clear reviewer** returns the request to the task creator or project creator.
 
@@ -40,7 +40,7 @@ Changing **Reviewer** while the task waits in **In review** hands the pending re
 
 Add a task comment that names what needs to change and **@mention the assigned agent**. The mention is an instruction: an active agent can receive it during its run, and an idle agent starts a rework run that continues the previous conversation. The result returns to **In review**.
 
-A plain comment keeps a note without starting that agent action. The mention picker indicates when an agent cannot respond, for example because task automation is disabled or paused.
+A plain comment keeps a note without starting that agent action. The mention picker indicates when an agent cannot respond, for example because task automation is disabled or paused, or because you can comment on the task but not change it.
 
 For an automation-owned task, mention the owning automation to request another run. Mentioning a different automation does not transfer ownership or start it. See [Automations](/platform/automations/concepts) for workflows that coordinate several steps.
 

@@ -163,7 +163,7 @@ Pour partager le serveur avec une équipe dans un `.mcp.json` versionné, fais r
 
 Quand le modèle doit être l’un de ceux de ton organisation, confie plutôt le script à un [agent de projet](/fr/platform/projects/project-agents). Tale exécute alors un environnement de code comme OpenCode dans une sandbox, avec le modèle configuré sur l’agent. L’exécution compte dans les budgets du membre qui l’a démarrée et lui est attribuée ; une exécution que tu lances en REST t’est imputée, pas à la clé API. Les fichiers modifiés reviennent comme résultats de la tâche, qui attend ensuite la revue d’une personne. [Choisir un environnement d’agent](/fr/platform/agents/harnesses) compare les environnements ; OpenCode passe uniquement par la passerelle de modèles de Tale et ne reçoit donc jamais de clé de fournisseur.
 
-Il te faut le droit de modifier le projet, donc au moins le rôle Éditeur, et l’organisation doit disposer d’un modèle utilisable par l’environnement et de capacité de sandbox libre. Dans l’application, ouvre l’onglet **Agents** du projet, choisis **Nouvel agent**, sélectionne OpenCode comme harness et un modèle, puis crée une tâche avec le script en pièce jointe, affecte-la à l’agent et démarre-le.
+Pour créer l’agent, il te faut le droit de modifier le projet, donc au moins le rôle Éditeur ; toute personne qui peut ouvrir le projet peut ensuite créer la tâche et y démarrer l’agent. L’organisation doit disposer d’un modèle utilisable par l’environnement et de capacité de sandbox libre. Dans l’application, ouvre l’onglet **Agents** du projet, choisis **Nouvel agent**, sélectionne OpenCode comme harness et un modèle, puis crée une tâche avec le script en pièce jointe, affecte-la à l’agent et démarre-le.
 
 La même boucle fonctionne en REST depuis un terminal, avec `tale-api.sh` de l’exemple de chat. Vérifie d’abord que ce déploiement exécute OpenCode pour les agents de projet :
 
@@ -201,7 +201,7 @@ echo "TASK_ID=$TASK_ID"
 
 `externalSystem` et `externalId` rendent la tâche idempotente : un nouvel envoi de la même paire renvoie la tâche existante. Une description contient jusqu’à 20 000 caractères ; pour un script plus long, charge-le dans le projet comme l’explique [Charger un fichier en deux étapes](/fr/develop/api-reference#charger-un-fichier-en-deux-etapes). Un agent répond à son identifiant et à son nom en minuscules, les espaces remplacés par des points ou supprimés ; `@assistant.scripts` fonctionne donc aussi.
 
-La mention affecte la tâche à l’agent et démarre une exécution ; la tâche passe à `in_progress`. Une mention qui ne peut pas démarrer d’exécution reste un simple commentaire, sans message d’erreur, par exemple quand il te manque le droit de modification, que l’automatisation des tâches est désactivée ou qu’une autre exécution occupe déjà la tâche. Définis `TASK_ID` sur la valeur affichée par le script, vérifie la tâche, puis lis le compte rendu de l’agent une fois la tâche arrivée à `in_review` :
+La mention affecte la tâche à l’agent et démarre une exécution ; la tâche passe à `in_progress`. Une mention qui ne peut pas démarrer d’exécution reste un simple commentaire, sans message d’erreur, par exemple quand tu ne peux pas modifier la tâche, que l’automatisation des tâches est désactivée ou qu’une autre exécution occupe déjà la tâche. Définis `TASK_ID` sur la valeur affichée par le script, vérifie la tâche, puis lis le compte rendu de l’agent une fois la tâche arrivée à `in_review` :
 
 ```bash
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID" | jq -r '.task.status'

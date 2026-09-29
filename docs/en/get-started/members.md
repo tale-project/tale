@@ -44,7 +44,7 @@ In Home, choose a project you can access under **Projects**. Use **Tasks** to se
 
 </Frame>
 
-Open a task to read its description, assignee, and discussion. If you have edit access, update the task and reload it to check the saved result. Follow [manage project tasks](/platform/projects/tasks) for ordinary task work and [use projects](/tutorials/member/use-projects) for a complete example.
+Open a task to read its description, assignee, and discussion. You can create tasks in any project you can open and change the ones you created or that are assigned to you, for example to hand the work to one of the project's agents. Follow [manage project tasks](/platform/projects/tasks) for ordinary task work and [use projects](/tutorials/member/use-projects) for a complete example.
 
 ## Return to your work
 

@@ -3,7 +3,7 @@ title: Gérer les tâches d’un projet
 description: Crée une tâche, désigne son responsable, suis sa progression et examine le résultat au même endroit.
 ---
 
-Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Tu dois pouvoir modifier le projet pour changer ses tâches, et le projet doit être actif : un projet archivé reste en lecture seule jusqu’à ce qu’un administrateur le restaure.
+Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Toute personne qui peut ouvrir le projet peut y créer des tâches ; [qui peut modifier une tâche](#qui-peut-creer-et-modifier-les-taches) dépend de ton rôle et du fait que la tâche soit la tienne ou non. Le projet doit être actif : un projet archivé reste en lecture seule jusqu’à ce qu’un administrateur le restaure.
 
 <Frame caption="Le tableau classe les tâches par statut. Passe à Liste pour retrouver les mêmes tâches sous forme de lignes.">
 
@@ -35,13 +35,27 @@ Une description utile précise les éléments de départ, le résultat attendu e
 
 </Frame>
 
+## Qui peut créer et modifier les tâches
+
+Toute personne qui peut ouvrir un projet peut y créer des tâches. Les Éditeurs et les rôles supérieurs peuvent modifier toutes les tâches du projet. Un Membre modifie les tâches qu’il a créées et celles qui lui sont attribuées, avec les mêmes possibilités qu’un Éditeur :
+
+- Modifier le titre, la description, les pièces jointes, les sous-tâches, les dates, la priorité, les étiquettes, le relecteur et la répétition.
+- Attribuer la tâche à lui-même, à un autre membre du projet ou à l’un de ses agents.
+- Démarrer, guider ou arrêter l’agent, y compris en le mentionnant avec @ dans un commentaire.
+- Changer le statut, et accepter un résultat en passant la tâche à **Terminé**.
+- Archiver la tâche ou la restaurer.
+
+Sur les tâches des autres, un Membre lit et commente ; s’il y mentionne un agent, la mention reste ordinaire et ne lance rien.
+
+Si tu confies à quelqu’un d’autre, une personne ou un agent, une tâche qui t’était attribuée, tu lui cèdes aussi le droit de la modifier, sauf si tu l’as créée. Une dépendance appartient à la tâche qu’elle bloque : un Membre peut marquer ses propres tâches comme bloquées, mais pas celles des autres. Les paramètres, les agents, les fichiers et le catalogue d’étiquettes du projet restent réservés aux Éditeurs et aux rôles supérieurs ; un Membre choisit parmi les étiquettes que le projet possède déjà. Seuls les propriétaires et les admins peuvent supprimer une tâche ; les autres personnes qui peuvent la modifier l’archivent à la place.
+
 ## Désigner un responsable et un relecteur
 
 **Assigné à** indique qui fait le travail : une personne, un agent du projet ou une automatisation disponible dans ce projet. **Relecteur** désigne la personne à prévenir lorsque le résultat d’un agent attend une revue. Seuls les membres qui peuvent modifier le projet peuvent être relecteurs.
 
 Assigner un agent et lancer son exécution sont deux choix distincts. Après l’assignation, clique sur **Démarrer l'agent** ou passe la tâche à **En cours**. Lis [Automatiser les tâches](/fr/platform/projects/task-automation) avant de lancer un travail qui utilise des services connectés ou produit des fichiers.
 
-Le relecteur reçoit la demande de revue, sans être le seul autorisé à décider. Un autre membre disposant du droit de modification peut aussi accepter le résultat.
+Le relecteur reçoit la demande de revue, sans être le seul autorisé à décider. Toute autre personne qui peut modifier la tâche peut aussi accepter le résultat : un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient.
 
 ## Montrer la progression avec les statuts
 
@@ -148,4 +162,4 @@ Dans les vues **Tableau** et **Liste**, appuie sur **Tab** jusqu’à placer le 
 
 Si tu peux modifier la tâche, place le focus sur son titre et appuie sur **Espace** pour la saisir. Déplace-la avec les touches fléchées, puis appuie de nouveau sur **Espace** pour la déposer. **Échap** annule le déplacement et laisse la tâche à sa place. Un lecteur d’écran nomme la tâche quand tu la saisis, puis annonce son statut et sa position pendant le déplacement.
 
-Si une modification est refusée, vérifie l’état de la tâche avant de réessayer : une exécution active empêche de réassigner l’agent, des sous-tâches ouvertes empêchent la clôture, et l’accès au projet détermine tes droits de modification.
+Si une modification est refusée, vérifie l’état de la tâche avant de réessayer : une exécution active empêche de réassigner l’agent, des sous-tâches ouvertes empêchent la clôture, et ton rôle, ainsi que le fait que la tâche soit la tienne ou non, déterminent si tu peux la modifier.

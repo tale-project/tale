@@ -59,7 +59,7 @@ Choisis **Créer l'agent**. Vérifie l’environnement, le fournisseur et le mod
 
 ## Affecter et démarrer le travail
 
-Ouvre une tâche du même projet, affecte-la à l’agent et choisis **Démarrer l'agent**. L’affectation et l’exécution sont deux actions distinctes. Fournis les fichiers et les critères d’acceptation avant le démarrage.
+Ouvre une tâche du même projet, affecte-la à l’agent et choisis **Démarrer l'agent**. L’affectation et l’exécution sont deux actions distinctes. Fournis les fichiers et les critères d’acceptation avant le démarrage. Il n’est pas nécessaire de pouvoir modifier le projet : un Membre fait travailler un agent sur les tâches qu’il a créées ou qui lui sont attribuées, un Éditeur ou un rôle supérieur sur n’importe quelle tâche du projet.
 
 Le compte rendu apparaît dans les commentaires et les fichiers collectés sont joints comme résultats. Après un travail réussi, la tâche passe **En revue** pour qu’une personne l’évalue. Mentionne l’agent dans un commentaire pour guider ou poursuivre le travail. Le harness détermine si le message rejoint le processus actif ou lance une continuation.
 

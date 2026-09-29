@@ -3,7 +3,7 @@ title: Déléguer une tâche à un agent
 description: Lance un agent, examine son résultat, demande des modifications et reprends ou annule une exécution.
 ---
 
-Un agent de projet travaille sur une tâche et remet son résultat à une personne pour vérification. Assigne le travail, démarre l’exécution et garde les retours sur la tâche pour que l’agent et le relecteur partagent le même contexte. Il te faut le droit de modifier le projet, un fournisseur fonctionnel, un harness compatible et de la capacité de sandbox.
+Un agent de projet travaille sur une tâche et remet son résultat à une personne pour vérification. Assigne le travail, démarre l’exécution et garde les retours sur la tâche pour que l’agent et le relecteur partagent le même contexte. Il te faut le droit de modifier la tâche : un Éditeur ou un rôle supérieur l’a sur toutes les tâches du projet, un Membre sur celles qu’il a créées ou qui lui sont attribuées. Il faut aussi un fournisseur fonctionnel, un harness compatible et de la capacité de sandbox.
 
 <Frame caption="Le travail des agents utilise le même tableau que le travail humain : il démarre à En cours et attend sa validation à En revue.">
 
@@ -15,7 +15,7 @@ Un agent de projet travaille sur une tâche et remet son résultat à une person
 
 1. Crée une [tâche](/fr/platform/projects/tasks) avec le résultat attendu, les critères de fin et les fichiers d’entrée.
 2. Choisis un [agent de projet](/fr/platform/projects/project-agents) sous **Assigné à**.
-3. Désigne dans **Relecteur** la personne qui vérifiera le résultat. À défaut, la demande revient à la personne qui a créé la tâche ou le projet.
+3. Désigne dans **Relecteur** la personne qui vérifiera le résultat. À défaut, la demande revient à la personne qui a créé la tâche ou le projet. Un relecteur doit pouvoir modifier le projet : un Membre qui a créé la tâche ne reçoit donc pas la demande de revue, mais il suit la tâche, est prévenu quand elle passe à **En revue** et peut accepter le résultat lui-même.
 4. Clique sur **Démarrer l'agent** ou passe la tâche à **En cours**.
 
 L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille.
@@ -32,7 +32,7 @@ Tale liste les fichiers livrés ou ignorés dans un commentaire système distinc
 
 Lis le compte rendu, ouvre les livrables et compare-les aux critères de fin. Passe la tâche à **Terminé** seulement lorsque tu acceptes le travail. Tale enregistre la décision humaine ; un agent ne peut pas marquer sa propre tâche comme terminée.
 
-**Relecteur** détermine la notification et la file de revue. Ce rôle n’empêche pas les autres membres autorisés à modifier le projet d’accepter le résultat. Changer de relecteur ne retire pas l’assignation de l’agent.
+**Relecteur** détermine la notification et la file de revue. Ce rôle n’empêche pas les autres personnes qui peuvent modifier la tâche, un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient, d’accepter le résultat. Changer de relecteur ne retire pas l’assignation de l’agent.
 
 Si tu modifies le champ **Relecteur** alors que la tâche est **En revue**, la demande en cours passe au nouveau relecteur : elle quitte la file de revue de l’ancien, et le nouveau reçoit la notification et, si l’envoi d’e-mails est configuré, un e-mail. **Retirer le relecteur** renvoie la demande à la personne qui a créé la tâche ou le projet.
 
@@ -40,7 +40,7 @@ Si tu modifies le champ **Relecteur** alors que la tâche est **En revue**, la d
 
 Explique les changements attendus dans un commentaire et **mentionne l’agent assigné avec @**. Cette mention est une instruction : un agent actif peut la recevoir pendant son exécution, tandis qu’un agent inactif démarre une reprise de la conversation précédente. Le résultat revient à **En revue**.
 
-Un commentaire sans mention conserve une note sans déclencher cette action. Le sélecteur de mentions indique si l’agent ne peut pas répondre, par exemple lorsque l’automatisation des tâches est désactivée ou suspendue.
+Un commentaire sans mention conserve une note sans déclencher cette action. Le sélecteur de mentions indique si l’agent ne peut pas répondre, par exemple lorsque l’automatisation des tâches est désactivée ou suspendue, ou lorsque tu peux commenter la tâche sans pouvoir la modifier.
 
 Pour une tâche pilotée par une automatisation, mentionne celle qui en est responsable pour demander une nouvelle exécution. Mentionner une autre automatisation ne lui transfère pas la tâche et ne la démarre pas. [Automatisations](/fr/platform/automations/concepts) présente les workflows qui coordonnent plusieurs étapes.
 

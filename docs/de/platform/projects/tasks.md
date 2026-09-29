@@ -3,7 +3,7 @@ title: Aufgaben auf dem Projektboard verwalten
 description: Erstelle Aufgaben, lege Verantwortliche fest, verfolge den Fortschritt und prüfe die Ergebnisse an einem Ort.
 ---
 
-Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkeit, Status, Dateien und die Diskussion zum Ergebnis. Nutze das Projektboard sowohl für menschliche Arbeit als auch für Aufgaben, die du einem Agenten überträgst. Zum Ändern von Aufgaben brauchst du Bearbeitungszugriff auf das Projekt, und das Projekt muss aktiv sein: Ein archiviertes Projekt bleibt schreibgeschützt, bis ein Administrator es wiederherstellt.
+Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkeit, Status, Dateien und die Diskussion zum Ergebnis. Nutze das Projektboard sowohl für menschliche Arbeit als auch für Aufgaben, die du einem Agenten überträgst. Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. [Wer eine Aufgabe ändern darf](#wer-aufgaben-erstellen-und-aendern-darf), hängt von deiner Rolle ab und davon, ob es deine Aufgabe ist. Das Projekt muss aktiv sein: Ein archiviertes Projekt bleibt schreibgeschützt, bis ein Administrator es wiederherstellt.
 
 <Frame caption="Das Board ordnet Aufgaben nach Status. Unter Liste siehst du dieselben Aufgaben als Zeilen.">
 
@@ -35,13 +35,27 @@ Eine hilfreiche Beschreibung nennt Ausgangsmaterial, gewünschtes Ergebnis und A
 
 </Frame>
 
+## Wer Aufgaben erstellen und ändern darf
+
+Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. Redakteure und höhere Rollen dürfen jede Aufgabe im Projekt ändern. Mitglieder ändern die Aufgaben, die sie selbst erstellt haben oder die ihnen zugewiesen sind, und haben dort dieselben Möglichkeiten wie ein Redakteur:
+
+- Titel, Beschreibung, Anhänge, Teilaufgaben, Termine, Priorität, Labels, Reviewer und Wiederholung bearbeiten.
+- Die Aufgabe sich selbst, einem anderen Mitglied des Projekts oder einem seiner Agenten zuweisen.
+- Den Agenten starten, lenken oder stoppen, auch mit einer @-Erwähnung in einem Kommentar.
+- Den Status ändern und ein Ergebnis annehmen, indem sie die Aufgabe auf **Erledigt** setzen.
+- Die Aufgabe archivieren oder wiederherstellen.
+
+Aufgaben anderer können Mitglieder lesen und kommentieren. Erwähnen sie dort einen Agenten, bleibt das eine gewöhnliche Erwähnung, die nichts startet.
+
+Gibst du eine Aufgabe, die dir zugewiesen war, an jemand anderen weiter, an eine Person oder einen Agenten, gibst du damit auch das Recht ab, sie zu ändern – es sei denn, du hast sie erstellt. Eine Abhängigkeit gehört zu der Aufgabe, die durch sie blockiert wird: Mitglieder können eigene Aufgaben als blockiert markieren, aber nicht die Aufgaben anderer. Einstellungen, Agenten, Dateien und der Label-Katalog des Projekts bleiben bei Redakteuren und höheren Rollen; Mitglieder wählen aus den Labels, die das Projekt schon hat. Löschen können nur Inhaber und Admins; alle anderen, die eine Aufgabe ändern dürfen, archivieren sie stattdessen.
+
 ## Zuständigkeit und Prüfung festlegen
 
 **Zuständig** bestimmt, wer die Arbeit übernimmt: eine Person, ein Projektagent oder eine im Projekt verfügbare Automation. **Reviewer** benennt die Person, die bei einem prüfbereiten Agentenergebnis benachrichtigt wird. Reviewer können nur Mitglieder mit Bearbeitungszugriff auf das Projekt sein.
 
 Einen Agenten zuweisen und seinen Lauf starten sind zwei Entscheidungen. Klicke nach der Zuweisung auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Lies [Aufgaben automatisieren](/de/platform/projects/task-automation), bevor du Arbeit mit verbundenen Diensten oder Dateiergebnissen startest.
 
-Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch andere Mitglieder mit Bearbeitungszugriff dürfen das Ergebnis annehmen.
+Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört.
 
 ## Fortschritt mit dem Status zeigen
 
@@ -148,4 +162,4 @@ In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Ta
 
 Kannst du die Aufgabe bearbeiten, drückst du auf ihrem Titel die **Leertaste**, um sie aufzunehmen. Verschiebe sie mit den Pfeiltasten und lege sie mit der **Leertaste** wieder ab. **Escape** bricht das Verschieben ab und lässt die Aufgabe, wo sie war. Ein Screenreader nennt die Aufgabe beim Aufnehmen und sagt beim Verschieben ihren Status und ihre Position an.
 
-Prüfe bei einer abgelehnten Änderung zuerst den Zustand der Aufgabe: Ein aktiver Agentenlauf verhindert die Neuzuweisung, offene Teilaufgaben verhindern den Abschluss, und der Projektzugriff entscheidet über deine Bearbeitungsrechte.
+Prüfe bei einer abgelehnten Änderung zuerst den Zustand der Aufgabe: Ein aktiver Agentenlauf verhindert die Neuzuweisung, offene Teilaufgaben verhindern den Abschluss, und deine Rolle und ob es deine Aufgabe ist, entscheiden darüber, ob du sie überhaupt ändern darfst.

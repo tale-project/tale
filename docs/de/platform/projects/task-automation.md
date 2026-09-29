@@ -3,7 +3,7 @@ title: Eine Aufgabe an einen Agenten delegieren
 description: Starte einen Agenten, prüfe sein Ergebnis, fordere Änderungen an und setze fehlgeschlagene Läufe fort oder brich sie ab.
 ---
 
-Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur Prüfung vor. Weise ihm die Arbeit zu, starte den Lauf und halte Rückmeldungen an der Aufgabe fest. Du brauchst Bearbeitungszugriff auf das Projekt; außerdem müssen Anbieter, passende Agent-Laufzeit und Sandbox-Kapazität verfügbar sein.
+Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur Prüfung vor. Weise ihm die Arbeit zu, starte den Lauf und halte Rückmeldungen an der Aufgabe fest. Du musst die Aufgabe ändern dürfen: Redakteure und höhere Rollen dürfen das bei jeder Aufgabe im Projekt, Mitglieder bei den Aufgaben, die sie erstellt haben oder die ihnen zugewiesen sind. Außerdem müssen Anbieter, passende Agent-Laufzeit und Sandbox-Kapazität verfügbar sein.
 
 <Frame caption="Agentenarbeit nutzt dasselbe Board wie menschliche Arbeit: Sie startet unter In Bearbeitung und wartet unter In Prüfung auf die Abnahme.">
 
@@ -15,7 +15,7 @@ Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur 
 
 1. Erstelle eine [Aufgabe](/de/platform/projects/tasks) mit gewünschtem Ergebnis, Abschlusskriterien und Eingabedateien.
 2. Wähle unter **Zuständig** einen [Projektagenten](/de/platform/projects/project-agents).
-3. Lege unter **Reviewer** fest, wer das Ergebnis prüfen soll. Ohne benannten Reviewer geht die Anfrage an den Ersteller der Aufgabe oder des Projekts.
+3. Lege unter **Reviewer** fest, wer das Ergebnis prüfen soll. Ohne benannten Reviewer geht die Anfrage an den Ersteller der Aufgabe oder des Projekts. Reviewer brauchen Bearbeitungszugriff auf das Projekt. Hat ein Mitglied die Aufgabe erstellt, erhält es deshalb keine Prüfanfrage; es verfolgt die Aufgabe, erfährt, wenn sie **In Prüfung** erreicht, und kann das Ergebnis selbst annehmen.
 4. Klicke auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**.
 
 Die Zuweisung allein startet keinen Lauf. Eine bereits zugewiesene Aufgabe kann im **Backlog** bleiben, bis das Team ihren Start beschließt. Nach dem Start verwendet der Agent Beschreibung, Kommentare und Eingabedateien in seiner Sandbox. Die Laufanzeige zeigt, ob er wartet oder arbeitet.
@@ -32,7 +32,7 @@ Bereitgestellte oder übersprungene Dateien führt Tale in einem separaten Syste
 
 Lies den Bericht, öffne die Dateien und vergleiche sie mit den Abschlusskriterien. Setze die Aufgabe erst auf **Erledigt**, wenn du die Arbeit annimmst. Tale hält die menschliche Entscheidung fest. Ein Agent darf seine eigene Aufgabe nicht als erledigt markieren.
 
-**Reviewer** steuert Benachrichtigung und Prüfwarteschlange. Andere Projektmitglieder mit Bearbeitungsrechten dürfen das Ergebnis ebenfalls annehmen. Ein Wechsel des Reviewers ändert nicht die Zuständigkeit des Agenten.
+**Reviewer** steuert Benachrichtigung und Prüfwarteschlange. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Ein Wechsel des Reviewers ändert nicht die Zuständigkeit des Agenten.
 
 Wechselst du den **Reviewer**, solange die Aufgabe unter **In Prüfung** wartet, wandert die offene Anfrage mit: Sie verschwindet aus der Prüfwarteschlange des bisherigen Reviewers, und der neue erhält die Benachrichtigung und bei eingerichtetem E-Mail-Versand auch eine E-Mail. **Reviewer entfernen** gibt die Anfrage an den Ersteller der Aufgabe oder des Projekts zurück.
 
@@ -40,7 +40,7 @@ Wechselst du den **Reviewer**, solange die Aufgabe unter **In Prüfung** wartet,
 
 Beschreibe die nötige Änderung in einem Aufgabenkommentar und **erwähne den zuständigen Agenten mit @**. Die Erwähnung ist eine Anweisung: Ein aktiver Agent kann sie während seines Laufs erhalten. Ein wartender Agent beginnt einen Überarbeitungslauf, der das bisherige Gespräch fortsetzt. Das Ergebnis landet erneut unter **In Prüfung**.
 
-Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu starten. Die Erwähnungsauswahl zeigt an, wenn ein Agent nicht reagieren kann, etwa weil die Aufgabenautomatisierung ausgeschaltet oder pausiert ist.
+Ein Kommentar ohne Erwähnung hält eine Notiz fest, ohne diese Agentenaktion zu starten. Die Erwähnungsauswahl zeigt an, wenn ein Agent nicht reagieren kann, etwa weil die Aufgabenautomatisierung ausgeschaltet oder pausiert ist oder weil du die Aufgabe zwar kommentieren, aber nicht ändern darfst.
 
 Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisierung für einen weiteren Lauf. Die Erwähnung einer anderen Automatisierung überträgt weder die Zuständigkeit noch startet sie diese. [Automatisierungen](/de/platform/automations/concepts) erklärt Workflows mit mehreren Schritten.
 

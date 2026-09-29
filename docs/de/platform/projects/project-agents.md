@@ -59,7 +59,7 @@ Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile
 
 ## Arbeit zuweisen und starten
 
-Öffne eine Aufgabe desselben Projekts, wähle den Agenten als Zuständigen und klicke auf **Agent starten**. Zuweisung und Ausführung sind getrennte Aktionen. Ergänze Dateien und Abnahmekriterien vor dem Start.
+Öffne eine Aufgabe desselben Projekts, wähle den Agenten als Zuständigen und klicke auf **Agent starten**. Zuweisung und Ausführung sind getrennte Aktionen. Ergänze Dateien und Abnahmekriterien vor dem Start. Bearbeitungszugriff auf das Projekt brauchst du dafür nicht: Mitglieder lassen einen Agenten an Aufgaben arbeiten, die sie erstellt haben oder die ihnen zugewiesen sind, Redakteure und höhere Rollen an jeder Aufgabe des Projekts.
 
 Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit eine Person sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Der Harness bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
 
