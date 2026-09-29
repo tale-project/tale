@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef } from 'react';
  * the element that held it is removed. Focus on any other element is a
  * place the member chose (a tree row, the close button, a field).
  */
-export function isFocusStranded(region: Element | null): boolean {
+function isFocusStranded(region: Element | null): boolean {
   const active = document.activeElement;
   if (
     active === null ||
