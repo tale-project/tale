@@ -59,7 +59,11 @@ vi.mock('../hooks/queries', () => {
   return {
     useTasksByProject: board,
     useTasksAcrossProjects: board,
-    useProjectDependencies: () => ({ edges: [], isLoading: false, ...answered }),
+    useProjectDependencies: () => ({
+      edges: [],
+      isLoading: false,
+      ...answered,
+    }),
     useTaskOpsIndicators: () => ops,
     useTaskOpsIndicatorsAcrossProjects: () => ops,
   };
