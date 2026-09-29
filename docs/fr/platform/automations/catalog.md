@@ -3,7 +3,7 @@ title: Créer ou importer une automatisation
 description: Choisis un point de départ, importe un paquet validé et prépare ses skills, paramètres et livrables avant la mise en service.
 ---
 
-Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Les rôles Propriétaire, Admin et Développeur peuvent les gérer. Commence par vérifier si une [automatisation fournie](/fr/platform/automations/builtin) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
+Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Les rôles Propriétaire, Admin et Développeur peuvent les gérer. Les Membres et Éditeurs ne voient que les automatisations en service. L’entrée de navigation apparaît pour eux dès qu’une automatisation à l’échelle de l’organisation est mise en service ; celles liées à un projet restent accessibles dans l’onglet de ce projet. Commence par vérifier si une [automatisation fournie](/fr/platform/automations/builtin) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
 
 La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour comparer les workflows de triage fournis.
 
@@ -15,7 +15,7 @@ La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour compa
 
 ## Choisir un point de départ
 
-Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Général** regroupe son déclencheur et ses projets : **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation. Le sélecteur **Version**, à droite des onglets, présente les versions enregistrées, et **Exécutions**, les derniers lancements.
+Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Général** regroupe son déclencheur et ses projets : **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation. **Projets** ne propose que les projets que tu peux ouvrir, et l’enregistrement conserve les associations aux projets que tu ne vois pas. Une automatisation associée uniquement à de tels projets n’apparaît pas dans ta liste. Le sélecteur **Version**, à droite des onglets, présente les versions enregistrées, et **Exécutions**, les derniers lancements.
 
 Le menu **Créer une automatisation** propose deux parcours :
 

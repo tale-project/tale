@@ -37,7 +37,13 @@ export type WorkflowAgentFailureCode =
    * broker refreshed the account under it, revoking the turn's token. The
    * re-kick vends again and resumes, outside the budget
    * ({@link planWorkflowAgentRetry}). */
-  | 'credential_rotated';
+  | 'credential_rotated'
+  /** The start met a subscription broker whose every account was cooling
+   * down after a rate limit, so nothing ran. The re-kick's start waits until
+   * the first account is back — for free when the refused attempt retried
+   * one that ended on a 429, the rate limit that cooled the pool
+   * ({@link planWorkflowAgentRetry}). */
+  | 'credential_cooldown';
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
@@ -69,17 +75,31 @@ export interface WorkflowAgentRetryResume {
 const NO_RESUME_FAILURE_CODES: ReadonlySet<string> = new Set([
   'session_gone',
   'start_failed',
+  'credential_cooldown',
 ] satisfies WorkflowAgentFailureCode[]);
 
 /**
  * The resume a retry of this settle should carry, or undefined when the
  * re-kick must be a fresh conversation: no handle announced (a harness that
  * died before its init line), or a failure class with nothing to resume.
+ * A start refused while the broker pool cooled down never launched, so the
+ * conversation it was to resume (`parked.resumedFrom`) still stands, with
+ * the cut that ended it.
  */
 export function workflowAgentRetryResume(
   settled: { failureCode?: string; agentSessionId?: string },
   reason: string,
+  parked: Pick<WorkflowAgentAttempt, 'resumedFrom' | 'resumeReason'> = {},
 ): WorkflowAgentRetryResume | undefined {
+  if (
+    settled.failureCode === 'credential_cooldown' &&
+    parked.resumedFrom !== undefined
+  ) {
+    return {
+      agentSessionId: parked.resumedFrom,
+      reason: parked.resumeReason ?? reason,
+    };
+  }
   if (settled.agentSessionId === undefined) return undefined;
   if (
     settled.failureCode !== undefined &&
@@ -149,6 +169,9 @@ export interface WorkflowAgentAttempt {
   brokerTokenHash?: string;
   burnedBrokerTokenHashes?: string[];
   credentialRotations?: number;
+  retriedRateLimit?: boolean;
+  resumedFrom?: string;
+  resumeReason?: string;
 }
 
 /** What a re-kick of a failed attempt carries, and whether it may happen. */
@@ -175,7 +198,10 @@ export interface WorkflowAgentRetryPlan {
  * account stays in the pool, since it holds a fresh token. A rotation after
  * a quarter of an hour of work also starts a new rotation streak; the third
  * short one in a row takes the ordinary path, so a grant that is truly dead
- * cannot loop.
+ * cannot loop. A start refused while the broker pool cooled down is free
+ * when the refused attempt retried a 429 — the failure that cooled the pool
+ * already counted, and the wait is the same event — and ordinary otherwise,
+ * so a pool that other work keeps cooling cannot hold the node in a loop.
  */
 export function planWorkflowAgentRetry(
   parked: WorkflowAgentAttempt,
@@ -183,6 +209,17 @@ export function planWorkflowAgentRetry(
   now: number,
 ): WorkflowAgentRetryPlan {
   const attempt = parked.attempt ?? 0;
+  if (
+    failureCode === 'credential_cooldown' &&
+    parked.retriedRateLimit === true
+  ) {
+    return {
+      retry: true,
+      attempt,
+      burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
+      credentialRotations: 0,
+    };
+  }
   const executedMs = executedMsOf(parked.launchedAt, now);
   const credentialRotations =
     failureCode === 'credential_rotated'

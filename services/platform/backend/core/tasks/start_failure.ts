@@ -1,4 +1,8 @@
 import { isTurnBudgetExceededError } from '../node_only/sandbox/turn_budget';
+import {
+  credentialRetryAtMs,
+  runFailureMessage,
+} from '../provider_credentials/resolve_credential';
 import { isSkillUnavailableError } from '../skills/skill_unavailable_error';
 import type { TaskRunFailureCode } from './task_auto_retry';
 
@@ -9,10 +13,19 @@ import type { TaskRunFailureCode } from './task_auto_retry';
  * the run cannot reach (the agent's configuration; three retries used to
  * burn on it before the author could act). Everything else is
  * `start_failed`, retried by default.
+ *
+ * A subscription broker whose every account is cooling down after a rate
+ * limit refuses with `credential_cooldown` and says when the first account
+ * is back (`retryAtMs`): the retry's start waits for it instead of meeting
+ * the same refusal at once, which used to spend the whole budget in
+ * seconds. The wait is free only right after the run's own 429
+ * (`freeCooldownWaits`); any other refused start counts, so a pool that
+ * other work keeps cooling cannot hold the task in an endless wait.
  */
 export function classifyStartFailure(err: unknown): {
   reason: string;
   failureCode: TaskRunFailureCode;
+  retryAtMs?: number;
 } {
   if (isTurnBudgetExceededError(err)) {
     return {
@@ -20,11 +33,15 @@ export function classifyStartFailure(err: unknown): {
       failureCode: 'budget_exceeded',
     };
   }
-  const message = err instanceof Error ? err.message : String(err);
+  const retryAtMs = credentialRetryAtMs(err);
   return {
-    reason: `the agent run could not start: ${message}`,
-    failureCode: isSkillUnavailableError(err)
-      ? 'equipment_missing'
-      : 'start_failed',
+    reason: `the agent run could not start: ${runFailureMessage(err)}`,
+    failureCode:
+      retryAtMs !== undefined
+        ? 'credential_cooldown'
+        : isSkillUnavailableError(err)
+          ? 'equipment_missing'
+          : 'start_failed',
+    ...(retryAtMs !== undefined && { retryAtMs }),
   };
 }

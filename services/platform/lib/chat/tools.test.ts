@@ -210,6 +210,18 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toMatch(/never present a partial read/i);
   });
 
+  // A docs index runs past one 20000-character window; paging all of it
+  // before the page it points at spends tool rounds the answer needs.
+  it('web_fetch reads an index as a lookup, not a source to page through', () => {
+    const text = wireDescription('web_fetch');
+    expect(text).toMatch(/index of other pages .* is a lookup/i);
+    expect(text).toMatch(/stop reading it once you hold\s+the link/i);
+  });
+
+  it('web_fetch accepts a URL the instructions name', () => {
+    expect(wireDescription('web_fetch')).toMatch(/one your instructions name/);
+  });
+
   it('names no real-world domain — steering is generic, never per-eval', () => {
     for (const tool of CHAT_WIRE_TOOLS) {
       expect(tool.description).not.toMatch(/https:\/\/[a-z0-9]/i);

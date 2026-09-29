@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useApiKeys, useCreateApiKey } from './use-api-keys';
+import { useApiKeys, useCreateApiKey, useRevokeApiKey } from './use-api-keys';
 
 /**
  * The first key moves the table's Create button from the empty state to the
@@ -14,7 +14,7 @@ import { useApiKeys, useCreateApiKey } from './use-api-keys';
  */
 
 const { apiKey } = vi.hoisted(() => ({
-  apiKey: { create: vi.fn(), list: vi.fn() },
+  apiKey: { create: vi.fn(), delete: vi.fn(), list: vi.fn() },
 }));
 
 vi.mock('@/lib/auth-client', () => ({ authClient: { apiKey } }));
@@ -86,5 +86,45 @@ describe('useCreateApiKey', () => {
     await expect(
       result.current.create.mutateAsync({ name: 'CI key' }),
     ).resolves.toEqual({ key: 'tale_secret', id: key.id });
+  });
+});
+
+/**
+ * The budget editor's per-key picker reads the organization's key listing
+ * under its own query key. A key created or revoked in this tab must reach
+ * that read at once, not after the stale window.
+ */
+describe('the organization key listing', () => {
+  const ORG_LISTING = ['backend', 'org-1', 'api_key', 'org-list'];
+
+  function seedListing() {
+    client.setQueryData(ORG_LISTING, []);
+    expect(client.getQueryState(ORG_LISTING)?.isInvalidated).toBe(false);
+  }
+
+  it('is invalidated when a key is created', async () => {
+    apiKey.list.mockResolvedValue({ data: { apiKeys: [] } });
+    const { result } = renderHook(() => useCreateApiKey('org-1'), {
+      wrapper,
+    });
+    seedListing();
+
+    await result.current.mutateAsync({ name: 'CI key' });
+
+    expect(client.getQueryState(ORG_LISTING)?.isInvalidated).toBe(true);
+  });
+
+  it('is invalidated when a key is revoked', async () => {
+    apiKey.delete.mockResolvedValue({ data: { success: true } });
+    const { result } = renderHook(() => useRevokeApiKey('org-1'), {
+      wrapper,
+    });
+    seedListing();
+
+    await result.current.mutateAsync('key-1');
+
+    await waitFor(() =>
+      expect(client.getQueryState(ORG_LISTING)?.isInvalidated).toBe(true),
+    );
   });
 });

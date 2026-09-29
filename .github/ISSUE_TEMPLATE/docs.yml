@@ -17,7 +17,7 @@ body:
     attributes:
       label: Which page or section?
       description: Link or path to the affected documentation.
-      placeholder: 'e.g. docs/getting-started.md or https://tale.dev/docs/setup'
+      placeholder: 'e.g. docs/en/get-started/quickstart.md or https://docs.tale.dev/get-started/quickstart'
     validations:
       required: true
 

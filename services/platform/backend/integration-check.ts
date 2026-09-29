@@ -48,6 +48,7 @@ import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
+import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
@@ -64,6 +65,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
@@ -89,7 +91,10 @@ import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tabl
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
-import { checkCredentialRotationRetry } from './domains/tasks/credential-rotation.integration.ts';
+import {
+  checkCooledStartRetry,
+  checkCredentialRotationRetry,
+} from './domains/tasks/credential-rotation.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
@@ -97,6 +102,7 @@ import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.inte
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
+import { cookieHeaderFrom, signUpUser } from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -454,14 +460,6 @@ async function drainNotificationEmails(sql: Sql): Promise<boolean> {
   }, 15_000);
 }
 
-function cookieHeaderFrom(response: Response): string {
-  return response.headers
-    .getSetCookie()
-    .map((entry) => entry.split(';')[0] ?? '')
-    .filter((pair) => pair.length > 0)
-    .join('; ');
-}
-
 /**
  * The cookie jar after a response: every `Set-Cookie` pair overlays the
  * existing header by name and a cleared cookie (empty value) leaves the jar
@@ -485,37 +483,6 @@ function mergeCookieHeader(existing: string, response: Response): string {
     put(entry.split(';')[0] ?? '', true);
   }
   return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
-}
-
-/**
- * A fresh user signed up through Better Auth and a member of NO organization
- * yet — what a lane needs when the membership itself is what it exercises
- * (the members API, an org the user goes on to create and own) or when the
- * probe is about the account alone. `signUpOrgMember` builds on it; a lane
- * that only needs another pair of hands in the suite's org wants that one.
- */
-async function signUpUser(
-  base: string,
-  label: string,
-): Promise<{ cookie: string; userId: string; email: string }> {
-  const email = `itest-${label}-${Date.now()}@example.com`;
-  const res = await fetch(`${base}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: base },
-    body: JSON.stringify({
-      email,
-      password: 'itest-password-1',
-      name: `Itest ${label}`,
-    }),
-  });
-  const parsed = z
-    .object({ user: z.object({ id: z.string() }) })
-    .safeParse(await res.json());
-  return {
-    cookie: cookieHeaderFrom(res),
-    userId: parsed.success ? parsed.data.user.id : '',
-    email,
-  };
 }
 
 /**
@@ -49945,6 +49912,100 @@ async function checkAccountAuthzHardening(
   );
 }
 
+/**
+ * The budget editor's per-key picker (`GET /api/app/governance/api-keys`):
+ * an admin lists every live key held by a member of the organization — never
+ * a non-member's, never an expired one, never a secret — and a non-admin is
+ * refused. Run against the real auth tables, so a wrong column name in the
+ * listing's query fails here rather than leaving the picker silently empty.
+ */
+async function checkOrgApiKeyListing(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  suffix: string,
+): Promise<void> {
+  const mint = async (cookie: string, name: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ name }),
+    });
+    const parsed = z
+      .object({ id: z.string(), key: z.string() })
+      .loose()
+      .safeParse(await res.json());
+    return parsed.success ? parsed.data : null;
+  };
+  const list = (cookie: string) =>
+    fetch(`${base}/api/app/governance/api-keys?orgId=${ctx.orgId}`, {
+      headers: { cookie },
+    });
+
+  const member = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keylist-member-${suffix}`,
+    'developer',
+  );
+  const outsider = await signUpUser(base, `keylist-outsider-${suffix}`);
+  const memberKey = await mint(member.cookie, `keylist-live-${suffix}`);
+  const expiredKey = await mint(member.cookie, `keylist-expired-${suffix}`);
+  const outsiderKey = await mint(outsider.cookie, `keylist-out-${suffix}`);
+  if (expiredKey !== null) {
+    await sql`
+      UPDATE "apikey" SET "expiresAt" = now() - interval '1 day'
+      WHERE "id" = ${expiredKey.id}
+    `;
+  }
+
+  const adminRes = await list(ctx.cookie);
+  const adminText = await adminRes.text();
+  let adminBody: unknown = null;
+  try {
+    adminBody = JSON.parse(adminText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the admin read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const listed = z
+    .object({
+      keys: z.array(
+        z.object({
+          id: z.string(),
+          userId: z.string(),
+          ownerEmail: z.string().nullable(),
+        }),
+      ),
+    })
+    .safeParse(adminBody);
+  const ids = listed.success ? listed.data.keys.map((k) => k.id) : [];
+  const memberRow = listed.success
+    ? listed.data.keys.find((k) => k.id === memberKey?.id)
+    : undefined;
+  const leaked = [memberKey, expiredKey, outsiderKey].some(
+    (minted) => minted !== null && adminText.includes(minted.key),
+  );
+  const memberRes = await list(member.cookie);
+  record(
+    "org api-key listing: an admin sees members' live keys, masked; a non-admin is refused",
+    adminRes.status === 200 &&
+      memberKey !== null &&
+      memberRow?.userId === member.userId &&
+      memberRow.ownerEmail === member.email &&
+      expiredKey !== null &&
+      !ids.includes(expiredKey.id) &&
+      outsiderKey !== null &&
+      !ids.includes(outsiderKey.id) &&
+      !leaked &&
+      memberRes.status === 403,
+    `admin → ${adminRes.status}, member key listed=${memberRow !== undefined} (owner ${memberRow?.ownerEmail ?? 'MISSING'}), expired listed=${expiredKey !== null && ids.includes(expiredKey.id)}, outsider listed=${outsiderKey !== null && ids.includes(outsiderKey.id)}, secret leaked=${leaked}, non-admin → ${memberRes.status} (want 403)`,
+  );
+}
+
 async function checkTwoFactor(
   sql: Sql,
   base: string,
@@ -55445,6 +55506,10 @@ async function main(): Promise<void> {
         'checkAccountAuthzHardening',
         () => checkAccountAuthzHardening(sql, baseUrl, authCtx, orgSuffix),
       ],
+      [
+        'checkOrgApiKeyListing',
+        () => checkOrgApiKeyListing(sql, baseUrl, authCtx, orgSuffix),
+      ],
       ['checkLegalHolds', () => checkLegalHolds(sql, baseUrl, authCtx)],
       [
         'checkRetention',
@@ -55510,6 +55575,23 @@ async function main(): Promise<void> {
       [
         'checkAutomationsDeadSchemaDropped',
         () => checkAutomationsDeadSchemaDropped(sql),
+      ],
+      [
+        'checkAutomationProjectVisibility',
+        async () =>
+          checkAutomationProjectVisibility(
+            sql,
+            baseUrl,
+            authCtx,
+            await signUpOrgMember(
+              sql,
+              baseUrl,
+              authCtx.orgId,
+              'automation-project-reader',
+              'member',
+            ),
+            record,
+          ),
       ],
       [
         'checkAutomationRunLifecycle',
@@ -55608,6 +55690,10 @@ async function main(): Promise<void> {
         'checkExpiredSessionReaper',
         () => checkExpiredSessionReaper(sql, authCtx, record),
       ],
+      [
+        'checkLapsedTeamWrites',
+        () => checkLapsedTeamWrites(sql, baseUrl, record),
+      ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
       [
         'checkTaskDescriptionMentions',
@@ -55641,6 +55727,10 @@ async function main(): Promise<void> {
       [
         'checkCredentialRotationRetry',
         () => checkCredentialRotationRetry(sql, authCtx, record),
+      ],
+      [
+        'checkCooledStartRetry',
+        () => checkCooledStartRetry(sql, authCtx, record),
       ],
       [
         'checkSessionOpTranscriptMerge',

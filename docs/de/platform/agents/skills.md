@@ -22,6 +22,8 @@ Das Bundle enthält `SKILL.md` und kann Referenzen, Dateien oder Skripte mitbrin
 
 Alte private Skills können nicht für einen Projekt-Agenten ausgewählt werden. Dieselbe Zugriffsregel wird beim Start einer Aufgabe geprüft. Die Auswahl eines Skills gewährt dem Projekt keinen dauerhaften Zugriff darauf.
 
+Bei einem neuen Projekt-Agenten sind die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf` vorausgewählt, sofern das Projekt auf sie zugreifen kann. Entferne die Häkchen bei Skills, die die Aufgabe nicht braucht.
+
 Jeder Skill in der Liste nennt seinen Ersteller: ein Mitglied, **Mitgeliefert** für die Skills, mit denen deine Organisation startet, oder **Konfigurations-Release** mit dem Mitglied, dessen Upload ihn installiert hat. Prüfe bei einem unbekannten Skill, woher er stammt, bevor du einen Agenten damit ausrüstest.
 
 ## Skills in einer Automation verwenden

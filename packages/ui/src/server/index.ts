@@ -167,7 +167,9 @@ export function staticCacheControlFor(rel: string): string {
   return 'public, max-age=3600, stale-while-revalidate=86400';
 }
 
-function isSecureRequest(request: Request): boolean {
+/** Whether the request reached the public origin over HTTPS, directly or
+ *  through a TLS-terminating proxy — decides the `Secure` cookie flag. */
+export function isSecureRequest(request: Request): boolean {
   if (request.url.startsWith('https://')) return true;
   return request.headers.get('x-forwarded-proto') === 'https';
 }

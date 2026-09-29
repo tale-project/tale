@@ -21,8 +21,9 @@ import { markRagQueued } from '../knowledge/service.ts';
  * Every body read here binds the one definition of an indexed message
  * (`isIndexedMessage`, `lib/knowledge/message-ref.ts`), and every attachment
  * read the one definition of an emailed attachment (an unbound file row bound
- * to the conversation, `emailedAttachmentConversation`), so a lane can never
- * release fewer refs than the indexers wrote.
+ * to the conversation — the rows `emailedAttachmentConversation` stamps, and
+ * those whose ref an active document holds, which index as the document), so
+ * a lane can never release fewer refs than the indexers wrote.
  */
 
 /** Refs per `knowledge.release_refs` job: a retention batch can purge a

@@ -19,6 +19,7 @@ import type { BrokerSelectionResult } from './broker_pool';
 import {
   credentialRefusalCode,
   credentialRefusalMessage,
+  credentialRetryAtMs,
   isTerminalCredentialRefusal,
   resolveProviderCredential,
 } from './resolve_credential';
@@ -177,6 +178,163 @@ describe('broker account selection boundary', () => {
     );
   });
 
+  it('vends the account the broker holds for its refresh while the available one cools down', async () => {
+    // TALE-101: a two-account pool. A 429 cooled A down for a minute, and the
+    // broker — which counts A as able to take the work and knows nothing of
+    // the cooldown — holds B back for its coming token refresh. Refusing B
+    // as well left the pool with no account, and the retries burned out.
+    mockedFetch.mockResolvedValue({
+      ...poolResponse(),
+      body: JSON.stringify({
+        tokens: [
+          {
+            id: 'gateway-a',
+            access_token: 'token-a',
+            available: true,
+            hold: null,
+          },
+          {
+            id: 'gateway-b',
+            access_token: 'token-b',
+            available: false,
+            available_at: new Date(Date.now() + 40 * 60_000).toISOString(),
+            hold: 'refresh',
+          },
+        ],
+      }),
+    });
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    const hashA = hashBrokerAccount('cred-1', {
+      id: 'gateway-a',
+      token: 'token-a',
+    });
+    const hashB = hashBrokerAccount('cred-1', {
+      id: 'gateway-b',
+      token: 'token-b',
+    });
+    ctx.mockRunMutation.mockResolvedValue({
+      hash: hashB,
+      fellBack: false,
+      held: true,
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await resolveProviderCredential(ctx, {
+      organizationId: ORG,
+      providerSlug: 'anthropic',
+      excludeBrokerTokenHashes: [hashA],
+    });
+
+    expect(result).toMatchObject({ token: 'token-b', brokerTokenHash: hashB });
+    // The held account rides behind the available one, marked, so the
+    // durable pick falls back to it only when A cannot serve.
+    expect(ctx.mockRunMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        candidates: [
+          { hash: hashA, excluded: true },
+          { hash: hashB, excluded: false, held: true },
+        ],
+      }),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('holds back for its coming token refresh'),
+    );
+  });
+
+  it('vends a held OpenAI account when the available one lacks its vendor account id', async () => {
+    mockedFetch.mockResolvedValue({
+      ...poolResponse(),
+      body: JSON.stringify({
+        tokens: [
+          { id: 'gateway-a', provider: 'openai', access_token: 'token-a' },
+          {
+            id: 'gateway-b',
+            provider: 'openai',
+            account_id: 'vendor-b',
+            access_token: 'token-b',
+            available: false,
+            available_at: new Date(Date.now() + 40 * 60_000).toISOString(),
+            hold: 'refresh',
+          },
+        ],
+      }),
+    });
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    const hashB = hashBrokerAccount('cred-1', {
+      id: 'gateway-b',
+      token: 'token-b',
+    });
+    ctx.mockRunMutation.mockResolvedValue({
+      hash: hashB,
+      fellBack: false,
+      held: true,
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await resolveProviderCredential(ctx, {
+      organizationId: ORG,
+      providerSlug: 'openai',
+    });
+
+    expect(result).toMatchObject({ token: 'token-b', accountId: 'vendor-b' });
+    expect(ctx.mockRunMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        candidates: [{ hash: hashB, excluded: false, held: true }],
+      }),
+    );
+  });
+
+  it('keeps a broker that names no hold exactly as before: its unavailable account is never a candidate', async () => {
+    // A gateway from before `hold` serves its floor as a bare
+    // `available: false`; the platform ships first and must not read it as
+    // a refresh hold.
+    mockedFetch.mockResolvedValue({
+      ...poolResponse(),
+      body: JSON.stringify({
+        tokens: [
+          { id: 'gateway-a', access_token: 'token-a', available: true },
+          {
+            id: 'gateway-b',
+            access_token: 'token-b',
+            available: false,
+            available_at: new Date(Date.now() + 40 * 60_000).toISOString(),
+          },
+        ],
+      }),
+    });
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    const hashA = hashBrokerAccount('cred-1', {
+      id: 'gateway-a',
+      token: 'token-a',
+    });
+    const retryAtMs = Date.now() + 42_000;
+    ctx.mockRunMutation.mockResolvedValue({
+      hash: null,
+      fellBack: false,
+      retryAtMs,
+    });
+
+    const refusal = await resolveProviderCredential(ctx, {
+      organizationId: ORG,
+      providerSlug: 'anthropic',
+    }).catch((error: unknown) => error);
+
+    expect(ctx.mockRunMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        candidates: [{ hash: hashA, excluded: false }],
+      }),
+    );
+    expect(credentialRefusalCode(refusal)).toBe('CREDENTIAL_BROKER_EXHAUSTED');
+    // The refusal says when the first account is back, for a retry to wait.
+    expect(credentialRetryAtMs(refusal)).toBe(retryAtMs);
+    expect(credentialRefusalMessage(refusal)).toMatch(
+      /cooling down after a rate limit — try again in \d+ seconds/,
+    );
+  });
+
   it('refuses the pool during shared cooldown without undoing the hard exclusion', async () => {
     mockedFetch.mockResolvedValue(poolResponse());
     const ctx = ctxServingBroker('https://broker.example/pool');
@@ -254,6 +412,44 @@ describe('resolveProviderCredential — subscription-broker host policy', () => 
     });
     const [, options] = mockedFetch.mock.calls[0] ?? [];
     expect(options).not.toHaveProperty('allowedHosts');
+  });
+});
+
+describe('credentialRetryAtMs', () => {
+  it('reads when a cooling pool has an account back, and nothing else', () => {
+    expect(
+      credentialRetryAtMs(
+        new AppError({
+          code: 'CREDENTIAL_BROKER_EXHAUSTED',
+          message: 'cooling down',
+          retryAtMs: 1_790_000_000_000,
+        }),
+      ),
+    ).toBe(1_790_000_000_000);
+    // Duck-typed, like the other refusal readers.
+    expect(
+      credentialRetryAtMs({
+        data: { code: 'CREDENTIAL_BROKER_EXHAUSTED', retryAtMs: 5 },
+      }),
+    ).toBe(5);
+    // Every token tried this turn: no wait lifts that.
+    expect(
+      credentialRetryAtMs(
+        new AppError({ code: 'CREDENTIAL_BROKER_EXHAUSTED', message: 'x' }),
+      ),
+    ).toBeUndefined();
+    expect(
+      credentialRetryAtMs(
+        new AppError({ code: 'CREDENTIAL_BROKER_EMPTY', retryAtMs: 5 }),
+      ),
+    ).toBeUndefined();
+    expect(
+      credentialRetryAtMs({
+        data: { code: 'CREDENTIAL_BROKER_EXHAUSTED', retryAtMs: 'soon' },
+      }),
+    ).toBeUndefined();
+    expect(credentialRetryAtMs(new Error('plain'))).toBeUndefined();
+    expect(credentialRetryAtMs(undefined)).toBeUndefined();
   });
 });
 

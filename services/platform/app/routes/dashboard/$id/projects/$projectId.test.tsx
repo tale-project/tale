@@ -50,6 +50,18 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProject: mockUseProject,
 }));
 
+// Who is looking: an author (Owner, Admin, Developer) reads developer
+// settings; a Member or Editor does not, and sees deployed automations only.
+const viewer = { canAuthor: true };
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({
+    can: (action: string, subject: string) =>
+      action === 'read' && subject === 'developerSettings'
+        ? viewer.canAuthor
+        : true,
+  }),
+}));
+
 vi.mock(
   '@/app/features/projects/components/project-breadcrumb-switcher',
   () => ({
@@ -149,6 +161,7 @@ function setup(
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  viewer.canAuthor = true;
   mockLocation.pathname = '/dashboard/org-1/projects/proj-1';
   mockLocation.search = {};
 });
@@ -178,6 +191,27 @@ describe('project shell — Automations tab', () => {
     expect(
       screen.queryByRole('link', { name: 'automations.title' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('hides the tab from a reader when only undeployed drafts are bound', () => {
+    viewer.canAuthor = false;
+    setup([{ name: 'draft-desk' }]);
+
+    expect(
+      screen.queryByRole('link', { name: 'automations.title' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the tab to a reader once a bound automation is deployed', () => {
+    viewer.canAuthor = false;
+    setup([
+      { name: 'draft-desk' },
+      { name: 'sync-emails', deployedVersion: 1 },
+    ]);
+
+    expect(
+      screen.getByRole('link', { name: 'automations.title' }),
+    ).toBeInTheDocument();
   });
 
   it('scopes the automations query to this project, not the whole org', () => {

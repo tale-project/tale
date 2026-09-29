@@ -7,11 +7,12 @@
  * though the blob is still stored and the retry re-ingests it. The corpus's
  * own error, when it has one, always wins over the generic text, and an
  * already-failed row is never overwritten with it. Each organization's
- * document lists hear a sweep once, and only for rows a document holds —
- * also when a later write of the organization throws, which defers its
- * unsettled rows and never the organizations after it. The stale-window
- * scan and the adopt/revive rules ride the real-Postgres probe in
- * `integration-check.ts`.
+ * document lists hear a sweep once, and only for rows a document holds. A
+ * write that throws defers its own row and no other: the rows after it are
+ * still settled and told, only two faults in a row stop the organization,
+ * and no fault in one organization, its slug read included, stops the sweep
+ * of the organizations after it. The stale-window scan and the adopt/revive
+ * rules ride the real-Postgres probe in `integration-check.ts`.
  */
 
 import type { Sql } from 'postgres';
@@ -58,14 +59,16 @@ interface CorpusRow {
  * Scripted `sql`: the candidate read is a snapshot, while the ownership
  * read sees the current state. A bind or deletion may land between that
  * snapshot and the status write, as the real-Postgres lane proves too. The
- * status write of `failWrite` throws, as a lock timeout would.
+ * status write of each row in `failWrites` throws, as a lock timeout would,
+ * and the slug read of `failSlugFor` throws, as a dropped connection would.
  */
 function fakeSql(
   candidates: Candidate[],
   options: {
     bindBeforeWrite?: string;
     deleteBeforeWrite?: string;
-    failWrite?: string;
+    failWrites?: readonly string[];
+    failSlugFor?: string;
   } = {},
 ): {
   sql: Sql;
@@ -81,7 +84,7 @@ function fakeSql(
     }
     if (text.startsWith('UPDATE app.file_metadata')) {
       const id = candidates.find((row) => values.includes(row.id))?.id;
-      if (id !== undefined && id === options.failWrite) {
+      if (id !== undefined && options.failWrites?.includes(id) === true) {
         return Promise.reject(
           new Error('canceling statement due to lock timeout'),
         );
@@ -103,6 +106,12 @@ function fakeSql(
       );
     }
     if (text.includes('FROM "organization"')) {
+      if (
+        options.failSlugFor !== undefined &&
+        values.includes(options.failSlugFor)
+      ) {
+        return Promise.reject(new Error('Connection terminated unexpectedly'));
+      }
       return Promise.resolve([{ slug: 'acme' }]);
     }
     return Promise.resolve([]);
@@ -142,6 +151,16 @@ const failWriteFor = (
       s.text.includes("UPDATE app.file_metadata SET rag_status = 'failed'") &&
       s.values.includes(id),
   );
+
+/** The file rows the sweep told one organization's lists about: the ids its
+ * ownership read after the writes asked for. */
+const toldAbout = (statements: Statement[], orgId: string): unknown[] =>
+  statements
+    .filter(
+      (s) =>
+        s.values.includes(HELD_BY_DOCUMENT_SQL) && s.values.includes(orgId),
+    )
+    .flatMap((s) => s.values.find(Array.isArray) ?? []);
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -206,6 +225,28 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
 
     expect(result).toEqual({ adopted: 0, failed: 0, revived: 0 });
     expect(failWriteFor(statements, 'fm_failed')).toBeUndefined();
+  });
+
+  it('gives an already-failed row the corpus error without counting it again', async () => {
+    const { sql, statements } = fakeSql([candidate('fm_known', 'failed')]);
+    corpusAnswering([
+      {
+        file_id: 's3:fm_known',
+        status: 'failed',
+        error: 'The embedding server answered 503.',
+        updated_at: null,
+      },
+    ]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    // No new failure — but the row now reads the real error, and the
+    // organization's lists hear it.
+    expect(result).toEqual({ adopted: 0, failed: 0, revived: 0 });
+    expect(failWriteFor(statements, 'fm_known')?.values).toContain(
+      'The embedding server answered 503.',
+    );
+    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -320,10 +361,11 @@ describe('recoverStuckRagIndexing — who hears a sweep', () => {
 });
 
 describe('recoverStuckRagIndexing — a fault mid-sweep', () => {
-  // Each write commits on its own: a later one that throws must neither
-  // leave the rows already settled unheard by an open list, nor stop the
-  // sweep of the organizations after this one.
-  it('tells the lists about the rows settled before a write threw, and sweeps the next organization', async () => {
+  // Each write commits on its own, and the candidates come in the same
+  // order every tick: a row whose write keeps throwing (a lock held across
+  // ticks) must hold back neither the rows after it, nor what the lists
+  // hear, nor the organizations after this one.
+  it('defers only the row whose write threw, and settles and tells the rows after it', async () => {
     const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { sql, statements } = fakeSql(
       [
@@ -332,25 +374,126 @@ describe('recoverStuckRagIndexing — a fault mid-sweep', () => {
         candidate('fm_c'),
         candidate('fm_d', 'running', { orgId: 'org_2' }),
       ],
-      { failWrite: 'fm_b' },
+      { failWrites: ['fm_b'] },
     );
     corpusAnswering([]);
 
     const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
 
-    // fm_a and fm_d settled; fm_b threw, and fm_c waits for the next tick.
-    expect(result).toEqual({ adopted: 0, failed: 2, revived: 0 });
-    expect(failWriteFor(statements, 'fm_c')).toBeUndefined();
+    // fm_b threw and waits for the next tick; fm_a, fm_c and fm_d settled.
+    expect(result).toEqual({ adopted: 0, failed: 3, revived: 0 });
+    expect(failWriteFor(statements, 'fm_c')).toBeDefined();
     expect(failWriteFor(statements, 'fm_d')).toBeDefined();
+    expect(toldAbout(statements, 'org_1')).toEqual(['fm_a', 'fm_c']);
+    expect(vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint)).toEqual([
+      { orgId: 'org_1', entity: 'document', entityId: null },
+      { orgId: 'org_2', entity: 'document', entityId: null },
+    ]);
+    expect(warned).toHaveBeenCalledWith(
+      expect.stringContaining('rag settle failed for file fm_b in org acme'),
+      'canceling statement due to lock timeout',
+    );
+    warned.mockRestore();
+  });
+
+  // One failing write is its row's; a second straight after it points at
+  // the connection, which is not sent the rest of the organization's batch.
+  it('stops an organization after two writes in a row threw, and still sweeps the next one', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql, statements } = fakeSql(
+      [
+        candidate('fm_a'),
+        candidate('fm_b'),
+        candidate('fm_c'),
+        candidate('fm_e'),
+        candidate('fm_d', 'running', { orgId: 'org_2' }),
+      ],
+      { failWrites: ['fm_b', 'fm_c'] },
+    );
+    corpusAnswering([]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    // fm_a and fm_d settled; fm_e waits for the next tick with fm_b and fm_c.
+    expect(result).toEqual({ adopted: 0, failed: 2, revived: 0 });
+    expect(failWriteFor(statements, 'fm_e')).toBeUndefined();
+    expect(failWriteFor(statements, 'fm_d')).toBeDefined();
+    expect(toldAbout(statements, 'org_1')).toEqual(['fm_a']);
     expect(vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint)).toEqual([
       { orgId: 'org_1', entity: 'document', entityId: null },
       { orgId: 'org_2', entity: 'document', entityId: null },
     ]);
     expect(warned).toHaveBeenCalledWith(
       expect.stringContaining(
-        'rag settle failed for org acme after moving 1 row(s)',
+        '2 rag settles in a row failed for org acme; deferring its 1 remaining row(s)',
       ),
-      'canceling statement due to lock timeout',
+    );
+    warned.mockRestore();
+  });
+
+  it('keeps settling after a fault once a write between goes through', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql, statements } = fakeSql(
+      [
+        candidate('fm_a'),
+        candidate('fm_b'),
+        candidate('fm_c'),
+        candidate('fm_e'),
+      ],
+      { failWrites: ['fm_a', 'fm_c'] },
+    );
+    corpusAnswering([]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    // fm_b's write ended the first run of faults, so fm_c's is a run of one.
+    expect(result).toEqual({ adopted: 0, failed: 2, revived: 0 });
+    expect(failWriteFor(statements, 'fm_e')).toBeDefined();
+    warned.mockRestore();
+  });
+
+  // A row the rules leave as it is sends no statement, so it says nothing
+  // about the connection.
+  it('does not take a row it writes nothing for as a write that went through', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql, statements } = fakeSql(
+      [
+        candidate('fm_a'),
+        candidate('fm_kept', 'failed'),
+        candidate('fm_c'),
+        candidate('fm_e'),
+      ],
+      { failWrites: ['fm_a', 'fm_c'] },
+    );
+    corpusAnswering([]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    expect(result).toEqual({ adopted: 0, failed: 0, revived: 0 });
+    expect(failWriteFor(statements, 'fm_e')).toBeUndefined();
+    warned.mockRestore();
+  });
+
+  it('still sweeps the next organization when one organization cannot be read', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql, statements } = fakeSql(
+      [candidate('fm_a'), candidate('fm_d', 'running', { orgId: 'org_2' })],
+      { failSlugFor: 'org_1' },
+    );
+    corpusAnswering([]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    // fm_a waits for the next tick with its organization; fm_d settled.
+    expect(result).toEqual({ adopted: 0, failed: 1, revived: 0 });
+    expect(failWriteFor(statements, 'fm_a')).toBeUndefined();
+    expect(failWriteFor(statements, 'fm_d')).toBeDefined();
+    expect(vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint)).toEqual([
+      { orgId: 'org_2', entity: 'document', entityId: null },
+    ]);
+    expect(warned).toHaveBeenCalledWith(
+      expect.stringContaining('rag sweep failed for org org_1'),
+      'Connection terminated unexpectedly',
     );
     warned.mockRestore();
   });
@@ -359,7 +502,7 @@ describe('recoverStuckRagIndexing — a fault mid-sweep', () => {
     const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { sql } = fakeSql(
       [candidate('fm_a'), candidate('fm_d', 'running', { orgId: 'org_2' })],
-      { failWrite: 'fm_a' },
+      { failWrites: ['fm_a'] },
     );
     corpusAnswering([]);
 

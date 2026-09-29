@@ -77,11 +77,15 @@ export function OneDriveImportDialog({
     useImportOneDriveFiles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
+  // The import's folder walk: a refused listing stops the import, which
+  // reports it in its one failure toast.
   const { mutateAsync: listOneDriveFiles } = useBackendAction(
     'onedrive/actions:listFiles',
+    { errorToast: false },
   );
   const { mutateAsync: listSharePointFiles } = useBackendAction(
     'onedrive/actions:listSharePointFiles',
+    { errorToast: false },
   );
 
   const [stage, setStage] = useState<Stage>('picker');

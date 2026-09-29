@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 89 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 90 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -499,6 +499,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   keep the text and the chip behind a **Send failed** toast
   (`chat.toast.sendFailed`) while a `Thinking · Ns` shell hangs over a
   transcript that a reload then shows empty.
+- [ ] `CHAT-F51` · **Questions about Tale use its docs** — On a deployment that
+  can reach docs.tale.dev, ask "Wie erstelle ich einen API-Key in Tale?" → The
+  timeline shows reading steps (`chat.thinking.reading`) on **docs.tale.dev**
+  — the index `llms.txt`, then a documentation page — and no red failed step
+  for a guessed address; the German reply names the real path (Settings > API
+  > REST in the German UI's words) and says the documentation describes the
+  latest release when relevant.
 
 ## Boundary & error tests
 

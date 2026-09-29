@@ -47,6 +47,28 @@ const AGENT_FAILURE_CODES = [
   'budget_exceeded',
 ] as const satisfies readonly WorkflowAgentFailureCode[];
 
+type AgentWireFailureCode = (typeof AGENT_FAILURE_CODES)[number];
+
+/** The agent settle codes only the retry machinery tells apart, and the wire
+ * code each reports as once the retries are spent: the code the same failure
+ * carried before it was named, so `Run.failureCode` — an OpenAPI enum
+ * integrators branch on — does not move under them. A start refused while
+ * every broker account cooled down never launched (`start_failed`, as every
+ * refused start was); a 401 on a token the broker refreshed under the turn
+ * is the harness's own error, as it was. Every agent code is either on the
+ * wire or here — a new one that is neither fails to compile. */
+const AGENT_RETRY_ONLY_CODES: Record<
+  Exclude<WorkflowAgentFailureCode, AgentWireFailureCode>,
+  AgentWireFailureCode
+> = {
+  credential_cooldown: 'start_failed',
+  credential_rotated: 'harness_error',
+};
+
+const AGENT_RETRY_ONLY_CODE_MAP: ReadonlyMap<string, RunFailureCode> = new Map(
+  Object.entries(AGENT_RETRY_ONLY_CODES),
+);
+
 /** The chat codes that describe a PROVIDER failure — the ones an `llm` node
  * can meaningfully surface. The pipeline's own buckets (`thread_busy`,
  * `tool_failure`, `generic`) are not provider facts and fold into
@@ -155,15 +177,16 @@ export function runFailureCodeOf(error: unknown): RunFailureCode {
 }
 
 /** The run code for an agent settle's own failure code — the agent
- * vocabulary is a subset of the run's; anything else (or nothing) is the
- * harness bucket. */
+ * vocabulary is on the wire as it is, but for the retry-only codes, which
+ * report as the code they refine ({@link AGENT_RETRY_ONLY_CODES}); anything
+ * else (or nothing) is the harness bucket. */
 export function agentFailureCodeOf(
   value: string | null | undefined,
 ): RunFailureCode {
-  return value !== null &&
-    value !== undefined &&
-    (AGENT_FAILURE_CODES as readonly string[]).includes(value)
-    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the membership test above
-      (value as RunFailureCode)
-    : 'harness_error';
+  if (value === null || value === undefined) return 'harness_error';
+  if ((AGENT_FAILURE_CODES as readonly string[]).includes(value)) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the membership test above
+    return value as RunFailureCode;
+  }
+  return AGENT_RETRY_ONLY_CODE_MAP.get(value) ?? 'harness_error';
 }

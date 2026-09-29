@@ -1,24 +1,30 @@
 // @vitest-environment node
 
 /**
- * The serving model's context window reaches every exec an automation agent
- * node launches — the kick's scheduled start and the answered-ask resume —
- * through the REAL hosts, with only external I/O replaced and the model's
- * catalog entry stubbed. Without it Claude Code assumes a 200,000-token
- * window for a model it does not know, and a turn on a local model serving
- * 32,768 grows far past what that model can prefill in time.
+ * The serving model's context window — and the organization's Custom
+ * instructions — reach every exec an automation agent node launches (the
+ * kick's scheduled start and the answered-ask resume) through the REAL
+ * hosts, with only external I/O replaced and the model's catalog entry
+ * stubbed. Without it Claude Code assumes a 200,000-token window for a model
+ * it does not know, and a turn on a local model serving 32,768 grows far past
+ * what that model can prefill in time.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 
 const io = vi.hoisted(() => ({
+  /** The serving the resolver answers; the local gateway model when unset. */
+  serving: undefined as Record<string, unknown> | undefined,
   instructions: [] as string[],
+  /** The org's `system_prompt` policy file; null reads as "no policy". */
+  systemPrompt: null as unknown,
   starts: [] as Array<{
     execId: string;
     argv: string[];
@@ -55,15 +61,22 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
 }));
-vi.mock('../provider_credentials/resolve_credential', () => ({
-  resolveProviderCredential: vi.fn(),
-}));
-vi.mock('../lib/providers/agent_serving', () => ({
-  resolveWorkflowAgentServing: async () => ({
-    lane: 'gateway',
-    providerSlug: 'local-inference',
-    modelId: 'qwen3-32b',
+vi.mock(
+  '../provider_credentials/resolve_credential',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../provider_credentials/resolve_credential')
+    >()),
+    resolveProviderCredential: vi.fn(),
   }),
+);
+vi.mock('../lib/providers/agent_serving', () => ({
+  resolveWorkflowAgentServing: async () =>
+    io.serving ?? {
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+    },
 }));
 vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
@@ -82,8 +95,11 @@ vi.mock('../node_only/sandbox/turn_equipment', () => ({
   resolveTurnEquipmentEnv: async () => ({}),
 }));
 
-const { resumeWorkflowAgentTurnWithAnswerImpl, startWorkflowAgentTurnImpl } =
-  await import('./agent_host');
+const {
+  automationAgentHost,
+  resumeWorkflowAgentTurnWithAnswerImpl,
+  startWorkflowAgentTurnImpl,
+} = await import('./agent_host');
 
 function servesWindow(contextWindow: number): void {
   const entry: ModelCatalogEntry = {
@@ -137,6 +153,7 @@ function makeCtx(cursor: unknown) {
   const queries: Array<{ name: string; args: Record<string, unknown> }> = [];
   const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
   const scheduled: string[] = [];
+  const delays: number[] = [];
   const ctx = {
     runQuery: async (ref: unknown, args: Record<string, unknown>) => {
       const name = functionRefName(ref);
@@ -159,6 +176,8 @@ function makeCtx(cursor: unknown) {
           return { userId: 'user-starter', agentSlug: 'invoice-desk' };
         case 'governance/queries:getContextCapInternal':
           return null;
+        case 'governance/internal_queries:getPolicyConfigInternal':
+          return args.policyType === 'system_prompt' ? io.systemPrompt : null;
         default:
           throw new Error(`unexpected query ${name}`);
       }
@@ -178,19 +197,22 @@ function makeCtx(cursor: unknown) {
       throw new Error(`unexpected action ${functionRefName(ref)}`);
     },
     scheduler: {
-      runAfter: async (_delay: number, ref: unknown) => {
+      runAfter: async (delay: number, ref: unknown) => {
         scheduled.push(functionRefName(ref));
+        delays.push(delay);
         return 'job';
       },
     },
   } as unknown as ActionCtx;
-  return { ctx, queries, scheduled, mutations };
+  return { ctx, queries, scheduled, mutations, delays };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  io.serving = undefined;
   io.starts = [];
   io.instructions = [];
+  io.systemPrompt = null;
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveProviderCredential).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -344,6 +366,128 @@ describe('an automation agent turn', () => {
     ]);
   });
 
+  it('settles a start the broker refused while every account cooled down with when the first is back', async () => {
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      cursor: {
+        node: 'book',
+        agent: { ...WAITING_CURSOR.cursor.agent, execId: 'exec-1' },
+      },
+    });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      gatewayModel: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: 'claude-sonnet-4-6',
+        prompt: 'Book the synthetic invoice.',
+      },
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    // The stepper's re-kick holds its start until then; the reason is the
+    // refusal's own words, not its serialized payload.
+    expect(
+      mutations.find(
+        (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+      )?.args.result,
+    ).toMatchObject({
+      errored: true,
+      failureCode: 'credential_cooldown',
+      retryAtMs,
+      reason:
+        'the agent turn could not start: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
+
+  it('settles an answered-ask resume the broker refused while every account cooled down with when the first is back', async () => {
+    io.serving = {
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+      vision: { readable: true },
+    };
+    servesWindow(200_000);
+    const retryAtMs = Date.now() + 42_000;
+    vi.mocked(resolveProviderCredential).mockRejectedValue(
+      new AppError({
+        code: 'CREDENTIAL_BROKER_EXHAUSTED',
+        message:
+          'Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+        retryAtMs,
+      }),
+    );
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'resume_failed',
+        retryAtMs,
+        reason:
+          'the agent turn could not resume after the answer: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+      },
+    });
+  });
+
+  it('holds a kicked start until a cooling broker pool has an account back', async () => {
+    const NOW = Date.UTC(2026, 8, 28, 12, 0, 0);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    try {
+      const { ctx, delays } = makeCtx({ status: 'running' });
+      const host = automationAgentHost(ctx, 'org-1');
+      const kick = {
+        runId: 'run-1',
+        nodeId: 'book',
+        request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+      };
+
+      const now = await host.kick(kick);
+      const held = await host.kick({ ...kick, notBefore: NOW + 42_000 });
+      await host.kick({ ...kick, notBefore: NOW + 10 * 60_000 });
+      await host.kick({ ...kick, notBefore: NOW - 1 });
+
+      // Never past a cooldown's length, nor for one already over.
+      expect(delays).toEqual([0, 42_000, 60_000, 0]);
+      // The turn's time limit counts from its start, not from the kick.
+      expect(held.deadlineAt - now.deadlineAt).toBe(42_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('resumes after an answer with the window re-resolved', async () => {
     servesWindow(65_536);
     const { ctx, queries } = makeCtx(WAITING_CURSOR);
@@ -373,5 +517,83 @@ describe('an automation agent turn', () => {
       execId: resumed?.execId,
       kind: 'workflow-agent',
     });
+  });
+});
+
+describe("the organization's Custom instructions", () => {
+  const HOUSE_RULE = 'Sign every report as the Finance desk.';
+
+  it('lead the instructions of an agent node start and of its resume', async () => {
+    servesWindow(32_768);
+    io.systemPrompt = { enabled: true, mandatoryInstructions: HOUSE_RULE };
+    const start = makeCtx({ status: 'running' });
+    await startWorkflowAgentTurnImpl(start.ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: 'qwen3-32b',
+        prompt: 'Book the synthetic invoice.',
+        system: 'You are the invoice desk.',
+      },
+    } as never);
+
+    const resume = makeCtx(WAITING_CURSOR);
+    await resumeWorkflowAgentTurnWithAnswerImpl(resume.ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.instructions).toHaveLength(2);
+    expect(
+      io.instructions[0]?.startsWith(
+        `${HOUSE_RULE}\n\nYou are the invoice desk.`,
+      ),
+    ).toBe(true);
+    expect(io.instructions[1]?.startsWith(HOUSE_RULE)).toBe(true);
+    for (const instructions of io.instructions) {
+      expect(instructions.split(HOUSE_RULE)).toHaveLength(2);
+    }
+    expect(
+      start.queries.find(
+        (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
+      )?.args,
+    ).toEqual({ organizationId: 'org-1', policyType: 'system_prompt' });
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('add nothing when the organization has no Custom instructions', async () => {
+    servesWindow(32_768);
+    const { ctx } = makeCtx({ status: 'running' });
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: 'qwen3-32b',
+        prompt: 'Book the synthetic invoice.',
+        system: 'You are the invoice desk.',
+      },
+    } as never);
+
+    expect(io.instructions[0]?.startsWith('You are the invoice desk.')).toBe(
+      true,
+    );
   });
 });
