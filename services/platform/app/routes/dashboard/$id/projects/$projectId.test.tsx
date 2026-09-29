@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 // ---------------------------------------------------------------------------
 // The project shell shows an Automations tab only when something is bound to
@@ -20,6 +20,7 @@ const { mockUseAutomations, mockUseProject, mockLocation, mockNavigate } =
     mockLocation: {
       pathname: '/dashboard/org-1/projects/proj-1',
       search: {} as Record<string, unknown>,
+      state: {} as Record<string, unknown>,
     },
     mockNavigate: vi.fn(),
   }));
@@ -164,6 +165,8 @@ afterEach(() => {
   viewer.canAuthor = true;
   mockLocation.pathname = '/dashboard/org-1/projects/proj-1';
   mockLocation.search = {};
+  mockLocation.state = {};
+  window.localStorage.clear();
 });
 
 describe('project shell — Automations tab', () => {
@@ -305,5 +308,61 @@ describe('project shell — a project that is gone', () => {
     expect(
       screen.getByRole('link', { name: 'projects.title' }),
     ).toHaveAttribute('href', '/dashboard/org-1/projects');
+  });
+
+  // A remembered project (the Home rail tile reopening it, see
+  // `use-navigation-items.ts`) can be gone by the time the rail click lands —
+  // deleted, or a membership change. That arrival is marked with
+  // `state.navRestore`, and only THAT arrival redirects: a shared link to the
+  // same dead project keeps explaining rather than bouncing away.
+  it('drops the stale memory and redirects to the list on a restored arrival', () => {
+    mockLocation.state = { navRestore: true };
+    setupMissing();
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/projects',
+      params: { id: 'org-1' },
+      replace: true,
+    });
+  });
+});
+
+// A navigation AWAY updates `location.pathname` (and re-runs the write
+// effect) on the render just before this component unmounts, so the pathname
+// no longer belongs to THIS project. Regression for a bug where the
+// unguarded effect persisted wherever the user navigated TO — e.g. clicking
+// Home landed on Automations or Knowledge, because that's what the shell
+// last wrote under its own key on its way out.
+describe('project shell — remembering only its own path', () => {
+  it('persists its own path while genuinely on it', async () => {
+    const { unmount } = setup([]);
+    await waitFor(() =>
+      expect(
+        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
+      ).toBe('"/dashboard/org-1/projects/proj-1"'),
+    );
+    unmount();
+  });
+
+  it('does not overwrite the memory with a pathname that no longer belongs to this project', async () => {
+    const { rerender, unmount } = setup([]);
+    await waitFor(() =>
+      expect(
+        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
+      ).toBe('"/dashboard/org-1/projects/proj-1"'),
+    );
+
+    // Simulate the render right before this shell unmounts on the way to
+    // Automations: `pathname` has already moved, this component hasn't yet.
+    mockLocation.pathname = '/dashboard/org-1/automations';
+    rerender(<ProjectDetailLayout />);
+
+    // The last GOOD path survives untouched — never Automations' path.
+    await waitFor(() =>
+      expect(
+        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
+      ).toBe('"/dashboard/org-1/projects/proj-1"'),
+    );
+    unmount();
   });
 });
