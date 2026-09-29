@@ -81,8 +81,12 @@ const createFolderMutateAsync = vi.fn().mockResolvedValue('folder-new');
 const markControlledMutateAsync = vi.fn().mockResolvedValue(null);
 const openRevisionMutateAsync = vi.fn().mockResolvedValue({ version: 2 });
 vi.mock('@/app/features/documents/hooks/mutations', () => ({
+  // The row reports from the call's own promise; it stays pending here.
   useDeleteDocument: () => ({
-    mutate: deleteDocumentMutate,
+    mutateAsync: (args: unknown) => {
+      deleteDocumentMutate(args);
+      return new Promise(() => {});
+    },
     isPending: false,
   }),
   useDeleteFolder: () => ({ mutateAsync: deleteFolderMutateAsync }),
@@ -382,10 +386,9 @@ describe('ProjectFilesTab', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {
-      expect(deleteDocumentMutate).toHaveBeenCalledWith(
-        { documentId: 'doc-1' },
-        expect.anything(),
-      );
+      expect(deleteDocumentMutate).toHaveBeenCalledWith({
+        documentId: 'doc-1',
+      });
     });
   });
 

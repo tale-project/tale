@@ -13,7 +13,10 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
   keys under `nav.groups.*` resolved from `services/docs/messages/{en,de,fr,de-CH}.yml`. A page on
   disk but not in the nav is invisible; a nav slug with no file fails the suite.
 - Redirects: [`docs/redirects.json`](redirects.json) — old slug → new slug for every moved or
-  merged page; served as 301s and prerendered as meta-refresh stubs.
+  merged page; served as 301s and prerendered as meta-refresh stubs. A section folder with no page
+  of its own (`/platform/automations`) redirects to the first page under it in `nav.json` order —
+  derived, never listed here, so reordering `nav.json` moves that target; a `redirects.json` entry
+  for the folder wins.
 - The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). Its
   chrome follows the **platform app** design language — a `SubPanel` navigation rail, one sticky
   `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
@@ -148,3 +151,5 @@ suite does not establish fluent or accurate prose.
 - Env-var and API reference content is authoritative in one place — link, don't duplicate.
 - Moving or renaming a page: add the `redirects.json` entry, sweep inbound links repo-wide (the
   suite only sees `docs/`), and update `nav.json` + all three locales in the same change.
+- Reordering `nav.json` can change where a section folder URL (`/platform/<section>`) redirects:
+  it lands on the first page listed under that folder.

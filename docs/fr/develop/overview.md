@@ -12,6 +12,7 @@ Ces guides t’aident à écrire un client, à connecter un système externe ou 
 | Écrire un script qui envoie un message et lit la réponse | [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script) |
 | Construire un client pour les projets, tâches, fichiers ou autres ressources | [Référence de l’API](/fr/develop/api-reference) |
 | Connecter un client MCP | [Point d’accès MCP](/fr/develop/mcp-endpoint) |
+| Une aide IA dans ton éditeur, avec les connaissances ou les modèles de Tale | [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor) |
 | Déclencher une automatisation depuis un autre système | [Webhooks](/fr/develop/webhooks) |
 | Accéder aux documents avec un client de système de fichiers | [API WebDAV](/fr/develop/webdav-api) |
 | Développer un Connector | [Développement de Connectors](/fr/develop/connectors) |

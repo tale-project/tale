@@ -30,15 +30,31 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => STABLE_TEAMS,
 }));
 
-// The apiKey budget scope's picker reads the org's API keys. Mock with a
+// The apiKey budget scope's picker reads every member's API key (the
+// admin-only org listing), not only the admin's own. Mock with a
 // referentially-stable result (same rationale as the policy mock below) so the
 // editor's memos don't re-run every render. One key so the picker has an option
-// and the table can resolve an apiKeyId to a human-readable name.
+// and the table can resolve an apiKeyId to its name and owner.
 const STABLE_API_KEYS = {
-  data: [{ id: 'key-1', name: 'CI Key', start: 'taleAB' }] as unknown[],
+  data: [
+    {
+      id: 'key-1',
+      name: 'CI Key',
+      start: 'taleAB',
+      userId: 'u-dana',
+      ownerName: 'Dana',
+      ownerEmail: 'dana@example.test',
+    },
+  ] as unknown[],
 };
-vi.mock('@/app/features/settings/api-keys/hooks/use-api-keys', () => ({
-  useApiKeys: () => STABLE_API_KEYS,
+const backendQueryRefs = vi.hoisted(() => [] as unknown[]);
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (ref: unknown) => {
+    backendQueryRefs.push(ref);
+    return ref === 'governance/api_keys:listOrgApiKeys'
+      ? STABLE_API_KEYS
+      : { data: undefined, isLoading: false };
+  },
 }));
 
 // Mutable, hoisted so the mock factory can read it (vi.mock is hoisted above
@@ -287,8 +303,10 @@ describe('BudgetEditor', () => {
       ]);
       const { user } = render(<BudgetEditor organizationId="org-1" />);
 
-      // The table resolves the apiKeyId to the key's name.
-      expect(screen.getByText('CI Key')).toBeInTheDocument();
+      // The table resolves the apiKeyId to the key's name and its owner —
+      // any member's key, read from the organization's listing.
+      expect(screen.getByText('CI Key · Dana')).toBeInTheDocument();
+      expect(backendQueryRefs).toContain('governance/api_keys:listOrgApiKeys');
 
       await user.click(screen.getByRole('button', { name: /edit rule/i }));
       expect(

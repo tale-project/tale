@@ -161,7 +161,9 @@ describe('CreateFolderDialog', () => {
     });
   });
 
-  it('shows generic error for non-duplicate failures', async () => {
+  // The dialog's toast is the failure's one report (the write's own toast
+  // stays quiet), so it says why beside the generic title.
+  it('shows generic error for non-duplicate failures, with the reason', async () => {
     mockCreateFolder.mockRejectedValue(new Error('Network error'));
 
     render(<CreateFolderDialog {...defaultProps} />);
@@ -169,6 +171,7 @@ describe('CreateFolderDialog', () => {
 
     expect(mockToast).toHaveBeenCalledWith({
       title: 'documents.folder.createFailed',
+      description: 'Network error',
       variant: 'destructive',
     });
   });

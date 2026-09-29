@@ -86,11 +86,32 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
   through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,
   a lapsed session and a lost connection as localized sentences, nothing for a fault) or, in
-  `packages/ui`, through `readableErrorMessage` (`@tale/ui/error-message`); never through
+  `packages/ui`, through `readableErrorMessage` (`@tale/ui/error-message`), the floor
+  `failureDetail` builds on: a plain error's sentence, and nothing for a structured error, a
+  runtime error (`TypeError`, `SyntaxError`, …) or a thrown non-error. Never through
   `error.message`, where an `AppError` serializes its whole payload.
   `services/platform/tests/guards/error-message-description.guard.test.ts` fails on a
   `description` or `title` built from an error's message under `services/platform/app` and
   `packages/ui/src`.
+- **One failure, one toast** — a failed `useBackendMutation` / `useBackendAction` raises a
+  destructive toast of its own unless its call passes `errorToast: false`; a custom `errorToast`
+  still toasts, and so does a `mutateAsync` awaited inside the caller's own `try`. A failure is
+  reported once: by that default toast, or by the caller — its `catch`, `.catch` or `onError`
+  toast, a batch's summary toast, `EditorActions` (and `useFormEditor`'s native submit) for a
+  controller whose `save` rethrows (a `useFormEditor`, or a hand-written `EditorController`),
+  `BulkDeleteBar` / `BulkArchiveBar` / `EntityDeleteDialog` for a callback that rejects (give
+  them `describeFailure`, so their one toast keeps the reason), `EnvVarListEditor` for an
+  `onSet` / `onDelete` that rejects, a react-query `queryFn` that runs the write (each retry
+  would toast; report the query's final error once) — never both. A caller that reports opts
+  out: in the hook when every caller reports, else through the hook's options at that call site;
+  a caller that only logs keeps the default toast. A write that opts out is reported from its
+  call's own promise (`mutateAsync(args).then(onSuccess, onError)`, or a `try`), or keeps its
+  own toast (a custom `errorToast` with the verb's title and `failureDetail`) — never from
+  `mutate(args, { onError })` alone: react-query drops that callback once another `mutate`
+  starts on the same hook or the caller unmounts first, and the failure goes unreported.
+  `services/platform/tests/guards/single-failure-toast.guard.test.ts` follows each write's
+  rejection to what reports it, and fails on a second toast, on a quiet write whose one report
+  hangs on `mutate`'s `onError`, and on a batch surface without `describeFailure`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
 - **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
@@ -131,14 +152,20 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
   knowledge-db migrations, `packages/ui/src` (two suites read it as text) and other outside
-  files. Its guard is `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
+  files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
+  component suites render it. Its guard is
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
-  pages and the three CI files `scripts/deployment-ci.test.ts` checks: the `build.yml` and
-  `cleanup-pr-images.yml` workflows and the `setup-cli` action. Its guard is
-  `tools/cli/src/lib/config/platform-docs.test.ts`.
+  pages; the three CI files `scripts/deployment-ci.test.ts` checks: the `build.yml` and
+  `cleanup-pr-images.yml` workflows and the `setup-cli` action; the files the compose parity
+  suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
+  `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
+  `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
+  release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
+  `runtime-test-helper.ts`). Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
 `turbo.json` to hold the two-entry prefix, since the dry run hashes the same files with or
@@ -148,9 +175,10 @@ another outside file adds it to both the task's inputs and its guard.
 Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
 `test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
 package change is judged only by that package's own tasks until the consumer's own files
-change. `@tale/platform#test` is the exception for `@tale/ui`: it hashes `packages/ui/src` whole,
-so a design-system change re-runs it, its i18n suite included, while the platform's `test:ui`
-and `test:browser` still replay. The i18n suites of `services/web`, `services/ui-docs`,
+change. The platform's `test`, `test:ui` and `test:browser` are the exception for `@tale/ui`:
+they hash `packages/ui/src` whole, so a design-system change re-runs them — the i18n suite, and
+every component suite that renders the package or imports its test helpers
+(`@tale/ui/testing/flow`). The i18n suites of `services/web`, `services/ui-docs`,
 `services/ai-gateway` and `packages/marketing-ui` are still in that gap: they run `@tale/ui`'s
 i18n test framework (the first two also read the package catalogs) unhashed.
 
@@ -167,7 +195,10 @@ Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` 
 The product skills are not repo-dev workflows: they live under
 [`configs/platform/custom/skills/`](../configs/platform/custom/skills/) as the builtin catalog every
 org is seeded with — `visual-aspect-analyzer` (also baked into the sandbox image for its
-Playwright/Chromium deps) plus the official document skills `docx`, `pdf`, `pptx`, `xlsx`.
+Playwright/Chromium deps) plus the official document skills `docx`, `pdf`, `pptx`, `xlsx`, whose
+Python and Node libraries the sandbox image bakes from hash-locked files
+(`services/sandbox-runtime/document-python-requirements.txt`, `document-node/`) while the skills
+themselves stay org-seeded.
 
 ## Lint debt ledger
 

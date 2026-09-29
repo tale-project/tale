@@ -3,7 +3,7 @@ import {
   skillEditFields,
 } from '@tale/shared/schemas/skills';
 import { Hono, type Context } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
@@ -20,7 +20,18 @@ import {
 } from '../../core/skills/file_actions.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import {
+  withOneSkillAttribution,
+  withSkillAttribution,
+} from './attribution.ts';
+import { auditSkillWrite } from './audit.ts';
 import { assertSkillTeamsAssignable, skillErrorResponse } from './errors.ts';
+import {
+  auditIfPublishRefused,
+  maySkillPublishOrgWide,
+  resolveSkillPublishing,
+  type SkillPublishing,
+} from './publish.ts';
 import { unequipDeletedSkill } from './unequip.ts';
 import { uploadSkillBundlePg } from './upload.ts';
 import { withSkillWriterLock } from './writer-lock.ts';
@@ -57,11 +68,14 @@ export function createSkillRoutes(deps: {
     if (!orgSlug) {
       throw new Error(`organization ${c.get('orgId')} has no slug`);
     }
-    const userId = c.get('sessionBundle').user.id;
+    const user = c.get('sessionBundle').user;
+    const userId = user.id;
     const role = c.get('orgMember').role;
     const teamIds = await getUserTeamIds(deps.sql, c.get('orgId'), userId);
     return {
       orgSlug,
+      // Who a write's audit row names.
+      actor: { id: userId, email: user.email, role },
       viewer: {
         kind: 'user' as const,
         userId,
@@ -70,17 +84,60 @@ export function createSkillRoutes(deps: {
       },
       // The audience rule for a team skill's `teams` (the org's own teams;
       // a non-admin only their own), answered in the skill door's codes.
-      assertTeamsAssignable: (ids: string[]) =>
-        assertSkillTeamsAssignable(deps.sql, {
+      assertTeamsAssignable: (
+        ids: string[],
+        reader: Sql | TransactionSql = deps.sql,
+      ) =>
+        assertSkillTeamsAssignable(reader, {
           organizationId: c.get('orgId'),
           role,
           teamIds,
         })(ids),
+      // Who may give a skill the whole organization as its audience — read
+      // only by the doors that need it, since it may cost a grant lookup.
+      readPublishing: (): Promise<SkillPublishing> =>
+        resolveSkillPublishing(deps.sql, {
+          organizationId: c.get('orgId'),
+          userId,
+          role,
+        }),
+      readMayPublishOrgWide: (): Promise<boolean> =>
+        maySkillPublishOrgWide(deps.sql, {
+          organizationId: c.get('orgId'),
+          userId,
+          role,
+        }),
     };
   };
 
+  /** A refused organization-wide write, audited as denied. */
+  const auditRefusal = (
+    c: Context<OrgEnv>,
+    error: unknown,
+    via: 'app' | 'upload',
+  ): Promise<void> => {
+    const user = c.get('sessionBundle').user;
+    return auditIfPublishRefused(deps.sql, error, {
+      organizationId: c.get('orgId'),
+      actor: { id: user.id, email: user.email, role: c.get('orgMember').role },
+      via,
+    });
+  };
+
   app.get('/', async (c) => {
-    return c.json(await listSkillsForViewer(await caller(c)));
+    const who = await caller(c);
+    const listing = await listSkillsForViewer(who);
+    return c.json({
+      ...listing,
+      skills: await withSkillAttribution(
+        deps.sql,
+        c.get('orgId'),
+        listing.skills,
+      ),
+      // So the library can offer — or explain why it withholds — the
+      // Organization audience before the member tries to save one.
+      publishing: await who.readPublishing(),
+    });
   });
 
   app.get('/:slug', async (c) => {
@@ -90,7 +147,9 @@ export function createSkillRoutes(deps: {
         slug: c.req.param('slug'),
       });
       if (skill === null) return c.json({ error: 'skill not found' }, 404);
-      return c.json({ skill });
+      return c.json({
+        skill: await withOneSkillAttribution(deps.sql, c.get('orgId'), skill),
+      });
     } catch (error) {
       return skillErrorResponse(c, error);
     }
@@ -128,16 +187,41 @@ export function createSkillRoutes(deps: {
     try {
       const who = await caller(c);
       const slug = c.req.param('slug');
+      const mayPublishOrgWide = await who.readMayPublishOrgWide();
       // Serialized with the upload lane on the per-slug writer lock: a save
       // must never land between an upload's two swap renames.
       const saved = await withSkillWriterLock(
         deps.sql,
         c.get('orgId'),
         slug,
-        () => saveSkillForViewer({ ...who, slug, ...body.data }),
+        async (tx) => {
+          const result = await saveSkillForViewer({
+            ...who,
+            slug,
+            ...body.data,
+            assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
+            mayPublishOrgWide,
+          });
+          await auditSkillWrite(tx, {
+            organizationId: c.get('orgId'),
+            slug,
+            actor: who.actor,
+            via: 'app',
+            previous: result.previous,
+            current: result.current,
+          });
+          return result;
+        },
       );
-      return c.json({ skill: saved.skill });
+      return c.json({
+        skill: await withOneSkillAttribution(
+          deps.sql,
+          c.get('orgId'),
+          saved.skill,
+        ),
+      });
     } catch (error) {
+      await auditRefusal(c, error, 'app');
       return skillErrorResponse(c, error);
     }
   });
@@ -158,11 +242,15 @@ export function createSkillRoutes(deps: {
           organizationId: c.get('orgId'),
           orgSlug: who.orgSlug,
           viewer: who.viewer,
+          actor: who.actor,
           storageId: body.data.storageId,
           ...(body.data.force !== undefined ? { force: body.data.force } : {}),
+          assertTeamsAssignable: who.assertTeamsAssignable,
+          mayPublishOrgWide: await who.readMayPublishOrgWide(),
         }),
       );
     } catch (error) {
+      await auditRefusal(c, error, 'upload');
       return skillErrorResponse(c, error);
     }
   });
@@ -177,10 +265,10 @@ export function createSkillRoutes(deps: {
         deps.sql,
         c.get('orgId'),
         slug,
-        async () => {
+        async (tx) => {
           const removed = await deleteSkillForViewer({ ...who, slug });
           if (!removed) return false;
-          detachedAgents = await unequipDeletedSkill(deps.sql, {
+          detachedAgents = await unequipDeletedSkill(tx, {
             organizationId: c.get('orgId'),
             slug,
             actor: { id: user.id, email: user.email },

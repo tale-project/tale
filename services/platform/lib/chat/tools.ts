@@ -338,14 +338,17 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   web_fetch:
     'Fetch a live public https:// page and read it as text. Use it when ' +
     'you hold a concrete URL — one the user gave, one a search row ' +
-    "carried, or a well-known public page — and the organization's " +
+    'carried, one your instructions name, or a well-known public page — ' +
+    "and the organization's " +
     'knowledge did not answer. Content already in the knowledge base is ' +
     'served by rag_fetch, not this tool. Reads a window of up to 20000 ' +
     'characters; "offset" and "limit" select an exact range, and a ' +
     'truncated result reports the "nextOffset" to continue from (each ' +
     'call re-fetches the live page). Never present a partial read as the ' +
     'whole page — keep fetching until "nextOffset" is absent, or say ' +
-    'exactly which part you read.',
+    'exactly which part you read. An index of other pages (a site map, an ' +
+    'llms.txt) is a lookup, not a source: stop reading it once you hold ' +
+    'the link you need, and fetch that page.',
 };
 
 /** The provider-wire definitions, in the fixed loadout order. */

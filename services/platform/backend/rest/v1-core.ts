@@ -101,9 +101,18 @@ import {
 } from '../domains/products/service.ts';
 import { PRODUCT_STATUSES } from '../domains/products/service.ts';
 import {
+  withOneSkillAttribution,
+  withSkillAttribution,
+} from '../domains/skills/attribution.ts';
+import { auditSkillWrite } from '../domains/skills/audit.ts';
+import {
   assertSkillTeamsAssignable,
   SKILL_ERROR_STATUS,
 } from '../domains/skills/errors.ts';
+import {
+  auditIfPublishRefused,
+  maySkillPublishOrgWide,
+} from '../domains/skills/publish.ts';
 import { unequipDeletedSkill } from '../domains/skills/unequip.ts';
 import { withSkillWriterLock } from '../domains/skills/writer-lock.ts';
 import { listTeamDirectory } from '../domains/teams/service.ts';
@@ -328,6 +337,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           },
           Date.now(),
         ),
+        // The skill write doors' organization-wide gate (`skill_sharing` and
+        // `tale:skills.publish`): whether a `PUT /skills/{slug}` that shares
+        // a skill with the whole organization would pass, so a sync learns it
+        // before a 403 `SKILL_PUBLISH_FORBIDDEN`.
+        skillPublish: await maySkillPublishOrgWide(deps.sql, {
+          organizationId: c.get('organizationId'),
+          userId: c.get('userId'),
+          role: c.get('role'),
+        }),
       },
       key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
     });
@@ -1394,6 +1412,12 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       orgSlug:
         (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
         c.get('orgSlug'),
+      // Who a write's audit row names: the key's user.
+      actor: {
+        id: c.get('userId'),
+        email: c.get('userEmail'),
+        role: c.get('role'),
+      },
       viewer: {
         kind: 'user' as const,
         userId: c.get('userId'),
@@ -1401,11 +1425,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         isOrgAdmin: defineAbilityFor(c.get('role')).can('write', 'orgSettings'),
       },
       // The audience rule for a team skill's `teams`, in the skill codes.
-      assertTeamsAssignable: assertSkillTeamsAssignable(deps.sql, {
-        organizationId: c.get('organizationId'),
-        role: c.get('role'),
-        teamIds,
-      }),
+      assertTeamsAssignable: (
+        ids: string[],
+        reader: Sql | TransactionSql = deps.sql,
+      ) =>
+        assertSkillTeamsAssignable(reader, {
+          organizationId: c.get('organizationId'),
+          role: c.get('role'),
+          teamIds,
+        })(ids),
     };
   };
 
@@ -1430,7 +1458,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
 
   app.get('/skills', noQuery, async (c) => {
-    return c.json(await listSkillsForViewer(await skillCaller(c)));
+    const listing = await listSkillsForViewer(await skillCaller(c));
+    return c.json({
+      ...listing,
+      skills: await withSkillAttribution(
+        deps.sql,
+        c.get('organizationId'),
+        listing.skills,
+      ),
+    });
   });
 
   // A slug that could never name a bundle reads as absent on the reads and
@@ -1447,6 +1483,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         slug,
       });
       if (!skill) return notFound(c, 'Skill not found', 'SKILL_NOT_FOUND');
+      const view = await withOneSkillAttribution(
+        deps.sql,
+        c.get('organizationId'),
+        skill,
+      );
       // The document's tag rides as `ETag` (RFC 9110 §8.8.3) so a client can
       // send it back as `If-Match` on its save. The 304 is NOT decided
       // here: the validated-read middleware outside the door
@@ -1456,7 +1497,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // matched — and answers the 304 with the `private, no-cache` the 200
       // carries. The route's own 304 said `no-store` about the very bytes
       // its 200 had told the client to keep.
-      return c.json(skill, 200, { etag: skill.etag });
+      return c.json(view, 200, { etag: view.etag });
     } catch (error) {
       return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }
@@ -1566,6 +1607,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const who = await skillCaller(c);
       const slug = c.req.param('slug');
+      const mayPublishOrgWide = await maySkillPublishOrgWide(deps.sql, {
+        organizationId: c.get('organizationId'),
+        userId: c.get('userId'),
+        role: c.get('role'),
+      });
       // Serialized with the upload lane and the app editor on the per-slug
       // writer lock (`writer-lock.ts`); the precondition runs inside it, so
       // two racing conditional saves cannot both find their tag current.
@@ -1573,16 +1619,48 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         deps.sql,
         c.get('organizationId'),
         slug,
-        () => saveSkillForViewer({ ...who, slug, precondition, ...body }),
+        async (tx) => {
+          const result = await saveSkillForViewer({
+            ...who,
+            slug,
+            precondition,
+            ...body,
+            assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
+            mayPublishOrgWide,
+          });
+          await auditSkillWrite(tx, {
+            organizationId: c.get('organizationId'),
+            slug,
+            actor: who.actor,
+            via: 'api',
+            previous: result.previous,
+            current: result.current,
+          });
+          return result;
+        },
+      );
+      const view = await withOneSkillAttribution(
+        deps.sql,
+        c.get('organizationId'),
+        saved.skill,
       );
       // 201 for the bundle this save created, 200 for one it updated: the
       // status is the create-or-update signal (the Tasks convention), so a
       // sync that mirrors bundles from elsewhere learns which it did
       // without a racy read first — it used to answer 200 either way.
       return saved.created
-        ? c.json(saved.skill, 201, { location: `/api/v1/skills/${slug}` })
-        : c.json(saved.skill, 200);
+        ? c.json(view, 201, { location: `/api/v1/skills/${slug}` })
+        : c.json(view, 200);
     } catch (error) {
+      await auditIfPublishRefused(deps.sql, error, {
+        organizationId: c.get('organizationId'),
+        actor: {
+          id: c.get('userId'),
+          email: c.get('userEmail'),
+          role: c.get('role'),
+        },
+        via: 'api',
+      });
       return codedRefusalResponse(c, error, SKILL_ERROR_STATUS);
     }
   });
@@ -1599,14 +1677,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         deps.sql,
         c.get('organizationId'),
         slug,
-        async () => {
+        async (tx) => {
           const removed = await deleteSkillForViewer({
             ...who,
             slug,
             precondition,
           });
           if (!removed) return false;
-          await unequipDeletedSkill(deps.sql, {
+          await unequipDeletedSkill(tx, {
             organizationId: c.get('organizationId'),
             slug,
             actor: { id: c.get('userId'), email: c.get('userEmail') },

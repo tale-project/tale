@@ -139,7 +139,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     organizationId,
     'pii_config',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   const [enabled, setEnabled] = useState(() => policyEnabled(policy));
   const [value, setValue] = useState<PiiConfigPanelValue>(() =>

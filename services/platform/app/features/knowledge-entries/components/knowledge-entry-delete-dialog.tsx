@@ -4,6 +4,7 @@ import { EntityDeleteDialog } from '@tale/ui/entity/entity-delete-dialog';
 import { useDeleteDialogTranslations } from '@tale/ui/entity/use-delete-dialog';
 import { type RefObject, useCallback } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteKnowledgeEntry } from '../hooks/mutations';
@@ -54,6 +55,7 @@ export function KnowledgeEntryDeleteDialog({
       entity={entry}
       getEntityName={getEntityName}
       deleteMutation={handleDelete}
+      describeFailure={failureDetail}
       translations={translations}
       restoreFocusRef={restoreFocusRef}
     />

@@ -24,7 +24,7 @@ Ouvre l’onglet **Agents** du projet et clique sur **Nouvel agent**.
 1. Dans **Nom**, saisis `Assistant de triage`.
 2. Choisis un **Harness** configuré par ton administrateur.
 3. Sous **Modèle**, cherche par nom de modèle ou identifiant API, puis sélectionne l’entrée du fournisseur voulu. Un même modèle peut être proposé par plusieurs fournisseurs.
-4. Laisse **Skills, connectors & outils** et **Secrets** vides pour cet exercice.
+4. Sous **Skills, connectors & outils**, décoche les éventuels skills de documents présélectionnés, et laisse **Secrets** vide pour cet exercice.
 5. Colle les instructions ci-dessous dans **Instructions**, puis clique sur **Créer l'agent**.
 
 ```text

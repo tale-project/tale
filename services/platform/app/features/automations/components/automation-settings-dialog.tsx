@@ -12,6 +12,7 @@ import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';
@@ -130,7 +131,11 @@ export function AutomationSettingsDialog({
       toast({ title: t('settings.saved'), variant: 'success' });
     } catch (error) {
       console.error('[automations] settings save failed', error);
-      toast({ title: t('settings.saveFailed'), variant: 'destructive' });
+      toast({
+        title: t('settings.saveFailed'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 

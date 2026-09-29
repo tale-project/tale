@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 54 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 55 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -562,6 +562,18 @@ records and delete them after.
   the details show no phone. DevTools Network: the
   `POST /api/app/contacts/<id>` body carries `"phone":null`, never
   `"phone":""`, which the door reads as a phone that was not sent.
+- [ ] `KNOW-B16` · **A cloud listing that fails says so once** — With
+  Microsoft 365 connected, block `*/api/app/onedrive/list-files*` in
+  DevTools (Network → request blocking), then **Documents** → **Upload
+  documents** → **From Microsoft 365** (`documents.upload.fromMicrosoft365`)
+  → after the listing's retries (a few seconds) one destructive toast
+  **Couldn't load items** (`documents.onedrive.loadFailed`) whose line is
+  `common.errors.connectionLost`, in the page's language — never one per
+  retry, never the provider's own answer (`OneDrive API error: …`); the
+  picker stays open. Unblock and reopen → the files list. The same with
+  Google Drive connected, `*/api/app/google-drive/list-files*` and **From
+  Google Drive** (`documents.upload.fromGoogleDrive`) →
+  `documents.googledrive.loadFailed`.
 
 ## Accessibility (WCAG 2.1 AA)
 

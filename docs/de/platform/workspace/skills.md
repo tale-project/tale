@@ -5,7 +5,9 @@ description: Erstelle wiederverwendbare Anweisungen, importiere ein Skill-Bundle
 
 Ein Skill beschreibt eine wiederkehrende Arbeitsweise: Release Notes schreiben, ein Briefing prüfen oder ein Dokument nach euren Vorgaben erstellen. Er enthält eine Anweisungsdatei `SKILL.md` und bei Bedarf ergänzende Dateien. Pflege ihn unter **Einstellungen > Skills** an einer Stelle und [statte die passenden Agenten damit aus](/de/platform/agents/skills).
 
-Jedes Mitglied kann einen Skill erstellen und seine eigenen bearbeiten. Zum Bearbeiten oder Löschen eines geteilten Skills einer anderen Person brauchst du die Rechte eines Organisationsadministrators.
+Skills wirken dort, wo ein Agent die Arbeit erledigt: bei einem [Projekt-Agenten](/de/platform/projects/project-agents), der eine [Aufgabe](/de/platform/projects/tasks) bearbeitet, oder bei einem Agent-Knoten in einer [Automatisierung](/de/platform/automations/concepts). Der Chat beantwortet Fragen und durchsucht euer Wissen; er nutzt keine Skills, führt keinen Code aus und erstellt keine Dateien. Soll ein Dokument mit einem Skill entstehen, weise die Aufgabe einem Agenten zu, der damit ausgerüstet ist. Aufgaben und Agenten anlegen kann, wer mindestens die Rolle Redakteur hat.
+
+Jedes Mitglied kann einen Skill erstellen und seine eigenen bearbeiten. Zum Bearbeiten oder Löschen eines geteilten Skills einer anderen Person brauchst du die Rechte eines Organisationsadministrators. Deine Organisation kann das Teilen mit allen bestimmten Rollen vorbehalten; siehe [Wer mit allen teilen darf](#who-can-share-with-everyone).
 
 ## Einen kleinen Skill erstellen
 
@@ -20,7 +22,7 @@ Fasse ein Projektbriefing in Prüftermin, Zuständigkeit und offenen Fragen
 zusammen. Nutze den Skill für eine Übergabe oder eine kurze Briefing-Prüfung.
 ```
 
-Der Name ist eine eindeutige Kurzkennung: Kleinbuchstaben, Ziffern und einzelne Bindestriche, höchstens 64 Zeichen. An der Beschreibung erkennt das Modell, wann der Skill passt. Klicke auf **Erstellen**, um ihn anzulegen und den Editor zu öffnen.
+Der Name ist eine eindeutige Kurzkennung: Kleinbuchstaben, Ziffern und einzelne Bindestriche, höchstens 64 Zeichen. An der Beschreibung erkennt das Modell, wann der Skill passt. Wähle unter **Sichtbarkeit**, wer den Skill sieht: **Organisation** oder **Teams** mit mindestens einem Team. Klicke auf **Erstellen**, um ihn anzulegen und den Editor zu öffnen.
 
 </Step>
 
@@ -41,7 +43,7 @@ Ergänze Referenzdateien nur, wenn sie für den Ablauf hilfreich sind. Lege ausf
 
 <Step title="Die Zielgruppe wählen und speichern">
 
-Neue Skills beginnen mit der Sichtbarkeit **Organisation**. Wähle unter **Sichtbarkeit** die Option **Teams** und mindestens ein Team, wenn der Inhalt für einen engeren Kreis bestimmt ist. Ein Icon oder Labels können das Wiederfinden erleichtern. Klicke anschließend auf **Speichern**.
+Beim Erstellen ist **Organisation** vorausgewählt, sofern deine Organisation das nicht vorbehält. Ist der Inhalt für einen anderen Kreis bestimmt, ändere das unter **Sichtbarkeit**: **Teams** braucht mindestens ein Team. Ein Icon oder Labels können das Wiederfinden erleichtern. Klicke anschließend auf **Speichern**.
 
 Ein neuer Skill wird keinem Agenten automatisch zugeordnet. Öffne den Agenten des gewünschten Projekts und wähle den Skill in seiner Ausstattung. Starte eine kleine Aufgabe mit bekannten Eingaben und prüfe, ob das Ergebnis den Anweisungen entspricht.
 
@@ -49,9 +51,9 @@ Ein neuer Skill wird keinem Agenten automatisch zugeordnet. Öffne den Agenten d
 
 </Steps>
 
-<Frame caption="Der Skill-Editor vereint Bundle-Dateien, Beschreibung, Labels und Sichtbarkeit. Darunter beginnen die Anweisungen.">
+<Frame caption="Der Skill-Editor nennt, wer den Skill erstellt hat, und vereint Bundle-Dateien, Beschreibung, Labels und Sichtbarkeit. Darunter beginnen die Anweisungen.">
 
-![Der Editor des Skills docx zeigt den Dateibaum, Beschreibung, Labels, die Sichtbarkeit Organisation und die Überschrift Anweisungen.](/images/platform/skill-library-detail.webp)
+![Der Editor des Skills docx zeigt den Dateibaum neben Erstellt von Mitgeliefert, Beschreibung, Icon, Labels, die Sichtbarkeit Organisation und die Überschrift Anweisungen.](/images/platform/skill-library-detail.webp)
 
 </Frame>
 
@@ -66,7 +68,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-Die Vorschau zeigt Metadaten, Freigabe, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe Inhalt und Zielgruppe. Fehlt `visibility`, wird der Skill organisationsweit geteilt. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
+Die Vorschau zeigt Metadaten, Freigabe, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe Inhalt und Zielgruppe. Fehlt `visibility`, wird der Skill organisationsweit geteilt. Behält deine Organisation das vor und darfst du nicht veröffentlichen, weist die Vorschau darauf hin und **Bundle hochladen** bleibt gesperrt; ergänze in der `SKILL.md` `visibility: team` und die IDs deiner Teams. Wenn du einen Team-Skill anlegst oder seine Teams änderst, darfst du nur Teams deiner Organisation angeben, ohne Administratorrechte nur deine eigenen. Eine bestehende Teamliste darf unverändert bleiben, auch wenn ein Team inzwischen gelöscht wurde. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir. Ein ersetzter behält seinen bisherigen Eigentümer; hatte er keinen, gehört er danach dir. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
 
 <Warning>
 
@@ -84,6 +86,30 @@ Der Import startet keine Aufgabe und führt keine Dateien aus. Sobald du den Ski
 Der Projektzugriff bestimmt die verfügbare Ausstattung, auch wenn du persönlich mehr Skills lesen kannst. Ein organisationsweites Projekt kann organisationsweite Skills nutzen. Ältere private Skills bleiben für ihren Inhaber sichtbar, lassen sich aber keinem Agenten zuordnen. Neue private Skills werden nicht angenommen.
 
 Eine Einschränkung der Sichtbarkeit verlangt eine Bestätigung, weil Agenten dadurch Zugriff verlieren können. Das Löschen hat dieselbe praktische Folge: Ein Lauf, der das fehlende Bundle benötigt, kann es nicht bereitstellen. Prüfe die Verwendung eines geteilten Skills, bevor du ihn einschränkst oder entfernst.
+
+### Wer mit allen teilen darf {#who-can-share-with-everyone}
+
+Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teilen. Ein Admin kann das unter [Skill-Freigabe](/de/platform/admin/governance/policies-and-limits#skill-sharing) Redakteuren und höher oder Inhabern und Admins vorbehalten und einzelnen Mitgliedern mit der Kompetenz **Skills für die Organisation veröffentlichen** das Veröffentlichen erlauben. Behält deine Organisation es vor und darfst du nicht veröffentlichen, gilt:
+
+- Unter **Sichtbarkeit** ist **Organisation** nicht wählbar, und ein neuer Skill beginnt mit **Teams**. Mit deinen eigenen Teams kannst du teilen.
+- Einen organisationsweiten Skill, den du erstellt hast, kannst du nicht direkt ändern. Schränke ihn auf deine Teams ein, auch zusammen mit anderen Änderungen im selben Speichervorgang, oder lösche ihn.
+- Die Upload-Vorschau markiert ein Bundle, das mit der ganzen Organisation geteilt würde, auch eines ohne `visibility`, und **Bundle hochladen** bleibt gesperrt.
+
+Skills, die schon mit der Organisation geteilt waren, bleiben geteilt.
+
+## Sehen, wer einen Skill erstellt und geändert hat
+
+Die Spalte **Erstellt von** nennt das Mitglied, das den jeweiligen Skill erstellt hat. Suche in der Bibliothek nach einem Namen, um alles zu finden, was diese Person geteilt hat. Bei einem Skill ohne festgehaltenen Ersteller, etwa den Dokument-Skills, mit denen deine Organisation startet, steht dort **Mitgeliefert**, bei einem Skill aus einem verwalteten Konfigurations-Release **Konfigurations-Release** mit dem Mitglied, dessen Upload ihn installiert hat. Hat der Ersteller die Organisation verlassen, steht dort **Ehemaliges Mitglied**.
+
+<Frame caption="Einstellungen > Skills — die Spalte Erstellt von nennt das Mitglied, das den Skill geschrieben hat, und kennzeichnet die Dokument-Skills als Mitgeliefert.">
+
+![Die Skill-Bibliothek listet sieben Skills: brief-summary und release-notes, erstellt von Alex Rivera, sowie docx, pdf, pptx, visual-aspect-analyzer und xlsx als Mitgeliefert, alle für die Organisation freigegeben.](/images/platform/skill-library-list.webp)
+
+</Frame>
+
+Öffne einen Skill, um **Erstellt von** und **Zuletzt bearbeitet von** zu sehen: das Mitglied, dessen Speichern oder Hochladen in Tale die aktuelle Version erzeugt hat. **Zuletzt bearbeitet von** fehlt, wenn seit dem Erstellen niemand den Skill bearbeitet hat oder die Datei seit der letzten Bearbeitung außerhalb von Tale geändert wurde. Auch die Skill-Liste in der [Ausrüstung eines Agenten](/de/platform/agents/skills) nennt unter jedem Skill seinen Ersteller.
+
+Tale hält das Erstellen, Bearbeiten, Hochladen und Löschen eines Skills sowie jede Änderung seiner Sichtbarkeit oder Teams im Audit-Log fest. Administratoren und Inhaber finden diese Einträge unter **Einstellungen > Richtlinien > Protokolle** in der Kategorie **Skill**.
 
 ## Dateireferenz
 
@@ -105,6 +131,7 @@ Zitiere Belege und kennzeichne fehlende Informationen mit „Nicht angegeben“.
 | `name` | Entspricht dem Ordnernamen. `anthropic` und `claude` sind reserviert. |
 | `description` | Wann und warum das Modell den Skill lesen soll; höchstens 1.024 Zeichen. |
 | `visibility` / `teams` | `org` oder `team` mit Team-IDs. Die Oberfläche trägt diese Werte ein. |
+| `owner` | Die Benutzer-ID des Mitglieds, das den Skill erstellt hat. Tale setzt sie; ein Wert in einer hochgeladenen Datei wird ignoriert. |
 | `license` | Die vom Autor angegebenen Nutzungsbedingungen. |
 | `recommended-packages` | Empfohlene Abhängigkeiten; der Import installiert sie nicht. |
 | `disable-model-invocation` | Bittet um ausdrückliche Verwendung. Diese Metadaten sind eine Anweisung, keine Zugriffsbeschränkung. |
@@ -116,6 +143,6 @@ Unbekannte Frontmatter-Schlüssel bleiben erhalten. Die Frontmatter darf bis zu 
 
 Öffne eine Zeile, um Beschreibung, Anweisungen, Labels und Sichtbarkeit zu ändern. Unter **Bundle** kannst du ergänzende Dateien prüfen. Agenten sind nicht an eine bestimmte Fassung gebunden: Beim nächsten Bereitstellen wird das aktuelle Bundle verwendet. Teste gemeinsame Änderungen deshalb mit einer typischen Aufgabe.
 
-Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Ignoriert er einen zugeordneten Skill, nenne den gewünschten Skill ausdrücklich in der Aufgabe und prüfe das Ergebnis anhand seiner Anweisungen. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
+Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Tale zeigt ihm einen Beschreibungsauszug von bis zu 300 Zeichen als Auswahlhilfe. Beschreibe deshalb zuerst, wann der Skill passt. Ignoriert er einen zugeordneten Skill, nenne ihn in der Aufgabe und prüfe das Ergebnis anhand seiner Anweisungen. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
 
 Prüfe bei einem Importfehler, ob `SKILL.md` im Stammverzeichnis liegt, gültige Frontmatter enthält und einen gültigen Namen hat. Die Fehlermeldung nennt abgelehnte Pfade oder Größenlimits. Zum Entfernen öffne das Bundle und wähle nach Prüfung der betroffenen Agenten **Skill löschen**.

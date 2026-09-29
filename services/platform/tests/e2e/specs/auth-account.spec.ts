@@ -30,9 +30,10 @@ const TWO_FA_URL = /\/2fa(?![-\w])/;
  * which for an existing user resolves straight to their current org (the wizard
  * is only reached on the zero-org redirect), so it would return the SAME org.
  * The `/dashboard/create-organization` route, by contrast, is reachable
- * directly by any authenticated user (its guard only bounces anonymous
- * visitors) and renders the same workspace → provider → finish wizard in
- * `add-org` mode, so we replicate the helper's step-driving here against it.
+ * directly by any authenticated user (the `/dashboard` layout only bounces
+ * anonymous visitors) and renders the same workspace → provider → finish
+ * wizard in `add-org` mode, so we replicate the helper's step-driving here
+ * against it.
  */
 async function createAdditionalOrgViaWizard(page: Page): Promise<string> {
   await page.goto('/dashboard/create-organization');

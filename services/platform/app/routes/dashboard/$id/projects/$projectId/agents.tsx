@@ -32,6 +32,7 @@ function ProjectAgentsPage() {
   const { id: organizationId, projectId } = Route.useParams();
   return (
     <ProjectAgentsTab
+      key={`${organizationId}:${projectId}`}
       organizationId={organizationId}
       projectId={asProjectId(projectId)}
     />

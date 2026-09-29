@@ -10,6 +10,7 @@ import {
   describeSkillSlugProblem,
   MAX_SKILL_TEAMS,
   type SkillFrontmatter,
+  type SkillOrigin,
 } from '@tale/shared/schemas/skills';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -58,6 +59,19 @@ function relativeSkillPath(slug: string): string {
   return `${SKILLS_CONFIG_DOMAIN}/${slug}/${SKILL_DOCUMENT_NAME}`;
 }
 
+/**
+ * The release compiler's marker (`tools/cli` config releases): a skill a
+ * managed configuration release installed carries it under its frontmatter
+ * `metadata`, beside the deploy operator as `owner`.
+ */
+const RELEASE_METADATA_KEY = 'tale-release';
+
+/** Where a skill came from — see {@link SkillOrigin}. */
+export function skillOrigin(meta: SkillFrontmatter): SkillOrigin {
+  if (meta.metadata?.[RELEASE_METADATA_KEY] !== undefined) return 'release';
+  return meta.owner === undefined ? 'builtin' : 'member';
+}
+
 function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
   const { meta } = skill;
   return {
@@ -66,6 +80,7 @@ function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
     visibility: meta.visibility,
     teams: meta.teams === undefined ? undefined : [...meta.teams],
     owner: meta.owner,
+    origin: skillOrigin(meta),
     icon: meta.icon,
     labels: meta.labels,
     disableModelInvocation: meta.disableModelInvocation,
@@ -353,12 +368,24 @@ export interface SkillEditInput {
   disableModelInvocation?: boolean;
 }
 
+/** One stored version of a skill's `SKILL.md`, as a write's audit record
+ * compares it: the frontmatter, the body and the document's tag. */
+export interface SkillRevision {
+  meta: SkillFrontmatter;
+  body: string;
+  etag: string;
+}
+
 /** What a save answers: the document as it now reads, and whether the
  * save CREATED the bundle (no document under the slug when the writer
- * lock was held) or updated one — the REST door's 201 / 200. */
+ * lock was held) or updated one — the REST door's 201 / 200. `previous` and
+ * `current` are the revisions before and after, for the door's audit row;
+ * they carry the same tag when the save wrote nothing. */
 export interface SkillSaveResult {
   skill: SkillDocumentView;
   created: boolean;
+  previous: SkillRevision | null;
+  current: SkillRevision;
 }
 
 export async function saveSkillForViewer(
@@ -376,6 +403,15 @@ export async function saveSkillForViewer(
      * the door answers. Absent = unchecked (the file layer alone).
      */
     assertTeamsAssignable?: (teamIds: string[]) => Promise<void>;
+    /**
+     * Whether the caller may give a skill the whole organization as its
+     * audience — the organization's `skill_sharing` policy, resolved by the
+     * door (`domains/skills/publish.ts`). Anything but `true` refuses a save
+     * that would create an organization-wide skill, widen one to the
+     * organization, or change one in place (`SKILL_PUBLISH_FORBIDDEN`);
+     * narrowing to teams and saving an identical document stay open.
+     */
+    mayPublishOrgWide: boolean;
   } & SkillEditInput,
 ): Promise<SkillSaveResult> {
   {
@@ -407,7 +443,7 @@ export async function saveSkillForViewer(
     if (
       teams !== undefined &&
       args.assertTeamsAssignable !== undefined &&
-      (args.teams !== undefined || existing === null)
+      (args.teams !== undefined || !sameTeams(teams, existing))
     ) {
       await args.assertTeamsAssignable(teams);
     }
@@ -444,6 +480,14 @@ export async function saveSkillForViewer(
     }
 
     const content = serializeSkillMd(meta, args.body);
+    const identical =
+      existing !== null && skillEntityTag(sha256(content)) === existing.etag;
+    assertOrgWidePublishable({
+      slug: args.slug,
+      visibility,
+      mayPublishOrgWide: args.mayPublishOrgWide,
+      unchangedOrgWide: identical && existing.meta.visibility === 'org',
+    });
     // Re-read what we are about to persist: a save must never be able to
     // write a document the readers would then reject.
     let verified;
@@ -471,7 +515,7 @@ export async function saveSkillForViewer(
     // preconditions above are still evaluated first, so a stale `If-Match`
     // on an identical body is refused like any other.
     const version =
-      existing !== null && skillEntityTag(sha256(content)) === existing.etag
+      identical && existing !== null
         ? { etag: existing.etag, updatedAt: existing.updatedAt }
         : await bundleRead(args.orgSlug, args.slug, async () => {
             const written = await writeSkillMdText(
@@ -508,8 +552,45 @@ export async function saveSkillForViewer(
         })),
       },
       created: existing === null,
+      previous:
+        existing === null
+          ? null
+          : { meta: existing.meta, body: existing.body, etag: existing.etag },
+      current: {
+        meta: verified.meta,
+        body: verified.body,
+        etag: version.etag,
+      },
     };
   }
+}
+
+/** The refusal of an organization-wide write the caller may not publish —
+ * 403 on every skill door (`domains/skills/errors.ts`). */
+export const SKILL_PUBLISH_FORBIDDEN = 'SKILL_PUBLISH_FORBIDDEN';
+
+/**
+ * The organization-wide audience rule at the file layer: a write whose
+ * result is shared with the whole organization needs the caller's
+ * `mayPublishOrgWide`, unless it leaves an organization-wide document exactly
+ * as stored. That covers creating one, widening a team skill to the
+ * organization and changing one in place; a write that ends on `team` is
+ * never this rule's business, so the owner of an organization-wide skill can
+ * still narrow it (the team rules then apply), and deleting stays open.
+ */
+function assertOrgWidePublishable(args: {
+  slug: string;
+  visibility: SkillFrontmatter['visibility'];
+  mayPublishOrgWide: boolean;
+  unchangedOrgWide: boolean;
+}): void {
+  if (args.visibility !== 'org') return;
+  if (args.mayPublishOrgWide || args.unchangedOrgWide) return;
+  throw new AppError({
+    code: SKILL_PUBLISH_FORBIDDEN,
+    message: `Your organization reserves sharing a skill with the whole organization, so "${args.slug}" was not written. Share it with your teams instead, or ask an owner or admin, or a member granted tale:skills.publish.`,
+    data: { slug: args.slug },
+  });
 }
 
 const PRIVATE_SKILLS_RETIRED_MESSAGE =
@@ -530,10 +611,11 @@ const PRIVATE_SKILLS_RETIRED_MESSAGE =
  *
  * `existing` is the bundle the upload replaces, or `null` for a new slug — a
  * slug whose current document is unreadable counts as new, since there is
- * nothing left to preserve. Sharing (`team`/`org` + `teams`) is honored as
- * declared: any member may share, and the parse step already refused the
- * inconsistent shapes. `SKILL.md` stays byte-for-byte when the zip already
- * says what the readers will conclude.
+ * nothing left to preserve. Sharing (`team`/`org` + `teams`) uses the editor's
+ * team normalization, so the audience checked is the one readers see —
+ * and the audience rule for `teams` is {@link prepareBundleWrite}'s, which
+ * every upload door writes through. `SKILL.md` stays byte-for-byte when the
+ * zip already says what the readers will conclude.
  */
 export function normalizedBundleFiles(
   parsed: ParsedBundle,
@@ -553,20 +635,148 @@ export function normalizedBundleFiles(
     existing === null
       ? uploader.userId
       : (existing.meta.owner ?? uploader.userId);
+  const teams = resolveTeams(
+    parsed.meta.visibility,
+    parsed.meta.teams,
+    undefined,
+  );
 
   const files = parsed.files.map((file) => ({
     path: file.relPath,
     content: file.content,
   }));
-  if (parsed.meta.owner === owner) return files;
+  if (
+    parsed.meta.owner === owner &&
+    (teams === undefined ||
+      (teams.length === parsed.meta.teams?.length &&
+        teams.every((id, index) => id === parsed.meta.teams?.[index])))
+  )
+    return files;
 
   const meta: SkillFrontmatter = { ...parsed.meta, owner };
+  if (teams !== undefined) meta.teams = teams;
   const rewritten = serializeSkillMd(meta, parsed.body);
   return files.map((file) =>
     file.path === SKILL_DOCUMENT_NAME
       ? { path: file.path, content: Buffer.from(rewritten, 'utf-8') }
       : file,
   );
+}
+
+/**
+ * The files an uploaded bundle is written as, after the rules every write
+ * door applies: the audience rule for a team skill's `teams` — the
+ * organization's own teams, and for a non-admin only their own — checked when
+ * the list is new or differs from the bundle it replaces (like the editor's
+ * save, so an unchanged re-upload never fails on a team deleted since), then
+ * the owner and private-retired rules of {@link normalizedBundleFiles}. A
+ * bundle shared with the whole organization (an unmarked one included) needs
+ * `mayPublishOrgWide`: an upload is a write of every file, so unlike the
+ * editor's identical save it has no unchanged case to let through — an
+ * automation package's carried skill that already reads as stored is never
+ * handed here. Both upload lanes write through it: the skill zip and an
+ * automation package's carried skills. `assertTeamsAssignable` is supplied
+ * by the door, which owns the database handle, and throws the refusal it
+ * answers.
+ */
+export async function prepareBundleWrite(args: {
+  parsed: ParsedBundle;
+  uploader: UserSkillViewer;
+  existing: OrgSkill | null;
+  assertTeamsAssignable: (teamIds: string[]) => Promise<void>;
+  mayPublishOrgWide: boolean;
+}): Promise<Array<{ path: string; content: Buffer }>> {
+  const files = normalizedBundleFiles(
+    args.parsed,
+    args.uploader,
+    args.existing,
+  );
+  assertOrgWidePublishable({
+    slug: args.parsed.slug,
+    visibility: args.parsed.meta.visibility,
+    mayPublishOrgWide: args.mayPublishOrgWide,
+    unchangedOrgWide: false,
+  });
+  const teams =
+    resolveTeams(
+      args.parsed.meta.visibility,
+      args.parsed.meta.teams,
+      undefined,
+    ) ?? [];
+  if (teams.length > 0 && !sameTeams(teams, args.existing)) {
+    await args.assertTeamsAssignable([...teams]);
+  }
+  return files;
+}
+
+/**
+ * What an upload's bundle write changes, for the door's audit record: the
+ * revision it replaces (`null` for a new slug, and for one whose document
+ * was unreadable — the upload then counts as a creation, as the owner rule
+ * already treats it), the revision the written `SKILL.md` becomes, and
+ * whether any other file of the bundle differs from what is stored.
+ */
+export function describeBundleWrite(args: {
+  slug: string;
+  existing: OrgSkill | null;
+  /** The bundle's files as stored before the write, `null` when none. */
+  stored: ReadonlyArray<{ path: string; contentBase64: string }> | null;
+  /** The files the write persists (after {@link prepareBundleWrite}). */
+  files: ReadonlyArray<{ path: string; content: Buffer }>;
+}): {
+  previous: SkillRevision | null;
+  current: SkillRevision;
+  filesChanged: boolean;
+} {
+  const document = args.files.find((file) => file.path === SKILL_DOCUMENT_NAME);
+  if (document === undefined) {
+    throw new Error(
+      `the bundle written for "${args.slug}" carries no ${SKILL_DOCUMENT_NAME}`,
+    );
+  }
+  const text = document.content.toString('utf-8');
+  const parsed = parseSkillMd(text, relativeSkillPath(args.slug));
+  const storedAssets = new Map(
+    (args.stored ?? [])
+      .filter((file) => file.path !== SKILL_DOCUMENT_NAME)
+      .map((file) => [file.path, file.contentBase64] as const),
+  );
+  const writtenAssets = args.files.filter(
+    (file) => file.path !== SKILL_DOCUMENT_NAME,
+  );
+  const filesChanged =
+    storedAssets.size !== writtenAssets.length ||
+    writtenAssets.some(
+      (file) => storedAssets.get(file.path) !== file.content.toString('base64'),
+    );
+  return {
+    previous:
+      args.existing === null
+        ? null
+        : {
+            meta: args.existing.meta,
+            body: args.existing.body,
+            etag: args.existing.etag,
+          },
+    current: {
+      meta: parsed.meta,
+      body: parsed.body,
+      etag: skillEntityTag(sha256(text)),
+    },
+    filesChanged,
+  };
+}
+
+/** Compare with the actual stored IDs, without normalizing a legacy padded
+ * ID: making that ID visible to its real team is a new assignment. */
+function sameTeams(
+  teams: readonly string[],
+  existing: OrgSkill | null,
+): boolean {
+  if (existing?.meta.visibility !== 'team') return false;
+  const before = new Set(existing.meta.teams ?? []);
+  const after = new Set(teams);
+  return before.size === after.size && [...after].every((id) => before.has(id));
 }
 
 /**

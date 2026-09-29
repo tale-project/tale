@@ -17,6 +17,7 @@ import { parseRuntimeEnvironment } from './runtime-env';
 import { hash } from './runtime-model';
 import { prepareRuntime } from './runtime-prepare';
 import {
+  commitRepositorySource,
   installLegacy,
   RuntimeDockerFixture,
   runtimeFixture,
@@ -35,9 +36,10 @@ afterEach(() => {
   for (const fixture of fixtures.splice(0))
     rmSync(fixture.directory, { recursive: true, force: true });
 });
-async function create(legacy = false) {
+async function create(legacy = false, repositorySource = false) {
   const fixture = runtimeFixture();
   fixtures.push(fixture);
+  if (repositorySource) commitRepositorySource(fixture);
   const docker = new RuntimeDockerFixture(fixture);
   await prepareRuntime(
     {
@@ -309,6 +311,14 @@ describePosix('managed source-Compose runtime adoption', () => {
         docker.dependencies(),
       ),
     ).toMatchObject({ existing: true, changed: true });
+    expect(receipt().phase).toBe('ready');
+  });
+
+  // What a pinned deploy of this release runs: the release's own compose.yml
+  // and proxy Caddyfile through this CLI's prepare, read and apply.
+  test("applies the repository's own runtime source on a fresh host", async () => {
+    const { apply, receipt } = await create(false, true);
+    expect(await apply()).toMatchObject({ existing: false, changed: true });
     expect(receipt().phase).toBe('ready');
   });
 

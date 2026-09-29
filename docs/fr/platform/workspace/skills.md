@@ -5,7 +5,9 @@ description: Crée des instructions réutilisables, importe un bundle et choisis
 
 Un skill décrit une méthode de travail réutilisable : rédiger des notes de version, vérifier un brief ou préparer un document selon les conventions de ton équipe. Il contient un fichier d’instructions `SKILL.md` et, si nécessaire, des fichiers complémentaires. Entretiens-le dans **Paramètres > Skills**, puis [équipe les agents concernés](/fr/platform/agents/skills).
 
-Chaque membre peut créer un skill et modifier les siens. Pour modifier ou supprimer le skill partagé d’une autre personne, il faut être administrateur de l’organisation.
+Un skill agit là où un agent fait le travail : un [agent de projet](/fr/platform/projects/project-agents) qui traite une [tâche](/fr/platform/projects/tasks), ou un nœud agent dans une [automatisation](/fr/platform/automations/concepts). Le chat répond aux questions et cherche dans les connaissances de ton organisation ; il n’utilise pas de skills, n’exécute pas de code et ne produit pas de fichiers. Pour faire produire un document avec un skill, confie une tâche à un agent qui en est équipé — créer des tâches et des agents demande au moins le rôle Éditeur.
+
+Chaque membre peut créer un skill et modifier les siens. Pour modifier ou supprimer le skill partagé d’une autre personne, il faut être administrateur de l’organisation. Ton organisation peut réserver le partage avec tout le monde à certains rôles ; voir [Qui peut partager avec tout le monde](#who-can-share-with-everyone).
 
 ## Créer un petit skill
 
@@ -20,7 +22,7 @@ Résume un brief de projet en indiquant la date de relecture, le responsable
 et les questions ouvertes. À utiliser pour une passation ou une vérification rapide.
 ```
 
-Le nom est un identifiant unique : lettres minuscules, chiffres et tirets simples, jusqu’à 64 caractères. La description indique au modèle dans quels cas lire le skill. Clique sur **Créer** pour l’ajouter et ouvrir son éditeur.
+Le nom est un identifiant unique : lettres minuscules, chiffres et tirets simples, jusqu’à 64 caractères. La description indique au modèle dans quels cas lire le skill. Sous **Visibilité**, choisis qui voit le skill : **Organisation**, ou **Équipes** avec au moins une équipe. Clique sur **Créer** pour l’ajouter et ouvrir son éditeur.
 
 </Step>
 
@@ -41,7 +43,7 @@ Ajoute des fichiers de référence lorsqu’ils aident à suivre la procédure. 
 
 <Step title="Choisir le public et enregistrer">
 
-Un nouveau skill a la visibilité **Organisation**. Sous **Visibilité**, choisis **Équipes** et sélectionne au moins une équipe si son contenu doit rester dans un cercle plus restreint. Ajoute une icône ou des libellés si cela facilite la recherche, puis clique sur **Enregistrer**.
+À la création, **Organisation** est présélectionnée, sauf si ton organisation la réserve. Si le contenu s’adresse à un autre public, change-le sous **Visibilité** : **Équipes** demande au moins une équipe. Ajoute une icône ou des libellés si cela facilite la recherche, puis clique sur **Enregistrer**.
 
 Créer un skill ne l’ajoute pas automatiquement à un agent. Ouvre l’agent du projet concerné et sélectionne le skill dans son équipement. Lance une petite tâche avec des données connues, puis compare le résultat aux instructions.
 
@@ -49,9 +51,9 @@ Créer un skill ne l’ajoute pas automatiquement à un agent. Ouvre l’agent d
 
 </Steps>
 
-<Frame caption="L’éditeur réunit les fichiers du bundle, la description, les libellés et la visibilité, puis la section Instructions.">
+<Frame caption="L’éditeur indique qui a créé le skill et réunit les fichiers du bundle, la description, les libellés et la visibilité, puis la section Instructions.">
 
-![L’éditeur du skill docx affiche l’arborescence, la description, les libellés, la visibilité Organisation et le titre Instructions.](/images/platform/skill-library-detail.webp)
+![L’éditeur du skill docx affiche l’arborescence à côté de Créé par Fourni avec Tale, la description, l’icône, les libellés, la visibilité Organisation et le titre Instructions.](/images/platform/skill-library-detail.webp)
 
 </Frame>
 
@@ -66,7 +68,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-L’aperçu présente les métadonnées, le partage, la licence et la liste des fichiers avant que **Téléverser le bundle** n’enregistre quoi que ce soit. Vérifie le contenu et le public. Sans `visibility`, le partage est ouvert à l’organisation. Si le nom existe déjà, Tale demande s’il faut remplacer le skill ; ce remplacement concerne aussi les agents qui l’utilisent.
+L’aperçu présente les métadonnées, le partage, la licence et la liste des fichiers avant que **Téléverser le bundle** n’enregistre quoi que ce soit. Vérifie le contenu et le public. Sans `visibility`, le partage est ouvert à l’organisation. Si ton organisation le réserve et que tu ne peux pas publier, l’aperçu le signale et **Téléverser le bundle** reste indisponible ; ajoute `visibility: team` et les identifiants de tes équipes dans `SKILL.md`. Quand tu crées un skill d’équipe ou modifies ses équipes, tu ne peux indiquer que des équipes de ton organisation, et seulement les tiennes si tu n’es pas administrateur. Tu peux conserver la liste existante même si une équipe a été supprimée depuis. Un `owner` indiqué dans le fichier est ignoré : un nouveau skill t’appartient. Un skill remplacé garde son propriétaire actuel ou t’appartient s’il n’en avait pas. Si le nom existe déjà, Tale demande s’il faut remplacer le skill ; ce remplacement concerne aussi les agents qui l’utilisent.
 
 <Warning>
 
@@ -84,6 +86,30 @@ L’import ne lance aucune tâche et n’exécute aucun fichier. Une fois le ski
 L’accès du projet détermine son équipement, même si tu peux personnellement lire davantage de skills. Un projet ouvert à l’organisation peut utiliser les skills de l’organisation. Les anciens skills privés restent visibles par leur propriétaire, mais aucun agent ne peut les équiper. Les nouveaux skills privés ne sont pas acceptés.
 
 Restreindre la visibilité demande une confirmation, car certains agents peuvent perdre l’accès. La suppression a la même conséquence pratique : une exécution qui dépend du bundle manquant ne peut plus le préparer. Vérifie les usages d’un skill partagé avant de le restreindre ou de le retirer.
+
+### Qui peut partager avec tout le monde {#who-can-share-with-everyone}
+
+Par défaut, chaque membre peut partager un skill avec toute l’organisation. Un admin peut réserver ce droit aux éditeurs et au-delà, ou aux propriétaires et aux admins, dans [Partage des skills](/fr/platform/admin/governance/policies-and-limits#skill-sharing), et autoriser certains membres à publier avec la compétence **Publier des skills pour l'organisation**. Quand ton organisation le réserve et que tu ne peux pas publier :
+
+- **Organisation** n’est pas disponible sous **Visibilité**, et un nouveau skill commence avec **Équipes**. Tu peux partager avec tes propres équipes.
+- Un skill partagé avec l’organisation que tu as créé ne peut pas être modifié sur place. Restreins-le à tes équipes, avec d’autres modifications dans le même enregistrement si besoin, ou supprime-le.
+- L’aperçu du téléversement signale un bundle qui serait partagé avec toute l’organisation, y compris un bundle sans `visibility`, et **Téléverser le bundle** reste indisponible.
+
+Les skills déjà partagés avec l’organisation le restent.
+
+## Voir qui a créé et modifié un skill
+
+La colonne **Créé par** indique le membre qui a créé chaque skill. Recherche un nom dans la bibliothèque pour retrouver tout ce que cette personne a partagé. Pour un skill sans créateur enregistré, comme les skills de documents fournis à la création de ton organisation, elle affiche **Fourni avec Tale** ; pour un skill installé par une release de configuration gérée, **Release de configuration** suivi du membre dont le téléversement l’a installé. Quand le créateur a quitté l’organisation, elle affiche **Ancien membre**.
+
+<Frame caption="Paramètres > Skills — la colonne Créé par nomme le membre qui a écrit chaque skill et marque les skills de documents comme Fourni avec Tale.">
+
+![La bibliothèque liste sept skills : brief-summary et release-notes créés par Alex Rivera, puis docx, pdf, pptx, visual-aspect-analyzer et xlsx marqués Fourni avec Tale, tous partagés avec l’Organisation.](/images/platform/skill-library-list.webp)
+
+</Frame>
+
+Ouvre un skill pour voir **Créé par** et **Dernière modification par** : le membre dont l’enregistrement ou le téléversement dans Tale a produit la version actuelle. **Dernière modification par** n’apparaît pas si personne n’a modifié le skill depuis sa création, ou si son fichier a changé en dehors de Tale depuis la dernière modification. La liste des skills dans l’[équipement d’un agent](/fr/platform/agents/skills) indique elle aussi le créateur sous chaque skill.
+
+Tale consigne dans le journal d’audit la création, la modification, le téléversement et la suppression d’un skill, ainsi que chaque changement de sa visibilité ou de ses équipes. Les administrateurs et propriétaires trouvent ces entrées dans **Paramètres > Gouvernance > Journaux**, catégorie **Skill**.
 
 ## Référence du fichier
 
@@ -105,6 +131,7 @@ ouvertes. Cite les preuves et marque les informations absentes « Non précisé 
 | `name` | Correspond au nom du dossier. `anthropic` et `claude` sont réservés. |
 | `description` | Quand et pourquoi lire le skill ; 1 024 caractères maximum. |
 | `visibility` / `teams` | `org`, ou `team` accompagné des identifiants d’équipes. L’interface remplit ces valeurs. |
+| `owner` | L’identifiant utilisateur du membre qui a créé le skill. Tale le renseigne ; une valeur présente dans un fichier téléversé est ignorée. |
 | `license` | Les conditions d’utilisation fournies par l’auteur. |
 | `recommended-packages` | Les dépendances conseillées ; l’import ne les installe pas. |
 | `disable-model-invocation` | Demande un usage explicite du skill. Cette métadonnée est une instruction, pas une restriction d’accès. |
@@ -116,6 +143,6 @@ Tale conserve les clés de frontmatter inconnues. Le frontmatter est limité à 
 
 Ouvre une ligne pour modifier la description, les instructions, les libellés et la visibilité. L’arborescence **Bundle** permet d’examiner les fichiers complémentaires. Les agents ne sont pas liés à une version précise : la prochaine préparation utilise le bundle courant. Teste donc les changements partagés sur une tâche représentative.
 
-Si un agent ne trouve pas le skill, vérifie son équipement et la visibilité pour le projet. S’il ignore un skill équipé, précise dans la tâche quel skill utiliser et compare le résultat avec ses instructions. [Skills des agents](/fr/platform/agents/skills) explique comment le bundle équipé est préparé et présenté à l’agent.
+Si un agent ne trouve pas le skill, vérifie son équipement et la visibilité pour le projet. Tale lui montre un extrait de la description, limité à 300 caractères, pour l’aider à choisir un skill pertinent. Indique donc d’abord quand le skill s’applique. S’il ignore un skill équipé, nomme-le dans la tâche et compare le résultat avec ses instructions. [Skills des agents](/fr/platform/agents/skills) explique comment le bundle équipé est préparé et présenté à l’agent.
 
 En cas d’erreur d’import, vérifie que `SKILL.md` est à la racine, que son frontmatter est valide et que son nom est accepté. L’erreur précise les chemins ou limites de taille en cause. Pour retirer un bundle, ouvre-le et choisis **Supprimer le skill** après avoir vérifié les agents concernés.

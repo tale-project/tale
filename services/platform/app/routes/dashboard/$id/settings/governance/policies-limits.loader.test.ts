@@ -41,6 +41,10 @@ vi.mock(
   () => ({ RetentionEditor: () => null }),
 );
 vi.mock(
+  '@/app/features/settings/governance/components/skill-sharing-policy-editor',
+  () => ({ SkillSharingPolicyEditor: () => null }),
+);
+vi.mock(
   '@/app/features/settings/governance/components/upload-policy-editor',
   () => ({ UploadPolicyEditor: () => null }),
 );
@@ -60,6 +64,7 @@ const ADMIN_ONLY = [
   'retention_policy',
   'voice_output',
   'conversation_routing',
+  'skill_sharing',
 ];
 const MEMBER_READABLE = [
   'upload_policy',

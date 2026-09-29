@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 84 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 86 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -45,7 +45,9 @@ TASK-B14 and TASK-B22 set due dates in the past, which the date picker
 accepts. The due-date scan runs every five minutes, so TASK-F40, TASK-F44,
 TASK-B22 and TASK-B24 wait up to five minutes for each next task it creates.
 TASK-B17 alone needs a deployed automation with a task contract bound to the
-project (as in AUTO-F32).
+project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
+whose credential is a subscription broker on a local Tale AI gateway
+(`services/ai-gateway`) holding one Claude account.
 
 > **Agent note**: board DnD is `dnd-kit` — a single `dragTo` drops the card
 > back at its source; drag with stepped mouse moves (down → several small
@@ -231,6 +233,23 @@ project (as in AUTO-F32).
   **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
   after unticking the unavailable skill in the agent dialog, **Retry**
   starts a run that reaches the harness.
+- [ ] `TASK-F47` · **A token refresh resumes the run, and says so** — With
+  the gateway-served agent from the preconditions, **Start agent**
+  (`tasks.agentRun.start`) on a task that asks for ten minutes of work; while
+  it works, restart the gateway with
+  `AI_GATEWAY_TOKEN_REFRESH_SKEW_SECONDS=86400`, give its start-up pass ten
+  seconds to refresh the account, then restart it without the setting → at
+  its next model call the run fails on the vendor's 401 (`OAuth access token
+  has been revoked`) and its retry starts at once, continuing the same
+  conversation; while the retry works, its **Run** field
+  (`tasks.agentRun.label`) reads **Resumed after a token refresh**
+  (`tasks.agentRun.resumedAfterTokenRefresh`) under the status, never
+  **Auto-retry 1 of 3** (`tasks.agentRun.autoRetrying`), both in the task
+  dialog and on the task page. Switch the language to German, then French:
+  the caption is translated in both places, and where it wraps (German, on
+  the task page) its second line stays inside the field, clear of **Details**
+  (`tasks.run.details`) and **Cancel run** (`tasks.agentRun.cancel`) below
+  it — env-gated: mark **ENVIRONMENT** without a gateway account.
 - [ ] `TASK-F36` · **A connector on the agent runs for the run's starter** —
   Give the organization an active credential for a connector with a read
   action (GlitchTip or GitHub) under **Settings > Connectors**
@@ -286,6 +305,21 @@ project (as in AUTO-F32).
   step…"; **Details** (`tasks.run.details`) shows the skill read from its
   `SKILL.md`, not a search of the workspace — env-gated: mark
   **ENVIRONMENT** without a credential that serves both harnesses.
+- [ ] `TASK-F46` · **Document skills work with the registries blocked** —
+  Set `SANDBOX_EGRESS_ALLOWLIST=^example\.invalid$` in the stack's `.env`,
+  recreate `sandbox-egress` and stop the project agent's running session so
+  the next run starts a fresh one; equip the agent with the `docx` and `pptx`
+  skills under **Skills, connectors & tools**
+  (`projects.agents.equipmentLabel`), then **Start agent**
+  (`tasks.agentRun.start`) on a task that asks for a one-page Word memo and a
+  three-slide deck with an icon on every slide → The run settles
+  **Completed** (`tasks.agentRuns.status.completed`) with a `.docx` and a
+  `.pptx` under **Deliverables** (`tasks.outputs.label`) that open with the
+  memo text and the slides' icons; **Details** (`tasks.run.details`) may show
+  the skills' `npm install -g` refused by the egress proxy, and the scripts
+  that `require('docx')` and `require('pptxgenjs')` run anyway; remove the
+  allowlist afterwards — env-gated: mark **ENVIRONMENT** without a runnable
+  harness.
 
 ### The task page
 

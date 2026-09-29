@@ -605,7 +605,10 @@ automations:
     loadFailed: 'Impossible de charger les automatisations : {error}'
     empty:
       title: Aucune automatisation pour l’instant
-      description: Crée un agent avec un déclencheur ou importe un paquet de workflow.
+      description: Choisis « Créer une automatisation » pour partir d’un déclencheur et d’un agent, ou pour téléverser un paquet.
+    emptyReader:
+      title: Aucune automatisation en service
+      description: Une automatisation apparaît ici dès qu’une personne ayant le rôle Propriétaire, Admin ou Développeur la met en service.
   createMenu:
     blank: Vierge (trigger + agent)
   blank:
@@ -1944,7 +1947,12 @@ conversations:
       Installe une automatisation e-mail (Gmail, Outlook ou
       IMAP) pour commencer à lire et à répondre aux conversations ici.
     composeNotice: Pour écrire à {name}, installe d'abord une automatisation e-mail.
+    composeNoticeReader: Tu pourras écrire à {name} dès qu’une automatisation e-mail sera en service.
     browseAutomations: Parcourir les automatisations
+    noAutomationReaderDescription:
+      Dès qu’une personne ayant le rôle Propriétaire, Admin ou Développeur met
+      en service une automatisation e-mail (Gmail, Outlook ou IMAP), tu peux
+      lire les conversations et y répondre ici.
   filter:
     all: Tous
     read: Lus
@@ -2275,6 +2283,8 @@ documents:
     openFolder: Ouvrir le dossier {name}
     openDocument: Ouvrir le document {name}
     navigateToFolder: Accéder au dossier {name}
+    selectFolder: Sélectionner le dossier {name}
+    selectFile: Sélectionner le fichier {name}
   folderNotFound: Dossier introuvable ou plus accessible
   filter:
     ragStatus:
@@ -2653,12 +2663,6 @@ onboarding:
       clique de nouveau sur « Suivant ».
     creationForbidden: Tu ne peux pas créer d'organisation sur ce déploiement. Contacte l'opérateur pour demander un espace de travail.
     nameTakenError: Ce nom est déjà pris. Choisis-en un autre.
-  provider:
-    heading: Connecter OpenRouter
-    why:
-      Une seule clé débloque des centaines de modèles pour le chat, les images,
-      la voix et plus encore — nous préconfigurons une sélection recommandée
-      pour que tu sois prêt tout de suite.
   finish:
     heading: "C'est prêt"
     subtitle: 'Voici ce que tu peux faire ensuite :'
@@ -2689,7 +2693,7 @@ emptyStates:
     description: Enregistre des faits depuis le chat ou ajoute des entrées que les agents peuvent réutiliser.
   skills:
     title: Aucun skill pour l’instant
-    description: Écris un skill pour donner aux agents des connaissances réutilisables — utilise-le dans le chat ou attache-le à une automatisation.
+    description: Écris un skill une fois, puis équipes-en les agents de projet ou les nœuds agent de tes automatisations.
   members:
     title: Aucun membre trouvé
     description: Invite des personnes à collaborer dans ce workspace.
@@ -3249,6 +3253,21 @@ governance:
     enabledLabel: Sortie vocale activée pour cette organisation
     saved: Politique de sortie vocale mise à jour
     saveFailed: Échec de l'enregistrement de la politique de sortie vocale
+  skillSharing:
+    title: Partage des skills
+    description: Choisis qui peut partager un skill avec toute l'organisation.
+      Chacun peut toujours partager un skill avec ses propres équipes, et un
+      réglage plus strict ne restreint aucun skill déjà partagé avec
+      l'organisation.
+    label: Partager les skills avec l'organisation
+    labelHint: Les propriétaires et les admins le peuvent toujours. Pour
+      l'autoriser à un autre membre, attribue-lui « Publier des skills pour
+      l'organisation » sous Compétences.
+    modes:
+      everyone: Tous les membres
+      editors: Éditeurs et au-delà
+      admins: Propriétaires et admins uniquement
+    saveFailed: Échec de l'enregistrement de la politique de partage des skills
   dataNotice:
     title: Avis de confidentialité
     description:
@@ -3663,6 +3682,9 @@ governance:
       restActAs:
         label: Agir pour un autre membre
         description: Nommer, dans un appel d'API, le membre pour qui une question reçoit une réponse ou une relecture est décidée, pour que l'enregistrement indique cette personne plutôt que la clé.
+      skillsPublish:
+        label: Publier des skills pour l'organisation
+        description: Partager un skill avec toute l'organisation, même quand la politique de partage des skills le réserve aux éditeurs ou aux admins.
     empty:
       title: Aucune compétence attribuée
       description: Attribue à un membre une capacité de la plateforme ou une qualification. Elle ne s'applique que dans cette organisation.
@@ -5110,6 +5132,7 @@ skills:
     description: Description
     visibility: Visibilité
     labels: Libellés
+    createdBy: Créé par
     loadError: Impossible de lire SKILL.md
   loadErrorDetail:
     title:
@@ -5196,6 +5219,34 @@ skills:
       skillMdTooLarge: SKILL.md dépasse la limite de {max} par fichier.
       assetTooLarge: '"{path}" dépasse la limite de {max} par fichier.'
       totalTooLarge: Le bundle décompressé dépasse {max}.
+  attribution:
+    createdBy: Créé par
+    lastEditedBy: Dernière modification par
+    builtin: Fourni avec Tale
+    release: Release de configuration
+    releaseBy: Release de configuration · {name}
+    formerMember: Ancien membre
+    byMember: Par {name}
+    byFormerMember: Par un ancien membre
+  publishing:
+    reserved:
+      editors: Ton organisation réserve le partage avec tout le monde aux
+        éditeurs et au-delà, ainsi qu'aux membres autorisés par un admin.
+      admins: Ton organisation réserve le partage avec tout le monde aux
+        propriétaires et aux admins, ainsi qu'aux membres autorisés par un
+        admin.
+    noTeams: Tu ne fais partie d'aucune équipe, et ton organisation réserve le
+      partage avec tout le monde. Demande à un admin de t'ajouter à une équipe
+      ou de t'autoriser à publier des skills.
+    lockedEdit: Tant que ce skill reste partagé avec toute l'organisation,
+      seule une personne autorisée à publier peut le modifier. Tu peux le
+      restreindre à tes équipes (et le modifier au même moment) ou le
+      supprimer.
+    uploadRefused: Dans SKILL.md, mets la visibilité sur team avec les
+      identifiants de tes équipes, ou demande à un admin de téléverser ce
+      bundle.
+    refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
+      pas le droit de publier. Partage plutôt ce skill avec tes équipes.
   addMenu:
     label: Ajouter un skill
   createMenu:
@@ -5297,7 +5348,7 @@ settings:
     sandboxes:
       description: Gérer les sandboxes distantes toujours actives.
     skills:
-      description: Instructions et outils réutilisables que l'assistant peut charger.
+      description: Paquets d’instructions réutilisables pour les agents de projet et les nœuds agent des automatisations.
     enterpriseSso:
       description: Authentification unique et synchronisation d’annuaire pour ton personnel.
     dataResidency:
@@ -5506,6 +5557,7 @@ settings:
     teamCreatedDescription:
       L'équipe {name} a été créée avec {count} {count, plural,
       one {membre} other {membres}}.
+    teamCreatedMembersRefused: Équipe créée, mais tous les membres n'ont pas été ajoutés
     teamCreateFailed: Échec de la création de l'équipe
     teamUpdated: Équipe mise à jour
     teamUpdateFailed: Échec de la mise à jour de l'équipe
@@ -6429,7 +6481,11 @@ settings:
         api: API
         workflow: Automatisation
       actionLabels:
+        skill.created: Skill créé
+        skill.updated: Skill mis à jour
+        skill.sharing_changed: Partage d'un skill modifié
         skill.deleted: Skill supprimé
+        skill.publish_denied: Publication d'un skill refusée
         team.created: Équipe créée
         team.updated: Équipe mise à jour
         team.deleted: Équipe supprimée
@@ -7125,6 +7181,7 @@ tasks:
     agentMissing: L'agent assigné n'existe plus. Assigne un autre agent pour exécuter cette tâche.
     noAgentAssignee: Aucun agent n'est assigné à cette tâche. Assignes-en un pour lancer une exécution.
     cancelled: L'exécution de l'agent a été annulée.
+    cancelFailed: L'exécution de l'agent n'a pas pu être annulée.
     start: Démarrer l'agent
     willStart: "Déposer ici démarre l'exécution de l'agent."
     willCancel: "Déposer ici annule l'exécution en cours de l'agent."
@@ -7143,6 +7200,10 @@ tasks:
     # Ligne sous le statut pendant que la plateforme relance elle-même une
     # exécution échouée — pour distinguer sa relance de la tienne.
     autoRetrying: 'Tentative automatique {n} sur {max}'
+    # Remplace cette ligne quand le courtier a actualisé le jeton du compte
+    # en cours d'exécution et que la plateforme la reprend — sans tentative
+    # consommée.
+    resumedAfterTokenRefresh: Reprise après l'actualisation du jeton
     retry: Relancer
     cancel: Annuler l'exécution
   automation:

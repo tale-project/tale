@@ -3,7 +3,7 @@ title: Automatisierungen erstellen oder importieren
 description: Wähle einen Ausgangspunkt, importiere ein geprüftes Paket und bereite Skills, Einstellungen und Ergebnisse für den Einsatz vor.
 ---
 
-Unter **Automatisierungen** findest du die Workflows deiner Organisation. Inhaber, Admins und Entwickler können sie verwalten. Prüfe zuerst, ob eine [mitgelieferte Automatisierung](/de/platform/automations/builtin) zur Aufgabe passt. Andernfalls erstellst du einen Entwurf und testest ihn, bevor du ihn live schaltest.
+Unter **Automatisierungen** findest du die Workflows deiner Organisation. Inhaber, Admins und Entwickler können sie verwalten. Mitglieder und Redakteure sehen nur live geschaltete Automatisierungen. Der Navigationseintrag erscheint für sie, sobald eine organisationsweite Automatisierung live geschaltet ist. Projektgebundene Automatisierungen bleiben im Tab ihres Projekts erreichbar. Prüfe zuerst, ob eine [mitgelieferte Automatisierung](/de/platform/automations/builtin) zur Aufgabe passt. Andernfalls erstellst du einen Entwurf und testest ihn, bevor du ihn live schaltest.
 
 Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitgelieferten Triage-Workflows zu vergleichen.
 
@@ -15,7 +15,7 @@ Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitg
 
 ## Einen Ausgangspunkt wählen
 
-Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Allgemein** findest du Trigger und Projekte: Unter **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung. Die Auswahl **Version** rechts neben den Tabs zeigt den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen.
+Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Allgemein** findest du Trigger und Projekte: Unter **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung. **Projekte** bietet nur Projekte an, die du öffnen kannst. Zuordnungen zu Projekten, die du nicht siehst, bleiben beim Speichern erhalten. Eine Automatisierung, die nur solchen Projekten zugeordnet ist, erscheint nicht in deiner Liste. Die Auswahl **Version** rechts neben den Tabs zeigt den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen.
 
 Das Menü **Automatisierung erstellen** bietet zwei Wege:
 
@@ -79,7 +79,7 @@ Die ZIP-Datei darf komprimiert und entpackt jeweils höchstens 20 MiB enthalten:
 
 ## Konflikte bei Skills klären
 
-Die `skills`-Liste im Manifest muss zu den Ordnern unter `skills/` passen. Nicht deklarierte Ordner und deklarierte, aber fehlende Bundles führen zur Ablehnung. Jedes Bundle braucht gültige Metadaten in `SKILL.md`; `name` muss dem Ordnernamen entsprechen.
+Die `skills`-Liste im Manifest muss zu den Ordnern unter `skills/` passen. Nicht deklarierte Ordner und deklarierte, aber fehlende Bundles führen zur Ablehnung. Jedes Bundle braucht gültige Metadaten in `SKILL.md`; `name` muss dem Ordnernamen entsprechen. Mitgelieferte Skills folgen den Regeln der Skill-Bibliothek: Ein neuer Skill gehört der Person, die das Paket hochlädt. Ein ersetzter behält seinen Eigentümer; hatte er keinen, gehört er danach der hochladenden Person. Neue oder geänderte Teamlisten dürfen nur Teams enthalten, mit denen diese Person teilen darf. Bestehende Listen dürfen unverändert bleiben. Tale prüft die Zielgruppen aller mitgelieferten Skills, bevor es einen davon installiert.
 
 ```yaml
 # automation.yml

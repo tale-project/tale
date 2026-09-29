@@ -182,6 +182,43 @@ export function isTerminalCredentialRefusal(error: unknown): boolean {
   return code !== null && TERMINAL_CREDENTIAL_REFUSALS.has(code);
 }
 
+/**
+ * The words a run records for a failure: a resolver refusal's own sentence
+ * — `AppError` serializes its whole payload into `message`, which is for
+ * logs — else the error's message.
+ */
+export function runFailureMessage(error: unknown): string {
+  return (
+    credentialRefusalMessage(error) ??
+    (error instanceof Error ? error.message : String(error))
+  );
+}
+
+/**
+ * When a broker pool that refused because every account was cooling down
+ * after a rate limit (`CREDENTIAL_BROKER_EXHAUSTED`) has its first account
+ * back — epoch ms — or undefined for any other error. A caller that retries
+ * the work can wait for it instead of being refused again at once.
+ */
+export function credentialRetryAtMs(error: unknown): number | undefined {
+  if (
+    credentialRefusalCode(error) !== 'CREDENTIAL_BROKER_EXHAUSTED' ||
+    error === null ||
+    typeof error !== 'object' ||
+    !('data' in error)
+  ) {
+    return undefined;
+  }
+  const data = error.data;
+  if (data === null || typeof data !== 'object' || !('retryAtMs' in data)) {
+    return undefined;
+  }
+  const retryAtMs = data.retryAtMs;
+  return typeof retryAtMs === 'number' && Number.isFinite(retryAtMs)
+    ? retryAtMs
+    : undefined;
+}
+
 /** The resolver's own sentence for a refusal — the remedy it names, never a
  * secret — or null when the error is not one of its refusals. `AppError`
  * serializes its whole payload into `message`, so this reads `data`. */
@@ -202,8 +239,12 @@ export function credentialRefusalMessage(error: unknown): string | null {
   return typeof message === 'string' && message.trim() !== '' ? message : null;
 }
 
-function credentialError(code: string, message: string): CredentialError {
-  return new AppError({ code, message });
+function credentialError(
+  code: string,
+  message: string,
+  extra: { retryAtMs?: number } = {},
+): CredentialError {
+  return new AppError({ code, message, ...extra });
 }
 
 /** Decrypt with the rotation mismatch mapped to an actionable refusal. */
@@ -386,7 +427,13 @@ async function resolveBroker(
       : undefined,
     args.requireBrokerAccountId ?? args.providerSlug === 'openai',
   );
-  if (diagnostics.usableTokens.length === 0) {
+  // An account the broker holds back only for its coming refresh is a
+  // fallback, never part of the usable pool (`selectBrokerAccount`).
+  const pool = [
+    ...diagnostics.usableAccounts.map((account) => ({ account, held: false })),
+    ...diagnostics.heldAccounts.map((account) => ({ account, held: true })),
+  ];
+  if (pool.length === 0) {
     throw credentialError(
       'CREDENTIAL_BROKER_EMPTY',
       `The token broker behind credential "${row.name}" yielded no usable tokens: ${describeEmptyPool(diagnostics, broker.responseMapping)}`,
@@ -396,11 +443,10 @@ async function resolveBroker(
   // cooldown filters. Keep the legacy token hash compatible with old runs.
   const excludedHashes = new Set(args.excludeBrokerTokenHashes ?? []);
   const excludedTokens = new Set(args.excludeBrokerTokens ?? []);
-  const accounts = diagnostics.usableAccounts.filter(
-    (account) => !excludedTokens.has(account.token),
-  );
   const byHash = new Map(
-    accounts.map((account) => [hashBrokerAccount(row._id, account), account]),
+    pool
+      .filter(({ account }) => !excludedTokens.has(account.token))
+      .map((entry) => [hashBrokerAccount(row._id, entry.account), entry]),
   );
   const selection: BrokerSelectionResult = await ctx.runMutation(
     internal.provider_credentials.mutations.selectBrokerAccountInternal,
@@ -408,12 +454,12 @@ async function resolveBroker(
       organizationId: args.organizationId,
       credentialId: row._id,
       selection: broker.selection,
-      candidates: [...byHash].map(([hash, account]) => ({
-        hash,
-        excluded:
+      candidates: [...byHash].map(([hash, { account, held }]) => {
+        const excluded =
           excludedHashes.has(hash) ||
-          excludedHashes.has(hashBrokerToken(account.token)),
-      })),
+          excludedHashes.has(hashBrokerToken(account.token));
+        return held ? { hash, excluded, held } : { hash, excluded };
+      }),
     },
   );
   if (selection.fellBack) {
@@ -421,15 +467,24 @@ async function resolveBroker(
       `[credentials] broker "${row.name}": retry exclusions cover every currently eligible account — reusing an eligible account`,
     );
   }
-  const account =
-    selection.hash === null ? undefined : byHash.get(selection.hash);
-  if (account === undefined || selection.hash === null) {
-    throw credentialError(
-      'CREDENTIAL_BROKER_EXHAUSTED',
-      selection.retryAtMs !== undefined
-        ? `Every account behind credential "${row.name}" is cooling down after a rate limit — try again in ${Math.max(1, Math.ceil((selection.retryAtMs - Date.now()) / 1000))} seconds.`
-        : `Every token in the pool behind credential "${row.name}" was already tried this turn (${diagnostics.usableTokens.length} token(s)).`,
+  if (selection.held === true) {
+    console.warn(
+      `[credentials] broker "${row.name}": every account the broker counts as available is cooling down or unusable here — using one it holds back for its coming token refresh`,
     );
+  }
+  const account =
+    selection.hash === null ? undefined : byHash.get(selection.hash)?.account;
+  if (account === undefined || selection.hash === null) {
+    throw selection.retryAtMs !== undefined
+      ? credentialError(
+          'CREDENTIAL_BROKER_EXHAUSTED',
+          `Every account behind credential "${row.name}" is cooling down after a rate limit — try again in ${Math.max(1, Math.ceil((selection.retryAtMs - Date.now()) / 1000))} seconds.`,
+          { retryAtMs: selection.retryAtMs },
+        )
+      : credentialError(
+          'CREDENTIAL_BROKER_EXHAUSTED',
+          `Every token in the pool behind credential "${row.name}" was already tried this turn (${pool.length} token(s)).`,
+        );
   }
   return {
     authMethod: 'subscription-broker',

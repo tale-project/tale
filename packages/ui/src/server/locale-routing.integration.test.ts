@@ -16,7 +16,10 @@ const servers = bunServers();
 let directory: string;
 
 /** Boots a server over a two-page `dist/` (`/` and `/docs/`) and a 404. */
-async function start(localeRouting: 'path' | 'none'): Promise<string> {
+async function start(
+  localeRouting: 'path' | 'none',
+  redirectPrefix = '',
+): Promise<string> {
   const [app] = await servers.start(`
 import { startReactServer } from ${JSON.stringify(serverModule)};
 const server = startReactServer({
@@ -25,6 +28,7 @@ const server = startReactServer({
   distDir: ${JSON.stringify(directory)},
   logPrefix: 'locale-routing-test',
   localeRouting: ${JSON.stringify(localeRouting)},
+  redirectPrefix: ${JSON.stringify(redirectPrefix)},
 });
 console.log('READY ' + server.port);
 `);
@@ -112,6 +116,35 @@ describe("localeRouting: 'none' — one untranslated tree", () => {
     expect(page.status).toBe(301);
     expect(page.headers.get('location')).toBe('/docs?q=button');
   }, 20000);
+
+  it.each(['', '/guide'])(
+    'keeps malformed locale aliases local with redirect prefix "%s"',
+    async (prefix) => {
+      const app = await start('none', prefix);
+      for (const pathname of [
+        '/de//outside.invalid/page',
+        '/fr///outside.invalid/page',
+        '/de/\\outside.invalid/page',
+      ]) {
+        const response = await get(`${app}${pathname}`);
+        expect(response.status, pathname).toBe(404);
+        expect(response.headers.get('location'), pathname).toBeNull();
+        expect(await response.text()).toContain('404');
+      }
+
+      // Encoded separators stay encoded in Location, hence on this origin.
+      // A reverse proxy strips `prefix` before the request reaches the app.
+      const response = await get(`${app}/de/%2F%2Foutside.invalid/page`);
+      const location = response.headers.get('location');
+      expect(response.status).toBe(301);
+      expect(location).toBe(`${prefix}/%2F%2Foutside.invalid/page`);
+      expect(new URL(location!, app).origin).toBe(app);
+      const target = await get(`${app}${location!.slice(prefix.length)}`);
+      expect(target.status).toBe(404);
+      expect(target.headers.get('location')).toBeNull();
+    },
+    20000,
+  );
 
   it('still answers 404 for a path that is genuinely unknown', async () => {
     const app = await start('none');

@@ -166,6 +166,20 @@ describe('agentEquipmentRefusal', () => {
     });
     expect(connector?.message).toContain('github');
   });
+
+  it('reads the listing without the creator names the picker shows', async () => {
+    await agentEquipmentRefusal(sql, {
+      ...org,
+      projectId: 'p-1',
+      skills: ['docx'],
+      connectors: [],
+    });
+    expect(composer.listProjectCapabilities).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ projectId: 'p-1' }),
+      { attribution: false },
+    );
+  });
 });
 
 describe('unknownToolGrants', () => {

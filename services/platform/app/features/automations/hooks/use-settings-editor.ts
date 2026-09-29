@@ -155,8 +155,12 @@ export function useSettingsEditor({
     folder,
     settings,
   );
+  // `save` rethrows a refused write, and both of its callers (the settings
+  // dialog and the task setup form) toast it with the refusal's words: the
+  // write's own toast would report it a second time.
   const writeValues = useBackendAction(
     'documents/public_actions:ensureProjectTextDocument',
+    { errorToast: false },
   );
 
   const [edited, setEdited] = useState<ValuesByFile>({});

@@ -717,6 +717,32 @@ console.log(
           `session TMPDIR not on the workspace or too small (got: ${combined.slice(0, 200)})`,
         );
       }
+      // The document skills' baked Node libraries resolve from the workspace
+      // through runnerd's NODE_PATH, and a package the session installs into
+      // its own npm prefix is found before the baked copy.
+      const nodePath = await capture([
+        'docker',
+        'exec',
+        cid,
+        'sh',
+        '-c',
+        `N=$(tr '\\0' '\\n' </proc/1/environ | sed -n 's/^NODE_PATH=//p') && \
+         test "$N" = /agent/.runtime/deps/node/lib/node_modules:/opt/tale/document-node/node_modules && \
+         cd /agent/workspace && \
+         NODE_PATH="$N" node -e "const p = require.resolve('docx'); if (!p.startsWith('/opt/tale/document-node/node_modules/docx/')) throw new Error(p)" && \
+         S=/agent/.runtime/deps/node/lib/node_modules/docx && mkdir -p "$S" && \
+         printf 'module.exports = "session";\\n' > "$S/index.js" && \
+         NODE_PATH="$N" node -e "if (require('docx') !== 'session') throw new Error('baked docx shadowed the session install')"`,
+      ]);
+      if (nodePath.exitCode === 0) {
+        pass(
+          'NODE_PATH resolves the baked document libraries behind the session prefix',
+        );
+      } else {
+        fail(
+          `session NODE_PATH does not layer the baked document libraries (got: ${nodePath.combined.slice(0, 300)})`,
+        );
+      }
     }
   } finally {
     if (cid) await ok(['docker', 'rm', '-f', cid]);

@@ -90,11 +90,15 @@ export function TaskInputFilesCard({
     organizationId,
     projectId,
   });
+  // A file that did not land is named in the pick's one failure toast,
+  // beside the door's reason: these writes stay quiet.
   const { mutateAsync: generateUploadUrl } = useBackendMutation(
     'files/mutations:generateUploadUrl',
+    { errorToast: false },
   );
   const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
     'documents/mutations:createDocumentFromUpload',
+    { errorToast: false },
   );
   const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =
     useDeleteDocument();

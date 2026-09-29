@@ -7,6 +7,7 @@ import { useCallback } from 'react';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendClient } from '@/app/hooks/use-backend-client';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 
@@ -181,8 +182,12 @@ export function useTaskStatusChoreography(
             return 'blocked';
           } catch (error) {
             console.error('[tasks] agent-run start failed', error);
+            const known = taskRunErrorMessage(error, t);
             toast({
-              title: taskRunErrorMessage(error, t) ?? t('agentRun.notStarted'),
+              title: known ?? t('agentRun.notStarted'),
+              // A refusal named above is the whole story; any other says why.
+              description:
+                known === undefined ? failureDetail(error) : undefined,
               variant: 'destructive',
             });
             return 'blocked';

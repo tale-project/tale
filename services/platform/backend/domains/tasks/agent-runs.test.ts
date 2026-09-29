@@ -1,5 +1,5 @@
 import type { Sql, TransactionSql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
@@ -192,6 +192,66 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
     expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('task.agent_retry');
   });
 
+  describe('a start refused while every broker account cools down', () => {
+    const NOW = Date.UTC(2026, 8, 28, 12, 0, 0);
+    const failed = () =>
+      fakeSql((text) =>
+        text.startsWith('UPDATE app.project_agent_runs')
+          ? [{ organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' }]
+          : [],
+      ).sql;
+    beforeEach(() => {
+      vi.mocked(addJobInTx).mockReset();
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(NOW);
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('arms the retry to start when the first account is back', async () => {
+      await failAgentRunFromTurn(failed(), {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'every account is cooling down',
+        failureCode: 'start_failed',
+        retryAtMs: NOW + 42_000,
+      });
+      expect(addJobInTx).toHaveBeenCalledWith(
+        expect.anything(),
+        'task.agent_retry',
+        {
+          organizationId: 'org-1',
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          expectedRunId: 'run-1',
+          startAfterMs: NOW + 42_000,
+        },
+      );
+    });
+
+    it('never holds it past a cooldown, nor for one already over', async () => {
+      await failAgentRunFromTurn(failed(), {
+        runId: 'run-1',
+        error: 'every account is cooling down',
+        failureCode: 'start_failed',
+        retryAtMs: NOW + 10 * 60_000,
+      });
+      await failAgentRunFromTurn(failed(), {
+        runId: 'run-1',
+        error: 'every account is cooling down',
+        failureCode: 'start_failed',
+        retryAtMs: NOW - 1,
+      });
+      expect(
+        vi.mocked(addJobInTx).mock.calls.map(([, , payload]) => payload),
+      ).toEqual([
+        expect.objectContaining({ startAfterMs: NOW + 60_000 }),
+        expect.not.objectContaining({ startAfterMs: expect.anything() }),
+      ]);
+    });
+  });
+
   it('failAgentRunFromTurn: a non-retryable failure records the entry but arms nothing', async () => {
     const { sql } = fakeSql((text) =>
       text.startsWith('UPDATE app.project_agent_runs')
@@ -312,6 +372,29 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
     );
     expect(addJobInTx).toHaveBeenCalledTimes(1);
     expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('task.agent_turn');
+    // Started at once.
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[3]).toEqual({});
+  });
+
+  it('queues a retry at once but holds its start until a cooling broker has an account back', async () => {
+    const { tx } = fakeTx((text) =>
+      text.startsWith('INSERT INTO app.project_agent_runs')
+        ? [{ id: 'run-new' }]
+        : [],
+    );
+    const startAfterMs = Date.now() + 42_000;
+    await kickAgentRun(tx, {
+      ...kick,
+      trigger: 'auto_retry',
+      autoRetryAttempt: 2,
+      startAfterMs,
+    });
+    expect(addJobInTx).toHaveBeenCalledWith(
+      tx,
+      'task.agent_turn',
+      expect.objectContaining({ runId: 'run-new' }),
+      { startAfter: new Date(startAfterMs) },
+    );
   });
 
   it('refuses a live automation without creating an agent run or launch job', async () => {

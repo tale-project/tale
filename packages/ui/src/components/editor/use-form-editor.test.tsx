@@ -7,10 +7,25 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 
+import { EditorSaveCancelledError } from './types';
 import { useFormEditor } from './use-form-editor';
+
+const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
+
+vi.mock('@tale/ui/use-toast', () => ({
+  toast: (...args: unknown[]) => toastMock(...args),
+}));
+
+vi.mock('@tale/ui/i18n/client', () => ({
+  useT: () => ({ t: (key: string) => key }),
+}));
+
+beforeEach(() => {
+  toastMock.mockReset();
+});
 
 interface Form {
   name: string;
@@ -215,5 +230,103 @@ describe('useFormEditor', () => {
       expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'B' })),
     );
     await waitFor(() => expect(holder.current?.isDirty).toBe(false));
+  });
+
+  describe('a native submit that fails', () => {
+    function submitName(
+      name: string,
+      save: (values: Form) => Promise<void>,
+      mapServerError?: (
+        err: unknown,
+      ) => ReadonlyArray<{ path: string; message: string }> | null,
+    ) {
+      const holder: {
+        current: ReturnType<typeof useFormEditor<Form>> | null;
+      } = { current: null };
+      function Harness() {
+        const editor = useFormEditor<Form>({
+          data: { name: 'A', color: '#FF0000' },
+          schema,
+          save,
+          mapServerError,
+        });
+        holder.current = editor;
+        return (
+          <form onSubmit={editor.submit}>
+            <input aria-label="name" {...editor.form.register('name')} />
+            <button type="submit">Save</button>
+          </form>
+        );
+      }
+      const { container } = render(<Harness />);
+      fireEvent.change(screen.getByLabelText('name'), {
+        target: { value: name },
+      });
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+      return holder;
+    }
+
+    // The native submit (Enter, a `type="submit"` Save) bypasses
+    // EditorActions, and the write under `save` keeps its own toast quiet so
+    // the cluster's is the only one: this path used to only log the failure,
+    // so a refused save said nothing at all.
+    it('reports a server failure with the one toast EditorActions raises', async () => {
+      const save = vi.fn().mockRejectedValue(new Error('The name is taken.'));
+      const holder = submitName('B', save);
+
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      expect(toastMock).toHaveBeenCalledWith({
+        title: 'actions.save',
+        description: 'The name is taken.',
+        variant: 'destructive',
+      });
+      expect(holder.current?.isDirty).toBe(true);
+    });
+
+    it("never shows a structured error's payload", async () => {
+      const refusal = Object.assign(new Error('{"code":"FORBIDDEN"}'), {
+        data: { code: 'FORBIDDEN' },
+      });
+      submitName('B', vi.fn().mockRejectedValue(refusal));
+
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'errors.somethingWentWrong' }),
+      );
+    });
+
+    it('stays quiet on a validation failure, shown under its field', async () => {
+      const save = vi.fn().mockResolvedValue(undefined);
+      const holder = submitName('', save);
+
+      await waitFor(() =>
+        expect(holder.current?.form.formState.errors.name).toBeDefined(),
+      );
+      expect(save).not.toHaveBeenCalled();
+      expect(toastMock).not.toHaveBeenCalled();
+    });
+
+    it('stays quiet when the save was cancelled', async () => {
+      const save = vi.fn().mockRejectedValue(new EditorSaveCancelledError());
+      submitName('B', save);
+
+      await waitFor(() => expect(save).toHaveBeenCalled());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(toastMock).not.toHaveBeenCalled();
+    });
+
+    it('stays quiet when the failure maps onto a field', async () => {
+      const save = vi.fn().mockRejectedValue(new Error('taken'));
+      const holder = submitName('B', save, () => [
+        { path: 'name', message: 'That name is taken.' },
+      ]);
+
+      await waitFor(() =>
+        expect(holder.current?.form.formState.errors.name?.message).toBe(
+          'That name is taken.',
+        ),
+      );
+      expect(toastMock).not.toHaveBeenCalled();
+    });
   });
 });

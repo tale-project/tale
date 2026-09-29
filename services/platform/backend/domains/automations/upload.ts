@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import {
@@ -16,6 +16,10 @@ import {
 } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
+import { auditSkillWrite } from '../skills/audit.ts';
+import { assertSkillTeamsAssignable } from '../skills/errors.ts';
+import { maySkillPublishOrgWide } from '../skills/publish.ts';
+import { withSkillWriterLocks } from '../skills/writer-lock.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { bindProject, saveVersion } from './store.ts';
 
@@ -36,6 +40,8 @@ export async function uploadAutomationPg(
     organizationId: string;
     orgSlug: string;
     userId: string;
+    /** The uploader's email, for the audit rows of carried skills. */
+    email?: string;
     role: string;
   },
   args: UploadArgs,
@@ -53,6 +59,18 @@ export async function uploadAutomationPg(
   // `readStagedZip` / `cleanupStagedZip` act on that key alone — never on a
   // bare client ref (the impl calls cleanup in `finally`, refusal included).
   let verifiedKey: string | null = null;
+  /** The uploader's teams in this organization. */
+  const uploaderTeamIds = async (
+    reader: Sql | TransactionSql,
+  ): Promise<string[]> =>
+    (
+      await reader<{ teamId: string }[]>`
+        SELECT tm."teamId" FROM "teamMember" tm
+        JOIN "team" t ON t."id" = tm."teamId"
+        WHERE tm."userId" = ${auth.userId}
+          AND t."organizationId" = ${auth.organizationId}
+      `
+    ).map((row) => row.teamId);
 
   return uploadAutomationImpl(
     {
@@ -131,18 +149,45 @@ export async function uploadAutomationPg(
           );
         }
       },
-      getViewerContext: async () => {
-        const teams = await sql<{ teamId: string }[]>`
-          SELECT tm."teamId" FROM "teamMember" tm
-          JOIN "team" t ON t."id" = tm."teamId"
-          WHERE tm."userId" = ${auth.userId}
-            AND t."organizationId" = ${auth.organizationId}
-        `;
-        return {
-          teamIds: teams.map((row) => row.teamId),
-          isOrgAdmin: defineAbilityFor(auth.role).can('write', 'orgSettings'),
-        };
-      },
+      getViewerContext: async () => ({
+        teamIds: await uploaderTeamIds(sql),
+        isOrgAdmin: defineAbilityFor(auth.role).can('write', 'orgSettings'),
+      }),
+      mayPublishOrgWide: () =>
+        maySkillPublishOrgWide(sql, {
+          organizationId: auth.organizationId,
+          userId: auth.userId,
+          role: auth.role,
+        }),
+      withSkillWriterLocks: (slugs, work) =>
+        withSkillWriterLocks(sql, auth.organizationId, slugs, (tx) =>
+          work({
+            // The held connection also reads the audience: reserving another
+            // here deadlocks when competing writers fill the pool.
+            assertTeamsAssignable: async (teamIds) =>
+              assertSkillTeamsAssignable(tx, {
+                organizationId: auth.organizationId,
+                role: auth.role,
+                teamIds: await uploaderTeamIds(tx),
+              })(teamIds),
+            // Each installed skill's audit row, in the transaction holding
+            // its writer lock — the way the skill doors record theirs.
+            recordSkillWrite: async (write) =>
+              auditSkillWrite(tx, {
+                organizationId: auth.organizationId,
+                slug: write.slug,
+                actor: {
+                  id: auth.userId,
+                  email: auth.email,
+                  role: auth.role,
+                },
+                via: 'automation_package',
+                previous: write.previous,
+                current: write.current,
+                filesChanged: write.filesChanged,
+              }),
+          }),
+        ),
     },
     args,
   );

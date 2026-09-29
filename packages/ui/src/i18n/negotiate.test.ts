@@ -231,6 +231,24 @@ describe('stripLocalePrefix', () => {
     expect(stripLocalePrefix('/frames/x')).toBeNull();
   });
 
+  it.each([
+    '/de//outside.invalid/page',
+    '/fr///outside.invalid/page',
+    '/de/\\outside.invalid/page',
+  ])('refuses a prefix removal that makes %s an off-site URL', (pathname) => {
+    expect(stripLocalePrefix(pathname)).toBeNull();
+    const browserPath = new URL(pathname, 'https://docs.example').pathname;
+    expect(stripLocalePrefix(browserPath)).toBeNull();
+  });
+
+  it('can strip only the English alias without changing the default locales', () => {
+    expect(stripLocalePrefix('/en', ['en'])).toBe('/');
+    expect(stripLocalePrefix('/en/docs', ['en'])).toBe('/docs');
+    expect(stripLocalePrefix('/en//outside.invalid', ['en'])).toBeNull();
+    expect(stripLocalePrefix('/de/docs', ['en'])).toBeNull();
+    expect(stripLocalePrefix('/en/docs')).toBeNull();
+  });
+
   it('only strips the FIRST segment', () => {
     expect(stripLocalePrefix('/docs/de/button')).toBeNull();
     expect(stripLocalePrefix('/de/de/button')).toBe('/de/button');

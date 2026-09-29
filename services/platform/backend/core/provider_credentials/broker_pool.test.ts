@@ -200,6 +200,109 @@ describe('diagnoseTokenMapping', () => {
     expect(diagnostics.unavailableCount).toBe(2);
   });
 
+  it('keeps an account held back only for its coming refresh as a fallback, the latest refresh first', () => {
+    const HOUR = 3_600_000;
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        { id: 'a', access_token: 'available', status: 'active' },
+        {
+          id: 'b',
+          access_token: 'refresh-soon',
+          status: 'active',
+          available: false,
+          available_at: new Date(NOW + HOUR / 2).toISOString(),
+          hold: 'refresh',
+        },
+        {
+          id: 'c',
+          access_token: 'refresh-due',
+          status: 'active',
+          available: false,
+          available_at: null,
+          hold: 'refresh',
+        },
+        {
+          id: 'd',
+          access_token: 'refresh-later',
+          status: 'active',
+          available: false,
+          available_at: new Date(NOW + HOUR).toISOString(),
+          hold: 'refresh',
+        },
+        {
+          id: 'e',
+          access_token: 'quota-spent',
+          status: 'active',
+          available: false,
+          available_at: new Date(NOW + HOUR).toISOString(),
+          hold: 'quota',
+        },
+        // A gateway from before `hold` held its floor this way.
+        {
+          id: 'f',
+          access_token: 'no-hold-named',
+          status: 'active',
+          available: false,
+          available_at: new Date(NOW + HOUR).toISOString(),
+        },
+        {
+          id: 'g',
+          access_token: 'hold-unknown',
+          status: 'active',
+          available: false,
+          hold: 'maintenance',
+        },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+    );
+    expect(diagnostics.usableTokens).toEqual(['available']);
+    // Most life left first; a refresh already due has none to promise.
+    expect(diagnostics.heldAccounts.map((account) => account.token)).toEqual([
+      'refresh-later',
+      'refresh-soon',
+      'refresh-due',
+    ]);
+    expect(diagnostics.unavailableCount).toBe(3);
+  });
+
+  it('holds a refresh-held account to every other filter', () => {
+    const held = {
+      status: 'active',
+      provider: 'openai',
+      account_id: 'vendor-held',
+      available: false,
+      available_at: NOW + 60_000,
+      hold: 'refresh',
+    };
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        { ...held, access_token: 'kept' },
+        { ...held, access_token: 'wrong-provider', provider: 'anthropic' },
+        { ...held, access_token: 'no-vendor-account', account_id: null },
+        { ...held, access_token: 'inactive', status: 'expired' },
+        { ...held, access_token: 'expiring', expires_at: NOW + SKEW - 1_000 },
+        { ...held, access_token: 'kept' },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+      'openai',
+      true,
+    );
+    expect(diagnostics.heldAccounts).toEqual([
+      { token: 'kept', accountId: 'vendor-held' },
+    ]);
+    expect(diagnostics.usableTokens).toEqual([]);
+    expect(diagnostics).toMatchObject({
+      providerMismatchCount: 1,
+      missingAccountIdCount: 1,
+      inactiveCount: 1,
+      expiredCount: 1,
+    });
+  });
+
   it('drops a Tale AI gateway token inside the hand-out floor when refresh_at is the mapped expiry', () => {
     // The strict mapping the broker reference describes: `refresh_at` —
     // when the gateway's refresh revokes the token — with an hour's safety

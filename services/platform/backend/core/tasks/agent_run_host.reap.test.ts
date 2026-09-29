@@ -154,6 +154,10 @@ function makeCtx(run: RunState) {
           discussion: [],
         };
       }
+      // No Custom instructions policy in this organization.
+      if (name === 'governance/internal_queries:getPolicyConfigInternal') {
+        return null;
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {

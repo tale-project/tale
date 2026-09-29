@@ -11,7 +11,6 @@ import {
 } from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
-import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
 import { CircleHelp, Plus, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -361,8 +360,8 @@ export function AssigneePicker({
       setPending(null);
       setPendingLiveRun(null);
     } catch (error) {
+      // The cancel's own toast reports the failure.
       console.error('[tasks] handoff cancel-then-reassign failed', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
     } finally {
       setHandoffBusy(false);
     }

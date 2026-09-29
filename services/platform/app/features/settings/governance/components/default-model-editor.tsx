@@ -372,7 +372,7 @@ export function DefaultModelEditor({
     organizationId,
     'model_access',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { teams } = useOrgTeams();
   const { providers } = useListProviders(organizationId);
 
