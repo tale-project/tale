@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   getKnowledgePoolForOrg,
@@ -210,9 +210,10 @@ async function readCorpusStatuses(
  *    and the org's rows after it are still settled: the candidates come in
  *    a fixed order, so a row whose write keeps failing (a lock held across
  *    ticks) would otherwise hold back every row queued after it, tick after
- *    tick. Two writes failing in a row stop that org's sweep, since the
- *    connection is the likelier cause; the rows it already settled still
- *    reach the lists;
+ *    tick. A write waits for its row's lock only briefly and then throws
+ *    ({@link settleWrite}), so a lock is such a fault too. Two writes
+ *    failing in a row stop that org's sweep, since the connection is the
+ *    likelier cause; the rows it already settled still reach the lists;
  *  - any other fault in one org (its slug read) defers that org alone, and
  *    the orgs after it are still swept;
  *  - a recent `failed` row is reconciled too, so a false failure heals —
@@ -335,9 +336,9 @@ async function settleOrganizationRagRows(
         timing,
       );
     } catch (error) {
-      // A write that throws — a lock or statement timeout, a dropped
-      // connection — defers its own row to the next tick, and the rows
-      // after it are still tried. Each write is its own statement, so the
+      // A write that throws — a row lock held past `settleWrite`'s timeout,
+      // a dropped connection — defers its own row to the next tick, and the
+      // rows after it are still tried. Each write commits on its own, so the
       // rows already settled stay settled and are still told below.
       console.warn(
         `[watchdog] rag settle failed for file ${row.id} in org ${orgSlug}; deferring it:`,
@@ -394,27 +395,33 @@ async function settleRagRow(
 ): Promise<RagSettle | null> {
   const { now, staleMs } = timing;
   if (status?.status === 'completed') {
-    const moved = await sql<{ id: string }[]>`
-      UPDATE app.file_metadata SET
-        rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
-        rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
-      WHERE id = ${row.id}
-      RETURNING id
-    `;
+    const moved = await settleWrite(
+      sql,
+      (tx) => tx<{ id: string }[]>`
+        UPDATE app.file_metadata SET
+          rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
+          rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
+        WHERE id = ${row.id}
+        RETURNING id
+      `,
+    );
     return { moved, counts: 'adopted' };
   }
   if (status?.status === 'failed') {
     if (row.ragStatus !== 'failed') {
       // The corpus knows the REAL error; the generic text stands in only
       // for none.
-      const moved = await sql<{ id: string }[]>`
-        UPDATE app.file_metadata SET
-          rag_status = 'failed',
-          rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
-          status_changed_at_ms = ${now}
-        WHERE id = ${row.id}
-        RETURNING id
-      `;
+      const moved = await settleWrite(
+        sql,
+        (tx) => tx<{ id: string }[]>`
+          UPDATE app.file_metadata SET
+            rag_status = 'failed',
+            rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
+            status_changed_at_ms = ${now}
+          WHERE id = ${row.id}
+          RETURNING id
+        `,
+      );
       return { moved, counts: 'failed' };
     }
     // Already failed: the corpus's error replaces the row's. Without one the
@@ -427,11 +434,14 @@ async function settleRagRow(
     // every tick. Another text is corrected in place — the status has not
     // changed, so neither does its clock.
     if (row.ragError === error) return null;
-    const moved = await sql<{ id: string }[]>`
-      UPDATE app.file_metadata SET rag_error = ${error}
-      WHERE id = ${row.id} AND rag_status = 'failed'
-      RETURNING id
-    `;
+    const moved = await settleWrite(
+      sql,
+      (tx) => tx<{ id: string }[]>`
+        UPDATE app.file_metadata SET rag_error = ${error}
+        WHERE id = ${row.id} AND rag_status = 'failed'
+        RETURNING id
+      `,
+    );
     return { moved, counts: null };
   }
   if (status?.status === 'processing') {
@@ -443,25 +453,51 @@ async function settleRagRow(
       // A live chain under a `failed` row is a false failure — flip it
       // back so the person watches real progress, not a wrong error.
       if (row.ragStatus !== 'failed') return null;
-      const moved = await sql<{ id: string }[]>`
-        UPDATE app.file_metadata SET
-          rag_status = 'running', rag_error = NULL,
-          rag_error_code = NULL, status_changed_at_ms = ${now}
-        WHERE id = ${row.id}
-        RETURNING id
-      `;
+      const moved = await settleWrite(
+        sql,
+        (tx) => tx<{ id: string }[]>`
+          UPDATE app.file_metadata SET
+            rag_status = 'running', rag_error = NULL,
+            rag_error_code = NULL, status_changed_at_ms = ${now}
+          WHERE id = ${row.id}
+          RETURNING id
+        `,
+      );
       return { moved, counts: 'revived' };
     }
   }
   // Stale `processing` or never ingested: the job will not finish. An
   // already-failed row keeps its own (possibly real) error.
   if (row.ragStatus === 'failed') return null;
-  const moved = await sql<{ id: string }[]>`
-    UPDATE app.file_metadata SET
-      rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
-      status_changed_at_ms = ${now}
-    WHERE id = ${row.id}
-    RETURNING id
-  `;
+  const moved = await settleWrite(
+    sql,
+    (tx) => tx<{ id: string }[]>`
+      UPDATE app.file_metadata SET
+        rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
+        status_changed_at_ms = ${now}
+      WHERE id = ${row.id}
+      RETURNING id
+    `,
+  );
   return { moved, counts: 'failed' };
+}
+
+/**
+ * One settle write, in a transaction of its own that waits at most two
+ * seconds for a lock. The app pool sets no lock timeout, so a row another
+ * transaction held kept the write waiting for as long as that transaction
+ * ran — and the whole sweep with it, every organization after this one
+ * included, until pg-boss expired the job. Past the timeout the write throws
+ * `lock_not_available`, and the caller defers that row alone to the next
+ * tick. Set for this transaction only: every other statement on the pool
+ * keeps waiting as it did.
+ */
+function settleWrite(
+  sql: Sql,
+  write: (tx: TransactionSql) => Promise<{ id: string }[]>,
+): Promise<{ id: string }[]> {
+  return sql.begin(async (tx) => {
+    await tx`SET LOCAL lock_timeout = '2s'`;
+    return write(tx);
+  });
 }

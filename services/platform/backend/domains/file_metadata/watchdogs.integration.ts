@@ -7,9 +7,12 @@
  *    slot ahead of it: the stuck row is failed in one tick. Those rows are
  *    neither rewritten nor told to a list, tick after tick; a failed row
  *    whose corpus row has another error is corrected once, its status clock
- *    kept.
+ *    kept;
+ *  - a row lock another transaction holds costs the tick its lock timeout
+ *    and no more: the tick comes back with that row deferred and the row
+ *    after it settled.
  *
- * On organizations of its own. The candidate read is global, so the
+ * Each on organizations of its own. The candidate read is global, so the
  * rows here are queued before the epoch (negative queue times) and lead
  * every batch, whatever other rows the database holds.
  */
@@ -39,6 +42,7 @@ export async function checkRagWatchdogBatch(
   record: Record,
 ): Promise<void> {
   await checkSettledFailures(sql, record);
+  await checkHeldRowLock(sql, record);
 }
 
 async function insertOrganization(
@@ -232,5 +236,78 @@ async function checkSettledFailures(sql: Sql, record: Record): Promise<void> {
     );
   } finally {
     await removeOrganizations(sql, [settledOrg, correctedOrg]);
+  }
+}
+
+async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
+  const org = await insertOrganization(sql, 'lock');
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let holder: Promise<unknown> = Promise.resolve();
+  try {
+    const names = ['first.pdf', 'locked.pdf', 'after.pdf'];
+    const rows = await sql<{ id: string; name: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        rag_queued_at_ms, created_at_ms
+      )
+      SELECT ${org.id}, ${`s3:itest/${org.slug}/`}::text || name, name,
+             'application/pdf', 1, 'running', ${-Date.now()}::bigint + i,
+             ${Date.now()}::bigint
+      FROM unnest(${names}::text[]) WITH ORDINALITY AS t(name, i)
+      RETURNING id, file_name AS name
+    `;
+    const locked = rows.find((row) => row.name === 'locked.pdf');
+    // Another transaction holds the middle row, as a document bind holds
+    // its file row, and keeps holding it until released.
+    let taken = () => {};
+    const lockTaken = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
+    holder = sql.begin(async (tx) => {
+      await tx`
+        SELECT id FROM app.file_metadata WHERE id = ${locked?.id ?? ''}
+        FOR UPDATE
+      `;
+      taken();
+      await released;
+    });
+    await Promise.race([lockTaken, holder]);
+
+    const started = Date.now();
+    const sweep = recoverStuckRagIndexing(sql, { limit: rows.length });
+    const returned = await Promise.race([
+      sweep.then(() => true),
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(false), 15_000);
+      }),
+    ]);
+    const elapsedMs = Date.now() - started;
+    release();
+    await holder;
+    const outcome = await sweep;
+    const after = await sql<{ name: string; status: string | null }[]>`
+      SELECT file_name AS name, rag_status AS status
+      FROM app.file_metadata WHERE org_id = ${org.id}
+    `;
+    const statusOf = (name: string) =>
+      after.find((row) => row.name === name)?.status;
+    record(
+      'rag watchdog: a row lock held past the settle lock timeout defers that row alone',
+      returned &&
+        elapsedMs < 10_000 &&
+        statusOf('first.pdf') === 'failed' &&
+        statusOf('locked.pdf') === 'running' &&
+        statusOf('after.pdf') === 'failed',
+      `returned while the lock was held=${returned} after ${elapsedMs} ms (want < 10000), first=${statusOf('first.pdf')} locked=${statusOf('locked.pdf')} (want running) after=${statusOf('after.pdf')}, tick=${JSON.stringify(outcome)}`,
+    );
+  } finally {
+    release();
+    await holder.catch((error: unknown) => {
+      console.warn('[itest] rag watchdog lock holder failed:', error);
+    });
+    await removeOrganizations(sql, [org]);
   }
 }

@@ -10,12 +10,13 @@
  * reads the corpus's error is settled: nothing is written and no list is
  * told, and another text is corrected without moving the row's status clock.
  * The stuck rows are read ahead of the failed ones. Each organization's
- * document lists hear a sweep once, and only for rows a document holds. A
- * write that throws defers its own row and no other: the rows after it are
- * still settled and told, only two faults in a row stop the organization,
- * and no fault in one organization, its slug read included, stops the sweep
- * of the organizations after it. The stale-window scan, the batch order and
- * the adopt/revive rules ride the real-Postgres probes in
+ * document lists hear a sweep once, and only for rows a document holds. Every
+ * write runs in a transaction of its own under a lock timeout, and a write
+ * that throws defers its own row and no other: the rows after it are still
+ * settled and told, only two faults in a row stop the organization, and no
+ * fault in one organization, its slug read included, stops the sweep of the
+ * organizations after it. The stale-window scan, the batch order, a real row
+ * lock and the adopt/revive rules ride the real-Postgres probes in
  * `integration-check.ts` and `watchdogs.integration.ts`.
  */
 
@@ -41,6 +42,8 @@ vi.mock('../../realtime/outbox.ts', () => ({
 interface Statement {
   text: string;
   values: unknown[];
+  /** The `sql.begin` the statement ran in, numbered; null outside one. */
+  transaction: number | null;
 }
 
 interface Candidate {
@@ -66,6 +69,9 @@ interface CorpusRow {
  * snapshot and the status write, as the real-Postgres lane proves too. The
  * status write of each row in `failWrites` throws, as a lock timeout would,
  * and the slug read of `failSlugFor` throws, as a dropped connection would.
+ * `begin` runs its body on a handle whose statements carry the
+ * transaction's number; a throw in the body is the begin's, as a rolled-back
+ * transaction's is.
  */
 function fakeSql(
   candidates: Candidate[],
@@ -131,12 +137,21 @@ function fakeSql(
     }
     return Promise.resolve([]);
   };
-  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('?').replace(/\s+/g, ' ').trim();
-    statements.push({ text, values });
-    return answer(text, values);
-  };
-  const sql = Object.assign(fn, { unsafe: (raw: string) => raw });
+  let transactions = 0;
+  const handle =
+    (transaction: number | null) =>
+    (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      statements.push({ text, values, transaction });
+      return answer(text, values);
+    };
+  const sql = Object.assign(handle(null), {
+    unsafe: (raw: string) => raw,
+    begin: async (body: (tx: unknown) => Promise<unknown>) => {
+      transactions += 1;
+      return body(handle(transactions));
+    },
+  });
   return { sql: sql as unknown as Sql, statements };
 }
 
@@ -358,6 +373,64 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
     expect(read?.text).toMatch(
       /ORDER BY \(rag_status = 'failed'\), coalesce\(rag_queued_at_ms, created_at_ms\) LIMIT \?$/,
     );
+  });
+});
+
+describe('recoverStuckRagIndexing — a lock held on a row', () => {
+  // The app pool sets no lock timeout: a row another transaction held made
+  // the write wait for as long as that transaction ran, and the whole sweep
+  // with it. Only a write that throws reaches the per-row isolation.
+  it('runs every status write in a transaction of its own, under a lock timeout', async () => {
+    const { sql, statements } = fakeSql([
+      candidate('fm_done'),
+      candidate('fm_known', 'failed'),
+      candidate('fm_loud'),
+      candidate('fm_live', 'failed'),
+      candidate('fm_dead'),
+    ]);
+    corpusAnswering([
+      {
+        file_id: 's3:fm_done',
+        status: 'completed',
+        error: null,
+        updated_at: null,
+      },
+      {
+        file_id: 's3:fm_known',
+        status: 'failed',
+        error: 'The embedding server answered 503.',
+        updated_at: null,
+      },
+      {
+        file_id: 's3:fm_loud',
+        status: 'failed',
+        error: 'No text extractor exists for "loud.bin".',
+        updated_at: null,
+      },
+      {
+        file_id: 's3:fm_live',
+        status: 'processing',
+        error: null,
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 60_000 });
+
+    // An adoption, a corrected text, a corpus failure, a revival and an
+    // interrupted run: every kind of write the sweep sends.
+    expect(result).toEqual({ adopted: 1, failed: 2, revived: 1 });
+    const writes = writesOf(statements);
+    expect(writes).toHaveLength(5);
+    for (const write of writes) {
+      expect(write.transaction).not.toBeNull();
+      expect(
+        statements
+          .filter((s) => s.transaction === write.transaction)
+          .map((s) => s.text),
+      ).toEqual(["SET LOCAL lock_timeout = '2s'", write.text]);
+    }
+    expect(new Set(writes.map((write) => write.transaction)).size).toBe(5);
   });
 });
 
