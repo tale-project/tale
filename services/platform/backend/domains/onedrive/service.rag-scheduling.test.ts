@@ -8,7 +8,9 @@
  * never succeed, and REST `pending`. It is now handed to the lane that lands
  * such a file on the terminal `unsupported` + `unsupported_type` state the
  * indexer gives it, and never queued; the list hides Reindex for that status
- * (`document-row-actions.test.tsx`) and the retry door refuses it.
+ * (`document-row-actions.test.tsx`) and the retry door refuses it. Every
+ * decision is the stored file's — the name and type the indexer reads — and
+ * never the document's title or type, which are renamed on their own.
  *
  * The unit here only decides which knowledge helper runs, with what: the
  * helpers' own statements and hints — which names they write, the sentence,
@@ -79,6 +81,8 @@ function fakeSql(
 }
 
 const LOOP = { title: 'standup.loop', mimeType: 'application/octet-stream' };
+const DOCX =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 /** Neither lane ran: no terminal state, no queued run. */
 function expectUntouched(): void {
@@ -139,54 +143,65 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
 
   // A document title is renamed on its own (REST PATCH, the app's rename);
   // the indexer reads the stored file name, so a title that merely looks
-  // like an unknown extension must never be what the terminal lane judges —
-  // it writes nothing for a name an extractor reads.
+  // like an unknown extension (`09`, `2026`) must never keep a readable file
+  // from its run: a rescan re-queues one whose last run failed.
   it.each([
-    [
-      'Minutes 27.09',
-      'Minutes 27.09.docx',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ],
+    ['Minutes 27.09', 'minutes.docx', DOCX],
+    ['Minutes 27.09', 'Minutes 27.09.docx', DOCX],
     ['Board minutes 27.09.2026', 'minutes.pdf', 'application/pdf'],
   ])(
-    'judges by the file name, not a renamed title (%s)',
+    're-queues a failed file retitled %s (stored as %s)',
     async (title, fileName, mimeType) => {
-      const { sql } = fakeSql(
+      const { sql, tx } = fakeSql(
         { title, mimeType },
         { fileName, ragStatus: 'failed' },
       );
 
       await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
-      expect(markRagUnsupportedIfNoExtractor).toHaveBeenCalledWith(
-        sql,
-        'file-1',
-        fileName,
-      );
-      expect(markRagUnsupportedIfNoExtractor).not.toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        title,
-      );
+      expect(markRagQueued).toHaveBeenCalledTimes(1);
+      expect(markRagQueued).toHaveBeenCalledWith(tx, 'file-1');
+      expect(addJobInTx).toHaveBeenCalledWith(tx, 'rag.index_file', {
+        fileId: 'file-1',
+      });
+      expect(markRagUnsupportedIfNoExtractor).not.toHaveBeenCalled();
     },
   );
 
-  it('names the stored file to the terminal lane, not the title', async () => {
-    const { sql } = fakeSql(
+  // The reverse: a document that reads as a supported type never queues a
+  // stored file no extractor reads — the indexer would only refuse the job.
+  it.each([
+    [
+      'a title without the extension',
       { title: 'Standup', mimeType: 'application/octet-stream' },
-      { fileName: 'standup.loop' },
-    );
+    ],
+    [
+      'a title ending in .pdf',
+      { title: 'Standup notes.pdf', mimeType: 'application/octet-stream' },
+    ],
+    [
+      'a document typed as a PDF',
+      { title: 'Standup', mimeType: 'application/pdf' },
+    ],
+  ])(
+    'hands the stored `.loop` to the terminal lane under %s',
+    async (_label, doc) => {
+      const { sql } = fakeSql(doc, {
+        fileName: 'standup.loop',
+        contentType: 'application/octet-stream',
+      });
 
-    await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+      await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
 
-    expect(markRagUnsupportedIfNoExtractor).toHaveBeenCalledWith(
-      sql,
-      'file-1',
-      'standup.loop',
-    );
-    expect(markRagQueued).not.toHaveBeenCalled();
-    expect(addJobInTx).not.toHaveBeenCalled();
-  });
+      expect(markRagUnsupportedIfNoExtractor).toHaveBeenCalledWith(
+        sql,
+        'file-1',
+        'standup.loop',
+      );
+      expect(markRagQueued).not.toHaveBeenCalled();
+      expect(addJobInTx).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(['completed', 'running', 'queued'])(
     'leaves a %s file as it is',
