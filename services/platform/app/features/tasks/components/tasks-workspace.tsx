@@ -14,7 +14,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tabs } from '@tale/ui/tabs';
 import { useDebounce } from '@tale/ui/use-debounce';
 import { Plus } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
@@ -216,11 +216,15 @@ export function TasksWorkspace({
     }
   }
   // The route hands a new callback on every render, and a `?task=` change is
-  // one. Read the latest through a ref so the open handler keeps one
+  // one. The open handler reads the latest one through a ref so it keeps one
   // identity: the memoized board and list then skip every render the dialog
   // causes, where each open and close re-rendered all cards twice (#3939).
+  // The ref follows the committed props, as `useFocusHandoff` does: a render
+  // React discards never hands its callback to a later click.
   const onOpenTaskParamChangeRef = useRef(onOpenTaskParamChange);
-  onOpenTaskParamChangeRef.current = onOpenTaskParamChange;
+  useLayoutEffect(() => {
+    onOpenTaskParamChangeRef.current = onOpenTaskParamChange;
+  });
   const setOpenTaskId = useCallback(
     (taskId: string | null, taskProjectId?: string) => {
       setOpenTaskIdState(taskId);

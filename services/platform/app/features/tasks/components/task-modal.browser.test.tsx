@@ -269,9 +269,12 @@ describe.each([
 /**
  * The board drives its task dialog from ONE value, the open task's id: `open`
  * is `id !== null`, and a close clears the id in the same update
- * (TasksWorkspace), as the browser's Back does through the `?task=` sync.
- * Radix and vaul then keep the content mounted for the exit animation, which
- * used to render the empty create form at its own height (#3939).
+ * (TasksWorkspace). The browser's Back ends in that same update, through the
+ * `?task=` sync; this harness has no router, so it clears the id itself. The
+ * native Back (history, router, the sync) is the production-build probe's
+ * (`TASK-F53`). Radix and vaul then keep the content mounted for the exit
+ * animation, which used to render the empty create form at its own height
+ * (#3939).
  */
 const board = {
   setOpenId: (_id: string | null): void => {
@@ -395,8 +398,9 @@ describe.each([
       },
     },
     {
-      // The `?task=` sync clears the id without going through the dialog.
-      way: 'browser Back',
+      // What Back ends in: the `?task=` sync clears the id without going
+      // through the dialog. Not the browser's own Back (no router here).
+      way: 'the id clearing, as Back does',
       close: async () => {
         act(() => board.setOpenId(null));
       },

@@ -172,6 +172,37 @@ beforeEach(() => {
   renders.clear();
 });
 
+// The open handler keeps one identity for the memoized board, so it reads
+// the route's callback through a ref: a click must still reach the callback
+// of the latest committed render, and a new callback alone must re-render no
+// card.
+describe('TasksWorkspace — the route callback an open reaches', () => {
+  it("calls the latest committed callback, not the first render's", async () => {
+    const user = userEvent.setup();
+    const first = vi.fn();
+    const latest = vi.fn();
+    const workspace = (
+      onOpenTaskParamChange: (taskId: string | null) => void,
+    ) => (
+      <TasksWorkspace
+        organizationId="org-1"
+        projectId="project-1"
+        view="board"
+        onViewChange={() => {}}
+        onOpenTaskParamChange={onOpenTaskParamChange}
+      />
+    );
+    const { rerender } = render(workspace(first));
+    const before = new Map(renders);
+    rerender(workspace(latest));
+    expect(renders).toEqual(before);
+
+    await user.click(screen.getByRole('button', { name: 'Task b' }));
+    expect(latest).toHaveBeenCalledExactlyOnceWith('b');
+    expect(first).not.toHaveBeenCalled();
+  });
+});
+
 describe.each(['board', 'list'] as const)(
   'TasksWorkspace — a task dialog over the %s',
   (view) => {
