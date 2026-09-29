@@ -135,6 +135,6 @@ Unbekannte Frontmatter-Schlüssel bleiben erhalten. Die Frontmatter darf bis zu 
 
 Öffne eine Zeile, um Beschreibung, Anweisungen, Labels und Sichtbarkeit zu ändern. Unter **Bundle** kannst du ergänzende Dateien prüfen. Agenten sind nicht an eine bestimmte Fassung gebunden: Beim nächsten Bereitstellen wird das aktuelle Bundle verwendet. Teste gemeinsame Änderungen deshalb mit einer typischen Aufgabe.
 
-Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Ignoriert er einen zugeordneten Skill, nenne den gewünschten Skill ausdrücklich in der Aufgabe und prüfe das Ergebnis anhand seiner Anweisungen. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
+Findet ein Agent den Skill nicht, prüfe seine Ausstattung und die Sichtbarkeit für das Projekt. Tale zeigt ihm einen Beschreibungsauszug von bis zu 300 Zeichen als Auswahlhilfe. Beschreibe deshalb zuerst, wann der Skill passt. Ignoriert er einen zugeordneten Skill, nenne ihn in der Aufgabe und prüfe das Ergebnis anhand seiner Anweisungen. [Skills für Agenten](/de/platform/agents/skills) erklärt, wie das zugeordnete Bundle bereitgestellt und dem Agenten genannt wird.
 
 Prüfe bei einem Importfehler, ob `SKILL.md` im Stammverzeichnis liegt, gültige Frontmatter enthält und einen gültigen Namen hat. Die Fehlermeldung nennt abgelehnte Pfade oder Größenlimits. Zum Entfernen öffne das Bundle und wähle nach Prüfung der betroffenen Agenten **Skill löschen**.

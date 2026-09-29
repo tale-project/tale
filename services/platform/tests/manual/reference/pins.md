@@ -24,6 +24,7 @@ time you are tempted to shorten one.
 
 | Box | What it pins |
 |---|---|
+| `SKILL-F15` | Ordinary invoice checks do not prove that a model read a skill: it may check totals without one. The heading appears only in the skill body, and the turn must read that file. The automated staging checks (`agent_host.skill_lines.test.ts`, `agent_host.skills_staging.test.ts`) prove which selection hints and files reach the harness, not a live model's compliance. |
 | `AUTH-B12` | The first answer that says the session ended opens a confirmation (AUTH-B14), interrupting the box's (a)–(e). The dashboard re-checks with Better Auth first and holds the page when that re-check gets no answer, the rule that keeps a network blip from signing anyone out; blocking `get-session` is that blip on purpose. `use-session-lapse-redirect.test.ts` holds the rule. |
 | `AUTH-F18` | Better Auth's browser fetch plugin already follows successful consent/continuation responses. A second navigation can race the callback's one-use state and code; `oauth-authorization.test.tsx` pins single redirect ownership, StrictMode continuation and both consent actions. |
 | `SET-A7` | The device label and revoked badge competed for one non-wrapping flex row, so a long label shrank the badge into an ellipsis. The group wraps and the status keeps its intrinsic width. This box holds visible EN/DE/FR status text at desktop and narrow widths; `webdav-settings.test.tsx` separately holds active/null and revoked action states. |
