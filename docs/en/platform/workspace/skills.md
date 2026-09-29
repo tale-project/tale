@@ -125,6 +125,6 @@ Tale preserves unrecognized frontmatter keys. The frontmatter limit is 16 KB and
 
 Open a row to edit its description, instructions, labels, and visibility. The **Bundle** tree lets you inspect supporting files. Changes are not pinned per agent: later staging uses the current bundle, so test shared changes with a representative task.
 
-If an agent cannot find the skill, check that it is equipped and visible to the project. If it ignores an equipped skill, state explicitly in the task which skill to use and check the result against its instructions. Read [Skills on agents](/platform/agents/skills) for how the equipped bundle is staged and presented to the agent.
+If an agent cannot find the skill, check that it is equipped and visible to the project. Tale shows the agent a description excerpt of up to 300 characters to help it choose a relevant skill, so start the description with when the skill applies. If it ignores an equipped skill, name the skill in the task and check the result against its instructions. Read [Skills on agents](/platform/agents/skills) for how the equipped bundle is staged and presented to the agent.
 
 For an import error, check that `SKILL.md` is at the root, its frontmatter is valid, and its name is a valid slug. The error names rejected paths or size limits. To retire a bundle, open it and choose **Delete skill** after checking the affected agents.
