@@ -1,0 +1,72 @@
+import type { ReactNode, ErrorInfo } from 'react';
+
+/**
+ * Props passed to error fallback render functions
+ */
+export interface ErrorFallbackProps {
+  /** The error that was caught */
+  error: Error;
+  /** Organization ID for support links */
+  organizationId?: string;
+  /** Function to reset the error boundary */
+  reset: () => void;
+  /** Optional custom header content */
+  header?: ReactNode;
+}
+
+/**
+ * Base props for all error boundary components
+ */
+export interface ErrorBoundaryBaseProps {
+  /** Child components to wrap with error boundary */
+  children: ReactNode;
+  /** Function to render fallback UI when error occurs */
+  fallback: (props: ErrorFallbackProps) => ReactNode;
+  /** Callback when error is caught */
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
+  /** Callback when reset is triggered */
+  onReset?: () => void;
+  /** Array of values that trigger boundary reset when changed */
+  resetKeys?: unknown[];
+  /** Organization ID for context */
+  organizationId?: string;
+  /** Max auto-retries for transient errors before showing fallback (default: 0) */
+  maxRetries?: number;
+  /** Predicate to determine if an error is transient and should be retried */
+  isRetryableError?: (error: Error) => boolean;
+  /**
+   * Rendered during an auto-retry's backoff window (while `isRetrying`) in
+   * place of the default `null`. Lets a boundary hold a skeleton/placeholder
+   * instead of collapsing to blank when it has no Suspense ancestor to drive
+   * the loading state. Omitting it preserves the original null behaviour.
+   */
+  retryingFallback?: ReactNode;
+}
+
+/**
+ * Internal state for error boundary class component
+ */
+export interface ErrorBoundaryState {
+  /** Whether an error has been caught */
+  hasError: boolean;
+  /** The caught error, if any */
+  error: Error | null;
+  /** Number of auto-retries attempted */
+  retryCount: number;
+  /** Whether an auto-retry is scheduled */
+  isRetrying: boolean;
+}
+
+/**
+ * Context value provided by error boundary
+ */
+export interface ErrorBoundaryContextValue {
+  /** Whether an error has occurred */
+  hasError: boolean;
+  /** The current error, if any */
+  error: Error | null;
+  /** Function to reset the error boundary */
+  reset: () => void;
+  /** Organization ID for support links */
+  organizationId?: string;
+}
