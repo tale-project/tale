@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 59 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -521,6 +521,15 @@ subject.
   door refuses is counted as failed in that same toast, beside the reason
   the door gave (`conversations.bulk.outcomeWithReason`), and its rows stay
   ticked for another try.
+- [ ] `CONV-F35` · **A synced Gmail attachment opens** — With **Sync Gmail
+  emails** deployed on a connected Gmail mailbox, mail that mailbox one email
+  carrying a PDF and an inline image referenced from its HTML body, plus a
+  second email with one PDF over 4 MB, and let the sync run → In the first
+  conversation the inline image renders inside the message body, and the PDF
+  sits under **1 attachment** (`conversations.attachment.attachments`) with a
+  **Download** (`conversations.attachment.download`) control that saves the
+  identical file. The large PDF is still listed with its name and size, with
+  no **Download**, and the rest of the message reads normally.
 
 ## Boundary & error tests
 

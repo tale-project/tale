@@ -29,6 +29,8 @@ Diese Workflows übernehmen alle fünf Minuten neue Nachrichten in Konversatione
 
 Verbinde zuerst das passende Postfach. Prüfe nach dem ersten Live-Lauf das [Ausführungsprotokoll](/de/platform/automations/execution-logs) und ob die erwarteten Nachrichten im Bereich **Start** in der Ansicht **Inbox** erscheinen.
 
+Anhänge werden mit ihrer Nachricht gespeichert, du öffnest und lädst sie also direkt in der Konversation herunter. Aus Gmail übernimmt Tale jeden Anhang nur bis 3,5 MB: Ein größerer erscheint weiterhin mit Name und Größe, öffnen kannst du ihn aber nur in Gmail.
+
 ## Aktuelle E-Mails zusammenfassen lassen
 
 Diese Workflows lesen alle sechs Stunden die neuesten Nachrichten aller verbundenen Postfächer ihrer Art. Sie liefern eine Zusammenfassung und benennen Nachrichten, die offenbar heute eine Antwort brauchen. Die Zusammenfassung ist die Ausgabe des Laufs; öffne ihn zum Lesen. Ins Postfach wird nichts zurückgeschrieben, und der Status von Konversationen bleibt unverändert.

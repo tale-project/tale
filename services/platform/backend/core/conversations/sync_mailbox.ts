@@ -29,10 +29,15 @@ import type { Id } from '../lib/rows';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
 import { materializeEmailAttachments } from './ingest/materialize_email_attachments';
+import { normalizeEmail } from './ingest/normalize_email';
 import { queryLatestMessageByDeliveryState } from './ingest/query_latest_message_by_delivery_state';
 import { queryLatestOutboundMessageForEmailSync } from './ingest/query_latest_outbound_message_for_sync';
 import { resolveConnectorAccountEmail } from './ingest/resolve_connector_account_email';
-import { reuseStoredAttachments } from './ingest/reuse_stored_attachments';
+import {
+  reuseStoredAttachments,
+  settledAttachmentsOfIngested,
+} from './ingest/reuse_stored_attachments';
+import type { EmailType } from './ingest/types';
 
 const EMAIL_CONNECTORS = new Set(['gmail', 'outlook', 'imap-smtp']);
 
@@ -248,7 +253,145 @@ async function fetchOneBody(
       credentialRef: args.credentialRef,
     }),
   });
-  return { email: unwrapFetchedMessage(output) };
+  return {
+    email: await withConnectorStoredAttachments(ctx, {
+      ...args,
+      messageId,
+      fetched: unwrapFetchedMessage(output),
+    }),
+  };
+}
+
+type EmailAttachment = NonNullable<EmailType['attachments']>[number];
+
+/** Whether a fetched message has attachments: Gmail lists its parts, Graph
+ *  lists none on the message and only raises `hasAttachments`. */
+function announcesAttachments(fetched: unknown, email: unknown): boolean {
+  if (!isRecord(email)) return false;
+  return (
+    (Array.isArray(email.attachments) && email.attachments.length > 0) ||
+    (isRecord(fetched) && fetched.hasAttachments === true)
+  );
+}
+
+/** The attachments a connector's `get_message` stored, as wire attachments:
+ *  its `fileId` is the org blob ref ingest calls `storageId`, and a part it
+ *  could not carry comes back `truncated`. */
+function connectorStoredAttachments(output: unknown): EmailAttachment[] {
+  if (!isRecord(output) || !Array.isArray(output.attachments)) return [];
+  const attachments: EmailAttachment[] = [];
+  for (const raw of output.attachments) {
+    if (!isRecord(raw) || typeof raw.id !== 'string') continue;
+    const filename =
+      typeof raw.filename === 'string'
+        ? raw.filename
+        : typeof raw.name === 'string'
+          ? raw.name
+          : 'attachment';
+    attachments.push({
+      id: raw.id,
+      filename,
+      contentType:
+        typeof raw.contentType === 'string'
+          ? raw.contentType
+          : 'application/octet-stream',
+      size: typeof raw.size === 'number' ? raw.size : 0,
+      ...(typeof raw.contentId === 'string' && { contentId: raw.contentId }),
+      ...(typeof raw.fileId === 'string'
+        ? { storageId: raw.fileId }
+        : raw.truncated === true
+          ? { truncated: true }
+          : {}),
+    });
+  }
+  return attachments;
+}
+
+/** The message's parts with the connector's stored references laid on by id;
+ *  a stored attachment the message never listed (all of Outlook's) is kept. */
+function withStoredReferences(
+  parts: EmailAttachment[],
+  stored: EmailAttachment[],
+): EmailAttachment[] {
+  const byId = new Map(stored.map((attachment) => [attachment.id, attachment]));
+  const merged = parts.map((part) => {
+    const match = byId.get(part.id);
+    if (match === undefined) return part;
+    byId.delete(part.id);
+    return {
+      ...part,
+      ...(match.storageId !== undefined && { storageId: match.storageId }),
+      ...(match.truncated === true && { truncated: true }),
+    };
+  });
+  return [...merged, ...byId.values()];
+}
+
+/**
+ * Gmail and Outlook hand attachments over as vendor handles: their
+ * `get_message` downloads the bytes into org storage only when asked
+ * (`includeAttachments`), returning each stored reference as `fileId`.
+ * Without that ask every chip is metadata-only — listed, never openable.
+ *
+ * The ask is gated. Every poll re-fetches the message on the cursor and
+ * storing is not idempotent, so a message already ingested with its
+ * attachments settled keeps the references it has; only one still missing
+ * bytes is fetched a second time, with them. That response is used whole:
+ * Gmail's attachment ids are per-fetch, so its references only match the
+ * parts of the same response.
+ *
+ * A failed download keeps the first fetch's metadata-only chips — the mail
+ * itself must still land, and the next re-fetch may store them.
+ */
+async function withConnectorStoredAttachments(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    messageId: string;
+    fetched: unknown;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+  },
+): Promise<EmailType> {
+  const email = normalizeEmail(args.fetched);
+  if (!announcesAttachments(args.fetched, email)) return email;
+  if (typeof email.messageId === 'string' && email.messageId !== '') {
+    const settled = await settledAttachmentsOfIngested(
+      ctx,
+      args.organizationId,
+      email.messageId,
+    );
+    if (settled !== null) return { ...email, attachments: settled };
+  }
+
+  let output: unknown;
+  try {
+    output = await runMailAction(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      action: 'get_message',
+      input: { messageId: args.messageId, includeAttachments: true },
+      mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[syncMailbox] ${args.connectorSlug} message ${args.messageId}: attachments not stored, keeping metadata only: ${message}`,
+    );
+    return email;
+  }
+  const withBytes = normalizeEmail(unwrapFetchedMessage(output));
+  return {
+    ...withBytes,
+    attachments: withStoredReferences(
+      withBytes.attachments ?? [],
+      connectorStoredAttachments(output),
+    ),
+  };
 }
 
 /**

@@ -18,6 +18,7 @@ import {
 } from '@tale/shared/schemas/connectors';
 import { describe, expect, it } from 'vitest';
 
+import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import { nodeVmRunner } from '../../engine/runners/node-vm';
 import { parseYamlOrThrow } from '../config/yaml';
 
@@ -147,4 +148,84 @@ describe('shipped connector catalog', () => {
     expect(fields.smtpPort?.default).toBe(465);
     expect(fields.imapPort?.default).toBe(993);
   });
+
+  // ctx.http carries at most 5 MiB of response and Gmail sends attachment
+  // bytes base64url inside JSON: fetching a bigger part throws and fails the
+  // whole action — after the parts before it were already stored.
+  it.each(['get_message', 'get_attachments'])(
+    'gmail: %s lists a part too large to carry as truncated instead of fetching it',
+    async (actionName) => {
+      const action = loadConnector('gmail').actions.find(
+        (a) => a.name === actionName,
+      );
+      if (action?.backend?.kind !== 'yaml-js') {
+        throw new Error(`gmail.${actionName} has no yaml-js live body`);
+      }
+      const big = 4 * 1024 * 1024;
+      const fetched: string[] = [];
+      const ctx = {
+        http: {
+          get: async (url: string) => {
+            fetched.push(url);
+            const body = url.includes('/attachments/')
+              ? { data: Buffer.from('pdf').toString('base64url') }
+              : {
+                  id: 'm1',
+                  payload: {
+                    parts: [
+                      {
+                        mimeType: 'application/pdf',
+                        filename: 'small.pdf',
+                        body: { attachmentId: 'small', size: 3 },
+                      },
+                      {
+                        mimeType: 'application/pdf',
+                        filename: 'big.pdf',
+                        body: { attachmentId: 'big', size: big },
+                      },
+                    ],
+                  },
+                };
+            return {
+              status: 200,
+              json: () => body,
+              text: () => JSON.stringify(body),
+            };
+          },
+        },
+        files: {
+          store: async (_data: string, opts: { fileName: string }) => ({
+            id: `s3:org/${opts.fileName}`,
+          }),
+        },
+      };
+
+      const out = (await inProcessLiveRunner().runBody(
+        action.backend.live,
+        { input: { messageId: 'm1', includeAttachments: true }, ctx },
+        LIMITS,
+        { async: true },
+      )) as { attachments: unknown[] };
+
+      expect(out.attachments).toEqual([
+        {
+          id: 'small',
+          filename: 'small.pdf',
+          contentType: 'application/pdf',
+          size: 3,
+          fileId: 's3:org/small.pdf',
+        },
+        {
+          id: 'big',
+          filename: 'big.pdf',
+          contentType: 'application/pdf',
+          size: big,
+          truncated: true,
+        },
+      ]);
+      expect(fetched.some((url) => url.endsWith('/attachments/big'))).toBe(
+        false,
+      );
+    },
+  );
 });
