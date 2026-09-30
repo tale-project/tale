@@ -73,6 +73,15 @@ function mutations(docker: RuntimeDockerFixture) {
   );
 }
 
+function gatewayOf(docker: RuntimeDockerFixture) {
+  return docker.containers.find(
+    (container) =>
+      (container.Config as { Labels: Record<string, string> }).Labels[
+        'com.docker.compose.service'
+      ] === 'sandbox-llm-gateway',
+  )!;
+}
+
 // The managed CLI refuses NTFS: runtime custody includes POSIX file modes.
 describePosix('managed source-Compose runtime adoption', () => {
   test('renames visible containers through an interrupted managed rollout without moving storage or regenerating credentials', async () => {
@@ -326,13 +335,6 @@ describePosix('managed source-Compose runtime adoption', () => {
   // volume exists, which gateway image the rollout starts, and whether the
   // store has run that image already.
   test('a preview reports the gateway store, the image it would start and whether the store has run it', async () => {
-    const gatewayOf = (docker: RuntimeDockerFixture) =>
-      docker.containers.find(
-        (container) =>
-          (container.Config as { Labels: Record<string, string> }).Labels[
-            'com.docker.compose.service'
-          ] === 'sandbox-llm-gateway',
-      )!;
     const fresh = await create();
     expect((await fresh.apply(true)).gateway).toMatchObject({
       volume: false,
@@ -432,6 +434,89 @@ describePosix('managed source-Compose runtime adoption', () => {
       newImage: true,
       running: null,
     });
+  });
+
+  // A stopped container has started only by a start time in Moby's
+  // RFC3339Nano contract: Docker's zero time, or a value outside the contract
+  // or the calendar that a lenient date parser would still read, is none.
+  test.each([
+    ['2026-09-30T08:01:07.123456789Z', true],
+    ['2026-09-30T08:01:07Z', true],
+    ['2026-09-30T10:01:07+02:00', true],
+    ['0001-01-01T00:00:00Z', false],
+    ['', false],
+    ['1', false],
+    ['not-a-timestamp', false],
+    ['2026-09-30', false],
+    ['2026-02-30T00:00:00Z', false],
+    ['2026-09-30T24:00:00Z', false],
+    ['2026-09-30T08:01:07+24:00', false],
+  ] as const)(
+    'a stopped gateway container whose start time reads %p has started: %p',
+    async (startedAt, started) => {
+      const interrupted = await create();
+      interrupted.docker.upFailure = true;
+      await expect(interrupted.apply()).rejects.toThrow('could not complete');
+      Object.assign(gatewayOf(interrupted.docker).State as object, {
+        Running: false,
+        StartedAt: startedAt,
+      });
+      expect((await interrupted.apply(true)).gateway).toMatchObject({
+        volume: true,
+        newImage: !started,
+        running: null,
+      });
+    },
+  );
+
+  // A listing is read only once every line is a volume name by Docker's own
+  // rule: filtered as it came, a malformed one would hide the gateway store.
+  test.each([
+    ['JSON instead of names', '[{"Name":"tale_llm-gateway-data"}]'],
+    ['a line with a space', 'tale_db-data\ntale_llm-gateway-data extra'],
+    ['a blank line', 'tale_db-data\n\ntale_llm-gateway-data'],
+    ['a leading space', ' tale_llm-gateway-data'],
+    ['a carriage return', 'tale_llm-gateway-data\r'],
+  ])(
+    'a successful volume listing with %s refuses a preview and a rollout before anything changes',
+    async (_name, listing) => {
+      const run = await create();
+      await run.apply();
+      run.docker.calls = [];
+      const receiptBytes = () =>
+        readFileSync(
+          join(run.fixture.options.stateDirectory, '.tale/runtime.json'),
+        );
+      const before = receiptBytes();
+      run.docker.volumeListing = () => ({
+        success: true,
+        exitCode: 0,
+        stdout: listing,
+        stderr: '',
+      });
+      for (const dryRun of [true, false])
+        await expect(run.apply(dryRun)).rejects.toThrow(
+          'Docker returned invalid volume names.',
+        );
+      expect(mutations(run.docker)).toEqual([]);
+      expect(receiptBytes()).toEqual(before);
+    },
+  );
+
+  test('an empty volume listing and foreign volume names read as they are', async () => {
+    const fresh = await create();
+    expect((await fresh.apply(true)).gateway.volume).toBe(false);
+    const run = await create();
+    await run.apply();
+    run.docker.volumes.push('other-project_llm-gateway-data', 'a'.repeat(64));
+    expect((await run.apply(true)).gateway).toMatchObject({
+      volume: true,
+      newImage: false,
+    });
+    run.docker.volumes = run.docker.volumes.filter(
+      (name) => name !== 'tale_llm-gateway-data',
+    );
+    expect((await run.apply(true)).gateway.volume).toBe(false);
   });
 
   test('fresh and existing previews do not create files or call any Docker mutation', async () => {

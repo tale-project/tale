@@ -1029,6 +1029,184 @@ describePosix('model gateway recovery point', () => {
     expect(readFileSync(pendingPath(run))).toEqual(pending);
   });
 
+  // The inventory boundary, in both lanes a retained pre-capture snapshot can
+  // be continued in: whatever Docker answers instead of a readable listing,
+  // the rollout is refused before any write and every receipt stays as it was.
+  const LANES = [
+    'a retry of the pending release',
+    'a superseding bundle',
+  ] as const;
+  const UNREADABLE = [
+    [
+      'a malformed but successful listing',
+      () => ({
+        success: true,
+        exitCode: 0,
+        stdout: '[{"Name":"tale_llm-gateway-data"}]',
+        stderr: '',
+      }),
+      'Docker returned invalid volume names.',
+    ],
+    [
+      'a transport failure',
+      () => ({
+        success: false,
+        exitCode: 1,
+        stdout: '',
+        stderr: 'error during connect: unexpected EOF',
+      }),
+      'Docker refused the managed runtime operation.',
+    ],
+    [
+      'a permission failure',
+      () => ({
+        success: false,
+        exitCode: 1,
+        stdout: '',
+        stderr:
+          'permission denied while trying to connect to the Docker daemon socket',
+      }),
+      'Docker refused the managed runtime operation.',
+    ],
+    [
+      'a Docker call that throws',
+      () => {
+        throw new Error('spawn docker EACCES');
+      },
+      'Docker could not complete the managed runtime operation.',
+    ],
+  ] as const;
+  /** A pending pre-capture receipt for the next release, stopped at its pull,
+   * and the bundle the lane continues it with. */
+  async function pendingPreCapture(run: Run, lane: (typeof LANES)[number]) {
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    await stopAtPull(run, release);
+    const pending = asPreCaptureReceipt(run);
+    const bundle =
+      lane === 'a retry of the pending release'
+        ? release
+        : await nextRelease(run, 'superseding-deployment', {
+            runtime: {
+              ...run.spec.runtime,
+              containerPrefix: 'north-desk-prod',
+            },
+            supersedesPendingBundle: JSON.parse(pending.toString())
+              .bundleSha256,
+          });
+    return { bundle, pending };
+  }
+  const receipts = (run: Run) => ({
+    pending: readFileSync(pendingPath(run)),
+    runtime: readFileSync(runtimeReceiptPath(run)),
+    ready: readFileSync(run.receiptPath),
+  });
+  /** Whether Docker was asked to change the runtime. */
+  const changedRuntime = (run: Run) =>
+    run.docker.calls.some(
+      ({ args }) =>
+        ['pull', 'tag', 'restart'].includes(args[0]) ||
+        (args[0] === 'network' && args[1] === 'create') ||
+        args.includes('up'),
+    );
+
+  describe.each([...LANES])('at the volume inventory, for %s', (lane) => {
+    test.each(UNREADABLE)(
+      '%s refuses before any write, with every receipt byte-identical',
+      async (_name, answer, message) => {
+        const run = await create();
+        const { bundle } = await pendingPreCapture(run, lane);
+        const before = receipts(run);
+        run.docker.volumeListing = answer;
+        run.events.length = 0;
+        run.docker.calls = [];
+
+        await expect(applyBundle(run, bundle)).rejects.toThrow(message);
+
+        expect(run.events).toEqual([]);
+        expect(changedRuntime(run)).toBe(false);
+        expect(receipts(run)).toEqual(before);
+      },
+    );
+
+    test('a readable listing with foreign names and the gateway volume refuses at the gateway check', async () => {
+      const run = await create();
+      const { bundle } = await pendingPreCapture(run, lane);
+      run.docker.volumes.push('other-project_llm-gateway-data', 'a'.repeat(64));
+      const before = receipts(run);
+      run.events.length = 0;
+      run.docker.calls = [];
+
+      const error = await refusal(() => applyBundle(run, bundle));
+
+      expect(error.message).toContain(
+        `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data`,
+      );
+      expect(run.events).toEqual([]);
+      expect(changedRuntime(run)).toBe(false);
+      expect(receipts(run)).toEqual(before);
+    });
+
+    test('a readable listing without the gateway volume, its gateway gone, continues', async () => {
+      const run = await create();
+      const { bundle } = await pendingPreCapture(run, lane);
+      run.docker.containers = run.docker.containers.filter(
+        (container) => container !== gatewayContainer(run),
+      );
+      run.docker.volumes = run.docker.volumes.filter(
+        (volume) => volume !== 'tale_llm-gateway-data',
+      );
+      run.docker.volumes.push('other-project_llm-gateway-data');
+
+      expect(await applyBundle(run, bundle)).toMatchObject({
+        phase: 'ready',
+        snapshotId: PRE_CAPTURE_SNAPSHOT,
+      });
+    });
+  });
+
+  // A stopped container on the target image counts as the store having run it
+  // only by a start time in Moby's contract.
+  test.each([
+    ['1', false],
+    ['not-a-timestamp', false],
+    ['2026-09-30T08:01:07.123456789Z', true],
+  ] as const)(
+    'a stopped release gateway whose start time reads %p: the store has run it: %p',
+    async (startedAt, ran) => {
+      const run = await create();
+      await run.apply();
+      const release = await nextRelease(run, 'release-deployment');
+      run.docker.upFailure = true;
+      await expect(applyBundle(run, release)).rejects.toThrow(
+        'could not complete',
+      );
+      run.docker.upFailure = false;
+      asPreCaptureReceipt(run);
+      Object.assign(gatewayContainer(run).State as object, {
+        Running: false,
+        StartedAt: startedAt,
+      });
+      const before = receipts(run);
+      run.events.length = 0;
+      run.docker.calls = [];
+
+      if (ran) {
+        const { result, warned } = await warnings(() =>
+          applyBundle(run, release),
+        );
+        expect(result).toMatchObject({ phase: 'ready' });
+        expect(warned).toContain(UNCOVERED);
+        return;
+      }
+      const error = await refusal(() => applyBundle(run, release));
+      expect(error.message).toContain('nothing shows the store has run it');
+      expect(run.events).toEqual([]);
+      expect(changedRuntime(run)).toBe(false);
+      expect(receipts(run)).toEqual(before);
+    },
+  );
+
   // Nothing a refusal could protect is left: the interrupted rollout already
   // started the new gateway on the store. It completes, and says so.
   test('a release whose new gateway already started completes on its retained snapshot and says the snapshot leaves the gateway store out', async () => {

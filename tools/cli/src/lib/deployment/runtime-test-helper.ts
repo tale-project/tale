@@ -190,6 +190,11 @@ export class RuntimeDockerFixture {
   variantTag: string | null = null;
   upFailure = false;
   onUp: (() => void) | null = null;
+  /** What `docker volume ls` answers instead of the listed volumes: a
+   * transport failure, a throw, or a malformed but successful response. */
+  volumeListing:
+    | ((listing: string) => Awaited<ReturnType<typeof exec>>)
+    | null = null;
   /**
    * A running service Docker reports as `status` for `reads` more
    * `container inspect` calls before a probe passes: the stale health a
@@ -352,7 +357,9 @@ export class RuntimeDockerFixture {
       return ok(this.containers);
     }
     if (args[0] === 'volume' && args[1] === 'ls')
-      return ok(this.volumes.join('\n'));
+      return this.volumeListing
+        ? this.volumeListing(this.volumes.join('\n'))
+        : ok(this.volumes.join('\n'));
     if (args[0] === 'tag') {
       const image = this.imageMetadata.get(args[1]);
       if (!image) throw new Error('Fixture tag source missing');
