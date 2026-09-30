@@ -1,13 +1,13 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
-import { judgeLink, readPage } from '@tale/ui/docs/links';
+import { judgeLink } from '@tale/ui/docs/links';
 import { describe, it } from 'vitest';
 
-import { DOCS_LINK_SITE, docsPageFiles } from '@/scripts/link-site';
+import {
+  DOCS_LINK_SITE,
+  docsPageFiles,
+  readDocsPage,
+} from '@/scripts/link-site';
 
 import { assertNoFindings, type Finding } from './lib/findings';
-import { REPO_ROOT } from './lib/paths';
 import { BASE_LOCALES } from './lib/walk';
 
 /**
@@ -32,32 +32,43 @@ import { BASE_LOCALES } from './lib/walk';
  * rest of the repository are judged by `bun run lint:links`.
  */
 
+/**
+ * The whole corpus is parsed with the Markdown renderer's own parser, which
+ * takes seconds, not milliseconds, on a busy CI runner — and grows with
+ * every page. Each page is parsed once (`readDocsPage`) for its links and
+ * for the ids other pages' fragments land on.
+ */
+const CORPUS_TIMEOUT_MS = 60_000;
+
 describe('links in the docs', () => {
   const pages = docsPageFiles();
 
-  it.each(BASE_LOCALES)('every link under %s/ lands', (locale) => {
-    const findings: Finding[] = [];
-    for (const page of pages.filter(
-      (candidate) => candidate.locale === locale,
-    )) {
-      const source = fs.readFileSync(path.join(REPO_ROOT, page.file), 'utf8');
-      const { links, anchors: pageAnchors } = readPage(source);
-      for (const link of links) {
-        const problem = judgeLink(link.url, {
-          pageUrl: page.url,
-          pageLocale: locale,
-          pageAnchors,
-          sites: [DOCS_LINK_SITE],
-        });
-        if (!problem) continue;
-        findings.push({
-          file: page.file.replace(/^docs\//, ''),
-          line: link.line,
-          rule: problem.rule,
-          detail: `"${link.url}": ${problem.detail}`,
-        });
+  it.each(BASE_LOCALES)(
+    'every link under %s/ lands',
+    (locale) => {
+      const findings: Finding[] = [];
+      for (const page of pages.filter(
+        (candidate) => candidate.locale === locale,
+      )) {
+        const { links, anchors: pageAnchors } = readDocsPage(page.file);
+        for (const link of links) {
+          const problem = judgeLink(link.url, {
+            pageUrl: page.url,
+            pageLocale: locale,
+            pageAnchors,
+            sites: [DOCS_LINK_SITE],
+          });
+          if (!problem) continue;
+          findings.push({
+            file: page.file.replace(/^docs\//, ''),
+            line: link.line,
+            rule: problem.rule,
+            detail: `"${link.url}": ${problem.detail}`,
+          });
+        }
       }
-    }
-    assertNoFindings(findings, `Broken links under ${locale}/`);
-  });
+      assertNoFindings(findings, `Broken links under ${locale}/`);
+    },
+    CORPUS_TIMEOUT_MS,
+  );
 });

@@ -12,7 +12,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  extractPageAnchors,
+  readPage,
   type AddressAnswer,
   type LinkSite,
   type LinkSiteModule,
@@ -63,17 +63,24 @@ const GUIDES: ReadonlyMap<string, string> = new Map(
     .map((file) => [file.slice(1).replace(/\.md$/, ''), file]),
 );
 
-const anchorCache = new Map<string, ReadonlySet<string>>();
+const pageCache = new Map<string, ReturnType<typeof readPage>>();
+
+/**
+ * A guide's links and the ids it renders, parsed once per run: the link
+ * test reads a guide as a source and the same parse answers it as a target.
+ * `file` is relative to the content root (`/components/button.md`).
+ */
+export function readUiDocsPage(file: string): ReturnType<typeof readPage> {
+  let page = pageCache.get(file);
+  if (!page) {
+    page = readPage(readFileSync(join(UI_DOCS_CONTENT_ROOT, file), 'utf8'));
+    pageCache.set(file, page);
+  }
+  return page;
+}
 
 function anchorsOf(file: string): ReadonlySet<string> {
-  let anchors = anchorCache.get(file);
-  if (!anchors) {
-    anchors = extractPageAnchors(
-      readFileSync(join(UI_DOCS_CONTENT_ROOT, file), 'utf8'),
-    );
-    anchorCache.set(file, anchors);
-  }
-  return anchors;
+  return readUiDocsPage(file).anchors;
 }
 
 /** What the ui-docs server answers for a decoded pathname. */

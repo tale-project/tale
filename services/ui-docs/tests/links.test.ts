@@ -1,11 +1,11 @@
-import { readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { judgeLink, readPage } from '@tale/ui/docs/links';
+import { judgeLink } from '@tale/ui/docs/links';
 import { describe, expect, it } from 'vitest';
 
-import { UI_DOCS_LINK_SITE, uiDocsPageFiles } from '@/scripts/link-site';
+import {
+  readUiDocsPage,
+  UI_DOCS_LINK_SITE,
+  uiDocsPageFiles,
+} from '@/scripts/link-site';
 
 /**
  * Every link a guide renders must land, judged against what ui.tale.dev
@@ -17,19 +17,15 @@ import { UI_DOCS_LINK_SITE, uiDocsPageFiles } from '@/scripts/link-site';
  * `bun run lint:links`.
  */
 
-const REPO_ROOT = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-);
+const CONTENT = 'services/ui-docs/content';
 
 describe('links in the guides', () => {
   it('every link lands', async () => {
     const findings: string[] = [];
     for (const page of uiDocsPageFiles()) {
-      const source = await readFile(resolve(REPO_ROOT, page.file), 'utf8');
-      const { links, anchors: pageAnchors } = readPage(source);
+      const { links, anchors: pageAnchors } = readUiDocsPage(
+        page.file.slice(CONTENT.length),
+      );
       for (const link of links) {
         const problem = judgeLink(link.url, {
           pageUrl: page.url,

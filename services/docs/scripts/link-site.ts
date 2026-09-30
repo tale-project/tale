@@ -15,7 +15,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  extractPageAnchors,
+  readPage,
   type AddressAnswer,
   type LinkSite,
   type LinkSiteModule,
@@ -89,18 +89,25 @@ function pageFile(locale: string, route: string): string | undefined {
   return undefined;
 }
 
-const anchorCache = new Map<string, ReadonlySet<string>>();
+const pageCache = new Map<string, ReturnType<typeof readPage>>();
 
-/** The ids a page renders, read from its Markdown on first use. */
-function anchorsOf(file: string): ReadonlySet<string> {
-  let anchors = anchorCache.get(file);
-  if (!anchors) {
-    anchors = extractPageAnchors(
-      readFileSync(join(DOCS_CONTENT_ROOT, file), 'utf8'),
-    );
-    anchorCache.set(file, anchors);
+/**
+ * A docs page's links and the ids it renders, parsed once per run: the link
+ * suite reads a page as a source and the same parse answers it as a target.
+ * `file` is repository-relative (`docs/en/cloud/billing.md`).
+ */
+export function readDocsPage(file: string): ReturnType<typeof readPage> {
+  let page = pageCache.get(file);
+  if (!page) {
+    page = readPage(readFileSync(join(DOCS_CONTENT_ROOT, '..', file), 'utf8'));
+    pageCache.set(file, page);
   }
-  return anchors;
+  return page;
+}
+
+/** The ids a page renders; `file` is relative to the content root. */
+function anchorsOf(file: string): ReadonlySet<string> {
+  return readDocsPage(`docs${file}`).anchors;
 }
 
 /** What the docs server answers for a decoded pathname. */

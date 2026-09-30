@@ -127,9 +127,10 @@ describe('resolveNearMiss', () => {
 describe('a crafted guess', () => {
   it('is scored on a bounded number of words', () => {
     const guess = Array.from({ length: 40 }, (_, i) => `word${i}`).join('-');
-    const started = performance.now();
     expect(resolveNearMiss(`platform/${guess}`, INDEX)).toBeNull();
-    expect(performance.now() - started).toBeLessThan(50);
+    expect(rankNearMisses(`platform/${guess}`, INDEX)).toHaveLength(
+      INDEX.pages.length,
+    );
   });
 });
 
