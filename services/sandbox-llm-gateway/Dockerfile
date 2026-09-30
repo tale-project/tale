@@ -40,8 +40,9 @@ LABEL org.opencontainers.image.version="${VERSION}" \
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1
 
-# Sets BIFROST_SETUP_TOKEN from the gateway admin password, then runs the
-# upstream entrypoint (/app/docker-entrypoint.sh) with the upstream command.
+# Sets BIFROST_SETUP_TOKEN to the gateway admin password (always: an explicit
+# one is replaced), then runs the upstream entrypoint (/app/docker-entrypoint.sh)
+# with the upstream command.
 # Redeclaring ENTRYPOINT resets the inherited CMD, so it is restated.
 COPY --chmod=0555 services/sandbox-llm-gateway/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

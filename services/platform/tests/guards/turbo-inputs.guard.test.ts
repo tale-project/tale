@@ -115,6 +115,12 @@ const OUTSIDE_READS = [
     readers: 'backend/core/knowledge/ddl.test.ts',
   },
   {
+    // Run under /bin/sh, not imported: the setup token the gateway image
+    // hands the gateway, paired with the platform's own bootstrap.
+    path: 'services/sandbox-llm-gateway/docker-entrypoint.sh',
+    readers: 'backend/core/node_only/sandbox/gateway_setup_token.test.ts',
+  },
+  {
     path: 'services/sandbox/src/config.ts',
     readers: 'scripts/dev-sandbox-runtime.test.ts',
   },

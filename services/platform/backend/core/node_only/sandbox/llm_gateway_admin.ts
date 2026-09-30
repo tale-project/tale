@@ -167,12 +167,14 @@ function managementHeaders(): Record<string, string> {
   return {
     'content-type': 'application/json',
     authorization: `Basic ${basic}`,
-    // The gateway's setup token is this same password (the gateway image
-    // derives it: services/sandbox-llm-gateway/docker-entrypoint.sh). The
-    // pinned gateway reads it only from the body of the request that creates
-    // its first admin (applyGatewayConfig); a gateway that closes its whole
-    // management plane until that admin exists reads it from this header, and
-    // one that has an admin ignores it — so it rides every call.
+    // The gateway's setup token is always this same password: the gateway
+    // image sets it so, replacing any BIFROST_SETUP_TOKEN the container was
+    // given (services/sandbox-llm-gateway/docker-entrypoint.sh), so the one
+    // secret both claims the gateway and manages it. The pinned gateway reads
+    // the token only from the body of the request that creates its first
+    // admin (applyGatewayConfig); a gateway that closes its whole management
+    // plane until that admin exists reads it from this header, and one that
+    // has an admin ignores it — so it rides every call.
     'x-bifrost-setup-token': password,
   };
 }
@@ -1473,7 +1475,8 @@ export async function applyGatewayConfig(
   //
   // That bootstrap also carries the gateway's setup token (Bifrost >= v2.2
   // refuses to create its first admin account without it, 403). The gateway
-  // image sets the token to this same password, so the one secret proves the
+  // image always sets the token to this same password (a BIFROST_SETUP_TOKEN
+  // given to the container is replaced), so the one secret proves the
   // platform may claim a fresh gateway; once the account exists the gateway
   // ignores the field, and the preserve-stored apply leaves it out.
   const authAlreadyEnabled = cfg.auth_config?.is_enabled === true;
