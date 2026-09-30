@@ -26,6 +26,8 @@ export interface BuildContext {
   readonly siteUrl: string;
   readonly siteTitle: string;
   readonly siteDescription: string;
+  /** llms.txt paragraphs between the blockquote and the first section. */
+  readonly preamble?: string;
   readonly robots?: RobotsConfig;
   /** Memoised — never re-invokes the underlying loader within one build pass. */
   readonly routes: () => Promise<ResolvedRoutes>;

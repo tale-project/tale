@@ -23,6 +23,7 @@ import {
   buildDocsSeo,
   docsOptionalPages,
   docsSiteUrl,
+  DOCS_LLMS_PREAMBLE,
   DOCS_SITE_DESCRIPTION,
   DOCS_SITE_TITLE,
   type BuiltDocsSeo,
@@ -73,6 +74,7 @@ export function createDocsArtifactsServer(
     siteUrl,
     siteTitle: DOCS_SITE_TITLE,
     siteDescription: DOCS_SITE_DESCRIPTION,
+    preamble: DOCS_LLMS_PREAMBLE,
     cache: options.cache,
     loadRoutes: async () => ({
       sections: (await getBuilt()).sections,

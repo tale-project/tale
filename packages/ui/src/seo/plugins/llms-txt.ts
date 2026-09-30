@@ -20,6 +20,7 @@ export const llmsTxtPlugin: ArtifactPlugin = {
     const body = buildLlmsTxt({
       siteTitle: ctx.siteTitle,
       siteDescription: ctx.siteDescription,
+      preamble: ctx.preamble,
       sections: sections
         .filter((s) => !s.hideFromIndex)
         .map((s) => ({

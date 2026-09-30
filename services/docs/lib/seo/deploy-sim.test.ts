@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { compileToDisk, createPrecompiledServer } from '@tale/ui/seo';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildDocsCompileParams } from './build';
+import { buildDocsCompileParams, DOCS_LLMS_PREAMBLE } from './build';
 
 let dir: string;
 let knownMdPaths: string[];
@@ -70,6 +70,18 @@ describe('docs deploy simulation', () => {
         new Request('https://tale.dev/definitely/not/a/real/page.md'),
       ),
     ).toBeNull();
+  });
+
+  it('llms.txt tells an agent how the German and French addresses work', async () => {
+    const server = await createPrecompiledServer({ dir });
+    const response = await server.handle(
+      new Request('https://tale.dev/llms.txt'),
+    );
+    const text = (await response?.text()) ?? '';
+    expect(text).toContain(DOCS_LLMS_PREAMBLE.split('\n\n')[0]);
+    expect(text.indexOf('never translate it')).toBeLessThan(
+      text.indexOf('\n## '),
+    );
   });
 
   it('llms-full.txt is emitted and non-empty', async () => {

@@ -41,6 +41,12 @@ export interface ArtifactsServerParams {
   /** llms.txt blockquote shown right under the title. */
   siteDescription: string;
   /**
+   * llms.txt paragraphs between the blockquote and the first section — the
+   * spec's place for how to read the index (for docs: how the locale trees
+   * are addressed, so an agent never has to guess).
+   */
+  preamble?: string;
+  /**
    * Lazy route enumeration. Called on the first request that needs the
    * route list; the result is cached until {@link ArtifactsServer.invalidate}
    * runs.
@@ -87,6 +93,7 @@ export function createOnDemandServer(
     siteUrl,
     siteTitle,
     siteDescription,
+    preamble,
     loadRoutes,
     loadBody,
     robots,
@@ -141,6 +148,7 @@ export function createOnDemandServer(
       siteUrl,
       siteTitle,
       siteDescription,
+      preamble,
       robots,
       routes,
       body,

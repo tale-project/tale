@@ -181,6 +181,28 @@ describe('compileArtifacts', () => {
   });
 });
 
+describe('llms.txt preamble', () => {
+  const preamble = 'Every page is also published under /de and /fr.';
+
+  it('sits between the blockquote and the first section, in both compilers', async () => {
+    const pure = compileArtifacts({ ...baseParams(), preamble }).files.get(
+      'llms.txt',
+    );
+    const viaPlugins = (
+      await compileToMemory({ ...baseParams(), preamble })
+    ).get('/llms.txt')?.body;
+    for (const text of [pure, viaPlugins]) {
+      expect(text).toContain(`> Sovereign AI.\n\n${preamble}\n\n## Pages`);
+    }
+  });
+
+  it('is left out when a site sets none', () => {
+    expect(compileArtifacts(baseParams()).files.get('llms.txt')).toContain(
+      '> Sovereign AI.\n\n## Pages',
+    );
+  });
+});
+
 describe('compileToMemory', () => {
   it('resolves bodies through loadBody when not inlined on the route', async () => {
     const loadBody = vi.fn(async (url: string) =>
