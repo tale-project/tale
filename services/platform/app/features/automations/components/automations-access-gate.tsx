@@ -21,17 +21,19 @@ import { useCanUseAutomations } from '../hooks/use-can-use-automations';
  * Anyone else sees nothing until the role resolves, so a role raised since
  * the last visit never flashes the denial first.
  *
- * The denial names the section on the browser tab, never an automation: a
- * detail route's `head` titles the page from what its loader read when it
- * opened, and a role lowered while it is open reruns no loader.
+ * Whoever lacks the ability sees the section's name on the browser tab, never
+ * an automation's: a detail route's `head` titles the page from what its
+ * loader read when it opened, and a role lowered while it is open reruns no
+ * loader. The claim follows the ability alone, not the loading flag — a failed
+ * membership refetch counts as loading, and would otherwise put the name back
+ * over an empty page.
  */
 export function AutomationsAccessGate({ children }: { children: ReactNode }) {
   const canUse = useCanUseAutomations();
   const abilityLoading = useAbilityLoading();
   const { t } = useT('accessDenied');
-  const denied = !canUse && !abilityLoading;
 
-  useDocumentTitle(denied ? documentTitle('automations') : undefined);
+  useDocumentTitle(canUse ? undefined : documentTitle('automations'));
 
   if (canUse) return children;
   if (abilityLoading) return null;

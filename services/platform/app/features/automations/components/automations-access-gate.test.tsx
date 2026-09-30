@@ -107,6 +107,19 @@ describe('AutomationsAccessGate and the browser tab', () => {
     expect(document.title).toBe(SECTION);
   });
 
+  // A rejected membership refetch keeps the Member data but counts as
+  // loading: the page stays empty, and the tab must keep the section's name.
+  it('keeps the section title through a failed refetch after the role is lowered', () => {
+    document.title = NAMED;
+    const { rerender, container } = renderGate('developer');
+    rerender(gate('member'));
+    rerender(gate('member', true));
+
+    expect(screen.queryByText('automation page')).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
+    expect(document.title).toBe(SECTION);
+  });
+
   it('keeps the title while an author role refetches', () => {
     document.title = NAMED;
     const { rerender } = renderGate('developer');

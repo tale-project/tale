@@ -40,14 +40,18 @@ describe.each([
   const Layout = (route as unknown as { component: () => React.ReactElement })
     .component;
 
-  function renderAs(role: keyof typeof abilities) {
-    return render(
+  function layoutAs(role: keyof typeof abilities, loading = false) {
+    return (
       <AbilityContext.Provider value={abilities[role]}>
-        <AbilityLoadingContext.Provider value={false}>
+        <AbilityLoadingContext.Provider value={loading}>
           <Layout />
         </AbilityLoadingContext.Provider>
-      </AbilityContext.Provider>,
+      </AbilityContext.Provider>
     );
+  }
+
+  function renderAs(role: keyof typeof abilities) {
+    return render(layoutAs(role));
   }
 
   it('opens the page for a developer', () => {
@@ -68,5 +72,28 @@ describe.each([
     expect(screen.queryByText('automation page')).not.toBeInTheDocument();
     // The tab names the section, never the automation behind the denial.
     expect(document.title).toBe(documentTitle('automations'));
+  });
+
+  // Lowered while the page is open, then a membership refetch fails: the
+  // Member data stays but counts as loading, so the page is held empty.
+  it('keeps the section title from a lowered role through a failed refetch', () => {
+    document.title = 'Private ledger - Acme';
+    const { rerender } = render(layoutAs('developer'));
+    expect(document.title).toBe('Private ledger - Acme');
+
+    rerender(layoutAs('member'));
+    rerender(layoutAs('member', true));
+
+    expect(screen.queryByText('automation page')).not.toBeInTheDocument();
+    expect(document.title).toBe(documentTitle('automations'));
+  });
+
+  it('keeps an author on the page, and its title, while the role refetches', () => {
+    document.title = 'Private ledger - Acme';
+    const { rerender } = render(layoutAs('developer'));
+    rerender(layoutAs('developer', true));
+
+    expect(screen.getByText('automation page')).toBeInTheDocument();
+    expect(document.title).toBe('Private ledger - Acme');
   });
 });
