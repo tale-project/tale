@@ -444,16 +444,15 @@ loaded, and reads **No teams** for an account in none.
   item's; Back brings each item's title back. While the offline notice is up
   the tab reads **Reconnecting** (`connectivity.tabTitle`), also once you are
   back on the chat, and the chat's title returns with the connection.
-- [ ] `NAV-F43` · **Automations entry follows who can use it** — In a fresh
-  organization (only the seeded, undeployed packages), sign in as a Member →
-  the rail shows **Home** and **Knowledge** only, and the phone tab bar
-  **Home**, **Knowledge** and **Settings**; an Owner, Admin or Developer sees
-  **Automations** (`navigation.automations`) in both. As an admin, deploy one
-  automation that is bound to no project → after the list refreshes, the
-  Member's rail and tab bar show **Automations**; an automation deployed only
-  in a project does not bring it back, including a project the Member cannot
-  access. Opening `…/automations` directly as the Member still works (a
-  presentation rule, not access control).
+- [ ] `NAV-F43` · **Automations entry follows who can use it** — In an
+  organization that runs a deployed automation bound to no project, sign in
+  as a Member, then as an Editor → the rail shows **Home** and **Knowledge**
+  only, and the phone tab bar **Home**, **Knowledge** and **Settings**; an
+  Owner, Admin or Developer sees **Automations** (`navigation.automations`)
+  in both, in that organization and in a fresh one that runs nothing. As the
+  Member, open `/dashboard/{org}/automations` directly → **Access denied**
+  (`accessDenied.title`) with `accessDenied.automations`, inside the shell
+  with the rail still present.
 
 ## Boundary & error tests
 

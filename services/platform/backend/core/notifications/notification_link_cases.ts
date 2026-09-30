@@ -27,7 +27,6 @@ import type { OrgNotificationLink } from './org_notification_link';
  */
 const GENERIC_LANDING_ROUTES: ReadonlySet<string> = new Set([
   '/dashboard/$id',
-  '/dashboard/$id/automations',
   '/dashboard/$id/settings/governance',
 ]);
 

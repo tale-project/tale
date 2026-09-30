@@ -13,7 +13,7 @@ Ouvre une automatisation, passe à son onglet **Exécutions** et choisis une lig
 
 ## Lire l’état de l’exécution
 
-L’onglet **Exécutions** présente les 50 dernières exécutions que tu peux voir, de la plus récente à la plus ancienne. Tous les membres voient les exécutions de l’organisation elle-même ; une exécution dans un projet, et la question qu’elle attend, n’apparaissent qu’aux personnes qui peuvent ouvrir ce projet. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin. Les onglets restent visibles pendant la consultation. Choisis **Exécutions** pour revenir à la liste, ou **Éditeur** pour modifier le workflow.
+L’onglet **Exécutions** présente les 50 dernières exécutions que tu peux voir, de la plus récente à la plus ancienne. Les propriétaires, les admins et les développeurs voient les exécutions de l’organisation elle-même ; une exécution dans un projet, et la question qu’elle attend, n’apparaissent qu’à ceux d’entre eux qui peuvent ouvrir ce projet. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin. Les onglets restent visibles pendant la consultation. Choisis **Exécutions** pour revenir à la liste, ou **Éditeur** pour modifier le workflow.
 
 | Statut | Signification | Suite à donner |
 | --- | --- | --- |

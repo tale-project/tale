@@ -7,10 +7,9 @@ import { BottomTabBarPlaceholder } from '@tale/ui/bottom-tab-bar';
  */
 
 // MobileBottomNav shows Home, Knowledge, Automations and Settings — the rail's
-// sections, with Settings from its foot (Automations only when the viewer can
-// build automations or the organization runs one). The count only moves the
-// masked pills sideways — the placeholder is the live bar's height whatever
-// the count.
+// sections, with Settings from its foot (Automations only for Owners, Admins
+// and Developers). The count only moves the masked pills sideways — the
+// placeholder is the live bar's height whatever the count.
 const PLACEHOLDER_TABS = 4;
 
 /**

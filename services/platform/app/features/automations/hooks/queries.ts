@@ -34,18 +34,23 @@ export function useAutomationCapabilities(
 
 /** The org page's automations — or one project's when `projectId` is given.
  * The two surfaces never bleed: project-owned automations are absent from
- * the org listing and vice versa. */
+ * the org listing and vice versa. Skipped without an organization. */
 export function useAutomations(
-  organizationId: string,
+  organizationId: string | undefined,
   projectId?: string,
   /** Org page: merge project-pinned automations into the listing. */
   includeProjectBound?: boolean,
 ) {
-  return useBackendQuery('automations/queries:listAutomations', {
-    organizationId,
-    ...(projectId !== undefined && { projectId }),
-    ...(includeProjectBound === true && { includeProjectBound: true }),
-  });
+  return useBackendQuery(
+    'automations/queries:listAutomations',
+    organizationId === undefined
+      ? 'skip'
+      : {
+          organizationId,
+          ...(projectId !== undefined && { projectId }),
+          ...(includeProjectBound === true && { includeProjectBound: true }),
+        },
+  );
 }
 
 /** One version's document — the latest when `version` is omitted. */

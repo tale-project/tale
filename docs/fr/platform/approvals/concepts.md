@@ -24,7 +24,7 @@ La carte ne permet pas de modifier l’action. Si une entrée est incorrecte, re
 
 <Note>
 
-Les membres de l’organisation peuvent décider des approbations d’actions de Connector. Ces cartes ne sont pas attribuées à une personne ou à un groupe de validation précis : la décision se prend dans le détail de l’exécution. D’autres types de validation peuvent exiger des droits plus stricts.
+Les membres de l’organisation peuvent décider des approbations d’actions de Connector. Ces cartes ne sont pas attribuées à une personne ou à un groupe de validation précis : la décision se prend dans le détail de l’exécution, que seuls les propriétaires, les admins et les développeurs ouvrent. Quand l’exécution traite une tâche, sa carte apparaît aussi dans la tâche, où toute personne qui peut ouvrir la tâche décide. D’autres types de validation peuvent exiger des droits plus stricts.
 
 </Note>
 

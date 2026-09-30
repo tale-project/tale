@@ -258,9 +258,11 @@ describe('orgNotificationTarget', () => {
     });
   });
 
-  it('falls back to Automations for a linkless system/automation alert', () => {
+  // A system row reaches every member, and Automations is only for Owners,
+  // Admins and Developers — the fallback is a page anyone may open.
+  it('falls back to the org home for a linkless system/automation alert', () => {
     expect(orgNotificationTarget(ORG, undefined, 'system')).toEqual({
-      to: '/dashboard/$id/automations',
+      to: '/dashboard/$id',
       params: { id: ORG },
     });
   });
@@ -273,7 +275,7 @@ describe('orgNotificationTarget', () => {
     expect(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a stored row from a producer the union no longer carries
       orgNotificationTarget(ORG, retired as OrgNotificationLink, 'system'),
-    ).toEqual({ to: '/dashboard/$id/automations', params: { id: ORG } });
+    ).toEqual({ to: '/dashboard/$id', params: { id: ORG } });
     expect(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- as above, on the security lane
       orgNotificationTarget(ORG, retired as OrgNotificationLink, 'security'),

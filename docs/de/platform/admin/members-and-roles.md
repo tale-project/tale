@@ -40,9 +40,11 @@ Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allei
 | **Inhaber** | Alle Produkt- und Verwaltungsaufgaben | Darf auch die Inhaberschaft übertragen und die Organisation löschen; beim Löschen musst du zuerst den Namen der Organisation eintippen, bevor die Schaltfläche aktiv wird. |
 | **Admin** | Personen, Dienste, Richtlinien und die Arbeit des Teams verwalten | Voller Zugriff auf Organisationseinstellungen; keine Übertragung der Inhaberschaft. |
 | **Entwickler** | Agenten, Automatisierungen und Integrationen erstellen | Technische Einstellungen wie Anbieter, Connectors und API-Zugriff; keine Mitgliederverwaltung. |
-| **Redakteur** | Inhalte pflegen und die tägliche Arbeit bearbeiten | Inhalte bearbeiten; Workflow- und Connector-Ressourcen nur lesen. |
+| **Redakteur** | Inhalte pflegen und die tägliche Arbeit bearbeiten | Inhalte bearbeiten; kein Zugriff auf **Automatisierungen**; Connector-Ressourcen nur lesen. |
 | **Mitglied** | Chat nutzen, freigegebene Ressourcen lesen und Projektaufgaben erstellen, die eigenen auch mit Projektagenten bearbeiten | Keine Organisationsverwaltung; darf Nachrichtenfeedback abgeben. |
 | **Deaktiviert** | Kein aktiver Zugriff | Der Mitgliedschaftseintrag bleibt bestehen, ohne Rechte zu gewähren. |
+
+**Automatisierungen** sehen nur Inhaber, Admins und Entwickler, in der Navigation wie in Projekten; alle anderen sehen über einen Link zu einer Automatisierung **Zugriff verweigert**.
 
 Wer weder Inhaber noch Admin ist, kann **Einstellungen > Mitglieder** nicht öffnen und sieht die eigene Rolle unter [**Einstellungen > Konto > Deine Rolle**](/de/platform/member/preferences#role).
 
