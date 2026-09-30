@@ -12,8 +12,8 @@ export const ITEST_PASSWORD = 'itest-password-1';
 export type RecordCheck = (name: string, ok: boolean, detail: string) => void;
 
 /**
- * `ITEST_REQUIRE_ALL_LANES=1` asks for full coverage, the mode CI runs the
- * suite in: the harness refuses to start without what every lane needs
+ * `ITEST_REQUIRE_ALL_LANES=1` asks for full coverage, the mode a gating run
+ * uses: the harness refuses to start without what every lane needs
  * ({@link fullCoverageBlockers}), and a check that cannot run fails instead
  * of reporting a skip ({@link recordSkip}).
  */
@@ -96,7 +96,7 @@ export function fullCoverageBlockers(
  * goes through this. A local run reports it as a skip: a pass whose name
  * says `(SKIPPED)`, counted apart in the tally. A run with
  * {@link everyLaneRequired} records a failure instead, so a lane can never
- * drop out of CI unnoticed.
+ * drop out of a gating run unnoticed.
  */
 export function recordSkip(
   record: RecordCheck,
