@@ -8,6 +8,7 @@ import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 
+import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import { useT } from '@/lib/i18n/client';
 
 import type { TaskActorPreview } from '../utils/task-actor-preview';
@@ -65,6 +66,10 @@ function TaskActorPreviewPopover({
     preview.kind === 'workflow'
       ? t('timeline.viewWorkflow')
       : t('timeline.viewAgent');
+  // A workflow's page is an automation page, closed to anyone who may not
+  // use Automations; they keep the name and the description.
+  const canUseAutomations = useCanUseAutomations();
+  const showView = preview.kind !== 'workflow' || canUseAutomations;
 
   return (
     <Popover
@@ -106,15 +111,17 @@ function TaskActorPreviewPopover({
             </Text>
           ) : null}
         </Stack>
-        <Button asChild variant="secondary" size="sm" className="w-full">
-          <Link
-            to={preview.viewTo}
-            params={preview.viewParams}
-            search={preview.viewSearch}
-          >
-            {viewLabel}
-          </Link>
-        </Button>
+        {showView ? (
+          <Button asChild variant="secondary" size="sm" className="w-full">
+            <Link
+              to={preview.viewTo}
+              params={preview.viewParams}
+              search={preview.viewSearch}
+            >
+              {viewLabel}
+            </Link>
+          </Button>
+        ) : null}
       </div>
     </Popover>
   );

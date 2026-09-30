@@ -112,13 +112,6 @@ export type NotificationTarget =
       to: '/dashboard/$id/projects/$projectId/tasks';
       params: { id: string; projectId: string };
     }
-  // Automations — landing for a generic system/automation org alert with
-  // no more specific link (the standalone automations list was removed;
-  // installed automation lives in Automations).
-  | {
-      to: '/dashboard/$id/automations';
-      params: { id: string };
-    }
   // Governance overview — landing for a security org alert with no more
   // specific link (the security/audit/DSAR pages all live under Governance).
   | {
@@ -126,7 +119,8 @@ export type NotificationTarget =
       params: { id: string };
     }
   // Org home — last-resort landing for a personal row with no project context
-  // (e.g. a digest, or a legacy row written before `projectId` was stored).
+  // (e.g. a digest, or a legacy row written before `projectId` was stored),
+  // and for a generic system org alert, which every member sees.
   | {
       to: '/dashboard/$id';
       params: { id: string };
@@ -279,9 +273,11 @@ export function personalNotificationTarget(args: {
 /**
  * Deep-link target for an ORG notification. A stored `link` routes to its
  * specific page; a linkless row (legacy or generic automation/system alert) falls
- * back by `category` — security alerts land on Governance, everything else on
- * Automations. Always returns a target, so an org row is never a dead,
- * unclickable line (#2377).
+ * back by `category` to a page its whole audience may open — security alerts,
+ * which only admins see, land on Governance; everything else, which the whole
+ * organization sees, on the organization's home (Automations is only for
+ * Owners, Admins and Developers). Always returns a target, so an org row is
+ * never a dead, unclickable line (#2377).
  */
 function categoryLanding(
   id: string,
@@ -289,7 +285,7 @@ function categoryLanding(
 ): NotificationTarget {
   return category === 'security'
     ? { to: '/dashboard/$id/settings/governance', params: { id } }
-    : { to: '/dashboard/$id/automations', params: { id } };
+    : { to: '/dashboard/$id', params: { id } };
 }
 
 export function orgNotificationTarget(

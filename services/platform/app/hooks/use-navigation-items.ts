@@ -11,14 +11,16 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 
-import { useAutomationsAvailability } from '@/app/features/automations/hooks/use-automations-availability';
+import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import { readAutomationMemory } from '@/app/features/automations/lib/detail-memory';
 import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { isHomePath } from '@/app/features/home/lib/home-paths';
-import { readProjectMemory } from '@/app/features/home/lib/project-memory';
+import {
+  isProjectAutomationsPath,
+  readProjectMemory,
+} from '@/app/features/home/lib/project-memory';
 import { readKnowledgeTabMemory } from '@/app/features/knowledge/lib/knowledge-tab-memory';
-import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -108,16 +110,9 @@ export function useNavigationItems(businessId: string): NavigationItems {
   const { data: unreadConversations } = useUnreadConversationCount(
     hasInbox ? businessId : undefined,
   );
-  // Automations is a builder's section: Owners, Admins and Developers (the
-  // server's author gate) always see it; everyone else only once the
-  // organization runs a deployed organization automation they can follow.
-  // A presentation rule, not access control — the routes stay reachable.
-  // Authors skip the availability read: they see the section regardless.
-  const canAuthor = useAbility().can('read', 'developerSettings');
-  const { hasLiveOrgAutomation } = useAutomationsAvailability(
-    canAuthor ? '' : businessId,
-  );
-  const showAutomations = canAuthor || hasLiveOrgAutomation;
+  // Automations is a builder's section: only Owners, Admins and Developers
+  // get the entry, whatever the organization runs.
+  const showAutomations = useCanUseAutomations();
 
   const { pathname } = useLocation();
   return useMemo((): NavigationItems => {
@@ -143,10 +138,14 @@ export function useNavigationItems(businessId: string): NavigationItems {
     // Arriving from outside Home (Knowledge, Automations, Settings): if a
     // specific project was last open, reopen it instead of resuming chat.
     // Already-in-Home (including the fresh-chat reentry gesture above) and
-    // "no project ever visited" both fall through untouched.
+    // "no project ever visited" both fall through untouched, and so does a
+    // project automation page remembered before the viewer's role changed.
     if (!isItemActive(homeItem, pathname)) {
       const rememberedProjectPath = readProjectMemory(businessId);
-      if (rememberedProjectPath !== undefined) {
+      if (
+        rememberedProjectPath !== undefined &&
+        (showAutomations || !isProjectAutomationsPath(rememberedProjectPath))
+      ) {
         homeItem.to = rememberedProjectPath;
         homeItem.params = {};
         homeItem.state = { navRestore: true };

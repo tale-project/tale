@@ -7,7 +7,9 @@ import { PageLayout } from '@tale/ui/page-layout';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { AutomationsList } from '@/app/features/automations/components/automations-list';
+import { canUseAutomations } from '@/app/features/automations/lib/access';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
+import { cachedAbility } from '@/app/lib/loader-preload';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -19,6 +21,9 @@ export const Route = createFileRoute('/dashboard/$id/automations/')({
     // Warm the listing so the table paints without a skeleton on first nav.
     // The args MUST match what `AutomationsList` subscribes with on the org
     // page (project-bound automations merged in) or the cache key misses.
+    // Someone who may not use Automations only gets the denial.
+    const ability = cachedAbility(context, params.id);
+    if (ability !== null && !canUseAutomations(ability)) return;
     prefetchAdaptedQuery(
       context.queryClient,
       'automations/queries:listAutomations',

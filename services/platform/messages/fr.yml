@@ -10,6 +10,7 @@ accessDenied:
     de l'organisation.
   branding: Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.
   knowledge: Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.
+  automations: Les automatisations sont réservées aux propriétaires, admins et développeurs.
   workspaceNotFound: L'espace de travail que tu recherches n'existe pas ou a été supprimé.
   disabled: Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.
   noMembership: Tu n'es pas membre de cet espace de travail. Contacte un administrateur pour obtenir l'accès.
@@ -610,9 +611,6 @@ automations:
     empty:
       title: Aucune automatisation pour l’instant
       description: Choisis « Créer une automatisation » pour partir d’un déclencheur et d’un agent, ou pour téléverser un paquet.
-    emptyReader:
-      title: Aucune automatisation en service
-      description: Une automatisation apparaît ici dès qu’une personne ayant le rôle Propriétaire, Admin ou Développeur la met en service.
   createMenu:
     blank: Vierge (trigger + agent)
   blank:

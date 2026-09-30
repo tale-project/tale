@@ -1141,11 +1141,15 @@ function questionExcerpt(question: string): string {
 
 /** Every user who can SEE the project: admins/owners ∪ the project's team
  * members; an org-wide project (no teams) means every non-disabled member.
- * Falls back to org admins when no project is in scope. */
+ * A question with no task is answered only on its run page, which only
+ * Owners, Admins and Developers may open (`isAdminOrDeveloperRole`), so then
+ * only they are asked — a task-bound one is answered on the task. Falls back
+ * to org admins when no project is in scope. */
 async function askAudienceUserIds(
   db: Db,
   organizationId: string,
   projectId: string | null,
+  answeredOnTask: boolean,
 ): Promise<string[]> {
   if (projectId !== null) {
     const projects = await db<{ teamIds: string[] | null }[]>`
@@ -1162,6 +1166,8 @@ async function askAudienceUserIds(
           SELECT "userId" FROM "member"
           WHERE "organizationId" = ${organizationId}
             AND "role" <> 'disabled'
+            AND (${answeredOnTask}
+                 OR "role" IN ('owner', 'admin', 'developer'))
           LIMIT ${MAX_ASK_RECIPIENTS}
         `;
         return rows.map((row) => row.userId);
@@ -1170,6 +1176,8 @@ async function askAudienceUserIds(
         SELECT DISTINCT m."userId" FROM "member" m
         WHERE m."organizationId" = ${organizationId}
           AND m."role" <> 'disabled'
+          AND (${answeredOnTask}
+               OR m."role" IN ('owner', 'admin', 'developer'))
           AND (m."role" IN ('owner', 'admin')
                OR EXISTS (
                  SELECT 1 FROM "teamMember" tm
@@ -1191,8 +1199,9 @@ async function askAudienceUserIds(
 }
 
 /**
- * One actionable inbox row per person who can see the project: "the agent
- * paused with a question". Called on ask creation AND on a fold (the merged
+ * One actionable inbox row per person who can see the project and answer
+ * the question there (see `askAudienceUserIds`): "the agent paused with a
+ * question". Called on ask creation AND on a fold (the merged
  * question is the current truth — the `question` dimension rewrites the
  * unread row in place). Returns the rows written/rewritten.
  */
@@ -1213,6 +1222,7 @@ export async function notifyAgentQuestionAsked(
     db,
     args.organizationId,
     projectId,
+    args.task !== null,
   );
   const shared = {
     name: args.automationLabel,

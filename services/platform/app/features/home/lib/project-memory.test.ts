@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   clearProjectMemory,
+  isProjectAutomationsPath,
   persistProjectMemory,
   readProjectMemory,
 } from './project-memory';
@@ -58,5 +59,28 @@ describe('home project memory', () => {
     expect(
       window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
     ).toBeNull();
+  });
+});
+
+describe('isProjectAutomationsPath', () => {
+  it('matches the Automations tab and every page under it', () => {
+    for (const path of [
+      '/dashboard/org-1/projects/proj-1/automations',
+      '/dashboard/org-1/projects/proj-1/automations/mail-sync',
+      '/dashboard/org-1/projects/proj-1/automations/mail-sync/runs/run-1',
+    ]) {
+      expect(isProjectAutomationsPath(path), path).toBe(true);
+    }
+  });
+
+  it('leaves the other project pages alone', () => {
+    for (const path of [
+      '/dashboard/org-1/projects/proj-1',
+      '/dashboard/org-1/projects/proj-1/tasks/board',
+      '/dashboard/org-1/projects/proj-1/files',
+      '/dashboard/org-1/projects/proj-1/automations-archive',
+    ]) {
+      expect(isProjectAutomationsPath(path), path).toBe(false);
+    }
   });
 });

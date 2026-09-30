@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { persistAutomationMemory } from '@/app/features/automations/lib/detail-memory';
 import { persistProjectMemory } from '@/app/features/home/lib/project-memory';
 import { persistKnowledgeTabMemory } from '@/app/features/knowledge/lib/knowledge-tab-memory';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { renderHook } from '@/tests/utils/render';
 
 // The two reads the Home entry's chip depends on: whether the organization
@@ -15,30 +16,23 @@ vi.mock('@/app/features/conversations/hooks/use-inbox-availability', () => ({
   useInboxAvailability: () => inbox,
 }));
 
-// Who is looking (an author can read developer settings) and whether the
-// organization runs a deployed organization automation.
-const viewer = { canAuthor: true };
-const automations = { hasLiveOrgAutomation: false };
-const availabilityCalls: string[] = [];
+// Who is looking: the real ability of that platform role.
+const viewer = { role: 'developer' };
 
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({
-    can: (action: string, subject: string) =>
-      action === 'read' && subject === 'developerSettings'
-        ? viewer.canAuthor
-        : true,
-  }),
+  useAbility: () => defineAbilityFor(viewer.role),
 }));
 
-vi.mock(
-  '@/app/features/automations/hooks/use-automations-availability',
-  () => ({
-    useAutomationsAvailability: (organizationId: string) => {
-      availabilityCalls.push(organizationId);
-      return { isLoading: false, ...automations };
-    },
+// Whatever the organization runs: here a deployed organization-wide
+// automation, which must not bring the entry back for anyone else.
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
+    data: [
+      { name: 'mail-sync', latest: 1, projectIds: [], deployedVersion: 1 },
+    ],
+    isLoading: false,
   }),
-);
+}));
 
 vi.mock('@/app/features/conversations/hooks/queries', () => ({
   useUnreadConversationCount: (organizationId: string | undefined) => {
@@ -86,9 +80,7 @@ function automationsItem() {
 }
 
 beforeEach(() => {
-  viewer.canAuthor = true;
-  automations.hasLiveOrgAutomation = false;
-  availabilityCalls.length = 0;
+  viewer.role = 'developer';
   inbox.hasInbox = true;
   unread.data = undefined;
   unreadCalls.length = 0;
@@ -111,35 +103,14 @@ describe('the rail', () => {
 describe('the Automations entry', () => {
   const labels = () => items().primary.map((item) => item.label);
 
-  it('always shows for people who build automations', () => {
-    viewer.canAuthor = true;
-    automations.hasLiveOrgAutomation = false;
-    expect(labels()).toContain('automations');
-  });
-
-  it('stays hidden for everyone else while nothing is live for them', () => {
-    viewer.canAuthor = false;
-    automations.hasLiveOrgAutomation = false;
-    expect(labels()).toEqual(['home', 'knowledge']);
-  });
-
-  it('shows for everyone once a deployed organization automation runs', () => {
-    viewer.canAuthor = false;
-    automations.hasLiveOrgAutomation = true;
+  it.each(['owner', 'admin', 'developer'])('shows for the %s role', (role) => {
+    viewer.role = role;
     expect(labels()).toEqual(['home', 'knowledge', 'automations']);
   });
 
-  it('skips the availability read for authors, who see it regardless', () => {
-    viewer.canAuthor = true;
-    items();
-    expect(availabilityCalls.length).toBeGreaterThan(0);
-    expect(availabilityCalls.every((id) => id === '')).toBe(true);
-  });
-
-  it('asks about the active organization for everyone else', () => {
-    viewer.canAuthor = false;
-    items();
-    expect(availabilityCalls).toContain('org-1');
+  it.each(['editor', 'member'])('never shows for the %s role', (role) => {
+    viewer.role = role;
+    expect(labels()).toEqual(['home', 'knowledge']);
   });
 });
 
@@ -229,6 +200,36 @@ describe('the Home nav entry — reopening a project', () => {
     expect(item?.to).toBe('/dashboard/$id/chat');
     expect(item?.state).toBeUndefined();
   });
+
+  it('reopens a project automation page for a developer', () => {
+    mockLocation.pathname = '/dashboard/org-1/documents';
+    persistProjectMemory(
+      'org-1',
+      '/dashboard/org-1/projects/proj-1/automations/mail-sync',
+    );
+
+    expect(homeItem()?.to).toBe(
+      '/dashboard/org-1/projects/proj-1/automations/mail-sync',
+    );
+  });
+
+  // Remembered while the viewer was still a Developer: after the role
+  // changed, Home would otherwise keep reopening the access denial.
+  it.each(['editor', 'member'])(
+    'does not reopen a project automation page for the %s role',
+    (role) => {
+      viewer.role = role;
+      mockLocation.pathname = '/dashboard/org-1/documents';
+      persistProjectMemory(
+        'org-1',
+        '/dashboard/org-1/projects/proj-1/automations/mail-sync',
+      );
+
+      const item = homeItem();
+      expect(item?.to).toBe('/dashboard/$id/chat');
+      expect(item?.state).toBeUndefined();
+    },
+  );
 });
 
 describe('the Knowledge nav entry', () => {

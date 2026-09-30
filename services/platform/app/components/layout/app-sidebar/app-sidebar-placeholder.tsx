@@ -10,9 +10,9 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 
 // The sections of the `primary` list in `use-navigation-items.ts` — Home,
 // Knowledge, Automations. Keep in step; Settings is pinned to the footer.
-// Automations is absent for someone who cannot build automations while the
-// organization runs none; its tile is the last one, so the live rail then
-// only drops the bottom tile and nothing above it moves.
+// Automations is absent for everyone but Owners, Admins and Developers; its
+// tile is the last one, so the live rail then only drops the bottom tile and
+// nothing above it moves.
 const PLACEHOLDER_NAV_ITEMS = 3;
 
 /** One masked 36×36 icon tile (logo/nav/bell slots). */

@@ -4,11 +4,22 @@
  * when Home isn't already active, so Chat/Tasks/Inbox's own behavior is
  * untouched), written by `projects/$projectId.tsx` as the tab/project
  * changes. Covers every project sub-route, including a bound automation's
- * workbench under `.../automations/$automationSlug`.
+ * workbench under `.../automations/$automationSlug` — for those who may use
+ * Automations, see {@link isProjectAutomationsPath}.
  */
 
 function storageKey(organizationId: string): string {
   return `tale.platform.home.${organizationId}.lastProjectPath`;
+}
+
+/**
+ * Whether a project path is one of its automation pages (the Automations tab
+ * or anything under it). Only Owners, Admins and Developers may open them, so
+ * the Home tile must neither remember one for anyone else nor send them back
+ * to one it remembered before their role changed.
+ */
+export function isProjectAutomationsPath(pathname: string): boolean {
+  return /\/projects\/[^/]+\/automations(?:\/|$)/.test(pathname);
 }
 
 export function readProjectMemory(organizationId: string): string | undefined {
