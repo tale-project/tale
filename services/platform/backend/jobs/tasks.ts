@@ -207,13 +207,18 @@ export interface TaskPayloads {
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks —
    * the retry's start held until `startAfterMs` when the failed start met a
-   * subscription broker whose every account was cooling down. */
+   * subscription broker whose every account was cooling down. The retry of
+   * a run an automation or another agent started waits while its agent
+   * works another task in the same workspace: the handler sends the same
+   * job again a few minutes later, counting its looks (`agentBusyWaits`,
+   * bounded by `planAgentBusyWait`). */
   'task.agent_retry': {
     organizationId: string;
     taskId: string;
     agentId: string;
     expectedRunId: string;
     startAfterMs?: number;
+    agentBusyWaits?: number;
   };
   /** Finish a settled turn's gateway-key settlement (book its spend, revoke
    * the key) that the host's own settle could not complete — scheduled by

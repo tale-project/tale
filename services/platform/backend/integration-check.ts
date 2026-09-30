@@ -114,6 +114,7 @@ import { checkImportCursorContinuation } from './domains/tasks/import-cursors.in
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
+import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
@@ -56305,6 +56306,10 @@ async function main(): Promise<void> {
       [
         'checkInPlaceCompletionCycle',
         () => checkInPlaceCompletionCycle(sql, authCtx, record),
+      ],
+      [
+        'checkAutomatedRetryAgentBusy',
+        () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
       ],
       [
         'checkImportCursorContinuation',

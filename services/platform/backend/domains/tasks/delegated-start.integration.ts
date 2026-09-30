@@ -47,9 +47,9 @@ import {
   updateTaskStatus,
 } from './service.ts';
 
-type Recorder = (name: string, ok: boolean, detail: string) => void;
+export type Recorder = (name: string, ok: boolean, detail: string) => void;
 
-interface LaneCtx {
+export interface LaneCtx {
   cookie: string;
   orgId: string;
   userId: string;
@@ -61,7 +61,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-async function waitFor(
+export async function waitFor(
   predicate: () => Promise<boolean>,
   timeoutMs: number,
 ): Promise<boolean> {
@@ -74,7 +74,7 @@ async function waitFor(
 }
 
 /** A run's row as the lane reads it. */
-interface RunRow {
+export interface RunRow {
   id: string;
   taskId: string;
   status: string;
@@ -91,7 +91,7 @@ interface RunRow {
   viaAgentId: string | null;
 }
 
-function runsOf(sql: Sql, taskId: string): Promise<RunRow[]> {
+export function runsOf(sql: Sql, taskId: string): Promise<RunRow[]> {
   return sql<RunRow[]>`
     SELECT id, task_id AS "taskId", status, trigger,
            started_by AS "startedBy",
@@ -105,7 +105,7 @@ function runsOf(sql: Sql, taskId: string): Promise<RunRow[]> {
   `;
 }
 
-function describeRuns(runs: readonly RunRow[]): string {
+export function describeRuns(runs: readonly RunRow[]): string {
   return (
     runs.map((run) => `${run.status}/${run.trigger ?? 'manual'}`).join(',') ||
     'none'
@@ -152,12 +152,15 @@ async function failNewestRunAndRetry(
 /**
  * Park every agent-turn and retry job the lane's projects enqueue a day
  * ahead, at the queue's own insert — the worker runs for the whole harness
- * and would otherwise try to launch a sandbox. Returns the teardown.
+ * and would otherwise try to launch a sandbox. With `keepDelay`, a job sent
+ * to start later is parked a day past its own start, so a lane can still
+ * read how long it was meant to wait. Returns the teardown.
  */
-async function holdAgentJobs(
+export async function holdAgentJobs(
   sql: Sql,
   suffix: string,
   projectIds: readonly string[],
+  options: { keepDelay?: boolean } = {},
 ): Promise<() => Promise<void>> {
   for (const id of projectIds) {
     if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`itest: bad id ${id}`);
@@ -178,7 +181,7 @@ async function holdAgentJobs(
           SELECT id FROM app.tasks WHERE project_id IN (${list})
         )
       ) THEN
-        NEW.start_after := now() + interval '1 day';
+        NEW.start_after := ${options.keepDelay === true ? 'greatest(NEW.start_after, now())' : 'now()'} + interval '1 day';
       END IF;
       RETURN NEW;
     END $$ LANGUAGE plpgsql
@@ -226,7 +229,7 @@ async function turnJobsOf(
   return rows[0] ?? { count: -1, held: -1 };
 }
 
-interface Fixtures {
+export interface Fixtures {
   suffix: string;
   now: number;
   insertUser: (id: string, role: string) => Promise<void>;
@@ -247,7 +250,7 @@ interface Fixtures {
   teardownUsers: () => Promise<void>;
 }
 
-function fixtures(sql: Sql, ctx: LaneCtx): Fixtures {
+export function fixtures(sql: Sql, ctx: LaneCtx): Fixtures {
   const suffix = randomUUID().slice(0, 8);
   const now = Date.now();
   const users: string[] = [];

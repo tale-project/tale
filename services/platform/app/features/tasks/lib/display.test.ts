@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { TASK_ACTIVITY_FIELD, TASK_ACTIVITY_LABEL_KEY } from './display';
+import {
+  TASK_ACTIVITY_FIELD,
+  TASK_ACTIVITY_LABEL_KEY,
+  TASK_RUN_REFUSAL_LABEL_KEY,
+} from './display';
 
 /**
  * Guardrail: every action a task writer records has a label, and every one it
@@ -27,6 +31,22 @@ function writerSources(): string[] {
       (file) => file.endsWith('.ts') && !/\.(test|integration)\.ts$/.test(file),
     )
     .map((file) => readFileSync(join(TASKS_DOMAIN, file), 'utf8'));
+}
+
+/** Every run-admission refusal code a writer records (`agent_run.refused`). */
+function recordedRefusals(): Set<string> {
+  const codes = new Set<string>();
+  for (const source of writerSources()) {
+    for (const call of source.matchAll(
+      /recordActivity\(\s*tx,\s*\{([\s\S]*?)\}\);/g,
+    )) {
+      const body = call[1] ?? '';
+      if (!/action:\s*'agent_run\.refused'/.test(body)) continue;
+      const code = /toValue:\s*'([^']+)'/.exec(body)?.[1];
+      if (code) codes.add(code);
+    }
+  }
+  return codes;
 }
 
 /** Every recorded action, and whether a writer stores a value with it. */
@@ -95,5 +115,17 @@ describe('task activity actions', () => {
       )
       .map(([action]) => action);
     expect(undeclared).toEqual([]);
+  });
+});
+
+describe('run-admission refusals', () => {
+  it('names every refusal a task writer records, so the timeline and the banner never show its code', () => {
+    const codes = recordedRefusals();
+    // A walk that found nothing would pass anything.
+    expect(codes.has('task_circuit_breaker')).toBe(true);
+    expect(codes.has('agent_busy')).toBe(true);
+    expect(
+      [...codes].filter((code) => !TASK_RUN_REFUSAL_LABEL_KEY[code]),
+    ).toEqual([]);
   });
 });

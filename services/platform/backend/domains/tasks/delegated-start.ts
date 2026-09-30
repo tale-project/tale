@@ -67,7 +67,11 @@ import {
  *   this start is never undone;
  * - `agent_busy` — the agent is working another task in its standing
  *   workspace, which every run it is started for here shares: one active
- *   piece of work per agent workspace;
+ *   piece of work per agent workspace. The automatic retry of such a run
+ *   keeps the rule under the same lock and probe ({@link lockAgentForStart},
+ *   {@link findAgentBusyRun}): it waits for the workspace instead
+ *   (`task.agent_retry`, bounded by `planAgentBusyWait`) and, past that
+ *   wait, is refused on the task's timeline ({@link recordAgentBusyRefusal});
  * - `blocked` — a task this one depends on is still open;
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
@@ -154,6 +158,102 @@ export async function admitAutomatedStart(
     admitted: false,
     retryAfter: (recent[0]?.startedAt ?? now) + HOUR_MS,
   };
+}
+
+/** The agent row as a start locks it: what the kick needs to run it. */
+export interface LockedAgent {
+  id: string;
+  projectId: string;
+  harness: string;
+  model: string;
+  modelProvider: string | null;
+}
+
+/**
+ * Take the agent row that two starts of one agent queue on, so the busy
+ * probe after it ({@link findAgentBusyRun}) cannot miss a run another start
+ * is minting. A write rather than a SELECT FOR UPDATE, as `lockTaskRunStart`
+ * does for the task: an overlapping SERIALIZABLE snapshot is invalidated
+ * too, and its retry sees the winner. Every start that locks both takes the
+ * agent first, then the task — the delegated start and the automatic retry
+ * alike; never the task first. `projectId` confines it to one project's
+ * agents. Null when no such agent exists (nothing is locked then).
+ */
+export async function lockAgentForStart(
+  tx: TransactionSql,
+  args: { organizationId: string; agentId: string; projectId?: string },
+): Promise<LockedAgent | null> {
+  const agents = await tx<LockedAgent[]>`
+    UPDATE app.project_agents SET updated_at_ms = updated_at_ms
+    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+      AND (${args.projectId ?? null}::text IS NULL
+           OR project_id = ${args.projectId ?? null})
+    RETURNING id, project_id AS "projectId", harness, model,
+              model_provider AS "modelProvider"
+  `;
+  return agents[0] ?? null;
+}
+
+/**
+ * The agent's live run on another task in `sessionId` — the workspace a new
+ * run of it would share — or null when that workspace is free. Judge it
+ * holding the agent row ({@link lockAgentForStart}). Only this
+ * organization's runs of this agent in that workspace count: its run in
+ * another workspace (a member's own), or another agent's, never makes it
+ * busy there.
+ */
+export async function findAgentBusyRun(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    agentId: string;
+    sessionId: string;
+    taskId: string;
+  },
+): Promise<{ id: string; taskId: string } | null> {
+  const busy = await tx<{ id: string; taskId: string }[]>`
+    SELECT id, task_id AS "taskId" FROM app.project_agent_runs
+    WHERE org_id = ${args.organizationId} AND agent_id = ${args.agentId}
+      AND session_id = ${args.sessionId}
+      AND status IN ('queued', 'running') AND task_id <> ${args.taskId}
+    ORDER BY seq DESC
+    LIMIT 1
+  `;
+  return busy[0] ?? null;
+}
+
+/**
+ * The automatic retry that waited for its busy agent as long as it may
+ * (`planAgentBusyWait`) is refused on the task's timeline as the refused
+ * agent (`agent_run.refused`, `agent_busy`: "<agent> could not start: agent
+ * is working on another task"), the circuit breaker's convention — once per
+ * failure, however often its job is delivered (`failedAt`, the failed run's
+ * settle stamp). Nothing is queued behind it: whoever manages the task
+ * decides again.
+ */
+export async function recordAgentBusyRefusal(
+  tx: TransactionSql,
+  args: {
+    task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
+    agentId: string;
+    failedAt: number | undefined;
+  },
+): Promise<void> {
+  const recorded = await tx<{ id: string }[]>`
+    SELECT id FROM app.task_activity
+    WHERE org_id = ${args.task.organizationId} AND task_id = ${args.task.id}
+      AND action = 'agent_run.refused' AND to_value = 'agent_busy'
+      AND created_at_ms >= ${args.failedAt ?? 0}
+    LIMIT 1
+  `;
+  if (recorded.length > 0) return;
+  await recordActivity(tx, {
+    task: args.task,
+    actorType: 'agent',
+    actorId: args.agentId,
+    action: 'agent_run.refused',
+    toValue: 'agent_busy',
+  });
 }
 
 /** The actor an automation's writes are recorded as on the task timeline —
@@ -510,28 +610,17 @@ export async function startDelegatedAgentRun(
     );
   }
   // One active piece of work per agent workspace: the agent row is the
-  // lock two starts of the same agent queue on, so the busy probe below
-  // cannot miss a run another start is minting. A write rather than a
-  // SELECT FOR UPDATE, as `lockTaskRunStart` does for the task: the loser's
-  // serializable snapshot is invalidated too, and its retry sees the winner.
-  const agents =
+  // lock two starts of the same agent queue on (`lockAgentForStart`), taken
+  // before any task row.
+  const agent =
     agentId === null
-      ? []
-      : await tx<
-          {
-            id: string;
-            harness: string;
-            model: string;
-            modelProvider: string | null;
-          }[]
-        >`
-          UPDATE app.project_agents SET updated_at_ms = updated_at_ms
-          WHERE id = ${agentId} AND org_id = ${args.organizationId}
-            AND project_id = ${task.projectId}
-          RETURNING id, harness, model, model_provider AS "modelProvider"
-        `;
-  const agent = agents[0];
-  if (agent === undefined) {
+      ? null
+      : await lockAgentForStart(tx, {
+          organizationId: args.organizationId,
+          agentId,
+          projectId: task.projectId,
+        });
+  if (agent === null) {
     if (args.agentId === undefined && args.resumeFrom !== undefined) {
       // Nobody to resume: the run named is not this task's, or its agent is
       // gone (deleting an agent unassigns its tasks). Not the open question
@@ -629,16 +718,13 @@ export async function startDelegatedAgentRun(
     }
   }
 
-  const busy = await tx<{ id: string; taskId: string }[]>`
-    SELECT id, task_id AS "taskId" FROM app.project_agent_runs
-    WHERE org_id = ${args.organizationId} AND agent_id = ${agent.id}
-      AND session_id = ${standingSessionIdForProjectAgent(agent.id)}
-      AND status IN ('queued', 'running') AND task_id <> ${task.id}
-    ORDER BY seq DESC
-    LIMIT 1
-  `;
-  const busyRun = busy[0];
-  if (busyRun !== undefined) {
+  const busyRun = await findAgentBusyRun(tx, {
+    organizationId: args.organizationId,
+    agentId: agent.id,
+    sessionId: standingSessionIdForProjectAgent(agent.id),
+    taskId: task.id,
+  });
+  if (busyRun !== null) {
     return {
       outcome: 'agent_busy',
       runId: busyRun.id,

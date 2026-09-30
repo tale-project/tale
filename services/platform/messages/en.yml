@@ -7730,6 +7730,7 @@ tasks:
       automation: automation
       delegated: delegated
     refused:
+      agent_busy: agent is working on another task
       agent_disabled: agent is not installed or is disabled
       agent_not_found: agent not found or misconfigured
       automation_disabled: task automation is off
