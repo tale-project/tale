@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import type { TaskDoc } from '../lib/display';
+import { BOARD_TASK_STATUSES, type TaskDoc } from '../lib/display';
 import { TaskDependencies } from './task-dependencies';
 
 /**
@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   canEdit: false,
   tasks: [] as TaskDoc[],
   add: vi.fn(),
+  boardRead: vi.fn(),
 }));
 
 const task = (id: string, overrides: Partial<TaskDoc> = {}): TaskDoc => ({
@@ -39,13 +40,16 @@ const task = (id: string, overrides: Partial<TaskDoc> = {}): TaskDoc => ({
 
 vi.mock('../hooks/queries', () => ({
   useTaskDependencies: () => ({ blockedBy: [], blocks: [] }),
-  useTasksByProject: () => ({
-    tasks: state.tasks,
-    canEdit: state.canEdit,
-    canCreate: true,
-    truncated: false,
-    isLoading: false,
-  }),
+  useTasksByProject: (...args: unknown[]) => {
+    state.boardRead(...args);
+    return {
+      tasks: state.tasks,
+      canEdit: state.canEdit,
+      canCreate: true,
+      truncated: false,
+      isLoading: false,
+    };
+  },
 }));
 vi.mock('../hooks/mutations', () => ({
   useAddTaskDependency: () => ({ mutateAsync: state.add }),
@@ -60,6 +64,7 @@ const others = task('others');
 beforeEach(() => {
   state.canEdit = false;
   state.add.mockReset().mockResolvedValue(null);
+  state.boardRead.mockReset();
   state.tasks = [
     others,
     task('mine', { createdBy: 'u-member', number: 2 }),
@@ -92,5 +97,19 @@ describe("TaskDependencies on someone else's task", () => {
     render(<TaskDependencies task={others} canEdit={false} />);
 
     expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+  });
+});
+
+// A task opened from its board lists the project's tasks as candidates: read
+// under the unfiltered board's own key, those are the rows the board already
+// holds, not a second read of the whole project (#3939).
+describe('TaskDependencies candidates', () => {
+  it("reads the project's tasks as the unfiltered board does", () => {
+    render(<TaskDependencies task={others} canEdit />);
+
+    expect(state.boardRead).toHaveBeenCalled();
+    for (const call of state.boardRead.mock.calls) {
+      expect(call).toEqual(['project-1', { statuses: BOARD_TASK_STATUSES }]);
+    }
   });
 });

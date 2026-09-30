@@ -184,6 +184,7 @@ async function main(): Promise<number> {
     'proxy',
     'sandbox',
     'sandbox-egress',
+    'sandbox-llm-gateway',
   ];
   let healthFailed = false;
   for (const svc of services) {
@@ -378,6 +379,30 @@ async function main(): Promise<number> {
   }
   // NOTE: knowledge-db reachability is covered by the `Knowledge DB pg_isready`
   // datastore check above.
+
+  // A fresh model gateway creates its first admin account only for a request
+  // carrying the setup token it started with, and the backend claims it with
+  // its admin password — so the gateway image always sets the token to that
+  // same password (services/sandbox-llm-gateway/docker-entrypoint.sh), even
+  // over an explicit BIFROST_SETUP_TOKEN, which .env.test gives the container
+  // (`docker exec` sees the container's own environment). The gateway process
+  // (PID 1, after the entrypoint's exec) must hold the password.
+  const gatewayContainer = await compose.containerName('sandbox-llm-gateway');
+  if (
+    await dockerExecOk(gatewayContainer, [
+      'sh',
+      '-c',
+      `test -n "$SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD" && test -n "$BIFROST_SETUP_TOKEN" && test "$BIFROST_SETUP_TOKEN" != "$SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD" && test "$(tr '\\0' '\\n' < /proc/1/environ | sed -n 's/^BIFROST_SETUP_TOKEN=//p')" = "$SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD"`,
+    ])
+  ) {
+    r.pass(
+      'Gateway takes its setup token from the admin password, not BIFROST_SETUP_TOKEN',
+    );
+  } else {
+    r.fail(
+      'Gateway takes its setup token from the admin password, not BIFROST_SETUP_TOKEN',
+    );
+  }
 
   // 6. Sandbox session API end-to-end probe
   await sandboxSessionProbe();

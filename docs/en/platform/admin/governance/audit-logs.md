@@ -14,6 +14,12 @@ Open **Settings > Governance > Logs** as an Admin or Owner to investigate record
 
 The active tab and category are reflected in the URL, so you can bookmark the view. Access still depends on your organization permissions.
 
+<Frame caption="Governance > Logs: the Audit logs tab narrowed to the Member category. Clear all removes the filter.">
+
+![The Logs page with the Audit logs tab filtered to the Member category, listing eleven events in which Alex Rivera added members, created three teams, and added a member to each team, every row showing its resource, target, category, and a Success status.](/images/platform/governance-audit-logs.webp)
+
+</Frame>
+
 ## Read an event
 
 | Field | What to look for |

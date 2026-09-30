@@ -10,7 +10,7 @@ import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ChevronRight } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
@@ -44,8 +44,11 @@ import { TaskTitleButton } from './task-title-button';
  * from) their parent rather than getting their own section row. Drag mechanics
  * are shared with the board via {@link useTaskBoardDnd}; a top-level row can be
  * dragged into any expanded lane.
+ *
+ * Memoized, like the board: a task dialog opening or closing never re-renders
+ * the rows (#3939).
  */
-export function TasksList({
+export const TasksList = memo(function TasksList({
   tasks,
   onOpenTask,
   projectKey,
@@ -141,7 +144,7 @@ export function TasksList({
       {cancelConfirmDialog}
     </DndContext>
   );
-}
+});
 
 function ListSwimlane({
   status,

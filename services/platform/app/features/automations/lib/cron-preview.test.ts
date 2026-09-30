@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { cronMatches, parseCron } from '@/backend/core/automations/cron';
+
 import {
   isValidTimezone,
   listTimezoneOptions,
@@ -98,5 +100,52 @@ describe('listTimezoneOptions', () => {
     const zones = listTimezoneOptions('Etc/GMT+2');
     expect(zones[0]).toBe('UTC');
     expect(zones).toContain('Etc/GMT+2');
+  });
+});
+
+/**
+ * The next run the Trigger section shows is the occurrence the schedule
+ * scan will fire (`backend/core/automations/cron.ts`), for the five
+ * Europe/Zurich cadences of a team of project agents — including around the
+ * October fall-back and the March spring-forward.
+ */
+describe('previewCronExpression — the next run agrees with the scan', () => {
+  const ZONE = 'Europe/Zurich';
+  const expressions = [
+    '0 0,3,6,9,12,15,18,21 * * *',
+    '15 0,4,8,12,16,20 * * *',
+    '45 0,3,6,9,12,15,18,21 * * *',
+    '30 1,5,9,13,17,21 * * *',
+    '15 3,11,19 * * *',
+  ];
+  const instants = [
+    Date.UTC(2026, 8, 29, 15, 42, 10), // an ordinary afternoon
+    Date.UTC(2026, 9, 24, 23, 59, 30), // 01:59 CEST before the fall-back
+    Date.UTC(2026, 9, 25, 0, 30), // 02:30 CEST, the first 02:30
+    Date.UTC(2026, 9, 25, 1, 30), // 02:30 CET, the repeated one
+    Date.UTC(2027, 2, 28, 0, 59), // 01:59 CET before the spring-forward
+    Date.UTC(2027, 2, 28, 1, 0), // 03:00 CEST, straight after the gap
+  ];
+  /** The scan's next firing minute after `from`: the first minute the
+   * matcher accepts, walking forward. */
+  const nextScanFire = (expression: string, from: number): number => {
+    const schedule = parseCron(expression);
+    let at = Math.floor(from / 60_000) * 60_000 + 60_000;
+    while (!cronMatches(schedule, at, ZONE)) at += 60_000;
+    return at;
+  };
+
+  it.each(
+    expressions.flatMap((expression) =>
+      instants.map((at) => [expression, new Date(at).toISOString()] as const),
+    ),
+  )('%s from %s', (expression, iso) => {
+    const now = new Date(iso);
+    const preview = previewCronExpression(expression, ZONE, now);
+    expect(preview.kind).toBe('ok');
+    if (preview.kind !== 'ok') return;
+    expect(preview.nextAt.getTime()).toBe(
+      nextScanFire(expression, now.getTime()),
+    );
   });
 });

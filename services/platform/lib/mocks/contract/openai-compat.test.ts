@@ -236,6 +236,9 @@ describe('chat/completions override', () => {
     // by the prompt's first 40 characters, so that prefix must survive.
     expect(title.startsWith(prompt.slice(0, 40))).toBe(true);
     expect(title.length).toBeLessThanOrEqual(60);
+    // A model titles in whole words; the 60th character falls inside
+    // "customer", so the title stops before it instead of reading "custom".
+    expect(title).toBe('Summarize the onboarding feedback from our last three');
     expect(title).not.toContain('Across the three onboarding calls');
   });
 

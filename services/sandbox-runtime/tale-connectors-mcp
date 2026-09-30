@@ -142,7 +142,12 @@ const TOOLS = [
       'List the platform workspace tools granted to this agent (each with its ' +
       'argument shape and whether it only reads or also writes). Call this ' +
       'before relying on workspace_tool. Tools are granted per agent by the ' +
-      'user when configuring the agent; an ungranted tool cannot be called.',
+      'user when configuring the agent; an ungranted tool cannot be called. ' +
+      'The answer also carries platform.version: the release version the ' +
+      'platform backend that answered this call is labelled with (for ' +
+      'example "0.5.64"), or null with a note when its build has none; an ' +
+      'older platform omits it. It is a label of that backend, not proof ' +
+      'of what is deployed or of its health.',
     inputSchema: { type: 'object', properties: {} },
   },
 ];

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 73 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -47,7 +47,7 @@ target — create one first under **Settings → API → REST**
 select lists every member's live key, read from
 `GET /api/app/governance/api-keys` (disabled and expired keys are left out).
 
-**GOV-F40–GOV-F46 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
+**GOV-F40–GOV-F47 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
 **Settings → API → REST** and need a chat model that a provider credential of
 type **API key** or **Environment variable** serves — in mode A, connect the
@@ -527,6 +527,18 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   **Recent events** shows the mask, and a model asked to repeat the message
   word for word repeats the placeholder, not the word; a category that checks
   only model output leaves the answer untouched. Restore the guardrails.
+- [ ] `GOV-F47` · **A call you break off ends at the gateway and is still
+  booked** — Mode B, on a model with a catalog price. With a Developer's key,
+  start `POST /api/v1/openai/chat/completions` without `stream` on a model that
+  takes a while to answer (ask for a long essay) and stop the client after a
+  few seconds (Ctrl-C on `curl`); repeat with `"stream": true` once the first
+  chunks have arrived → Within about a second the gateway's log (`docker logs`
+  on the `sandbox-llm-gateway` container) records each call as `499`; a
+  self-hosted upstream's own log shows the request cancelled, not finished.
+  Within a minute both calls sit on the Developer's **Direct API**
+  row in `usage` (GOV-F45): the whole answer costs about its prompt, the stream
+  its prompt plus the chunks received — never nothing, and never a full answer
+  that was not delivered.
 - [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
   `content-models` in a fresh organization, find **Image generation**
   (`governance.imageGeneration.title`), then **Start agent**

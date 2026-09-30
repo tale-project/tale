@@ -5,16 +5,15 @@
  * first time each label is reached, so a single hard refresh reveals exactly
  * where the authenticated-bootstrap time goes:
  *
- *   module-load          → JS bundle download + parse (dev: Vite transform)
- *   convex-preauth       → a persisted last-known token pre-authenticates the
- *                          WebSocket (skipping the serial session→token hops)
- *   convex-authenticated → end of the WebSocket auth handshake
- *                          (getSession → convex token → setAuth → WS validate)
- *   account-bootstrap    → the consolidated 2FA / password-expiry gate query
- *   member-context       → the org membership gate query
+ *   module-load       → JS bundle download + parse (dev: Vite transform)
+ *   router-loaded     → the initial route's matches are resolved, just
+ *                       before the first render
+ *   session-resolved  → the session check answered
+ *   account-bootstrap → the consolidated 2FA / password-expiry gate query
+ *   member-context    → the org membership gate query
  *
- * Compare the deltas: a large gap before `convex-authenticated` means the auth
- * handshake dominates; a large gap after means the gate queries do; a large
+ * Compare the deltas: a large gap before `session-resolved` means the session
+ * check dominates; a large gap after means the gate queries do; a large
  * `module-load` means the bundle does.
  *
  * Every mark is also recorded so the numbers are machine-readable, not just

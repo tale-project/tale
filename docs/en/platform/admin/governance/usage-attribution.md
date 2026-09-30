@@ -16,9 +16,10 @@ The rule is the same everywhere: a request counts against the person who asked f
 | Work | Counts against | Also counts toward | Appears in Usage analytics as |
 | --- | --- | --- | --- |
 | A chat reply, or the title of a new chat | The member who sent the message | The API key, when the message was sent through the REST API | The assistant used; a title under `thread-title` |
-| An agent run on a task | The member who started the run from the task, or with a comment or a task description that mentions the agent | — | The agent's name under **Top assistants** |
+| An agent run on a task | The member who started the run from the task, or with a comment or a task description that mentions the agent; for a run another agent or an automation step started, the member that agent's or automation's run counts against | — | The agent's name under **Top assistants** |
 | An automation run someone started | The member who started it from the run list, the builder, a chat, a task, the REST API, or the MCP endpoint | The API key, when the run was started with one | The automation's name under **Top assistants** |
 | An automation run a trigger started | Nobody: a schedule, a webhook, or an event has no person behind it | — | The **Automations (triggers)** row under **Per-user usage** |
+| A project agent's run a schedule began, or one another agent started for such a run | Nobody, as for the schedule's own run | — | The **Automations (triggers)** row under **Per-user usage**, and the agent's name under **Top assistants** |
 | An image an agent generates | The person the agent's run counts against: its starter, or nobody for a run a trigger started | The API key, when the run was started with one | The agent's or automation's name under **Top assistants**, and the image model under **Top models** |
 | Voice output or a transcription | The member who requested it | — | **Voice output** or **Transcription** under **Top assistants**; voice output also under **Top voice models** |
 | A metered connector call | The member whose request made the call | — | The assistant that made it, or **Connector** |

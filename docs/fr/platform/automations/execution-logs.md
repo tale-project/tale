@@ -5,6 +5,12 @@ description: Repère le nœud concerné, vérifie les écritures enregistrées e
 
 Ouvre une automatisation, passe à son onglet **Exécutions** et choisis une ligne pour comprendre ce qui s’est passé. Commence par le statut, la version et le mode, puis examine le nœud concerné. Un essai réussi prouve le déroulement simulé, pas l’acceptation de la même action par un compte externe réel.
 
+<Frame caption="Une exécution de test terminée : son statut, son mode, sa version, son initiateur et ses horaires au-dessus du workflow, avec le résultat de chaque nœud.">
+
+![La page d’une exécution de test de Triage GitHub issues, marquée Succeeded, Test et v1 et lancée par toi, avec ses heures de début et de fin au-dessus du graphe du workflow, où les nœuds issues, open issues, score et report affichent chacun Ran ; la liste des effets de l’exécution commence sous le graphe.](/images/platform/automation-run-detail.webp)
+
+</Frame>
+
 ## Lire l’état de l’exécution
 
 L’onglet **Exécutions** présente les 50 dernières exécutions que tu peux voir, de la plus récente à la plus ancienne. Tous les membres voient les exécutions de l’organisation elle-même ; une exécution dans un projet, et la question qu’elle attend, n’apparaissent qu’aux personnes qui peuvent ouvrir ce projet. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin. Les onglets restent visibles pendant la consultation. Choisis **Exécutions** pour revenir à la liste, ou **Éditeur** pour modifier le workflow.

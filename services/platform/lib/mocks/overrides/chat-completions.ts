@@ -153,18 +153,31 @@ function isTitleGenerationCall(body: ChatCompletionRequest): boolean {
   );
 }
 
+/** The mock title's length cap. */
+const MOCK_TITLE_MAX = 60;
+/** How many leading prompt characters every mock title keeps (see below). */
+const MOCK_TITLE_KEPT_PREFIX = 40;
+
 /**
  * A deterministic title for the mock: the first words of the user's message
- * verbatim (capped, no trailing cut-off punctuation). Keeping the PROMPT's
- * leading characters intact is load-bearing for the docs seed: `ensureChats`
- * re-identifies a seeded thread in the history list by the first 40 chars of
- * its prompt.
+ * verbatim (capped, no trailing cut-off punctuation), ending on a whole word
+ * the way a model's title does — the docs screenshots show these titles.
+ * Keeping the PROMPT's leading characters intact is load-bearing for the docs
+ * seed: `ensureChats` re-identifies a seeded thread in the history list by
+ * the first 40 chars of its prompt, so a word is only dropped past them.
  */
 function mockTitleFor(body: ChatCompletionRequest): string {
   const users = (body.messages ?? []).filter((m) => m.role === 'user');
   const text = users[users.length - 1]?.text.trim() ?? '';
   if (text.length === 0) return 'New chat';
-  return text.slice(0, 60).replace(/[\s.,;:!?-]+$/, '');
+  let title = text.slice(0, MOCK_TITLE_MAX);
+  const cutMidWord =
+    text.length > MOCK_TITLE_MAX && /\S/.test(text.charAt(MOCK_TITLE_MAX));
+  const lastSpace = title.lastIndexOf(' ');
+  if (cutMidWord && lastSpace >= MOCK_TITLE_KEPT_PREFIX) {
+    title = title.slice(0, lastSpace);
+  }
+  return title.replace(/[\s.,;:!?-]+$/, '');
 }
 
 /**

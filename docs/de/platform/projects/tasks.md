@@ -118,7 +118,7 @@ Klicke in den Details der Aufgabe oder im Dialog **Aufgabe erstellen** auf **Wie
 
 <Frame caption="Wähle die Wiederholung in den Aufgabendetails; die Vorschau zeigt die nächsten Fälligkeiten.">
 
-![Das Menü Repeat der Aufgabe Sign off the launch checklist listet Never, Daily, Every weekday, Weekly on Tuesday (ausgewählt), Monthly on day 29, Yearly on Sep 29 und Custom, dazu die nächsten Fälligkeiten und die Option, die nächste Aufgabe am Fälligkeitstag zu erstellen.](/images/platform/project-task-repeat.webp)
+![Das Menü Repeat der Aufgabe Sign off the launch checklist listet Never, Daily, Every weekday, nach dem Fälligkeitsdatum benannte wöchentliche, monatliche und jährliche Optionen, von denen die wöchentliche ausgewählt ist, und Custom, darunter die nächsten Fälligkeiten und die Option, die nächste Aufgabe am Fälligkeitstag zu erstellen.](/images/platform/project-task-repeat.webp)
 
 </Frame>
 

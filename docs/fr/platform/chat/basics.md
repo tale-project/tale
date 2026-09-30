@@ -65,7 +65,7 @@ Quand une conversation aboutit à un travail qui demande un fichier, par exemple
 
 <Frame caption="Créer une tâche depuis le chat ouvre la boîte de dialogue de la tâche avec la demande et un lien vers le chat.">
 
-![La boîte de dialogue de création de tâche contient comme titre et description « Draft a launch checklist for the website relaunch project » et, sous la demande, un lien intitulé From the chat.](/images/platform/chat-create-task.webp)
+![La boîte de dialogue de création de tâche contient comme titre et description « Plan the quarterly business review agenda for Friday » et, sous la demande, un lien intitulé From the chat.](/images/platform/chat-create-task.webp)
 
 </Frame>
 

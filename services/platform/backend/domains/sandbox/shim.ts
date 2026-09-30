@@ -1,5 +1,7 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { isStandingProjectAgentSession } from '../../core/sandbox/session_naming.ts';
@@ -9,10 +11,15 @@ import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
-import { isTaskRunConfined } from '../tasks/run-authority.ts';
+import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
+import { TaskError } from '../tasks/errors.ts';
+import {
+  isTaskRunConfined,
+  runStarterMayEditProject,
+} from '../tasks/run-authority.ts';
 import { getCurrentUser } from '../users/service.ts';
 import { imageGenerationShimHandlers } from './image-generation.ts';
-import { workspaceWriteShimHandlers } from './workspace-write-shim.ts';
+import { coded, workspaceWriteShimHandlers } from './workspace-write-shim.ts';
 
 /**
  * Handler map for the REUSED workspace-tool bridge
@@ -146,11 +153,13 @@ async function resolveSessionBinding(
 /**
  * How far a project agent's task run may act, by the run the turn's token
  * names: `ended` when that run is no longer live (its tools act for nobody),
- * a task id when the run is confined to that task (a member started it, see
- * `tasks/run-authority.ts`), neither when it acts with the agent's full
- * project authority. A token that names no run predates the field — only
- * the standing workspace existed then, and a member's workspace never lacks
- * it.
+ * `revoked` when a schedule began it and that schedule may no longer act in
+ * the project (paused, removed, or its automation unbound — the run acts for
+ * nobody either), a task id when the run is confined to that task (a member
+ * started it, see `tasks/run-authority.ts`), neither when it acts with the
+ * agent's full project authority. A token that names no run predates the
+ * field — only the standing workspace existed then, and a member's
+ * workspace never lacks it.
  */
 async function taskRunConfinement(
   sql: Sql,
@@ -160,7 +169,7 @@ async function taskRunConfinement(
     agentId: string;
     execId?: string;
   },
-): Promise<'ended' | { taskId?: string }> {
+): Promise<'ended' | 'revoked' | { taskId?: string }> {
   if (args.execId === undefined) {
     return isStandingProjectAgentSession(args.agentId, args.sessionId)
       ? {}
@@ -186,6 +195,16 @@ async function taskRunConfinement(
   `;
   const run = runs[0];
   if (run === undefined) return 'ended';
+  if (
+    parseRunStarter(run.startedBy).kind === 'trigger' &&
+    !(await runStarterMayEditProject(sql, {
+      organizationId: args.organizationId,
+      projectId: run.projectId,
+      startedBy: run.startedBy,
+    }))
+  ) {
+    return 'revoked';
+  }
   const confined = await isTaskRunConfined(sql, {
     organizationId: args.organizationId,
     ...run,
@@ -455,6 +474,9 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         if (confinement === 'ended') {
           return { allowed: false, reason: 'run_ended' };
         }
+        if (confinement === 'revoked') {
+          return { allowed: false, reason: 'schedule_revoked' };
+        }
         return {
           allowed: true,
           actorId: binding.actorId,
@@ -500,6 +522,88 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         return { allowed: true, actorId: args.userId, scope: { kind: 'org' } };
       }
       return { allowed: false, reason: 'no_access_context' };
+    },
+
+    'tasks/internal_mutations:agentStartTaskAgent': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge narrows every argument before calling
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        taskId: string;
+        agentId?: string;
+        feedback?: string;
+        moveToInProgress?: boolean;
+        resumeFrom?: { runId: string; approvalId: string };
+      };
+      // A project agent's live run delegates on behalf of whoever it answers
+      // to (`delegated-start.ts`); the session proves the agent and the
+      // project, the token's exec proves the run. Nothing else delegates
+      // through a tool: an automation starts agents with its
+      // `task.start_agent` step.
+      return coded(async () => {
+        const binding = await resolveSessionBinding(
+          sql,
+          args.organizationId,
+          args.sessionId,
+        );
+        if (
+          binding.kind !== 'project' ||
+          binding.ownerType !== 'project_agent' ||
+          binding.projectId === undefined ||
+          binding.actorId === undefined
+        ) {
+          throw new TaskError(
+            'AGENT_START_FORBIDDEN',
+            'Only a project agent run can put another agent to work; an automation uses a task.start_agent step',
+            403,
+          );
+        }
+        if (args.taskRunExecId === undefined) {
+          throw new TaskError(
+            'AGENT_START_FORBIDDEN',
+            'This turn names no run to delegate from',
+            403,
+          );
+        }
+        const projectId = binding.projectId;
+        const agentId = binding.actorId;
+        const execId = args.taskRunExecId;
+        return transactSerializable(sql, async (tx) => {
+          const runs = await tx<{ id: string; startedBy: string }[]>`
+            SELECT id, started_by AS "startedBy"
+            FROM app.project_agent_runs
+            WHERE org_id = ${args.organizationId}
+              AND session_id = ${args.sessionId} AND exec_id = ${execId}
+              AND agent_id = ${agentId} AND status IN ('queued', 'running')
+            ORDER BY seq DESC
+            LIMIT 1
+          `;
+          const run = runs[0];
+          if (run === undefined) {
+            throw new TaskError(
+              'AGENT_START_FORBIDDEN',
+              'The run asking to start an agent has ended; only a live run may put another agent to work',
+              403,
+            );
+          }
+          return startDelegatedAgentRun(tx, {
+            organizationId: args.organizationId,
+            scopeProjectIds: [projectId],
+            taskId: args.taskId,
+            startedBy: run.startedBy,
+            via: { kind: 'agent', runId: run.id, agentId },
+            ...(args.agentId !== undefined ? { agentId: args.agentId } : {}),
+            ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
+            ...(args.moveToInProgress !== undefined
+              ? { moveToInProgress: args.moveToInProgress }
+              : {}),
+            ...(args.resumeFrom !== undefined
+              ? { resumeFrom: args.resumeFrom }
+              : {}),
+          });
+        });
+      });
     },
 
     // `documents/internal_queries:findDocumentByFileId` is inherited from the

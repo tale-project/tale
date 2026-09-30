@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 
 import type { ChartRow, ChartSeries } from './types';
+import { useChartAnimation } from './use-chart-animation';
 
 interface TrendBarChartProps {
   data: ChartRow[];
@@ -45,6 +46,7 @@ export function TrendBarChart({
   valueFormatter,
   allowDecimals = false,
 }: TrendBarChartProps) {
+  const animate = useChartAnimation();
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -80,6 +82,7 @@ export function TrendBarChart({
               fill={s.color}
               stackId={s.stackId}
               radius={rounded ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              isAnimationActive={animate}
             />
           );
         })}

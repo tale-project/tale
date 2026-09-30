@@ -198,7 +198,8 @@ export function TaskModal({
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   projectId: string;
-  /** Present → edit/view an existing task; absent → create a new one. */
+  /** Present → edit/view an existing task; absent → create a new one. Read
+   *  while open: a closing dialog keeps the body it was open with. */
   taskId?: string | null;
   /** Initial status for create mode (e.g. the "+" of a list section). */
   defaultStatus?: TaskStatus;
@@ -215,6 +216,14 @@ export function TaskModal({
 }) {
   const { t } = useT('tasks');
   const contentRef = useRef<HTMLDivElement>(null);
+  // The dialog plays its exit animation with the body it had while open. The
+  // board clears `taskId` in the same render that closes it, so a body read
+  // off the prop turned the closing task into the empty create form, at the
+  // create form's height, and mounted that form's reads on every close
+  // (#3939) — render-time state adjustment, no effect.
+  const [openTaskId, setOpenTaskId] = useState(taskId);
+  if (open && taskId !== openTaskId) setOpenTaskId(taskId);
+  const bodyTaskId = open ? taskId : openTaskId;
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent
@@ -223,14 +232,14 @@ export function TaskModal({
           'max-w-3xl',
           // Edit mode: pin the dialog height so it never jumps as comments /
           // activity / agent runs load; the columns scroll internally instead.
-          taskId && 'flex h-[85dvh] flex-col overflow-hidden',
+          bodyTaskId && 'flex h-[85dvh] flex-col overflow-hidden',
         )}
         // Edit mode: Radix would focus (and text-select) the first tabbable —
         // the inline-editable title. Focus the dialog explicitly: cancelling
         // alone also skips Radix's container fallback and leaves the opener
         // focused behind the overlay. Create mode keeps its title autofocus.
         onOpenAutoFocus={
-          taskId
+          bodyTaskId
             ? (event) => {
                 event.preventDefault();
                 contentRef.current?.focus({ preventScroll: true });
@@ -241,9 +250,9 @@ export function TaskModal({
         <ResponsiveDialogDescription className="sr-only">
           {t('detail.overview')}
         </ResponsiveDialogDescription>
-        {taskId ? (
+        {bodyTaskId ? (
           <EditTaskBody
-            taskId={taskId}
+            taskId={bodyTaskId}
             onOpenTask={onOpenTask}
             onClose={() => onOpenChange(false)}
             showProjectLink={showProjectLink}

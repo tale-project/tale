@@ -20,6 +20,7 @@
         "$TURBO_ROOT$/scripts/ensure-sandbox-runtime-image.ts",
         "$TURBO_ROOT$/services/db/init-scripts/*.sql",
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
+        "$TURBO_ROOT$/services/sandbox-llm-gateway/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/sandbox/src/config.ts"
       ]
     },

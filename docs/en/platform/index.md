@@ -58,6 +58,12 @@ The **Inbox** view lists the conversations of one status: choose **Open**, **Clo
 
 The checkbox at the start of the bar ticks the whole list. While only some conversations are ticked it shows a dash, and ticking it then selects every conversation the list shows, apart from those a search or filter hides. A selection of more than 200 conversations goes out in parts, and the Inbox counts them off as they go. The message that follows says how many conversations changed and how many failed, with the reason for the first failure when there is one. Those that failed stay ticked, so you can try again. If the list cannot be loaded, it reads **Couldn't load conversations** with **Try again**, rather than showing an empty status.
 
+<Frame caption="Home's Inbox view beside an open conversation: the status menu, New email, search, and Filter above the conversations, each with its customer's initials and latest message.">
+
+![Home in its Inbox view lists three open conversations: Copy of the August invoice from Léa Martin, Annual discount on the team plan from Hannah Weber, and Seat pricing for read-only members from Daniel Okafor. Beside the list, the conversation with Hannah Weber is open, showing her two messages, the team's reply between them, and the message field.](/images/platform/home-inbox.webp)
+
+</Frame>
+
 A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room, and **Show sidebar** brings it back; the button's tooltip shows the shortcut. In a conversation, the first action, **Copy link**, copies a link that opens the same conversation for a teammate. Owners and Admins assign the conversation from its header, to a person, a team, or one of each. Choosing the current person or team again clears it, as do **Unassign** and **Remove team** at the end of the list; the other assignment stays as it is.
 
 ### Keyboard shortcuts {#shortcuts}

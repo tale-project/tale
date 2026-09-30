@@ -65,7 +65,7 @@ Endet ein Gespräch in Arbeit, die eine Datei braucht, etwa eine Präsentation, 
 
 <Frame caption="Aufgabe aus Chat erstellen öffnet den Aufgabendialog mit der Anfrage und einem Link zurück zum Chat.">
 
-![Der Dialog zum Erstellen einer Aufgabe enthält als Titel und Beschreibung „Draft a launch checklist for the website relaunch project“ und unter der Anfrage einen Link mit der Beschriftung From the chat.](/images/platform/chat-create-task.webp)
+![Der Dialog zum Erstellen einer Aufgabe enthält als Titel und Beschreibung „Plan the quarterly business review agenda for Friday“ und unter der Anfrage einen Link mit der Beschriftung From the chat.](/images/platform/chat-create-task.webp)
 
 </Frame>
 

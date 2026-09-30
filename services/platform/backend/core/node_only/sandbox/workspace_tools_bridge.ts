@@ -166,13 +166,36 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "List the organization's connected websites (domain, title, page count). " +
     'Args: {} — no parameters.',
   task_find:
-    "List tasks on the organization's boards. Args: {projectId?: string, " +
-    'status?: "backlog"|"todo"|"in_progress"|"in_review"|"done"|"cancelled", ' +
-    'assigneeId?: string, includeArchived?: boolean, limit?: number}. On a ' +
-    "project-bound run the listing is fixed to the run's own project.",
+    "List tasks on the organization's boards, one page at a time. Args: " +
+    '{projectId?: string, status?: "backlog"|"todo"|"in_progress"|' +
+    '"in_review"|"done"|"cancelled", assigneeId?: string, includeArchived?: ' +
+    'boolean, order?: "board"|"created", limit?: number (≤ 50, default 20), ' +
+    'cursor?: string}. Answers {tasks, isDone, continueCursor?}: while ' +
+    'isDone is false, pass continueCursor as cursor, with the same other ' +
+    'arguments, for the next page — a cursor from another listing is ' +
+    'refused, never read as the first page. totalFound appears only when ' +
+    'one page holds every matching task. order "board" (the default) groups ' +
+    "tasks by status name and keeps each column's order within it, so a task " +
+    'that moves while you page can be skipped or listed twice; "created" ' +
+    'reads the oldest first and ' +
+    'a task keeps its place, so a walk lists each task at most once, as it ' +
+    'stands when its page is read. On a project-bound run the listing is ' +
+    "fixed to the run's own project.",
   task_get:
-    'Read one task in full — description, project, subtasks, blockers, and ' +
-    'recent comments. Args: {taskId: string, commentLimit?: number}.',
+    'Read one task in full — description, project, subtasks and blockers ' +
+    '(each with its taskId), comments, its project-agent runs, its ' +
+    'automation run and a pending review. Args: {taskId: string, ' +
+    'commentLimit?: number (≤ 50, default 20), commentCursor?: string, ' +
+    'runLimit?: number (≤ 20, default 5), runCursor?: string}. comments are ' +
+    'the newest page, oldest first, each with its commentId (the messageId ' +
+    'task_comment answered); while commentsPage.isDone is false, pass ' +
+    'commentsPage.continueCursor as commentCursor for older ones. agentRuns ' +
+    'are newest first — runId, agentId, status, live, trigger, dates, and ' +
+    "feedback: the first 500 characters of the start's message; " +
+    'agentRunsPage pages them with runCursor. A run with live true is still ' +
+    'working, and the task starts no other run until it ends. ' +
+    'workflowRun.waitingFor "ask" or "approval", and pendingReview, wait on ' +
+    'a person.',
   task_create:
     `Create a task. Args: {title: string (${atMost(TASK_TITLE_MAX)}), ` +
     `description?: string (${atMost(TASK_DESCRIPTION_MAX)}), projectId?: ` +
@@ -193,6 +216,31 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
     'set done — finished work parks at in_review for a human.',
+  task_start_agent:
+    'Put a project agent of this project to work on a task: its agent ' +
+    'assignee, or first assign it to agentId. Args: {taskId: string, ' +
+    'agentId?: string, feedback?: string (what the run addresses first — ' +
+    `your answer to its question, or its brief; ${atMost(TASK_COMMENT_MAX)}), ` +
+    'moveToInProgress?: boolean (default true: the card moves to ' +
+    'in_progress, withdrawing a pending review, and the result waits at ' +
+    'in_review for a human; false leaves the card where it is, only under ' +
+    'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} ' +
+    '(when you resume an agent with the answer to its question: the run ' +
+    'that asked and its pending review, as you read them — without agentId ' +
+    'it resumes that run’s agent, and only while that is still the task’s ' +
+    'open question)}. Answers ' +
+    '{started, runId, reason?}: reason stale_question (that question is no ' +
+    'longer open — a person decided, a newer run or review exists, or the ' +
+    'assignee changed; nothing changed), already_running (the task is being ' +
+    'worked), in_review or ' +
+    'closed (false met a card awaiting review, or a done/cancelled one), ' +
+    'agent_busy (that agent is working another task — pick another or ' +
+    'wait), blocked (an open task blocks it) or paused (three automated ' +
+    'starts on this task within the hour, their automatic retries ' +
+    'included) start nothing. The run answers to whoever your run ' +
+    'answers to and names you as the agent that started it; an agent you ' +
+    'start cannot start further agents. Keep the run id in your report. ' +
+    LENGTH_UNIT_NOTE,
   task_upsert_by_external_ref:
     'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
     'task, keyed by (externalSystem, externalId) — a re-run updates the ' +
@@ -219,7 +267,12 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
  * the data domain in the role-denied case, so the model can tell the user
  * exactly what their role cannot reach. */
 function actionContextBlocker(
-  reason: 'no_access_context' | 'not_a_member' | 'read_denied' | 'run_ended',
+  reason:
+    | 'no_access_context'
+    | 'not_a_member'
+    | 'read_denied'
+    | 'run_ended'
+    | 'schedule_revoked',
   subject?: string,
 ): BridgeBlocker {
   if (reason === 'run_ended') {
@@ -228,6 +281,16 @@ function actionContextBlocker(
       guidance:
         'The task run this session served has ended, so its workspace tools ' +
         'act for nobody any more. Stop; do not retry.',
+    };
+  }
+  if (reason === 'schedule_revoked') {
+    return {
+      code: 'schedule_revoked',
+      guidance:
+        'The schedule that started this run was paused or removed, or its ' +
+        'automation is no longer bound to this project, so the run’s ' +
+        'workspace tools act for nobody. Stop and report what is left; the ' +
+        'schedule’s next occurrence starts the work again once it is back.',
     };
   }
   if (reason === 'no_access_context') {
@@ -437,6 +500,12 @@ async function runWorkspaceTool(
       tool: args.tool,
       callArgs,
       authority,
+      session: {
+        sessionId: args.sessionId,
+        ...(args.taskRunExecId !== undefined
+          ? { taskRunExecId: args.taskRunExecId }
+          : {}),
+      },
     });
   }
 
@@ -1005,12 +1074,20 @@ async function runAskHuman(
   };
 }
 
+/** The tool half of the `workspace_status` answer. */
+export interface WorkspaceToolStatus {
+  tools: { name: string; description: string; readOnly: boolean }[];
+  note?: string;
+}
+
 /**
  * List the workspace tools this agent is granted, with descriptions the model
  * relays. Grants come from the session token row (never the request), so the
  * listing is exactly what the turn was provisioned with.
  */
-export function workspaceToolStatusImpl(grants: readonly string[]): unknown {
+export function workspaceToolStatusImpl(
+  grants: readonly string[],
+): WorkspaceToolStatus {
   if (grants.length === 0) {
     return {
       tools: [],

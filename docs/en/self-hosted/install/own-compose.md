@@ -45,7 +45,7 @@ Generate unique values before the first start, and persist them in your secret-m
 | `ENCRYPTION_SECRET_HEX` | A 32-byte hex value, for example generated with `openssl rand -hex 32`; preserve it for existing encrypted database values. |
 | `DB_PASSWORD` or external database credentials | Match the database role the backend actually uses. |
 | `SANDBOX_TOKEN` | The same high-entropy token in backend and spawner. |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Stable gateway management credential shared with the backend; the username defaults to `admin`. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | The same stable secret in backend and gateway; a gateway without an admin account creates one only for a caller that presents it. The username defaults to `admin`. |
 | `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Credentials valid for the chosen store. Map them to `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` on bundled MinIO. |
 | `OBJECT_STORE_PUBLIC_ENDPOINT` | The browser-reachable endpoint, usually `SITE_URL` when Tale's proxy forwards the bundled store. |
 | SOPS age identity | Required to decrypt the configuration sidecars you have encrypted; see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops). |

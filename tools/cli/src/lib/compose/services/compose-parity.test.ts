@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -739,10 +745,15 @@ describe('release artifact identity', () => {
       env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
     });
 
+  /** The Build lanes pull each image by the digest its build job recorded
+   * (one receipt per image) and check its revision label; the release lane
+   * pulls its version tags. Either way the stand-in `docker` logs the pulls
+   * and tags, and answers an inspect with the source commit. */
+  const CI_DIGEST = `sha256:${'a'.repeat(64)}`;
+  const CI_SOURCE = 'b'.repeat(40);
   const prepareImages = (step: Step, services: string[]) => {
     const script = step
       .run!.replaceAll('${{ needs.prepare.outputs.version_number }}', '0.5.43')
-      .replaceAll('${{ needs.changes.outputs.image_tag }}', 'ci-proof')
       .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
       .replaceAll('${{ github.repository }}', 'tale-project/tale');
     // Match the Ubuntu workflow's LF output when Git Bash uses native jq.exe.
@@ -750,12 +761,28 @@ describe('release artifact identity', () => {
       process.platform === 'win32'
         ? 'jq() { command jq --binary "$@"; };\n'
         : '';
-    const result = shell(
-      jqMode +
-        'docker() { printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
-        script,
-      { SERVICE_NAMES: JSON.stringify(services) },
-    );
+    const receipts = mkdtempSync(resolve(tmpdir(), 'tale-image-receipts-'));
+    let result: ReturnType<typeof shell>;
+    try {
+      for (const service of services) {
+        writeFileSync(
+          resolve(receipts, `${service}.json`),
+          JSON.stringify({ service, digest: CI_DIGEST, revision: CI_SOURCE }),
+        );
+      }
+      result = shell(
+        jqMode +
+          'docker() { if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "$SOURCE_SHA"; return; fi; printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
+          script,
+        {
+          SERVICE_NAMES: JSON.stringify(services),
+          RECEIPTS: receipts,
+          SOURCE_SHA: CI_SOURCE,
+        },
+      );
+    } finally {
+      rmSync(receipts, { recursive: true, force: true });
+    }
     expect(result.status).toBe(0);
     const images = new Map<string, string>();
     for (const line of result.stdout.split('\n')) {
@@ -793,10 +820,13 @@ describe('release artifact identity', () => {
         )!,
         services,
       );
+      const repositoryOf = (image: string) =>
+        image.split('@')[0]!.replace(/:[^/]*$/, '');
       for (const [alias, source] of tested) {
-        if (alias.endsWith(':ci-proof')) continue;
+        if (alias === source) continue;
+        expect(source).toEndWith(`@${CI_DIGEST}`);
         expect(released.get(alias)).toBe(
-          source.replace(':ci-proof', ':0.5.43-amd64'),
+          `${repositoryOf(source)}:0.5.43-amd64`,
         );
       }
     },
@@ -1012,9 +1042,63 @@ describe('release artifact identity', () => {
       step.uses?.startsWith('actions/checkout@'),
     )!;
     expect(checkout.with?.ref).toBe(
-      "${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.sha }}",
+      '${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}',
     );
   });
+
+  /** `Resolve version` reads the runner's own GITHUB_REF and GITHUB_SHA
+   * beside its mapped inputs, and `shell` passes each case its caller's
+   * environment: inside a tag publication's runner, that runner's ref refused
+   * the valid tags below (#3970). So every case names its whole dispatch, and
+   * must decide alike in its caller's environment and inside a synthetic
+   * publication runner for another tag at another commit. */
+  const PUBLICATION_RUNNER = {
+    GITHUB_EVENT_NAME: 'workflow_dispatch',
+    GITHUB_REF: 'refs/tags/v0.5.64',
+    GITHUB_REF_NAME: 'v0.5.64',
+    GITHUB_REF_TYPE: 'tag',
+    GITHUB_SHA: 'd'.repeat(40),
+  };
+  /** A manual recovery dispatched from a branch runs at the branch head. */
+  const BRANCH_HEAD = 'c'.repeat(40);
+  const resolveCliRelease = (dispatch: {
+    RELEASE_TAG: string;
+    GITHUB_REF: string;
+    GITHUB_SHA: string;
+    TEST_TAG_SOURCE?: string;
+  }) => {
+    const step = cli.jobs.prepare!.steps.find(
+      (entry) => entry.id === 'version',
+    )!;
+    const runners: Record<string, Record<string, string>> = {
+      caller: {},
+      publication: PUBLICATION_RUNNER,
+    };
+    return Object.entries(runners).map(([runner, inherited]) => {
+      const directory = mkdtempSync(resolve(tmpdir(), 'tale-cli-release-'));
+      const output = resolve(directory, 'output');
+      try {
+        const result = shell(
+          `gh() { printf '%s\\n' "$TEST_TAG_SOURCE"; };\n` + step.run!,
+          {
+            ...inherited,
+            TEST_TAG_SOURCE: CI_SOURCE,
+            REPOSITORY: 'synthetic/tale',
+            EVENT_NAME: 'workflow_dispatch',
+            ...dispatch,
+            GITHUB_OUTPUT: output,
+          },
+        );
+        return {
+          status: result.status,
+          output: existsSync(output) ? readFileSync(output, 'utf8') : '',
+          log: `${runner} runner, ${dispatch.GITHUB_REF}: ${result.stdout}${result.stderr}`,
+        };
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  };
 
   test.each([
     ['v0.5.42', 0, '0.5.42'],
@@ -1026,23 +1110,66 @@ describe('release artifact identity', () => {
   ])(
     'CLI release tag %j is validated before the build',
     (tag, status, version) => {
-      const step = cli.jobs.prepare!.steps.find(
-        (entry) => entry.id === 'version',
-      )!;
-      const directory = mkdtempSync(resolve(tmpdir(), 'tale-cli-release-'));
-      const output = resolve(directory, 'output');
-      try {
-        const result = shell(step.run!, {
-          EVENT_NAME: 'workflow_dispatch',
+      // A dispatch from a branch builds the tag's commit, not the branch
+      // head; a dispatch from the tag runs at that commit.
+      for (const [ref, sha] of [
+        ['refs/heads/main', BRANCH_HEAD],
+        [`refs/tags/${tag}`, CI_SOURCE],
+      ] as const) {
+        for (const result of resolveCliRelease({
           RELEASE_TAG: String(tag),
-          GITHUB_OUTPUT: output,
-        });
-        expect(result.status).toBe(status);
-        if (status === 0) {
-          expect(readFileSync(output, 'utf8')).toBe(`version=${version}\n`);
+          GITHUB_REF: ref,
+          GITHUB_SHA: sha,
+        })) {
+          expect(result.status, result.log).toBe(status);
+          if (status === 0) {
+            expect(result.output).toBe(
+              `version=${version}\nsource_sha=${CI_SOURCE}\n`,
+            );
+          } else {
+            expect(result.log).toContain(
+              '::error::Release tag must be an exact semantic version',
+            );
+            expect(result.output).toBe('');
+          }
         }
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  // Each dispatch runs at CI_SOURCE; the third column is the commit v0.5.42
+  // resolves to now.
+  test.each([
+    [
+      'another tag',
+      'refs/tags/v0.5.41',
+      CI_SOURCE,
+      'The dispatch tag must match release_tag exactly',
+    ],
+    [
+      'its version under another tag name',
+      'refs/tags/0.5.42',
+      CI_SOURCE,
+      'The dispatch tag must match release_tag exactly',
+    ],
+    [
+      'its tag, since moved to another commit',
+      'refs/tags/v0.5.42',
+      'e'.repeat(40),
+      'The release tag no longer matches the dispatched commit',
+    ],
+  ])(
+    'CLI release v0.5.42 dispatched on %s is refused before the build',
+    (_, ref, source, error) => {
+      for (const result of resolveCliRelease({
+        RELEASE_TAG: 'v0.5.42',
+        GITHUB_REF: ref,
+        GITHUB_SHA: CI_SOURCE,
+        TEST_TAG_SOURCE: source,
+      })) {
+        expect(result.status, result.log).toBe(1);
+        expect(result.log).toContain(`::error::${error}`);
+        expect(result.output).toBe('');
       }
     },
   );

@@ -46,6 +46,13 @@ function sameBoardRows<T>(scope: readonly unknown[]) {
       : undefined;
 }
 
+/** Stable empties for a read with no answer yet (or a failed one): a new
+ * `[]` each render would rebuild the board's context and re-render every
+ * card that reads it. */
+const NO_IDS: readonly string[] = [];
+const NO_EDGES: readonly never[] = [];
+const NO_REVIEWS: readonly never[] = [];
+
 interface BoardReadOptions {
   includeArchived?: boolean;
   status?: TaskStatusFilter;
@@ -223,7 +230,7 @@ export function useProjectDependencies(projectId: string | undefined) {
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return {
-    edges: query.data ?? [],
+    edges: query.data ?? NO_EDGES,
     isLoading: query.isLoading,
     ...readControls(query),
   };
@@ -275,13 +282,13 @@ export function useTaskOpsIndicators(projectId: string | undefined) {
   const { data } = query;
   return {
     ...readControls(query),
-    runningTaskIds: data?.runningTaskIds ?? [],
+    runningTaskIds: data?.runningTaskIds ?? NO_IDS,
     // Live runs parked on an unanswered agent question — the board shows the
     // needs-answer chip instead of the working pulse for these.
-    askingTaskIds: data?.askingTaskIds ?? [],
+    askingTaskIds: data?.askingTaskIds ?? NO_IDS,
     // Full pending-review refs (taskId + the reviewer waited on) — the board
     // chip naming and the needs-my-review facet both read `requestedFor`.
-    pendingReviews: data?.pendingReviews ?? [],
+    pendingReviews: data?.pendingReviews ?? NO_REVIEWS,
   };
 }
 
@@ -295,11 +302,11 @@ export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
   const { data } = query;
   return {
     ...readControls(query),
-    runningTaskIds: data?.runningTaskIds ?? [],
+    runningTaskIds: data?.runningTaskIds ?? NO_IDS,
     // Always empty today: the aggregate query omits automation-run indicators
     // (see getTaskOpsIndicatorsForAccessibleProjects), the ask set with them.
-    askingTaskIds: data?.askingTaskIds ?? [],
-    pendingReviews: data?.pendingReviews ?? [],
+    askingTaskIds: data?.askingTaskIds ?? NO_IDS,
+    pendingReviews: data?.pendingReviews ?? NO_REVIEWS,
   };
 }
 

@@ -23,7 +23,7 @@ import {
 } from '../hooks/mutations';
 import { useTaskDependencies, useTasksByProject } from '../hooks/queries';
 import { useTaskAccess } from '../hooks/use-task-access';
-import type { TaskDoc } from '../lib/display';
+import { BOARD_TASK_STATUSES, type TaskDoc } from '../lib/display';
 import { TaskStatusBadge } from './task-status-badge';
 
 type TaskRow = TaskDoc;
@@ -58,7 +58,12 @@ export function TaskDependencies({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { blockedBy, blocks } = useTaskDependencies(task._id);
-  const projectList = useTasksByProject(task.projectId);
+  // Every task of the project, read under the unfiltered board's own key: a
+  // task opened from its board reuses the rows the board holds instead of
+  // reading the whole project a second time (#3939).
+  const projectList = useTasksByProject(task.projectId, {
+    statuses: BOARD_TASK_STATUSES,
+  });
   const projectTasks = projectList.tasks;
   const byId = useMemo(
     () => new Map(projectTasks.map((row) => [row._id, row])),
@@ -188,6 +193,12 @@ function DependencyGroup({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
+  // The picker renders an action per option on every render, open or not: a
+  // lookup per option made that quadratic in the project's size (#3939).
+  const candidateById = useMemo(
+    () => new Map(candidates.map((candidate) => [candidate._id, candidate])),
+    [candidates],
+  );
 
   if (!canEdit && items.length === 0) return null;
 
@@ -207,7 +218,7 @@ function DependencyGroup({
           <SearchableSelect
             value={null}
             onValueChange={(value) => {
-              const match = candidates.find((c) => c._id === value);
+              const match = candidateById.get(value);
               if (match) onAdd(match._id);
             }}
             options={options}
@@ -216,7 +227,7 @@ function DependencyGroup({
             emptyText={tCommon('search.noResults')}
             aria-label={label}
             optionAction={(opt) => {
-              const match = candidates.find((c) => c._id === opt.value);
+              const match = candidateById.get(opt.value);
               return match ? <TaskStatusBadge status={match.status} /> : null;
             }}
             trigger={

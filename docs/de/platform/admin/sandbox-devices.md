@@ -30,6 +30,12 @@ Ein Gerät erledigt die Arbeit deiner Organisation. Die Arbeitsbereiche der Agen
 
 Der Befehl funktioniert einmal und nur innerhalb einer Stunde. Er enthält ein Einmal-Token, das der Rechner gegen eigene Zugangsdaten eintauscht.
 
+<Frame caption="Gerät hinzufügen: der Befehl zum Installieren und Verbinden und der kürzere für einen Rechner, auf dem die CLI schon installiert ist. Das Token im Bild ist ein Platzhalter.">
+
+![Der Dialog Gerät hinzufügen mit dem Befehl unter Installieren und verbinden, der die Tale CLI installiert und tale sandbox connect mit der Adresse der Bereitstellung und einem Einmal-Token ausführt, der Schaltfläche Befehl kopieren, den Voraussetzungen, dem Hinweis, dass der Befehl einmal innerhalb einer Stunde funktioniert, dem kürzeren Befehl für einen Rechner mit installierter CLI und dem Status, der auf die Verbindung des Geräts wartet.](/images/platform/sandbox-add-device.webp)
+
+</Frame>
+
 </Step>
 
 <Step title="Auf dem Rechner ausführen">

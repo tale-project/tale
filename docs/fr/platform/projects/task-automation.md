@@ -48,6 +48,42 @@ Pour une tâche pilotée par une automatisation, mentionne celle qui en est resp
 
 Une tâche ne peut avoir qu’une seule exécution en file d’attente, en cours ou en attente à la fois, quelle que soit l’automatisation qui l’a démarrée. Répéter une demande de démarrage tant qu’elle est active renvoie à l’exécution existante, même si elle nomme une autre automatisation. Une fois celle-ci terminée, un nouveau démarrage peut créer une autre exécution et répéter le travail. Vérifie donc l’exécution actuelle et ses effets avant une nouvelle tentative.
 
+## Confier la file de travail à un agent coordinateur
+
+Un agent coordinateur est un agent de projet dont les instructions consistent à lire tout le tableau, à distribuer le travail prêt et à répondre aux questions de routine que laissent les autres agents, pour que les personnes ne voient que ce qui demande leur intervention. Il lit avec **Trouver des tâches** et **Lire une tâche** ; aucun de ces deux outils ne modifie quoi que ce soit.
+
+### Lire toute la file de travail par passages
+
+**Trouver des tâches** renvoie au plus 50 tâches à la fois. Tant qu’une page indique `isDone: false`, son `continueCursor`, renvoyé comme `cursor` avec les mêmes arguments, donne la page suivante ; la dernière page indique `isDone: true`. Un curseur qui revient avec d’autres filtres, un autre ordre ou depuis l’exécution d’un autre projet est refusé, tout comme un curseur abîmé : il n’est jamais lu comme la première page. Un total n’apparaît que lorsqu’une seule page contient toutes les tâches correspondantes.
+
+Pour parcourir toute une file de travail, utilise `order: "created"`. Les tâches arrivent alors dans l’ordre de leur création, de la plus ancienne à la plus récente, et gardent leur place : un passage cite donc chaque tâche au plus une fois, dans l’état où elle se trouve quand sa page est lue. L’ordre par défaut regroupe les tâches par statut et garde, pour chacun, l’ordre de sa colonne : une tâche qui bouge pendant que le coordinateur tourne les pages peut alors manquer ou apparaître deux fois.
+
+Un passage peut durer plus longtemps qu’une exécution. Avant la fin de son exécution, le coordinateur note un point de reprise dans un commentaire sur sa propre tâche : le passage, son ordre et ses filtres, le `continueCursor` suivant et la dernière tâche examinée. Son exécution suivante retrouve ce commentaire avec **Lire une tâche** et reprend à partir de là. Quand un passage se termine, ou que son curseur est refusé, le passage suivant commence à la première page. Une lecture qui échoue n’est pas une file vide : le coordinateur la signale et s’arrête.
+
+### Distinguer le travail en cours, terminé ou en attente
+
+**Lire une tâche** désigne les sous-tâches, les tâches bloquantes et les commentaires par leurs identifiants, et remonte vers les commentaires plus anciens avec `commentCursor`. Il liste aussi les exécutions des agents de projet sur la tâche, de la plus récente à la plus ancienne, chacune avec les 500 premiers caractères du message transmis à son démarrage, ainsi que l’exécution d’automatisation de la tâche et une éventuelle demande de revue en cours :
+
+- Une exécution avec `live: true` est en file d’attente ou en cours, et rien d’autre ne démarre sur la tâche avant qu’elle se termine.
+- Une exécution achevée, en échec ou annulée est terminée ; `settledAt` en indique le moment.
+- Un `workflowRun` qui attend une question (`ask`) ou une approbation (`approval`), ainsi qu’une `pendingReview`, attendent une personne.
+
+La réponse ne contient ni transcriptions, ni textes d’erreur, ni résultats, et rien qui vienne d’un autre projet.
+
+### Répondre à une question de routine
+
+Une question de routine est une question à laquelle le coordinateur peut répondre à partir de ce que le projet consigne déjà. Écris le même protocole dans les instructions des agents qui travaillent et dans celles du coordinateur :
+
+1. L’agent qui travaille pose la question dans un commentaire de la tâche, avec une clé de question stable, ses éléments de preuve et la question. Il indique dans son résultat l’identifiant du commentaire et celui de son exécution (**Lire une tâche** montre cette exécution comme l’exécution active de sa tâche), puis termine son exécution au lieu d’attendre à l’intérieur. Mentionner le coordinateur dans ce commentaire ne démarre rien : le commentaire d’un agent ne démarre jamais un agent.
+2. Lors de son passage suivant, le coordinateur ne répond que tant que la tâche attend encore cette question : l’exécution qui l’a posée est la plus récente de la tâche et elle est terminée, aucune exécution n’est active sur la tâche, et la tâche attend la revue de cette exécution-là (`pendingReview.runId`). De cette lecture, il retient l’identifiant de l’exécution et `pendingReview.approvalId`. Si une personne a entre-temps fait avancer la tâche, en acceptant le résultat, en annulant la tâche ou en demandant des modifications, la question n’est plus au coordinateur : il la signale au lieu d’y répondre.
+3. Il publie sa réponse dans un commentaire qui cite l’identifiant du commentaire de la question ; la réponse reste sur la tâche quoi qu’il arrive ensuite. Il relance ensuite l’agent avec **Lancer d'autres agents sur des tâches**, en passant `resumeFrom: {runId, approvalId}` avec les deux identifiants qu’il a retenus, et un message qui commence par la clé de la question, l’identifiant de l’exécution et l’identifiant du commentaire de réponse : une lecture ultérieure avec **Lire une tâche** ne montre que les 500 premiers caractères du message d’un démarrage. Au moment où il a lieu, le démarrage vérifie que c’est encore la question ouverte de la tâche. Ce n’est qu’alors qu’il retire la demande de revue en cours, sans valider le résultat, et relance l’agent.
+4. Si le démarrage répond `stale_question`, la question a été dépassée entre la lecture du coordinateur et le démarrage : une personne a décidé, il existe une exécution ou une revue plus récente, ou l’assignation a changé. Rien n’a été modifié. Le coordinateur relit la tâche et abandonne la question devenue caduque. Il ne relance pas, et jamais sans `resumeFrom`.
+5. Si la réponse au démarrage se perd, le coordinateur relit la tâche avant de tenter quoi que ce soit d’autre : une exécution plus récente dont le message commence par cette clé de question, cet identifiant d’exécution et cet identifiant de commentaire de réponse signifie que le démarrage a abouti. Si le même démarrage est renvoyé, il répond `stale_question` et ne change rien.
+
+Une question venant d’une tâche permanente, qu’une planification démarre avec `moveToInProgress: false`, n’attend aucune revue. Le coordinateur y publie seulement sa réponse, et l’exécution de l’occurrence suivante de la planification la lit. Ni le coordinateur ni personne d’autre ne démarre la tâche plus tôt pour transmettre la réponse.
+
+Accepter un résultat, répondre à la question d’une automatisation et trancher une approbation restent l’affaire des personnes. Le coordinateur les voit dans **Lire une tâche** pour pouvoir les laisser à la personne concernée et les signaler.
+
 ## Traiter une attente ou un échec
 
 | État ou symptôme | Action |
@@ -56,7 +92,7 @@ Une tâche ne peut avoir qu’une seule exécution en file d’attente, en cours
 | Nouvelle tentative automatique affichée | Tale reprend après un échec récupérable. Surveille le compteur sans lancer une autre exécution. |
 | L’exécution reste en échec | Lis l’erreur, corrige sa cause, puis utilise **Relancer** pour continuer la conversation. Un agent supprimé ou une limite de temps atteinte demande une intervention. |
 | Réassignation refusée | Annule l’exécution active avant de choisir un autre responsable. |
-| Deux automatisations se mentionnent sans fin sur une tâche | Il n’y a pas de plafond de cadence par tâche : c’est la règle d’un seul moteur qui arrête une boucle. Annule l’exécution vivante, puis lis la chronologie avant de laisser l’une ou l’autre redémarrer. |
+| Des agents ou des automatisations relancent sans cesse une même tâche | Une tâche accepte au plus trois démarrages de son agent par des automatisations et d’autres agents en une heure, leurs relances automatiques comprises ; le démarrage suivant est refusé, une relance au-delà de la limite ne démarre pas, et la chronologie indique **Exécution refusée: les exécutions d'agents sont en pause sur cette tâche**. Les démarrages par des personnes, et leurs relances, ne sont jamais comptés. Les exécutions d’automatisations n’ont pas ce plafond : entre deux automatisations qui se mentionnent sans fin, c’est la règle d’un seul moteur qui arrête la boucle. Annule l’exécution active, puis lis la chronologie avant de laisser l’une ou l’autre redémarrer. |
 | Clôture impossible | Termine d’abord les sous-tâches ouvertes. |
 
 Un échec récupérable donne lieu à jusqu’à trois nouvelles tentatives après la tentative initiale. Une exécution qui progresse pendant au moins quinze minutes reçoit une nouvelle réserve de tentatives. Cela aide le travail long à reprendre après une interruption, sans prouver que le résultat est correct.
@@ -66,6 +102,14 @@ Une nouvelle tentative automatique poursuit le travail de la personne qui a dém
 Un agent servi par un courtier d’abonnement peut perdre son jeton en cours de travail, lorsque le courtier actualise le compte. La nouvelle tentative poursuit alors la conversation avec un nouveau jeton, sans faire avancer le compteur de tentatives : elle affiche le même compteur que l’exécution qu’elle remplace, ou **Reprise après l'actualisation du jeton** si celle-ci n’en affichait aucun ou avait travaillé au moins quinze minutes, ce qui lui a valu une nouvelle réserve de tentatives. Après deux interruptions de ce type d’affilée, une nouvelle interruption compte comme n’importe quel autre échec.
 
 Une exécution peut aussi ne pas démarrer du tout, parce que tous les comptes de son courtier d’abonnement sont en pause après avoir atteint une limite de requêtes. Sa nouvelle tentative est alors mise en file d’attente aussitôt, mais ne démarre que lorsque le premier compte redevient disponible, au plus tard une minute après. Cette attente ne consomme aucune tentative si l’exécution refusée relançait elle-même un échec dû à une limite de requêtes ; sinon, le démarrage refusé est décompté comme une tentative.
+
+## Travail lancé par une automatisation ou un autre agent
+
+Un agent de projet peut aussi être mis au travail sans que personne ait à cliquer sur **Démarrer l'agent** : par une [automatisation planifiée](/fr/platform/automations/triggers#demarrer-un-agent-de-projet-selon-une-planification), ou par un autre agent du projet qui dispose de l’outil **Lancer d'autres agents sur des tâches**, comme un agent coordinateur qui distribue le travail prêt et répond aux questions. La chronologie affiche une telle exécution comme **automatisation**, avec un lien vers l’exécution de l’automatisation, ou comme **délégué**, lancée par l’agent qui l’a demandée. L’agent apprend qui l’a démarré, et il lit un message transmis par cette automatisation ou cet agent comme venant d’eux, jamais comme la revue d’une personne : là où ce message contredit la description ou le commentaire d’une personne, ce sont ces derniers qui l’emportent.
+
+L’exécution agit pour le compte de la même personne que l’exécution qui l’a demandée : la personne qui a démarré cette exécution, ou personne si la chaîne a commencé par une planification, auquel cas ses dépenses comptent comme des dépenses d’automatisation. Cette personne, ou la planification, doit pouvoir agir dans le projet au moment où l’exécution démarre : si la personne perd le rôle Éditeur, si la planification est suspendue ou si l’automatisation est retirée du projet, le démarrage suivant n’a pas lieu. Un agent lancé par un autre agent ne peut pas lancer d’autres agents, et une exécution démarrée par un Membre ne peut en lancer aucun. Un tel démarrage vérifie aussi ce qu’une personne pourrait oublier : une tâche bloquée par une tâche ouverte ne démarre pas, et un agent qui travaille déjà sur une autre tâche n’est pas lancé une seconde fois.
+
+La validation reste entre les mains d’une personne. Une exécution déléguée dépose son résultat à **En revue** comme n’importe quelle autre, et reprendre une tâche qui y attend retire sa demande de revue en cours, sans valider le résultat pour autant. Un démarrage qui laisse la carte en place (`moveToInProgress: false`) est refusé sous une carte qui attend sa revue, ou sous une carte **Terminé** ou **Annulé**, afin qu’un travail antérieur ne soit jamais présenté au jugement pendant qu’un nouveau travail s’exécute dessous. Un gestionnaire qui répond à la question d’un agent le relance en nommant l’exécution qui a posé la question et la revue qu’elle attend. La reprise n’a lieu que tant que c’est encore la question ouverte de la tâche. Si une personne a décidé entre-temps (**Terminé**, **Annulé** ou un autre déplacement), s’il existe une exécution ou une revue plus récente, ou si l’assignation a changé, l’agent répond `stale_question` et rien n’est assigné, retiré, déplacé ni démarré. Si ton organisation exige une relecture indépendante, la personne pour le compte de laquelle l’exécution agit ne peut pas en accepter le résultat.
 
 ## Annuler ou suspendre le travail
 

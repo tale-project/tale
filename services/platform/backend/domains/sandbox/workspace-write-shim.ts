@@ -8,6 +8,7 @@ import {
   storeAgentTextBlob,
   upsertAgentDocument,
 } from '../documents/agent-write.ts';
+import { readTaskWorkState } from '../tasks/agent-work-state.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
 import {
@@ -21,7 +22,10 @@ import {
 
 /**
  * The WRITE half of the workspace-tool bridge: the task family (the agent's
- * comment included), plus the three calls `document_create` makes.
+ * comment included), plus the three calls `document_create` makes — and the
+ * two task reads only this bridge makes, `task_find`'s page and `task_get`'s
+ * run state (the task and its discussion come from the chat map's
+ * `getTaskContextForAgent`, which the chat assistant reads too).
  *
  * These names were the last un-shimmed ones the reused bridge
  * (`core/node_only/sandbox/workspace_domain_tools.ts`) can reach, so every
@@ -71,7 +75,9 @@ function asAppError(error: unknown): unknown {
   return error;
 }
 
-async function coded<T>(run: () => Promise<T>): Promise<T> {
+/** Run a domain call, translating its refusal into the bridge's shape
+ * ({@link asAppError}) — every write handler of the bridge goes through it. */
+export async function coded<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
@@ -80,7 +86,9 @@ async function coded<T>(run: () => Promise<T>): Promise<T> {
 }
 
 /** The row shape the reused bridge's `compactTask` reads: `_id`, and absent
- * rather than null for everything optional. */
+ * rather than null for everything optional. `rank` is not shown to the model
+ * — the bridge reads it, with `status`, `createdAt` and `_id`, as the sort
+ * key a `task_find` page's cursor resumes after. */
 function toAgentTaskDoc(task: TaskRow): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries({
@@ -88,6 +96,7 @@ function toAgentTaskDoc(task: TaskRow): Record<string, unknown> {
       number: task.number,
       title: task.title,
       status: task.status,
+      rank: task.rank,
       projectId: task.projectId,
       priority: task.priority,
       assigneeType: task.assigneeType,
@@ -107,16 +116,15 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
   return {
     'tasks/internal_queries:listTasksForAgent': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        projectId?: string;
-        projectIds?: string[];
-        status?: TaskStatus;
-        assigneeId?: string;
-        includeArchived?: boolean;
-      };
-      const rows = await listTasksForAgent(sql, args);
+      const args = raw as Parameters<typeof listTasksForAgent>[1];
+      const rows = await coded(() => listTasksForAgent(sql, args));
       return rows.map(toAgentTaskDoc);
+    },
+
+    'tasks/internal_queries:getTaskWorkStateForAgent': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape, after its scope check
+      const args = raw as Parameters<typeof readTaskWorkState>[1];
+      return readTaskWorkState(sql, args);
     },
 
     'tasks/internal_mutations:agentCreateTask': async (raw) => {

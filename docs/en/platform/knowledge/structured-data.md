@@ -46,6 +46,12 @@ If the email address already exists, find the existing contact and update it thr
 
 ## Create a product
 
+<Frame caption="Knowledge > Products: each product is a record with named fields for stock, price, category, and status.">
+
+![The Products tab of Knowledge lists three products: Team training workshop with 12 in stock at $950.00 in Services, marked Draft; Onboarding accelerator at $1,900.00 in Services; and Analytics Pro — annual license at $1,188.00 in Licenses, both Active.](/images/platform/knowledge-products-list.webp)
+
+</Frame>
+
 Open **Knowledge > Products**, choose **Add product**, then **Manual entry**. The form has three stages.
 
 1. Under **Basics**, enter a **Product name**. Add a description and image if they help someone identify the product, then choose **Next**.

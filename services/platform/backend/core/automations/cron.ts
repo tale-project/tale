@@ -101,15 +101,9 @@ function matchesField(field: CronField, value: number): boolean {
   return field.values.has(value);
 }
 
-/** Whether one instant falls on an occurrence of the schedule. */
-export function cronMatches(
-  schedule: CronSchedule,
-  at: number,
-  timezone: string,
-): boolean {
-  const clock = wallClockIn(at, timezone);
-  if (!matchesField(schedule.minute, clock.minute)) return false;
-  if (!matchesField(schedule.hour, clock.hour)) return false;
+/** Whether the local day of `clock` is one the schedule runs on: its month,
+ * and crontab's day rule over day-of-month and day-of-week. */
+function dayMatches(schedule: CronSchedule, clock: WallClock): boolean {
   if (!matchesField(schedule.month, clock.month)) return false;
   const dayOfWeek =
     matchesField(schedule.dayOfWeek, clock.dayOfWeek) ||
@@ -121,6 +115,48 @@ export function cronMatches(
   if (schedule.dayOfMonth.wildcard) return dayOfWeek;
   if (schedule.dayOfWeek.wildcard) return dayOfMonth;
   return dayOfMonth || dayOfWeek;
+}
+
+/** Whether one instant falls on an occurrence of the schedule. */
+export function cronMatches(
+  schedule: CronSchedule,
+  at: number,
+  timezone: string,
+): boolean {
+  const clock = wallClockIn(at, timezone);
+  if (!matchesField(schedule.minute, clock.minute)) return false;
+  if (!matchesField(schedule.hour, clock.hour)) return false;
+  return dayMatches(schedule, clock);
+}
+
+/**
+ * The first minute after `from`, and no later than `until`, on which the
+ * scan fires the schedule in `timezone` — the minute `cronMatches` accepts,
+ * found without testing every minute: a local hour the hour or day fields
+ * refuse is skipped to its end. The editor's next-run preview asks this, so
+ * the time it shows is the scan's own, daylight-saving changes included.
+ * Null when no occurrence falls in the window.
+ */
+export function firstOccurrenceBetween(
+  schedule: CronSchedule,
+  timezone: string,
+  from: number,
+  until: number,
+): number | null {
+  let at = Math.floor(from / MINUTE_MS) * MINUTE_MS + MINUTE_MS;
+  while (at <= until) {
+    const clock = wallClockIn(at, timezone);
+    if (
+      !matchesField(schedule.hour, clock.hour) ||
+      !dayMatches(schedule, clock)
+    ) {
+      at += (60 - clock.minute) * MINUTE_MS;
+      continue;
+    }
+    if (matchesField(schedule.minute, clock.minute)) return at;
+    at += MINUTE_MS;
+  }
+  return null;
 }
 
 /**

@@ -5415,6 +5415,7 @@ projects:
       task_create: Create tasks
       task_comment: Comment on tasks
       task_update_status: Move tasks between columns
+      task_start_agent: Start other agents on tasks
       task_upsert_by_external_ref: Sync an external item to a task
       document_find: Find documents
       knowledge_entry_find: Find knowledge entries
@@ -7726,6 +7727,8 @@ tasks:
       decomposition: decomposition
       manual: manual
       auto_retry: auto retry
+      automation: automation
+      delegated: delegated
     refused:
       agent_disabled: agent is not installed or is disabled
       agent_not_found: agent not found or misconfigured
@@ -7740,6 +7743,7 @@ tasks:
       noLiveDetail: No live transcript is available for this run.
   timeline:
     runLabel: Agent run
+    startedByAgent: started by
     systemActor: System
     unresolvedWorkflow: Automation
     deletedAgent: Deleted agent

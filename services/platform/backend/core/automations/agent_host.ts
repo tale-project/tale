@@ -304,7 +304,7 @@ function workflowTurnToolScope(
     toolGrants: [
       ASK_HUMAN_TOOL,
       ...KNOWLEDGE_READ_TOOLS,
-      ...normalizeToolGrants(tools),
+      ...normalizeToolGrants(tools, 'automation'),
       ...(imageGeneration ? [IMAGE_GENERATION_TOOL] : []),
     ],
     ...(imageGeneration
@@ -1384,7 +1384,10 @@ export async function startWorkflowAgentTurnImpl(
         },
       );
 
-      const grantedTools = normalizeToolGrants(args.request.tools ?? []);
+      const grantedTools = normalizeToolGrants(
+        args.request.tools ?? [],
+        'automation',
+      );
       const toolsGuidance = grantedToolsGuidance(grantedTools);
       // Tell the agent which project it acts in — only when it holds tools that
       // touch projects (task/document), so an agent without them gets no noise.
@@ -1989,7 +1992,10 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         },
       );
 
-      const grantedTools = normalizeToolGrants(request.tools ?? []);
+      const grantedTools = normalizeToolGrants(
+        request.tools ?? [],
+        'automation',
+      );
       const toolsGuidance = grantedToolsGuidance(grantedTools);
       const projectGuidance =
         grantedTools.length > 0
