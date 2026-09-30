@@ -6,6 +6,7 @@ import {
   FAILED_SCAN_RETRY_MS,
   isDueForScan,
   lastScanAttemptAt,
+  scanHeartbeatAt,
   scanPausedAt,
   STUCK_SCANNING_RETRY_MS,
   type ScanSchedulingSite,
@@ -131,6 +132,29 @@ describe('stuck-scanning takeover', () => {
     expect(isDueForScan(stuck, NOW)).toBe(false);
   });
 
+  // Regression: "stuck" was measured from the last COMPLETED scan alone, so
+  // every rescan of a site whose interval exceeds the window read as stuck
+  // from its first minute. It was queued again on every five-minute tick for
+  // as long as it ran, each time only to find the claim held, and those
+  // no-ops took the tick's five starts ahead of the sites really due.
+  it('a rescan that shows life is not stuck, however old the last completed scan', () => {
+    const running = site({
+      status: 'scanning',
+      lastScannedAt: NOW - 6 * HOUR,
+      scanHeartbeatAt: NOW - 5 * MINUTE,
+    });
+    expect(isDueForScan(running, NOW)).toBe(false);
+  });
+
+  it('a scan whose heartbeat stopped is taken over after the window', () => {
+    const crashed = site({
+      status: 'scanning',
+      lastScannedAt: NOW - 6 * HOUR,
+      scanHeartbeatAt: NOW - STUCK_SCANNING_RETRY_MS - MINUTE,
+    });
+    expect(isDueForScan(crashed, NOW)).toBe(true);
+  });
+
   it('a scanning row with no activity at all falls back to its creation time', () => {
     expect(
       isDueForScan(
@@ -145,6 +169,12 @@ describe('stuck-scanning takeover', () => {
 });
 
 describe('metadata accessors', () => {
+  it('reads the scan heartbeat and treats a cleared one as absent', () => {
+    expect(scanHeartbeatAt({ scanHeartbeatAt: NOW })).toBe(NOW);
+    expect(scanHeartbeatAt({ scanHeartbeatAt: null })).toBeNull();
+    expect(scanHeartbeatAt(undefined)).toBeNull();
+  });
+
   it('read valid values', () => {
     expect(
       connectionFailureCount({ corpusConnectionFailures: 2, other: 'x' }),

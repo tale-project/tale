@@ -46,6 +46,7 @@ import {
   CONNECTION_FAILURES_BEFORE_PAUSE,
   connectionFailureCount,
   lastScanAttemptAt,
+  scanHeartbeatAt,
   scanPausedAt,
   type ScanSchedulingSite,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
@@ -628,12 +629,14 @@ function toSchedulingSite(
 ): ScanSchedulingSite & { domain: string; organizationId: string } {
   const metadata = row.metadata ?? undefined;
   const attempt = lastScanAttemptAt(metadata);
+  const heartbeat = scanHeartbeatAt(metadata);
   const site: ScanSchedulingSite & {
     domain: string;
     organizationId: string;
     lastScannedAt?: number;
     lastAttemptAt?: number;
     status?: string;
+    scanHeartbeatAt?: number;
   } = {
     domain: row.domain,
     organizationId: row.organizationId,
@@ -644,6 +647,7 @@ function toSchedulingSite(
   };
   if (row.lastScannedAt !== null) site.lastScannedAt = row.lastScannedAt;
   if (attempt !== null) site.lastAttemptAt = attempt;
+  if (heartbeat !== null) site.scanHeartbeatAt = heartbeat;
   if (row.status !== null) site.status = row.status;
   return site;
 }
@@ -936,6 +940,7 @@ export async function registerWebsite(
         callerOrgId: args.organizationId,
         scanInterval: args.scanInterval,
         status: 'scanning',
+        metadata: { scanHeartbeatAt: Date.now() },
       });
       id = existing.id;
       merged = true;
@@ -1136,6 +1141,13 @@ export async function syncSingleWebsite(
         metadata: {
           lastSyncError: info.status === 'error' ? info.error : null,
           lastStatusSyncAt: syncTimestamp,
+          // The corpus claim's own clock, which a running scan refreshes at
+          // every link: the scheduler tells a long scan from a crashed one
+          // by it.
+          scanHeartbeatAt:
+            info.status === 'scanning' && info.updated_at !== null
+              ? new Date(info.updated_at).getTime()
+              : null,
         },
       });
     } else {
@@ -1297,6 +1309,9 @@ async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
         corpusConnectionFailures: null,
         lastScanAttemptAt: null,
         lastSyncError: null,
+        // Queued now: the scheduler leaves the row to this scan rather than
+        // reading its last completed scan as a stuck one.
+        scanHeartbeatAt: Date.now(),
       },
     });
     await addJobInTx(tx, 'websites.scan', {

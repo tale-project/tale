@@ -34,6 +34,11 @@
  * - `scanPausedAt` — set when the failure streak hits the threshold. A paused
  *   site is never due; org admins are notified once, and scanning stays off
  *   until someone fixes the connection and resumes it from the Websites page.
+ * - `scanHeartbeatAt` — while the row reads `scanning`, when its scan last
+ *   showed life: the corpus claim's own timestamp, which every link of a
+ *   running scan refreshes, copied over by each row sync (and stamped when a
+ *   scan is queued). It is what tells a scan that runs for hours from one
+ *   that crashed; cleared whenever the row is not scanning.
  */
 
 /** Retry cadence while a site's scans are failing: `min(interval, this)`.
@@ -68,6 +73,8 @@ export interface ScanSchedulingSite {
   readonly createdAt: number;
   readonly connectionFailures: number;
   readonly scanPaused: boolean;
+  /** When a `scanning` row's scan last showed life (see the module note). */
+  readonly scanHeartbeatAt?: number;
 }
 
 /**
@@ -86,10 +93,16 @@ export function isDueForScan(site: ScanSchedulingSite, now: number): boolean {
   const anchor = latestOf(site.lastScannedAt, site.lastAttemptAt);
 
   if (site.status === 'scanning') {
-    // A healthy scan refreshes its corpus claim, not the Convex row — treat
-    // a row stuck in `scanning` beyond the window as crashed and let the
-    // corpus-side claim takeover decide.
-    return now - (anchor ?? site.createdAt) > STUCK_SCANNING_RETRY_MS;
+    // A row stuck in `scanning` beyond the window belongs to a crashed scan;
+    // the corpus-side claim takeover decides. "Stuck" is measured from the
+    // scan's own heartbeat when the row carries one. Measured from the last
+    // COMPLETED scan alone, every rescan of a site whose interval exceeds the
+    // window read as stuck from its first minute: it was queued again on
+    // every tick for as long as it ran, each time only to find the claim
+    // held, and those no-ops used up the tick's five starts ahead of the
+    // sites that were really due.
+    const alive = latestOf(anchor, site.scanHeartbeatAt);
+    return now - (alive ?? site.createdAt) > STUCK_SCANNING_RETRY_MS;
   }
 
   if (anchor === undefined) return true;
@@ -124,6 +137,17 @@ export function lastScanAttemptAt(
   metadata: Record<string, unknown> | undefined,
 ): number | null {
   const raw = metadata?.lastScanAttemptAt;
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
+    ? raw
+    : null;
+}
+
+/** When a `scanning` row's scan last showed life, or `null` when the row
+ * carries no heartbeat. */
+export function scanHeartbeatAt(
+  metadata: Record<string, unknown> | undefined,
+): number | null {
+  const raw = metadata?.scanHeartbeatAt;
   return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
     ? raw
     : null;

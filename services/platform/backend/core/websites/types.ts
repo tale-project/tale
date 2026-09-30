@@ -142,6 +142,9 @@ export interface CrawlerWebsiteInfo {
   /** Why the last scan failed — set with status 'error', cleared on the next
    * scan start. */
   error: string | null;
+  /** When the corpus row was last written. A running scan rewrites it at
+   * every link, so while the status is `scanning` this is its heartbeat. */
+  updated_at: string | null;
 }
 
 export interface CrawlerChunk {
