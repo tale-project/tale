@@ -561,3 +561,15 @@ export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
   TaskIdentifier,
   number
 >([['sandbox.recreate_pinned', 1]]);
+
+/**
+ * Queues one worker process works through independent slots instead of
+ * batches. A batch is fetched whole and awaited whole before the next fetch,
+ * so one long job holds every job queued after it: a website scan link runs
+ * five to nine minutes, and a site added while another site's link ran
+ * waited that long for its first page. With a slot per job, up to
+ * `WORKER_CONCURRENCY` of them still run at once, and each slot fetches its
+ * next job the moment its own ends.
+ */
+export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
+  new Set<TaskIdentifier>(['websites.scan']);

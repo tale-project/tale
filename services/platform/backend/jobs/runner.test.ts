@@ -120,6 +120,28 @@ describe('startWorker batch size', () => {
   });
 });
 
+describe('startWorker slot queues', () => {
+  // Regression: a batch is fetched whole and awaited whole, so one website's
+  // scan link (five to nine minutes) held every other site's queued scan —
+  // a site added meanwhile sat on "Scanning · 0" until that link ended.
+  it('works the website scan queue through one-job slots, as many as the worker concurrency', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      taskList: { noop: vi.fn(), 'websites.scan': vi.fn() },
+    });
+
+    expect(workOptions.get('websites.scan')).toMatchObject({
+      batchSize: 1,
+      localConcurrency: 5,
+    });
+    // Every other queue keeps its batch, in one worker.
+    expect(workOptions.get('noop')?.batchSize).toBe(5);
+    expect(workOptions.get('noop')?.localConcurrency).toBeUndefined();
+  });
+});
+
 describe('startWorker failure reporting', () => {
   it('fails a job the database restart caught for pg-boss to retry, and reports nothing', async () => {
     const { boss, handlers } = fakeBoss();
