@@ -33,6 +33,7 @@ import {
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
   DEMO_OWNER,
+  DEMO_PROJECT_AGENTS,
   DEMO_PROJECT_FILES,
   DEMO_PRODUCTS,
   DEMO_PROJECTS,
@@ -275,6 +276,56 @@ async function setDataNotice(page: Page, on: boolean): Promise<void> {
   await expect(toggle).toBeChecked({ checked: on });
 }
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
+
+/** The tasks a conversation handed over, above its message box. */
+const chatTaskTray = (page: Page): Locator =>
+  page.getByRole('region', { name: t('chat.taskTray.label'), exact: true });
+
+/**
+ * Hand the relaunch chat over: the header's Create task → the project step
+ * → the task dialog drafted from the chat, with the project's first agent
+ * as the assignee (it has two, so none is picked for you). Answers the
+ * dialog.
+ */
+async function openChatHandover(
+  page: Page,
+  ctx: ShotContext,
+): Promise<Locator> {
+  await page.goto(chatThreadRoute(ctx, TASK_HANDOFF_PROMPT), {
+    waitUntil: 'domcontentloaded',
+  });
+  await page
+    .getByRole('button', {
+      name: t('chat.createTask.headerButton'),
+      exact: true,
+    })
+    .click();
+  const step = page.getByRole('dialog', {
+    name: t('chat.createTask.projectTitle'),
+  });
+  await expect(step).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await step
+    .getByRole('button', { name: t('chat.createTask.projectLabel') })
+    .click();
+  await page.getByRole('option', { name: RELAUNCH_PROJECT }).click();
+  await step
+    .getByRole('button', { name: t('chat.createTask.continue') })
+    .click();
+  // The form mounts only once the conversation is read, holding the draft
+  // from its first paint: the description field is the last thing to land.
+  const form = page.getByRole('dialog', { name: t('tasks.actions.create') });
+  await expect(
+    form.getByRole('textbox', { name: t('tasks.fields.description') }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await form
+    .getByRole('button', { name: t('tasks.actions.assign'), exact: true })
+    .click();
+  await page
+    .getByRole('listbox', { name: t('tasks.fields.assignee') })
+    .getByRole('option', { name: DEMO_PROJECT_AGENTS[0].name })
+    .click();
+  return form;
+}
 
 /**
  * The explicit fresh composer. A bare `/chat` RESUMES the caller's most
@@ -720,45 +771,82 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText('Shared by', { exact: false }).first(),
   },
   {
-    // A conversation handed to a project agent: header ⋯ → Create task from
-    // chat → the project step → the task dialog drafted from the chat, with
-    // the request and the way back to it.
+    // A conversation handed to a project agent: the header's Create task →
+    // the project step → the task dialog drafted from the chat, with the
+    // request, the way back to it, and the agent to start on it.
     name: 'chat-create-task',
+    section: 'platform',
+    route: '/dashboard/:orgId/chat',
+    prepare: async (page, ctx) => {
+      await openChatHandover(page, ctx);
+    },
+    // Picking the agent turns the footer's verb into Create and start agent
+    // — the last thing to change.
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('tasks.actions.create') })
+        .getByRole('button', {
+          name: t('tasks.actions.createAndStart'),
+          exact: true,
+        }),
+    // The draft links back to the chat by the page's own origin.
+    sanitize: replaceRigNames,
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('tasks.actions.create') }),
+  },
+  {
+    // The hand-over, live where it was asked for: the task the conversation
+    // handed to an agent, above the message box, with what it is doing now.
+    name: 'chat-task-tray',
     section: 'platform',
     route: '/dashboard/:orgId/chat',
     prepare: async (page, ctx) => {
       await page.goto(chatThreadRoute(ctx, TASK_HANDOFF_PROMPT), {
         waitUntil: 'domcontentloaded',
       });
-      await page
-        .getByRole('button', { name: t('chat.aria.threadActions') })
-        .click();
-      await page
-        .getByRole('menuitem', { name: t('chat.createTask.button') })
+      await expect(composer(page)).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+      // A rerun photographs the task an earlier run handed over: one row,
+      // never a new task per capture.
+      const handedOver = await chatTaskTray(page)
+        .getByRole('listitem')
         .first()
+        .waitFor({ state: 'visible', timeout: TIMEOUT.VISIBLE })
+        .then(
+          () => true,
+          (error: unknown) => {
+            console.log(
+              `chat-task-tray: nothing handed over from this chat yet, handing it over now (${error instanceof Error ? error.message.split('\n')[0] : String(error)})`,
+            );
+            return false;
+          },
+        );
+      if (handedOver) return;
+      const form = await openChatHandover(page, ctx);
+      await form
+        .getByRole('button', {
+          name: t('tasks.actions.createAndStart'),
+          exact: true,
+        })
         .click();
-      const step = page.getByRole('dialog', {
-        name: t('chat.createTask.projectTitle'),
-      });
-      await expect(step).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-      await step
-        .getByRole('button', { name: t('chat.createTask.projectLabel') })
-        .click();
-      await page.getByRole('option', { name: RELAUNCH_PROJECT }).click();
-      await step
-        .getByRole('button', { name: t('chat.createTask.continue') })
-        .click();
+      await expect(form).toBeHidden({ timeout: TIMEOUT.VISIBLE });
     },
-    // The form mounts only once the conversation is read, holding the draft
-    // from its first paint: the description field is the last thing to land.
+    // The run settles the task into review: the row's last state.
     readyWhen: (page) =>
-      page
-        .getByRole('dialog', { name: t('tasks.actions.create') })
-        .getByRole('textbox', { name: t('tasks.fields.description') }),
-    // The draft links back to the chat by the page's own origin.
-    sanitize: replaceRigNames,
+      chatTaskTray(page)
+        .getByRole('listitem')
+        .filter({ hasText: t('chat.taskTray.ready') }),
     capture: (page) =>
-      page.getByRole('dialog', { name: t('tasks.actions.create') }),
+      // The tray with the message box it sits on — the innermost element
+      // holding both (document order puts the outermost ancestor first).
+      page
+        .locator('div')
+        .filter({ has: chatTaskTray(page) })
+        .filter({ has: composer(page) })
+        .last(),
+    // That element spans the chat column, and both sit centred in it: a
+    // column as wide as the message box keeps the crop to them, so the
+    // tray's text stays legible at the page's width.
+    viewport: { width: 1140, height: 800 },
   },
   {
     // Arena Mode: the same prompt streamed into two model columns.

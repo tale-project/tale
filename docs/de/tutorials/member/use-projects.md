@@ -76,10 +76,10 @@ Für einen einzelnen Link zu einer Momentaufnahme für Organisationsmitglieder l
 
 Der Chat beantwortet Fragen, erstellt aber keine Dateien. Soll aus der Antwort ein Dokument werden, etwa eine einseitige Launch-Zusammenfassung, übergib die Arbeit mit einer Aufgabe einem Agenten des Projekts.
 
-1. Öffne im Gespräch das Menü **⋯** und wähle **Aufgabe aus Chat erstellen**. Weil der Chat zu diesem Projekt gehört, öffnet sich **Aufgabe erstellen** dort, mit deiner letzten Frage als Beschreibung, einem Link zurück zum Chat und den Dateien, die du angehängt hast.
+1. Wähle im Kopf des Gesprächs **Aufgabe erstellen**. Weil der Chat zu diesem Projekt gehört, öffnet sich **Aufgabe erstellen** dort, mit deiner letzten Frage als Beschreibung, einem Link zurück zum Chat und den Dateien, die du angehängt hast.
 2. Formuliere die Beschreibung als gewünschtes Ergebnis, zum Beispiel: `Erstelle aus dem Briefing eine einseitige Launch-Zusammenfassung als Word-Dokument. Nenne für jeden Termin das Briefing als Quelle.`
-3. Wähle unter **Zuständig** einen Agenten des Projekts und klicke auf **Aufgabe erstellen**.
-4. Wähle in der Bestätigung **Aufgabe öffnen** und dann **Agent starten**.
+3. Wähle unter **Zuständig** einen Agenten des Projekts, falls noch keiner eingetragen ist, und klicke auf **Erstellen und Agent starten**.
+4. Verfolge den Lauf über dem Nachrichtenfeld des Chats; **Öffnen** führt dich dort zur Aufgabe.
 
 Wenn der Lauf endet, steht der Bericht des Agenten in den Kommentaren der Aufgabe, die Datei unter **Ergebnisdateien**, und die Aufgabe wartet auf **In Prüfung**. Erwähne den Agenten mit `@` in einem Kommentar, um Änderungen zu erbitten, und setze die Aufgabe auf **Erledigt**, wenn das Ergebnis der Beschreibung entspricht.
 

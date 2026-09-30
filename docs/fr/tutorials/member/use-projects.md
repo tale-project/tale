@@ -76,10 +76,10 @@ Pour envoyer un lien vers un instantané aux membres de l’organisation, suis [
 
 Le chat répond aux questions ; il ne produit pas de fichiers. Quand la réponse doit devenir un document, par exemple une synthèse de lancement d’une page, confie le travail à l’un des agents du projet au moyen d’une tâche.
 
-1. Dans la conversation, ouvre le menu **⋯** et choisis **Créer une tâche depuis le chat**. Comme le chat appartient à ce projet, **Créer une tâche** s’y ouvre, avec ta dernière question comme description, un lien vers le chat et les fichiers que tu as joints.
+1. Dans l’en-tête de la conversation, sélectionne **Créer une tâche**. Comme le chat appartient à ce projet, **Créer une tâche** s’y ouvre, avec ta dernière question comme description, un lien vers le chat et les fichiers que tu as joints.
 2. Reformule la description en résultat attendu, par exemple : `Rédige à partir du brief une synthèse de lancement d’une page au format Word. Cite le brief pour chaque date.`
-3. Sous **Assigné à**, choisis l’un des agents du projet, puis sélectionne **Créer une tâche**.
-4. Sélectionne **Ouvrir la tâche** dans la confirmation, puis **Démarrer l'agent**.
+3. Sous **Assigné à**, choisis l’un des agents du projet si aucun n’est encore choisi, puis sélectionne **Créer et démarrer l'agent**.
+4. Suis l’exécution au-dessus du champ de message du chat ; **Ouvrir** te mène alors à la tâche.
 
 À la fin de l’exécution, le rapport de l’agent se trouve dans les commentaires de la tâche, le fichier sous **Fichiers produits**, et la tâche attend en **En revue**. Mentionne l’agent avec `@` dans un commentaire pour demander des modifications, et passe la tâche à **Terminé** lorsque le résultat correspond à la description.
 

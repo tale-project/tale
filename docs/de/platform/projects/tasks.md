@@ -17,13 +17,13 @@ Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkei
 2. Benenne unter **Titel** das gewünschte Ergebnis, etwa „Launch-Briefing prüfen“.
 3. Erkläre in der **Beschreibung**, was benötigt wird und wie das Ergebnis geprüft werden soll. Füge benötigte Dateien als Anhänge hinzu.
 4. Wähle bei Bedarf **Status**, **Priorität** und **Zuständig**. Neue Aufgaben starten mit **Zu erledigen**. Für noch nicht beschlossene Vorschläge nutze **Backlog**.
-5. Klicke auf **Aufgabe erstellen**. Öffne die neue Karte, um weitere Angaben zu ergänzen.
+5. Klicke auf **Aufgabe erstellen**. Öffne die neue Karte, um weitere Angaben zu ergänzen. Ist unter **Zuständig** ein Agent eingetragen, legt **Erstellen und Agent starten** die Aufgabe an und startet den Agenten in einem Schritt.
 
 Ein Titel darf bis zu 200 Zeichen lang sein, eine Beschreibung bis zu 20.000; die meisten Emojis zählen doppelt. Eine längere Beschreibung, ob eingefügt oder von einem früheren Import in der Aufgabe hinterlassen, wird nicht gekürzt: Das Feld nennt die Grenze und zählt die Länge, und **Aufgabe erstellen** oder **Speichern** bleibt nicht verfügbar, bis du sie kürzt.
 
 Tale vergibt eine Kennung aus dem Projektkürzel, etwa `WEB-1`. Verwende sie in Verweisen auf die Arbeit, damit ähnlich benannte Aufgaben unterscheidbar bleiben.
 
-Auch ein Gespräch kann eine Aufgabe anstoßen: **Aufgabe aus Chat erstellen** im Menü **⋯** des Chats öffnet **Aufgabe erstellen** mit deiner Anfrage, den Dateien des Chats und einem Link zurück. Siehe [Aus einem Chat eine Aufgabe machen](/de/platform/chat/basics#create-task-from-chat).
+Auch ein Gespräch kann eine Aufgabe anstoßen: **Aufgabe erstellen** im Kopf des Chats öffnet denselben Dialog mit deiner Anfrage, den Dateien des Chats und einem Link zurück, und der Chat verfolgt die Aufgabe danach über seinem Nachrichtenfeld. Siehe [Aus einem Chat eine Aufgabe machen](/de/platform/chat/basics#create-task-from-chat).
 
 Eine Automatisierung, die für Aufgaben gebaut ist, kann in **Aufgabe erstellen** auch eine Vorlage anbieten: Ihr Name steht dann über dem Formular neben **Leere Aufgabe**. Wähle sie, gib den Namen ein, den die Automatisierung verlangt, etwa ein Quartal, und klicke auf **Aufgabe erstellen**; zuständig ist dann die Automatisierung. Gibt es für diesen Namen schon eine Aufgabe, öffnet Tale diese, statt eine zweite anzulegen, und meldet **Für dieses Subjekt existiert bereits eine Aufgabe.** Mitglieder können sie dort lesen und kommentieren, ändern sie aber nur, wenn es ihre eigene ist. Vorlagen, die im Projekt Ordner oder Einstellungsdateien anlegen, stehen nur Redakteuren und höheren Rollen zur Verfügung.
 

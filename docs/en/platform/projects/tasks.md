@@ -17,13 +17,13 @@ A task keeps a piece of work together: its purpose, owner, status, files, and th
 2. Write a **Title** that names the result, such as “Review the launch brief”.
 3. Use **Description** to explain what is needed and how the result will be checked. Add supporting files under **Attachments** when the work depends on them.
 4. Choose **Status**, **Priority**, and an **Assignee** as needed. New tasks default to **To do**; use **Backlog** for a proposal the team has not committed to.
-5. Click **Create task**. Open the new card to continue adding details.
+5. Click **Create task**. Open the new card to continue adding details. When an agent is the **Assignee**, **Create and start agent** creates the task and starts the agent in one step.
 
 A title can have up to 200 characters and a description up to 20,000; most emoji count as 2. A longer description, pasted in or left on a task by an earlier import, is not cut: the field names the limit and counts the length, and **Create task** or **Save** stays unavailable until you shorten it.
 
 Tale gives the task an identifier built from the project key, such as `WEB-1`. Use that identifier when referring to the work so similarly named tasks remain distinguishable.
 
-A conversation can start a task too: **Create task from chat** in the chat's **⋯** menu opens **Create task** with your request, the chat's files, and a link back to it. See [Turn a chat into a task](/platform/chat/basics#create-task-from-chat).
+A conversation can start a task too: **Create task** in the chat's header opens the same dialog with your request, the chat's files, and a link back to it, and the chat then follows the task above its message box. See [Turn a chat into a task](/platform/chat/basics#create-task-from-chat).
 
 An automation built for tasks can also offer a template in **Create task**: its name then appears beside **Blank task** above the form. Choose it, enter the name the automation asks for, such as a quarter, and click **Create task**; the automation becomes the task's assignee. If a task already exists for that name, Tale opens it instead of creating a second one and says **A task for this subject already exists.** A Member can read and comment on it there, but change it only if it's theirs. Templates that set up folders or settings files in the project are offered to Editors and higher roles only.
 

@@ -16,7 +16,7 @@ Un agent de projet travaille sur une tâche et remet son résultat à une person
 1. Crée une [tâche](/fr/platform/projects/tasks) avec le résultat attendu, les critères de fin et les fichiers d’entrée.
 2. Choisis un [agent de projet](/fr/platform/projects/project-agents) sous **Assigné à**.
 3. Désigne dans **Relecteur** la personne qui vérifiera le résultat. À défaut, la demande revient à la personne qui a créé la tâche ou le projet. Un relecteur doit pouvoir modifier le projet : un Membre qui a créé la tâche ne reçoit donc pas la demande de revue, mais il suit la tâche, est prévenu quand elle passe à **En revue** et peut accepter le résultat lui-même, sauf si ton organisation exige une relecture indépendante et qu’il a démarré l’exécution.
-4. Clique sur **Démarrer l'agent** ou passe la tâche à **En cours**.
+4. Clique sur **Démarrer l'agent** ou passe la tâche à **En cours**. Si tu assignes l’agent dès la création de la tâche, **Créer et démarrer l'agent** dans **Créer une tâche** le fait dans la même étape.
 
 L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Tant que personne n’a démarré l’agent, la tâche affiche à toute personne qui peut le démarrer **Démarrer l'agent** et la mention **L’agent attend que tu le démarres.** Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille. Une exécution qu’un Membre démarre s’en tient à sa tâche et se passe des secrets de l’agent ; [Exécutions démarrées par un Membre](/fr/platform/projects/tasks#executions-demarrees-par-un-membre) détaille ce qui change.
 
