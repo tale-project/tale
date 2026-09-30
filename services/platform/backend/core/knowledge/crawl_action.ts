@@ -1044,6 +1044,16 @@ async function countDuePages(
 
 type FetchOutcome = StoreOutcome | 'failed' | 'render';
 
+/** Whether a redirect landed on another host or path of the site — not
+ * merely on the same address with another query string. */
+function isAnotherAddress(from: string, to: string): boolean {
+  const source = new URL(from);
+  const target = new URL(to);
+  return (
+    source.hostname !== target.hostname || source.pathname !== target.pathname
+  );
+}
+
 /**
  * Probe one page and dispatch on its content type: binaries and plain text
  * are extracted and stored in-process; HTML reports `render` (body
@@ -1052,9 +1062,9 @@ type FetchOutcome = StoreOutcome | 'failed' | 'render';
  * status codes, deletes, size caps, and the SSRF guard for every byte
  * download. Change detection is the stored content hash alone: a 304 on an
  * SPA shell proves nothing about rendered content, so no conditional
- * validators are sent.
+ * validators are sent. Exported for tests only.
  */
-async function fetchAndStorePage(
+export async function fetchAndStorePage(
   sql: Sql,
   domain: string,
   page: DuePage,
@@ -1138,6 +1148,25 @@ async function fetchAndStorePage(
       }`,
     });
     return 'failed';
+  }
+  // A redirect inside the site makes this URL another page's alias: `www.`
+  // onto the apex, a missing trailing slash, a removed page sent to the
+  // homepage. Stored under both addresses, the same text was chunked,
+  // embedded and cited twice. The alias leaves the index and its target
+  // joins the frontier — unless robots.txt disallows it — to be fetched
+  // under its own address. A LISTED URL is the operator's instruction and
+  // keeps its row, and a redirect that only rewrites the query (a session
+  // id, a language parameter) is the same address: following those would
+  // mint a new row every scan.
+  if (!page.listed) {
+    const target = normalizeCandidateUrl(response.finalUrl, page.url, hosts);
+    if (target !== null && isAnotherAddress(page.url, target)) {
+      await retirePage(sql, domain, page.url);
+      if (!isUrlDisallowed(target, policy)) {
+        await admitUrls(sql, domain, [target], { listed: false });
+      }
+      return 'unchanged';
+    }
   }
   // The origin's own wish, in the HTTP form (`X-Robots-Tag: noindex` — the
   // only way a site can say so for a non-HTML resource such as a PDF): an
