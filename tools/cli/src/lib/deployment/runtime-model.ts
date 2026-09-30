@@ -124,13 +124,19 @@ export interface RuntimeResult {
   changed: boolean;
   existing: boolean;
   /**
-   * The model gateway's store as this runtime found it: whether its volume
-   * exists, and whether applying the runtime would start a gateway image other
-   * than the one its container runs now — the change on which a newer gateway
-   * migrates that store forward-only. A gateway without a running container
-   * counts as changing.
+   * The model gateway's store as this runtime found it, before any change:
+   * whether its volume exists; the gateway image the runtime starts (`target`)
+   * and the one a container runs now (`running`, `null` when none runs); and
+   * whether the store has not run the target yet (`newImage`: no ready runtime
+   * receipt lists it and no gateway container on it has started) — the only
+   * start on which a newer gateway migrates that store forward-only.
    */
-  gateway: { volume: boolean; imageChanges: boolean };
+  gateway: {
+    volume: boolean;
+    newImage: boolean;
+    target: string | null;
+    running: string | null;
+  };
   dryRun: boolean;
 }
 

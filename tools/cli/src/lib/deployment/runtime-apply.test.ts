@@ -323,43 +323,108 @@ describePosix('managed source-Compose runtime adoption', () => {
   });
 
   // What the deployment's recovery-point check reads: whether the store's
-  // volume exists and whether this rollout starts another gateway image.
-  test('a preview reports the gateway store and whether the rollout starts another gateway image on it', async () => {
+  // volume exists, which gateway image the rollout starts, and whether the
+  // store has run that image already.
+  test('a preview reports the gateway store, the image it would start and whether the store has run it', async () => {
+    const gatewayOf = (docker: RuntimeDockerFixture) =>
+      docker.containers.find(
+        (container) =>
+          (container.Config as { Labels: Record<string, string> }).Labels[
+            'com.docker.compose.service'
+          ] === 'sandbox-llm-gateway',
+      )!;
     const fresh = await create();
-    expect((await fresh.apply(true)).gateway).toEqual({
+    expect((await fresh.apply(true)).gateway).toMatchObject({
       volume: false,
-      imageChanges: true,
+      newImage: true,
+      running: null,
     });
+    // An existing gateway started on the bundle's own image has run it.
     const adopted = await create(true);
-    expect((await adopted.apply(true)).gateway).toEqual({
+    expect((await adopted.apply(true)).gateway).toMatchObject({
       volume: true,
-      imageChanges: false,
+      newImage: false,
     });
+    // A source-Compose gateway runs a tag; its image's digest decides.
+    const adoptedGateway = gatewayOf(adopted.docker).Config as {
+      Image: string;
+    };
+    const targetImage = adopted.docker.imageMetadata.get(adoptedGateway.Image)!;
+    const tag = 'ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:0.5.16';
+    adoptedGateway.Image = tag;
+    adopted.docker.imageMetadata.set(tag, targetImage);
+    expect((await adopted.apply(true)).gateway).toMatchObject({
+      newImage: false,
+      running: tag,
+    });
+    adopted.docker.imageMetadata.set(tag, {
+      ...targetImage,
+      RepoDigests: [
+        `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway@sha256:${'0'.repeat(64)}`,
+      ],
+    });
+    expect((await adopted.apply(true)).gateway.newImage).toBe(true);
+    // A ready runtime has run its gateway image, stopped or not.
     const run = await create();
     await run.apply();
+    const target = (gatewayOf(run.docker).Config as { Image: string }).Image;
     expect((await run.apply(true)).gateway).toEqual({
       volume: true,
-      imageChanges: false,
+      newImage: false,
+      target,
+      running: target,
     });
+    (gatewayOf(run.docker).State as { Running: boolean }).Running = false;
+    expect((await run.apply(true)).gateway).toMatchObject({
+      newImage: false,
+      running: null,
+    });
+    const stopped = gatewayOf(run.docker);
+    run.docker.containers = run.docker.containers.filter(
+      (container) => container !== stopped,
+    );
+    expect((await run.apply(true)).gateway).toMatchObject({
+      volume: true,
+      newImage: false,
+      running: null,
+    });
+    run.docker.containers.push(stopped);
+    // The next release's gateway image is new to that store.
+    run.fixture.git('tag', 'v0.5.17');
+    run.docker.variantTag = '0.5.17';
+    const release = join(run.fixture.directory, 'release-runtime');
+    await prepareRuntime(
+      {
+        repoRoot: run.fixture.repoRoot,
+        revision: run.fixture.revision,
+        output: release,
+        platform: 'linux/amd64',
+      },
+      run.docker.dependencies(),
+    );
     run.docker.calls = [];
-    const gateway = run.docker.containers.find(
-      (container) =>
-        (container.Config as { Labels: Record<string, string> }).Labels[
-          'com.docker.compose.service'
-        ] === 'sandbox-llm-gateway',
-    )!;
-    const target = (gateway.Config as { Image: string }).Image;
-    (gateway.Config as { Image: string }).Image =
-      'ghcr.io/tale-project/tale/tale-sandbox-llm-gateway@sha256:' +
-      '0'.repeat(64);
-    expect((await run.apply(true)).gateway).toEqual({
-      volume: true,
-      imageChanges: true,
-    });
-    (gateway.State as { Running: boolean }).Running = false;
-    (gateway.Config as { Image: string }).Image = target;
-    expect((await run.apply(true)).gateway.imageChanges).toBe(true);
+    const next = (
+      await applyRuntime(
+        { ...run.fixture.options, bundleDirectory: release, dryRun: true },
+        run.docker.dependencies(),
+      )
+    ).gateway;
+    expect(next.newImage).toBe(true);
+    expect(next.target).not.toBe(target);
     expect(mutations(run.docker)).toEqual([]);
+    // A container Compose created on the target but never started has not run it.
+    const interrupted = await create();
+    interrupted.docker.upFailure = true;
+    await expect(interrupted.apply()).rejects.toThrow('could not complete');
+    Object.assign(gatewayOf(interrupted.docker).State as object, {
+      Running: false,
+      StartedAt: '0001-01-01T00:00:00Z',
+    });
+    expect((await interrupted.apply(true)).gateway).toMatchObject({
+      volume: true,
+      newImage: true,
+      running: null,
+    });
   });
 
   test('fresh and existing previews do not create files or call any Docker mutation', async () => {

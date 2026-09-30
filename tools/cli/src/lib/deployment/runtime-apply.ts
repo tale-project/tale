@@ -508,27 +508,55 @@ function converged(
   );
 }
 
-/** Whether the runtime would start a gateway image other than the one the
- * gateway container runs now, compared the way {@link converged} compares
- * every service. */
-function gatewayImageChanges(
+/** Docker reports a container that never started at the zero time. */
+function hasStarted(container: RuntimeContainer): boolean {
+  return (
+    container.State.Running ||
+    (container.State.StartedAt !== undefined &&
+      !container.State.StartedAt.startsWith('0001-01-01'))
+  );
+}
+
+/**
+ * The model gateway's store as the runtime finds it, before anything changes.
+ * The store has run the target image when a ready runtime receipt lists it or
+ * a gateway container on it has started; only a start on an image the store
+ * has not run can migrate it. `inspectedDigests` holds the digests an
+ * adoption read for tag-referenced containers.
+ */
+function gatewayState(
+  receipt: RuntimeReceipt | null,
   containers: RuntimeContainer[],
   bundle: RuntimeBundle,
-): boolean {
+  volume: boolean,
+  inspectedDigests: ReadonlyMap<string, string>,
+): RuntimeResult['gateway'] {
   const target = bundle.images.find((image) =>
     image.services.includes('sandbox-llm-gateway'),
   );
-  const running = containers.find(
-    (container) =>
-      container.State.Running &&
-      container.Config.Labels?.['com.docker.compose.service'] ===
-        'sandbox-llm-gateway',
+  const container = containers.find(
+    (candidate) =>
+      candidate.Config.Labels?.['com.docker.compose.service'] ===
+      'sandbox-llm-gateway',
   );
-  return (
-    target === undefined ||
-    running === undefined ||
-    running.Config.Image !== target.reference
-  );
+  const ranTarget =
+    target !== undefined &&
+    ((receipt?.phase === 'ready' &&
+      receipt.images.some(
+        (image) =>
+          image.services.includes('sandbox-llm-gateway') &&
+          image.digest === target.digest,
+      )) ||
+      (container !== undefined &&
+        hasStarted(container) &&
+        (container.Config.Image === target.reference ||
+          inspectedDigests.get(container.Config.Image) === target.digest)));
+  return {
+    volume,
+    newImage: !ranTarget,
+    target: target?.reference ?? null,
+    running: container?.State.Running ? container.Config.Image : null,
+  };
 }
 
 function healthy(
@@ -679,6 +707,7 @@ export async function applyRuntime(
     existsSync(join(options.stateDirectory, 'secrets.env')) ||
     existsSync(join(sourceDirectory, '.env')) ||
     Boolean(receipt?.existing);
+  const inspectedDigests = new Map<string, string>();
   if (!receipt) {
     if (existing) {
       requireRuntime(
@@ -720,6 +749,7 @@ export async function applyRuntime(
           null,
           dependencies,
         );
+        inspectedDigests.set(container.Config.Image, current.digest);
         if (expected.repository.startsWith(`${TALE_REGISTRY}/`)) {
           const currentRevision = revisionSchema.safeParse(current.revision);
           requireRuntime(
@@ -762,6 +792,14 @@ export async function applyRuntime(
       );
     }
   }
+  // Read before anything changes: the result keeps what the rollout found.
+  const gateway = gatewayState(
+    receipt,
+    containers,
+    bundle,
+    projectVolumes.includes(`${options.composeProject}_${GATEWAY_VOLUME}`),
+    inspectedDigests,
+  );
   const environment = prepareRuntimeEnvironment(
     options,
     bundle.revision,
@@ -801,12 +839,7 @@ export async function applyRuntime(
     revision: bundle.revision,
     changed,
     existing,
-    gateway: {
-      volume: projectVolumes.includes(
-        `${options.composeProject}_${GATEWAY_VOLUME}`,
-      ),
-      imageChanges: gatewayImageChanges(containers, bundle),
-    },
+    gateway,
     dryRun: options.dryRun ?? false,
   });
   if (options.dryRun) return result();
