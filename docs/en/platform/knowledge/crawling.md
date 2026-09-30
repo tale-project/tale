@@ -48,7 +48,7 @@ Use HTTPS on the standard port, and register a hostname: addresses with a non-de
 | --- | --- |
 | 10,000 tracked URLs per website | A larger site can have undiscovered pages. Use a focused URL list for the material you need. |
 | Three minutes for discovery, at most 50 sitemap fetches | Large or slow sitemap collections can be incomplete. |
-| 25 MiB and 30 seconds per content fetch | Oversized downloads and slow responses fail (`timeout` for the download and the 20-second browser-render budgets); so does a page behind more than five redirects (`redirect_limit_exceeded`). |
+| 100 MiB (`KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`) and 30 seconds per content fetch | Oversized downloads and slow responses fail (`timeout` for the download and the 20-second browser-render budgets); so does a page behind more than five redirects (`redirect_limit_exceeded`). |
 | Five-minute processing budget per batch, up to 200 continuations | Long scans continue in batches. Work already being fetched or rendered can outlast a batch's budget; this is not a guaranteed total scan duration. |
 | Five consecutive failures for an automatically discovered URL | The crawler stops scheduling that URL for seven days, then probes it once more. A failure of the render sandbox itself is not counted: when its egress proxy refuses the connection or its browser stops answering, the scan ends with that reason on the source and the next scan retries every page. Listed URLs remain eligible on each scan, and a listed page the site answers 404 for stays in the list with that answer on it. |
 
@@ -76,7 +76,7 @@ First check the address, source type, and latest scan time. Then open the source
 | Certificate not trusted | The website operator must fix an expired, self-signed, mismatched, or otherwise untrusted TLS certificate. Repeated scans do not repair it. |
 | Private address, refused redirect, or invalid URL | Use the intended public HTTPS address. Ask your operator about approved internal sources if needed. |
 | HTTP error, network failure, or timeout | Open the original page and check availability. A later scan can recover after the source service is repaired. |
-| Response too large | Publish a smaller document or split the source; the fetch limit is 25 MiB. |
+| Response too large | Publish a smaller document or split the source; the fetch limit is 100 MiB unless your operator set `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`. |
 | Source requests no indexing | The response sends `X-Robots-Tag: noindex` or `none`, or the page carries `<meta name="robots" content="noindex">`. The source owner must change that directive before Tale can index it. |
 | Unsupported content or no readable text | JSON/XML endpoints, binary downloads, images, or scans may provide no supported page text. Supply an HTML page or a supported document with extractable text. |
 | Rendering or document extraction failed | Check that the public page loads and the original document opens. Repair or re-export the source if it is damaged. |
