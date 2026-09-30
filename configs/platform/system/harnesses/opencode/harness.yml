@@ -122,3 +122,8 @@ exec:
             bridgeEnv:
               TALE_CONNECTORS_URL: '${bridgeUrl}'
               TALE_CONNECTORS_TOKEN: '{env:TALE_GATEWAY_TOKEN}'
+            # OpenCode gives up on an MCP call after 60 s: it asks for no
+            # progress reports (no progress token on the call), so the
+            # bridge's cannot keep the call alive, and an image generation
+            # takes minutes. The server's `timeout` bounds its calls.
+            bridgeCallTimeout: { field: timeout, unit: ms }
