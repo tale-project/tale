@@ -25,6 +25,8 @@
  * caller that wants more runs several requests.
  */
 
+import { imageSize } from 'image-size';
+
 /** How a request reaches the provider's image API. */
 export type ImageGenerationWire = 'openrouter-images' | 'openai-images';
 
@@ -122,6 +124,9 @@ export interface ImageWireRequest {
 export interface GeneratedImage {
   bytes: Uint8Array;
   mediaType: RasterMediaType;
+  /** The stored pixel size, when the image's header could be read. */
+  width?: number;
+  height?: number;
 }
 
 /** The token counts a provider reports (OpenAI's images API). */
@@ -271,6 +276,29 @@ export function sniffRasterMediaType(
   return null;
 }
 
+/** The pixel size stored in a raster image's header, or `undefined` when the
+ * header cannot be read. Reported to the agent, never relied on: each model
+ * draws "landscape" at its own size (1248×832 on one, 1536×1024 on
+ * another), and only the image itself says which. */
+export function rasterPixelSize(
+  bytes: Uint8Array,
+): { width: number; height: number } | undefined {
+  try {
+    const { width, height } = imageSize(bytes);
+    return Number.isInteger(width) &&
+      Number.isInteger(height) &&
+      width > 0 &&
+      height > 0
+      ? { width, height }
+      : undefined;
+  } catch (error) {
+    console.warn(
+      `[image-generation] could not read a generated image's pixel size: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return undefined;
+  }
+}
+
 /** The provider's own error sentence from a reply body, if it gave one —
  * both dialects spell it `{error: {message}}` (OpenRouter may send it on a
  * 200 once the upstream model failed). */
@@ -363,7 +391,7 @@ export function parseImageReply(
       refusedFormats += 1;
       continue;
     }
-    images.push({ bytes, mediaType });
+    images.push({ bytes, mediaType, ...rasterPixelSize(bytes) });
   }
   if (images.length === 0) {
     throw new ImageReplyError(

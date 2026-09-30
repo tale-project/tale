@@ -586,17 +586,19 @@ output:
       links.
 - [ ] `AUTO-F54` · **An agent node creates an image into its output** — With
       **Image generation** on ([governance.md](governance.md) GOV-F38), test-run
-      an automation whose `agent` node asks for "a landscape banner saved as
+      an automation whose `agent` node asks for "a 16:9 banner saved as
       banner.png" → The run detail's **Agent log**
       (`automations.runs.agentLog.title`) shows the `generate_image` call
-      answering `ok` with a path in the run's output folder (/agent/output),
-      the node's output lists `banner.png` (or the format the model returned)
-      among its `files`, and the usage page books the image under the person
-      who started the run and the automation's name; turn image generation off
-      and run it again →
-      the agent reports it has no image tool and the node's `files` hold no
-      image — env-gated: mark **ENVIRONMENT** without a runnable harness and an
-      image-capable credential.
+      answering `ok` with a path in the run's output folder (/agent/output)
+      and the image's `width` and `height`, a 3:2 landscape such as 1248 × 832
+      or 1536 × 1024 that matches the saved file, and the agent reports that
+      size rather than 16:9; the node's output lists `banner.png` (or the
+      format the model returned) among its `files`, and the usage page books
+      the image under the person who started the run and the automation's
+      name; turn image generation off and run it again → the agent reports it
+      has no image tool and the node's `files` hold no image — env-gated: mark
+      **ENVIRONMENT** without a runnable harness and an image-capable
+      credential.
 - [ ] `AUTO-F55` · **A schedule starts a project agent** — In a project with
       an agent assigned to a task in **To do** (`tasks.status.todo`), save and
       deploy an automation installed in that project whose only node has
