@@ -60,6 +60,25 @@ describe('Toaster', () => {
     expect(action?.parentElement).toBe(root);
   });
 
+  // A partial outcome — an import that brought in some files and not
+  // others — reads as a warning, never as an error or a success.
+  it.each([
+    ['success', 'text-success'],
+    ['warning', 'text-amber-600'],
+    ['destructive', 'text-destructive'],
+  ] as const)('marks a %s toast with its own status glyph', (variant, tone) => {
+    render(<Toaster />);
+
+    act(() => {
+      toast({ title: 'Imported 3 of 4 files', variant });
+    });
+
+    const icons = document.body.querySelectorAll('ol li svg');
+    expect(icons).toHaveLength(1);
+    expect(icons[0]?.getAttribute('class')).toContain(tone);
+    expect(icons[0]?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   // The stack tucks into the top-right corner with a SYMMETRIC inset: the
   // top gap equals the right gap (0.75rem plus the safe-area inset on each
   // axis). The old 4rem header-band offset (#1986) went with the old desktop

@@ -48,6 +48,7 @@ The toast store is shared across callers and holds one current notification. A n
 | --- | --- |
 | `default` | Neutral text, without a leading status icon. |
 | `success` | A check icon for successful completion. |
+| `warning` | A warning icon for an operation that finished only in part, such as an import that brought in some files and not others; say what is missing. |
 | `destructive` | An error icon for a failed operation; keep actionable recovery available elsewhere. |
 
 `position` is `top-right` by default or `top-center`. The current toast determines the viewport position. Keep placement consistent within a workflow.
