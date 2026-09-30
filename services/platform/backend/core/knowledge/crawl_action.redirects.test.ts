@@ -102,6 +102,32 @@ describe('fetchAndStorePage — a redirect inside the site', () => {
     expect(admitted(statements)).toEqual([to]);
   });
 
+  // Within a scan, the target of a redirect may be a row this scan already
+  // retired; that one stays retired (`admitUrlsStatement`, fenced).
+  it("admits the target under the scan's start when the scan names it", async () => {
+    answers('https://www.example.com/about/');
+    const { sql, statements } = corpus();
+    const scanStartedAt = '2026-09-30T12:00:00.000Z';
+
+    await fetchAndStorePage(
+      sql,
+      DOMAIN,
+      page('https://www.example.com/about'),
+      EMPTY_ROBOTS_POLICY,
+      scanStartedAt,
+    );
+
+    const admit = statements.find((statement) =>
+      statement.text.includes('RETURNING u.url'),
+    );
+    expect(admit?.params).toEqual([
+      DOMAIN,
+      'https://www.example.com/about/',
+      scanStartedAt,
+    ]);
+    expect(admit?.text).toContain('u.last_crawled_at < $3::timestamptz');
+  });
+
   it('does not track a target robots.txt disallows', async () => {
     answers('https://www.example.com/private/login');
     const { sql, statements } = corpus();

@@ -104,8 +104,20 @@ describe('admitUrlsStatement', () => {
     expect(statement).toContain(
       "last_error_at = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error_at END",
     );
-    expect(statement).toContain("WHERE u.status = 'deleted'");
+    expect(statement).toContain("WHERE (u.status = 'deleted')");
     expect(statement).toContain('RETURNING u.url');
+  });
+
+  // The rendered links of the next page used to bring back the alias or the
+  // 404 the scan had just retired, as an empty row counted among the pages.
+  it("leaves what the running scan retired itself retired when fenced by the scan's start", () => {
+    const statement = admitUrlsStatement(2, false, true);
+    expect(statement).toContain(
+      "WHERE (u.status = 'deleted' AND (u.last_crawled_at IS NULL OR u.last_crawled_at < $4::timestamptz))",
+    );
+    // The fence follows the URL placeholders.
+    expect(statement).toContain("($1, $3, 'discovered', NOW(), FALSE)");
+    expect(admitUrlsStatement(2, false)).not.toContain('$4');
   });
 
   it('only ever widens the listed flag, and touches live rows for that alone — or to restart a listed row’s failure count', () => {

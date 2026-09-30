@@ -340,6 +340,7 @@ export async function scanWebsiteImpl(
             args.domain,
             actionStartedAt + DISCOVERY_BUDGET_MS,
             robots,
+            scanStartedAt,
           );
           const retired = await retireDisallowedRows(sql, args.domain, policy);
           if (retired > 0) {
@@ -474,6 +475,7 @@ export async function scanWebsiteImpl(
             htmlToText(outcome.html),
           );
           await indexer.settle(page.url, stored);
+          await markPageCrawled(sql, args.domain, page.url);
           if (kind === 'site') {
             await admitRenderedLinks(
               sql,
@@ -481,6 +483,7 @@ export async function scanWebsiteImpl(
               outcome.html,
               outcome.finalUrl,
               policy,
+              scanStartedAt,
             );
           }
         }
@@ -510,10 +513,13 @@ export async function scanWebsiteImpl(
             args.domain,
             page,
             policy,
+            scanStartedAt,
           );
           if (outcome === 'render') renderQueue.push(page);
-          else if (outcome !== 'failed')
+          else if (outcome !== 'failed') {
             await indexer.settle(page.url, outcome);
+            await markPageCrawled(sql, args.domain, page.url);
+          }
           await sleep(fetchDelayMs(policy));
           if (renderQueue.length >= RENDER_BATCH_SIZE) await flushRenderBatch();
         }
@@ -906,6 +912,7 @@ async function discoverAndRecordUrls(
   domain: string,
   deadline: number,
   robots: RobotsRules,
+  scanStartedAt: string,
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const baseUrl = `https://${domain}/`;
@@ -1065,8 +1072,12 @@ async function discoverAndRecordUrls(
 
   // The shared admission door: new rows start `discovered`, and a row a past
   // scan marked `deleted` is revived — the site links to the page again, so
-  // the fetch (not the memory of a 404) decides whether it is back.
-  await admitUrls(sql, domain, [...urls], { listed: false });
+  // the fetch (not the memory of a 404) decides whether it is back. What
+  // this scan retired itself (a resumed scan's discovery) stays retired.
+  await admitUrls(sql, domain, [...urls], {
+    listed: false,
+    retiredBefore: scanStartedAt,
+  });
   console.log(`[crawl] ${domain}: ${urls.size} URLs discovered`);
 }
 
@@ -1143,6 +1154,7 @@ export async function fetchAndStorePage(
   domain: string,
   page: DuePage,
   policy: RobotsPolicy,
+  scanStartedAt?: string,
 ): Promise<FetchOutcome> {
   const hosts = siteHosts(domain);
 
@@ -1237,7 +1249,12 @@ export async function fetchAndStorePage(
     if (target !== null && isAnotherAddress(page.url, target)) {
       await retirePage(sql, domain, page.url);
       if (!isUrlDisallowed(target, policy)) {
-        await admitUrls(sql, domain, [target], { listed: false });
+        await admitUrls(sql, domain, [target], {
+          listed: false,
+          ...(scanStartedAt === undefined
+            ? {}
+            : { retiredBefore: scanStartedAt }),
+        });
       }
       return 'unchanged';
     }
@@ -1341,16 +1358,20 @@ export async function fetchAndStorePage(
 
 /**
  * What storing a page means for its chunks: `changed` text (or text whose
- * chunks are missing — an earlier scan died between fetch and index) is
- * re-chunked and re-embedded; `vectorless` text is unchanged but was chunked
- * without vectors (no embedding model at the time), so it is embedded once a
- * model can do it; `unchanged` text is left as it is.
+ * chunks are missing or were cut from other text — an earlier scan died
+ * between storing the page and indexing it) is re-chunked and re-embedded;
+ * `vectorless` text is unchanged but was chunked without vectors (no
+ * embedding model at the time), so it is embedded once a model can do it;
+ * `unchanged` text is left as it is.
  */
 export type StoreOutcome = 'changed' | 'vectorless' | 'unchanged';
 
 /**
  * Store one page's extracted text, title, and paragraph hashes; report what
- * that means for its chunks ({@link StoreOutcome}). Exported for tests only.
+ * that means for its chunks ({@link StoreOutcome}). The page is not stamped
+ * as visited here: that waits until it is indexed too
+ * ({@link markPageCrawled}), so a link cut off in between leaves the page
+ * due for the scan that resumes it. Exported for tests only.
  */
 export async function storePageText(
   sql: Sql,
@@ -1367,7 +1388,7 @@ export async function storePageText(
     await tx.unsafe(
       `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
           SET content = $3, title = $4, content_hash = $5, word_count = $6,
-              status = 'active', last_crawled_at = NOW(), fail_count = 0,
+              status = 'active', fail_count = 0,
               last_error = NULL, last_error_kind = NULL, last_error_at = NULL
         WHERE domain = $1 AND url = $2`,
       [domain, page.url, text, title, contentHash, wordCount],
@@ -1394,18 +1415,37 @@ export async function storePageText(
 
   if (unchanged) {
     const [chunks] = await sql.unsafe<
-      { present: boolean; vectorless: boolean }[]
+      { present: boolean; current: boolean; vectorless: boolean }[]
     >(
       `SELECT count(*) > 0 AS present,
+              coalesce(bool_and(content_hash = $3), false) AS current,
               coalesce(bool_or(embedding IS NULL), false) AS vectorless
          FROM ${PUBLIC_WEB_SCHEMA}.chunks
         WHERE domain = $1 AND url = $2`,
-      [domain, page.url],
+      [domain, page.url, contentHash],
     );
-    if (chunks === undefined || !chunks.present) return 'changed';
+    // Chunks of other text: the text was stored and the scan stopped before
+    // it was indexed. Left alone, the index kept serving the old text until
+    // the page changed again.
+    if (chunks === undefined || !chunks.present || !chunks.current) {
+      return 'changed';
+    }
     return chunks.vectorless ? 'vectorless' : 'unchanged';
   }
   return 'changed';
+}
+
+/** Stamp a page as visited by this scan, once it is stored and indexed. */
+async function markPageCrawled(
+  sql: Sql,
+  domain: string,
+  url: string,
+): Promise<void> {
+  await sql.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls SET last_crawled_at = NOW()
+      WHERE domain = $1 AND url = $2`,
+    [domain, url],
+  );
 }
 
 /**
@@ -1509,6 +1549,7 @@ async function admitRenderedLinks(
   html: string,
   baseUrl: string,
   policy: RobotsPolicy,
+  scanStartedAt: string,
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const countRows = await sql.unsafe<{ n: string }[]>(
@@ -1525,8 +1566,13 @@ async function admitRenderedLinks(
       return;
     }
     // Inserted or revived rows are newly tracked (`deleted` rows are not in
-    // the count above); unchanged live rows report zero.
-    tracked += await admitUrls(sql, domain, [normalized], { listed: false });
+    // the count above); unchanged live rows report zero. A link to what this
+    // scan retired (the alias it just followed, a page that answered 404)
+    // leaves that row retired.
+    tracked += await admitUrls(sql, domain, [normalized], {
+      listed: false,
+      retiredBefore: scanStartedAt,
+    });
   }
 }
 

@@ -55,10 +55,23 @@ export const URL_INSERT_BATCH = 500;
  * attempt rewrites or clears it). `RETURNING url` names the rows the
  * statement inserted or changed, so a caller can count what it newly tracks.
  *
+ * `fenced` keeps a row the running scan retired itself: the revival then
+ * takes only rows retired before `$count+2`, the scan's start. The links of
+ * the next rendered page used to bring back the alias or the 404 the scan
+ * had just retired, as an empty `discovered` row counted among the site's
+ * pages and not due again until the next scan.
+ *
  * `count` is how many URL placeholders follow the domain (`$2..$count+1`).
  */
-export function admitUrlsStatement(count: number, listed: boolean): string {
+export function admitUrlsStatement(
+  count: number,
+  listed: boolean,
+  fenced = false,
+): string {
   const flag = listed ? 'TRUE' : 'FALSE';
+  const revivable = fenced
+    ? `u.status = 'deleted' AND (u.last_crawled_at IS NULL OR u.last_crawled_at < $${count + 2}::timestamptz)`
+    : `u.status = 'deleted'`;
   const rows = Array.from(
     { length: count },
     (_, index) => `($1, $${index + 2}, 'discovered', NOW(), ${flag})`,
@@ -73,7 +86,7 @@ export function admitUrlsStatement(count: number, listed: boolean): string {
        last_error_at = CASE WHEN u.status = 'deleted' THEN NULL ELSE u.last_error_at END,
        discovered_at = CASE WHEN u.status = 'deleted' THEN NOW() ELSE u.discovered_at END,
        listed = u.listed OR EXCLUDED.listed
-     WHERE u.status = 'deleted'
+     WHERE (${revivable})
         OR (EXCLUDED.listed AND (NOT u.listed OR u.fail_count > 0))
      RETURNING u.url`;
 }
@@ -82,21 +95,23 @@ export function admitUrlsStatement(count: number, listed: boolean): string {
  * Admit URLs to a domain's frontier (see {@link admitUrlsStatement}), in
  * batches. Returns how many rows were newly tracked or changed — inserted,
  * revived from `deleted`, or newly marked listed. Duplicates are collapsed
- * first: a multi-row upsert cannot touch the same key twice.
+ * first: a multi-row upsert cannot touch the same key twice. A scan passes
+ * its start as `retiredBefore`, so what it retired itself stays retired.
  */
 export async function admitUrls(
   sql: Sql | TransactionSql,
   domain: string,
   urls: readonly string[],
-  options: { listed: boolean },
+  options: { listed: boolean; retiredBefore?: string },
 ): Promise<number> {
   const unique = [...new Set(urls)];
+  const fence = options.retiredBefore;
   let admitted = 0;
   for (let start = 0; start < unique.length; start += URL_INSERT_BATCH) {
     const batch = unique.slice(start, start + URL_INSERT_BATCH);
     const rows = await sql.unsafe<{ url: string }[]>(
-      admitUrlsStatement(batch.length, options.listed),
-      [domain, ...batch],
+      admitUrlsStatement(batch.length, options.listed, fence !== undefined),
+      fence === undefined ? [domain, ...batch] : [domain, ...batch, fence],
     );
     admitted += rows.length;
   }

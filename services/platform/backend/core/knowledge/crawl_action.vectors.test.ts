@@ -42,7 +42,9 @@ vi.mock('./pool', async (importOriginal) => ({
 const TEXT = 'Ruler GmbH was founded in Spiez in 2020.';
 
 /** A corpus double: every write succeeds, the chunk probe answers `chunks`. */
-function corpus(chunks: { present: boolean; vectorless: boolean } | null): {
+function corpus(
+  chunks: { present: boolean; current?: boolean; vectorless: boolean } | null,
+): {
   sql: Sql;
   statements: string[];
 } {
@@ -51,7 +53,7 @@ function corpus(chunks: { present: boolean; vectorless: boolean } | null): {
     statements.push(text.replace(/\s+/g, ' ').trim());
     return Promise.resolve(
       text.includes('bool_or(embedding IS NULL)') && chunks !== null
-        ? [chunks]
+        ? [{ current: true, ...chunks }]
         : [],
     );
   };
@@ -85,6 +87,32 @@ describe('storePageText', () => {
     await expect(
       storePageText(sql, 'ruler.example', unchangedPage, 'About', TEXT),
     ).resolves.toBe('unchanged');
+  });
+
+  // The text was stored and the scan stopped before it was indexed: the
+  // chunks still hold the page's earlier text, which the index kept serving
+  // until the page changed again.
+  it('re-indexes unchanged text whose chunks were cut from other text', async () => {
+    const { sql } = corpus({
+      present: true,
+      current: false,
+      vectorless: false,
+    });
+    await expect(
+      storePageText(sql, 'ruler.example', unchangedPage, 'About', TEXT),
+    ).resolves.toBe('changed');
+  });
+
+  // The visit is stamped once the page is indexed too, so a link cut off in
+  // between leaves the page due for the scan that resumes it.
+  it('stores the page without stamping it as visited', async () => {
+    const { sql, statements } = corpus(null);
+    await storePageText(sql, 'ruler.example', page('old'), 'About', TEXT);
+    const update = statements.find((text) =>
+      text.startsWith('UPDATE public_web.website_urls'),
+    );
+    expect(update).toContain("status = 'active'");
+    expect(update).not.toContain('last_crawled_at');
   });
 
   it('still re-indexes unchanged text whose chunks are missing, and changed text', async () => {
