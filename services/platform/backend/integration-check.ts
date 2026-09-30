@@ -131,6 +131,7 @@ import {
 } from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
+import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
@@ -56480,6 +56481,10 @@ async function main(): Promise<void> {
       [
         'checkAutomatedRetryAgentBusy',
         () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkWorkerDrainHandOff',
+        () => checkWorkerDrainHandOff(sql, boss, record),
       ],
       [
         'checkImportCursorContinuation',
