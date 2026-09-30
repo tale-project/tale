@@ -11,9 +11,9 @@ Open the `+` menu beside the message field and choose **Add photos & files**. Yo
 
 Images appear as thumbnails; other files appear as named chips with their processing status. Check the filenames before sending. Use a staged attachment’s remove control to leave it out of the message.
 
-<Frame caption="A staged document shows its name and processing state before it is sent with your question.">
+<Frame caption="A staged document shows its name, then its size once it has been processed and is ready to send with your question.">
 
-![The chat composer shows an attached document above the message field, with its processing status and a control to remove it.](/images/platform/chat-document-attachment.webp)
+![The chat composer shows an attached document above the message field, with its file size and a control to remove it.](/images/platform/chat-document-attachment.webp)
 
 </Frame>
 

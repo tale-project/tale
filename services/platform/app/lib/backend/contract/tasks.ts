@@ -589,6 +589,9 @@ export interface TasksContract {
       trigger:
         | 'manual'
         | 'mention'
+        | 'auto_retry'
+        | 'automation'
+        | 'delegated'
         | 'assignment'
         | 'revision'
         | 'sla_escalation'
@@ -601,6 +604,8 @@ export interface TasksContract {
       costCents: number;
       workflowSlug: undefined | string;
       wfExecutionId: undefined | string;
+      /** The project agent whose run started this one (`task_start_agent`). */
+      delegatedByAgentId: undefined | string;
     }>;
   };
   'tasks/queries:listTaskDependencies': {

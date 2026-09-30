@@ -23,6 +23,8 @@ export type TaskAgentRunRow = {
   costCents: number;
   workflowSlug?: string;
   wfExecutionId?: string;
+  /** The project agent whose run started this one (`task_start_agent`). */
+  delegatedByAgentId?: string;
 };
 
 export type TaskTimelineEntry =

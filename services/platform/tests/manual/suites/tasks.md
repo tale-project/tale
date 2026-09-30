@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 102 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 104 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -122,7 +122,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   render on the card; More fields reveals read-only **Author** / **Created**
   (`tasks.fields.author` / `tasks.fields.created`); an overdue due date badges
   **Overdue** (`tasks.dueDate.overdue`)
-- [ ] `TASK-F53` · **Close a task, every way** — Open a task from the board
+- [ ] `TASK-F54` · **Close a task, every way** — Open a task from the board
   and close it with the dialog's **X**, then **Escape**, a click on the
   backdrop and the browser's **Back**; open one of its subtasks from the
   dialog and close that; repeat 390 px wide, where the task is a drawer → Each
@@ -658,6 +658,17 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   member moves it to **Done** (`tasks.status.done`) and it stays there after a
   reload, and the member's **Usage** page (`navigation.usage`) counts the
   run's spend.
+- [ ] `TASK-F53` · **One agent puts another to work** — As an editor, give a
+  manager agent **Start other agents on tasks**
+  (`projects.agents.tool.task_start_agent`) under **Skills, connectors &
+  tools**, leave a second task unassigned in **To do**, and start the manager
+  on a task whose description asks it to start the second agent on that task
+  with a one-line answer as its message → the second task is assigned to the
+  second agent and sits in **In progress** (`tasks.status.in_progress`), its
+  history names the manager for both changes, and its timeline lists the run
+  (`tasks.timeline.runLabel`) as `tasks.agentRuns.trigger.delegated`, **started
+  by** (`tasks.timeline.startedByAgent`) the manager; the manager's own report
+  keeps the run id. An automation agent node's picker does not offer the tool.
 
 ## Boundary & error tests
 
@@ -998,6 +1009,14 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Cancel run** is refused with the same sentence and stops nothing — each also
   after a reload, and the same through the **Status** picker
   (`tasks.fields.status`) in German and French.
+- [ ] `TASK-B34` · **Automated restarts stop at three an hour** — With the
+  manager from `TASK-F53`, have it start, cancel and start the second agent on
+  the same task until it has been started three times within the hour, then
+  ask for a fourth → the fourth answers `paused` with a time, nothing starts,
+  and the task's history shows **Run refused**
+  (`tasks.activity.agentRunRefused`): **agent runs are paused on this task**
+  (`tasks.agentRuns.refused.task_circuit_breaker`); **Start agent**
+  (`tasks.agentRun.start`) pressed by a person still starts it.
 
 ## Accessibility (WCAG 2.1 AA)
 

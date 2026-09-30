@@ -29,14 +29,17 @@ import {
   DEMO_DATA_NOTICE,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
+  DEMO_INBOX,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
   DEMO_OWNER,
   DEMO_PROJECT_FILES,
+  DEMO_PRODUCTS,
   DEMO_PROJECTS,
   DEMO_PROVIDER_CREDENTIAL,
   DEMO_SKILLS,
   DEMO_SSO_EXAMPLE,
+  DEMO_TEST_RUN,
   DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
   MOCK_PROVIDER_SLUG,
@@ -104,7 +107,13 @@ function escapeRegExp(text: string): string {
 }
 
 const FEEDBACK_PROMPT = DEMO_CHAT_PROMPTS[0];
-const LAUNCH_CHECKLIST_PROMPT = DEMO_CHAT_PROMPTS[1];
+/**
+ * A chat that ends in work needing a file, handed to a project agent. Named
+ * by its words, not its place in the seed list: the launch checklist is no
+ * seeded chat any more (`chat-arena-split` asks it in a chat of its own).
+ */
+const TASK_HANDOFF_PROMPT =
+  'Plan the quarterly business review agenda for Friday';
 
 /** The Confidentiality notice section on Governance > Policies & Limits. */
 const dataNoticeSection = (page: Page): Locator =>
@@ -140,71 +149,113 @@ const modelEndpointsSection = (page: Page): Locator =>
     exact: true,
   });
 
+/** A capture-rig value and what a customer's page shows in its place. */
+type RigSwap = readonly [rig: string, real: string];
+
 /**
- * Sanitizer for frames that name the capture rig's model gateway or origin:
- * the mock provider's slug and display name, and the local app origin, in
- * text and in read-only fields alike, become what a customer's page shows.
+ * The mock gateway as the vendor it stands in for: the seeded credential
+ * sits on the offline mock, while a customer's row names a real provider.
+ */
+const RIG_SWAPS: readonly RigSwap[] = [
+  [MOCK_PROVIDER_DISPLAY_NAME, 'OpenRouter'],
+  // The slug alone (`e2e-mock · model`) and as a model id's prefix.
+  [MOCK_PROVIDER_SLUG, 'openrouter'],
+  // The mock catalog's placeholder model, as a model the demo
+  // organization's model access already names.
+  ['e2e-chat-model', 'google/gemini-3-flash-preview'],
+];
+
+/**
+ * Secrets the rig mints for a shot, as regular expressions (source text,
+ * every match swapped): a sandbox join token becomes the stand-in the Add a
+ * device dialog itself shows while it mints one, so a published image never
+ * holds a usable secret.
+ */
+const RIG_SECRETS: readonly RigSwap[] = [
+  ['tsdj_[0-9a-f]{64}', `tsdj_${'0'.repeat(64)}`],
+];
+
+/**
+ * The one sanitizer for frames that show the capture rig: the page's own
+ * origin (a redirect URL, a connection URL, an API endpoint, a link the app
+ * builds from `window.location`), the mock gateway's names and the rig's
+ * secrets become what a customer's page shows, in text and in read-only
+ * fields alike, so no published image shows the rig. The origins are the
+ * page's own and the ones the deployment reports (`SITE_URL`,
+ * `SITE_ORIGINS`), so a stack on another port or host name (`E2E_BASE_URL`)
+ * is sanitized too. It keeps swapping until the capture: a field a late
+ * query remounts or refills prints the rig's values again, after the pass
+ * that ran when the shot was ready.
  */
 const replaceRigNames = async (page: Page): Promise<void> => {
   await page.evaluate(
-    ({ swaps }) => {
-      const swap = (text: string): string =>
-        swaps.reduce((out, [rig, real]) => out.split(rig).join(real), text);
-      const walker = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT,
+    ({ swaps, secrets }) => {
+      // The app prints absolute URLs from the origins the deployment
+      // reports, which a capture on another host name does not share.
+      const origins = new Set(
+        [
+          window.location.href,
+          window.__ENV__?.SITE_URL,
+          ...(window.__ENV__?.SITE_ORIGINS ?? []),
+        ]
+          .filter(
+            (url): url is string => url !== undefined && URL.canParse(url),
+          )
+          .map((url) => new URL(url).origin),
       );
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const text = node.textContent ?? '';
-        const next = swap(text);
-        if (next !== text) node.textContent = next;
-      }
-      for (const field of document.querySelectorAll<
-        HTMLInputElement | HTMLTextAreaElement
-      >('input, textarea')) {
-        const next = swap(field.value);
-        if (next !== field.value) field.value = next;
-      }
+      const literals: RigSwap[] = [
+        ...[...origins].map((origin): RigSwap => [
+          origin,
+          'https://tale.yourcompany.com',
+        ]),
+        ...swaps,
+      ];
+      const matchers = secrets.map(
+        ([source, real]) => [new RegExp(source, 'g'), real] as const,
+      );
+      const swap = (text: string): string =>
+        matchers.reduce(
+          (out, [pattern, real]) => out.replace(pattern, real),
+          literals.reduce(
+            (out, [rig, real]) => out.split(rig).join(real),
+            text,
+          ),
+        );
+      const sweep = (): void => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+        );
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const text = node.textContent ?? '';
+          const next = swap(text);
+          if (next !== text) node.textContent = next;
+        }
+        for (const field of document.querySelectorAll<
+          HTMLInputElement | HTMLTextAreaElement
+        >('input, textarea')) {
+          // The default too: React writes a controlled field's value back
+          // without a trace, but then re-syncs a default that differs from
+          // it, and the observer sees that attribute change.
+          for (const key of ['value', 'defaultValue'] as const) {
+            const next = swap(field[key]);
+            if (next !== field[key]) field[key] = next;
+          }
+        }
+      };
+      sweep();
+      // Swapping is idempotent: the pass a swap itself triggers finds
+      // nothing left to change, so the observer settles.
+      new MutationObserver(sweep).observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['value'],
+      });
     },
-    {
-      swaps: [
-        ['http://localhost:3000', 'https://tale.yourcompany.com'],
-        [MOCK_PROVIDER_DISPLAY_NAME, 'OpenRouter'],
-        [`${MOCK_PROVIDER_SLUG}/`, 'openrouter/'],
-        [MOCK_PROVIDER_SLUG, 'openrouter'],
-        // The mock catalog's placeholder model, as a model the demo
-        // organization's model access already names.
-        ['e2e-chat-model', 'google/gemini-3-flash-preview'],
-      ] as [string, string][],
-    },
+    { swaps: RIG_SWAPS, secrets: RIG_SECRETS },
   );
-};
-
-/**
- * The capture rig's own origin, wherever it runs, as the production host: a
- * link the app builds from `window.location` (a task drafted from a chat
- * links back to it) would otherwise publish the rig's port.
- */
-const replaceAppOrigin = async (page: Page): Promise<void> => {
-  await page.evaluate(() => {
-    const rig = window.location.origin;
-    const real = 'https://tale.yourcompany.com';
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-    );
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node.textContent ?? '';
-      if (text.includes(rig)) node.textContent = text.split(rig).join(real);
-    }
-    for (const field of document.querySelectorAll<
-      HTMLInputElement | HTMLTextAreaElement
-    >('input, textarea')) {
-      if (field.value.includes(rig)) {
-        field.value = field.value.split(rig).join(real);
-      }
-    }
-  });
 };
 
 /** Flip the notice switch and wait for its instant save to land. */
@@ -243,37 +294,6 @@ const projectRoute = (ctx: ShotContext, sub = ''): string => {
     );
   }
   return `/dashboard/${ctx.orgId}/projects/${projectId}${sub}`;
-};
-
-/**
- * Sanitizer for pages that print the deployment's own origin (a redirect
- * URL, a connection URL, an API endpoint): swap the capture rig's localhost
- * for a production-shaped host so no published image shows the rig. It keeps
- * swapping until the capture: a field a late query remounts prints the rig's
- * origin again, after the one pass that ran when the shot was ready.
- */
-const replaceRigOrigin = async (page: Page): Promise<void> => {
-  await page.evaluate(() => {
-    const swap = () => {
-      for (const el of document.querySelectorAll('td, span, div, code, p')) {
-        if (
-          el.children.length === 0 &&
-          el.textContent?.includes('http://localhost:3000/')
-        ) {
-          el.textContent = el.textContent.replace(
-            'http://localhost:3000/',
-            'https://tale.yourcompany.com/',
-          );
-        }
-      }
-    };
-    swap();
-    new MutationObserver(swap).observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-  });
 };
 
 /** Keep catalog examples reproducible when the local organization also has
@@ -500,8 +520,9 @@ export const SHOTS: readonly Shot[] = [
     name: 'project-general-tab',
     section: 'platform',
     // Taller than the default so the Sharing section clears the fold under
-    // the Project rows and the Instructions editor.
-    viewport: { width: 1440, height: 1200 },
+    // the Project rows and the Instructions editor; the fold sits on the seam
+    // below Sharing, before the Archive section starts.
+    viewport: { width: 1440, height: 1110 },
     route: '/dashboard/:orgId/projects',
     prepare: async (page, ctx) => {
       await page.goto(projectRoute(ctx, '/overview'), {
@@ -546,20 +567,8 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByRole('button', { name: t('projects.agents.rowEdit') }).first(),
-    // Each row names the provider serving its model — the mock gateway here;
-    // a customer's row names a real vendor.
-    sanitize: async (page) => {
-      await page.evaluate(
-        ({ rig, real }) => {
-          for (const el of document.querySelectorAll('span, div, p')) {
-            if (el.children.length === 0 && el.textContent?.includes(rig)) {
-              el.textContent = el.textContent.replace(rig, real);
-            }
-          }
-        },
-        { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
-      );
-    },
+    // Each row names the provider serving its model.
+    sanitize: replaceRigNames,
   },
   {
     // A new project agent starts with the document skills ticked, each row
@@ -633,6 +642,24 @@ export const SHOTS: readonly Shot[] = [
       page.getByText(DEMO_KNOWLEDGE_ENTRIES[0].topic).first(),
   },
   {
+    // Knowledge > Products — structured records an agent reads by field
+    // (stock, price, category, status) instead of retrieving passages. The
+    // table paints its chrome before its rows: gate on the row-count footer,
+    // which renders only once the list query answered.
+    name: 'knowledge-products-list',
+    section: 'platform',
+    route: '/dashboard/:orgId/products',
+    prepare: async (page) => {
+      await expect(page.locator('output').first()).toBeVisible({
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+    },
+    readyWhen: (page) =>
+      page.getByText(DEMO_PRODUCTS[DEMO_PRODUCTS.length - 1].name).first(),
+    // Three rows need no more height than the documents list's frame.
+    viewport: { width: 1440, height: 540 },
+  },
+  {
     // Knowledge > Websites with the Add website dialog open — domain plus
     // scan interval is the whole form.
     name: 'websites-add-dialog',
@@ -700,7 +727,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/chat',
     prepare: async (page, ctx) => {
-      await page.goto(chatThreadRoute(ctx, LAUNCH_CHECKLIST_PROMPT), {
+      await page.goto(chatThreadRoute(ctx, TASK_HANDOFF_PROMPT), {
         waitUntil: 'domcontentloaded',
       });
       await page
@@ -728,10 +755,8 @@ export const SHOTS: readonly Shot[] = [
       page
         .getByRole('dialog', { name: t('tasks.actions.create') })
         .getByRole('textbox', { name: t('tasks.fields.description') }),
-    sanitize: async (page) => {
-      await replaceRigNames(page);
-      await replaceAppOrigin(page);
-    },
+    // The draft links back to the chat by the page's own origin.
+    sanitize: replaceRigNames,
     capture: (page) =>
       page.getByRole('dialog', { name: t('tasks.actions.create') }),
   },
@@ -791,6 +816,38 @@ export const SHOTS: readonly Shot[] = [
       page
         .getByRole('button', { name: t('chat.picker.ariaLabel') })
         .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
+  },
+  {
+    // Home's Inbox view beside an open customer conversation: the seeded
+    // helpdesk mirror, newest first. Choose the view and open the
+    // conversation from the list as a reader does. The reply editor loads
+    // lazily behind a skeleton, so it is the last thing to settle.
+    name: 'home-inbox',
+    section: 'platform',
+    route: '/dashboard/:orgId/conversations/open',
+    prepare: async (page) => {
+      await page
+        .getByRole('radio', {
+          name: new RegExp(`^${escapeRegExp(t('home.views.inbox'))}`),
+        })
+        .click();
+      await page.getByText(DEMO_INBOX[0].subject).first().click();
+      await expect(
+        page
+          .getByText(
+            DEMO_INBOX[0].messages[DEMO_INBOX[0].messages.length - 1].content,
+          )
+          .first(),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      // The click leaves the pointer on the row, which swaps its initials
+      // for the selection checkbox; rest it on the empty thread instead.
+      await page.mouse.move(1000, 560);
+    },
+    readyWhen: (page) =>
+      page.getByLabel(t('conversations.messagePlaceholder')).first(),
   },
   {
     // Show the indexed uploads through the real filters, keeping unrelated
@@ -967,25 +1024,27 @@ export const SHOTS: readonly Shot[] = [
     name: 'settings-providers',
     section: 'get-started',
     route: '/dashboard/:orgId/settings/providers',
+    // Until the vendor catalog answers, the row names its provider by the
+    // bare slug and carries no tag: wait for the display name.
     readyWhen: (page) =>
       page
         .getByRole('row')
         .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
+        .filter({ hasText: MOCK_PROVIDER_DISPLAY_NAME })
         .first(),
     sanitize: async (page) => {
-      // The seeded credential sits on the offline mock gateway; a customer's
-      // row names a real vendor — the production-shaped equivalent, never an
-      // invented row.
-      await page.evaluate(
-        ({ rig, real }) => {
-          for (const el of document.querySelectorAll('td, span, div')) {
-            if (el.children.length === 0 && el.textContent?.includes(rig)) {
-              el.textContent = el.textContent.replace(rig, real);
-            }
-          }
-        },
-        { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
-      );
+      await replaceRigNames(page);
+      // The rig defines the mock inside the organization, so its row carries
+      // the Custom tag; the shipped vendor it stands in for carries none.
+      // Remove the whole tag, which the badge titles with its label: its text
+      // alone would leave an empty pill behind.
+      await page
+        .getByRole('row')
+        .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
+        .getByTitle(t('settings.providers.custom.badge'), { exact: true })
+        .evaluateAll((badges) => {
+          for (const badge of badges) badge.remove();
+        });
     },
   },
   {
@@ -1090,9 +1149,32 @@ export const SHOTS: readonly Shot[] = [
         .first(),
   },
   {
+    // An automation's General tab — its trigger (the pack's schedule: cron,
+    // timezone, enabled) above the projects it is bound to. The form paints
+    // before the trigger query answers, so gate on the cron field holding
+    // the pack's expression. The tab is short; trim the empty frame below.
+    name: 'automation-general-trigger',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/general',
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.trigger.cronLabel'),
+        exact: true,
+      }),
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('textbox', {
+          name: t('automations.trigger.cronLabel'),
+          exact: true,
+        }),
+      ).not.toHaveValue('', { timeout: TIMEOUT.FIRST_PAINT });
+    },
+    viewport: { width: 1440, height: 640 },
+  },
+  {
     name: 'automation-run-input',
     section: 'platform',
-    route: '/dashboard/:orgId/automations/github-triage-issues/editor',
+    route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/editor`,
     prepare: async (page) => {
       // The run button can paint before the saved document has loaded. Wait
       // for its version picker so Test run has the saved input schema.
@@ -1114,7 +1196,7 @@ export const SHOTS: readonly Shot[] = [
       });
       await dialog
         .getByRole('textbox', { name: t('automations.detail.runInput.label') })
-        .fill(JSON.stringify({ owner: 'tale-project', repo: 'tale' }, null, 2));
+        .fill(JSON.stringify(DEMO_TEST_RUN.input, null, 2));
       await dialog
         .getByText(t('automations.detail.runInput.schema'), { exact: true })
         .click();
@@ -1135,6 +1217,23 @@ export const SHOTS: readonly Shot[] = [
         name: t('automations.detail.runMock'),
         exact: true,
       }),
+  },
+  {
+    // The seeded test run of the GitHub triage pack, opened from the Runs
+    // tab as a reader does: status, mode, version, starter and timing above
+    // the workflow with every node's result; the effects list starts below
+    // the fold (the canvas grows with the window). The canvas draws its
+    // boxes before the trace arrives — gate on the last node's result badge.
+    name: 'automation-run-detail',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/runs`,
+    prepare: async (page) => {
+      await page.locator('a[href*="/runs/"]').first().click();
+    },
+    readyWhen: (page) =>
+      page
+        .locator('[data-automation-node="report"]')
+        .getByText(t('automations.runs.nodeStatus.ok'), { exact: true }),
   },
   {
     // Settings > Connectors with Add credential open on its first step — the
@@ -1181,7 +1280,7 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) =>
       page.getByText(t('settings.mcpEndpoint.orgSlug.title')),
     // The endpoint URL and the example request print the rig's origin.
-    sanitize: replaceRigOrigin,
+    sanitize: replaceRigNames,
   },
   {
     // Settings > API > WebDAV — connection details and the app-password
@@ -1198,7 +1297,7 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) => page.getByText(DEMO_WEBDAV_RETIRED_LABEL),
     // The connection URL shows the capture rig's localhost origin.
-    sanitize: replaceRigOrigin,
+    sanitize: replaceRigNames,
   },
   {
     // Settings > Preferences — the custom-instructions section with its
@@ -1237,20 +1336,69 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // Settings > Metrics > Usage — totals, the token chart and the top
+    // assistants the seeded chats produced. The page renders its own
+    // skeleton (aria-busy, masked headings) until its one query answers.
+    name: 'metrics-usage',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/metrics/usage',
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('heading', {
+          name: t('analytics.usage.title'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', {
+        name: t('analytics.usage.title'),
+        exact: true,
+      }),
+  },
+  {
+    // Settings > Metrics > Chat health — turns, error and blocked rates, and
+    // the per-model breakdown of the seeded chats. Its sections load
+    // separately; wait until none is still busy.
+    name: 'metrics-chat-health',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/metrics/chat-health',
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('heading', {
+          name: t('analytics.chatHealth.title'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', {
+        name: t('analytics.chatHealth.title'),
+        exact: true,
+      }),
+  },
+  {
     // The independent server-audio selection on Models. Crop to this section
     // so its current pick remains readable at normal documentation width.
     // Wait for the resolved status, not the static title above a skeleton.
     name: 'governance-content-models',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/content-models',
+    // The mock gateway lists a speech-to-text model, so Automatic resolves;
+    // the "no model available" warning is a broken stack, never the shot.
     readyWhen: (page) => {
       const resolved = t('governance.transcriptionModel.currentModel');
       const prefix = resolved.slice(0, resolved.indexOf('{')).trim();
-      return page
-        .getByText(prefix)
-        .or(page.getByText(t('governance.transcriptionModel.noAvailable')))
-        .first();
+      return page.getByText(prefix).first();
     },
+    // The model in use names the provider serving it.
+    sanitize: replaceRigNames,
     capture: (page) =>
       page.getByRole('region', {
         name: t('governance.transcriptionModel.title'),
@@ -1487,6 +1635,32 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // Settings > Sandboxes > Add device — the one-line install-and-connect
+    // command and the shorter form for a machine that already has the CLI.
+    // Opening the dialog mints a single-use join token; the waiting status
+    // renders only once it has arrived.
+    name: 'sandbox-add-device',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/sandboxes',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('sandboxes.devices.add'), exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('sandboxes.devices.addDialog.title') })
+        .getByText(t('sandboxes.devices.addDialog.waiting')),
+    // The commands carry the rig's origin and a live join token; the
+    // sanitizer swaps in the production-shaped host and the dialog's own
+    // stand-in token.
+    sanitize: replaceRigNames,
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('sandboxes.devices.addDialog.title'),
+      }),
+  },
+  {
     // Governance > Guardrails — the three filter-layer status cards, the
     // org's custom instructions, and the content-safety, PII, and moderation
     // editors that filter every message in both directions. The enable
@@ -1518,6 +1692,16 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured) — 900 sliced the password
     // policy's Save/Discard row, 1120 sliced the two-factor grace-period input.
     viewport: { width: 1440, height: 1260 },
+  },
+  {
+    // Governance > Logs — the audit trail narrowed to the Member category
+    // (the `category` search the Filter writes), so the rows are the seed's
+    // member and team changes rather than the capture rig's session sweeps.
+    // Gate on the row-count footer, which renders once the listing answered.
+    name: 'governance-audit-logs',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/logs?category=member',
+    readyWhen: (page) => page.locator('output').first(),
   },
   {
     // Governance > Legal hold — the active-holds table and the Place legal
@@ -1579,6 +1763,6 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) =>
       page.getByText(t('settings.enterpriseSso.protocolLabel')).first(),
     // The redirect-URL field shows the capture rig's localhost origin.
-    sanitize: replaceRigOrigin,
+    sanitize: replaceRigNames,
   },
 ] as const;

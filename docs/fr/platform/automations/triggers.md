@@ -5,6 +5,12 @@ description: Configure horaires, webhooks et événements, adapte les données d
 
 La section **Déclencheur** de l’onglet **Général** d’une automatisation définit quand elle démarre seule. Chaque déclencheur utilise la version en service en mode réel. Avant de l’activer, teste le workflow avec les données qu’il recevra et vérifie que ses actions externes sont prêtes.
 
+<Frame caption="L’onglet Général d’un paquet fourni : son déclencheur de planification est activé, mais il ne lance rien tant qu’aucune version n’est en service.">
+
+![L’onglet Général de Triage the Gmail inbox avec un déclencheur Schedule activé, l’expression cron 0 */6 * * * décrite comme toutes les six heures et sans démarrage tant qu’aucune version n’est déployée, le fuseau horaire UTC et, en dessous, un sélecteur de projets vide.](/images/platform/automation-general-trigger.webp)
+
+</Frame>
+
 ## Choisir le mode de démarrage
 
 | Type de déclencheur | Usage | Données transmises à l’exécution |
@@ -35,7 +41,7 @@ Renseigne **Cron** et le **Fuseau horaire**. Les cinq champs représentent minut
 
 <Step title="Vérifier et enregistrer">
 
-Examine la prochaine occurrence affichée pour l’expression valide, puis clique sur **Enregistrer** à côté des onglets. Vérifie que la version en service accepte les données de planification du tableau. Active le déclencheur prêt à fonctionner avec **Actif** et enregistre à nouveau. Retrouve le prochain démarrage sous **Exécutions**.
+Examine la prochaine occurrence affichée pour l’expression valide : c’est la minute à laquelle la planification démarrera vraiment, changement d’heure compris. Clique ensuite sur **Enregistrer** à côté des onglets. Vérifie que la version en service accepte les données de planification du tableau. Active le déclencheur prêt à fonctionner avec **Actif** et enregistre à nouveau. Retrouve le prochain démarrage sous **Exécutions**.
 
 </Step>
 
@@ -80,6 +86,69 @@ L’URL autorise le démarrage. Protège-la comme un identifiant et ne la transm
 Choisis **Événement de la plateforme**, puis le **Nom de l’événement**. Enregistre et active le déclencheur quand il est prêt. Le schéma du workflow doit accepter l’enveloppe `trigger`, `event` et `payload` du tableau. Les événements produits par une exécution d’automatisation ne déclenchent pas d’autres départs : le workflow ne peut ainsi se relancer sans fin par ses propres changements.
 
 Un workflow qui exige des champs de premier niveau comme `owner` et `repo` n’accepte pas automatiquement les métadonnées d’un horaire ou le corps enveloppé d’un webhook. Adapte son schéma et ses références, ou utilise un démarrage API qui fournit ces champs. Les réglages du déclencheur ne permettent pas de définir des données d’entrée arbitraires enregistrées.
+
+## Démarrer un agent de projet selon une planification
+
+Une planification peut mettre au travail l’un des agents existants d’un projet : pour une tâche permanente dont l’agent rend compte à chaque occurrence, ou pour un travail récurrent que tu lancerais sinon à la main. Installe l’automatisation dans le projet de la tâche, ajoute une étape `task.start_agent` qui désigne la tâche, puis donne une planification à l’automatisation. Chaque occurrence démarre l’agent assigné à la tâche, ou assigne d’abord la tâche à l’agent que désigne `agentId`, qui doit appartenir au même projet. `feedback` est le message que l’exécution traite en premier, par exemple une mention de l’occurrence pour laquelle elle s’exécute :
+
+```yaml
+nodes:
+  - id: start
+    type: task.start_agent
+    input:
+      taskId: <ID de la tâche>
+      moveToInProgress: false
+      feedback: 'Scheduled occurrence {{ input.firedAt }}.'
+```
+
+L’étape renvoie l’exécution qu’elle a démarrée, et la chronologie de la tâche affiche cette exécution comme **automatisation**, avec un lien vers l’exécution de l’automatisation. Quand elle ne démarre rien, l’étape réussit tout de même et en donne la raison, si bien que l’occurrence est consignée au lieu d’être mise en file d’attente :
+
+| Réponse | Signification |
+| --- | --- |
+| `started: true` | L’exécution de l’agent a démarré ; `runId` l’identifie. |
+| `already_running` | L’exécution précédente de la tâche travaille encore et prend le travail en charge. Rien de nouveau ne démarre, et l’occurrence n’attend pas derrière elle. |
+| `in_review` | Avec `moveToInProgress: false`, la carte attend la revue d’une personne. Rien n’est assigné ni démarré, et la revue reste entre les mains de cette personne. |
+| `closed` | Avec `moveToInProgress: false`, la carte est **Terminé** ou **Annulé** (`taskStatus`). Rien n’est assigné ni démarré. |
+| `agent_busy` | L’agent travaille sur une autre tâche (`busyTaskId`). Un agent ne traite qu’une tâche à la fois dans son espace de travail. |
+| `blocked` | Une tâche dont celle-ci dépend est encore ouverte (`blockedBy`). |
+| `paused` | La tâche a déjà reçu trois démarrages par des automatisations et des agents au cours de la dernière heure, leurs relances automatiques comprises. `retryAfter` indique quand le suivant sera admis. |
+
+Une exécution lancée par une planification n’agit pour le compte de personne. Elle travaille avec les instructions, les secrets et les outils configurés de l’agent, et ses dépenses comptent comme des dépenses d’automatisation dans les limites de l’organisation. Les actions de connecteur qu’elle demande à la plateforme d’exécuter ne se font au nom de personne et sont donc refusées. Elle ne garde cette autorité que tant que la planification peut agir dans le projet : désactiver la planification, la retirer ou désinstaller l’automatisation du projet empêche le démarrage suivant, fait échouer une exécution qui n’a pas encore commencé et retire à une exécution en cours les outils de son espace de travail. Si une personne lance elle-même l’automatisation, l’exécution agit plutôt pour le compte de cette personne, tant qu’elle peut modifier le projet. Une exécution lancée par un webhook ou un événement de la plateforme ne peut pas démarrer d’agents, et une automatisation qui n’est pas installée dans le projet de la tâche n’a pas accès à ses agents.
+
+`moveToInProgress` décide de ce qui arrive à la carte. Par défaut, la carte passe à **En cours** et le résultat attend à **En revue** qu’une personne l’examine, comme après **Démarrer l'agent** ; une revue encore en attente sur le travail précédent est retirée, jamais validée. Avec `false`, la carte reste où elle est et l’exécution ne demande aucune revue, ce qui convient à une tâche permanente dans **À faire**. L’exécution garde ce choix jusqu’au bout : quand elle se termine, son rapport et ses fichiers arrivent comme d’habitude, et la carte n’est ni déplacée ni envoyée en revue, même si quelqu’un l’a entre-temps passée à **En cours**. Ce démarrage ne s’exécute que sous un travail ouvert (**Backlog**, **À faire** ou **En cours**) : une carte qui attend à **En revue** répond `in_review`, une carte close `closed`, si bien que la carte ne présente jamais un travail antérieur au jugement, ou comme terminé, pendant qu’un nouveau travail s’exécute dessous. Une telle exécution sur une carte **À faire** n’est pas relancée automatiquement en cas d’échec ; l’occurrence suivante la démarre à nouveau.
+
+### Importer chaque issue selon une planification
+
+Un import d’issues lit au plus un lot par exécution, jusqu’à 500 issues, et indique où commence le lot suivant. Une personne le poursuit avec **Poursuivre l'import** ; une planification conserve plutôt la position entre ses occurrences, si bien que chaque occurrence importe un lot à partir de l’endroit où la précédente s’est arrêtée, jusqu’à ce que toutes les issues ouvertes aient été lues, et l’occurrence suivante commence la passe d’après. Lis la position avec `task.get_import_cursor`, transmets-la à l’import et enregistre son `nextCursor` avec `task.save_import_cursor` :
+
+```yaml
+nodes:
+  - id: position
+    type: task.get_import_cursor
+    onError: continue
+    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
+  - id: issues
+    type: subautomation
+    automation: github-import-issues
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      owner: owner
+      repo: repo
+      limit: 500
+      cursor: '{{ nodes.position.output.cursor }}'
+  - id: progress
+    type: task.save_import_cursor
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      externalSystem: github
+      source: owner/repo
+      revision: '{{ nodes.position.output.revision }}'
+      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+```
+
+`source` est le nom que tu donnes à la liste ; les automatisations qui nomment la même source partagent une même passe. La lecture indique aussi `revision`, le jeton de comparaison de la position, et l’enregistrement le renvoie : la position n’avance que tant qu’elle en est encore à cette révision. Chaque lot enregistré, chaque fin de passe et chaque redémarrage fait passer à une nouvelle révision, et aucune révision ne se répète, même quand le texte du curseur se répète. Un import qui échoue n’enregistre rien, si bien que l’occurrence suivante reprend le même lot. Un enregistrement fait avec une révision antérieure est refusé (`conflict`) et n’écrit rien, qu’il vienne d’une exécution qui se chevauche, d’une exécution retardée au-delà de la fin de sa passe ou d’une exécution qui détient encore une position antérieure à un redémarrage. Après trois lectures d’une même position sans enregistrement, la lecture suivante recommence la passe (`restarted`) au lieu de réessayer une position que la source refuse sans cesse, par exemple après le renommage du dépôt. L’enregistrement indique `batch` et `drained`, qu’un reçu peut rapporter. Chaque exécution rafraîchit aussi jusqu’à 500 issues importées auparavant, en commençant par celles vérifiées le moins récemment, si bien qu’une grande collection est rafraîchie sur plusieurs occurrences.
 
 ## Comprendre l’absence de démarrage
 

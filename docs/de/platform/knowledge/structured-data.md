@@ -46,6 +46,12 @@ Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bear
 
 ## Ein Produkt anlegen
 
+<Frame caption="Wissen > Produkte: Jedes Produkt ist ein Datensatz mit benannten Feldern für Bestand, Preis, Kategorie und Status.">
+
+![Der Tab Produkte im Bereich Wissen listet drei Produkte: Team training workshop mit 12 Stück Bestand für 950,00 US-Dollar in Services, als Entwurf markiert, sowie Onboarding accelerator für 1.900,00 US-Dollar in Services und Analytics Pro — annual license für 1.188,00 US-Dollar in Licenses, beide aktiv.](/images/platform/knowledge-products-list.webp)
+
+</Frame>
+
 Öffne **Wissen > Produkte**, wähle **Produkt hinzufügen** und anschließend **Manuelle Eingabe**. Das Formular führt dich durch drei Schritte.
 
 1. Gib im Schritt **Grundlagen** unter **Produktname** einen Namen ein. Ergänze bei Bedarf eine Beschreibung und ein Bild, damit das Produkt eindeutig erkennbar ist. Wähle **Weiter**.

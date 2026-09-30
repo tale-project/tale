@@ -6,6 +6,7 @@ import {
   imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
   normalizeToolGrants,
+  PROJECT_AGENT_ONLY_TOOLS,
   readTurnOpRef,
   secretsGuidance,
   WRITE_EFFECT_TOOLS,
@@ -33,6 +34,25 @@ describe('normalizeToolGrants', () => {
     const result = normalizeToolGrants([...KNOWLEDGE_READ_TOOLS, 'ask_human']);
     expect(result).toEqual([]);
   });
+
+  it('keeps the delegation tool for a project agent and drops it for an automation', () => {
+    const grants = ['task_find', 'task_start_agent', 'task_comment'];
+    expect(normalizeToolGrants(grants)).toEqual([
+      'task_find',
+      'task_comment',
+      'task_start_agent',
+    ]);
+    expect(normalizeToolGrants(grants, 'project_agent')).toEqual(
+      normalizeToolGrants(grants),
+    );
+    expect(normalizeToolGrants(grants, 'automation')).toEqual([
+      'task_find',
+      'task_comment',
+    ]);
+    for (const name of PROJECT_AGENT_ONLY_TOOLS) {
+      expect(normalizeToolGrants([name], 'automation')).toEqual([]);
+    }
+  });
 });
 
 describe('the catalog', () => {
@@ -41,6 +61,7 @@ describe('the catalog', () => {
       'task_create',
       'task_comment',
       'task_update_status',
+      'task_start_agent',
       'task_upsert_by_external_ref',
       'document_create',
     ]) {

@@ -4,8 +4,9 @@ name: Cleanup PR images
 # whose tag begins with `pr-{number}-sha-`. The `build` job in build.yml pushes
 # one such tag per push to a PR, so they accumulate fast without cleanup.
 #
-# Tags from main / merge_group runs use the `sha-…` prefix and are NOT deleted
-# here; manage their lifecycle separately if needed.
+# Tags from main / merge_group runs use the `sha-…` prefix, and release
+# candidates (.github/RELEASING.md) use `candidate-sha-…`; neither is deleted
+# here. Manage their lifecycle separately if needed.
 
 on:
   pull_request:

@@ -130,6 +130,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
   title must itself be commitlint-shaped.
+- **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
+  whose `build.yml` candidate run and release gate
+  (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
+  [`.github/RELEASING.md`](../.github/RELEASING.md).
 
 ## A green check is not always a run
 
@@ -396,12 +400,16 @@ default means deleting the override and fixing what surfaces:
   through `/api/v1` (2026-09, round h; the reference says so). Paying it down means
   `GET /api/v1/skills/{slug}/versions` over the app's history rows, same shape as the knowledge
   entries' `…/{id}/versions`.
-- **The per-task circuit breaker is not built** — no counter pauses automation on a task after
-  N automated runs in an hour; the one-engine rule and cancel are the only stops, and the docs
-  now say so (2026-09, round h). Paying it down means a per-task window count on
-  `app.automation_runs` (org, task subject, `started_at_ms`) checked in the task-start probe
-  (`external-ref.ts`) answering 429 `TASK_AUTOMATION_PAUSED` until a human moves the status,
-  and the guardrails bullet restored.
+- **The per-task circuit breaker covers project agents only** — starts of a project agent by an
+  automation step or another agent stop after three per task in a rolling hour, their automatic
+  retries included
+  (`AUTOMATED_STARTS_PER_TASK_PER_HOUR`, `backend/domains/tasks/delegated-start.ts`, refused as
+  `paused` with an `agent_run.refused` timeline row, 2026-09-29), but nothing counts AUTOMATION
+  runs on a task: between two automations that keep mentioning each other the one-engine rule and
+  cancel are the only stops, and the docs say so (2026-09, round h). Paying it down means a
+  per-task window count on `app.automation_runs` (org, task subject, `started_at_ms`) checked in
+  the task-start probe (`external-ref.ts`) answering 429 `TASK_AUTOMATION_PAUSED` until a human
+  moves the status, and the guardrails bullet restored.
 - **Mirrored conversation messages have no read-back** — `GET /api/v1/conversations` lists the
   mirrors, but the messages a snapshot applied are readable only in the app; a mirror cannot
   verify what landed (2026-09, round h). Paying it down means

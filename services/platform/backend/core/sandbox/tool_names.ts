@@ -133,6 +133,7 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'task_create', effect: 'write', module: 'tasks' },
   { name: 'task_comment', effect: 'write', module: 'tasks' },
   { name: 'task_update_status', effect: 'write', module: 'tasks' },
+  { name: 'task_start_agent', effect: 'write', module: 'tasks' },
   { name: 'task_upsert_by_external_ref', effect: 'write', module: 'tasks' },
   { name: 'document_find', effect: 'read', module: 'documents' },
   { name: 'document_create', effect: 'write', module: 'documents' },
@@ -142,6 +143,15 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'website_find', effect: 'read', module: 'websites' },
 ] as const;
 
+/**
+ * Grantable tools only a PROJECT AGENT's run can use: `task_start_agent`
+ * puts another agent of the project to work on behalf of whoever the run
+ * answers to (`domains/tasks/delegated-start.ts`). An automation starts
+ * agents with its `task.start_agent` step instead, so the automation agent
+ * node neither offers nor grants these.
+ */
+export const PROJECT_AGENT_ONLY_TOOLS: readonly string[] = ['task_start_agent'];
+
 /** The grantable tools that change org data (status listings badge these). */
 export const WRITE_EFFECT_TOOLS: readonly string[] = AGENT_TOOL_CATALOG.filter(
   (tool) => tool.effect === 'write',
@@ -150,13 +160,20 @@ export const WRITE_EFFECT_TOOLS: readonly string[] = AGENT_TOOL_CATALOG.filter(
 /**
  * Canonicalize a configured grant list: unknown names dropped, duplicates
  * folded, catalog order restored — so equipment rows and minted token scopes
- * carry one canonical spelling of the same grant set.
+ * carry one canonical spelling of the same grant set. The `automation` lane
+ * also drops {@link PROJECT_AGENT_ONLY_TOOLS}.
  */
-export function normalizeToolGrants(raw: readonly string[]): string[] {
+export function normalizeToolGrants(
+  raw: readonly string[],
+  lane: 'project_agent' | 'automation' = 'project_agent',
+): string[] {
   const requested = new Set(raw);
-  return AGENT_TOOL_CATALOG.filter((tool) => requested.has(tool.name)).map(
-    (tool) => tool.name,
-  );
+  return AGENT_TOOL_CATALOG.filter(
+    (tool) =>
+      requested.has(tool.name) &&
+      (lane === 'project_agent' ||
+        !PROJECT_AGENT_ONLY_TOOLS.includes(tool.name)),
+  ).map((tool) => tool.name);
 }
 
 /**

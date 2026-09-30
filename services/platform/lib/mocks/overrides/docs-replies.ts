@@ -640,7 +640,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
     ].join('\n'),
   },
   {
-    // Also the Arena Mode prompt (`chat-arena-split`), which pins one model per
+    // The Arena Mode prompt (`chat-arena-split`), which pins one model per
     // column — so each column gets its own answer below: same task, different
     // shape. Two hard constraints on every variant:
     //   - it OPENS with `LAUNCH_CHECKLIST_OPENER` (by construction below), and
@@ -702,7 +702,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
     ],
   },
   // ——— Video pipeline: Episode 2 Arena scene, de/fr (native prompts) ———
-  // The en Arena take reuses the seeded launch-checklist entry above; the
+  // The en Arena take reuses the launch-checklist entry above; the
   // de/fr takes type a NATIVE prompt, so each needs its own entry with
   // per-model variants. Every variant opens with its locale's shared opener
   // (the contract test pins that), and carries its column-wait phrase —

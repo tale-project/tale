@@ -5,6 +5,12 @@ description: Examine la consommation de tokens, les requêtes et les coûts enre
 
 En tant qu’admin ou propriétaire, ouvre **Paramètres > Métriques > Utilisation** pour comprendre quelles tâches consomment des ressources d’IA. Choisis d’abord la période, puis les répartitions utiles pour expliquer une variation de coût ou de volume.
 
+<Frame caption="Paramètres > Métriques > Utilisation : les totaux, le graphique des tokens et les assistants les plus sollicités sur les 30 derniers jours.">
+
+![La page Métriques d’utilisation sur les 30 derniers jours indique 14 requêtes, 448 tokens, un coût enregistré de 0,00 dollar US et une personne active. Le graphique des tokens n’a de barre que pour le jour en cours, répartie entre entrée et sortie ; en dessous, le tableau des assistants les plus sollicités liste l’assistant et la génération des titres de chat.](/images/platform/metrics-usage.webp)
+
+</Frame>
+
 ## Examiner une hausse d’usage
 
 1. Ouvre **Filtre** et choisis une **Période** de 7, 30 ou 90 jours. La vue initiale couvre 30 jours.

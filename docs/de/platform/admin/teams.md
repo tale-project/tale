@@ -7,7 +7,7 @@ Ein Team ist eine Markierung an der Arbeit, kein Ort, in den du wechselst. Ein D
 
 <Frame caption="Einstellungen > Teams — jedes Team der Organisation mit seiner Mitgliederzahl, neben der Aktion Team erstellen.">
 
-![Die Teams-Einstellungsseite listet drei Teams — Growth, Platform engineering und Customer success —, jedes mit einem Mitglied und dem Zeitpunkt, an dem es hinzugefügt wurde, neben der Schaltfläche Team erstellen.](/images/platform/settings-teams.webp)
+![Die Teams-Einstellungsseite listet drei Teams — Customer success, Growth und Platform engineering —, jedes mit einem Mitglied und dem Zeitpunkt, an dem es hinzugefügt wurde, neben der Schaltfläche Team erstellen.](/images/platform/settings-teams.webp)
 
 </Frame>
 

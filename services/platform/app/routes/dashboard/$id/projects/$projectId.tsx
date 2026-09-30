@@ -31,6 +31,10 @@ import {
 } from '@/app/components/navigation/tab-navigation';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { isListedForViewer } from '@/app/features/automations/lib/reader-listing';
+import {
+  clearProjectMemory,
+  persistProjectMemory,
+} from '@/app/features/home/lib/project-memory';
 import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
 import {
   isProjectTasksPath,
@@ -101,6 +105,42 @@ function ProjectDetailLayout() {
 
   const { project, isLoading } = useProject(asProjectId(projectId));
   const isMissing = !isLoading && !project;
+
+  // Remember this project's detail page, so the Home rail tile can reopen it
+  // instead of always resuming the last chat thread (see
+  // `use-navigation-items.ts`). Guarded on the pathname still being under
+  // this project's own root: a route change updates `location.pathname` (and
+  // re-runs this effect) on the render just before this component unmounts,
+  // so an unguarded write would persist wherever the user navigated TO,
+  // under THIS project's key.
+  const projectRoot = `/dashboard/${organizationId}/projects/${projectId}`;
+  useEffect(() => {
+    if (isMissing) return;
+    if (
+      location.pathname !== projectRoot &&
+      !location.pathname.startsWith(`${projectRoot}/`)
+    ) {
+      return;
+    }
+    persistProjectMemory(organizationId, location.pathname);
+  }, [isMissing, organizationId, location.pathname, projectRoot]);
+
+  // A remembered project can be deleted, or left behind by a membership
+  // change, between one visit and the next. When the rail RESTORED us here,
+  // drop the stale memory and fall back to the list: the user asked for
+  // Home, so give them Home's own place rather than a dead end they never
+  // chose. A link someone shared keeps the explanatory not-found message
+  // below instead of bouncing away.
+  const wasRestored = location.state.navRestore === true;
+  useEffect(() => {
+    if (!isMissing || !wasRestored) return;
+    clearProjectMemory(organizationId);
+    void navigate({
+      to: '/dashboard/$id/projects',
+      params: { id: organizationId },
+      replace: true,
+    });
+  }, [isMissing, wasRestored, organizationId, navigate]);
 
   // The Automations tab is conditional: a project with nothing bound gets no
   // tab rather than one that opens an empty list. `listAutomations` scoped to

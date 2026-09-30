@@ -291,6 +291,50 @@ async function stageTaskInputs(
   return staged;
 }
 
+/**
+ * Who put the agent to work when no person pressed Start
+ * (`domains/tasks/delegated-start.ts`): an automation's `task.start_agent`
+ * step or another agent of the project. The prompt names it, and says the
+ * message it passed comes from an automation or an agent — never from a
+ * person's review, which a person still gives at In review.
+ */
+export interface KickRequester {
+  kind: 'automation' | 'agent';
+  /** The automation's name, or the agent's display name. */
+  name: string;
+}
+
+function requesterPhrase(requester: KickRequester): string {
+  return requester.kind === 'automation'
+    ? `the automation "${requester.name}"`
+    : `${requester.name}, another agent of this project,`;
+}
+
+/** The line that says who started a run no person started, when it carried
+ * no message of its own. */
+function requesterStartLine(requester: KickRequester): string {
+  return (
+    `This run was started by ${requesterPhrase(requester)} rather than by a ` +
+    'person.'
+  );
+}
+
+/** The message an automation or an agent passed, phrased as theirs: it
+ * leads the work, but a person's word — the description, a comment —
+ * outranks it. */
+function requesterFeedbackSection(
+  requester: KickRequester,
+  feedbackText: string,
+): string {
+  return (
+    `This run was started by ${requesterPhrase(requester)} with this ` +
+    `message — address it before anything else:\n${feedbackText}\n\n` +
+    `It comes from ${requester.kind === 'automation' ? 'an automation' : 'an agent'}, ` +
+    'not from a person: where it contradicts the task description or a ' +
+    "person's comment, those win."
+  );
+}
+
 /** Phrase a FRESH conversation's prompt from the task brief (a bound rerun
  * resumes the previous conversation instead — `buildResumeKickPrompt`).
  * Exported for its unit test. `feedback` is the @mention comment that kicked
@@ -318,6 +362,7 @@ export function buildTaskPrompt(
   feedback?: string,
   outputDir?: string,
   inputs?: StagedTaskInputs,
+  requester?: KickRequester,
 ): string {
   const heading =
     brief.identifier !== undefined
@@ -369,9 +414,13 @@ export function buildTaskPrompt(
       : []),
     ...(feedbackText !== ''
       ? [
-          `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}`,
+          requester !== undefined
+            ? requesterFeedbackSection(requester, feedbackText)
+            : `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}`,
         ]
-      : []),
+      : requester !== undefined
+        ? [requesterStartLine(requester)]
+        : []),
     ...(stagedLines.length > 0
       ? [
           [
@@ -417,6 +466,8 @@ function buildResumeKickPrompt(args: {
   outputDir: string;
   feedback?: string;
   mentionSource?: MentionSource;
+  /** Who started the run when no person did; see {@link KickRequester}. */
+  requester?: KickRequester;
   discussion?: Array<{ author: 'user' | 'agent'; body: string }>;
   /** What `stageTaskInputs` landed for THIS turn — same shape as the fresh
    * brief's block, because attachments and deliverables may have changed
@@ -470,9 +521,13 @@ function buildResumeKickPrompt(args: {
       ? [
           args.mentionSource === 'description'
             ? `The task description was edited to mention you. It now reads:\n${feedbackText}\n\nAct on what it asks that this conversation has not done yet. Where it contradicts anything earlier in this conversation, the current description wins (earlier tool results may be stale).`
-            : `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}\n\nThis feedback is authoritative: where it contradicts anything earlier in this conversation, the feedback wins (earlier tool results may be stale).`,
+            : args.requester !== undefined
+              ? requesterFeedbackSection(args.requester, feedbackText)
+              : `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}\n\nThis feedback is authoritative: where it contradicts anything earlier in this conversation, the feedback wins (earlier tool results may be stale).`,
         ]
-      : []),
+      : args.requester !== undefined
+        ? [requesterStartLine(args.requester)]
+        : []),
     ...(stagedLines.length > 0
       ? [
           [
@@ -524,6 +579,8 @@ export function buildKickPrompts(args: {
   };
   feedback?: string;
   mentionSource?: MentionSource;
+  /** Who started the run when no person did; see {@link KickRequester}. */
+  requester?: KickRequester;
   outputDir: string;
   inputs: StagedTaskInputs;
   resumeDiscussionSince?: number;
@@ -536,6 +593,7 @@ export function buildKickPrompts(args: {
     fromDescription ? undefined : args.feedback,
     args.outputDir,
     args.inputs,
+    args.requester,
   );
   // The resumed conversation's own memory covers everything before its
   // predecessor's brief was read — carry the discussion posted after the
@@ -557,6 +615,7 @@ export function buildKickPrompts(args: {
       ...(args.mentionSource !== undefined
         ? { mentionSource: args.mentionSource }
         : {}),
+      ...(args.requester !== undefined ? { requester: args.requester } : {}),
       ...(delta.length > 0 ? { discussion: delta } : {}),
       // The conversation remembers writing into the box; when this start
       // swept it (settled predecessor), the prompt must say so and point at
@@ -886,6 +945,8 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
   /** Which text named the agent on a `mention` kick; `'description'` is
    * read from the brief at this start instead of from `feedback`. */
   mentionSource?: MentionSource;
+  /** Who started the run when no person did — named in the prompt. */
+  requester?: KickRequester;
   resume?: string;
   resumeSessionCreatedAt?: number;
   resumeDiscussionSince?: number;
@@ -1256,6 +1317,7 @@ export async function startTaskAgentTurnImpl(
         ...(args.mentionSource !== undefined
           ? { mentionSource: args.mentionSource }
           : {}),
+        ...(args.requester !== undefined ? { requester: args.requester } : {}),
         outputDir,
         inputs,
         ...(args.resumeDiscussionSince !== undefined

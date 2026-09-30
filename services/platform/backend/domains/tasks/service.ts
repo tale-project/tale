@@ -82,6 +82,7 @@ import {
   reviewerEligibility,
   type TaskReviewTrigger,
 } from './reviews.ts';
+import { scheduleMayActInProject } from './run-authority.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
 
 /**
@@ -2294,6 +2295,111 @@ export async function handTaskToInProgressForKick(
   return true;
 }
 
+/**
+ * TRUSTED agent-side hand-off to a project agent — the assignment half of a
+ * start another agent or an automation asked for (`delegated-start.ts`). The
+ * caller resolved who may ask and checked the agent belongs to the task's
+ * project; this is the picker's write with the asking agent (or the
+ * `workflow` sentinel) as the actor: the assignee, the activity line, the
+ * audit row (`viaAgent`, as the agent's other writes) and the assignment
+ * bells. A live run holds the task for its current worker, so a transfer
+ * under one is refused exactly as the picker refuses it.
+ */
+export async function agentAssignTaskToAgentTrusted(
+  tx: TransactionSql,
+  args: { task: TaskRow; agentId: string; actorId: string },
+): Promise<void> {
+  const { task } = args;
+  const assignee: AssigneeRef = {
+    assigneeType: 'agent',
+    assigneeId: args.agentId,
+  };
+  if (!assigneeChanges(task, assignee)) return;
+  if (await taskHasLiveRun(tx, task)) {
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'A live run holds this task; it cannot pass to another agent until that run ends',
+      409,
+    );
+  }
+  await tx`
+    UPDATE app.tasks SET
+      assignee_type = 'agent', assignee_id = ${args.agentId},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${task.id}
+  `;
+  await recordActivity(tx, {
+    task,
+    actorType: 'agent',
+    actorId: args.actorId,
+    action: 'assignee.changed',
+    ...(task.assigneeId !== null ? { fromValue: task.assigneeId } : {}),
+    toValue: args.agentId,
+  });
+  await createAuditLog(tx, {
+    organizationId: task.organizationId,
+    actorId: args.actorId,
+    actorType: 'api',
+    action: TASK_AUDIT_ACTIONS.assigned,
+    category: 'data',
+    resourceType: TASK_RESOURCE_TYPE,
+    resourceId: task.id,
+    resourceName: task.title,
+    previousState: {
+      assigneeType: task.assigneeType,
+      assigneeId: task.assigneeId,
+    },
+    newState: { assigneeType: 'agent', assigneeId: args.agentId },
+    metadata: { viaAgent: true, projectId: task.projectId },
+    status: 'success',
+  });
+  await notifyTaskAssigned(tx, {
+    task,
+    assigneeType: 'agent',
+    assigneeId: args.agentId,
+    actorType: 'agent',
+    actorId: args.actorId,
+    previousAssigneeType: task.assigneeType,
+    previousAssigneeId: task.assigneeId,
+  });
+}
+
+/**
+ * Hand the card to In progress as the lower half of a start another agent
+ * asked for — {@link handTaskToInProgressForKick}'s write with the asking
+ * agent as the actor instead of a person: the move is recorded as the
+ * agent's (event-less, like every agent-lane move), and a pending review is
+ * WITHDRAWN, never approved — no person decided. Returns whether the card
+ * actually moved.
+ */
+export async function agentHandTaskToInProgressTrusted(
+  tx: TransactionSql,
+  args: { organizationId: string; taskId: string; actorId: string },
+): Promise<boolean> {
+  const fresh = await loadTaskOrThrow(tx, args.taskId, args.organizationId);
+  if (fresh.status === 'in_progress') return false;
+  await closePendingTaskReviewOnStatusLeave(tx, {
+    task: fresh,
+    toStatus: 'in_progress',
+    actor: { kind: 'system', actorId: args.actorId },
+  });
+  const now = Date.now();
+  const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
+  await tx`
+    UPDATE app.tasks SET
+      status = 'in_progress', rank = ${rank}, completed_at_ms = NULL,
+      status_changed_at_ms = ${now}, updated_at_ms = ${now}
+    WHERE id = ${fresh.id}
+  `;
+  await settleTaskStatusChange(tx, {
+    task: fresh,
+    toStatus: 'in_progress',
+    actorType: 'agent',
+    actorId: args.actorId,
+  });
+  return true;
+}
+
 /** One deliverable in the task's Output zone. `runId` names the run that
  * produced it — the provenance ledger binds a run's entry to exactly the
  * outputs stamped with its id. */
@@ -2984,9 +3090,27 @@ export async function listTasksByProject(
   };
 }
 
-/** How many cards one `task_find` may walk. The tool answers a working set,
- * not a board: an agent that needs more should filter harder. */
+/** The most rows one `task_find` read returns. The tool pages its answer
+ * (`workspace_domain_tools.ts` asks for a page and one row more), so this
+ * only bounds a single statement. */
 const AGENT_TASK_LIST_CAP = 200;
+
+/**
+ * The orders `task_find` walks in. `board` groups the tasks by status, in
+ * the order of the status names (backlog, cancelled, done, in_progress,
+ * in_review, todo), and keeps each column's own order (its rank) within a
+ * status; `created` is the order the tasks were made in, oldest first, and a
+ * task's place in it never changes. Both end on the task id, so tasks tied on
+ * rank or on their creation millisecond still have exactly one order, and a
+ * page that ends inside a tie resumes after the row it ended on.
+ */
+export type AgentTaskListOrder = 'board' | 'created';
+
+/** The sort key of the last row a `task_find` page answered — where the next
+ * page starts, exclusive. */
+export type AgentTaskListPosition =
+  | { order: 'board'; status: TaskStatus; rank: string; id: string }
+  | { order: 'created'; createdAt: number; id: string };
 
 /**
  * The `task_find` read — undecorated rows for an agent, NOT a board page.
@@ -2995,6 +3119,11 @@ const AGENT_TASK_LIST_CAP = 200;
  * its automation's bound set for an org-wide one, and nothing at all for a
  * truly org-level run, which reads the whole organization. Labels and folder
  * facts are skipped — the model reads titles and status, not chips.
+ *
+ * A keyset page: the rows strictly after `after` in `order`, at most `limit`
+ * of them. Each page reads the board as it stands, never a snapshot of the
+ * first one — see {@link AgentTaskListOrder} for what a move between pages
+ * does to a walk.
  */
 export async function listTasksForAgent(
   sql: Sql,
@@ -3005,6 +3134,9 @@ export async function listTasksForAgent(
     status?: TaskStatus;
     assigneeId?: string;
     includeArchived?: boolean;
+    order?: AgentTaskListOrder;
+    after?: AgentTaskListPosition;
+    limit?: number;
   },
 ): Promise<TaskRow[]> {
   // One named project wins over the bound set — the caller already checked it
@@ -3016,13 +3148,34 @@ export async function listTasksForAgent(
     ...(args.status !== undefined ? { status: args.status } : {}),
     ...(args.assigneeId !== undefined ? { assigneeId: args.assigneeId } : {}),
   };
+  // A position carries the order it was taken in, so a later page always
+  // continues the order its first page was read in.
+  const after = args.after;
+  const order = after?.order ?? args.order ?? 'board';
+  const limit =
+    args.limit !== undefined && Number.isFinite(args.limit)
+      ? Math.min(Math.max(Math.floor(args.limit), 1), AGENT_TASK_LIST_CAP)
+      : AGENT_TASK_LIST_CAP;
   const rows = await sql<TaskRow[]>`
     SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks t
     WHERE org_id = ${args.organizationId}
       AND (${scoped === null} OR project_id = ANY(${scoped ?? []}))
       AND ${boardFilterClause(sql, filters)}
-    ORDER BY status ASC, rank ASC
-    LIMIT ${AGENT_TASK_LIST_CAP}
+      AND ${
+        after === undefined
+          ? sql`TRUE`
+          : after.order === 'created'
+            ? sql`(t.created_at_ms, t.id)
+                  > (${after.createdAt}::bigint, ${after.id}::text)`
+            : sql`(t.status, t.rank, t.id)
+                  > (${after.status}::text, ${after.rank}::text, ${after.id}::text)`
+      }
+    ORDER BY ${
+      order === 'created'
+        ? sql`t.created_at_ms ASC, t.id ASC`
+        : sql`t.status ASC, t.rank ASC, t.id ASC`
+    }
+    LIMIT ${limit}
   `;
   return [...rows];
 }
@@ -3896,7 +4049,9 @@ export type DeferredAgentKickRefusal =
  * stands NOW, for the person whose kick they continue: the project still
  * exists and is active, and that person may still work the task — an
  * editor of the project, or a member whose own task it is. A start a
- * trigger made names no person, so the project alone decides.
+ * schedule began names no person: it continues only while that schedule
+ * may still act in the project (`scheduleMayActInProject` — enabled, and its
+ * automation still bound there).
  *
  * Archiving, a sharing change and a delete all update the project row, so
  * it stays share-locked until the caller's transaction commits: they order
@@ -3922,7 +4077,15 @@ export async function deferredAgentKickRefusal(
   const project = await loadProjectOrThrow(tx, args.projectId);
   if (project.archivedAt !== null) return 'project_archived';
   const starter = parseRunStarter(args.startedBy);
-  if (starter.kind === 'trigger') return null;
+  if (starter.kind === 'trigger') {
+    return (await scheduleMayActInProject(tx, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      triggerId: starter.triggerId,
+    }))
+      ? null
+      : 'not_permitted';
+  }
   if (starter.kind === 'unknown') return 'not_permitted';
   const member = await findOrganizationMember(
     tx,

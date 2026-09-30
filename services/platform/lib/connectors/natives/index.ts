@@ -66,6 +66,7 @@ export {
   type SandboxScriptRunner,
 } from './sandbox-script';
 export {
+  type WorkflowAgentStart,
   type WorkflowTaskComment,
   type WorkflowTaskStore,
   type WorkflowTaskView,
@@ -130,8 +131,11 @@ export const NATIVE_IMPL_IDS = [
   'sandbox.run_script',
   'task.comment',
   'task.get',
+  'task.get_import_cursor',
   'task.list_comments',
   'task.list_external_issues',
+  'task.save_import_cursor',
+  'task.start_agent',
   'task.update_status',
   'task.upsert',
   'task.upsert_issues',

@@ -14,6 +14,12 @@ description: Finde protokollierte Änderungen, prüfe Ereignisdetails, exportier
 
 Aktiver Tab und Kategorie stehen in der URL. Du kannst die Ansicht deshalb als Lesezeichen speichern. Der Zugriff hängt weiterhin von deinen Organisationsberechtigungen ab.
 
+<Frame caption="Richtlinien > Protokolle: der Tab Audit-Protokolle, eingegrenzt auf die Kategorie Mitglied. Alle löschen entfernt den Filter.">
+
+![Die Seite Protokolle mit dem Tab Audit-Protokolle, gefiltert auf die Kategorie Mitglied: elf Ereignisse, in denen Alex Rivera Mitglieder hinzugefügt, drei Teams erstellt und jedem Team ein Mitglied zugeordnet hat, jede Zeile mit Ressource, Ziel, Kategorie und dem Status Success.](/images/platform/governance-audit-logs.webp)
+
+</Frame>
+
 ## Ein Ereignis lesen
 
 | Feld | Worauf du achtest |

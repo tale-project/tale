@@ -135,6 +135,33 @@ const NATIVE_ACTIONS: Array<{
     input: { taskId: 'tsk_1', authorTypes: ['user'], limit: 20 },
   },
   {
+    impl: 'task.start_agent',
+    connector: 'task',
+    action: 'start_agent',
+    input: {
+      taskId: 'tsk_1',
+      feedback: 'Scheduled occurrence 2026-09-30 09:00 Europe/Zurich.',
+    },
+  },
+  {
+    impl: 'task.get_import_cursor',
+    connector: 'task',
+    action: 'get_import_cursor',
+    input: { projectId: 'proj_1', externalSystem: 'github', source: 'o/r' },
+  },
+  {
+    impl: 'task.save_import_cursor',
+    connector: 'task',
+    action: 'save_import_cursor',
+    input: {
+      projectId: 'proj_1',
+      externalSystem: 'github',
+      source: 'o/r',
+      revision: '1',
+      next: '',
+    },
+  },
+  {
     impl: 'document.list',
     connector: 'document',
     action: 'list',
@@ -334,6 +361,31 @@ const taskStore: WorkflowTaskStore = {
         },
       ],
       truncated: false,
+    }),
+  startAgent: ({ taskId }) =>
+    Promise.resolve({
+      started: true,
+      runId: 'run_double',
+      taskId,
+      agentId: 'agent_double',
+    }),
+  getImportCursor: () =>
+    Promise.resolve({
+      cursor: '',
+      revision: '1',
+      batch: 1,
+      resumed: false,
+      restarted: false,
+      passStartedAt: null,
+      lastDrainedAt: null,
+    }),
+  saveImportCursor: ({ next }) =>
+    Promise.resolve({
+      saved: true,
+      drained: next === '',
+      batch: 1,
+      conflict: false,
+      revision: '2',
     }),
 };
 

@@ -380,6 +380,21 @@ export async function listTaskComments(
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
+  return readTaskCommentPage(sql, task, options);
+}
+
+/**
+ * {@link listTaskComments}'s page for a task the caller has ALREADY judged
+ * readable — the agent read (`task_get`, through the shim's
+ * `getTaskContextForAgent`), whose scope check runs at the workspace-tool
+ * door before any read. The page, its order and its cursor are the feed's.
+ */
+export async function readTaskCommentPage(
+  sql: Sql,
+  task: Pick<TaskRow, 'id' | 'discussionThreadId'>,
+  options: { limit?: number; before?: number } = {},
+): Promise<TaskCommentPage> {
+  const taskId = task.id;
   if (!task.discussionThreadId) {
     return { comments: [], hasMore: false, nextCursor: null };
   }

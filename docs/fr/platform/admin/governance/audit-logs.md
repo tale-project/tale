@@ -14,6 +14,12 @@ En tant qu’admin ou propriétaire, ouvre **Paramètres > Gouvernance > Journau
 
 L’onglet actif et la catégorie figurent dans l’URL : tu peux enregistrer la vue dans tes favoris. L’accès dépend toujours de tes permissions dans l’organisation.
 
+<Frame caption="Gouvernance > Journaux : l’onglet Journaux d’audit limité à la catégorie Membre. Tout effacer retire le filtre.">
+
+![La page Journaux avec l’onglet Journaux d’audit filtré sur la catégorie Membre : onze événements où Alex Rivera a ajouté des membres, créé trois équipes et ajouté un membre à chacune, chaque ligne indiquant la ressource, la cible, la catégorie et le statut Success.](/images/platform/governance-audit-logs.webp)
+
+</Frame>
+
 ## Lire un événement
 
 | Champ | Ce qu’il faut examiner |

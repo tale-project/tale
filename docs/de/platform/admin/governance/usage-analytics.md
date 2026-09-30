@@ -5,6 +5,12 @@ description: Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach 
 
 Öffne als Admin oder Inhaber **Einstellungen > Metriken > Nutzung**, um zu sehen, welche Aufgaben KI-Ressourcen verbrauchen. Wähle zuerst den Zeitraum und untersuche dann die Aufschlüsselungen, um veränderte Kosten oder Mengen zu erklären.
 
+<Frame caption="Einstellungen > Metriken > Nutzung: Summen, Token-Diagramm und die meistgenutzten Assistenten der letzten 30 Tage.">
+
+![Die Seite Nutzungs-Metriken für die letzten 30 Tage meldet 14 Anfragen, 448 Tokens, erfasste Kosten von 0,00 US-Dollar und eine aktive Person. Das Token-Diagramm hat nur für den aktuellen Tag einen Balken, aufgeteilt in Eingabe und Ausgabe; darunter listet die Tabelle der Top-Assistenten den Assistenten und die Titelerstellung für Chats.](/images/platform/metrics-usage.webp)
+
+</Frame>
+
 ## Einen Nutzungsanstieg untersuchen
 
 1. Öffne **Filter** und wähle unter **Zeitraum** 7, 30 oder 90 Tage. Die erste Ansicht zeigt 30 Tage.

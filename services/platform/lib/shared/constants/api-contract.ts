@@ -299,5 +299,11 @@
  * `MODEL_API_CONCURRENCY_EXCEEDED`, `MODEL_API_UNAVAILABLE` and
  * `MODEL_API_UPSTREAM_ERROR`. `GET /api/v1/me` answers
  * `capabilities.modelApi`.
+ *
+ * 3.8.0 — 2026-09-29: the project agent `tools` vocabulary gains
+ * `task_start_agent` — an agent's live run puts another agent of the same
+ * project to work on a task (assign, start, and a message the run addresses
+ * first), answering to whoever that run answers to. Additive: agents saved
+ * without it keep their grants.
  */
-export const API_CONTRACT_VERSION = '3.7.0';
+export const API_CONTRACT_VERSION = '3.8.0';

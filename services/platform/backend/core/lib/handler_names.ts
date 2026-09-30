@@ -349,12 +349,14 @@ interface HandlerNames {
       agentAddComment: FunctionRef;
       agentCreateTask: FunctionRef;
       agentRecordTaskOutputs: FunctionRef;
+      agentStartTaskAgent: FunctionRef;
       agentUpdateTaskStatus: FunctionRef;
       agentUpsertTaskByExternalRef: FunctionRef;
     };
     internal_queries: FunctionRef & {
       getTaskByIdInternal: FunctionRef;
       getTaskContextForAgent: FunctionRef;
+      getTaskWorkStateForAgent: FunctionRef;
       listTasksForAgent: FunctionRef;
     };
     mutations: FunctionRef & {

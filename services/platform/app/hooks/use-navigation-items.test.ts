@@ -1,5 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+import { persistAutomationMemory } from '@/app/features/automations/lib/detail-memory';
+import { persistProjectMemory } from '@/app/features/home/lib/project-memory';
+import { persistKnowledgeTabMemory } from '@/app/features/knowledge/lib/knowledge-tab-memory';
 import { renderHook } from '@/tests/utils/render';
 
 // The two reads the Home entry's chip depends on: whether the organization
@@ -55,6 +58,14 @@ vi.mock('@/lib/i18n/client', () => ({
 
 vi.mock('@tale/ui/use-is-mac', () => ({ useIsMac: () => false }));
 
+// The rail resolves a remembered target off the CURRENT location — mutate
+// this between assertions to move "where the user is" without a real router.
+const mockLocation = { pathname: '/dashboard/org-1/chat' };
+
+vi.mock('@tanstack/react-router', () => ({
+  useLocation: () => mockLocation,
+}));
+
 const { useNavigationItems } = await import('./use-navigation-items');
 
 function items() {
@@ -66,6 +77,14 @@ function homeItem() {
   return items().primary.find((item) => item.label === 'home');
 }
 
+function knowledgeItem() {
+  return items().primary.find((item) => item.label === 'knowledge');
+}
+
+function automationsItem() {
+  return items().primary.find((item) => item.label === 'automations');
+}
+
 beforeEach(() => {
   viewer.canAuthor = true;
   automations.hasLiveOrgAutomation = false;
@@ -73,6 +92,8 @@ beforeEach(() => {
   inbox.hasInbox = true;
   unread.data = undefined;
   unreadCalls.length = 0;
+  mockLocation.pathname = '/dashboard/org-1/chat';
+  window.localStorage.clear();
 });
 
 describe('the rail', () => {
@@ -179,5 +200,81 @@ describe('the Home nav entry', () => {
   it('asks for the count scoped to the active organization', () => {
     homeItem();
     expect(unreadCalls).toEqual(['org-1']);
+  });
+});
+
+describe('the Home nav entry — reopening a project', () => {
+  it('resolves to the last project visited, arriving from outside Home', () => {
+    mockLocation.pathname = '/dashboard/org-1/documents';
+    persistProjectMemory('org-1', '/dashboard/org-1/projects/proj-1/files');
+
+    const item = homeItem();
+    expect(item?.to).toBe('/dashboard/org-1/projects/proj-1/files');
+    expect(item?.state).toEqual({ navRestore: true });
+  });
+
+  it('leaves chat as the target while already inside Home', () => {
+    mockLocation.pathname = '/dashboard/org-1/chat';
+    persistProjectMemory('org-1', '/dashboard/org-1/projects/proj-1/files');
+
+    const item = homeItem();
+    expect(item?.to).toBe('/dashboard/$id/chat');
+    expect(item?.state).toBeUndefined();
+  });
+
+  it('falls back to chat when no project was ever visited', () => {
+    mockLocation.pathname = '/dashboard/org-1/documents';
+
+    const item = homeItem();
+    expect(item?.to).toBe('/dashboard/$id/chat');
+    expect(item?.state).toBeUndefined();
+  });
+});
+
+describe('the Knowledge nav entry', () => {
+  it('opens Documents by default', () => {
+    expect(knowledgeItem()?.to).toBe('/dashboard/$id/documents');
+  });
+
+  it('reopens the last tab visited, arriving from outside Knowledge', () => {
+    persistKnowledgeTabMemory('org-1', 'websites');
+    expect(knowledgeItem()?.to).toBe('/dashboard/$id/websites');
+  });
+
+  it('stays on Documents while already inside Knowledge', () => {
+    mockLocation.pathname = '/dashboard/org-1/websites';
+    persistKnowledgeTabMemory('org-1', 'products');
+
+    expect(knowledgeItem()?.to).toBe('/dashboard/$id/documents');
+  });
+});
+
+describe('the Automations nav entry', () => {
+  it('opens the list by default', () => {
+    expect(automationsItem()?.to).toBe('/dashboard/$id/automations');
+  });
+
+  it('reopens the last automation page visited, arriving from outside Automations', () => {
+    persistAutomationMemory(
+      'org-1',
+      '/dashboard/org-1/automations/billing__dunning/runs',
+    );
+
+    const item = automationsItem();
+    expect(item?.to).toBe('/dashboard/org-1/automations/billing__dunning/runs');
+    expect(item?.state).toEqual({ navRestore: true });
+  });
+
+  it('stays on the list while already inside Automations', () => {
+    mockLocation.pathname =
+      '/dashboard/org-1/automations/billing__dunning/runs';
+    persistAutomationMemory(
+      'org-1',
+      '/dashboard/org-1/automations/billing__dunning/runs',
+    );
+
+    const item = automationsItem();
+    expect(item?.to).toBe('/dashboard/$id/automations');
+    expect(item?.state).toBeUndefined();
   });
 });

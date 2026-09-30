@@ -4,10 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
+  AGENT_RUN_FEEDBACK_EXCERPT_CHARS,
   cancelAgentRunInTx,
   failAgentRunFromTurn,
   kickAgentRun,
   launchAgentRun,
+  listTaskAgentRunSummaries,
   settleAgentRun,
   wakeParkedAgentRuns,
 } from './agent-runs.ts';
@@ -562,5 +564,89 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
         execId: 'exec-1',
       },
     );
+  });
+});
+
+describe('listTaskAgentRunSummaries — the runs an agent reading its task sees', () => {
+  /** Records each statement's text and values. */
+  function recording(): {
+    sql: Sql;
+    statements: { text: string; values: unknown[] }[];
+  } {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const tag = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<Row[]> => {
+      statements.push({
+        text: strings.join('?').replaceAll(/\s+/g, ' ').trim(),
+        values,
+      });
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
+    return { sql: tag as unknown as Sql, statements };
+  }
+
+  it('walks the tie-free creation order, newest first, from before a page', async () => {
+    const { sql, statements } = recording();
+    await listTaskAgentRunSummaries(sql, {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      limit: 6,
+      beforeSeq: 41,
+    });
+    const [read] = statements;
+    expect(read?.text).toContain('ORDER BY seq DESC');
+    expect(read?.text).toContain('OR seq < ?::bigint');
+    expect(read?.text).toContain('WHERE org_id = ? AND task_id = ?');
+    expect(read?.values).toEqual(
+      expect.arrayContaining(['org-1', 'task-1', 41, 6]),
+    );
+  });
+
+  it('reads identity, status, timing and a feedback excerpt — never the transcript or the workspace', async () => {
+    const { sql, statements } = recording();
+    await listTaskAgentRunSummaries(sql, {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      limit: 5,
+    });
+    const text = statements[0]?.text ?? '';
+    const selected = text.slice(0, text.indexOf('FROM app.project_agent_runs'));
+    for (const column of [
+      'error',
+      'result_text',
+      'result_message_id',
+      'exec_id',
+      'session_id',
+      'agent_session_id',
+      'broker_token_hash',
+      'model',
+      'harness',
+      'started_by',
+    ]) {
+      expect(selected).not.toMatch(new RegExp(`\\b${column}\\b`));
+    }
+    expect(selected).toContain('left(feedback, ?) AS feedback');
+    // A cancelled run keeps its park stamp; only a queued one is waiting.
+    expect(selected).toContain(
+      "(status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)",
+    );
+    expect(statements[0]?.values).toContain(AGENT_RUN_FEEDBACK_EXCERPT_CHARS);
+  });
+
+  it('bounds one read', async () => {
+    const { sql, statements } = recording();
+    for (const limit of [0, 1_000]) {
+      await listTaskAgentRunSummaries(sql, {
+        organizationId: 'org-1',
+        taskId: 'task-1',
+        limit,
+      });
+    }
+    expect(statements.map((statement) => statement.values.at(-1))).toEqual([
+      1, 100,
+    ]);
   });
 });

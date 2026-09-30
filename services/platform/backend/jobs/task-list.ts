@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { parseRunStarter } from '../../lib/shared/run-starter.ts';
 import {
   driveWorkflowAgentTurnImpl,
   resumeWorkflowAgentTurnWithAnswerImpl,
@@ -44,15 +45,25 @@ import { recreatePinnedSession } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
-import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
+import {
+  failAgentRun,
+  inPlaceOfRun,
+  kickAgentRun,
+  startedViaOfRun,
+} from '../domains/tasks/agent-runs.ts';
 import {
   agentTurnShimHandlers,
   taskAgentShimScheduler,
 } from '../domains/tasks/agent-turn-shim.ts';
 import {
+  admitAutomatedStart,
+  SCHEDULE_REVOKED_BEFORE_LAUNCH,
+} from '../domains/tasks/delegated-start.ts';
+import {
   loadTaskRetryHistory,
   resolveTaskKickStartArgs,
 } from '../domains/tasks/kick-plan.ts';
+import { runStarterMayEditProject } from '../domains/tasks/run-authority.ts';
 import { deferredAgentKickRefusal } from '../domains/tasks/service.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
@@ -887,22 +898,56 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           deadlineAt: number;
           status: string;
           execId: string;
+          startedVia: string | null;
+          viaAutomation: string | null;
+          viaAgentName: string | null;
+          projectId: string;
+          startedBy: string;
         }[]
       >`
-        SELECT task_id AS "taskId", agent_id AS "agentId",
-               session_id AS "sessionId", harness, model,
-               model_provider AS "modelProvider", feedback,
-               mention_source AS "mentionSource",
-               deadline_at_ms::float8 AS "deadlineAt", status,
-               exec_id AS "execId"
-        FROM app.project_agent_runs
-        WHERE id = ${input.runId} AND org_id = ${input.organizationId}
+        SELECT r.task_id AS "taskId", r.agent_id AS "agentId",
+               r.project_id AS "projectId", r.started_by AS "startedBy",
+               r.session_id AS "sessionId", r.harness, r.model,
+               r.model_provider AS "modelProvider", r.feedback,
+               r.mention_source AS "mentionSource",
+               r.deadline_at_ms::float8 AS "deadlineAt", r.status,
+               r.exec_id AS "execId", r.started_via AS "startedVia",
+               r.started_via_automation AS "viaAutomation",
+               via_agent.name AS "viaAgentName"
+        FROM app.project_agent_runs r
+        LEFT JOIN app.project_agents via_agent
+          ON via_agent.id = r.started_via_agent_id
+         AND via_agent.org_id = r.org_id
+        WHERE r.id = ${input.runId} AND r.org_id = ${input.organizationId}
         LIMIT 1
       `;
       const run = runs[0];
       if (!run || run.status !== 'queued' || run.execId !== input.execId) {
         console.warn(
           `[task-agent] turn job for ${input.execId} skipped (run ${run?.status ?? 'gone'})`,
+        );
+        return;
+      }
+      // A run a schedule began launches only while that schedule may still
+      // act in the project: one paused, removed or unbound after the kick
+      // leaves nothing to run for, so the run fails here, saying why,
+      // rather than working confined for nobody.
+      if (
+        parseRunStarter(run.startedBy).kind === 'trigger' &&
+        !(await runStarterMayEditProject(deps.sql, {
+          organizationId: input.organizationId,
+          projectId: run.projectId,
+          startedBy: run.startedBy,
+        }))
+      ) {
+        await failAgentRun(deps.sql, {
+          organizationId: input.organizationId,
+          runId: input.runId,
+          execId: input.execId,
+          error: SCHEDULE_REVOKED_BEFORE_LAUNCH,
+        });
+        console.warn(
+          `[task-agent] turn job for ${input.execId} refused: its schedule may no longer act in the project`,
         );
         return;
       }
@@ -970,6 +1015,23 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           ...(run.mentionSource !== null
             ? { mentionSource: run.mentionSource }
             : {}),
+          // A run an automation step or another agent started names it in
+          // the prompt, so its message never reads as a person's review.
+          ...(run.startedVia === 'automation' && run.viaAutomation !== null
+            ? {
+                requester: {
+                  kind: 'automation' as const,
+                  name: run.viaAutomation,
+                },
+              }
+            : run.startedVia === 'agent'
+              ? {
+                  requester: {
+                    kind: 'agent' as const,
+                    name: run.viaAgentName ?? 'a deleted agent',
+                  },
+                }
+              : {}),
           ...plan,
         },
       );
@@ -1050,6 +1112,23 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           startedBy: newest.startedBy,
         });
         if (refusal !== null) return refusal;
+        // A run an automation step or another agent started stays one when
+        // retried: it still counts as automated and may not delegate, and
+        // the retry is an automated start the per-task budget admits like
+        // any other (`admitAutomatedStart`). A person's run carries no
+        // provenance, so its retries are never counted or refused there.
+        const startedVia = await startedViaOfRun(tx, newest.id);
+        if (startedVia !== undefined) {
+          const admitted = await admitAutomatedStart(tx, {
+            task: {
+              id: input.taskId,
+              organizationId: input.organizationId,
+              projectId: task.projectId,
+            },
+            agentId: input.agentId,
+          });
+          if (!admitted.admitted) return 'task_circuit_breaker';
+        }
         await kickAgentRun(tx, {
           organizationId: input.organizationId,
           projectId: task.projectId,
@@ -1062,6 +1141,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             : {}),
           startedBy: newest.startedBy,
           trigger: 'auto_retry',
+          ...(startedVia !== undefined
+            ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
+            : {}),
           autoRetryAttempt: budget.attempt,
           // Queued now, so the card shows the retry; started once the
           // broker's cooldown has an account back.
