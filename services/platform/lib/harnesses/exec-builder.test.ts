@@ -863,3 +863,34 @@ describe('a managed Claude Code exec compacts inside the model window', () => {
     },
   );
 });
+
+describe('gemini requests the model it was given', () => {
+  // The pinned Gemini CLI (0.49.0) rewrites any `--model` ending in
+  // "flash" to its own gemini-3.5-flash on API-key auth; the harness YAML
+  // turns on dynamic model configuration so the CLI requests the id the
+  // platform resolved — on both lanes (a byo Google `gemini-3-flash` is
+  // not silently promoted either). The runtime image test proves the
+  // pinned CLI honours the setting; this pins the exec that carries it.
+  it('a flash-suffixed id rides --model verbatim, with the CLI told to keep it', () => {
+    const managed = buildHarnessExec(
+      fact('gemini'),
+      managedSpec({ model: 'golden__deepseek__deepseek-flash/deepseek-flash' }),
+    );
+    expect(managed.argv).toContain(
+      'golden__deepseek__deepseek-flash/deepseek-flash',
+    );
+    const byo = buildHarnessExec(fact('gemini'), {
+      prompt: 'hygiene probe prompt',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'gemini-3-flash',
+    });
+    expect(byo.argv).toContain('gemini-3-flash');
+    for (const exec of [managed, byo]) {
+      const settings = JSON.parse(exec.stdin ?? '{}').settings;
+      expect(settings.experimental).toEqual({
+        dynamicModelConfiguration: true,
+      });
+    }
+  });
+});
