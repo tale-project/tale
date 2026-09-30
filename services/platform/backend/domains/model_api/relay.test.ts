@@ -3,10 +3,23 @@
  * request's key, the Anthropic version — nothing of the caller's headers),
  * and what comes back in the caller's wire — streams passed through event by
  * event with the model renamed and the usage read, tool calls intact, the
- * gateway's routing names never shown, a hang-up aborting the vendor.
+ * gateway's routing names never shown, a hang-up aborting the vendor, and a
+ * caller gone before the request was sent never sending it.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createServer, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import {
   type RelayArgs,
@@ -24,7 +37,9 @@ interface Call {
 let calls: Call[] = [];
 let restore: () => void = () => undefined;
 
+/** Script the gateway call; the real one is back after each test. */
 function gateway(respond: (call: Call) => Response | Promise<Response>) {
+  restore();
   restore = setGatewayFetchForTests(async (url, init) => {
     const call = { url, init };
     calls.push(call);
@@ -107,6 +122,7 @@ beforeEach(() => {
 
 afterEach(() => {
   restore();
+  restore = () => undefined;
 });
 
 describe('relayToGateway — what goes upstream', () => {
@@ -785,6 +801,116 @@ describe('relayToGateway — endings the settlement books', () => {
     );
     const { args: relay, outcomes } = args({ signal: controller.signal });
     await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
+    expect(outcomes).toEqual([{ status: 'cancelled', countedOutputTokens: 0 }]);
+  });
+});
+
+describe('relayToGateway — a caller gone before the request was sent', () => {
+  // The relay's real gateway call — Node's fetch through its own pool, not
+  // the scripted seam — against a loopback gateway that counts what reaches
+  // it and answers a whole completion, or holds the request open.
+  let server: Server;
+  let received = 0;
+  let holdRequests = false;
+  const held: ServerResponse[] = [];
+
+  beforeAll(async () => {
+    server = createServer((request, response) => {
+      received += 1;
+      request.resume();
+      if (holdRequests) {
+        held.push(response);
+        return;
+      }
+      request.on('end', () => {
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify({
+            id: 'c',
+            object: 'chat.completion',
+            model: 'org-1__deepseek__deepseek-v4-flash/deepseek-v4-flash',
+            choices: [
+              { index: 0, message: { role: 'assistant', content: 'hi' } },
+            ],
+            usage: { prompt_tokens: 12, completion_tokens: 1 },
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+  });
+
+  beforeEach(() => {
+    received = 0;
+    holdRequests = false;
+    const { port } = server.address() as AddressInfo;
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_URL', `http://127.0.0.1:${port}`);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  afterAll(async () => {
+    for (const response of held) response.destroy();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  });
+
+  it('sends nothing and reports nothing to book, whole answer or stream, when the caller left first', async () => {
+    for (const stream of [false, true]) {
+      const caller = new AbortController();
+      caller.abort();
+      const { args: relay, outcomes } = args({ stream, signal: caller.signal });
+      await expect(relayToGateway(relay)).rejects.toBeInstanceOf(
+        ModelApiRefusal,
+      );
+      // No output count: the settlement books no prompt floor for it.
+      expect(outcomes).toEqual([{ status: 'cancelled' }]);
+    }
+    // Let a request that did leave land before counting.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(received).toBe(0);
+  });
+
+  it('sends nothing when the caller leaves while the request is still being governed', async () => {
+    const caller = new AbortController();
+    const { args: relay, outcomes } = args({ signal: caller.signal });
+    // The guardrails and the key mint run before the relay, asynchronously.
+    const governed = new Promise((resolve) => setTimeout(resolve, 20));
+    setTimeout(() => caller.abort(), 5);
+    await governed;
+    await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);
+    expect(outcomes).toEqual([{ status: 'cancelled' }]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(received).toBe(0);
+  });
+
+  it('relays a caller who stays: the gateway receives the request once', async () => {
+    const { args: relay, outcomes } = args({});
+    const answer = (await (await relayToGateway(relay)).json()) as Record<
+      string,
+      unknown
+    >;
+    expect(answer.model).toBe('deepseek/deepseek-v4-flash');
+    expect(received).toBe(1);
+    expect(outcomes).toEqual([
+      { status: 'completed', usage: { inputTokens: 12, outputTokens: 1 } },
+    ]);
+  });
+
+  it('keeps a whole answer at its prompt floor once the gateway has received the request', async () => {
+    holdRequests = true;
+    const caller = new AbortController();
+    const { args: relay, outcomes } = args({ signal: caller.signal });
+    const pending = relayToGateway(relay);
+    await vi.waitFor(() => expect(received).toBe(1), { timeout: 10_000 });
+    caller.abort();
+    await expect(pending).rejects.toBeInstanceOf(ModelApiRefusal);
     expect(outcomes).toEqual([{ status: 'cancelled', countedOutputTokens: 0 }]);
   });
 });

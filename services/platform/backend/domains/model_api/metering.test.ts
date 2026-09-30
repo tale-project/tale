@@ -538,6 +538,24 @@ describe('spendFactsOf', () => {
       spendFactsOf({ ...ending, outcome: { status: 'failed' } }).floorCents,
     ).toBeNull();
   });
+
+  it('records nothing for a request the caller left before it was sent', () => {
+    // The relay reports a request that never left the process without an
+    // output count; the same 1M-token prompt ended early after it was sent
+    // floors at 30c (above).
+    expect(
+      spendFactsOf({
+        ...ending,
+        promptTokens: 1_000_000,
+        outcome: { status: 'cancelled' },
+      }),
+    ).toEqual({
+      floorCents: null,
+      expectedCents: null,
+      inputTokens: null,
+      outputTokens: null,
+    });
+  });
 });
 
 /** The rows a settlement reads, as the op row carries them. */

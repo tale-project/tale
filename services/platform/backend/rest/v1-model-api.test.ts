@@ -6,7 +6,8 @@
  * shape, the OpenAI listing, the model resolution, the capability checks,
  * the guardrails' block and mask, the budget refusal, and a relayed call —
  * streamed and whole, tools included — whose end closes its lease with the
- * usage the answer reported.
+ * usage the answer reported; a caller who hangs up while the request is
+ * governed has it closed unsent, with nothing to book.
  */
 
 import { Hono } from 'hono';
@@ -62,6 +63,7 @@ const { createModelApiRestRoutes } = await import('./v1-model-api.ts');
 const { setGatewayFetchForTests } =
   await import('../domains/model_api/relay.ts');
 const { ModelApiRefusal } = await import('../domains/model_api/wire.ts');
+const { spendFactsOf } = await import('../domains/model_api/metering.ts');
 
 const POLICY = {
   enabled: true,
@@ -523,5 +525,84 @@ describe('a relayed call', () => {
       { method: 'POST', body: JSON.stringify(CHAT) },
     );
     expect(response.status).toBe(401);
+  });
+});
+
+describe('a caller who hangs up while the request is governed', () => {
+  type Ending = Parameters<typeof spendFactsOf>[0];
+
+  function postChat(signal: AbortSignal) {
+    return mount().request('http://localhost/openai/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(CHAT),
+      signal,
+    });
+  }
+
+  /** What the lease was closed with — the ending its settlement books. */
+  function ending(): Ending {
+    expect(metering.closeModelApiLease).toHaveBeenCalledTimes(1);
+    const [, lease, closed] = metering.closeModelApiLease.mock.calls[0] as [
+      unknown,
+      unknown,
+      Ending,
+    ];
+    expect(lease).toEqual(LEASE);
+    return closed;
+  }
+
+  beforeEach(() => {
+    gateway(() =>
+      Response.json({
+        model: 'gw',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+        usage: { prompt_tokens: 1_000_000, completion_tokens: 2 },
+      }),
+    );
+  });
+
+  it('sends nothing and books no prompt when the caller leaves while the guardrails judge it', async () => {
+    const caller = new AbortController();
+    guardrails.apply.mockImplementationOnce(async () => {
+      caller.abort();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    await postChat(caller.signal);
+    expect(gatewayCalls).toHaveLength(0);
+    const closed = ending();
+    expect(closed.outcome).toEqual({ status: 'cancelled' });
+    expect(spendFactsOf(closed).floorCents).toBeNull();
+  });
+
+  it('sends nothing and books no prompt when the caller leaves while its key is minted', async () => {
+    const caller = new AbortController();
+    metering.openModelApiLease.mockImplementationOnce(async () => {
+      caller.abort();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return LEASE;
+    });
+    await postChat(caller.signal);
+    expect(gatewayCalls).toHaveLength(0);
+    const closed = ending();
+    expect(closed.outcome).toEqual({ status: 'cancelled' });
+    expect(spendFactsOf(closed).floorCents).toBeNull();
+  });
+
+  it('relays a caller who stays through the same work, and books what the answer reported', async () => {
+    const caller = new AbortController();
+    guardrails.apply.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    const response = await postChat(caller.signal);
+    expect(response.status).toBe(200);
+    expect(gatewayCalls).toHaveLength(1);
+    const closed = ending();
+    expect(closed.outcome).toEqual({
+      status: 'completed',
+      usage: { inputTokens: 1_000_000, outputTokens: 2 },
+    });
+    // 1M input tokens at the catalog's 300c/M.
+    expect(spendFactsOf(closed).expectedCents).toBeGreaterThanOrEqual(300);
   });
 });

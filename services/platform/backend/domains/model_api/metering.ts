@@ -76,6 +76,9 @@ import { ModelApiRefusal, type ModelApiWire } from './wire.ts';
  *         least at its prompt and the output the relay counted, at the
  *         catalog price: the gateway cancels the vendor call and books only
  *         the usage the vendor had reported by then;
+ *       - a request the caller left before it was sent — while its
+ *         guardrails judged it or its key was minted — never reached the
+ *         gateway: only the gateway's figure for its unused key is booked;
  *       - a finished answer whose usage the vendor reported but whose key
  *         reads 0 has not been booked by the gateway yet: the settlement
  *         waits and retries, and past its grace books the reported usage at
@@ -484,7 +487,10 @@ export interface ModelApiEnding {
  *    catalog price (a zero gateway reading is then not final);
  *  - an answer that ended early: its prompt (the vendor's count, else the
  *    estimate) and the output the relay counted, at the catalog price —
- *    the floor of what is booked.
+ *    the floor of what is booked;
+ *  - a request that never left this process (the caller hung up before it
+ *    was sent, or the gateway connection was never made; the relay counted
+ *    nothing): no facts, so only the gateway's figure is booked.
  */
 export function spendFactsOf(ending: ModelApiEnding): ModelApiSpendFacts {
   const { outcome, model } = ending;

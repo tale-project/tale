@@ -39,7 +39,9 @@ import {
  *    books only the usage the vendor had reported by then (on an OpenAI
  *    stream, none). So an answer that ends early reports what the
  *    settlement books it at anyway (`metering.ts`): the output the relay
- *    counted, which on a whole answer is none;
+ *    counted, which on a whole answer is none. A caller that hung up
+ *    before the request was sent — while it was being governed — is not
+ *    sent at all, and reports nothing to book;
  *  - a request never outlives its lifetime: a whole answer the gateway's
  *    request timeout plus a margin, a stream its idle budget between two
  *    chunks and an overall ceiling — past either, the relay aborts the
@@ -57,7 +59,8 @@ export interface RelayOutcome {
   usage?: ModelApiUsage;
   /** Set on an answer that ended early: the tokens the relay counted in the
    * stream's text, reasoning and tool arguments by then — 0 on a whole
-   * answer, which relays nothing before it is complete. */
+   * answer, which relays nothing before it is complete. Never set on a
+   * request that did not leave this process. */
   countedOutputTokens?: number;
 }
 
@@ -670,7 +673,6 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     idleTimer = setTimeout(expire, lifetime.streamIdleMs);
     idleTimer.unref?.();
   };
-  if (signal.aborted) abortUpstream();
   signal.addEventListener('abort', abortUpstream, { once: true });
   let settled = false;
   const done = (outcome: RelayOutcome) => {
@@ -690,7 +692,15 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
   const payload = JSON.stringify(args.body);
   if (stream) armIdle();
   let upstream: Response;
+  // Whether the request may have left this process: set as the gateway call
+  // is made, never before.
+  let dispatched = false;
   try {
+    // A caller that hung up while the request was being governed — its
+    // guardrails judging it, its hold being taken, its key being minted — is
+    // not sent at all.
+    signal.throwIfAborted();
+    dispatched = true;
     upstream = await gatewayFetch(gatewayInferenceUrl(GATEWAY_ROUTES[wire]), {
       method: 'POST',
       headers,
@@ -699,12 +709,15 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     });
   } catch (error) {
     const cancelled = signal.aborted && !lapsed;
-    // A request that never got a connection left this process and costs
-    // nothing. Any other may have reached the gateway, and the vendor its
-    // prompt, before the call failed.
+    // A request that never left this process — the caller hung up before it
+    // was sent, or it never got a connection — costs nothing. Any other may
+    // have reached the gateway, and the vendor its prompt, before the call
+    // failed.
     done({
       status: cancelled ? 'cancelled' : 'failed',
-      ...(neverConnected(error) ? {} : { countedOutputTokens: 0 }),
+      ...(dispatched && !neverConnected(error)
+        ? { countedOutputTokens: 0 }
+        : {}),
     });
     if (lapsed) {
       console.warn(
