@@ -429,7 +429,7 @@ export async function scanWebsiteImpl(
             htmlTitle(outcome.html),
             htmlToText(outcome.html),
           );
-          if (stored === 'changed') await indexer.indexPage(page.url);
+          await indexer.settle(page.url, stored);
           if (kind === 'site') {
             await admitRenderedLinks(
               sql,
@@ -462,7 +462,8 @@ export async function scanWebsiteImpl(
             policy,
           );
           if (outcome === 'render') renderQueue.push(page);
-          else if (outcome === 'changed') await indexer.indexPage(page.url);
+          else if (outcome !== 'failed')
+            await indexer.settle(page.url, outcome);
           await sleep(fetchDelayMs(policy));
           if (renderQueue.length >= RENDER_BATCH_SIZE) await flushRenderBatch();
         }
@@ -1041,7 +1042,7 @@ async function countDuePages(
   return Number(rows[0]?.n ?? 0);
 }
 
-type FetchOutcome = 'changed' | 'unchanged' | 'failed' | 'render';
+type FetchOutcome = StoreOutcome | 'failed' | 'render';
 
 /**
  * Probe one page and dispatch on its content type: binaries and plain text
@@ -1213,18 +1214,25 @@ async function fetchAndStorePage(
 }
 
 /**
- * Store one page's extracted text, title, and paragraph hashes; report
- * whether the content changed. Only changed pages are re-chunked and
- * re-embedded — and a page whose text is unchanged but whose chunks are
- * missing (an earlier scan died between fetch and index) counts as changed.
+ * What storing a page means for its chunks: `changed` text (or text whose
+ * chunks are missing — an earlier scan died between fetch and index) is
+ * re-chunked and re-embedded; `vectorless` text is unchanged but was chunked
+ * without vectors (no embedding model at the time), so it is embedded once a
+ * model can do it; `unchanged` text is left as it is.
  */
-async function storePageText(
+export type StoreOutcome = 'changed' | 'vectorless' | 'unchanged';
+
+/**
+ * Store one page's extracted text, title, and paragraph hashes; report what
+ * that means for its chunks ({@link StoreOutcome}). Exported for tests only.
+ */
+export async function storePageText(
   sql: Sql,
   domain: string,
   page: DuePage,
   title: string | null,
   text: string,
-): Promise<'changed' | 'unchanged'> {
+): Promise<StoreOutcome> {
   const contentHash = computeContentHash(text);
   const wordCount = text.split(/\s+/).filter((word) => word.length > 0).length;
 
@@ -1259,12 +1267,17 @@ async function storePageText(
   });
 
   if (unchanged) {
-    const chunkRows = await sql.unsafe<{ ok: number }[]>(
-      `SELECT 1 AS ok FROM ${PUBLIC_WEB_SCHEMA}.chunks
-        WHERE domain = $1 AND url = $2 LIMIT 1`,
+    const [chunks] = await sql.unsafe<
+      { present: boolean; vectorless: boolean }[]
+    >(
+      `SELECT count(*) > 0 AS present,
+              coalesce(bool_or(embedding IS NULL), false) AS vectorless
+         FROM ${PUBLIC_WEB_SCHEMA}.chunks
+        WHERE domain = $1 AND url = $2`,
       [domain, page.url],
     );
-    return chunkRows.length > 0 ? 'unchanged' : 'changed';
+    if (chunks === undefined || !chunks.present) return 'changed';
+    return chunks.vectorless ? 'vectorless' : 'unchanged';
   }
   return 'changed';
 }
@@ -1439,10 +1452,12 @@ async function recordPageFailure(
  * nothing changed never touches the provider) and the boilerplate ledger is
  * re-read per page, so each page is filtered against every paragraph hash
  * stored so far. Without an embedding model the chunks are stored with NULL
- * vectors — the BM25 leg and `rag_fetch` still work, and the dense leg fills
- * in on the re-scan after a model is configured.
+ * vectors: the site's own content search reads them, knowledge search does
+ * not run until a model is configured, and the first scan after that embeds
+ * them even though their text has not changed (`vectorless`). Exported for
+ * tests only.
  */
-class PageIndexer {
+export class PageIndexer {
   private embedder: Embedder | null = null;
   private embedderResolved = false;
   private indexedAny = false;
@@ -1467,7 +1482,7 @@ class PageIndexer {
     } catch (error) {
       if (error instanceof EmbeddingNotConfigured) {
         console.warn(
-          `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — indexing for keyword search only`,
+          `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — chunks are stored without vectors until one is`,
         );
       } else {
         throw error;
@@ -1484,6 +1499,16 @@ class PageIndexer {
       });
     }
     return this.embedder;
+  }
+
+  /** Index a page if its store outcome calls for it: changed text always,
+   * text chunked without vectors once a model can embed it. */
+  async settle(url: string, outcome: StoreOutcome): Promise<void> {
+    if (outcome === 'unchanged') return;
+    if (outcome === 'vectorless' && (await this.resolveEmbedder()) === null) {
+      return;
+    }
+    await this.indexPage(url);
   }
 
   async indexPage(url: string): Promise<void> {
