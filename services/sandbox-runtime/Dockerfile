@@ -420,7 +420,9 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/* \
     # The image's dockerd is started per-session by the entrypoint in DinD mode,
     # never as a baked service — strip any auto-start unit (no-op without systemd).
-    && rm -f /etc/systemd/system/multi-user.target.wants/docker.service 2>/dev/null || true
+    # Only this strip may fail: its `|| true` is braced, so a failed engine
+    # install above still fails the build.
+    && { rm -f /etc/systemd/system/multi-user.target.wants/docker.service 2>/dev/null || true; }
 
 # subuid/subgid ranges for the agent user. Sysbox handles userns mapping at the
 # container boundary; these are here for any rootless inner tooling and are inert

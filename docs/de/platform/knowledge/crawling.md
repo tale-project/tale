@@ -48,7 +48,7 @@ Verwende HTTPS am Standardport und registriere einen Hostnamen: Adressen mit ein
 | --- | --- |
 | 10.000 erfasste URLs je Website | Bei größeren Websites können Seiten unentdeckt bleiben. Nutze eine gezielte URL-Liste für die benötigten Inhalte. |
 | Drei Minuten für die Seitensuche, höchstens 50 Sitemap-Abrufe | Große oder langsame Sitemap-Sammlungen werden möglicherweise nicht vollständig erfasst. |
-| 25 MiB und 30 Sekunden je Inhaltsabruf | Zu große Downloads und langsame Antworten schlagen fehl (`timeout` für das Download- und das 20-Sekunden-Darstellungsbudget); ebenso eine Seite hinter mehr als fünf Weiterleitungen (`redirect_limit_exceeded`). |
+| 100 MiB (`KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`) und 30 Sekunden je Inhaltsabruf | Zu große Downloads und langsame Antworten schlagen fehl (`timeout` für das Download- und das 20-Sekunden-Darstellungsbudget); ebenso eine Seite hinter mehr als fünf Weiterleitungen (`redirect_limit_exceeded`). |
 | Fünf Minuten Verarbeitungsbudget je Abschnitt, bis zu 200 Fortsetzungen | Lange Scans laufen abschnittsweise weiter. Ein bereits begonnener Abruf oder Darstellungsvorgang kann das Abschnittsbudget überschreiten; daraus ergibt sich keine garantierte Gesamtdauer. |
 | Fünf aufeinanderfolgende Fehler bei einer automatisch entdeckten URL | Der Crawler plant diese URL sieben Tage lang nicht mehr ein und probiert sie danach einmal erneut. Ein Fehler der Sandbox selbst, in der die Seiten dargestellt werden, zählt nicht: Lehnt ihr Egress-Proxy die Verbindung ab oder antwortet ihr Browser nicht mehr, endet der Scan mit dieser Ursache an der Quelle, und der nächste Scan versucht jede Seite erneut. Ausdrücklich gelistete URLs werden bei jedem Scan erneut berücksichtigt, und eine gelistete Seite, die die Website mit 404 beantwortet, bleibt mit dieser Antwort in der Liste. |
 
@@ -76,7 +76,7 @@ Prüfe zuerst Adresse, Quelltyp und letzte Scan-Zeit. Öffne danach die Quelle u
 | Zertifikat nicht vertrauenswürdig | Der Website-Betreiber muss ein abgelaufenes, selbst signiertes, zum falschen Host gehörendes oder anderweitig nicht vertrauenswürdiges TLS-Zertifikat korrigieren. Weitere Scans beheben es nicht. |
 | Private Adresse, unzulässige Weiterleitung oder ungültige URL | Nutze die vorgesehene öffentliche HTTPS-Adresse. Frage bei Bedarf deinen Betreiber nach zugelassenen internen Quellen. |
 | HTTP-Fehler, Netzwerkfehler oder Zeitüberschreitung | Öffne die Originalseite und prüfe ihre Erreichbarkeit. Nach der Reparatur kann ein späterer Scan wieder erfolgreich sein. |
-| Antwort zu groß | Veröffentliche ein kleineres Dokument oder teile die Quelle auf. Die Abrufgrenze beträgt 25 MiB. |
+| Antwort zu groß | Veröffentliche ein kleineres Dokument oder teile die Quelle auf. Die Abrufgrenze beträgt 100 MiB, sofern dein Betreiber `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES` nicht anders gesetzt hat. |
 | Quelle untersagt die Indexierung | Die Antwort enthält `X-Robots-Tag: noindex` oder `none`, oder die Seite trägt `<meta name="robots" content="noindex">`. Der Website-Verantwortliche muss diese Vorgabe ändern, bevor Tale den Inhalt indexieren kann. |
 | Nicht unterstützter Inhalt oder kein lesbarer Text | JSON-/XML-Endpunkte, Binärdownloads, Bilder oder Scans liefern möglicherweise keinen verwertbaren Seitentext. Stelle eine HTML-Seite oder ein unterstütztes Dokument mit extrahierbarem Text bereit. |
 | Darstellung oder Textextraktion fehlgeschlagen | Prüfe, ob die öffentliche Seite lädt und sich das Originaldokument öffnen lässt. Repariere oder exportiere eine beschädigte Quelle erneut. |

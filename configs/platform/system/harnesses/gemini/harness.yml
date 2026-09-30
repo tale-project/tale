@@ -67,6 +67,25 @@ exec:
             - set:
                 privacy:
                   usageStatisticsEnabled: false
+            # The CLI must request the model id it was given. The pinned
+            # CLI (0.49.0) rewrites ANY --model ending in "flash" to its own
+            # gemini-3.5-flash on API-key auth (config/models.ts resolveModel:
+            # isFlashModel = endsWith('flash'), gated by
+            # hasGemini35FlashGAAccess(), which is unconditionally true for
+            # gemini-api-key) — a managed `…/deepseek-flash` reached the
+            # gateway as a bare gemini-3.5-flash and every run died with
+            # 400 "could not auto resolve a provider" (2026-09-30). Dynamic
+            # model configuration routes resolveModel through
+            # modelConfigService.resolveModelId, which returns an id it has
+            # no rule for unchanged — on both lanes, so a byo Google
+            # `gemini-3-flash` is not silently promoted either. Upstream
+            # narrowed the rewrite to its own aliases in 0.61.0
+            # (isPromotableFlashModel). The runtime image test drives the
+            # pinned CLI through the wrapper with these settings and
+            # asserts the request path keeps a flash-suffixed id.
+            - set:
+                experimental:
+                  dynamicModelConfiguration: true
             # The only real turn cap among the wrapper-driven harnesses:
             # FatalTurnLimitedError (exit 53) past this; the parser maps its
             # message to the 'max-turns' status.

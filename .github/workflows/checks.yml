@@ -110,6 +110,16 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    # This repo's one deviation from the standard job. The platform checks
+    # its frontend, backend and tests as ONE program (about 9,500 files, a
+    # million lines), which has outgrown V8's default heap under the image's
+    # Node: about 4 GiB on this 16 GB runner, where cold runs died with
+    # "Ineffective mark-compacts near heap limit" at ~4,015 MB retained
+    # (exit 137, #4005). A bounded budget for every Node process of this
+    # job; Turbo's strict env mode passes NODE_OPTIONS through to each
+    # task's tsc. Programs, strictness and every other gate are unchanged.
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
 
     steps:
       - name: Checkout
@@ -122,8 +132,31 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The budget the compiler runs under: the Node `bunx tsc` resolves (the
+      # runner image's, not pinned here) and V8's heap limit under this job's
+      # NODE_OPTIONS.
+      - name: Report the compiler's heap budget
+        run: |
+          set -euo pipefail
+          echo "node $(node --version) at $(command -v node), V8 $(node -p 'process.versions.v8')"
+          echo "NODE_OPTIONS=${NODE_OPTIONS}"
+          echo "heap_size_limit: $(node -p 'Math.round(require("node:v8").getHeapStatistics().heap_size_limit / 1048576)') MiB"
+          echo "runner: $(nproc) CPUs"
+          free -m
+
+      # --extendedDiagnostics logs each program's size, memory and check
+      # time, so the log shows how close the platform runs to its budget. As
+      # a pass-through argument it is part of every typecheck task's hash,
+      # which NODE_OPTIONS is not. GNU time (the image's `time` package) logs
+      # the peak RSS of the largest process, the platform's tsc.
       - name: Run type check
-        run: bunx turbo run typecheck
+        run: |
+          set -euo pipefail
+          if [ -x /usr/bin/time ]; then
+            /usr/bin/time --format 'Type check peak RSS: %M KiB, %e s' bunx turbo run typecheck -- --extendedDiagnostics
+          else
+            bunx turbo run typecheck -- --extendedDiagnostics
+          fi
 
   build:
     needs: candidate-source
@@ -416,6 +449,22 @@ jobs:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
           persist-credentials: false
 
+      - name: Prepare integration evidence
+        run: |
+          set -euo pipefail
+          PROOF_DIR="$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          echo "PROOF_DIR=$PROOF_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$PROOF_DIR"
+          checked_out_sha="$(git rev-parse HEAD)"
+          {
+            echo "source=$checked_out_sha"
+            echo "workflow-event=$GITHUB_EVENT_NAME"
+            echo "workflow-sha=$GITHUB_SHA"
+            echo "run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT"
+            sha256sum services/db/Dockerfile services/platform/Dockerfile \
+              services/platform/backend/integration-check.ts tools/cli/src/lib/compose/types.ts
+          } > "$PROOF_DIR/source.txt"
+
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
         with:
@@ -433,6 +482,7 @@ jobs:
             echo '::error::services/platform/Dockerfile names no node-bin stage version'; exit 1
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "node-version=$version" >> "$PROOF_DIR/source.txt"
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -454,6 +504,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends ffmpeg
           ffmpeg -hide_banner -version | head -n 1
+          { node --version; bun --version; ffmpeg -version; ffprobe -version; } > "$PROOF_DIR/toolchain.txt"
 
       - name: Setup Docker builder
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -483,6 +534,7 @@ jobs:
           fi
           echo "image=${image}" >> "$GITHUB_OUTPUT"
           echo "Object store: ${image}"
+          echo "object-store=$image" >> "$PROOF_DIR/source.txt"
 
       # One tale-db container, in the image's default (knowledge) role, serves
       # both databases, as the harness's own KNOWLEDGE_DATABASE_URL default
@@ -515,6 +567,22 @@ jobs:
           done
           curl -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
 
+      - name: Verify and record integration services
+        env:
+          OBJECT_STORE_IMAGE: ${{ steps.object-store.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
+            "SELECT extname, extversion FROM pg_extension WHERE extname IN ('pg_search', 'vector')" \
+            > "$PROOF_DIR/extensions.txt"
+          extension_count="$(docker exec tale-itest-db psql -v ON_ERROR_STOP=1 -U tale -d tale_knowledge -Atc \
+            "SELECT count(*) FROM pg_extension WHERE extname IN ('pg_search', 'vector')")"
+          if [ "$extension_count" != 2 ]; then
+            echo '::error::tale-db must load both pg_search and vector'; exit 1
+          fi
+          docker image inspect --format '{{.Id}} {{json .RepoDigests}}' \
+            tale-db:itest "$OBJECT_STORE_IMAGE" > "$PROOF_DIR/images.txt"
+
       - name: Run backend integration
         working-directory: services/platform
         timeout-minutes: 30
@@ -527,14 +595,15 @@ jobs:
           TALE_CONFIG_BUILTIN_DIR: ${{ runner.temp }}/itest-builtin
         run: |
           set -euo pipefail
+          trap 'echo "$?" > "$PROOF_DIR/exit-code.txt"' EXIT
           mkdir -p "$TALE_CONFIG_DIR" "$TALE_CONFIG_BUILTIN_DIR"
           node --version
-          bun run backend:integration 2>&1 | tee "$RUNNER_TEMP/backend-integration.log"
+          bun run backend:integration 2>&1 | tee "$PROOF_DIR/backend-integration.log"
 
       - name: Summarize
         if: always()
         run: |
-          log="$RUNNER_TEMP/backend-integration.log"
+          log="${PROOF_DIR:-$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}/backend-integration.log"
           [ -f "$log" ] || exit 0
           {
             echo '## Backend integration'
@@ -555,6 +624,27 @@ jobs:
           docker logs --tail 200 tale-itest-db || true
           docker exec tale-itest-db sh -c 'tail -n 200 /var/lib/postgresql/data/log/*.log' || true
           docker logs --tail 200 tale-itest-object-store || true
+
+      - name: Retain integration service logs
+        if: always()
+        timeout-minutes: 2
+        run: |
+          PROOF_DIR="${PROOF_DIR:-$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}"
+          echo "PROOF_DIR=$PROOF_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$PROOF_DIR"
+          docker logs tale-itest-db > "$PROOF_DIR/db.log" 2>&1 || true
+          docker logs tale-itest-object-store > "$PROOF_DIR/object-store.log" 2>&1 || true
+
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: backend-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.PROOF_DIR }}/*.txt
+            ${{ env.PROOF_DIR }}/*.log
+          if-no-files-found: error
+          retention-days: 14
 
   candidate-gate:
     name: Candidate gate

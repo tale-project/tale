@@ -9,7 +9,7 @@ managed-baseline:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-model-opus:
   argv:
@@ -24,7 +24,7 @@ managed-model-opus:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-model-gateway-ref:
   argv:
@@ -39,7 +39,7 @@ managed-model-gateway-ref:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-model-default:
   argv:
@@ -54,7 +54,7 @@ managed-model-default:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-model-context-window:
   argv:
@@ -69,7 +69,7 @@ managed-model-context-window:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-plan:
   argv:
@@ -82,7 +82,7 @@ managed-plan:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-act:
   argv:
@@ -95,7 +95,7 @@ managed-act:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-resume:
   argv:
@@ -110,7 +110,7 @@ managed-resume:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-instructions:
   argv:
@@ -123,7 +123,7 @@ managed-instructions:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}},"system_prompt":"Golden
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}},"system_prompt":"Golden
     instructions: follow the org runbook."}'
   stdinMode: close
 managed-dirs:
@@ -141,7 +141,7 @@ managed-dirs:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-mcp-headless-bridge:
   argv:
@@ -154,7 +154,7 @@ managed-mcp-headless-bridge:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
   stdinMode: close
 managed-mcp-bridge-only:
   argv:
@@ -167,7 +167,7 @@ managed-mcp-bridge-only:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
   stdinMode: close
 managed-vision:
   argv:
@@ -180,7 +180,7 @@ managed-vision:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
   stdinMode: close
 managed-vision-lane:
   argv:
@@ -193,7 +193,7 @@ managed-vision-lane:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
   stdinMode: close
 managed-steer:
   argv:
@@ -206,7 +206,7 @@ managed-steer:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
 managed-kitchen-sink:
   argv:
@@ -227,7 +227,7 @@ managed-kitchen-sink:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}},"system_prompt":"Golden
+    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}},"system_prompt":"Golden
     instructions: follow the org runbook."}'
   stdinMode: close
 byo-baseline:
@@ -239,7 +239,7 @@ byo-baseline:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200}}}'
   stdinMode: close
 byo-model:
   argv:
@@ -252,7 +252,7 @@ byo-model:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200}}}'
   stdinMode: close
 byo-model-default:
   argv:
@@ -265,7 +265,7 @@ byo-model-default:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200}}}'
   stdinMode: close
 byo-kitchen-sink:
   argv:
@@ -284,6 +284,6 @@ byo-kitchen-sink:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}},"system_prompt":"Golden
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}},"system_prompt":"Golden
     instructions: follow the org runbook."}'
   stdinMode: close

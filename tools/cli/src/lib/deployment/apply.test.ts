@@ -1,8 +1,17 @@
-import { afterEach, describe, expect, setDefaultTimeout, test } from 'bun:test';
+import {
+  afterEach,
+  describe,
+  expect,
+  setDefaultTimeout,
+  spyOn,
+  test,
+} from 'bun:test';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 
+import { CliError, ExitCode } from '../../utils/fail';
+import * as logger from '../../utils/logger';
 import { platformConfigurationFixture } from '../config/platform-fixture';
 import { resourceId } from '../config/platform-model';
 import { sha256, valueHash, loadClient } from '../config/releases/identity';
@@ -21,6 +30,7 @@ import { applyRuntime, prepareRuntime } from './runtime';
 import { activateRuntimeConfiguration } from './runtime-apply';
 import { ConfigurationDockerFixture } from './runtime-configuration-fixture';
 import { parseRuntimeEnvironment } from './runtime-env';
+import { readRuntimeBundle } from './runtime-model';
 import {
   installLegacy,
   RuntimeDockerFixture,
@@ -178,6 +188,7 @@ async function create(
   let owned = false;
   let cleanupFailure = false;
   let snapshotFailure = false;
+  let snapshotWithoutGateway = false;
   process.env.TALE_TEST_NATIVE_PASSWORD = 'synthetic-operator-password';
   process.env.TALE_TEST_UNUSED_SECRET = 'synthetic-unrelated-secret';
   const dependencies: NonNullable<Parameters<typeof applyDeployment>[1]> = {
@@ -202,7 +213,17 @@ async function create(
         cliVersion: 'dev',
         platformVersion: null,
         trigger: 'deploy',
-        volumes: { 'db-data': { sha256: '0'.repeat(64), sizeBytes: 1 } },
+        volumes: {
+          'db-data': { sha256: '0'.repeat(64), sizeBytes: 1 },
+          // Like the real snapshot: the gateway store whenever its volume
+          // exists, unless the test stands in for a CLI that predates that.
+          ...(docker.volumes.includes('tale_llm-gateway-data') &&
+          !snapshotWithoutGateway
+            ? {
+                'llm-gateway-data': { sha256: '1'.repeat(64), sizeBytes: 1 },
+              }
+            : {}),
+        },
       };
     },
     verifySnapshot: async () => {
@@ -301,6 +322,9 @@ async function create(
     },
     snapshotFailure: (value: boolean) => {
       snapshotFailure = value;
+    },
+    snapshotWithoutGateway: (value: boolean) => {
+      snapshotWithoutGateway = value;
     },
   };
 }
@@ -756,6 +780,757 @@ async function attachConfiguration(
 }
 
 // Real Git, file modes and runtime state require the supported POSIX host.
+describePosix('model gateway recovery point', () => {
+  const PRE_CAPTURE_SNAPSHOT = '20260910-000000-deploy';
+  type Run = Awaited<ReturnType<typeof create>>;
+  const pendingPath = (run: Run) =>
+    join(run.fixture.options.stateDirectory, '.tale/deployment-pending.json');
+  const runtimeReceiptPath = (run: Run) =>
+    join(run.fixture.options.stateDirectory, '.tale/runtime.json');
+  const gatewayOf = (bundle: string) =>
+    readRuntimeBundle(join(bundle, 'runtime')).bundle.images.find((image) =>
+      image.services.includes('sandbox-llm-gateway'),
+    )!.reference;
+  const gatewayContainer = (run: Run) =>
+    run.docker.containers.find(
+      (container) =>
+        (container.Config as { Labels: Record<string, string> }).Labels[
+          'com.docker.compose.service'
+        ] === 'sandbox-llm-gateway',
+    )!;
+  /** Prepare a bundle of the next release: the same commit under a release
+   * tag whose images the release build made anew, so every Tale image — the
+   * gateway's with them — has another digest. */
+  async function nextRelease(
+    run: Run,
+    name: string,
+    extra: Record<string, unknown> = {},
+  ) {
+    if (run.docker.variantTag !== '0.5.17') {
+      run.fixture.git('tag', 'v0.5.17');
+      run.docker.variantTag = '0.5.17';
+    }
+    const output = join(run.fixture.directory, name);
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({ ...run.spec, ...extra }),
+    );
+    await prepareDeployment(
+      { ...run.preparation, output },
+      run.prepareDependencies,
+    );
+    writeFileSync(run.preparation.spec, JSON.stringify(run.spec));
+    return output;
+  }
+  const applyBundle = (run: Run, bundle: string) =>
+    applyDeployment({ bundle }, run.dependencies);
+  /** A rollout that stops at its image pull, before any container changes. */
+  async function stopAtPull(run: Run, bundle: string) {
+    run.docker.missingTags.add(gatewayOf(bundle));
+    await expect(applyBundle(run, bundle)).rejects.toThrow(
+      'Docker refused the managed runtime operation.',
+    );
+    run.docker.missingTags.clear();
+  }
+  /** The pending receipt as a CLI from before the gateway store was captured
+   * wrote it: the same recovery snapshot, without the gateway archive. */
+  function asPreCaptureReceipt(run: Run) {
+    const intent = JSON.parse(readFileSync(pendingPath(run), 'utf8'));
+    delete intent.snapshot.volumes['llm-gateway-data'];
+    writeFileSync(pendingPath(run), `${JSON.stringify(intent, null, 2)}\n`);
+    return readFileSync(pendingPath(run));
+  }
+  async function refusal(apply: () => Promise<unknown>): Promise<CliError> {
+    const failure = await apply().catch((error: unknown) => error);
+    if (!(failure instanceof CliError)) throw failure;
+    return failure;
+  }
+  async function warnings(apply: () => Promise<unknown>) {
+    const warned: string[] = [];
+    // Read at the logger, not on stdout: the shared reporter drops lines while
+    // another suite in the same process has left it silenced (--json mode).
+    const warn = spyOn(logger, 'warn').mockImplementation((message) => {
+      warned.push(message);
+    });
+    try {
+      return { result: await apply(), warned };
+    } finally {
+      warn.mockRestore();
+    }
+  }
+  const UNCOVERED = `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data: restoring it leaves the model gateway's store as it is now.`;
+  const ONWARD =
+    'While no runtime rollout is pending, a reviewed bundle that still resolves the gateway image the deployment last ran can take it over (`supersedesPendingBundle`), and the rollout after it takes a snapshot that holds the gateway store; otherwise the CLI has no way forward for this state.';
+  const NO_RECOVERY_POINT =
+    'The pending deployment recorded no recovery snapshot, and none can be taken now: this rollout has no recovery point.';
+
+  // The release stopped at its pull: the store has only run the previous
+  // gateway, and its recovery snapshot came from a CLI that left it out.
+  test('a release that stopped before its gateway ran is refused on a retained snapshot without the gateway store, with every receipt untouched', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    await stopAtPull(run, release);
+    const pending = asPreCaptureReceipt(run);
+    const runtimeReceipt = readFileSync(runtimeReceiptPath(run));
+    const ready = readFileSync(run.receiptPath);
+    run.events.length = 0;
+    run.docker.calls = [];
+
+    const error = await refusal(() => applyBundle(run, release));
+
+    expect(error.info.code).toBe(ExitCode.Precondition);
+    expect(error.message).toBe(
+      `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data, and this rollout would start gateway image ${gatewayOf(release)} on tale_llm-gateway-data, and nothing shows the store has run it (its gateway container runs ${gatewayOf(run.bundle)}); a newer gateway migrates that store forward-only.`,
+    );
+    expect(error.info.next).toBe(
+      `Nothing was changed. Do not remove the pending receipt: a snapshot taken now could already hold a migrated store. ${ONWARD}`,
+    );
+    expect(run.events).toEqual([]);
+    expect(
+      run.docker.calls.some(
+        ({ args }) => args.includes('up') || args[0] === 'pull',
+      ),
+    ).toBe(false);
+    expect(readFileSync(pendingPath(run))).toEqual(pending);
+    expect(readFileSync(runtimeReceiptPath(run))).toEqual(runtimeReceipt);
+    expect(readFileSync(run.receiptPath)).toEqual(ready);
+  });
+
+  test('a superseding bundle that also moves the gateway cannot take over such a snapshot, and the takeover is not recorded', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    await stopAtPull(run, release);
+    const pending = asPreCaptureReceipt(run);
+    const superseding = await nextRelease(run, 'superseding-deployment', {
+      runtime: { ...run.spec.runtime, containerPrefix: 'north-desk-prod' },
+      supersedesPendingBundle: JSON.parse(pending.toString()).bundleSha256,
+    });
+    run.events.length = 0;
+    run.docker.calls = [];
+
+    const error = await refusal(() => applyBundle(run, superseding));
+
+    expect(error.message).toContain(
+      `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data`,
+    );
+    expect(run.events).toEqual([]);
+    expect(run.docker.calls.some(({ args }) => args.includes('up'))).toBe(
+      false,
+    );
+    // Byte-identical: still the pending bundle, no superseded list.
+    expect(readFileSync(pendingPath(run))).toEqual(pending);
+  });
+
+  // The documented way on from that refusal: a bundle that resolves the
+  // gateway image the store already runs takes the pending deployment over,
+  // and the release after that snapshots the gateway store with the rest.
+  test('a bundle on the gateway image the store has run takes over with a warning, and the next release snapshots the gateway store', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    await stopAtPull(run, release);
+    const pending = JSON.parse(asPreCaptureReceipt(run).toString());
+    // The registry serves the release tag with the bytes the store runs.
+    run.docker.variantTag = null;
+    const keeping = join(run.fixture.directory, 'keeping-deployment');
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({
+        ...run.spec,
+        supersedesPendingBundle: pending.bundleSha256,
+      }),
+    );
+    await prepareDeployment(
+      { ...run.preparation, output: keeping },
+      run.prepareDependencies,
+    );
+    writeFileSync(run.preparation.spec, JSON.stringify(run.spec));
+    expect(gatewayOf(keeping)).toBe(gatewayOf(run.bundle));
+
+    const takeover = await warnings(() => applyBundle(run, keeping));
+
+    expect(takeover.result).toMatchObject({
+      phase: 'ready',
+      snapshotId: PRE_CAPTURE_SNAPSHOT,
+      supersededBundles: [pending.bundleSha256],
+    });
+    expect(takeover.warned).toContain(UNCOVERED);
+    expect(existsSync(pendingPath(run))).toBe(false);
+    run.docker.variantTag = '0.5.17';
+    const next = await nextRelease(run, 'next-deployment');
+    run.events.length = 0;
+    const upgrade = await warnings(() => applyBundle(run, next));
+    expect(upgrade.result).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: true,
+    });
+    expect(run.events.slice(0, 3)).toEqual([
+      'snapshot',
+      'verify-snapshot',
+      'up',
+    ]);
+    expect(
+      upgrade.warned.some((line) => line.includes('llm-gateway-data')),
+    ).toBe(false);
+  });
+
+  // Past its image checks a rollout is pending, and the runtime admits only
+  // that same runtime: the image-keeping takeover is refused there, the
+  // retry here. The documented state with no CLI way on.
+  test('once a release rollout is pending before its gateway ran, the retry is refused here and an image-keeping takeover by the runtime', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    const db = run.docker.containers.find(
+      (container) =>
+        (container.Config as { Labels: Record<string, string> }).Labels[
+          'com.docker.compose.service'
+        ] === 'db',
+    )!;
+    run.docker.staleHealth.set('db', {
+      status: 'unhealthy',
+      reads: Number.POSITIVE_INFINITY,
+    });
+    await expect(applyBundle(run, release)).rejects.toThrow(
+      'managed Compose startup',
+    );
+    run.docker.staleHealth.delete('db');
+    (db.State as { Health: { Status: string } }).Health.Status = 'healthy';
+    expect(
+      JSON.parse(readFileSync(runtimeReceiptPath(run), 'utf8')).phase,
+    ).toBe('pending');
+    expect(gatewayContainer(run).Config).toMatchObject({
+      Image: gatewayOf(run.bundle),
+    });
+    const pending = asPreCaptureReceipt(run);
+
+    const retry = await refusal(() => applyBundle(run, release));
+
+    expect(retry.message).toContain('nothing shows the store has run it');
+    run.docker.variantTag = null;
+    const keeping = join(run.fixture.directory, 'keeping-deployment');
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({
+        ...run.spec,
+        supersedesPendingBundle: JSON.parse(pending.toString()).bundleSha256,
+      }),
+    );
+    await prepareDeployment(
+      { ...run.preparation, output: keeping },
+      run.prepareDependencies,
+    );
+    writeFileSync(run.preparation.spec, JSON.stringify(run.spec));
+    await expect(applyBundle(run, keeping)).rejects.toThrow(
+      'A different runtime operation is pending',
+    );
+    expect(readFileSync(pendingPath(run))).toEqual(pending);
+  });
+
+  // The inventory boundary, in both lanes a retained pre-capture snapshot can
+  // be continued in: whatever Docker answers instead of a readable listing,
+  // the rollout is refused before any write and every receipt stays as it was.
+  const LANES = [
+    'a retry of the pending release',
+    'a superseding bundle',
+  ] as const;
+  /** A successful answer: `docker volume ls` printed `stdout`. */
+  const listed = (stdout: string) => ({
+    success: true,
+    exitCode: 0,
+    stdout,
+    stderr: '',
+  });
+  const UNREADABLE = [
+    [
+      'a JSON array of records',
+      () => listed('[{"Name":"tale_llm-gateway-data"}]'),
+      'Docker volume metadata is incomplete.',
+    ],
+    [
+      'a later record without a name',
+      (listing: string) => listed(`${listing}\n{"Driver":"local"}`),
+      'Docker volume metadata is incomplete.',
+    ],
+    [
+      'a later line that is not a record',
+      (listing: string) => listed(`${listing}\ntale_llm-gateway-data`),
+      'Docker returned invalid runtime metadata.',
+    ],
+    [
+      'a transport failure',
+      () => ({
+        success: false,
+        exitCode: 1,
+        stdout: '',
+        stderr: 'error during connect: unexpected EOF',
+      }),
+      'Docker refused the managed runtime operation.',
+    ],
+    [
+      'a permission failure',
+      () => ({
+        success: false,
+        exitCode: 1,
+        stdout: '',
+        stderr:
+          'permission denied while trying to connect to the Docker daemon socket',
+      }),
+      'Docker refused the managed runtime operation.',
+    ],
+    [
+      'a Docker call that throws',
+      () => {
+        throw new Error('spawn docker EACCES');
+      },
+      'Docker could not complete the managed runtime operation.',
+    ],
+  ] as const;
+  /** Volumes a plugin keeps, named as no local volume can be. */
+  const PLUGIN_VOLUMES = ['foreign/plugin-data', 'x'];
+  /** A pending pre-capture receipt for the next release, stopped at its pull,
+   * and the bundle the lane continues it with. */
+  async function pendingPreCapture(run: Run, lane: (typeof LANES)[number]) {
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    await stopAtPull(run, release);
+    const pending = asPreCaptureReceipt(run);
+    const bundle =
+      lane === 'a retry of the pending release'
+        ? release
+        : await nextRelease(run, 'superseding-deployment', {
+            runtime: {
+              ...run.spec.runtime,
+              containerPrefix: 'north-desk-prod',
+            },
+            supersedesPendingBundle: JSON.parse(pending.toString())
+              .bundleSha256,
+          });
+    return { bundle, pending };
+  }
+  const receipts = (run: Run) => ({
+    pending: readFileSync(pendingPath(run)),
+    runtime: readFileSync(runtimeReceiptPath(run)),
+    ready: readFileSync(run.receiptPath),
+  });
+  /** Whether Docker was asked to change the runtime. */
+  const changedRuntime = (run: Run) =>
+    run.docker.calls.some(
+      ({ args }) =>
+        ['pull', 'tag', 'restart'].includes(args[0]) ||
+        (args[0] === 'network' && args[1] === 'create') ||
+        args.includes('up'),
+    );
+
+  describe.each([...LANES])('at the volume inventory, for %s', (lane) => {
+    test.each(UNREADABLE)(
+      '%s refuses before any write, with every receipt byte-identical',
+      async (_name, answer, message) => {
+        const run = await create();
+        const { bundle } = await pendingPreCapture(run, lane);
+        const before = receipts(run);
+        run.docker.volumeListing = answer;
+        run.events.length = 0;
+        run.docker.calls = [];
+
+        await expect(applyBundle(run, bundle)).rejects.toThrow(message);
+
+        expect(run.events).toEqual([]);
+        expect(changedRuntime(run)).toBe(false);
+        expect(receipts(run)).toEqual(before);
+      },
+    );
+
+    test('a listing with plugin and foreign volumes and the gateway volume refuses at the gateway check', async () => {
+      const run = await create();
+      const { bundle } = await pendingPreCapture(run, lane);
+      run.docker.pluginVolumes.push(...PLUGIN_VOLUMES);
+      run.docker.volumes.push('other-project_llm-gateway-data', 'a'.repeat(64));
+      const before = receipts(run);
+      run.events.length = 0;
+      run.docker.calls = [];
+
+      const error = await refusal(() => applyBundle(run, bundle));
+
+      expect(error.message).toContain(
+        `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data`,
+      );
+      expect(run.events).toEqual([]);
+      expect(changedRuntime(run)).toBe(false);
+      expect(receipts(run)).toEqual(before);
+    });
+
+    test.each([
+      [
+        'plugin and foreign volumes',
+        (run: Run) => {
+          run.docker.pluginVolumes.push(...PLUGIN_VOLUMES);
+          run.docker.volumes.push('other-project_llm-gateway-data');
+        },
+      ],
+      [
+        'no volumes at all',
+        (run: Run) => {
+          run.docker.volumes = [];
+        },
+      ],
+    ])(
+      'a listing of %s without the gateway volume, its gateway gone, continues',
+      async (_name, arrange) => {
+        const run = await create();
+        const { bundle } = await pendingPreCapture(run, lane);
+        run.docker.containers = run.docker.containers.filter(
+          (container) => container !== gatewayContainer(run),
+        );
+        run.docker.volumes = run.docker.volumes.filter(
+          (volume) => volume !== 'tale_llm-gateway-data',
+        );
+        arrange(run);
+
+        expect(await applyBundle(run, bundle)).toMatchObject({
+          phase: 'ready',
+          snapshotId: PRE_CAPTURE_SNAPSHOT,
+        });
+      },
+    );
+  });
+
+  // A stopped container on the target image counts as the store having run it
+  // only by a start time in Moby's contract after the Unix epoch, fraction
+  // included.
+  test.each([
+    ['1', false],
+    ['not-a-timestamp', false],
+    ['2026-09-30T08:01:07.123456789Z', true],
+    ['1970-01-01T00:00:00.001Z', true],
+    ['1970-01-01T01:00:00.001+01:00', true],
+  ] as const)(
+    'a stopped release gateway whose start time reads %p: the store has run it: %p',
+    async (startedAt, ran) => {
+      const run = await create();
+      await run.apply();
+      const release = await nextRelease(run, 'release-deployment');
+      run.docker.upFailure = true;
+      await expect(applyBundle(run, release)).rejects.toThrow(
+        'could not complete',
+      );
+      run.docker.upFailure = false;
+      asPreCaptureReceipt(run);
+      Object.assign(gatewayContainer(run).State as object, {
+        Running: false,
+        StartedAt: startedAt,
+      });
+      const before = receipts(run);
+      run.events.length = 0;
+      run.docker.calls = [];
+
+      if (ran) {
+        const { result, warned } = await warnings(() =>
+          applyBundle(run, release),
+        );
+        expect(result).toMatchObject({ phase: 'ready' });
+        expect(warned).toContain(UNCOVERED);
+        return;
+      }
+      const error = await refusal(() => applyBundle(run, release));
+      expect(error.message).toContain('nothing shows the store has run it');
+      expect(run.events).toEqual([]);
+      expect(changedRuntime(run)).toBe(false);
+      expect(receipts(run)).toEqual(before);
+    },
+  );
+
+  // Nothing a refusal could protect is left: the interrupted rollout already
+  // started the new gateway on the store. It completes, and says so.
+  test('a release whose new gateway already started completes on its retained snapshot and says the snapshot leaves the gateway store out', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    run.docker.upFailure = true;
+    await expect(applyBundle(run, release)).rejects.toThrow(
+      'could not complete',
+    );
+    run.docker.upFailure = false;
+    asPreCaptureReceipt(run);
+    expect(gatewayContainer(run).Config).toMatchObject({
+      Image: gatewayOf(release),
+    });
+    expect(gatewayOf(release)).not.toBe(gatewayOf(run.bundle));
+    run.events.length = 0;
+
+    const { result, warned } = await warnings(() => applyBundle(run, release));
+
+    expect(result).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: true,
+      snapshotId: PRE_CAPTURE_SNAPSHOT,
+    });
+    expect(warned).toContain(UNCOVERED);
+  });
+
+  test('a retry after the release runtime became ready completes with the gateway container gone, since the store has run its image', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    run.nativeFailure(true);
+    await expect(applyBundle(run, release)).rejects.toThrow(
+      'did not complete provisioning',
+    );
+    run.nativeFailure(false);
+    asPreCaptureReceipt(run);
+    // Removed after the runtime became ready: only its receipt says the store
+    // has run the release gateway.
+    run.docker.containers = run.docker.containers.filter(
+      (container) => container !== gatewayContainer(run),
+    );
+    run.events.length = 0;
+
+    const { result, warned } = await warnings(() => applyBundle(run, release));
+
+    expect(result).toMatchObject({
+      phase: 'ready',
+      snapshotId: PRE_CAPTURE_SNAPSHOT,
+    });
+    expect(warned).toContain(UNCOVERED);
+  });
+
+  // A re-run of a ready bundle that changes nothing records no snapshot at
+  // all; the stack is still that ready state, so a takeover snapshots it first
+  // and keeps that snapshot with the pending deployment before it rolls out.
+  test('a pending receipt that recorded no snapshot takes one before a takeover changes the runtime, and keeps it through an interruption', async () => {
+    const run = await create();
+    await run.apply();
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    run.nativeFailure(false);
+    const pending = JSON.parse(readFileSync(pendingPath(run), 'utf8'));
+    expect(pending).not.toHaveProperty('snapshot');
+    const superseding = await nextRelease(run, 'superseding-deployment', {
+      supersedesPendingBundle: pending.bundleSha256,
+    });
+    run.events.length = 0;
+    await stopAtPull(run, superseding);
+    expect(run.events).toEqual(['snapshot', 'verify-snapshot']);
+    expect(JSON.parse(readFileSync(pendingPath(run), 'utf8'))).toMatchObject({
+      snapshot: { id: PRE_CAPTURE_SNAPSHOT },
+      supersededBundles: [pending.bundleSha256],
+    });
+    run.events.length = 0;
+
+    const result = await applyBundle(run, superseding);
+
+    expect(run.events.slice(0, 2)).toEqual(['verify-snapshot', 'up']);
+    expect(result).toMatchObject({
+      phase: 'ready',
+      snapshotId: PRE_CAPTURE_SNAPSHOT,
+      supersededBundles: [pending.bundleSha256],
+      runtimeChanged: true,
+    });
+  });
+
+  test('a same-bundle retry of such a receipt whose runtime drifted snapshots once and keeps that snapshot', async () => {
+    const run = await create();
+    await run.apply();
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    run.nativeFailure(false);
+    expect(
+      JSON.parse(readFileSync(pendingPath(run), 'utf8')),
+    ).not.toHaveProperty('snapshot');
+    // The proxy container is gone: the retry changes the runtime again.
+    run.docker.containers = run.docker.containers.filter(
+      (container) =>
+        (container.Config as { Labels: Record<string, string> }).Labels[
+          'com.docker.compose.service'
+        ] !== 'proxy',
+    );
+    run.events.length = 0;
+    await stopAtPull(run, run.bundle);
+    expect(run.events).toEqual(['snapshot', 'verify-snapshot']);
+    expect(JSON.parse(readFileSync(pendingPath(run), 'utf8'))).toMatchObject({
+      snapshot: { id: PRE_CAPTURE_SNAPSHOT },
+    });
+    run.events.length = 0;
+
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      snapshotId: PRE_CAPTURE_SNAPSHOT,
+    });
+    expect(run.events).toEqual([
+      'verify-snapshot',
+      'up',
+      'provision',
+      'cleanup',
+    ]);
+  });
+
+  /** A pending receipt as an older CLI's snapshot-less takeover left it:
+   * another bundle, the superseded one listed, and still no snapshot. */
+  async function olderTakeoverReceipt(run: Run) {
+    await run.apply();
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    run.nativeFailure(false);
+    const intent = JSON.parse(readFileSync(pendingPath(run), 'utf8'));
+    intent.supersededBundles = [intent.bundleSha256];
+    intent.bundleSha256 = 'f'.repeat(64);
+    writeFileSync(pendingPath(run), `${JSON.stringify(intent, null, 2)}\n`);
+    return readFileSync(pendingPath(run));
+  }
+
+  // One an older CLI took over without a snapshot may carry a partial rollout.
+  test('a pending receipt taken over before without a snapshot refuses a release onto a gateway image the store has not run', async () => {
+    const run = await create();
+    const pending = await olderTakeoverReceipt(run);
+    const superseding = await nextRelease(run, 'superseding-deployment', {
+      supersedesPendingBundle: 'f'.repeat(64),
+    });
+    run.events.length = 0;
+    run.docker.calls = [];
+
+    const error = await refusal(() => applyBundle(run, superseding));
+
+    expect(error.message).toBe(
+      `The pending deployment recorded no recovery snapshot, and this rollout would start gateway image ${gatewayOf(superseding)} on tale_llm-gateway-data, and nothing shows the store has run it (its gateway container runs ${gatewayOf(run.bundle)}); a newer gateway migrates that store forward-only.`,
+    );
+    expect(error.info.next).toBe(
+      `Nothing was changed and the pending receipt is kept: its earlier takeover may already have changed the stack, so a snapshot taken now cannot stand in for the missing one. ${ONWARD} That takeover has no recovery point either.`,
+    );
+    expect(run.events).toEqual([]);
+    expect(run.docker.calls.some(({ args }) => args.includes('up'))).toBe(
+      false,
+    );
+    expect(readFileSync(pendingPath(run))).toEqual(pending);
+  });
+
+  test('a takeover of such a receipt that keeps the gateway image proceeds, and says it has no recovery point', async () => {
+    const run = await create();
+    await olderTakeoverReceipt(run);
+    const keeping = join(run.fixture.directory, 'keeping-deployment');
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({
+        ...run.spec,
+        runtime: { ...run.spec.runtime, containerPrefix: 'north-desk-prod' },
+        supersedesPendingBundle: 'f'.repeat(64),
+      }),
+    );
+    await prepareDeployment(
+      { ...run.preparation, output: keeping },
+      run.prepareDependencies,
+    );
+    writeFileSync(run.preparation.spec, JSON.stringify(run.spec));
+    expect(gatewayOf(keeping)).toBe(gatewayOf(run.bundle));
+    const notices: string[] = [];
+    const notice = spyOn(logger, 'notice').mockImplementation((message) => {
+      notices.push(message);
+    });
+    let outcome: Awaited<ReturnType<typeof warnings>>;
+    try {
+      outcome = await warnings(() => applyBundle(run, keeping));
+    } finally {
+      notice.mockRestore();
+    }
+
+    expect(outcome.result).toMatchObject({ phase: 'ready' });
+    expect(
+      (outcome.result as { snapshotId?: string }).snapshotId,
+    ).toBeUndefined();
+    expect(outcome.warned).toContain(NO_RECOVERY_POINT);
+    expect(notices).toContain(
+      `Superseding the pending deployment bundle ${'f'.repeat(64)}; it recorded no recovery snapshot.`,
+    );
+    expect(notices.some((line) => line.includes('is kept'))).toBe(false);
+  });
+
+  // The snapshot helper captures the volume whenever `docker volume inspect`
+  // finds it; the runtime's own volume listing is checked again here.
+  test('a new snapshot that leaves out a present gateway volume is refused before any pending receipt or rollout', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    run.snapshotWithoutGateway(true);
+    run.events.length = 0;
+    run.docker.calls = [];
+
+    const error = await refusal(() => applyBundle(run, release));
+
+    expect(error.message).toContain(
+      `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data`,
+    );
+    expect(error.info.next).toBe(
+      'The runtime was not touched and no pending deployment was recorded; retry to take the snapshot again.',
+    );
+    expect(run.events).toEqual(['snapshot']);
+    expect(existsSync(pendingPath(run))).toBe(false);
+    expect(run.docker.calls.some(({ args }) => args.includes('up'))).toBe(
+      false,
+    );
+    run.snapshotWithoutGateway(false);
+    run.events.length = 0;
+    expect(await applyBundle(run, release)).toMatchObject({ phase: 'ready' });
+    expect(run.events).toEqual([
+      'snapshot',
+      'verify-snapshot',
+      'up',
+      'provision',
+      'cleanup',
+    ]);
+  });
+
+  test('a deployment whose gateway and its volume are gone keeps its retained snapshot and continues', async () => {
+    const run = await create();
+    await run.apply();
+    const release = await nextRelease(run, 'release-deployment');
+    await stopAtPull(run, release);
+    asPreCaptureReceipt(run);
+    run.docker.containers = run.docker.containers.filter(
+      (container) => container !== gatewayContainer(run),
+    );
+    run.docker.volumes = run.docker.volumes.filter(
+      (volume) => volume !== 'tale_llm-gateway-data',
+    );
+    run.events.length = 0;
+
+    expect(await applyBundle(run, release)).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: true,
+      snapshotId: PRE_CAPTURE_SNAPSHOT,
+    });
+    expect(run.events).toEqual([
+      'verify-snapshot',
+      'up',
+      'provision',
+      'cleanup',
+    ]);
+  });
+
+  // A fresh installation records no recovery snapshot: there was nothing to
+  // protect, and its own gateway volume is the one the rollout created.
+  test('a fresh installation retries its rollout as before', async () => {
+    const run = await create();
+    run.docker.upFailure = true;
+    await expect(run.apply()).rejects.toThrow('could not complete');
+    expect(
+      JSON.parse(readFileSync(pendingPath(run), 'utf8')),
+    ).not.toHaveProperty('snapshot');
+    expect(run.docker.volumes).toContain('tale_llm-gateway-data');
+    // Compose made the volumes and died before the gateway ran.
+    Object.assign(gatewayContainer(run).State as object, {
+      Running: false,
+      StartedAt: '0001-01-01T00:00:00Z',
+    });
+    run.docker.upFailure = false;
+
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      runtimeChanged: true,
+    });
+  });
+});
+
 describePosix('complete managed deployment lifecycle', () => {
   test('passes explicit provider env references and preserves verified generic native platform configuration', async () => {
     const run = await create();

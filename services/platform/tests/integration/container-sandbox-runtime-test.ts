@@ -425,6 +425,87 @@ print("GEMINI_WRAPPER_FLAGS_OK")
     `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
   );
 }
+// The pinned gemini-cli requests the model id it was given. 0.49.0 rewrites
+// any --model ending in "flash" to its own gemini-3.5-flash on API-key auth
+// (config/models.ts resolveModel → isFlashModel = endsWith('flash')), which
+// sent a managed `…/deepseek-flash` to the gateway as a bare gemini-3.5-flash
+// (2026-09-30). The harness YAML turns on dynamic model configuration, whose
+// resolveModelId passes an unknown id through. Drive the real wrapper with
+// those settings against a loopback stand-in for the gateway and read the
+// request path — no key, no network. The stand-in answers 400 (not retried)
+// so the CLI stops after its first call. The control run without the
+// setting proves the rewrite is still there: a CLI bump that drops it turns
+// this red on purpose — remove the fragment from harness.yml with the bump.
+{
+  const modelIdCheck = `
+import http.server, json, os, subprocess, threading
+
+seen = []
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        seen.append(self.path)
+        self.rfile.read(int(self.headers.get("content-length") or 0))
+        body = json.dumps(
+            {"error": {"code": 400, "message": "probe", "status": "INVALID_ARGUMENT"}}
+        ).encode()
+        self.send_response(400)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+env = dict(
+    os.environ,
+    GOOGLE_GEMINI_BASE_URL=f"http://127.0.0.1:{server.server_address[1]}",
+    GEMINI_API_KEY="probe-key",
+)
+MODEL = "probe-provider/probe-model-flash"
+
+
+def request_path(settings):
+    del seen[:]
+    payload = json.dumps({"prompt": "probe", "settings": settings})
+    subprocess.run(
+        ["tale-gemini-run", "--workdir", os.environ["HOME"], "--model", MODEL],
+        input=payload.encode(),
+        env=env,
+        capture_output=True,
+        timeout=120,
+    )
+    assert len(seen) == 1, f"expected one model call, saw {seen}"
+    return seen[0].split(":", 1)[0]
+
+
+base = {
+    "security": {"auth": {"selectedType": "gemini-api-key"}},
+    "privacy": {"usageStatisticsEnabled": False},
+    "model": {"maxSessionTurns": 1},
+}
+kept = request_path({**base, "experimental": {"dynamicModelConfiguration": True}})
+assert kept == f"/v1beta/models/{MODEL}", f"model id rewritten to {kept}"
+rewritten = request_path(base)
+assert rewritten != f"/v1beta/models/{MODEL}", (
+    "the pinned CLI no longer rewrites a flash-suffixed id: drop the "
+    "experimental.dynamicModelConfiguration fragment from harness.yml"
+)
+
+print("GEMINI_MODEL_ID_KEPT")
+`;
+  await assertContains(
+    'pinned gemini-cli keeps a flash-suffixed --model with the harness settings',
+    10001,
+    'GEMINI_MODEL_ID_KEPT',
+    `python3 - <<'PYEOF'\n${modelIdCheck}\nPYEOF`,
+  );
+}
 await assertOk('pi --version runs', 10001, 'pi --version');
 // Same wrapper/CLI drift guard for tale-pi-run: every long flag the wrapper
 // passes on the `pi` command line must exist in the pinned CLI's --help.
