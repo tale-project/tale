@@ -150,9 +150,11 @@ isolated test tree. Blob-backed probes also need a fresh S3-compatible service
 through `ITEST_S3_ENDPOINT`; its test credentials default to `minioadmin` and can
 be overridden by `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`. Without that
 endpoint the affected probes report skips, so do not describe the result as full
-storage coverage. The transcription and video-link probes run the real `ffmpeg`
-and `ffprobe` from `PATH`; `VIDEO_INGEST_FFMPEG_LOCATION` points the video probe
-at another `ffmpeg`.
+storage coverage. The transcription probe runs the real `ffmpeg` and `ffprobe`
+from `PATH`. The video-link probe does not look at `PATH`: it hands yt-dlp an
+explicit `--ffmpeg-location`, which is `VIDEO_INGEST_FFMPEG_LOCATION` or else
+`/usr/bin/ffmpeg`. Set it whenever ffmpeg lives elsewhere, for example
+`VIDEO_INGEST_FFMPEG_LOCATION="$(command -v ffmpeg)"` on Homebrew.
 
 `ITEST_REQUIRE_ALL_LANES=1` asks for full coverage. The harness then refuses to
 start with a lane filter or without all three `ITEST_S3_*` variables, and a check
