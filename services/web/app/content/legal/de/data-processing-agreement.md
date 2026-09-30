@@ -96,7 +96,7 @@ Die Abschnitte 5.1 und 5.2 können nur durch eine **gesonderte, beidseitig schri
 
 ### 6.1 Allgemeine Genehmigung
 
-Der Kunde erteilt Tale eine allgemeine schriftliche Genehmigung zum Einsatz von Unterauftragsverarbeitern. Die aktuelle Liste steht in **Anhang A** und wird unter [/de/legal/subprocessors](/de/legal/subprocessors) gespiegelt.
+Der Kunde erteilt Tale eine allgemeine schriftliche Genehmigung zum Einsatz von Unterauftragsverarbeitern. Die aktuelle Liste steht in **Anhang A** und wird unter [docs.tale.dev/de/legal/subprocessors](https://docs.tale.dev/de/legal/subprocessors) gespiegelt.
 
 ### 6.2 Benachrichtigung bei Änderungen
 

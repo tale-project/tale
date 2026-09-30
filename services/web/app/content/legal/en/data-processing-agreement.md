@@ -96,7 +96,7 @@ Sections 5.1 and 5.2 may only be varied by a separate written agreement signed b
 
 ### 6.1 General authorization
 
-The Customer grants Tale a general written authorization to engage Sub-processors to process Personal Data. The current list of Sub-processors is set out in **Appendix A** and mirrored at [/legal/subprocessors](/legal/subprocessors).
+The Customer grants Tale a general written authorization to engage Sub-processors to process Personal Data. The current list of Sub-processors is set out in **Appendix A** and mirrored at [docs.tale.dev/legal/subprocessors](https://docs.tale.dev/legal/subprocessors).
 
 ### 6.2 Notification of changes
 

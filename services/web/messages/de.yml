@@ -1428,7 +1428,7 @@ platformChat:
     - label: Arena-Modus
       path: /platform/chat/arena-mode
     - label: Agents im Chat
-      path: /platform/chat/agents-in-chat
+      path: /platform/agents/concepts
     - label: Anhänge
       path: /platform/chat/attachments
   tour:
