@@ -150,11 +150,26 @@ isolated test tree. Blob-backed probes also need a fresh S3-compatible service
 through `ITEST_S3_ENDPOINT`; its test credentials default to `minioadmin` and can
 be overridden by `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`. Without that
 endpoint the affected probes report skips, so do not describe the result as full
-storage coverage. Supply a working `VIDEO_INGEST_FFMPEG_LOCATION` when the host's
-ffmpeg is not at the path expected by the probe.
+storage coverage. The transcription probe runs the real `ffmpeg` and `ffprobe`
+from `PATH`. The video-link probe does not look at `PATH`: it hands yt-dlp an
+explicit `--ffmpeg-location`, which is `VIDEO_INGEST_FFMPEG_LOCATION` or else
+`/usr/bin/ffmpeg`. Set it whenever ffmpeg lives elsewhere, for example
+`VIDEO_INGEST_FFMPEG_LOCATION="$(command -v ffmpeg)"` on Homebrew.
+
+`ITEST_REQUIRE_ALL_LANES=1` asks for full coverage. The harness then refuses to
+start with a lane filter or without all three `ITEST_S3_*` variables, and a check
+that cannot run fails instead of reporting a skip. Every skip goes through
+`recordSkip` in [`integration-lane-helpers.ts`](integration-lane-helpers.ts), and
+lanes read the harness's own variables only through that module
+(`tests/guards/integration-skips.guard.test.ts`). Without the flag a skip is a pass
+whose name ends in `(SKIPPED)`, and the tally counts those apart.
 
 Use the [database image's readiness check](../../db/README.md) before starting the
 suite. A bootstrap PostgreSQL process can accept a connection before initialization
 finishes. `integration-check.ts` registers the proof lanes; a thrown lane or lost
 shared session truncates the run as a failure. Identity-destructive probes must
-create their own throwaway account instead of invalidating the shared one.
+create their own throwaway account instead of invalidating the shared one. A lane
+must also leave the shared user's organization memberships as it found them, or
+it fails: every later `/api/v1` call on that user's keys would answer
+`ORG_SLUG_REQUIRED`. A probe that needs another organization gives it an owner of
+its own.

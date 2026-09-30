@@ -55,7 +55,6 @@ function pauseFirstHandover(sql: Sql, pause: () => Promise<void>): Sql {
 
 export async function checkErasureReviewHandoverRaces(
   sql: Sql,
-  ctx: { userId: string },
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
   for (const rival of ['designation', 'decision'] as const) {
@@ -64,12 +63,16 @@ export async function checkErasureReviewHandoverRaces(
     const taskId = randomUUID();
     const approvalId = randomUUID();
     const requestId = randomUUID();
+    // The race's own owner, never the suite's shared user: an organization
+    // the shared user stays a member of makes every later /api/v1 call on
+    // that user's keys answer ORG_SLUG_REQUIRED.
+    const owner = `erasure-race-owner-${orgId}`;
     const subject = `erasure-race-subject-${orgId}`;
     const reviewer = `erasure-race-reviewer-${orgId}`;
     const now = Date.now();
     const auth = {
       organizationId: orgId,
-      userId: ctx.userId,
+      userId: owner,
       role: 'owner',
       teamIds: [] as string[],
     };
@@ -77,13 +80,13 @@ export async function checkErasureReviewHandoverRaces(
       INSERT INTO "organization" ("id", "name", "slug", "createdAt")
       VALUES (${orgId}, 'Erasure handover race', ${`itest-erasure-race-${orgId}`}, now())
     `;
-    for (const id of [subject, reviewer]) {
+    for (const id of [owner, subject, reviewer]) {
       await sql`
         INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt", "updatedAt")
         VALUES (${id}, 'Erasure race member', ${`${id}@example.com`}, true, now(), now())
       `;
     }
-    for (const id of [ctx.userId, subject, reviewer]) {
+    for (const id of [owner, subject, reviewer]) {
       await sql`
         INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
         VALUES (${randomUUID()}, ${orgId}, ${id}, 'owner', now())
@@ -91,7 +94,7 @@ export async function checkErasureReviewHandoverRaces(
     }
     await sql`
       INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
-      VALUES (${projectId}, ${orgId}, 'Handover race', ${ctx.userId}, ${now}, ${now})
+      VALUES (${projectId}, ${orgId}, 'Handover race', ${owner}, ${now}, ${now})
     `;
     // The pending recipient need not be the explicit designation (a creator
     // can be selected by the fallback chain). With no matching designation
@@ -100,7 +103,7 @@ export async function checkErasureReviewHandoverRaces(
       INSERT INTO app.tasks (id, org_id, project_id, title, status, rank,
         created_by, created_by_type, created_at_ms, updated_at_ms)
       VALUES (${taskId}, ${orgId}, ${projectId}, 'Waiting for review', 'in_review',
-        'a0', ${ctx.userId}, 'user', ${now}, ${now})
+        'a0', ${owner}, 'user', ${now}, ${now})
     `;
     await sql`
       INSERT INTO app.approvals (id, org_id, resource_type, resource_id, status,
@@ -114,7 +117,7 @@ export async function checkErasureReviewHandoverRaces(
       INSERT INTO app.gdpr_erasure_requests (id, org_id, target_user_id, reason,
         reason_code, requested_by, requested_at_ms, sla_deadline_at_ms, status)
       VALUES (${requestId}, ${orgId}, ${subject}, 'Concurrency regression',
-        'consent_withdrawn', ${ctx.userId}, ${now}, ${now + 86_400_000}, 'pending')
+        'consent_withdrawn', ${owner}, ${now}, ${now + 86_400_000}, 'pending')
     `;
 
     const reached = signal();
@@ -167,7 +170,7 @@ export async function checkErasureReviewHandoverRaces(
     const [staleBells] = await sql<{ count: number }[]>`
       SELECT count(*)::int AS count FROM app.user_notifications
       WHERE org_id = ${orgId} AND resource_id = ${approvalId}
-        AND type = 'task_review_requested' AND user_id = ${ctx.userId}
+        AND type = 'task_review_requested' AND user_id = ${owner}
     `;
     const [receipt] = await sql<{ status: string }[]>`
       SELECT status FROM app.gdpr_erasure_requests WHERE id = ${requestId}
@@ -181,7 +184,7 @@ export async function checkErasureReviewHandoverRaces(
     record(
       `erasure handover preserves a concurrently committed ${rival}`,
       routingPreserved && staleBells?.count === 0 && receipt?.status === 'done',
-      `task=${task?.status}/${task?.reviewer === reviewer ? 'new-reviewer' : String(task?.reviewer)}, review=${approval?.status}/${approval?.recipient === reviewer ? 'new-reviewer' : approval?.recipient === ctx.userId ? 'creator' : String(approval?.recipient)}, stale requests=${staleBells?.count} (want 0), receipt=${receipt?.status} (want done)`,
+      `task=${task?.status}/${task?.reviewer === reviewer ? 'new-reviewer' : String(task?.reviewer)}, review=${approval?.status}/${approval?.recipient === reviewer ? 'new-reviewer' : approval?.recipient === owner ? 'creator' : String(approval?.recipient)}, stale requests=${staleBells?.count} (want 0), receipt=${receipt?.status} (want done)`,
     );
   }
 }

@@ -15,6 +15,11 @@ import { createApp } from '../../app.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { writeSkillBundleFiles } from '../../core/skills/file_utils.ts';
 import { resolvePostgresConnection } from '../../db/ssl.ts';
+import {
+  itestObjectStore,
+  type RecordCheck,
+  recordSkip,
+} from '../../integration-lane-helpers.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { ensureDefaultObjectStore } from '../object_storage/bootstrap.ts';
 import {
@@ -44,13 +49,14 @@ export async function checkSkillUploadAudience(
   orgSlug: string,
   auth: Auth,
   signUpMember: (label: string, role: string) => Promise<Actor>,
-  record: (name: string, ok: boolean, detail: string) => void,
+  record: RecordCheck,
 ): Promise<void> {
   const suffix = randomUUID().slice(0, 8);
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'skill upload audience (SKIPPED)',
-      true,
+  const store = itestObjectStore();
+  if (!store) {
+    recordSkip(
+      record,
+      'skill upload audience',
       'no ITEST_S3_ENDPOINT — staged ZIP lanes not exercised',
     );
     return;
@@ -61,10 +67,10 @@ export async function checkSkillUploadAudience(
     await resolveObjectStore(orgSlug);
   } catch {
     await ensureDefaultObjectStore(sql, {
-      OBJECT_STORE_ENDPOINT: process.env.ITEST_S3_ENDPOINT,
+      OBJECT_STORE_ENDPOINT: store.endpoint,
       OBJECT_STORE_BUCKET: `itest-skill-upload-${suffix}`,
-      OBJECT_STORE_ACCESS_KEY: process.env.ITEST_S3_ACCESS_KEY,
-      OBJECT_STORE_SECRET_KEY: process.env.ITEST_S3_SECRET_KEY,
+      OBJECT_STORE_ACCESS_KEY: store.accessKeyId,
+      OBJECT_STORE_SECRET_KEY: store.secretAccessKey,
     });
   }
   const slug = (name: string) => `itest-aud-${suffix}-${name}`;
