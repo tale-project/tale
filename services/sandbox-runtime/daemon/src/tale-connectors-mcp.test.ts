@@ -220,7 +220,7 @@ describe('workspace_status through the bridge', () => {
       .find((tool) => tool.name === 'workspace_status');
     expect(status?.description).toContain('platform.version');
     expect(status?.description).toContain(
-      'it does not show that the deployment is healthy',
+      'not proof of what is deployed or of its health',
     );
   });
 });

@@ -10,7 +10,8 @@
  * cap decide up front and the stream has to be re-wrapped.
  *
  * The status door answers only from the server's side: the token row's
- * grants and this process's own build, never anything the request says.
+ * grants and this process's own build stamp, never anything else the request
+ * says.
  */
 
 import type { Sql } from 'postgres';
@@ -191,11 +192,11 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
 
 describe('POST /api/tools/status — the serving platform version', () => {
   const SHA = 'ebf4546fb1455a236c1046f3d73ef78c2e1d0109';
-  const NO_BUILD = 'This backend reports no build version.';
+  const NO_BUILD = "This backend's build carries no version label.";
   const DEV_BUILD =
-    'This backend runs a development build, not a published release.';
+    "This backend's build is labelled as a development build, not with a release version.";
   const NOT_A_RELEASE =
-    'This backend runs a build that is not labelled as a published release.';
+    "This backend's build is not labelled with a release version.";
 
   function postStatus(
     init: {
@@ -287,7 +288,10 @@ describe('POST /api/tools/status — the serving platform version', () => {
 
   it('reports its own build and grants, whatever the request claims', async () => {
     const baseline = await (await postStatus()).json();
-    expect(baseline).toMatchObject({ platform: { version: '0.5.64' } });
+    expect(baseline).toEqual({
+      ...listGrantedTools(['document_find']),
+      platform: { version: '0.5.64' },
+    });
 
     const forged = await postStatus({
       path: '/status?version=9.9.9&platform=9.9.9',
@@ -320,7 +324,8 @@ describe('POST /api/tools/status — the serving platform version', () => {
     ['0.6.0-rc.1', '0.6.0-rc.1'],
   ])('reads the release label %j as %s', async (label, version) => {
     vi.stubEnv('TALE_VERSION', label);
-    expect(await (await postStatus()).json()).toMatchObject({
+    expect(await (await postStatus()).json()).toEqual({
+      ...listGrantedTools(['document_find']),
       platform: { version },
     });
   });

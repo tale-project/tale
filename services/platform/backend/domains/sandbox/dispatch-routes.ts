@@ -31,7 +31,8 @@ import { sandboxToolShimHandlers } from './shim.ts';
  * another thread, user or run. The body itself is capped before it is read (the 413 is the
  * one other non-2xx; see door-body-limit.ts). The dispatch itself is the
  * REUSED bridge running on the ctx shim. `/status` lists the token's grants
- * and the release this backend serves (`platform`, see serving-platform.ts).
+ * and the release version this backend's build is labelled with (`platform`,
+ * see serving-platform.ts).
  */
 
 const BEARER_PREFIX = 'Bearer ';
@@ -147,7 +148,8 @@ export function createToolDispatchRoutes(deps: { sql: Sql }): Hono {
       return c.json({ status: 'error', message: 'Unauthorized.' }, 401);
     }
     // Both halves are the server's own — the grants from the token row, the
-    // version from this process's build. The request is never read.
+    // version from this process's build stamp. Nothing but the bearer token
+    // is read from the request.
     return c.json({
       ...workspaceToolStatusImpl(auth.toolGrants),
       platform: servingPlatform(),
