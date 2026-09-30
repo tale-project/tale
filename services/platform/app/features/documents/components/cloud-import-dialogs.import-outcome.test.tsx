@@ -21,7 +21,14 @@ import {
   SHIPPED_LOCALES,
   type ShippedLocale,
 } from '@/tests/utils/lapsed-session';
-import { cleanup, render, screen, waitFor, within } from '@/tests/utils/render';
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import { DocumentsActionMenu } from './documents-action-menu';
 
@@ -243,6 +250,215 @@ async function importFolder(
     }),
   );
 }
+
+/** Dismissing a pending picker leaves the request running in the background. */
+async function dismissImport(user: UserEvent, source: Source) {
+  await user.keyboard('{Escape}');
+  await waitFor(() =>
+    expect(
+      screen.queryByText(documents(`${source.ns}.importStarted`)),
+    ).toBeNull(),
+  );
+  await user.keyboard('{Escape}');
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+}
+
+async function openSelectedPicker(user: UserEvent, source: Source) {
+  await user.click(
+    screen.getByRole('button', { name: documents('upload.importDocuments') }),
+  );
+  await user.click(
+    await screen.findByRole('menuitem', { name: documents(source.menuItem) }),
+  );
+  await source.browse(user);
+  await user.click(
+    await screen.findByRole('checkbox', {
+      name: documents('aria.selectFolder', { name: FOLDER.name }),
+    }),
+  );
+  expect(
+    screen.getByRole('checkbox', {
+      name: documents('aria.selectFolder', { name: FOLDER.name }),
+    }),
+  ).toBeChecked();
+}
+
+async function pendingImport(source: Source, locale: ShippedLocale = 'en') {
+  listingsAnswer();
+  let answer!: (value: unknown) => void;
+  const pending = new Promise((resolve) => {
+    answer = resolve;
+  });
+  const importing = vi
+    .spyOn(WRITE_ADAPTERS[source.importer], 'run')
+    .mockImplementation(async () => pending);
+  const view = await renderMenu(locale);
+  await importFolder(view.user, source);
+  await waitFor(() => expect(importing).toHaveBeenCalledTimes(1));
+  return {
+    ...view,
+    settle: async (result: unknown) => {
+      await act(async () => {
+        answer(result);
+        await pending;
+      });
+    },
+  };
+}
+
+const interruptedAnswer = (source: Source) => ({
+  success: false,
+  results: [imported(FILES[0].name, 0)],
+  totalFiles: 4,
+  successCount: 1,
+  skippedCount: 0,
+  error: source.lapse,
+});
+
+describe.each(SOURCES)(
+  'the $source import after its picker is dismissed',
+  (source) => {
+    it.each(SHIPPED_LOCALES)(
+      'preserves a replacement selection and reports a lapsed grant once (%s)',
+      async (locale) => {
+        const { user, settle } = await pendingImport(source, locale);
+        await dismissImport(user, source);
+        await openSelectedPicker(user, source);
+        await settle(interruptedAnswer(source));
+        expect(
+          screen.queryByRole('dialog', {
+            name: documents(`${source.ns}.reconnect`),
+          }),
+        ).toBeNull();
+        expect(
+          screen.getByRole('checkbox', {
+            name: documents('aria.selectFolder', { name: FOLDER.name }),
+          }),
+        ).toBeChecked();
+        expect(shownToasts()).toHaveLength(2);
+        expect(shownToasts()[1]).toEqual({
+          title: documents(`${source.ns}.reconnect`),
+          description: documents('cloudImport.importInterrupted', {
+            provider: source.provider,
+            imported: 1,
+            total: 4,
+          }),
+          variant: 'warning',
+        });
+      },
+    );
+
+    it.each(['completed', 'partial', 'failed'] as const)(
+      'reports a %s background result once without closing the replacement',
+      async (kind) => {
+        const { user, settle } = await pendingImport(source);
+        await dismissImport(user, source);
+        await openSelectedPicker(user, source);
+        await settle({
+          success: kind === 'completed',
+          results:
+            kind === 'completed'
+              ? FILES.map((file, index) => imported(file.name, index))
+              : FILES.map((file, index) =>
+                  kind === 'partial' && index === 0
+                    ? imported(file.name, index)
+                    : { fileName: file.name, status: 'error' },
+                ),
+          totalFiles: 4,
+          successCount: kind === 'completed' ? 4 : kind === 'partial' ? 1 : 0,
+          skippedCount: 0,
+        });
+        expect(
+          screen.getByRole('checkbox', {
+            name: documents('aria.selectFolder', { name: FOLDER.name }),
+          }),
+        ).toBeChecked();
+        expect(shownToasts()).toHaveLength(2);
+        expect(shownToasts()[1]?.variant).toBe(
+          kind === 'completed'
+            ? 'success'
+            : kind === 'partial'
+              ? 'warning'
+              : 'destructive',
+        );
+      },
+    );
+
+    it('leaves the other provider picker open when the old grant answer arrives', async () => {
+      const { user, settle } = await pendingImport(source);
+      await dismissImport(user, source);
+      const next = source.ns === 'googledrive' ? SOURCES[0] : SOURCES[2];
+      await openSelectedPicker(user, next);
+      await settle(interruptedAnswer(source));
+      expect(
+        screen.queryByRole('dialog', {
+          name: documents(`${source.ns}.reconnect`),
+        }),
+      ).toBeNull();
+      expect(
+        screen.getByRole('checkbox', {
+          name: documents('aria.selectFolder', { name: FOLDER.name }),
+        }),
+      ).toBeChecked();
+      expect(shownToasts()).toHaveLength(2);
+    });
+
+    it('reports a lapsed grant once after dismissal without reopening a dialog', async () => {
+      const { user, settle } = await pendingImport(source);
+      await dismissImport(user, source);
+      await settle(interruptedAnswer(source));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(shownToasts()).toHaveLength(2);
+      expect(shownToasts()[1]?.title).toBe(documents(`${source.ns}.reconnect`));
+    });
+
+    it('reports a late folder-walk refusal once and leaves the replacement selected', async () => {
+      let answer!: (value: unknown) => void;
+      const pending = new Promise((resolve) => {
+        answer = resolve;
+      });
+      const listings = listingsAnswer(async () => pending);
+      const importing = importAnswers(source.importer, {});
+      const { user } = await renderMenu();
+      await importFolder(user, source);
+      await waitFor(() =>
+        expect(listings.get(source.walk)).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: FOLDER.id }),
+          expect.any(Object),
+        ),
+      );
+      // The walk precedes the started notice, so one Escape dismisses the picker.
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await openSelectedPicker(user, source);
+      await act(async () => {
+        answer({ success: false, error: source.lapse });
+        await pending;
+      });
+      expect(
+        screen.getByRole('checkbox', {
+          name: documents('aria.selectFolder', { name: FOLDER.name }),
+        }),
+      ).toBeChecked();
+      expect(
+        screen.queryByRole('dialog', {
+          name: documents(`${source.ns}.reconnect`),
+        }),
+      ).toBeNull();
+      expect(importing).not.toHaveBeenCalled();
+      expect(shownToasts()).toEqual([
+        {
+          title: documents(`${source.ns}.reconnect`),
+          description: documents('cloudImport.importInterrupted', {
+            provider: source.provider,
+            imported: 0,
+          }),
+          variant: 'destructive',
+        },
+      ]);
+    });
+  },
+);
 
 function shownToasts() {
   return vi.mocked(toast).mock.calls.map(([shown]) => ({
