@@ -1357,11 +1357,70 @@ describe('the Backend integration check', () => {
     expect(run?.env?.ITEST_S3_ENDPOINT).toBeTruthy();
     expect(job?.env?.ITEST_S3_ACCESS_KEY).toBeTruthy();
     expect(job?.env?.ITEST_S3_SECRET_KEY).toBeTruthy();
-    expect(
-      steps.find((step) => step.uses?.startsWith('docker/build-push-action@'))
-        ?.with,
-    ).toMatchObject({ file: 'services/db/Dockerfile', push: false });
+    const build = steps.find((step) =>
+      step.uses?.startsWith('docker/build-push-action@'),
+    )?.with;
+    expect(build).toMatchObject({
+      file: 'services/db/Dockerfile',
+      push: false,
+    });
+    // The containers it starts are the image it built and the pinned store,
+    // not a registry tag that happens to share the name.
+    const start = steps.find(
+      (step) => step.name === 'Start tale-db and the object store',
+    );
+    // Each `docker run`, its continuation lines joined, as its words.
+    const dockerRun = (name: string) =>
+      (start?.run ?? '')
+        .replaceAll('\\\n', ' ')
+        .split('\n')
+        .find((line) => line.includes(`docker run -d --name ${name} `))
+        ?.trim()
+        .split(/\s+/);
+    // The image is the first word after the options: the last one for the
+    // database, the one before its `server` command for the store.
+    expect(dockerRun('tale-itest-db')?.at(-1)).toBe(String(build?.tags));
+    const store = dockerRun('tale-itest-object-store') ?? [];
+    expect(store[store.indexOf('server') - 1]).toBe('"$OBJECT_STORE_IMAGE"');
+    expect(start?.env?.OBJECT_STORE_IMAGE).toBe(
+      '${{ steps.object-store.outputs.image }}',
+    );
     expect(job?.['timeout-minutes']).toBeGreaterThan(0);
     expect(job?.if).toContain("needs.integration-scope.outputs.run == 'true'");
+  });
+
+  test.skipIf(process.platform === 'win32')(
+    'fails, never reads skipped, when the scope job did not decide',
+    async () => {
+      const job = (await checks()).jobs['backend-integration'];
+      expect(job?.if).toContain('!cancelled()');
+      expect(job?.if).toContain("needs.integration-scope.result != 'success'");
+      const [first] = job?.steps ?? [];
+      expect(first?.if).toBe("needs.integration-scope.result != 'success'");
+      const result = await execute(first?.run, { SCOPE: 'failure' });
+      expect(result.code).toBe(1);
+      expect(result.stdout).toContain('Integration scope ended failure');
+    },
+  );
+
+  test('owes the proof to a pull request that touches the backend, the database image or the pin', async () => {
+    const filter = (await checks()).jobs['integration-scope']?.steps.find(
+      (step) => step.id === 'filter',
+    );
+    const { integration } = parse(String(filter?.with?.filters)) as {
+      integration: string[];
+    };
+    // The whole list is held to the harness's module graph by the platform's
+    // tests/guards/integration-scope.guard.test.ts; these are the entries no
+    // import names.
+    expect(integration).toEqual(
+      expect.arrayContaining([
+        'services/platform/backend/**',
+        'services/db/**',
+        'tools/cli/src/lib/compose/types.ts',
+        'services/platform/Dockerfile',
+        '.github/workflows/checks.yml',
+      ]),
+    );
   });
 });

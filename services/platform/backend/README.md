@@ -144,7 +144,12 @@ dependencies or the workflow. It builds `tale-db` from the commit's own
 `services/db`, starts the object store the CLI pins
 (`THIRD_PARTY_IMAGES['object-store']`) and runs the suite on the platform image's
 Node with `ITEST_REQUIRE_ALL_LANES=1`. It calls the script directly, so its verdict is
-never a turbo replay; the job's summary lists the failed checks.
+never a turbo replay; the job's summary lists the failed checks. A lane that starts
+importing a file outside that path list fails
+[`tests/guards/integration-scope.guard.test.ts`](../tests/guards/integration-scope.guard.test.ts)
+until the list names it. A few lanes still reach real vendors (the AI title lane,
+the model catalogs, the video-link DNS checks); a failure there on a vendor outage
+is re-run, not waived.
 
 The second command requires a **fresh, disposable application database** and its
 own configuration directory. Never point it at a development or customer database

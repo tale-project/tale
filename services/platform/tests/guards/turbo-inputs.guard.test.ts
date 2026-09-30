@@ -60,6 +60,11 @@ const OUTSIDE_READS = [
     path: '.env.example',
     readers: 'tests/guards/env-example-scope.guard.test.ts',
   },
+  {
+    // The Integration scope job's path filter, held to the harness's imports.
+    path: '.github/workflows/checks.yml',
+    readers: 'tests/guards/integration-scope.guard.test.ts',
+  },
   { path: 'compose.yml', readers: 'scripts/dev-sandbox-runtime.test.ts' },
   { path: 'compose.dev.yml', readers: 'scripts/dev-secrets.test.ts' },
   {

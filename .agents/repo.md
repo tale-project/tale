@@ -157,7 +157,10 @@ never through turbo, with `ITEST_REQUIRE_ALL_LANES=1`, so a lane that cannot run
 skipping. Its **Integration scope** job owes it to every push to `main`, merge group and release
 candidate, and to a pull request that touches the backend, its libraries, either database's
 migrations, the database image, the object-store pin, the dependencies or `checks.yml`; on other
-pull requests the check reads skipped.
+pull requests the check reads skipped, and when the scope job itself fails the check fails. The
+path list is held to every module the harness imports and every file it reads by
+`services/platform/tests/guards/integration-scope.guard.test.ts`: a new import from outside the
+list fails that guard until the list names it.
 
 Turbo's default source inputs cover a task's own workspace. A task that reads a file outside
 it lists the file in its workspace's `turbo.json` `inputs`; otherwise an edit to that file
@@ -167,8 +170,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
-  knowledge-db migrations, `packages/ui/src` (two suites read it as text) and other outside
-  files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
+  knowledge-db migrations, `packages/ui/src` (two suites read it as text), `checks.yml` (the
+  integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
   component suites render it, and all three list `@tale/ui`'s `package.json` and every file
   it exports from outside `src/` (`tailwind-preset.ts`). Its guard is
   `services/platform/tests/guards/turbo-inputs.guard.test.ts`.

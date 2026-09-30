@@ -293,9 +293,12 @@ jobs:
   # Which runs owe the real-Postgres proof below. A pull request owes it when
   # it touches what the suite runs: the backend and the libraries it imports,
   # the migrations of both databases, the database image, the object-store pin,
-  # the dependencies, the toolchain or this workflow. A push to main, a merge
-  # group and a release candidate always owe it — so main catches whatever a
-  # narrower pull request slipped past this list.
+  # the dependencies, the toolchain or this workflow. The platform's
+  # tests/guards/integration-scope.guard.test.ts holds the list to the
+  # harness's module graph. A push to main, a merge group and a release
+  # candidate always owe it — so main catches whatever a narrower pull request
+  # slipped past this list (a newer push to main cancels an older one's run,
+  # and its tree carries every earlier commit).
   integration-scope:
     needs: candidate-source
     name: Integration scope
@@ -317,10 +320,14 @@ jobs:
             integration:
               - 'services/platform/backend/**'
               - 'services/platform/lib/**'
+              - 'services/platform/messages/**'
+              - 'services/platform/sla-targets.ts'
               - 'services/platform/package.json'
               - 'services/platform/Dockerfile'
               - 'services/db/**'
               - 'packages/shared/**'
+              - 'packages/ui/package.json'
+              - 'packages/ui/src/i18n/**'
               - 'configs/platform/**'
               - 'tools/cli/src/lib/compose/types.ts'
               - 'package.json'
@@ -350,13 +357,23 @@ jobs:
   # through turbo, so its verdict is never a cache replay.
   # ITEST_REQUIRE_ALL_LANES makes the harness refuse a filtered run or a
   # missing object store, and fail any lane that cannot run: green means every
-  # lane ran and passed. A whole run takes about ten minutes; the budget leaves
-  # room for a cold image build and the log dump after a wedged run. Draft PRs
-  # skip.
+  # lane ran and passed. On a hosted runner the suite takes about three
+  # minutes and the job about five; the budget leaves room for a cold image
+  # build and the log dump after a wedged run. Draft PRs skip. When the scope
+  # job itself fails, this job fails with it rather than reading skipped.
+  #
+  # A few lanes still reach real vendors, so an outage of theirs can turn this
+  # red: open the failed check's name before suspecting the change. The AI
+  # title lane asks api.anthropic.com, the model-picker and deferred-send
+  # checks list the openrouter.ai and ai-gateway.vercel.sh catalogs, and the
+  # video-link URL checks resolve public DNS.
   backend-integration:
     needs: [candidate-source, integration-scope]
     name: Backend integration
-    if: needs.integration-scope.outputs.run == 'true' && github.event.pull_request.draft != true
+    if: >-
+      !cancelled() && github.event.pull_request.draft != true &&
+      (needs.integration-scope.result != 'success' ||
+      needs.integration-scope.outputs.run == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -367,6 +384,15 @@ jobs:
       ITEST_S3_SECRET_KEY: tale_itest_object_store
 
     steps:
+      # A scope that never decided must not pass for "not owed".
+      - name: Require the scope decision
+        if: needs.integration-scope.result != 'success'
+        env:
+          SCOPE: ${{ needs.integration-scope.result }}
+        run: |
+          echo "::error::Integration scope ended ${SCOPE}, so nothing decided whether this change owes the backend integration proof."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -441,10 +467,12 @@ jobs:
           echo "image=${image}" >> "$GITHUB_OUTPUT"
           echo "Object store: ${image}"
 
-      # One tale-db container serves both databases, as a fresh deployment's
-      # does before the corpus moves out: the init scripts create `tale_app`
-      # and `tale_knowledge`, and the default (knowledge) role applies the
-      # corpus migrations. The object store runs as compose runs it.
+      # One tale-db container, in the image's default (knowledge) role, serves
+      # both databases, as the harness's own KNOWLEDGE_DATABASE_URL default
+      # expects: the init scripts create `tale_app` and `tale_knowledge`, and
+      # the role applies the corpus migrations. compose.yml runs the same
+      # image twice instead (`db` and `knowledge-db`). The object store runs
+      # as compose runs it.
       - name: Start tale-db and the object store
         env:
           OBJECT_STORE_IMAGE: ${{ steps.object-store.outputs.image }}
