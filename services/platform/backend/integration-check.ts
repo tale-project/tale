@@ -23178,7 +23178,10 @@ async function checkRecoverySweeps(
   `;
   const { getKnowledgePoolForOrg, PRIVATE_KNOWLEDGE_SCHEMA } =
     await import('./core/knowledge/pool.ts');
-  let corpusSeeded = false;
+  // The adoption half needs this corpus row. tale-db ships the corpus and
+  // other lanes write to it with no fallback, so a seed that fails fails the
+  // check below: it must never quietly drop the half it cannot prove.
+  let corpusSeedError: string | null = null;
   try {
     const pool = await getKnowledgePoolForOrg(orgSlugRow[0]?.slug ?? '');
     await pool.unsafe(
@@ -23188,9 +23191,8 @@ async function checkRecoverySweeps(
        ON CONFLICT DO NOTHING`,
       [orgSlugRow[0]?.slug ?? '', 's3:rag-done-1', 'rag-done.pdf'],
     );
-    corpusSeeded = true;
   } catch (error) {
-    console.warn('[itest] corpus seed skipped:', error);
+    corpusSeedError = errorText(error);
   }
 
   const { recoverStuckRagIndexing, RAG_INTERRUPTED_MESSAGE } =
@@ -23217,9 +23219,10 @@ async function checkRecoverySweeps(
       // Still inside the window → untouched.
       ragFresh?.status === 'running' &&
       // Corpus says completed → ADOPTED, never failed.
-      (!corpusSeeded || ragDone?.status === 'completed') &&
+      corpusSeedError === null &&
+      ragDone?.status === 'completed' &&
       ragOutcome.failed >= 1,
-    `outcome=${JSON.stringify(ragOutcome)}, stale=${ragStale?.status} fresh=${ragFresh?.status} done=${ragDone?.status} (corpusSeeded=${corpusSeeded})`,
+    `outcome=${JSON.stringify(ragOutcome)}, stale=${ragStale?.status} fresh=${ragFresh?.status} done=${ragDone?.status}${corpusSeedError === null ? '' : ` (corpus seed failed: ${corpusSeedError})`}`,
   );
 
   // ---- erasure: a stuck run fails and becomes non-retriable -------------
