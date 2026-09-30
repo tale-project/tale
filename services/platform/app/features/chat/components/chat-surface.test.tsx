@@ -1187,6 +1187,9 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
         text: 'Hello there',
         modelId: 'deepseek-v4-flash',
         providerSlug: 'deepseek',
+        // The UI's language rides the send: the reply's default, and the
+        // words the turn's hand-over note quotes.
+        locale: 'en-US',
       });
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/dashboard/$id/chat/$threadId',
