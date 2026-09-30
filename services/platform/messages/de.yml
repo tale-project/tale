@@ -8018,7 +8018,7 @@ websites:
     title: Der Chat kann diese Websites noch nicht durchsuchen
     description: Die Seiten werden gecrawlt und gespeichert. Die Wissenssuche braucht aber ein funktionierendes Embedding-Modell, und diese Organisation hat noch keines.
     configureCta: Embedding-Modell konfigurieren
-    askAdmin: Bitte einen Admin deiner Organisation, eines unter Einstellungen → Datenresidenz einzurichten.
+    askAdmin: Ein Admin deiner Organisation kann eines unter Einstellungen → Datenresidenz einrichten.
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt

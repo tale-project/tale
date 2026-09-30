@@ -24,6 +24,12 @@ Choose **Scan interval** and **Save**. The default interval is six hours; the av
 
 </Frame>
 
+## Make the pages searchable in chat
+
+Crawling stores a page's text. Chat and knowledge search reach it only once your organization has a working embedding model, because every search first turns the question into a vector. Without one, a source can read **Active** with all its pages indexed while the assistant answers that web-page search is not set up.
+
+**Knowledge > Websites** then shows the notice **Chat can't search these websites yet**. An administrator sets the model under **Settings > Data residency**; operators find the setup details in [Data residency](/self-hosted/configuration/data-residency). Saving a model starts a scan of every source that was crawled without one and of every source whose last scan failed, so you do not add them again.
+
 ## Keep a URL list focused
 
 A URL list fetches only the addresses you provide and follows no additional links. It can contain pages from several websites; Tale groups them into one source per website. A listed `http://` address is accepted and fetched as `https://`, unlike a whole-website `http://` domain, which is refused; a page that serves plaintext only stays out of reach either way. Adding another list for an existing URL-list source adds addresses without dropping the existing ones and updates its scan interval.
@@ -34,7 +40,7 @@ Use complete public URLs. Linked PDF and modern Office documents can be indexed 
 
 For a whole website, the crawler uses the homepage and published sitemaps, including sitemap indexes and sitemaps declared in `robots.txt`. If usable sitemaps are missing, it follows links within the domain from the homepage. A page absent from both sitemaps and reachable links may be missed; use a URL list when specific coverage matters.
 
-Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index — and so do pages `robots.txt` has come to disallow. The row's page counts follow the scan as pages land, after discovery and after every stored batch, so the table moves while a scan runs. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
+Scans are incremental. Unchanged content is skipped, changed content is indexed again, new pages are added, and removed pages leave the index — and so do pages `robots.txt` has come to disallow. A page that redirects to another address of the same site is indexed once, under the address it lands on. The row's page counts follow the scan as pages land, after discovery and after every stored batch, so the table moves while a scan runs. A URL list follows the same refresh schedule with its fixed selection. There is no separate publish step after successful indexing.
 
 The crawler visits as an anonymous reader. Content that depends on a private session is not made accessible by adding its URL. It identifies itself on every request as `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)`, so a `robots.txt` group can address it by name — `User-agent: TaleBot` — to allow, throttle or refuse it alone.
 
@@ -65,6 +71,8 @@ The table shows **Status**, the **Indexed** page count, **Scanned**, and **Inter
 | **Error** | The scan failed, or attempted pages left the source with no stored content. Open the source for its reason. |
 | **Deleting** | The source is being removed. |
 
+To scan outside the interval, open the source's row menu or its details and choose **Scan now**. Use it after the site changed, or after a failed scan, which otherwise retries on its own within two hours. The action is offered while the source is neither scanning nor being deleted.
+
 The page view also offers search over indexed content. Try a distinctive phrase from a page before relying on it in chat, then ask a specific question and inspect the citation.
 
 ## Resolve a missing page
@@ -80,6 +88,8 @@ First check the address, source type, and latest scan time. Then open the source
 | Source requests no indexing | The response sends `X-Robots-Tag: noindex` or `none`, or the page carries `<meta name="robots" content="noindex">`. The source owner must change that directive before Tale can index it. |
 | Unsupported content or no readable text | JSON/XML endpoints, binary downloads, images, or scans may provide no supported page text. Supply an HTML page or a supported document with extractable text. |
 | Rendering or document extraction failed | Check that the public page loads and the original document opens. Repair or re-export the source if it is damaged. |
+| The assistant says web-page search is not set up | The organization has no working embedding model. An administrator sets one under **Settings > Data residency**; Tale then scans the affected sources again. |
+| **Error** with "Scanning didn't run." | The crawler's browser could not start, so no page was rendered. The address is not the cause: ask your operator to check the sandbox service, then choose **Scan now**. |
 
 A successful later fetch clears the previous error. A failed refresh can leave an earlier indexed copy available: **Active** and an indexed count do not prove every page is up to date. Compare the stored chunks and last-crawled information with the original before relying on a recent change.
 

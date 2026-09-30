@@ -24,6 +24,12 @@ Wähle das **Scan-Intervall** und **Speichern**. Standard sind sechs Stunden; di
 
 </Frame>
 
+## Die Seiten im Chat durchsuchbar machen
+
+Beim Crawlen wird der Text einer Seite gespeichert. Chat und Wissenssuche erreichen ihn erst, wenn deine Organisation ein funktionierendes Embedding-Modell hat, denn jede Suche wandelt die Frage zuerst in einen Vektor um. Ohne Modell kann eine Quelle **Aktiv** anzeigen und alle Seiten indexiert haben, während der Assistent antwortet, die Suche in Webseiten sei nicht eingerichtet.
+
+**Wissen > Websites** zeigt dann den Hinweis **Der Chat kann diese Websites noch nicht durchsuchen**. Ein Administrator legt das Modell unter **Einstellungen > Datenresidenz** fest; Einzelheiten für Betreiber stehen unter [Datenresidenz](/de/self-hosted/configuration/data-residency). Sobald ein Modell gespeichert ist, scannt Tale jede Quelle erneut, die ohne Modell gecrawlt wurde oder deren letzter Scan fehlgeschlagen ist. Du musst sie nicht neu hinzufügen.
+
 ## Eine URL-Liste gezielt halten
 
 Eine URL-Liste ruft nur die angegebenen Adressen ab und folgt keinen weiteren Links. Sie darf Seiten mehrerer Websites enthalten. Tale fasst sie zu einer Quelle pro Website zusammen. Eine gelistete `http://`-Adresse wird angenommen und als `https://` abgerufen — anders als eine `http://`-Domain im Modus für ganze Websites, die abgewiesen wird; eine Seite, die nur unverschlüsselt antwortet, bleibt in beiden Fällen unerreichbar. Eine weitere Liste für eine vorhandene URL-Listenquelle ergänzt Adressen, ohne bestehende zu entfernen, und aktualisiert ihr Scan-Intervall.
@@ -34,7 +40,7 @@ Nutze vollständige öffentliche URLs. Verlinkte PDF- und moderne Office-Dateien
 
 Bei einer ganzen Website nutzt der Crawler Startseite und veröffentlichte Sitemaps, einschließlich Sitemap-Indizes und in `robots.txt` angegebener Sitemaps. Fehlen brauchbare Sitemaps, folgt er Links innerhalb der Domain von der Startseite aus. Seiten, die weder in Sitemaps noch über erreichbare Links vorkommen, können fehlen. Nutze eine URL-Liste, wenn bestimmte Seiten enthalten sein müssen.
 
-Scans arbeiten schrittweise: Unveränderte Inhalte werden übersprungen, geänderte erneut indexiert, neue Seiten hinzugefügt und entfernte aus dem Index genommen — ebenso Seiten, die die `robots.txt` inzwischen verbietet. Die Seitenzähler der Zeile folgen dem Scan, während Seiten landen, nach dem Entdecken und nach jedem gespeicherten Batch, die Tabelle bewegt sich also, während ein Scan läuft. Eine URL-Liste aktualisiert ihre feste Auswahl nach demselben Zeitplan. Nach erfolgreicher Indexierung ist keine gesonderte Veröffentlichung nötig.
+Scans arbeiten schrittweise: Unveränderte Inhalte werden übersprungen, geänderte erneut indexiert, neue Seiten hinzugefügt und entfernte aus dem Index genommen — ebenso Seiten, die die `robots.txt` inzwischen verbietet. Eine Seite, die auf eine andere Adresse derselben Website weiterleitet, wird nur einmal indexiert: unter der Adresse, auf der sie landet. Die Seitenzähler der Zeile folgen dem Scan, während Seiten landen, nach dem Entdecken und nach jedem gespeicherten Batch, die Tabelle bewegt sich also, während ein Scan läuft. Eine URL-Liste aktualisiert ihre feste Auswahl nach demselben Zeitplan. Nach erfolgreicher Indexierung ist keine gesonderte Veröffentlichung nötig.
 
 Der Crawler besucht die Seiten ohne Anmeldung. Eine URL macht private Inhalte nicht zugänglich. Bei jeder Anfrage stellt er sich als `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)` vor, sodass eine `robots.txt`-Gruppe ihn beim Namen nennen kann — `User-agent: TaleBot` —, um allein ihn zu erlauben, zu drosseln oder abzuweisen.
 
@@ -65,6 +71,8 @@ Die Tabelle zeigt **Status**, die Seitenzahl unter **Indexiert**, **Gescannt** u
 | **Fehler** | Der Scan ist fehlgeschlagen oder nach den Abrufversuchen sind keine Inhalte gespeichert. Öffne die Quelle für die Ursache. |
 | **Lösche…** | Die Quelle wird entfernt. |
 
+Um außerhalb des Intervalls zu scannen, öffne das Zeilenmenü der Quelle oder ihre Details und wähle **Jetzt scannen**. Das hilft, wenn sich die Website geändert hat oder ein Scan fehlgeschlagen ist; ein fehlgeschlagener Scan wird sonst innerhalb von zwei Stunden von selbst wiederholt. Die Aktion steht zur Verfügung, solange die Quelle weder gescannt noch gelöscht wird.
+
 Die Seitenansicht bietet auch eine Suche im indexierten Inhalt. Suche nach einer auffälligen Formulierung der Seite, bevor du dich im Chat darauf verlässt. Stelle anschließend eine konkrete Frage und prüfe den Quellenbeleg.
 
 ## Eine fehlende Seite untersuchen
@@ -80,6 +88,8 @@ Prüfe zuerst Adresse, Quelltyp und letzte Scan-Zeit. Öffne danach die Quelle u
 | Quelle untersagt die Indexierung | Die Antwort enthält `X-Robots-Tag: noindex` oder `none`, oder die Seite trägt `<meta name="robots" content="noindex">`. Der Website-Verantwortliche muss diese Vorgabe ändern, bevor Tale den Inhalt indexieren kann. |
 | Nicht unterstützter Inhalt oder kein lesbarer Text | JSON-/XML-Endpunkte, Binärdownloads, Bilder oder Scans liefern möglicherweise keinen verwertbaren Seitentext. Stelle eine HTML-Seite oder ein unterstütztes Dokument mit extrahierbarem Text bereit. |
 | Darstellung oder Textextraktion fehlgeschlagen | Prüfe, ob die öffentliche Seite lädt und sich das Originaldokument öffnen lässt. Repariere oder exportiere eine beschädigte Quelle erneut. |
+| Der Assistent meldet, die Suche in Webseiten sei nicht eingerichtet | Die Organisation hat kein funktionierendes Embedding-Modell. Ein Administrator legt es unter **Einstellungen > Datenresidenz** fest; danach scannt Tale die betroffenen Quellen erneut. |
+| **Fehler** mit „Der Scan ist nicht gelaufen.“ | Der Browser des Crawlers konnte nicht starten, deshalb wurde keine Seite dargestellt. An der Adresse liegt es nicht: Lass deinen Betreiber den Sandbox-Dienst prüfen und wähle danach **Jetzt scannen**. |
 
 Ein späterer erfolgreicher Abruf entfernt den vorherigen Fehler. Nach einer fehlgeschlagenen Aktualisierung kann die früher indexierte Fassung weiterhin verfügbar sein: **Aktiv** und die Anzahl indexierter Seiten belegen nicht, dass jede Seite aktuell ist. Vergleiche gespeicherte Textabschnitte und Abrufdatum mit dem Original, bevor du dich auf eine kürzliche Änderung verlässt.
 
