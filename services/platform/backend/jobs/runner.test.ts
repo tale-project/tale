@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import type { Job, JobResult, PgBoss, WorkOptions } from 'pg-boss';
+import type { Db, Job, JobResult, PgBoss, WorkOptions } from 'pg-boss';
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +22,7 @@ function fakeBoss(): {
   boss: PgBoss;
   send: ReturnType<typeof vi.fn>;
   complete: ReturnType<typeof vi.fn>;
+  getQueue: ReturnType<typeof vi.fn>;
   calls: string[];
   handlers: Map<string, WorkHandler>;
   workOptions: Map<string, WorkOptions>;
@@ -29,14 +30,21 @@ function fakeBoss(): {
   const handlers = new Map<string, WorkHandler>();
   const workOptions = new Map<string, WorkOptions>();
   const calls: string[] = [];
-  const send = vi.fn(async () => {
+  const send = vi.fn(async (): Promise<string | null> => {
     calls.push('send');
     return 'requeued';
   });
-  const complete = vi.fn(async () => {
+  // pg-boss 12's answer for one active job completed.
+  const complete = vi.fn(async (): Promise<unknown> => {
     calls.push('complete');
     return { jobs: ['job-1'], requested: 1, affected: 1 };
   });
+  const getQueue = vi.fn(
+    async (name: string): Promise<{ name: string; policy: string } | null> => {
+      calls.push('getQueue');
+      return { name, policy: 'standard' };
+    },
+  );
   const boss = {
     work: vi.fn(
       async (name: string, options: WorkOptions, handler: WorkHandler) => {
@@ -46,30 +54,41 @@ function fakeBoss(): {
     ),
     send,
     complete,
+    getQueue,
   };
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
     boss: boss as unknown as PgBoss,
     send,
     complete,
+    getQueue,
     calls,
     handlers,
     workOptions,
   };
 }
 
-/** A pool whose one transaction records that it opened and ended. */
-function fakeSql(calls: string[]): Sql {
-  const tx = { unsafe: vi.fn(async () => []) };
+/** A pool whose one transaction records how it opened and ended; its
+ * `unsafe` is what pg-boss's statements must run on. */
+function fakeSql(calls: string[]): Sql & {
+  tx: { unsafe: ReturnType<typeof vi.fn> };
+} {
+  const tx = { unsafe: vi.fn(async () => [{ count: '1' }]) };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return {
+    tx,
     begin: async (body: (t: typeof tx) => Promise<unknown>) => {
       calls.push('begin');
-      const result = await body(tx);
-      calls.push('commit');
-      return result;
+      try {
+        const result = await body(tx);
+        calls.push('commit');
+        return result;
+      } catch (error) {
+        calls.push('rollback');
+        throw error;
+      }
     },
-  } as unknown as Sql;
+  } as unknown as Sql & { tx: typeof tx };
 }
 
 /** A fetched job with the metadata the worker asks for. */
@@ -83,13 +102,15 @@ const job = {
 
 describe('startWorker shouldDefer', () => {
   it('hands a keyless job over — completed and re-queued five seconds out in one transaction — without running the handler', async () => {
-    const { boss, send, complete, calls, handlers, workOptions } = fakeBoss();
+    const { boss, send, complete, getQueue, calls, handlers, workOptions } =
+      fakeBoss();
     const handler = vi.fn();
+    const sql = fakeSql(calls);
     await startWorker({
       boss,
       taskList: { noop: handler },
       shouldDefer: async () => true,
-      sql: fakeSql(calls),
+      sql,
     });
 
     const results = await handlers.get('noop')?.([job]);
@@ -107,9 +128,163 @@ describe('startWorker shouldDefer', () => {
     );
     // The claim ends first, inside the same transaction as its successor.
     expect(calls).toEqual(['begin', 'complete', 'send', 'commit']);
+    expect(getQueue).not.toHaveBeenCalled();
     expect(handler).not.toHaveBeenCalled();
     expect(results).toEqual([{ id: 'job-1', status: 'completed' }]);
+
+    // Both writes run on the transaction, through the enqueue adapter.
+    const [, , , completion] = complete.mock.calls[0] as [
+      string,
+      string,
+      null,
+      { db: Db },
+    ];
+    const [, , sending] = send.mock.calls[0] as [string, object, { db: Db }];
+    expect(completion.db).toBeTypeOf('object');
+    await completion.db.executeSql('SELECT 1', [1]);
+    await sending.db.executeSql('SELECT 2', [2]);
+    expect(sql.tx.unsafe.mock.calls).toEqual([
+      ['SELECT 1', [1]],
+      ['SELECT 2', [2]],
+    ]);
   });
+
+  it('queues no successor for a claim that was no longer active — cancelled, or completed elsewhere — and changes nothing', async () => {
+    const { boss, send, complete, getQueue, calls, handlers } = fakeBoss();
+    // pg-boss completes active jobs only: its answer when the claim ended
+    // before the hand-over.
+    complete.mockImplementationOnce(async () => {
+      calls.push('complete');
+      return { jobs: ['job-1'], requested: 1, affected: 0 };
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const handler = vi.fn();
+    await startWorker({
+      boss,
+      taskList: { 'task.agent_retry_recheck': handler },
+      shouldDefer: async () => true,
+      sql: fakeSql(calls),
+    });
+
+    const results = await handlers.get('task.agent_retry_recheck')?.([
+      {
+        ...job,
+        singletonKey: 'agent-retry:org-1:task-1:run-1',
+      } as unknown as Job,
+    ]);
+    expect(calls).toEqual(['begin', 'complete', 'commit']);
+    expect(send).not.toHaveBeenCalled();
+    expect(getQueue).not.toHaveBeenCalled();
+    expect(handler).not.toHaveBeenCalled();
+    // pg-boss's own completion of the batch touches active jobs only, so
+    // reporting it completed leaves the ended claim as it is.
+    expect(results).toEqual([{ id: 'job-1', status: 'completed' }]);
+    expect(log).toHaveBeenCalledWith(
+      '[backend] task task.agent_retry_recheck (job job-1) not handed over: the claim was no longer active (cancelled, completed or expired)',
+    );
+    log.mockRestore();
+  });
+
+  it.each([
+    ['nothing', undefined],
+    ['null', null],
+    ['no count', { jobs: ['job-1'], requested: 1 }],
+    ['a count that is not a number', { jobs: ['job-1'], affected: '1' }],
+    ['not a number', { jobs: ['job-1'], affected: Number.NaN }],
+    ['two claims', { jobs: ['job-1'], requested: 1, affected: 2 }],
+  ])(
+    'rolls the hand-over back when the completion confirms no claim (%s) — no successor, the claim left to pg-boss',
+    async (_case, answer) => {
+      const { boss, send, complete, calls, handlers } = fakeBoss();
+      complete.mockImplementationOnce(async () => {
+        calls.push('complete');
+        return answer;
+      });
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await startWorker({
+        boss,
+        taskList: { noop: vi.fn() },
+        shouldDefer: async () => true,
+        sql: fakeSql(calls),
+      });
+
+      const results = await handlers.get('noop')?.([job]);
+      expect(calls).toEqual(['begin', 'complete', 'rollback']);
+      expect(send).not.toHaveBeenCalled();
+      expect(results?.[0]).toMatchObject({
+        id: 'job-1',
+        status: 'failed',
+        output: {
+          message: expect.stringContaining('the completion confirmed no claim'),
+        },
+      });
+      error.mockRestore();
+    },
+  );
+
+  it.each(['short', 'stately'])(
+    'lets a refused successor collapse on a %s queue — the job already queued under its key does the work',
+    async (policy) => {
+      const { boss, send, getQueue, calls, handlers } = fakeBoss();
+      send.mockResolvedValueOnce(null);
+      getQueue.mockImplementationOnce(async (name: string) => {
+        calls.push('getQueue');
+        return { name, policy };
+      });
+      await startWorker({
+        boss,
+        taskList: { 'task.agent_retry_recheck': vi.fn() },
+        shouldDefer: async () => true,
+        sql: fakeSql(calls),
+      });
+
+      const results = await handlers.get('task.agent_retry_recheck')?.([
+        {
+          ...job,
+          singletonKey: 'agent-retry:org-1:task-1:run-1',
+        } as unknown as Job,
+      ]);
+      expect(calls).toEqual(['begin', 'complete', 'getQueue', 'commit']);
+      expect(getQueue).toHaveBeenCalledWith('task.agent_retry_recheck');
+      expect(results).toEqual([{ id: 'job-1', status: 'completed' }]);
+    },
+  );
+
+  it.each([
+    ['standard', 'standard'],
+    ['exclusive', 'exclusive'],
+    ['singleton', 'singleton'],
+    ['key_strict_fifo', 'key_strict_fifo'],
+    ['missing', null],
+  ])(
+    'rolls the hand-over back when a %s queue refuses the successor — the claim is not ended without one',
+    async (_case, policy) => {
+      const { boss, send, getQueue, calls, handlers } = fakeBoss();
+      send.mockResolvedValueOnce(null);
+      getQueue.mockImplementationOnce(async (name: string) => {
+        calls.push('getQueue');
+        return policy === null ? null : { name, policy };
+      });
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      await startWorker({
+        boss,
+        taskList: { noop: vi.fn() },
+        shouldDefer: async () => true,
+        sql: fakeSql(calls),
+      });
+
+      const results = await handlers.get('noop')?.([job]);
+      expect(calls).toEqual(['begin', 'complete', 'getQueue', 'rollback']);
+      expect(results?.[0]).toMatchObject({
+        id: 'job-1',
+        status: 'failed',
+        output: {
+          message: `the hand-over queued no successor on queue noop (policy ${policy ?? 'unknown'})`,
+        },
+      });
+      error.mockRestore();
+    },
+  );
 
   it('keeps a keyed job’s singleton key and priority, so its queue’s key still dedupes the successor', async () => {
     const { boss, send, handlers } = fakeBoss();
@@ -139,17 +314,18 @@ describe('startWorker shouldDefer', () => {
   });
 
   it('keeps the claim when the hand-over fails, for pg-boss to retry', async () => {
-    const { boss, send, handlers } = fakeBoss();
+    const { boss, send, calls, handlers } = fakeBoss();
     send.mockRejectedValueOnce(new Error('insert refused'));
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     await startWorker({
       boss,
       taskList: { noop: vi.fn() },
       shouldDefer: async () => true,
-      sql: fakeSql([]),
+      sql: fakeSql(calls),
     });
 
     const results = await handlers.get('noop')?.([job]);
+    expect(calls).toEqual(['begin', 'complete', 'rollback']);
     expect(results?.[0]).toMatchObject({ id: 'job-1', status: 'failed' });
     error.mockRestore();
   });
