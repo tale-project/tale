@@ -53212,7 +53212,9 @@ async function checkWatchdogs(
   // table, a batch of TWO. The old `ORDER BY created_at_ms LIMIT n` probed the
   // same two oldest rows every tick and never reached the third; the fair walk
   // (least-recently-visited first, visited rows stamped) reaches it on the
-  // second tick.
+  // second tick. They are project rows, not render ones: a render row this
+  // old is an abandoned batch, which the release pass takes on the first
+  // tick (proved below).
   const oldest = await sql<{ min: number | null }[]>`
     SELECT min(created_at_ms)::float8 AS min FROM app.sandbox_sessions
     WHERE status IN ('creating', 'active', 'degraded')
@@ -53223,11 +53225,11 @@ async function checkWatchdogs(
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES
-      (${orgId}, 'wd-fair-1', 'active', 'render', 'wd-fair-1', 'itest:wd',
+      (${orgId}, 'wd-fair-1', 'active', 'project', 'wd-fair-1', 'itest:wd',
        ${ancient}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-2', 'active', 'render', 'wd-fair-2', 'itest:wd',
+      (${orgId}, 'wd-fair-2', 'active', 'project', 'wd-fair-2', 'itest:wd',
        ${ancient + 1}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-3', 'active', 'render', 'wd-fair-3', 'itest:wd',
+      (${orgId}, 'wd-fair-3', 'active', 'project', 'wd-fair-3', 'itest:wd',
        ${ancient + 2}, ${now + 24 * 3_600_000})
   `;
   // Reclaim: an ENDED run's hibernated session (reclaimed), an expired
@@ -53345,6 +53347,94 @@ async function checkWatchdogs(
       tick2.reclaimed === 0,
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
+
+  // Lane 3d: the render sessions of cut-off scan links. A link destroys its
+  // render session when its batch ends; one cut off mid-batch (a restart, a
+  // deploy, a crash) left the row compute-holding and the container running,
+  // and no pass reached either — each held one of the organization's two
+  // render slots until the spawner's idle reaper took the container half an
+  // hour later. A render row older than a link can keep one is destroyed
+  // when idle and settled; a worker still rendering in it waits a tick, and
+  // neither a batch that is rendering now nor another owner's session is
+  // asked about.
+  const renderAge = sandboxWatchdogs.SANDBOX_RENDER_SESSION_MAX_AGE_MS;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-release-abandoned', 'active', 'render',
+       'wd-release-abandoned', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-creating', 'creating', 'render',
+       'wd-release-creating', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-rendering', 'active', 'render',
+       'wd-release-rendering', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-fresh', 'active', 'render',
+       'wd-release-fresh', 'itest:wd', ${now - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-project', 'active', 'project',
+       'wd-release-project', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000})
+  `;
+  const releaseAsked: string[] = [];
+  const releaseTick = await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    releaseBatch: 50,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        releaseAsked.push(sessionId);
+        return Promise.resolve(
+          sessionId === 'wd-release-rendering' ||
+            !sessionId.startsWith('wd-release-')
+            ? { destroyed: false, busy: true }
+            : { destroyed: true, busy: false },
+        );
+      },
+    },
+  });
+  const releaseRows = await sql<
+    { sessionId: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT session_id AS "sessionId", status,
+           destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-release-%'
+    ORDER BY session_id
+  `;
+  const released = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) =>
+        row.sessionId === sessionId &&
+        row.status === 'destroyed' &&
+        row.destroyedAt !== null,
+    );
+  const stillActive = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) => row.sessionId === sessionId && row.status === 'active',
+    );
+  record(
+    'sandbox watchdog releases the render sessions a cut-off scan link left behind: idle ones are destroyed and settled, a busy one waits, a fresh batch and other owners are never asked',
+    released('wd-release-abandoned') &&
+      released('wd-release-creating') &&
+      releaseAsked.includes('wd-release-rendering') &&
+      stillActive('wd-release-rendering') &&
+      !releaseAsked.includes('wd-release-fresh') &&
+      stillActive('wd-release-fresh') &&
+      !releaseAsked.includes('wd-release-project') &&
+      stillActive('wd-release-project') &&
+      releaseTick.released >= 2,
+    `rows=${releaseRows.map((row) => `${row.sessionId.replace('wd-release-', '')}=${row.status}`).join(' ')} asked=${releaseAsked.filter((id) => id.startsWith('wd-release-')).join(',')} released=${releaseTick.released} (want abandoned+creating destroyed, rendering asked and active, fresh and project never asked)`,
+  );
+  await sql`
+    DELETE FROM app.sandbox_sessions WHERE session_id LIKE 'wd-release-%'
+  `;
 
   // Lane 3b: the Sandboxes page's mount-time probe is the SAME pass scoped
   // to the org. A hibernated (`stopped`) project workspace is never a

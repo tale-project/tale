@@ -574,10 +574,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         result.healed > 0 ||
         result.recreating > 0 ||
         result.reclaimed > 0 ||
-        result.collected > 0
+        result.collected > 0 ||
+        result.released > 0
       ) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, queued the recreate of ${result.recreating} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, queued the recreate of ${result.recreating} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s), released ${result.released} abandoned render session(s)`,
         );
       }
       // Removed sandbox devices the hub has not dropped yet (the spawner was
