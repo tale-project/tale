@@ -393,6 +393,60 @@ describe('WebsiteViewDialog', () => {
     expect(screen.queryByText('0 chunks')).not.toBeInTheDocument();
   });
 
+  // A site whose scan the embedding model stopped also had pages that
+  // answered 404. Their rows said so, the scan's own reason was left out,
+  // and the Error read as the pages' doing.
+  it('names what stopped the scan beside pages that failed for their own reasons', async () => {
+    pagesPayload.current = {
+      offset: 0,
+      hasMore: false,
+      pages: [
+        {
+          url: 'https://docs.example.com/gone',
+          title: null,
+          word_count: 0,
+          status: 'discovered',
+          content_hash: null,
+          last_crawled_at: '2026-09-14T11:11:00.000Z',
+          discovered_at: '2026-09-14T11:11:00.000Z',
+          chunks_count: 0,
+          indexed: false,
+          fail_count: 1,
+          last_error: 'HTTP 404',
+          last_error_kind: 'http_error',
+          last_error_at: '2026-09-14T11:11:00.000Z',
+        },
+      ],
+    };
+
+    render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{
+          ...WEBSITE,
+          status: 'error',
+          crawledPageCount: 12,
+          failedPageCount: 1,
+          metadata: {
+            lastSyncError:
+              'The embedding model could not embed the pages: 401 User not found.',
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('The page answered with an error.'),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("The embedding model couldn't process the pages."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/User not found/)).not.toBeInTheDocument();
+  });
+
   // The row follows a scan through realtime hints; the pages were read once
   // on open, so an open dialog showed the first batch for the whole scan.
   it('reads the shown pages again when a scan moves the row', () => {

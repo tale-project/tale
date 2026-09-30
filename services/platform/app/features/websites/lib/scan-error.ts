@@ -35,6 +35,17 @@ export function classifyScanError(message: string): ScanErrorKind {
   return 'generic';
 }
 
+/**
+ * Whether the scan failed as a whole, for a reason no page row carries. A
+ * scan that ends on its pages' own failures ("no page could be stored") is
+ * explained by the rows; one that the embedding model, the crawler's
+ * browser or a missing registration stopped is not, however many pages
+ * beside it failed for reasons of their own.
+ */
+export function isSiteLevelScanError(kind: ScanErrorKind): boolean {
+  return kind === 'embedding' || kind === 'runtime' || kind === 'notInCorpus';
+}
+
 export function scanErrorMessageKey(
   kind: ScanErrorKind,
 ):

@@ -55,6 +55,7 @@ import { indexedPageCount } from '../lib/indexed-page-count';
 import {
   classifyScanError,
   isHollowSiteScan,
+  isSiteLevelScanError,
   scanEmptyMessageKey,
   scanErrorMessageKey,
 } from '../lib/scan-error';
@@ -640,9 +641,13 @@ export function WebsiteViewDialog({
             </>
           }
         >
+          {/* The pages' own failures explain a scan that stored nothing;
+              they do not explain one the embedding model or the crawler's
+              browser stopped, which says so beside them. */}
           {lastSyncError !== null &&
           !paused &&
-          !pages.some((page) => pageFailureCaption(page, t) !== null) ? (
+          (isSiteLevelScanError(scanErrorKind) ||
+            !pages.some((page) => pageFailureCaption(page, t) !== null)) ? (
             <Text
               variant="caption"
               className="text-muted-foreground"

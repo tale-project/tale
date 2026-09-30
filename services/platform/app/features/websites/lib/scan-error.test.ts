@@ -2,7 +2,27 @@ import { describe, expect, it } from 'vitest';
 
 import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '@/backend/core/websites/scan_scheduling';
 
-import { classifyScanError, isHollowSiteScan } from './scan-error';
+import {
+  classifyScanError,
+  isHollowSiteScan,
+  isSiteLevelScanError,
+} from './scan-error';
+
+describe('isSiteLevelScanError', () => {
+  it('holds for what stops a scan as a whole', () => {
+    expect(
+      (['embedding', 'runtime', 'notInCorpus'] as const).map(
+        isSiteLevelScanError,
+      ),
+    ).toEqual([true, true, true]);
+  });
+
+  it('does not hold for what the page rows carry themselves', () => {
+    expect(
+      (['dns', 'timeout', 'generic'] as const).map(isSiteLevelScanError),
+    ).toEqual([false, false, false]);
+  });
+});
 
 describe('classifyScanError', () => {
   it('maps a sandbox/docker dump to runtime', () => {
