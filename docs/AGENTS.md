@@ -12,11 +12,18 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
 - Navigation: [`docs/nav.json`](nav.json) — sidebar order is array order; `label` values are i18n
   keys under `nav.groups.*` resolved from `services/docs/messages/{en,de,fr,de-CH}.yml`. A page on
   disk but not in the nav is invisible; a nav slug with no file fails the suite.
-- Redirects: [`docs/redirects.json`](redirects.json) — old slug → new slug for every moved or
-  merged page; served as 301s and prerendered as meta-refresh stubs. A section folder with no page
-  of its own (`/platform/automations`) redirects to the first page under it in `nav.json` order —
-  derived, never listed here, so reordering `nav.json` moves that target; a `redirects.json` entry
-  for the folder wins.
+- Redirects: [`docs/redirects.json`](redirects.json) — old slug → new slug for every moved,
+  merged or deleted page; served as 301s and prerendered as meta-refresh stubs. A page that moved
+  to tale.dev (the legal texts) maps to its `https://tale.dev/…` URL and keeps the reader's locale
+  there. A section folder with no page of its own (`/platform/automations`) redirects to the first
+  page under it in `nav.json` order — derived, never listed here, so reordering `nav.json` moves
+  that target; a `redirects.json` entry for the folder wins.
+- Published addresses: [`docs/published.json`](published.json) — every slug the site has ever
+  served, append-only (the docs build records new pages; never delete a line). Each must keep
+  answering in every locale, as a page or through `redirects.json`: a page that goes away without
+  a redirect fails `tests/published.test.ts`. The retired `de-CH`, `de-AT` and `fr-CH` trees and
+  guessed addresses (a title turned into a slug, a translated folder) are answered by the server's
+  near-miss resolver (`lib/near-miss.ts`), not by entries here.
 - The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). Its
   chrome follows the **platform app** design language — a `SubPanel` navigation rail, one sticky
   `h-13` header strip carrying the breadcrumb trail and the page actions, the article column, and
@@ -146,10 +153,13 @@ suite does not establish fluent or accurate prose.
 
 - A file on disk but missing from `nav.json` is invisible in the sidebar.
 - Translated heading anchors: `/de/foo#some-heading` only works if the German heading slugs to
-  `some-heading`, or the heading has that explicit ID. The section-link check verifies these targets.
+  `some-heading`, or the heading has that explicit ID. The link suite (`tests/links.test.ts`)
+  verifies every fragment against the ids the target page renders.
 - External links cast as internal (`](/external-site)`) 404 — fully qualify them.
 - Env-var and API reference content is authoritative in one place — link, don't duplicate.
-- Moving or renaming a page: add the `redirects.json` entry, sweep inbound links repo-wide (the
-  suite only sees `docs/`), and update `nav.json` + all three locales in the same change.
+- Moving, renaming or deleting a page: add the `redirects.json` entry for the old slug (keep its
+  line in `published.json`), update `nav.json` + all three locales in the same change, then run
+  `bun run lint:links` — it finds every link into the page from app code, the marketing site, the
+  CLI and READMEs, and asks for the new address rather than the redirect.
 - Reordering `nav.json` can change where a section folder URL (`/platform/<section>`) redirects:
   it lands on the first page listed under that folder.

@@ -63,3 +63,12 @@ for the prerender boxes.
 - [ ] `SEO-11` · **`curl -si /de` and `curl -si /fr/docs/components/button`** →
   **301** to `/` and to `/docs/components/button` — the prefixes this server
   once redirected readers into still land them on the page.
+- [ ] `SEO-12` · **`curl -si /docs`, `/docs/components` and `/components/button`**
+  → each answers **301** straight to a guide that answers `200` —
+  `/docs/getting-started/introduction`, the first component guide in
+  `content/nav.json`, `/docs/components/button` — without JavaScript: a link
+  checker, a crawler or an agent reading the raw answer lands too.
+- [ ] `SEO-13` · **`curl -si /docs/button` and `/docs/components/buton`** → **302**
+  to `/docs/components/button` (a guessed address lands on the guide it
+  clearly means); `curl -si /docs/components/select` still answers **404**,
+  because no guide is close enough to guess.

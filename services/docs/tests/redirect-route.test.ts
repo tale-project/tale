@@ -70,6 +70,21 @@ describe('redirect route', () => {
     expect(response?.headers.get('set-cookie')).toBeNull();
   });
 
+  it('sends a page that moved to another site there, in the same locale', () => {
+    const offsite = createRedirectRoute({
+      paths: buildRedirectPathMap({
+        'legal/terms': 'https://tale.dev/legal/terms-of-service',
+      }),
+      basePath: '/docs',
+    });
+    const url = new URL('/fr/legal/terms', 'https://docs.example.test');
+    const response = offsite(new Request(url), url);
+    expect(response?.status).toBe(301);
+    expect(response?.headers.get('location')).toBe(
+      'https://tale.dev/fr/legal/terms-of-service',
+    );
+  });
+
   it('leaves other methods and unmapped paths to the server', () => {
     expect(call('/en/old/page', { method: 'POST' })).toBeNull();
     expect(call('/new/page')).toBeNull();
