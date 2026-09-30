@@ -7,6 +7,7 @@ import {
   isUrlDisallowed,
   MAX_CRAWL_DELAY_MS,
   publicPageError,
+  RENDER_UNFINISHED_REASON,
   robotsMetaNoindexDirective,
   robotsPolicyFromStored,
   robotsPolicyToStored,
@@ -653,6 +654,13 @@ describe('classifyRenderReason', () => {
     expect(classifyRenderReason('blocked host\nsecond line')).toEqual({
       kind: 'render_failed',
       message: 'blocked host',
+    });
+  });
+
+  it('names a page the worker was cut off in as a timeout', () => {
+    expect(classifyRenderReason(RENDER_UNFINISHED_REASON)).toEqual({
+      kind: 'timeout',
+      message: RENDER_UNFINISHED_REASON,
     });
   });
 });

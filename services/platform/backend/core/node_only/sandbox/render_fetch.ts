@@ -14,11 +14,13 @@
  * Binaries never enter the sandbox.
  *
  * Failure semantics are two-tier by design:
- *  - Infra failures (quota, session create, exec transport, no output file)
- *    THROW — the caller fails the whole scan visibly and retries next
- *    interval; per-page `fail_count` is never charged for a down sandbox.
- *  - Per-URL render outcomes (nav timeout, blocked redirect, oversized DOM)
- *    come back as `failed` and are charged to that page alone.
+ *  - Infra failures (quota, session create, exec transport, no output file,
+ *    a worker that attempted no page) THROW — the caller fails the whole
+ *    scan visibly and retries next interval; per-page `fail_count` is never
+ *    charged for a down sandbox.
+ *  - Per-URL render outcomes (nav timeout, blocked redirect, oversized DOM,
+ *    a page the worker was cut off in) come back as `failed` and are charged
+ *    to that page alone.
  *
  * One session per batch, destroyed in `finally` — a session never spans
  * loop iterations or scan continuation links. A batch whose create failed
@@ -28,6 +30,7 @@
 
 import { z } from 'zod';
 
+import { RENDER_UNFINISHED_REASON } from '../../../../lib/knowledge/crawl-parse';
 import { crawlerUserAgent } from '../../knowledge/crawler_identity';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
@@ -236,22 +239,33 @@ export async function renderUrlsInSandbox(
       stepPaths: ['/agent/code/render.mjs'],
       timeoutMs: args.execTimeoutMs,
     });
-    // The worker rewrites its output after every page, so even a hard-killed
-    // exec leaves partial results behind; only a MISSING file is an infra
-    // failure worth failing the scan over.
-    const file = await sessionReadFile(sessionId, '/agent/output/pages.json');
-    if (!file) {
-      const detail = [
-        `status ${run.status}`,
-        run.errorMessage ?? '',
-        run.stderr.slice(-400),
-      ]
+    const detail = (): string =>
+      [`status ${run.status}`, run.errorMessage ?? '', run.stderr.slice(-400)]
         .filter((part) => part.length > 0)
         .join(' — ');
-      throw new Error(`render worker produced no output (${detail})`);
+    // The worker rewrites its output after every page, so even a hard-killed
+    // exec leaves partial results behind; a MISSING file is an infra failure
+    // worth failing the scan over.
+    const file = await sessionReadFile(sessionId, '/agent/output/pages.json');
+    if (!file) {
+      throw new Error(`render worker produced no output (${detail()})`);
     }
     const payload: unknown = JSON.parse(new TextDecoder().decode(file.bytes));
-    return parseRenderResults(payload, args.urls);
+    const results = parseRenderResults(payload, args.urls);
+    // So is a file on which no page was even attempted: the worker writes it
+    // before it launches the browser, so a Chromium that would not start
+    // leaves every URL `not_attempted`. Handed back as-is, the crawl would
+    // re-probe and re-render the same batch round after round, a session
+    // each, and end hours later blaming its continuation budget.
+    if (
+      args.urls.length > 0 &&
+      [...results.values()].every((outcome) => outcome.kind === 'not_attempted')
+    ) {
+      throw new Error(
+        `sandbox session rendered no page: the render worker stopped before its first one (${detail()})`,
+      );
+    }
+    return results;
   } finally {
     // Only a session this batch created is torn down here. A failed create's
     // row already reads `failed`: settling it `destroyed` would hide it from
@@ -395,6 +409,8 @@ function isBlockedHost(hostname) {
   return false;
 }
 
+const UNFINISHED_PAGE_REASON = ${JSON.stringify(RENDER_UNFINISHED_REASON)};
+
 // The page's HTML with its CSS layout written in, so the host's tag-level
 // text pass separates what the page shows separated; the plain
 // serialization when the page refuses the script.
@@ -479,6 +495,11 @@ try {
       flush();
       continue;
     }
+    // On file until the page settles: a worker killed mid-page (a page that
+    // holds the browser past the exec budget) leaves this reason behind, so
+    // the host charges the page instead of handing it back to every batch.
+    record.error = UNFINISHED_PAGE_REASON;
+    fileBytes = flush();
     const page = await context.newPage();
     try {
       const response = await page.goto(url, {
@@ -524,6 +545,7 @@ try {
           record.error = 'rendered HTML exceeds the per-page bound';
         } else {
           const fields = { status, finalUrl, html };
+          delete record.error;
           // Admit the page only while the output stays under the batch cap —
           // decided BEFORE storing, in bytes. A page that does not fit is
           // handed back (not attempted) for the next batch, and this batch

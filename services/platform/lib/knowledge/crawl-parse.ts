@@ -552,6 +552,11 @@ export function publicPageError(message: string): string {
   return stripRuntimeLocations(firstLine);
 }
 
+/** What the render worker leaves on a page it started and never finished:
+ * its exec was cut while that page held the browser. */
+export const RENDER_UNFINISHED_REASON =
+  'The browser did not finish rendering the page before the batch ran out of time';
+
 /** How a rendered page's failure reads on its row: the browser's own load
  * budget expiring is the `timeout` the contract names, not a generic render
  * failure, and the message names the budget instead of the call log. */
@@ -559,6 +564,9 @@ export function classifyRenderReason(reason: string): {
   readonly kind: 'timeout' | 'render_failed';
   readonly message: string;
 } {
+  if (reason === RENDER_UNFINISHED_REASON) {
+    return { kind: 'timeout', message: reason };
+  }
   const timeout = /^page\.goto: Timeout (\d+)ms exceeded/i.exec(reason);
   if (timeout) {
     const seconds = Math.round(Number(timeout[1]) / 1000);
