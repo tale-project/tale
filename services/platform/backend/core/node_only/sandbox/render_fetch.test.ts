@@ -482,12 +482,19 @@ const layout = process.env.FAKE_LAYOUT_HTML;
 // A page that holds the browser for good: its navigation never settles,
 // and the process lives on until the exec budget kills it.
 const hangUrl = process.env.FAKE_HANG_URL;
+// A page that takes the whole browser down with it.
+const crashUrl = process.env.FAKE_CRASH_URL;
+let connected = true;
 function makePage() {
   let current = '';
   return {
     async goto(url) {
       current = url;
       if (url === hangUrl) await new Promise(() => setInterval(() => {}, 1000));
+      if (url === crashUrl) {
+        connected = false;
+        throw new Error('page.goto: Target page, context or browser has been closed');
+      }
       return { status: () => 200 };
     },
     async waitForLoadState() {},
@@ -513,8 +520,14 @@ module.exports = {
         async newContext(options) {
           const file = process.env.FAKE_CONTEXT_OPTIONS_FILE;
           if (file) require('node:fs').writeFileSync(file, JSON.stringify(options || {}));
-          return { async newPage() { return makePage(); } };
+          return {
+            async newPage() {
+              if (!connected) throw new Error('browserContext.newPage: browser has been closed');
+              return makePage();
+            },
+          };
         },
+        isConnected() { return connected; },
         async close() {},
       };
     },
@@ -627,6 +640,27 @@ describe('render worker — output budget in bytes', () => {
       { kind: 'not_attempted' },
       { kind: 'not_attempted' },
     ]);
+  }, 30_000);
+
+  // Regression: once the browser process was gone, the worker crashed on the
+  // next `newPage()` — and with the unfinished-page marker on file, the page
+  // after the one that killed the browser was charged for it.
+  it('a browser that dies mid-batch ends the batch: the page that took it down is charged, the rest come back', async () => {
+    const urls = ['a', 'b', 'c', 'd'].map((p) => `https://site.example/${p}`);
+    const { results } = await runWorker(
+      urls,
+      { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 },
+      10,
+      {},
+      { FAKE_CRASH_URL: urls[1] ?? '' },
+    );
+    expect(results.get(urls[0] ?? '')).toMatchObject({ kind: 'ok' });
+    expect(results.get(urls[1] ?? '')).toMatchObject({
+      kind: 'failed',
+      reason: expect.stringContaining('browser has been closed'),
+    });
+    expect(results.get(urls[2] ?? '')).toEqual({ kind: 'not_attempted' });
+    expect(results.get(urls[3] ?? '')).toEqual({ kind: 'not_attempted' });
   }, 30_000);
 
   // Regression: a page that held the browser past the exec budget was never

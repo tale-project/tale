@@ -495,12 +495,22 @@ try {
       flush();
       continue;
     }
+    // A browser that died (out of memory, out of pids) opens no further
+    // page. The batch ends here: the page that took it down is already on
+    // file with its failure, and this one and the rest come back, not
+    // attempted, for the next batch and its fresh browser.
+    const page = browser.isConnected()
+      ? await context.newPage().catch(() => null)
+      : null;
+    if (page === null) {
+      record.attempted = false;
+      break;
+    }
     // On file until the page settles: a worker killed mid-page (a page that
     // holds the browser past the exec budget) leaves this reason behind, so
     // the host charges the page instead of handing it back to every batch.
     record.error = UNFINISHED_PAGE_REASON;
     fileBytes = flush();
-    const page = await context.newPage();
     try {
       const response = await page.goto(url, {
         timeout: perPageTimeoutMs,
