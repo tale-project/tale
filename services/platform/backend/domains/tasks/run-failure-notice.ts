@@ -71,9 +71,7 @@ export async function announceAgentRunFailed(
  * later delivery of the retry stands down and the run card reads the failure
  * as final — without the mark the card kept reading "about to be retried"
  * for a retry nothing would start. The first call to retire it tells the
- * people the run answers to, unless `announce` is off: a refusal that only
- * follows someone else's decision (the project archived or gone) needs no
- * bell.
+ * people the run answers to, unless `announce` is off.
  */
 export async function retireAutoRetry(
   tx: TransactionSql,

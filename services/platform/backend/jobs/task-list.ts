@@ -334,9 +334,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         startedBy: newest.startedBy,
       });
       if (refusal !== null) {
-        // A project archived or gone was someone's decision about all of
-        // its work; a starter who lost the task leaves it to its watchers.
-        await retire(refusal === 'not_permitted');
+        // A starter who may no longer work the task ends its retry for good,
+        // and its watchers are told. A project archived or gone is someone
+        // else's decision about all of its work, and a restored project
+        // takes the retry on the job's next delivery: nothing is retired.
+        if (refusal === 'not_permitted') await retire(true);
         return refusal;
       }
       // A run an automation step or another agent started stays one when

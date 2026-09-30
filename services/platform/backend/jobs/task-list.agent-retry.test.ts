@@ -452,11 +452,14 @@ describe('task.agent_retry admission', () => {
 
       expect(kickAgentRun).not.toHaveBeenCalled();
       expect(lines).toEqual([`[task-agent] auto-retry skipped: ${reason}`]);
-      // Retired either way; a project archived or gone was someone's
-      // decision about all of its work, so only a lost starter is told.
-      expect(retireAutoRetry).toHaveBeenCalledWith(
-        ...retiredWith(reason === 'not_permitted'),
-      );
+      // A lost starter ends the retry for good, and it is told. A project
+      // archived or gone may come back, and the job's next delivery then
+      // starts the retry: nothing is retired.
+      if (reason === 'not_permitted') {
+        expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
+      } else {
+        expect(retireAutoRetry).not.toHaveBeenCalled();
+      }
     },
   );
 
