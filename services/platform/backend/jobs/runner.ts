@@ -81,7 +81,9 @@ function claimsEnded(answer: unknown): 0 | 1 {
  * pg-boss's failure path under its queue's retry policy rather than ending
  * without a successor. A keyless job on a standard queue hands over as
  * before. The queue's own retry and expiry options apply to the successor,
- * as they applied to the job.
+ * as they applied to the job, and the job's own heartbeat travels with it:
+ * a queue created before its heartbeat was declared has none to lend
+ * (`TaskQueueOptions.heartbeatSeconds`).
  */
 async function handOver(
   boss: PgBoss,
@@ -100,6 +102,9 @@ async function handOver(
       startAfter: 5,
       ...(job.singletonKey !== null ? { singletonKey: job.singletonKey } : {}),
       ...(job.priority !== 0 ? { priority: job.priority } : {}),
+      ...(typeof job.heartbeatSeconds === 'number'
+        ? { heartbeatSeconds: job.heartbeatSeconds }
+        : {}),
     });
     if (successor !== null) return 'handed_over';
     // pg-boss's own record of the queue, read on this path only.

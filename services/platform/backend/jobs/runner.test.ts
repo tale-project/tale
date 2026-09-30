@@ -313,6 +313,28 @@ describe('startWorker shouldDefer', () => {
     );
   });
 
+  // A website scan link is told apart from a dead worker's by its job's
+  // heartbeat, which the send that queued it set per job: the successor
+  // has to carry it, or a scan handed over across a deploy loses it.
+  it("keeps the job's heartbeat on its successor", async () => {
+    const { boss, send, handlers } = fakeBoss();
+    await startWorker({
+      boss,
+      taskList: { 'websites.scan': vi.fn() },
+      shouldDefer: async () => true,
+      sql: fakeSql([]),
+    });
+
+    await handlers.get('websites.scan')?.([
+      { ...job, heartbeatSeconds: 60 } as unknown as Job,
+    ]);
+    expect(send).toHaveBeenCalledWith(
+      'websites.scan',
+      { seq: 1 },
+      expect.objectContaining({ startAfter: 5, heartbeatSeconds: 60 }),
+    );
+  });
+
   it('keeps the claim when the hand-over fails, for pg-boss to retry', async () => {
     const { boss, send, calls, handlers } = fakeBoss();
     send.mockRejectedValueOnce(new Error('insert refused'));
