@@ -15,6 +15,9 @@ export interface FileMetadataResult {
    *  source either way (a trashed folder lists empty rather than failing,
    *  so the sync engine relies on this probe to tell the two apart). */
   notFound?: boolean;
+  /** Drive refused the token (401) — expired, or access removed at the
+   *  provider; the import refreshes the grant rather than fail the file. */
+  unauthorized?: boolean;
 }
 
 export async function getFileMetadata(
@@ -42,6 +45,7 @@ export async function getFileMetadata(
         success: false,
         error: `Failed to get file metadata: ${response.status} ${errorText}`,
         notFound: response.status === 404,
+        unauthorized: response.status === 401,
       };
     }
 

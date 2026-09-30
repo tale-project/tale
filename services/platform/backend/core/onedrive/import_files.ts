@@ -4,6 +4,13 @@
 
 import { resolveFileType } from '../../../lib/shared/file-types';
 import {
+  ImportFileRefusal,
+  ImportGrant,
+  ProviderTokenRefusedError,
+  type ImportFileReason,
+  type ResolveImportToken,
+} from '../cloud_import/import_grant';
+import {
   isSourceUnchanged,
   sourceFingerprint,
 } from '../cloud_import/source_fingerprint';
@@ -30,7 +37,11 @@ export interface ImportFileResult {
   fileName: string;
   status: 'success' | 'skipped' | 'error';
   documentId?: Id<'documents'>;
+  /** What failed, for the log: often the provider's own answer. */
   error?: string;
+  /** Why the file was refused, in words a person can read — set only for
+   *  a refusal Tale wrote for people; a fault carries none. */
+  reason?: ImportFileReason;
 }
 
 export interface ImportFilesResult {
@@ -40,6 +51,8 @@ export interface ImportFilesResult {
   successCount: number;
   failedCount: number;
   skippedCount: number;
+  /** The grant's own sentence when it ended part-way (`resolveToken`): the
+   *  import stopped at that file, and `results` holds the files before it. */
   error?: string;
 }
 
@@ -58,7 +71,13 @@ export interface ImportFilesDependencies {
     token: string,
     siteId?: string,
     driveId?: string,
-  ) => Promise<{ success: boolean; data?: FileMetadata; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    data?: FileMetadata;
+    error?: string;
+    /** The provider refused the token (HTTP 401). */
+    unauthorized?: boolean;
+  }>;
   /**
    * Download the source file and land it in org storage in one step,
    * returning only the storage id — the bytes never come back into the
@@ -78,6 +97,10 @@ export interface ImportFilesDependencies {
     mimeType?: string;
     size?: number;
     error?: string;
+    /** The provider refused the token (HTTP 401). */
+    unauthorized?: boolean;
+    /** A refusal a person can read: the file is past the size cap. */
+    refusal?: ImportFileReason;
   }>;
   findDocumentByExternalId: (args: {
     organizationId: string;
@@ -171,6 +194,13 @@ export interface ImportFilesDependencies {
       storagePrefix?: string;
     },
   ) => Promise<string | null>;
+  /**
+   * Read the importing member's grant again — before each file, and with a
+   * forced refresh when the provider refuses the token (`ImportGrant`). The
+   * import route passes it; a grant that answers "reconnect" stops the
+   * import at that file. Absent (the sync engine), `token` is used as it is.
+   */
+  resolveToken?: ResolveImportToken;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -305,190 +335,213 @@ export async function importFiles(
     );
   };
 
-  for (const item of args.items) {
-    try {
-      const sourceProvider = item.sourceType ?? 'onedrive';
+  /** One file, end to end: skipped when unchanged, else downloaded and
+   *  filed. Throws what failed; `token` is the grant's current one. */
+  const importOne = async (
+    item: ImportItem,
+    token: string,
+  ): Promise<ImportFileResult> => {
+    const sourceProvider = item.sourceType ?? 'onedrive';
 
-      const existingDoc = await deps.findDocumentByExternalId({
-        organizationId: args.organizationId,
-        externalItemId: item.id,
-      });
+    const existingDoc = await deps.findDocumentByExternalId({
+      organizationId: args.organizationId,
+      externalItemId: item.id,
+    });
 
-      const metadataResult = await deps.getFileMetadata(
-        item.id,
-        args.token,
-        item.siteId,
-        item.driveId,
-      );
+    const metadataResult = await deps.getFileMetadata(
+      item.id,
+      token,
+      item.siteId,
+      item.driveId,
+    );
 
-      if (!metadataResult.success || !metadataResult.data) {
-        throw new Error(metadataResult.error || 'Failed to get file metadata');
+    if (!metadataResult.success || !metadataResult.data) {
+      const failure = metadataResult.error || 'Failed to get file metadata';
+      if (metadataResult.unauthorized === true) {
+        throw new ProviderTokenRefusedError(failure);
       }
+      throw new Error(failure);
+    }
 
-      const contentHash = metadataResult.data.hash;
-      const syncConfigId = configIdByItemId.get(
-        item.selectedParentId ?? item.id,
-      );
-      const existingMeta = isRecord(existingDoc?.metadata)
-        ? existingDoc.metadata
-        : {};
+    const contentHash = metadataResult.data.hash;
+    const syncConfigId = configIdByItemId.get(item.selectedParentId ?? item.id);
+    const existingMeta = isRecord(existingDoc?.metadata)
+      ? existingDoc.metadata
+      : {};
 
-      // Unchanged by hash, or — when the vendor sent none — by the stamped
-      // size + modified fingerprint; a file with neither re-downloads.
-      const fingerprint = sourceFingerprint(metadataResult.data);
-      if (
-        existingDoc &&
-        isSourceUnchanged({
-          hash: contentHash,
-          storedHash: existingDoc.contentHash,
-          fingerprint,
-          storedFingerprint: existingMeta.sourceFingerprint,
-        })
-      ) {
-        // Unchanged — but a sync import still adopts a document an earlier
-        // one-time import left unbound; otherwise the config would neither
-        // track nor prune it until its content happened to change.
-        const boundToThisSync =
-          existingMeta.syncConfigId === syncConfigId &&
-          existingMeta.sourceMode === 'auto';
-        if (syncConfigId !== undefined && !boundToThisSync) {
-          await deps.bindDocumentToSync?.({
+    // Unchanged by hash, or — when the vendor sent none — by the stamped
+    // size + modified fingerprint; a file with neither re-downloads.
+    const fingerprint = sourceFingerprint(metadataResult.data);
+    if (
+      existingDoc &&
+      isSourceUnchanged({
+        hash: contentHash,
+        storedHash: existingDoc.contentHash,
+        fingerprint,
+        storedFingerprint: existingMeta.sourceFingerprint,
+      })
+    ) {
+      // Unchanged — but a sync import still adopts a document an earlier
+      // one-time import left unbound; otherwise the config would neither
+      // track nor prune it until its content happened to change.
+      const boundToThisSync =
+        existingMeta.syncConfigId === syncConfigId &&
+        existingMeta.sourceMode === 'auto';
+      if (syncConfigId !== undefined && !boundToThisSync) {
+        await deps.bindDocumentToSync?.({
+          documentId: existingDoc._id,
+          metadata: {
+            sourceMode: 'auto',
+            syncConfigId,
+            ...selectionOf(item),
+          },
+        });
+      }
+      // A sync import files the document where its selection says, even
+      // when the bytes did not change: the folder row is what the person
+      // stops the sync from. Only INTO a folder — a path without a folder
+      // part keeps a manual move, the way the changed path does.
+      if (syncConfigId !== undefined && deps.setDocumentFolder) {
+        const folderId = await intendedFolderId(item);
+        if (
+          folderId !== undefined &&
+          existingDoc.folderId !== undefined &&
+          existingDoc.folderId !== folderId
+        ) {
+          await deps.setDocumentFolder({
             documentId: existingDoc._id,
-            metadata: {
-              sourceMode: 'auto',
-              syncConfigId,
-              ...selectionOf(item),
-            },
+            folderId,
           });
         }
-        // A sync import files the document where its selection says, even
-        // when the bytes did not change: the folder row is what the person
-        // stops the sync from. Only INTO a folder — a path without a folder
-        // part keeps a manual move, the way the changed path does.
-        if (syncConfigId !== undefined && deps.setDocumentFolder) {
-          const folderId = await intendedFolderId(item);
-          if (
-            folderId !== undefined &&
-            existingDoc.folderId !== undefined &&
-            existingDoc.folderId !== folderId
-          ) {
-            await deps.setDocumentFolder({
-              documentId: existingDoc._id,
-              folderId,
-            });
-          }
-        }
-        await deps.scheduleHubDocumentRagIndexing?.(existingDoc._id);
-        results.push({
-          fileId: item.id,
-          fileName: item.name,
-          status: 'skipped',
-          documentId: existingDoc._id,
-        });
-        skippedCount++;
-        continue;
       }
-
-      const stored = await deps.downloadToStorage({
-        itemId: item.id,
-        token: args.token,
-        siteId: item.siteId,
-        driveId: item.driveId,
-      });
-
-      if (!stored.success || !stored.storageId) {
-        throw new Error(stored.error || 'Failed to download file');
-      }
-
-      const storageId = stored.storageId;
-      const contentType = resolveFileType(
-        item.name,
-        stored.mimeType || 'application/octet-stream',
-      );
-      // Size, most-reliable first: the transferred byte count, then the Graph
-      // item-metadata size (always present for a file), then the listing size.
-      // A recursive listing can omit `size` for a freshly copied/uploaded item
-      // (list_folder_contents forwards it verbatim); without this fallback the
-      // row's metadata.size stays undefined and the hub renders it as "—".
-      const fileSize = stored.size ?? metadataResult.data.size ?? item.size;
-
-      const storagePath = item.relativePath
-        ? `${args.organizationId}/${item.relativePath}`
-        : `${args.organizationId}/${item.name}`;
-
-      const metadata: Record<string, unknown> = {
-        oneDriveItemId: item.id,
-        itemPath: item.relativePath || '',
-        sourceMode: args.importType === 'sync' ? 'auto' : 'manual',
-        storagePath,
-        size: fileSize,
-        ...(fingerprint !== undefined && { sourceFingerprint: fingerprint }),
-        ...(syncConfigId && { syncConfigId }),
-        ...selectionOf(item),
-        ...(item.siteId && { siteId: item.siteId }),
-        ...(item.driveId && { driveId: item.driveId }),
-        // A one-time re-import of a file a sync config owns must not detach
-        // it (the metadata is written whole, so the binding has to be
-        // carried over explicitly).
-        ...(syncConfigId === undefined
-          ? inheritedSyncBinding(existingMeta)
-          : {}),
-      };
-
-      const folderId = await intendedFolderId(item);
-
-      let documentId: Id<'documents'>;
-
-      if (existingDoc) {
-        await deps.updateDocument({
-          documentId: existingDoc._id,
-          title: item.name,
-          fileId: storageId,
-          mimeType: contentType,
-          sourceProvider,
-          externalItemId: item.id,
-          contentHash,
-          metadata,
-          teamId: args.teamId,
-          folderId,
-        });
-        documentId = existingDoc._id;
-      } else {
-        documentId = await deps.createDocument({
-          organizationId: args.organizationId,
-          title: item.name,
-          fileId: storageId,
-          mimeType: contentType,
-          sourceProvider,
-          externalItemId: item.id,
-          contentHash,
-          teamId: args.teamId,
-          metadata,
-          createdBy: args.userId,
-          folderId,
-        });
-      }
-
-      await deps.saveFileMetadata(
-        storageId,
-        item.name,
-        contentType,
-        fileSize,
-        documentId,
-      );
-
-      await deps.linkDocumentToFile?.(storageId, documentId);
-
-      await deps.scheduleHubDocumentRagIndexing?.(documentId);
-
-      results.push({
+      await deps.scheduleHubDocumentRagIndexing?.(existingDoc._id);
+      return {
         fileId: item.id,
         fileName: item.name,
-        status: 'success',
-        documentId,
+        status: 'skipped',
+        documentId: existingDoc._id,
+      };
+    }
+
+    const stored = await deps.downloadToStorage({
+      itemId: item.id,
+      token,
+      siteId: item.siteId,
+      driveId: item.driveId,
+    });
+
+    if (!stored.success || !stored.storageId) {
+      const failure = stored.error || 'Failed to download file';
+      if (stored.unauthorized === true) {
+        throw new ProviderTokenRefusedError(failure);
+      }
+      if (stored.refusal !== undefined) {
+        throw new ImportFileRefusal(stored.refusal);
+      }
+      throw new Error(failure);
+    }
+
+    const storageId = stored.storageId;
+    const contentType = resolveFileType(
+      item.name,
+      stored.mimeType || 'application/octet-stream',
+    );
+    // Size, most-reliable first: the transferred byte count, then the Graph
+    // item-metadata size (always present for a file), then the listing size.
+    // A recursive listing can omit `size` for a freshly copied/uploaded item
+    // (list_folder_contents forwards it verbatim); without this fallback the
+    // row's metadata.size stays undefined and the hub renders it as "—".
+    const fileSize = stored.size ?? metadataResult.data.size ?? item.size;
+
+    const storagePath = item.relativePath
+      ? `${args.organizationId}/${item.relativePath}`
+      : `${args.organizationId}/${item.name}`;
+
+    const metadata: Record<string, unknown> = {
+      oneDriveItemId: item.id,
+      itemPath: item.relativePath || '',
+      sourceMode: args.importType === 'sync' ? 'auto' : 'manual',
+      storagePath,
+      size: fileSize,
+      ...(fingerprint !== undefined && { sourceFingerprint: fingerprint }),
+      ...(syncConfigId && { syncConfigId }),
+      ...selectionOf(item),
+      ...(item.siteId && { siteId: item.siteId }),
+      ...(item.driveId && { driveId: item.driveId }),
+      // A one-time re-import of a file a sync config owns must not detach
+      // it (the metadata is written whole, so the binding has to be
+      // carried over explicitly).
+      ...(syncConfigId === undefined ? inheritedSyncBinding(existingMeta) : {}),
+    };
+
+    const folderId = await intendedFolderId(item);
+
+    let documentId: Id<'documents'>;
+
+    if (existingDoc) {
+      await deps.updateDocument({
+        documentId: existingDoc._id,
+        title: item.name,
+        fileId: storageId,
+        mimeType: contentType,
+        sourceProvider,
+        externalItemId: item.id,
+        contentHash,
+        metadata,
+        teamId: args.teamId,
+        folderId,
       });
-      successCount++;
+      documentId = existingDoc._id;
+    } else {
+      documentId = await deps.createDocument({
+        organizationId: args.organizationId,
+        title: item.name,
+        fileId: storageId,
+        mimeType: contentType,
+        sourceProvider,
+        externalItemId: item.id,
+        contentHash,
+        teamId: args.teamId,
+        metadata,
+        createdBy: args.userId,
+        folderId,
+      });
+    }
+
+    await deps.saveFileMetadata(
+      storageId,
+      item.name,
+      contentType,
+      fileSize,
+      documentId,
+    );
+
+    await deps.linkDocumentToFile?.(storageId, documentId);
+
+    await deps.scheduleHubDocumentRagIndexing?.(documentId);
+
+    return {
+      fileId: item.id,
+      fileName: item.name,
+      status: 'success',
+      documentId,
+    };
+  };
+
+  const grant = new ImportGrant(args.token, deps.resolveToken);
+  for (const item of args.items) {
+    // The grant again before each file, the check each listing makes: a
+    // grant revoked or expired since the last file stops the import here.
+    if (!(await grant.beforeFile())) break;
+    try {
+      const result = await grant.run((token) => importOne(item, token));
+      results.push(result);
+      if (result.status === 'skipped') skippedCount++;
+      else successCount++;
     } catch (error) {
+      // The grant ended at this file: it is not imported, nor is any after
+      // it — the files before it stay.
+      if (grant.ended !== undefined) break;
       console.error(`[importFiles] Failed to process ${item.name}:`, error);
 
       results.push({
@@ -496,17 +549,20 @@ export async function importFiles(
         fileName: item.name,
         status: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
+        ...(error instanceof ImportFileRefusal && { reason: error.reason }),
       });
       failedCount++;
     }
   }
 
+  const ended = grant.ended;
   return {
-    success: failedCount === 0,
+    success: failedCount === 0 && ended === undefined,
     results,
     totalFiles: args.items.length,
     successCount,
     failedCount,
     skippedCount,
+    ...(ended !== undefined && { error: ended }),
   };
 }

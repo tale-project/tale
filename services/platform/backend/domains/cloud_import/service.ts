@@ -271,6 +271,11 @@ export async function revokeCloudAuthorization(
  * Decrypt a grant and refresh when near expiry — the 0.4
  * `resolveAccessToken` twin. Only for Knowledge paths owned by that user;
  * agents never resolve these rows.
+ *
+ * `forceRefresh` refreshes even when the stored token should still be live:
+ * the provider has just refused it (401), and access removed at Microsoft or
+ * Google ends a token before its expiry does. A grant that cannot be
+ * refreshed then answers "reconnect" like one that expired.
  */
 export async function resolveCloudAccessToken(
   sql: Sql,
@@ -279,6 +284,7 @@ export async function resolveCloudAccessToken(
     userId: string;
     provider: CloudImportProvider;
   },
+  options: { forceRefresh?: boolean } = {},
 ): Promise<ResolveCloudTokenResult> {
   const rows = await sql<{ encryptedData: EncryptedSecret; status: string }[]>`
     SELECT encrypted_data AS "encryptedData", status
@@ -324,8 +330,9 @@ export async function resolveCloudAccessToken(
   }
 
   const needsRefresh =
-    payload.expiresAt !== undefined &&
-    payload.expiresAt < Date.now() + REFRESH_BUFFER_MS;
+    options.forceRefresh === true ||
+    (payload.expiresAt !== undefined &&
+      payload.expiresAt < Date.now() + REFRESH_BUFFER_MS);
   if (!needsRefresh) {
     return { success: true, accessToken: payload.accessToken };
   }
@@ -408,12 +415,50 @@ export async function resolveCloudAccessToken(
       : {}),
     ...(payload.scopes !== undefined ? { scopes: [...payload.scopes] } : {}),
   };
-  await upsertAuthorization(sql, {
+  const stored = await storeRefreshedAuthorization(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
     provider: args.provider,
     encryptedData: encryptSecret(JSON.stringify(nextDocument)),
     scopes: payload.scopes !== undefined ? [...payload.scopes] : [],
   });
+  if (!stored) {
+    // Revoked, or marked for reconnecting, while the refresh ran: the fresh
+    // token is dropped, and the grant answers as what it now is.
+    return {
+      success: false,
+      error: 'Cloud import is not authorized for this provider',
+      needsReauth: true,
+    };
+  }
   return { success: true, accessToken: refreshed.tokens.accessToken };
+}
+
+/**
+ * Store a refreshed token over the grant it was refreshed from — only while
+ * that grant is still active. A **Disconnect** that lands while the refresh
+ * is in flight revokes the row; writing the fresh token over it (the
+ * upsert sets `status = 'active'`) would quietly undo the Disconnect, and an
+ * import running beside it would carry on.
+ */
+async function storeRefreshedAuthorization(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    userId: string;
+    provider: CloudImportProvider;
+    encryptedData: EncryptedSecret;
+    scopes: string[];
+  },
+): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE app.user_cloud_authorizations SET
+      encrypted_data = ${sql.json(toJson(args.encryptedData))},
+      scopes = ${args.scopes},
+      updated_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+      AND provider = ${args.provider} AND status = 'active'
+    RETURNING id
+  `;
+  return rows.length > 0;
 }

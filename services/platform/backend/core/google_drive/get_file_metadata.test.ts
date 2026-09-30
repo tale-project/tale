@@ -83,4 +83,16 @@ describe('google_drive getFileMetadata', () => {
     const outage = await getFileMetadata('f1', 'tok');
     expect(outage).toMatchObject({ success: false, notFound: false });
   });
+
+  // A refused token (expired, or access removed at Google) is the import's
+  // cue to refresh the grant; a refused ITEM (403) is the file's own failure.
+  it('reports a 401 as a refused token, and only a 401', async () => {
+    stubDrive(401, { error: { code: 401, message: 'Invalid Credentials' } });
+    const refused = await getFileMetadata('f1', 'tok');
+    expect(refused).toMatchObject({ success: false, unauthorized: true });
+
+    stubDrive(403, { error: { code: 403, message: 'Forbidden' } });
+    const denied = await getFileMetadata('f1', 'tok');
+    expect(denied).toMatchObject({ success: false, unauthorized: false });
+  });
 });

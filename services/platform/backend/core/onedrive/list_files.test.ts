@@ -155,6 +155,20 @@ describe('listFiles (OneDrive browse)', () => {
     const out = await listFiles('t');
     expect(out.success).toBe(false);
     expect(out.error).toBe('OneDrive API error: 401 denied');
+    // A refused token: the listing door refreshes the grant once on it.
+    expect(out.unauthorized).toBe(true);
+  });
+
+  it('flags only a refused token, never an outage', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('busy', { status: 503 })),
+    );
+    const out = await listFiles('t');
+    expect(out).toEqual({
+      success: false,
+      error: 'OneDrive API error: 503 busy',
+    });
   });
 });
 
@@ -189,5 +203,22 @@ describe('listSharePointFiles', () => {
       token: 't',
     });
     expect(out).toEqual({ success: false, error: 'Location not found.' });
+  });
+
+  it('flags a refused token for the listing door', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 401 })),
+    );
+    const out = await listSharePointFiles({
+      siteId: 'site',
+      driveId: 'drive',
+      token: 't',
+    });
+    expect(out).toEqual({
+      success: false,
+      error: 'Failed to list files: 401',
+      unauthorized: true,
+    });
   });
 });

@@ -435,3 +435,263 @@ describe('google_drive importFiles placement', () => {
     );
   });
 });
+
+/** The sentence `resolveDriveTokenForUser` answers a grant that needs
+ *  reconnecting with — the one every listing hands to the connect dialog. */
+const RECONNECT =
+  'Google Drive is not authorized for importing. Connect Google Drive from Documents.';
+
+/** `count` files at the top of a My Drive selection. */
+function files(count: number): ImportItem[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `file-${index + 1}`,
+    name: `f${index + 1}.docx`,
+    size: 10,
+    relativePath: `f${index + 1}.docx`,
+  }));
+}
+
+/** A grant that reads live before the first `live` files, then answers
+ *  "reconnect" (revoked, or its refresh token dead). */
+function grantEndingAfter(live: number) {
+  let reads = 0;
+  return vi.fn(async () =>
+    ++reads <= live
+      ? { success: true as const, token: 'tok' }
+      : { success: false as const, error: RECONNECT, needsReauth: true },
+  );
+}
+
+/** Drive refusing the token for `refusedIds` while it is `refusedToken`. */
+function metadataRefusing(
+  refusedIds: ReadonlySet<string>,
+  refusedToken = 'tok',
+) {
+  return vi.fn(async (itemId: string, token: string) =>
+    refusedIds.has(itemId) && token === refusedToken
+      ? {
+          success: false,
+          error:
+            'Failed to get file metadata: 401 {"error":{"code":401,"message":"Invalid Credentials"}}',
+          unauthorized: true,
+        }
+      : { success: true, data: { hash: `h-${itemId}` } },
+  );
+}
+
+/**
+ * A grant revoked or expired while an import runs — access removed at
+ * Google ends the access token at once. The route read the grant once, so
+ * every file after the lapse failed on a refused token and the import read
+ * as failed whole. The grant is read again before each file now, and
+ * refreshed once when Drive refuses the token: a grant that answers
+ * "reconnect" stops the import at that file, keeps the files before it, and
+ * answers the grant's own sentence.
+ */
+describe('google_drive importFiles when the grant ends part-way', () => {
+  it('stops at the file the grant ended at, keeping the files before it', async () => {
+    const deps = makeDeps({ resolveToken: grantEndingAfter(2) });
+
+    const result = await importFiles(
+      { ...baseArgs, items: files(5), importType: 'one-time' },
+      deps,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      totalFiles: 5,
+      successCount: 2,
+      failedCount: 0,
+      skippedCount: 0,
+      error: RECONNECT,
+    });
+    expect(result.results.map((row) => row.fileId)).toEqual([
+      'file-1',
+      'file-2',
+    ]);
+    expect(deps.getFileMetadata).toHaveBeenCalledTimes(2);
+    expect(deps.downloadToStorage).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes the grant when Drive refuses the token, and carries on', async () => {
+    const getFileMetadata = metadataRefusing(new Set(['file-1']));
+    const deps = makeDeps({
+      getFileMetadata,
+      resolveToken: vi.fn(
+        async ({ forceRefresh }: { forceRefresh: boolean }) =>
+          forceRefresh
+            ? { success: true as const, token: 'tok-2' }
+            : { success: true as const, token: 'tok' },
+      ),
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: files(2), importType: 'one-time' },
+      deps,
+    );
+
+    expect(result).toMatchObject({ success: true, successCount: 2 });
+    expect(getFileMetadata.mock.calls.map(([, token]) => token)).toEqual([
+      'tok',
+      'tok-2',
+      'tok',
+    ]);
+  });
+
+  it('stops when Drive refuses the token and the grant cannot be refreshed', async () => {
+    const deps = makeDeps({
+      getFileMetadata: metadataRefusing(new Set(['file-2'])),
+      resolveToken: vi.fn(
+        async ({ forceRefresh }: { forceRefresh: boolean }) =>
+          forceRefresh
+            ? { success: false as const, error: RECONNECT, needsReauth: true }
+            : { success: true as const, token: 'tok' },
+      ),
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: files(4), importType: 'one-time' },
+      deps,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      totalFiles: 4,
+      successCount: 1,
+      error: RECONNECT,
+    });
+    expect(result.results.map((row) => row.fileId)).toEqual(['file-1']);
+    expect(deps.downloadToStorage).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a download refused for its token the same way', async () => {
+    const downloadToStorage = vi.fn(async ({ itemId }: { itemId: string }) =>
+      itemId === 'file-2'
+        ? {
+            success: false,
+            error:
+              'Failed to download file: 401 {"error":{"code":401,"message":"Invalid Credentials"}}',
+            unauthorized: true,
+          }
+        : {
+            success: true,
+            storageId: 's3:org-1/blob' as never,
+            mimeType: 'text/plain',
+            size: 10,
+          },
+    );
+    const deps = makeDeps({
+      downloadToStorage,
+      resolveToken: vi.fn(
+        async ({ forceRefresh }: { forceRefresh: boolean }) =>
+          forceRefresh
+            ? { success: false as const, error: RECONNECT, needsReauth: true }
+            : { success: true as const, token: 'tok' },
+      ),
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: files(3), importType: 'one-time' },
+      deps,
+    );
+
+    expect(result).toMatchObject({ successCount: 1, error: RECONNECT });
+    expect(result.results).toHaveLength(1);
+  });
+
+  // The same selection imported again after reconnecting: the Drive file id
+  // each document records (`external_item_id`) finds the files the first
+  // run brought in, and an unchanged one is skipped — never downloaded or
+  // created twice.
+  it('skips the files already imported when the same selection runs again', async () => {
+    const stored = new Map<string, string>();
+    const findDocumentByExternalId = vi.fn(
+      async ({ externalItemId }: { externalItemId: string }) =>
+        stored.has(externalItemId)
+          ? {
+              _id: `doc-${externalItemId}` as Id<'documents'>,
+              contentHash: stored.get(externalItemId),
+              metadata: { sourceMode: 'manual' },
+            }
+          : null,
+    );
+    const createDocument = vi.fn(
+      async (args: { externalItemId: string; contentHash?: string }) => {
+        stored.set(args.externalItemId, args.contentHash ?? '');
+        return `doc-${args.externalItemId}` as Id<'documents'>;
+      },
+    );
+    const getFileMetadata = metadataRefusing(new Set());
+    const selection = files(4);
+
+    const first = await importFiles(
+      { ...baseArgs, items: selection, importType: 'one-time' },
+      makeDeps({
+        findDocumentByExternalId,
+        createDocument,
+        getFileMetadata,
+        resolveToken: grantEndingAfter(2),
+      }),
+    );
+    const downloadsAgain = vi.fn().mockResolvedValue({
+      success: true,
+      storageId: 's3:org-1/blob-2' as never,
+      mimeType: 'text/plain',
+      size: 10,
+    });
+    const again = await importFiles(
+      { ...baseArgs, items: selection, importType: 'one-time' },
+      makeDeps({
+        findDocumentByExternalId,
+        createDocument,
+        getFileMetadata,
+        downloadToStorage: downloadsAgain,
+        resolveToken: grantEndingAfter(4),
+      }),
+    );
+
+    expect(first).toMatchObject({ successCount: 2, error: RECONNECT });
+    expect(again).toMatchObject({
+      success: true,
+      successCount: 2,
+      skippedCount: 2,
+    });
+    expect(downloadsAgain.mock.calls.map(([args]) => args.itemId)).toEqual([
+      'file-3',
+      'file-4',
+    ]);
+    expect(
+      createDocument.mock.calls.map(([args]) => args.externalItemId),
+    ).toEqual(['file-1', 'file-2', 'file-3', 'file-4']);
+  });
+
+  it("carries the size cap's words for a refused file, and only a refusal's", async () => {
+    const cap = 'The file exceeds the 512 MiB limit';
+    const downloadToStorage = vi.fn(async ({ itemId }: { itemId: string }) =>
+      itemId === 'file-1'
+        ? {
+            success: false,
+            error: cap,
+            refusal: { code: 'FILE_SIZE_INVALID', message: cap },
+          }
+        : {
+            success: false,
+            error: 'Failed to download file: 500 backendError',
+          },
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await importFiles(
+      { ...baseArgs, items: files(2), importType: 'one-time' },
+      makeDeps({ downloadToStorage }),
+    );
+
+    expect(result).toMatchObject({ success: false, failedCount: 2 });
+    expect(result.results[0]?.reason).toEqual({
+      code: 'FILE_SIZE_INVALID',
+      message: cap,
+    });
+    expect(result.results[1]?.reason).toBeUndefined();
+    vi.mocked(console.error).mockRestore();
+  });
+});
