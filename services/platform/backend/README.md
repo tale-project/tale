@@ -150,8 +150,17 @@ isolated test tree. Blob-backed probes also need a fresh S3-compatible service
 through `ITEST_S3_ENDPOINT`; its test credentials default to `minioadmin` and can
 be overridden by `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`. Without that
 endpoint the affected probes report skips, so do not describe the result as full
-storage coverage. Supply a working `VIDEO_INGEST_FFMPEG_LOCATION` when the host's
-ffmpeg is not at the path expected by the probe.
+storage coverage. The transcription and video-link probes run the real `ffmpeg`
+and `ffprobe` from `PATH`; `VIDEO_INGEST_FFMPEG_LOCATION` points the video probe
+at another `ffmpeg`.
+
+`ITEST_REQUIRE_ALL_LANES=1` asks for full coverage. The harness then refuses to
+start with a lane filter or without all three `ITEST_S3_*` variables, and a check
+that cannot run fails instead of reporting a skip. Every skip goes through
+`recordSkip` in [`integration-lane-helpers.ts`](integration-lane-helpers.ts), and
+lanes read the harness's own variables only through that module
+(`tests/guards/integration-skips.guard.test.ts`). Without the flag a skip is a pass
+whose name ends in `(SKIPPED)`, and the tally counts those apart.
 
 Use the [database image's readiness check](../../db/README.md) before starting the
 suite. A bootstrap PostgreSQL process can accept a connection before initialization

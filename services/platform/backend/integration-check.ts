@@ -119,7 +119,15 @@ import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
-import { cookieHeaderFrom, signUpUser } from './integration-lane-helpers.ts';
+import {
+  cookieHeaderFrom,
+  fullCoverageBlockers,
+  isSkippedCheck,
+  itestObjectStore,
+  recordSkip,
+  requestedLanes,
+  signUpUser,
+} from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -3297,17 +3305,16 @@ async function checkFiles(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  const endpoint = process.env.ITEST_S3_ENDPOINT;
-  if (!endpoint) {
-    record(
-      'files upload/serve/delete (SKIPPED)',
-      true,
+  const store = itestObjectStore();
+  if (!store) {
+    recordSkip(
+      record,
+      'files upload/serve/delete',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
   }
-  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
-  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
+  const { endpoint, accessKeyId, secretAccessKey } = store;
 
   // The deployment default is SEEDED THE WAY THE STACK SEEDS IT — this calls
   // the same `ensureDefaultObjectStore` the backend runs at boot, rather than
@@ -3799,10 +3806,10 @@ async function checkBlobRefAuthority(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'blob-ref authority (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'blob-ref authority',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -4288,10 +4295,10 @@ async function checkDocuments(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'documents + folders (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'documents + folders',
       'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
     );
     return;
@@ -6134,10 +6141,10 @@ async function checkFolderBoundTaskFacts(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'folder-bound task facts + document natives (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'folder-bound task facts + document natives',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -6348,10 +6355,10 @@ async function checkDocumentWriteGuards(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'document write guards (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'document write guards',
       'no ITEST_S3_ENDPOINT — document write-guard lanes not exercised',
     );
     return;
@@ -8544,10 +8551,10 @@ async function checkKnowledge(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'knowledge RAG loop (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'knowledge RAG loop',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9367,10 +9374,10 @@ async function checkIndexingReleaseRace(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'indexing vs release race (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'indexing vs release race',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9721,10 +9728,10 @@ async function checkEmbeddingCredentialRefusal(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'embedding credential refusal (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'embedding credential refusal',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9995,10 +10002,10 @@ async function checkCorpusPurgeConsistency(
   ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'corpus purge consistency (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'corpus purge consistency',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -10784,10 +10791,10 @@ async function checkChat(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'chat turn engine (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'chat turn engine',
       'no ITEST_S3_ENDPOINT — chat vertical rides the knowledge fixture',
     );
     return;
@@ -14559,10 +14566,10 @@ async function checkRestMachineJourney(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'REST machine journey (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'REST machine journey',
       'no ITEST_S3_ENDPOINT — the upload lane needs blob storage',
     );
     return;
@@ -20005,10 +20012,10 @@ async function checkSandboxBlobDoor(
   base: string,
   ctx: { orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'sandbox-blob staging door (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'sandbox-blob staging door',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -21966,7 +21973,7 @@ async function checkTasksCollabIntegrity(
     ) RETURNING id
   `;
   const doomedAutomationId = doomedAutomation[0]?.id ?? '';
-  const blobLane = process.env.ITEST_S3_ENDPOINT !== undefined;
+  const blobLane = itestObjectStore() !== null;
   let deliverableRef = '';
   let blobBefore: number | null = null;
   if (blobLane) {
@@ -22035,8 +22042,15 @@ async function checkTasksCollabIntegrity(
     // by the delete — never left as a live row pointing at leaked bytes.
     fileRowDead = fileRows.every((row) => row.lifecycleStatus === 'trashed');
   }
+  if (!blobLane) {
+    recordSkip(
+      record,
+      "tasks/collab: hard delete reclaims the subtree's blobs",
+      'no ITEST_S3_ENDPOINT — the blob half needs an object store',
+    );
+  }
   record(
-    `tasks/collab: hard delete stops the subtree's live runs and reclaims its blobs${blobLane ? '' : ' (blob lane SKIPPED: no ITEST_S3_ENDPOINT)'}`,
+    `tasks/collab: hard delete stops the subtree's live runs${blobLane ? ' and reclaims its blobs' : ''}`,
     deletion.ok &&
       deletionBody.success &&
       deletionBody.data.deletedChildCount === 1 &&
@@ -23087,7 +23101,13 @@ async function checkRecoverySweeps(
   //      whose transcription already COMPLETED must not clobber the file
   //      row to 'skipped' (the cleanup would then delete the org's donor
   //      transcript). Blob cleanup runs, so this needs the S3 lane. ------
-  if (process.env.ITEST_S3_ENDPOINT) {
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'watchdog: dismissing a Ready whisper chip keeps the settled donor',
+      'no ITEST_S3_ENDPOINT — the dismissal runs blob cleanup',
+    );
+  } else {
     const donorKeepFile = await sql<{ id: string }[]>`
       INSERT INTO app.file_metadata (
         org_id, file_name, content_type, size, storage_ref, uploaded_by,
@@ -24160,7 +24180,7 @@ async function checkConnectorOauth(
     // the org's store, a file_metadata row names the connector as source, and
     // the body gets the blob ref back. Needs the object store, like every
     // blob lane.
-    if (process.env.ITEST_S3_ENDPOINT) {
+    if (itestObjectStore()) {
       const files = await import('./domains/files/service.ts');
       const { credentialId: confluenceId } =
         await credentialService.createCredential(sql, {
@@ -24284,10 +24304,10 @@ async function checkConnectorOauth(
         `error=${storedError || '-'} file=${storedParsed.success ? `${storedParsed.data.file.fileName}/${storedParsed.data.file.contentType}/${storedParsed.data.file.size}B` : JSON.stringify(storedOut).slice(0, 200)} wikiCalls=${wikiCalls.length} text=${JSON.stringify(storedText)} row=${fileRow.length ? `${fileRow[0]?.source}/${fileRow[0]?.fileName}/${fileRow[0]?.size}B/by=${fileRow[0]?.uploadedBy === userId}/skipRag=${fileRow[0]?.skipRag}` : 'none'} foreignRefused=${foreignRefused}`,
       );
     } else {
-      record(
+      recordSkip(
+        record,
         'connector live: ctx.files stores into the org blob store and returns the ref',
-        true,
-        'SKIPPED, no ITEST_S3_ENDPOINT',
+        'no ITEST_S3_ENDPOINT — ctx.files stores into the object store',
       );
     }
   } finally {
@@ -25417,19 +25437,29 @@ async function checkConversations(
   // and that failure deliberately fails OPEN — a store it cannot reach is not
   // evidence the blob is gone.
   const goneChip = attChips.find((attachment) => attachment.id === 'att-gone');
+  const goneProbed = itestObjectStore() !== null;
+  if (!goneProbed) {
+    recordSkip(
+      record,
+      'conversations: a vanished attachment offers no download',
+      'no ITEST_S3_ENDPOINT — only a store can tell a vanished blob from one out of reach',
+    );
+  }
   const goneMarked =
-    !process.env.ITEST_S3_ENDPOINT ||
+    !goneProbed ||
     (goneChip !== undefined &&
       goneChip.unavailable === true &&
       !('url' in goneChip));
   record(
-    'conversations: connectorName filters the Inbox; a bytesless and a vanished attachment both offer no download',
+    goneProbed
+      ? 'conversations: connectorName filters the Inbox; a bytesless and a vanished attachment both offer no download'
+      : 'conversations: connectorName filters the Inbox; a bytesless attachment offers no download',
     matchedFilter.includes(conversationId) &&
       !wrongFilter.includes(conversationId) &&
       bytelessChip !== undefined &&
       !('url' in bytelessChip) &&
       goneMarked,
-    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)} goneMarked=${goneMarked}${process.env.ITEST_S3_ENDPOINT ? ` (unavailableFlag=${goneChip?.unavailable === true} url=${goneChip !== undefined && 'url' in goneChip})` : ' (SKIPPED, no ITEST_S3_ENDPOINT)'}`,
+    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)}${goneProbed ? ` goneMarked=${goneMarked} (unavailableFlag=${goneChip?.unavailable === true} url=${goneChip !== undefined && 'url' in goneChip})` : ''}`,
   );
 
   const closed = z
@@ -29929,10 +29959,10 @@ async function checkTts(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'tts (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'tts',
       'no ITEST_S3_ENDPOINT — audio needs a blob store',
     );
     return;
@@ -34026,10 +34056,10 @@ async function checkTranscription(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'transcription (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'transcription',
       'no ITEST_S3_ENDPOINT — audio needs a blob store',
     );
     return;
@@ -34585,10 +34615,10 @@ async function checkVideoLinks(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'video links (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'video links',
       'no ITEST_S3_ENDPOINT — transcripts need a blob store',
     );
     return;
@@ -35729,10 +35759,10 @@ async function checkTaskAgentTurnDrive(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'task-agent turn drive (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'task-agent turn drive',
       'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
     );
     return;
@@ -36549,10 +36579,10 @@ async function checkAutomationAgentNode(
   ctx: { cookie: string; orgId: string },
   _orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'automation agent node (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'automation agent node',
       'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
     );
     return;
@@ -47305,12 +47335,14 @@ async function checkDataResidencyConfig(
   );
 
   // --- Object storage: connection files + probe + blob backfill ---------
-  const endpoint = process.env.ITEST_S3_ENDPOINT ?? '';
-  // Same defaults as checkFiles — a run that only sets ITEST_S3_ENDPOINT
-  // (the documented minimum) must reach MinIO here too, not sign with an
-  // empty key and fail the bucket create.
-  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
-  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
+  // Without a store this section fails rather than skips: its bucket create
+  // cannot succeed. The credentials carry checkFiles' defaults, so a run that
+  // only sets ITEST_S3_ENDPOINT (the documented minimum) reaches MinIO here
+  // too, instead of signing with an empty key and failing the bucket create.
+  const store = itestObjectStore();
+  const endpoint = store?.endpoint ?? '';
+  const accessKeyId = store?.accessKeyId ?? 'minioadmin';
+  const secretAccessKey = store?.secretAccessKey ?? 'minioadmin';
   const byoBucket = 'itest-byo';
   // Create the BYO bucket directly (MinIO: signed PUT on the bucket URL).
   const { buildS3ObjectStore } =
@@ -51737,10 +51769,10 @@ async function checkAbandonedUploadReclaim(
   sql: Sql,
   ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'abandoned upload reclaim (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'abandoned upload reclaim',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -51885,10 +51917,10 @@ async function checkVideoFinalizerCas(
   sql: Sql,
   ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'video finalizer CAS (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'video finalizer CAS',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -52103,10 +52135,10 @@ async function checkProjectTextConvergence(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'project-text convergence (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'project-text convergence',
       'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
     );
     return;
@@ -54874,10 +54906,16 @@ async function checkOrganizationLifecycle(
     }
   }
   const storage = await import('./core/lib/storage/object_store.ts');
-  const lifeStore = process.env.ITEST_S3_ENDPOINT
+  const lifeStore = itestObjectStore()
     ? await storage.resolveOrgObjectStore(slugA)
     : null;
-  if (lifeStore) {
+  if (!lifeStore) {
+    recordSkip(
+      record,
+      "org lifecycle: the teardown job removes the organization's blobs",
+      'no ITEST_S3_ENDPOINT — the blob half needs an object store',
+    );
+  } else {
     await storage.s3PutObject(
       lifeStore,
       storage.buildObjectKey(lifeStore, slugA),
@@ -55477,14 +55515,8 @@ function selectLanes(lanes: readonly Lane[]): {
   selected: readonly Lane[];
   filter: string | null;
 } {
-  const raw = process.env.ITEST_LANES?.trim();
-  if (!raw) return { selected: lanes, filter: null };
-  const wanted = new Set(
-    raw
-      .split(',')
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0),
-  );
+  const wanted = requestedLanes();
+  if (wanted === null) return { selected: lanes, filter: null };
   const unknown = [...wanted].filter(
     (name) => !lanes.some(([laneName]) => laneName === name),
   );
@@ -55577,6 +55609,13 @@ async function main(): Promise<void> {
   if (!databaseUrl) {
     console.error(
       'DATABASE_URL is required (throwaway database — see services/platform/backend/README.md).',
+    );
+    process.exit(2);
+  }
+  const blockers = fullCoverageBlockers();
+  if (blockers.length > 0) {
+    console.error(
+      `[itest] ITEST_REQUIRE_ALL_LANES=1 needs every lane to run, and this run cannot: ${blockers.join('; ')}.`,
     );
     process.exit(2);
   }
@@ -56671,13 +56710,14 @@ async function main(): Promise<void> {
   }
 
   const failed = results.filter((r) => !r.ok);
+  const skipped = results.filter((r) => isSkippedCheck(r.name)).length;
   if (lanes === null || lanes.truncatedAt !== null) {
     console.log(
       `\n[itest] RUN TRUNCATED${lanes === null ? ' before the lanes' : ` at ${lanes.truncatedAt}`} — ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes ran; the tally below covers only those`,
     );
   }
   console.log(
-    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
+    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${skipped > 0 ? `, ${skipped} of them skipped: not full coverage` : ''}${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
   );
   process.exit(failed.length === 0 ? 0 : 1);
 }
