@@ -67,8 +67,8 @@ exec:
             - set:
                 privacy:
                   usageStatisticsEnabled: false
-            # The CLI must request the model id it was given. The pinned
-            # CLI (0.49.0) rewrites ANY --model ending in "flash" to its own
+            # The CLI must request the model id it was given. Every CLI
+            # release before 0.61.0 rewrites ANY --model ending in "flash" to its own
             # gemini-3.5-flash on API-key auth (config/models.ts resolveModel:
             # isFlashModel = endsWith('flash'), gated by
             # hasGemini35FlashGAAccess(), which is unconditionally true for

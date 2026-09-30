@@ -425,8 +425,8 @@ print("GEMINI_WRAPPER_FLAGS_OK")
     `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
   );
 }
-// The pinned gemini-cli requests the model id it was given. 0.49.0 rewrites
-// any --model ending in "flash" to its own gemini-3.5-flash on API-key auth
+// The pinned gemini-cli requests the model id it was given. Every release
+// before 0.61.0 rewrites any --model ending in "flash" to its own gemini-3.5-flash on API-key auth
 // (config/models.ts resolveModel → isFlashModel = endsWith('flash')), which
 // sent a managed `…/deepseek-flash` to the gateway as a bare gemini-3.5-flash
 // (2026-09-30). The harness YAML turns on dynamic model configuration, whose
