@@ -2790,6 +2790,25 @@ governance:
     invalidCostLimit: Das Kostenlimit muss größer als null sein.
     invalidMaxRequests: Das Anfragenlimit muss größer als null sein.
     invalidWarningThreshold: Der Warnschwellenwert muss zwischen 0 und 100 liegen.
+    scopeLabels:
+      default: Standard
+      user: Benutzer
+      team: Team
+      role: Rolle
+      apiKey: API-Schlüssel
+      org: Organisation
+    periodLabels:
+      daily: Täglich
+      weekly: Wöchentlich
+      monthly: Monatlich
+    apiKeyOwnerUnknown: Inhaber unbekannt
+    apiKeyInactive: Dieser Schlüssel kann in dieser Organisation nichts mehr verbrauchen, deshalb begrenzt die Regel nichts. Wähle einen aktiven Schlüssel oder entferne die Regel.
+    apiKeyStatus:
+      expired: Abgelaufen
+      disabled: Deaktiviert
+      revoked: Widerrufen
+      holder_left: Ehemaliges Mitglied
+      unknown: Unbekannter Schlüssel
   defaultModels:
     title: Standardmodelle
     description: Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.

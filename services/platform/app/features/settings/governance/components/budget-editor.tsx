@@ -5,13 +5,17 @@ import {
   type BudgetConfig,
   type BudgetRule,
 } from '@tale/shared/schemas/governance';
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
 import { HStack, Stack, Row } from '@tale/ui/layout';
-import { SearchableSelect } from '@tale/ui/searchable-select';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -29,13 +33,23 @@ import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import type { TFunction } from 'i18next';
 import { Pencil, Plus, Trash2, Wallet, XCircle } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import type {
+  OrgApiKeyStatus,
+  OrgApiKeyWire,
+} from '@/app/lib/backend/contract/governance';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -50,27 +64,107 @@ interface BudgetEditorProps {
   organizationId: string;
 }
 
-const SCOPE_OPTIONS = [
-  { value: 'default', label: 'Default' },
-  { value: 'user', label: 'User' },
-  { value: 'team', label: 'Team' },
-  { value: 'role', label: 'Role' },
-  { value: 'apiKey', label: 'API key' },
-  { value: 'org', label: 'Organization' },
-];
+/** The scopes and periods a rule can take, in the order the dialog offers
+ *  them. Their labels are catalog strings (`budgets.scopeLabels.*`,
+ *  `budgets.periodLabels.*`), shared by the dialog's selects and the table. */
+const SCOPES = [
+  'default',
+  'user',
+  'team',
+  'role',
+  'apiKey',
+  'org',
+] as const satisfies readonly BudgetRule['scope'][];
 
 function isScopeValue(v: string): v is BudgetRule['scope'] {
-  return SCOPE_OPTIONS.some((o) => o.value === v);
+  return (SCOPES as readonly string[]).includes(v);
 }
 
-const PERIOD_OPTIONS = [
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'daily', label: 'Daily' },
-];
+const PERIODS = [
+  'monthly',
+  'weekly',
+  'daily',
+] as const satisfies readonly BudgetRule['period'][];
 
 function isPeriodValue(v: string): v is BudgetRule['period'] {
-  return PERIOD_OPTIONS.some((o) => o.value === v);
+  return (PERIODS as readonly string[]).includes(v);
+}
+
+function scopeOptions(t: TFunction) {
+  return SCOPES.map((value) => ({
+    value,
+    label: t(`budgets.scopeLabels.${value}`),
+  }));
+}
+
+function periodOptions(t: TFunction) {
+  return PERIODS.map((value) => ({
+    value,
+    label: t(`budgets.periodLabels.${value}`),
+  }));
+}
+
+/** The name a key is listed under: its own, else the characters its owner
+ *  saw when creating it, else its id. */
+function apiKeyName(key: OrgApiKeyWire): string {
+  return key.name || key.start || key.id;
+}
+
+function apiKeyOwner(key: OrgApiKeyWire): string | null {
+  return key.ownerName || key.ownerEmail || null;
+}
+
+/** The state chip of a key that can no longer spend here; nothing for a
+ *  live key. */
+function ApiKeyStatusBadge({ status }: { status: OrgApiKeyStatus }) {
+  const { t } = useT('governance');
+  if (status === 'active') return null;
+  return (
+    <Badge variant="orange" title={t('budgets.apiKeyInactive')}>
+      {t(`budgets.apiKeyStatus.${status}`)}
+    </Badge>
+  );
+}
+
+/**
+ * The Target cell of an API-key rule: the key by name, its state when it can
+ * no longer spend, and whose key it is. A rule stores the key's bare id and
+ * outlives the key, so without the listing's description of it the cell
+ * read as a string of random characters — no name, no owner.
+ */
+function ApiKeyRuleTarget({
+  apiKeyId,
+  apiKey,
+}: {
+  apiKeyId: string;
+  apiKey: OrgApiKeyWire | undefined;
+}) {
+  const { t } = useT('governance');
+  // The listing has not answered for this key: a bare id is all there is.
+  if (!apiKey) return <span className="break-all">{apiKeyId}</span>;
+  // A key the organization knows nothing about has only its id to show, and
+  // no owner to name. An id is one unbroken run, so it may break anywhere;
+  // a name wraps between its words and never mid-word.
+  const unknown = apiKey.status === 'unknown';
+  return (
+    <Stack gap={1}>
+      <HStack gap={2} className="flex-wrap">
+        <Text
+          as="span"
+          variant="label"
+          className={unknown ? 'break-all' : 'break-words'}
+        >
+          {apiKeyName(apiKey)}
+        </Text>
+        <ApiKeyStatusBadge status={apiKey.status} />
+      </HStack>
+      {!unknown && (
+        <Text as="span" variant="caption">
+          {apiKeyOwner(apiKey) ?? t('budgets.apiKeyOwnerUnknown')}
+        </Text>
+      )}
+    </Stack>
+  );
 }
 
 function emptyRule(): BudgetRule {
@@ -195,7 +289,9 @@ interface RuleDialogProps {
   cannotManage: boolean;
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
-  apiKeyOptions: { value: string; label: string; description?: string }[];
+  /** Every key the listing describes: the live ones the picker offers,
+   *  and the ones a saved rule still names. */
+  apiKeys: readonly OrgApiKeyWire[];
 }
 
 function RuleDialog({
@@ -207,9 +303,11 @@ function RuleDialog({
   cannotManage,
   memberOptions,
   teamOptions,
-  apiKeyOptions,
+  apiKeys,
 }: RuleDialogProps) {
   const { t } = useT('governance');
+  const scopes = useMemo(() => scopeOptions(t), [t]);
+  const periods = useMemo(() => periodOptions(t), [t]);
   const [draft, setDraft] = useState(initialRule);
   // Reveal a field's error only once the user has touched it (or has attempted
   // to submit) so a freshly-opened dialog isn't pre-filled with red. Keyed by
@@ -257,6 +355,29 @@ function RuleDialog({
 
   const errors = useMemo(() => validateBudgetRule(draft, t), [draft, t]);
 
+  // The picker offers the keys that can still spend. A rule being edited
+  // keeps its own key in the list whatever became of it, so the field shows
+  // which key the rule names instead of an empty placeholder.
+  const selectedApiKey = apiKeys.find((key) => key.id === draft.apiKeyId);
+  const apiKeyOptions = useMemo(
+    () =>
+      apiKeys
+        .filter((key) => key.status === 'active' || key.id === draft.apiKeyId)
+        .map((key) => {
+          const owner = apiKeyOwner(key);
+          const option: SearchableSelectOption = {
+            value: key.id,
+            label: owner ? `${apiKeyName(key)} · ${owner}` : apiKeyName(key),
+            description: key.start && key.name ? key.start : undefined,
+          };
+          if (key.status !== 'active') {
+            option.labelBadge = <ApiKeyStatusBadge status={key.status} />;
+          }
+          return option;
+        }),
+    [apiKeys, draft.apiKeyId],
+  );
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
@@ -291,7 +412,7 @@ function RuleDialog({
       <Stack gap={4}>
         <Select
           label={t('budgets.scope')}
-          options={SCOPE_OPTIONS}
+          options={scopes}
           value={draft.scope}
           onValueChange={(value: string) => {
             if (isScopeValue(value)) {
@@ -354,12 +475,16 @@ function RuleDialog({
             emptyText={t('budgets.noApiKeysFound')}
             aria-label={t('budgets.selectApiKeyAriaLabel')}
             error={showTargetError}
+            {...(selectedApiKey !== undefined &&
+            selectedApiKey.status !== 'active'
+              ? { description: t('budgets.apiKeyInactive') }
+              : {})}
           />
         )}
 
         <Select
           label={t('budgets.period')}
-          options={PERIOD_OPTIONS}
+          options={periods}
           value={draft.period}
           onValueChange={(value: string) => {
             if (isPeriodValue(value)) {
@@ -477,6 +602,9 @@ function formatCost(cents: number): string {
   return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** A stable empty list while the key listing loads. */
+const NO_API_KEYS: readonly OrgApiKeyWire[] = [];
+
 /** Placeholder rows shown while the table data loads (see `BudgetEditorView`). */
 const PLACEHOLDER_ROW_COUNT = 3;
 /** Column count — kept in one place so the empty-state `colSpan` and the
@@ -503,9 +631,10 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const { teams } = useOrgTeams();
   // The API keys an admin can attach a budget to: every member's live key,
   // not only the admin's own — a per-key cap is how an admin bounds one
-  // person's script or coding tool. A rule stores the raw `apiKeyId`, so a key
-  // that isn't in this list (revoked, expired, or its holder left) still shows
-  // its id in the table via the fallback below.
+  // person's script or coding tool. A rule stores the raw `apiKeyId` and
+  // outlives the key, so the listing also describes the keys the saved rules
+  // name that can no longer spend (revoked, expired, disabled, or held by
+  // someone who left): the table names each by key, state and owner.
   const { data: apiKeys } = useBackendQuery(
     'governance/api_keys:listOrgApiKeys',
     { organizationId },
@@ -530,16 +659,8 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     [teams],
   );
 
-  const apiKeyOptions = useMemo(
-    () =>
-      (apiKeys ?? []).map((k) => {
-        const owner = k.ownerName || k.ownerEmail || k.userId;
-        return {
-          value: k.id,
-          label: `${k.name || k.start || k.id} · ${owner}`,
-          description: k.start && k.name ? k.start : undefined,
-        };
-      }),
+  const apiKeyById = useMemo(
+    () => new Map((apiKeys ?? []).map((key) => [key.id, key])),
     [apiKeys],
   );
 
@@ -646,7 +767,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   );
 
   const resolveTarget = useCallback(
-    (rule: BudgetRule): string => {
+    (rule: BudgetRule): ReactNode => {
       switch (rule.scope) {
         case 'user': {
           if (!rule.scopeId) return '—';
@@ -667,8 +788,10 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         case 'apiKey': {
           if (!rule.apiKeyId) return '—';
           return (
-            apiKeyOptions.find((o) => o.value === rule.apiKeyId)?.label ??
-            rule.apiKeyId
+            <ApiKeyRuleTarget
+              apiKeyId={rule.apiKeyId}
+              apiKey={apiKeyById.get(rule.apiKeyId)}
+            />
           );
         }
         case 'org':
@@ -679,7 +802,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, apiKeyOptions, t],
+    [memberOptions, teamOptions, apiKeyById, t],
   );
 
   const onAddRule = openAddDialog;
@@ -732,15 +855,21 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('budgets.scope')}</TableHead>
-                    <TableHead>{t('budgets.target')}</TableHead>
+                    {/* The target names a key, its state and its owner: it
+                        keeps the width to do so, and the three limit
+                        headers — two words in every locale — give way by
+                        wrapping. */}
+                    <TableHead className="min-w-44">
+                      {t('budgets.target')}
+                    </TableHead>
                     <TableHead>{t('budgets.period')}</TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right text-wrap">
                       {t('budgets.tokenLimit')}
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right text-wrap">
                       {t('budgets.maxCost')}
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-right text-wrap">
                       {t('budgets.maxRequests')}
                     </TableHead>
                     <TableHead className="text-right">
@@ -811,12 +940,12 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
                   ) : rules.length > 0 ? (
                     rules.map((rule, index) => (
                       <TableRow key={index}>
-                        <TableCell className="capitalize">
-                          {rule.scope}
+                        <TableCell className="whitespace-nowrap">
+                          {t(`budgets.scopeLabels.${rule.scope}`)}
                         </TableCell>
                         <TableCell>{resolveTarget(rule)}</TableCell>
-                        <TableCell className="capitalize">
-                          {rule.period}
+                        <TableCell className="whitespace-nowrap">
+                          {t(`budgets.periodLabels.${rule.period}`)}
                         </TableCell>
                         <TableCell className="text-right">
                           {rule.maxTokens != null
@@ -891,7 +1020,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
           cannotManage={cannotManage}
           memberOptions={memberOptions}
           teamOptions={teamOptions}
-          apiKeyOptions={apiKeyOptions}
+          apiKeys={apiKeys ?? NO_API_KEYS}
         />
 
         <ConfirmDialog

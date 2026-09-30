@@ -2822,6 +2822,25 @@ governance:
     invalidCostLimit: La limite de coût doit être supérieure à zéro.
     invalidMaxRequests: La limite de requêtes doit être supérieure à zéro.
     invalidWarningThreshold: Le seuil d'alerte doit être compris entre 0 et 100.
+    scopeLabels:
+      default: Par défaut
+      user: Utilisateur
+      team: Équipe
+      role: Rôle
+      apiKey: Clé API
+      org: Organisation
+    periodLabels:
+      daily: Quotidienne
+      weekly: Hebdomadaire
+      monthly: Mensuelle
+    apiKeyOwnerUnknown: Propriétaire inconnu
+    apiKeyInactive: Cette clé ne peut plus rien dépenser dans cette organisation, la règle ne limite donc rien. Choisis une clé active ou supprime la règle.
+    apiKeyStatus:
+      expired: Expirée
+      disabled: Désactivée
+      revoked: Révoquée
+      holder_left: Ancien membre
+      unknown: Clé inconnue
   defaultModels:
     title: Modèles par défaut
     description:

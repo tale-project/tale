@@ -27,18 +27,37 @@ export interface CompetenceRecordWire {
   evidence: string | null;
 }
 
-/** One member's API key as the budget editor's picker lists it
- * (`GET /governance/api-keys`, admin only) — masked: the name and the first
- * characters the owner saw, never the secret. */
+/**
+ * What the organization can say about a key a budget rule names: `active`
+ * can still spend and is offered by the picker; every other state is a key
+ * a saved rule still points at — expired, disabled, deleted (`revoked`),
+ * held by someone who left (`holder_left`), or one this organization knows
+ * nothing about (`unknown`).
+ */
+export type OrgApiKeyStatus =
+  | 'active'
+  | 'expired'
+  | 'disabled'
+  | 'holder_left'
+  | 'revoked'
+  | 'unknown';
+
+/** One API key as the budget editor reads it (`GET /governance/api-keys`,
+ * admin only) — masked: the name and the first characters the owner saw,
+ * never the secret. The listing carries every member's live key, and the
+ * keys the saved rules name that are no longer live, each with its state. */
 export interface OrgApiKeyWire {
   id: string;
   name: string | null;
   start: string | null;
-  userId: string;
+  /** The holder, when the organization knows who that is. */
+  userId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
-  createdAt: number;
+  /** Absent on a key only a rule still names. */
+  createdAt: number | null;
   expiresAt: number | null;
+  status: OrgApiKeyStatus;
 }
 
 export interface GovernanceContract {

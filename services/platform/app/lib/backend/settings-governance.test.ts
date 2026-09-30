@@ -109,20 +109,59 @@ describe('governance adapters', () => {
 });
 
 describe('organization API key listing adapter', () => {
+  const live = {
+    id: 'key-1',
+    name: 'CI',
+    start: 'tale_A',
+    userId: 'u-1',
+    ownerName: 'Dana',
+    ownerEmail: 'dana@example.test',
+    createdAt: 1,
+    expiresAt: null,
+  };
+
   it('reads every member key of the organization for the budget picker', async () => {
-    const keys = [{ id: 'key-1', name: 'CI', start: 'tale_A', userId: 'u-1' }];
+    // One list for the editor: the live keys the picker offers, then the
+    // keys the saved rules still name, each in the state the backend gives.
+    const revoked = {
+      id: 'key-2',
+      name: 'Old script',
+      start: 'tale_B',
+      userId: 'u-2',
+      ownerName: 'Ben',
+      ownerEmail: 'ben@example.test',
+      status: 'revoked',
+      expiresAt: null,
+    };
     const fetch = vi
       .spyOn(window, 'fetch')
-      .mockResolvedValue(Response.json({ keys }));
+      .mockResolvedValue(Response.json({ keys: [live], ruleKeys: [revoked] }));
     const read = settingsReadAdapters['governance/api_keys:listOrgApiKeys']?.(
       { organizationId: 'org-a' },
       {},
     );
-    await expect(read?.queryFn()).resolves.toEqual(keys);
+    await expect(read?.queryFn()).resolves.toEqual([
+      { ...live, status: 'active' },
+      { ...revoked, createdAt: null },
+    ]);
     expect(fetch).toHaveBeenCalledWith(
       '/api/app/governance/api-keys?orgId=org-a',
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+
+  it('reads a backend that answers the live keys alone', async () => {
+    // Mid-roll the previous image still serves: no `ruleKeys` on its answer.
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      Response.json({ keys: [live] }),
+    );
+    const read = settingsReadAdapters['governance/api_keys:listOrgApiKeys']?.(
+      { organizationId: 'org-a' },
+      {},
+    );
+    await expect(read?.queryFn()).resolves.toEqual([
+      { ...live, status: 'active' },
+    ]);
   });
 });
 

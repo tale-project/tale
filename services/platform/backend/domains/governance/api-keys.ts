@@ -72,6 +72,167 @@ export async function listOrgApiKeys(
 }
 
 /**
+ * Why a key a budget rule names is not in the picker's listing: it can no
+ * longer spend here, or this organization knows nothing about it.
+ *
+ *  - `expired` / `disabled` — the key is still held by a member.
+ *  - `holder_left` — the key exists, its holder is no longer a member.
+ *  - `revoked` — the key was deleted; the audit trail remembers it.
+ *  - `unknown` — no member holds it and the audit trail never saw it.
+ *  - `active` — a live key past the listing's bound.
+ */
+export type RuleApiKeyStatus =
+  | 'active'
+  | 'expired'
+  | 'disabled'
+  | 'holder_left'
+  | 'revoked'
+  | 'unknown';
+
+/**
+ * A key one of the organization's budget rules names, as far as this
+ * organization may describe it. A rule stores the key's bare id, and a key
+ * outlives neither its owner's revoke nor its expiry in the listing above —
+ * so the rule table read a revoked, expired or disabled key as a string of
+ * random characters, with no name and no owner.
+ */
+export interface RuleApiKey {
+  id: string;
+  name: string | null;
+  start: string | null;
+  /** The holder, when this organization knows who that is. */
+  userId: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  status: RuleApiKeyStatus;
+  expiresAt: number | null;
+}
+
+/**
+ * Describe the keys budget rules name that the live listing does not carry.
+ *
+ * A key is described only on this organization's own evidence: its holder
+ * is a member now, or the organization's audit trail recorded them creating
+ * the key while they were one (`api_key.created` lands in every organization
+ * of the holder). For a holder who left, that record is all it says — the
+ * key's name and the address as they were when it was created, never the
+ * person's current profile or what the key became since. A key id that
+ * matches neither — a holder who was never a member here, or an id that
+ * names nothing — answers `unknown`, exactly alike, so a saved rule cannot be
+ * used to ask whether a key exists or whose it is elsewhere on the
+ * deployment.
+ */
+export async function describeRuleApiKeys(
+  sql: Sql,
+  organizationId: string,
+  keyIds: readonly string[],
+): Promise<RuleApiKey[]> {
+  const ids = [...new Set(keyIds)];
+  if (ids.length === 0) return [];
+
+  const held = await sql<
+    {
+      id: string;
+      name: string | null;
+      start: string | null;
+      enabled: boolean | null;
+      expired: boolean;
+      expiresAt: Date | null;
+      holderId: string;
+      holderIsMember: boolean;
+    }[]
+  >`
+    SELECT k."id", k."name", k."start", k."enabled",
+           (k."expiresAt" IS NOT NULL AND k."expiresAt" <= now()) AS "expired",
+           k."expiresAt", k."referenceId" AS "holderId",
+           (m."userId" IS NOT NULL) AS "holderIsMember"
+    FROM "apikey" k
+    LEFT JOIN "member" m
+      ON m."userId" = k."referenceId" AND m."organizationId" = ${organizationId}
+    WHERE k."id" = ANY(${ids})
+  `;
+  const created = await sql<
+    {
+      id: string;
+      actorId: string;
+      actorEmail: string | null;
+      name: string | null;
+      start: string | null;
+    }[]
+  >`
+    SELECT DISTINCT ON (resource_id)
+           resource_id AS "id", actor_id AS "actorId",
+           actor_email AS "actorEmail", resource_name AS "name",
+           new_state->>'start' AS "start"
+    FROM app.audit_logs
+    WHERE org_id = ${organizationId} AND resource_type = 'api_key'
+      AND action = 'api_key.created' AND resource_id = ANY(${ids})
+    ORDER BY resource_id, ts DESC
+  `;
+  const heldById = new Map(held.map((row) => [row.id, row]));
+  const createdById = new Map(created.map((row) => [row.id, row]));
+
+  /** Who this organization may name as the key's holder, or null. */
+  const holderOf = (id: string): string | null => {
+    const row = heldById.get(id);
+    if (row?.holderIsMember) return row.holderId;
+    return createdById.get(id)?.actorId ?? null;
+  };
+  const holderIds = [...new Set(ids.map(holderOf).filter((id) => id !== null))];
+  // Current profiles of current members only.
+  const members =
+    holderIds.length === 0
+      ? []
+      : await sql<{ id: string; name: string | null; email: string | null }[]>`
+          SELECT u."id", u."name", u."email"
+          FROM "user" u
+          JOIN "member" m
+            ON m."userId" = u."id" AND m."organizationId" = ${organizationId}
+          WHERE u."id" = ANY(${holderIds})
+        `;
+  const memberById = new Map(members.map((row) => [row.id, row]));
+
+  return ids.map((id) => {
+    const row = heldById.get(id);
+    const audit = createdById.get(id);
+    const holderId = holderOf(id);
+    const member = holderId === null ? undefined : memberById.get(holderId);
+    // Known here at all: held by a member, or recorded by the audit trail.
+    const known = row?.holderIsMember === true || audit !== undefined;
+    // The key row speaks for a member's key; for any other, the audit trail.
+    const current = row?.holderIsMember === true ? row : undefined;
+    const status: RuleApiKeyStatus = !known
+      ? 'unknown'
+      : row === undefined
+        ? 'revoked'
+        : !row.holderIsMember
+          ? 'holder_left'
+          : row.enabled === false
+            ? 'disabled'
+            : row.expired
+              ? 'expired'
+              : 'active';
+    return {
+      id,
+      name: current !== undefined ? current.name : (audit?.name ?? null),
+      start: current !== undefined ? current.start : (audit?.start ?? null),
+      userId: holderId,
+      ownerName: member?.name ?? null,
+      // Someone who left, or whose account is gone, is named by the address
+      // the audit row recorded.
+      ownerEmail:
+        member?.email ??
+        (holderId !== null && holderId === audit?.actorId
+          ? audit.actorEmail
+          : null),
+      status,
+      expiresAt:
+        current?.expiresAt != null ? current.expiresAt.getTime() : null,
+    };
+  });
+}
+
+/**
  * Whether `userId` holds an API key of any state. Whatever the create rule
  * says today — a developer moved to a lower role, a revoked competence — the
  * holder keeps seeing their own keys, and revoking them.

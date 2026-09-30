@@ -2692,6 +2692,25 @@ governance:
     invalidCostLimit: Cost limit must be greater than zero.
     invalidMaxRequests: Request limit must be greater than zero.
     invalidWarningThreshold: Warning threshold must be between 0 and 100.
+    scopeLabels:
+      default: Default
+      user: User
+      team: Team
+      role: Role
+      apiKey: API key
+      org: Organization
+    periodLabels:
+      daily: Daily
+      weekly: Weekly
+      monthly: Monthly
+    apiKeyOwnerUnknown: Owner unknown
+    apiKeyInactive: This key can no longer spend in this organization, so the rule limits nothing. Choose an active key or remove the rule.
+    apiKeyStatus:
+      expired: Expired
+      disabled: Disabled
+      revoked: Revoked
+      holder_left: Former member
+      unknown: Unknown key
   defaultModels:
     title: Default models
     description: Set default models for specific user groups or roles.

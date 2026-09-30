@@ -50707,8 +50707,11 @@ async function checkApiKeyCreateGate(
  * The budget editor's per-key picker (`GET /api/app/governance/api-keys`):
  * an admin lists every live key held by a member of the organization — never
  * a non-member's, never an expired one, never a secret — and a non-admin is
- * refused. Run against the real auth tables, so a wrong column name in the
- * listing's query fails here rather than leaving the picker silently empty.
+ * refused. Beside it, the keys the saved budget rules name that are no
+ * longer live, described as far as this organization's own evidence goes.
+ * Run against the real auth and audit tables, so a wrong column name in
+ * either query fails here rather than leaving the picker silently empty or
+ * a rule's key unnamed.
  */
 async function checkOrgApiKeyListing(
   sql: Sql,
@@ -50807,6 +50810,129 @@ async function checkOrgApiKeyListing(
       !leaked &&
       memberRes.status === 403,
     `admin → ${adminRes.status}, member key listed=${memberRow !== undefined} (owner ${memberRow?.ownerEmail ?? 'MISSING'}), expired listed=${expiredKey !== null && ids.includes(expiredKey.id)}, outsider listed=${outsiderKey !== null && ids.includes(outsiderKey.id)}, secret leaked=${leaked}, non-admin → ${memberRes.status} (want 403)`,
+  );
+
+  // A budget rule stores its key's bare id and outlives the key. The listing
+  // therefore also describes the keys the saved rules name that are no
+  // longer live, so the rule table reads as a key and an owner instead of a
+  // string of random characters: an expired key from the auth tables, a
+  // deleted one from the audit trail its creation left. A key this
+  // organization has no evidence of — another organization's, or an id that
+  // names nothing — answers `unknown` either way, so a saved rule cannot be
+  // used to ask whose key an id is.
+  const revokedKey = await mint(member.cookie, `keylist-revoked-${suffix}`);
+  if (revokedKey !== null) {
+    await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: member.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ keyId: revokedKey.id }),
+    });
+  }
+  const noSuchKeyId = `keylist-none-${suffix}`;
+  const policyUrl = `${base}/api/app/governance/policies/budgets?orgId=${ctx.orgId}`;
+  const priorBudgets = z
+    .object({
+      policy: z
+        .object({ config: z.record(z.string(), z.unknown()) })
+        .nullable(),
+    })
+    .safeParse(
+      await fetch(policyUrl, { headers: { cookie: ctx.cookie } })
+        .then((res) => res.json())
+        .catch(() => null),
+    );
+  const savePolicy = (config: unknown) =>
+    fetch(policyUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ config }),
+    });
+  const ruleKeyIds = [
+    memberKey?.id,
+    expiredKey?.id,
+    revokedKey?.id,
+    outsiderKey?.id,
+    noSuchKeyId,
+  ].filter((id) => id !== undefined);
+  const saved = await savePolicy({
+    enabled: true,
+    // A cap no probe reaches: the rules are here to be read, not to bind.
+    rules: ruleKeyIds.map((apiKeyId) => ({
+      scope: 'apiKey',
+      apiKeyId,
+      period: 'monthly',
+      maxRequests: 1_000_000_000,
+    })),
+  });
+  const describedRes = await list(ctx.cookie);
+  const describedText = await describedRes.text();
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  let describedBody: unknown = null;
+  try {
+    describedBody = JSON.parse(describedText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the rule-key read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const described = z
+    .object({
+      ruleKeys: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string().nullable(),
+          userId: z.string().nullable(),
+          ownerEmail: z.string().nullable(),
+          status: z.string(),
+        }),
+      ),
+    })
+    .safeParse(describedBody);
+  const ruleKey = (id: string | undefined) =>
+    described.success
+      ? described.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const expiredRule = ruleKey(expiredKey?.id);
+  const revokedRule = ruleKey(revokedKey?.id);
+  const outsiderRule = ruleKey(outsiderKey?.id);
+  const noSuchRule = ruleKey(noSuchKeyId);
+  const ruleKeySecretLeaked = [expiredKey, revokedKey, outsiderKey].some(
+    (minted) => minted !== null && describedText.includes(minted.key),
+  );
+  record(
+    'org api-key listing: a rule on a key that is no longer live still names the key and its owner; a key of another organization stays unknown',
+    saved.status === 200 &&
+      describedRes.status === 200 &&
+      // The live key is in the listing proper, never described twice.
+      ruleKey(memberKey?.id) === undefined &&
+      expiredRule?.status === 'expired' &&
+      expiredRule.name === `keylist-expired-${suffix}` &&
+      expiredRule.ownerEmail === member.email &&
+      revokedRule?.status === 'revoked' &&
+      revokedRule.name === `keylist-revoked-${suffix}` &&
+      revokedRule.userId === member.userId &&
+      revokedRule.ownerEmail === member.email &&
+      outsiderRule?.status === 'unknown' &&
+      outsiderRule.name === null &&
+      outsiderRule.userId === null &&
+      outsiderRule.ownerEmail === null &&
+      noSuchRule?.status === 'unknown' &&
+      !describedText.includes(outsider.email) &&
+      !ruleKeySecretLeaked,
+    `save → ${saved.status}, read → ${describedRes.status}, live described=${ruleKey(memberKey?.id) !== undefined}, expired=${expiredRule?.status ?? 'MISSING'}/${expiredRule?.ownerEmail ?? 'no owner'}, revoked=${revokedRule?.status ?? 'MISSING'}/${revokedRule?.name ?? 'no name'}/${revokedRule?.ownerEmail ?? 'no owner'}, outsider=${outsiderRule?.status ?? 'MISSING'}/${outsiderRule?.name ?? 'no name'}, none=${noSuchRule?.status ?? 'MISSING'}, outsider named=${describedText.includes(outsider.email)}, secret leaked=${ruleKeySecretLeaked}`,
   );
 }
 

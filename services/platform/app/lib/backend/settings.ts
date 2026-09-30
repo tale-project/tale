@@ -679,10 +679,22 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     if (orgId === undefined) return null;
     return {
       queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list'),
+      // One list for the editor: every live key (what the picker offers),
+      // then the keys the saved rules still name. A backend from before
+      // `ruleKeys` answers the live keys alone.
       queryFn: () =>
-        backendFetch<{ keys: OrgApiKeyItem[] }>('/governance/api-keys', {
-          orgId,
-        }).then((body) => body.keys),
+        backendFetch<{
+          keys: Omit<OrgApiKeyItem, 'status'>[];
+          ruleKeys?: Omit<OrgApiKeyItem, 'createdAt'>[];
+        }>('/governance/api-keys', { orgId }).then((body): OrgApiKeyItem[] => [
+          // The parsed rows are this read's own: stamp them in place.
+          ...body.keys.map((key) =>
+            Object.assign(key, { status: 'active' as const }),
+          ),
+          ...(body.ruleKeys ?? []).map((key) =>
+            Object.assign(key, { createdAt: null }),
+          ),
+        ]),
     };
   },
   'governance/competences:listCompetences': (args, ctx) => {
