@@ -10,7 +10,11 @@ name: E2E
 # manual runs all fail loudly. A red E2E run signals a real regression.
 # Investigate failures; don't reach for `continue-on-error`.
 
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
 on:
+  repository_dispatch:
+    types: [release-candidate]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -34,10 +38,19 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
   # Build the platform prod bundle ONCE per run and hand it to every shard.
   # Before this job existed each of the 16 shards restored the dist cache
   # itself and, on a cold key, all 16 missed simultaneously and ran the ~4-min
@@ -47,6 +60,7 @@ jobs:
   # cache-visibility race between sibling jobs) and still available to
   # `gh run rerun --failed` from the first attempt.
   build:
+    needs: candidate-source
     name: Build platform (E2E preview bundle)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -63,6 +77,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
           # This job only reads/builds — don't leave the GITHUB_TOKEN in git config.
           persist-credentials: false
 
@@ -112,7 +127,7 @@ jobs:
   e2e:
     name: Playwright (platform ${{ matrix.shard }}/16)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
-    needs: build
+    needs: [candidate-source, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # The suite outgrew a single serial run (workers:1 against one backend).
@@ -167,6 +182,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
           # This job only reads/tests — don't leave the GITHUB_TOKEN in git config.
           persist-credentials: false
 
@@ -240,6 +256,7 @@ jobs:
   # Smoke suites for the static sites — each boots only its own Vite dev server
   # (no backend, no mock LLM), so the job is much lighter than platform's.
   static-sites:
+    needs: candidate-source
     name: Playwright (${{ matrix.service }})
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -255,6 +272,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
           persist-credentials: false
 
       - name: Setup toolchain
@@ -307,3 +325,14 @@ jobs:
             services/${{ matrix.service }}/test-results/
           retention-days: 14
           if-no-files-found: ignore
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, build, e2e, static-sites]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/e2e.yml
+      jobs: ${{ toJSON(needs) }}

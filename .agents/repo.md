@@ -130,6 +130,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
   title must itself be commitlint-shaped.
+- **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
+  whose `build.yml` candidate run and release gate
+  (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
+  [`.github/RELEASING.md`](../.github/RELEASING.md).
 
 ## A green check is not always a run
 

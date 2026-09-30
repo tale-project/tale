@@ -1,6 +1,10 @@
 name: Security
 
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
 on:
+  repository_dispatch:
+    types: [release-candidate]
   pull_request:
     branches:
       - main
@@ -42,10 +46,19 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
   # ---------------------------------------------------------------------------
   # Audit JS dependencies for known advisories.
   # Reports the full advisory list (all severities) in the job summary, then a
@@ -55,6 +68,7 @@ jobs:
   # on the gate command below for bun audit.
   # ---------------------------------------------------------------------------
   bun-audit:
+    needs: candidate-source
     name: Bun audit
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -67,6 +81,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -133,6 +149,7 @@ jobs:
   # via dated accept-risk entries in .trivyignore.yaml.
   # ---------------------------------------------------------------------------
   trivy-fs:
+    needs: candidate-source
     name: Trivy filesystem scan
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -144,6 +161,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -166,7 +185,7 @@ jobs:
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
-        if: always()
+        if: always() && github.event_name != 'repository_dispatch'
         with:
           sarif_file: 'trivy-fs.sarif'
           category: 'trivy-fs'
@@ -192,4 +211,15 @@ jobs:
         if: always()
         run: |
           echo "## Trivy filesystem scan complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "Results uploaded to the Security tab under category \`trivy-fs\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Normal runs upload results to the Security tab under category \`trivy-fs\`." >> "$GITHUB_STEP_SUMMARY"
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, bun-audit, trivy-fs]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/security.yml
+      jobs: ${{ toJSON(needs) }}

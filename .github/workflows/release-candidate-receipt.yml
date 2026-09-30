@@ -1,0 +1,74 @@
+name: Release candidate receipt
+
+# This records the caller's existing job graph, not a second set of checks.
+on:
+  workflow_call:
+    inputs:
+      candidate_sha:
+        required: true
+        type: string
+      workflow:
+        required: true
+        type: string
+      jobs:
+        required: true
+        type: string
+
+jobs:
+  receipt:
+    name: Record receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Record receipt
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          WORKFLOW: ${{ inputs.workflow }}
+          NEEDS: ${{ inputs.jobs }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          verdict=passed
+          JOBS=$(jq -ce 'with_entries(.value = .value.result)' <<< "$NEEDS")
+          if ! jq -e 'length > 1 and all(.[]; . == "success")' <<< "$JOBS" > /dev/null; then
+            echo '::error::Every candidate dependency must succeed'
+            verdict=failed
+          fi
+          jq -n --arg candidate "$CANDIDATE_SHA" --arg workflow "$WORKFLOW" --arg verdict "$verdict" \
+            --argjson jobs "$JOBS" --arg id "$RUN_ID" --arg attempt "$RUN_ATTEMPT" --arg url "$RUN_URL" \
+            --arg event "$EVENT_NAME" --arg workflowSha "$WORKFLOW_SHA" \
+            --arg ref "$DISPATCH_REF" --arg sha "$DISPATCH_SHA" \
+            '{schemaVersion: 1, workflow: $workflow, candidate: $candidate, verdict: $verdict,
+              run: {id: $id, attempt: $attempt, url: $url, event: $event, workflowSha: $workflowSha, ref: $ref, sha: $sha},
+              jobs: $jobs, images: []}' > release-candidate.json
+          {
+            echo "## Release candidate \`${CANDIDATE_SHA}\`: ${verdict}"
+            echo "Workflow: ${WORKFLOW}; attempt: ${RUN_ATTEMPT}"
+            jq -r 'to_entries[] | "- \(.key): \(.value)"' <<< "$JOBS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$verdict" = passed ]
+
+      - name: Name receipt
+        id: artifact
+        if: always()
+        env:
+          WORKFLOW: ${{ inputs.workflow }}
+        run: |
+          stem="${WORKFLOW##*/}"
+          echo "stem=${stem%.yml}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload candidate receipt
+        if: always() && hashFiles('release-candidate.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-candidate-${{ steps.artifact.outputs.stem }}-${{ inputs.candidate_sha }}-attempt-${{ github.run_attempt }}
+          path: release-candidate.json
+          retention-days: 90
+          overwrite: true
