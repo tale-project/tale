@@ -594,7 +594,7 @@ Un projet peut contenir au maximum 50 agents. Les noms sont limités à 120 cara
 
 Une configuration invalide ou un dépassement de limite donne **400**. Un nom déjà utilisé donne **409**, `PROJECT_AGENT_NAME_TAKEN`, comme les autres conflits de doublon sur cette interface. Retrouve l’agent existant ou choisis un autre nom avant de réessayer.
 
-Choisis `model` dans le catalogue de l’organisation et précise `modelProvider` si plusieurs fournisseurs servent ce modèle. `tools` doit contenir uniquement des autorisations connues. Une valeur invalide donne **400** avec `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` ou `PROJECT_AGENT_TOOL_UNKNOWN`.
+Choisis `model` dans le catalogue de l’organisation et précise `modelProvider` si plusieurs fournisseurs servent ce modèle. `tools` doit contenir uniquement des autorisations connues. Une valeur invalide donne **400** avec `PROJECT_AGENT_MODEL_INVALID`, `PROJECT_AGENT_PROVIDER_UNKNOWN` ou `PROJECT_AGENT_TOOL_UNKNOWN`. `task_start_agent` permet à l’agent de mettre au travail un autre agent du même projet sur une tâche (contrat 3.8.0).
 
 `secrets` contient des noms de secrets de l’organisation, jamais leurs valeurs. Un nom inconnu donne **400**, `PROJECT_AGENT_SECRET_UNKNOWN`, et figure dans `data.secrets`. Le formulaire de l’application filtre les noms inconnus ; l’API les refuse explicitement.
 

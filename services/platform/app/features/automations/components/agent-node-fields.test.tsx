@@ -125,3 +125,29 @@ describe('AgentNodeFields model pin', () => {
     expect(screen.queryByText(/without a pinned provider/)).toBeNull();
   });
 });
+
+describe('AgentNodeFields tool grants', () => {
+  it('offers the task tools but not the project agents’ delegation tool', async () => {
+    previewState.data = undefined;
+    const { user } = render(
+      <AgentNodeFields
+        organizationId="org-1"
+        node={PINLESS}
+        readOnly={false}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    expect(
+      await screen.findByRole('menuitemcheckbox', {
+        name: /Move tasks between columns/,
+      }),
+    ).toBeInTheDocument();
+    // An automation starts agents with its task.start_agent step instead.
+    expect(
+      screen.queryByRole('menuitemcheckbox', {
+        name: /Start other agents on tasks/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+});

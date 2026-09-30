@@ -213,6 +213,16 @@ describe('ProjectAgentDialog document skills', () => {
     return state;
   }
 
+  it('offers the delegation tool to a project agent, unticked', async () => {
+    const { user } = renderWithSkills();
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const item = await screen.findByRole('menuitemcheckbox', {
+      name: /Start other agents on tasks/,
+    });
+    expect(item).toHaveAttribute('aria-checked', 'false');
+    await user.keyboard('{Escape}');
+  });
+
   it('ticks the document skills the project can see on a new agent', async () => {
     const { user } = renderWithSkills();
     expect(await checkedState(user, 'Word documents')).toBe('true');

@@ -102,8 +102,14 @@ import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
 } from './domains/tasks/credential-rotation.integration.ts';
+import {
+  checkDelegatedAgentStartTool,
+  checkInPlaceCompletionCycle,
+  checkScheduledAgentStarts,
+} from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
@@ -56190,6 +56196,22 @@ async function main(): Promise<void> {
       [
         'checkTaskRetryProjectEligibility',
         () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkScheduledAgentStarts',
+        () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkDelegatedAgentStartTool',
+        () => checkDelegatedAgentStartTool(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkInPlaceCompletionCycle',
+        () => checkInPlaceCompletionCycle(sql, authCtx, record),
+      ],
+      [
+        'checkImportCursorContinuation',
+        () => checkImportCursorContinuation(sql, authCtx, record),
       ],
       [
         'checkTaskWorkflowParentMoves',

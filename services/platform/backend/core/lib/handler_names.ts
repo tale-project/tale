@@ -349,6 +349,7 @@ interface HandlerNames {
       agentAddComment: FunctionRef;
       agentCreateTask: FunctionRef;
       agentRecordTaskOutputs: FunctionRef;
+      agentStartTaskAgent: FunctionRef;
       agentUpdateTaskStatus: FunctionRef;
       agentUpsertTaskByExternalRef: FunctionRef;
     };

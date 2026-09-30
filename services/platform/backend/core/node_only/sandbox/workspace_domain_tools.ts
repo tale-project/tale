@@ -53,6 +53,7 @@ export const WORKSPACE_TASK_TOOLS = [
   'task_create',
   'task_comment',
   'task_update_status',
+  'task_start_agent',
   'task_upsert_by_external_ref',
 ] as const;
 
@@ -392,6 +393,159 @@ async function withinConfinedTask(
   return false;
 }
 
+/** Why a start answered without starting — what the model is told to do. */
+const START_AGENT_GUIDANCE: Record<string, string> = {
+  already_running:
+    'The task already has a live run carrying the work; nothing new started. ' +
+    'Leave it to that run.',
+  in_review:
+    'The task waits for a person to review its earlier work; nothing ' +
+    'started. Start it without moveToInProgress: false to withdraw that ' +
+    'review and resume the task, or leave the decision to the person.',
+  stale_question:
+    'The question you answered is no longer the task’s open question ' +
+    '(staleBecause: a person decided, a newer run or review exists, the ' +
+    'assignee changed, or the task is being worked); nothing started and ' +
+    'nothing changed. Read the task again before acting.',
+  closed:
+    'The task is closed (taskStatus); nothing started. An in-place start ' +
+    'never works under a Done or Cancelled card: start it without ' +
+    'moveToInProgress: false to reopen it deliberately, or report it.',
+  agent_busy:
+    'That agent is working another task (busyTaskId) in its workspace; ' +
+    'nothing started. Pick another agent or leave the task queued.',
+  blocked:
+    'Open tasks block this one (blockedBy); nothing started. Start it once ' +
+    'they are done.',
+  paused:
+    'This task took three starts by automations and agents within the hour, ' +
+    'their automatic retries included; ' +
+    'its circuit breaker admits the next one at retryAfter. Report the task ' +
+    'instead of restarting it.',
+};
+
+/** `task_start_agent`: a project agent's live run puts another agent of the
+ * project to work (`domains/tasks/delegated-start.ts`). A confined run — one
+ * a member started — never delegates; the rest is the domain's. */
+async function runTaskStartAgent(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    callArgs: Record<string, unknown>;
+    authority: WorkspaceActionAuthority;
+    session?: { sessionId: string; taskRunExecId?: string };
+  },
+): Promise<ToolResult> {
+  const { callArgs } = args;
+  if (args.authority.confinedToTaskId !== undefined) {
+    return memberRunRefusal(
+      'It cannot put other agents to work. Say in your result which task ' +
+        'should be started: an editor has to start that agent.',
+    );
+  }
+  if (
+    args.authority.scope.kind !== 'project' ||
+    args.session?.taskRunExecId === undefined
+  ) {
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'not_a_project_agent_run',
+          guidance:
+            'Only a project agent run can put another agent to work; an ' +
+            'automation starts agents with a task.start_agent step.',
+        },
+      ],
+    };
+  }
+  const taskId = readString(callArgs.taskId);
+  const agentId =
+    callArgs.agentId === undefined ? undefined : readString(callArgs.agentId);
+  const feedback =
+    typeof callArgs.feedback === 'string' && callArgs.feedback.trim() !== ''
+      ? callArgs.feedback
+      : undefined;
+  const moveToInProgress =
+    typeof callArgs.moveToInProgress === 'boolean'
+      ? callArgs.moveToInProgress
+      : undefined;
+  // A resumption names the run that asked and the review it waits at — both
+  // ids, nothing else (`delegated-start.ts`, `resumeFrom`).
+  const resume = isRecord(callArgs.resumeFrom) ? callArgs.resumeFrom : null;
+  const resumeRunId = resume === null ? undefined : readString(resume.runId);
+  const resumeApprovalId =
+    resume === null ? undefined : readString(resume.approvalId);
+  const resumeFrom =
+    resume !== null &&
+    Object.keys(resume).length === 2 &&
+    resumeRunId !== undefined &&
+    resumeRunId.length <= 200 &&
+    resumeApprovalId !== undefined &&
+    resumeApprovalId.length <= 200
+      ? { runId: resumeRunId, approvalId: resumeApprovalId }
+      : undefined;
+  if (
+    taskId === undefined ||
+    (callArgs.agentId !== undefined && agentId === undefined) ||
+    (callArgs.feedback !== undefined &&
+      typeof callArgs.feedback !== 'string') ||
+    (callArgs.moveToInProgress !== undefined &&
+      moveToInProgress === undefined) ||
+    (callArgs.resumeFrom !== undefined && resumeFrom === undefined)
+  ) {
+    return {
+      status: 'invalid_args',
+      message:
+        'task_start_agent needs {taskId: string, agentId?: string, ' +
+        'feedback?: string, moveToInProgress?: boolean, ' +
+        'resumeFrom?: {runId: string, approvalId: string}}.',
+    };
+  }
+  if (feedback !== undefined) {
+    const refusal = taskCommentRefusal(feedback);
+    if (refusal !== null) {
+      return { status: 'invalid_args', message: `feedback: ${refusal}` };
+    }
+  }
+  const scoped = await loadTaskInScope(
+    ctx,
+    args.organizationId,
+    taskId,
+    args.authority,
+  );
+  if ('refusal' in scoped) return scoped.refusal;
+  const answer = await ctx.runMutation(
+    internal.tasks.internal_mutations.agentStartTaskAgent,
+    {
+      organizationId: args.organizationId,
+      sessionId: args.session.sessionId,
+      taskRunExecId: args.session.taskRunExecId,
+      taskId,
+      ...(agentId !== undefined ? { agentId } : {}),
+      ...(feedback !== undefined ? { feedback } : {}),
+      ...(moveToInProgress !== undefined ? { moveToInProgress } : {}),
+      ...(resumeFrom !== undefined ? { resumeFrom } : {}),
+    },
+  );
+  if (!isRecord(answer) || typeof answer.outcome !== 'string') {
+    return { status: 'error', message: 'The start answered nothing usable.' };
+  }
+  const { outcome, ...rest } = answer;
+  if (outcome === 'started') {
+    return { status: 'ok', output: { started: true, ...rest } };
+  }
+  return {
+    status: 'ok',
+    output: {
+      started: false,
+      reason: outcome,
+      guidance: START_AGENT_GUIDANCE[outcome] ?? 'Nothing started.',
+      ...rest,
+    },
+  };
+}
+
 export async function runTaskTool(
   ctx: ActionCtx,
   args: {
@@ -399,6 +553,9 @@ export async function runTaskTool(
     tool: WorkspaceTaskTool;
     callArgs: Record<string, unknown>;
     authority: WorkspaceActionAuthority;
+    /** The session and the task run its token names — what a delegation
+     * proves its requesting run with (`task_start_agent`). */
+    session?: { sessionId: string; taskRunExecId?: string };
   },
 ): Promise<ToolResult> {
   const { organizationId, callArgs, authority } = args;
@@ -741,6 +898,15 @@ export async function runTaskTool(
         };
       }
       return { status: 'ok', output: { taskId, status } };
+    }
+
+    if (args.tool === 'task_start_agent') {
+      return await runTaskStartAgent(ctx, {
+        organizationId,
+        callArgs,
+        authority,
+        ...(args.session !== undefined ? { session: args.session } : {}),
+      });
     }
 
     // task_upsert_by_external_ref — the idempotent external-item sync.

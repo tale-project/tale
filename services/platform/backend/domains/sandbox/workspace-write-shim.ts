@@ -71,7 +71,9 @@ function asAppError(error: unknown): unknown {
   return error;
 }
 
-async function coded<T>(run: () => Promise<T>): Promise<T> {
+/** Run a domain call, translating its refusal into the bridge's shape
+ * ({@link asAppError}) — every write handler of the bridge goes through it. */
+export async function coded<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {

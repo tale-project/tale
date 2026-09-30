@@ -1,6 +1,7 @@
 /**
  * The billing subject of a sandbox op: a person by bare user id behind every
- * `user:`/`api-key:`/bare starter, the automation sentinel behind a trigger,
+ * `user:`/`api-key:`/bare starter, the automation sentinel behind a trigger
+ * (a workflow turn's, or a project agent's run a schedule began),
  * the key beside a keyed start, the agent's ID (not its name) for a project
  * agent — and the op row's own stamp when the run row is gone. The SQL is
  * scripted; the parser is the real one.
@@ -67,6 +68,23 @@ describe('resolveSessionOpAttribution — task-agent', () => {
       userId: 'user-9',
       agentSlug: 'agent-9',
     });
+  });
+
+  it('books a run a schedule began under the automation sentinel, under the agent’s id', async () => {
+    const { sql, statements } = fakeSql([
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [{ startedBy: 'trigger:schedule-1', agentId: 'agent-1' }],
+      },
+    ]);
+    await expect(resolveSessionOpAttribution(sql, TASK_OP)).resolves.toEqual({
+      userId: AUTOMATION_SUBJECT_ID,
+      agentSlug: 'agent-1',
+    });
+    // Answered from the run row: a stale op stamp never names a person.
+    expect(
+      statements.some((s) => s.text.includes('FROM app.sandbox_session_ops')),
+    ).toBe(false);
   });
 
   it('answers null when neither the run nor the stamp names anyone', async () => {
