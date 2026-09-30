@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 112 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 113 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -721,6 +721,20 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   gateway log shows one `tool` message per tool call on every request —
   env-gated: mark **ENVIRONMENT** without a credential that serves Gemini
   CLI.
+||||||| parent of 08aa4d318 (test(manual): cover the chat hand-over in the manual suites)
+- [ ] `TASK-F60` · **Create a task and start its agent in one step** — On
+  a project board, **Create task** (`tasks.actions.create`) with a project
+  agent under **Assignee** and **Status** **To do** → the footer adds
+  **Create and start agent** (`tasks.actions.createAndStart`, with a play
+  icon) beside **Create task**; clicking it closes the dialog, and the new
+  card's run is queued or working without a reload. **Create task** instead
+  leaves the run waiting for **Start agent** (`tasks.agentRun.start`). With
+  **Status** set to **In progress**, the primary button itself reads
+  **Create and start agent** — an agent's task created in progress starts
+  at once; with a person as the assignee, only **Create task** is offered.
+  With task automation switched off for the organization, **Create and start
+  agent** creates nothing: the dialog stays open with a toast saying why the
+  agent cannot start, and **Create task** still creates the task.
 
 ## Boundary & error tests
 
