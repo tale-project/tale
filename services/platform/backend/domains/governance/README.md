@@ -20,7 +20,9 @@ page, the budget gate, erasure and retention are its readers.
    member a REST key acts for). A managed agent turn spends for the person who started the run —
    from a task, a comment, the REST API or the MCP endpoint — and a retry continues its starter's
    kick. A run a trigger (schedule, webhook, event) started has no person: it books under
-   `__automation__`.
+   `__automation__`. A project agent run an automation step or another agent started
+   (`domains/tasks/delegated-start.ts`) continues the starter of the run that asked: that run's
+   person, or `trigger:<id>` for a schedule's chain, which books under `__automation__` too.
 4. **A keyed start books to its key too.** When an API key authenticated the chat send or the run
    start, the ledger row carries `api_key_id` beside the person, so the key's own budget caps see
    the spend the docs promise them. Run rows keep the key in `automation_runs.api_key_id`
@@ -47,7 +49,9 @@ page, the budget gate, erasure and retention are its readers.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
    `api-key:<userId>` / `trigger:<triggerId>` (the REST contract publishes it on `startedBy`;
    erasure and the trigger fire ledger read it) and `project_agent_runs.started_by` stays a bare
-   id. Fix attribution at the ledger boundary, never by rewriting a door field.
+   id — or `trigger:<triggerId>` for a run a schedule began, directly or through a delegation from
+   such a run (migration 0139). Fix attribution at the ledger boundary, never by rewriting a door
+   field.
 8. **Readers assume the rules above.** The usage page looks `user_id` up in `"user"` and labels
    the sentinel; the budget gate sums a member's rows by bare id and a team's by its members' bare
    ids; erasure deletes the subject's rows by bare id (and the legacy door forms); an impersonal
@@ -60,7 +64,7 @@ page, the budget gate, erasure and retention are its readers.
 | --- | --- | --- | --- | --- |
 | Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key |
 | Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — |
-| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare) | `project_agents.id` | — |
+| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above |
 | Voice output, transcription | `domains/tts`, `domains/files/transcription.ts` | the requester | `__tts__`, `__transcription__` | — |
@@ -80,7 +84,8 @@ page, the budget gate, erasure and retention are its readers.
 ## Guards
 
 - `lib/shared/run-starter.test.ts` — the door parser.
-- `domains/sandbox/op-attribution.test.ts` — the subject per lane, sentinel, key, stamp fallback.
+- `domains/sandbox/op-attribution.test.ts` — the subject per lane, sentinel, key, stamp fallback,
+  and a project agent run a schedule began.
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
 - `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder

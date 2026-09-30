@@ -52,6 +52,12 @@ Die Ansicht **Inbox** zeigt die Konversationen eines Status. Im Statusmenü wäh
 
 Das Kästchen am Anfang der Leiste wählt die ganze Liste aus. Solange nur einige Konversationen ein Häkchen haben, zeigt es einen Strich. Setzt du dann das Häkchen, sind alle Konversationen ausgewählt, die die Liste zeigt; was eine Suche oder ein Filter ausblendet, bleibt außen vor. Bei mehr als 200 ausgewählten Konversationen läuft die Aktion in mehreren Schritten, die die Inbox mitzählt. Die anschließende Meldung nennt, wie viele Konversationen geändert wurden und bei wie vielen es nicht geklappt hat, und gibt den Grund für den ersten Fehlschlag an, wenn einer bekannt ist. Diese bleiben ausgewählt, sodass du es erneut versuchen kannst. Lässt sich die Liste nicht laden, erscheint statt einer leeren Liste **Konversationen konnten nicht geladen werden** mit **Erneut versuchen**.
 
+<Frame caption="Die Ansicht Inbox neben einer geöffneten Konversation: Statusmenü, Neue E-Mail, Suche und Filter über den Konversationen, jede mit Initialen und letzter Nachricht.">
+
+![Start in der Ansicht Inbox mit drei offenen Konversationen — Copy of the August invoice von Léa Martin, Annual discount on the team plan von Hannah Weber und Seat pricing for read-only members von Daniel Okafor — neben der geöffneten Konversation mit Hannah Weber, die ihre zwei Nachrichten, die Antwort des Teams dazwischen und das Nachrichtenfeld zeigt.](/images/platform/home-inbox.webp)
+
+</Frame>
+
 Ein Chat, eine Aufgabe oder eine Konversation öffnet sich unter einer Kopfzeile mit Symbol, Titel, einer Zeile Kontext und den passenden Aktionen. **Seitenleiste ausblenden** am Anfang dieser Kopfzeile blendet die Seitenleiste von **Start** aus und schafft Platz; **Seitenleiste einblenden** holt sie zurück. Der Tooltip der Schaltfläche zeigt das Tastenkürzel. Bei einer Konversation steht **Link kopieren** an erster Stelle der Aktionen und kopiert einen Link, über den deine Kollegen dieselbe Konversation öffnen. Inhaber und Admins weisen die Konversation in der Kopfzeile einer Person, einem Team oder beiden zu. Wählst du die zugewiesene Person oder das Team erneut, wird diese Zuweisung aufgehoben, ebenso mit **Zuweisung aufheben** und **Team entfernen** am Ende der Liste; die andere Zuweisung bleibt bestehen.
 
 ### Tastenkürzel {#shortcuts}

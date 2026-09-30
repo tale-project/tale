@@ -1,6 +1,7 @@
 'use client';
 
 import { useIsMac } from '@tale/ui/use-is-mac';
+import { useLocation } from '@tanstack/react-router';
 import {
   BrainIcon,
   House,
@@ -11,9 +12,12 @@ import {
 import { useMemo } from 'react';
 
 import { useAutomationsAvailability } from '@/app/features/automations/hooks/use-automations-availability';
+import { readAutomationMemory } from '@/app/features/automations/lib/detail-memory';
 import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { isHomePath } from '@/app/features/home/lib/home-paths';
+import { readProjectMemory } from '@/app/features/home/lib/project-memory';
+import { readKnowledgeTabMemory } from '@/app/features/knowledge/lib/knowledge-tab-memory';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
@@ -56,6 +60,13 @@ export interface NavItem {
    * re-entering chat opens a fresh composer rather than resuming a thread.
    */
   reentrySearch?: Record<string, unknown>;
+  /**
+   * History state to apply when clicked. Set only when `to` has been
+   * resolved to a remembered deep link (Automations, Home → a project), so
+   * the landing route can tell a restored arrival from a deliberate one and
+   * self-heal (fall back to its list) if that target is gone.
+   */
+  state?: Record<string, unknown>;
 }
 
 export interface NavigationItems {
@@ -63,6 +74,24 @@ export interface NavigationItems {
   primary: NavItem[];
   /** Items pinned at the foot of the rail (above the UserButton); on a phone they join the tab bar. */
   pinned: NavItem[];
+}
+
+function isPathMatch(itemHref: string, currentPath: string): boolean {
+  if (itemHref === currentPath) return true;
+  if (currentPath.startsWith(itemHref + '/')) return true;
+  return false;
+}
+
+/** Shared by the desktop rail and the mobile tab bar so the two navigations
+ *  cannot disagree on which tile is "active". */
+export function isItemActive(item: NavItem, pathname: string): boolean {
+  return item.isActivePath
+    ? item.isActivePath(pathname)
+    : isPathMatch(item.href, pathname) ||
+        (item.subItems?.some((subItem) =>
+          isPathMatch(subItem.href, pathname),
+        ) ??
+          false);
 }
 
 export function useNavigationItems(businessId: string): NavigationItems {
@@ -89,81 +118,116 @@ export function useNavigationItems(businessId: string): NavigationItems {
     canAuthor ? '' : businessId,
   );
   const showAutomations = canAuthor || hasLiveOrgAutomation;
-  return useMemo(
-    (): NavigationItems => ({
-      primary: [
+
+  const { pathname } = useLocation();
+  return useMemo((): NavigationItems => {
+    const homeItem: NavItem = {
+      // Home holds everything you work on — chats, projects with their
+      // tasks, and the inbox — behind one panel. The tile opens the
+      // caller's last chat (or a blank composer when there is none);
+      // clicking it while already in Home starts a fresh chat, the same
+      // navigation the ⌥⌘N shortcut performs.
+      label: tNav('home'),
+      to: '/dashboard/$id/chat',
+      params: { id: businessId },
+      href: `/dashboard/${businessId}/chat`,
+      icon: House,
+      shortcut: newChatShortcut,
+      reentrySearch: { new: true },
+      isActivePath: (path) => isHomePath(path, businessId),
+      badge: unreadConversations ?? 0,
+      badgeLabel: tNav('aria.unreadConversations', {
+        count: unreadConversations ?? 0,
+      }),
+    };
+    // Arriving from outside Home (Knowledge, Automations, Settings): if a
+    // specific project was last open, reopen it instead of resuming chat.
+    // Already-in-Home (including the fresh-chat reentry gesture above) and
+    // "no project ever visited" both fall through untouched.
+    if (!isItemActive(homeItem, pathname)) {
+      const rememberedProjectPath = readProjectMemory(businessId);
+      if (rememberedProjectPath !== undefined) {
+        homeItem.to = rememberedProjectPath;
+        homeItem.params = {};
+        homeItem.state = { navRestore: true };
+      }
+    }
+
+    const knowledgeItem: NavItem = {
+      label: tNav('knowledge'),
+      to: '/dashboard/$id/documents',
+      params: { id: businessId },
+      href: `/dashboard/${businessId}/documents`,
+      icon: BrainIcon,
+      // Mirrors KnowledgeNavigation's tab strip exactly: the rail's
+      // active state is computed from these, so a tab missing here would
+      // fail to highlight while the user is on it.
+      subItems: [
         {
-          // Home holds everything you work on — chats, projects with their
-          // tasks, and the inbox — behind one panel. The tile opens the
-          // caller's last chat (or a blank composer when there is none);
-          // clicking it while already in Home starts a fresh chat, the same
-          // navigation the ⌥⌘N shortcut performs.
-          label: tNav('home'),
-          to: '/dashboard/$id/chat',
-          params: { id: businessId },
-          href: `/dashboard/${businessId}/chat`,
-          icon: House,
-          shortcut: newChatShortcut,
-          reentrySearch: { new: true },
-          isActivePath: (pathname) => isHomePath(pathname, businessId),
-          badge: unreadConversations ?? 0,
-          badgeLabel: tNav('aria.unreadConversations', {
-            count: unreadConversations ?? 0,
-          }),
-        },
-        {
-          label: tNav('knowledge'),
+          label: tKnowledge('documents'),
           to: '/dashboard/$id/documents',
           params: { id: businessId },
           href: `/dashboard/${businessId}/documents`,
-          icon: BrainIcon,
-          // Mirrors KnowledgeNavigation's tab strip exactly: the rail's
-          // active state is computed from these, so a tab missing here would
-          // fail to highlight while the user is on it.
-          subItems: [
-            {
-              label: tKnowledge('documents'),
-              to: '/dashboard/$id/documents',
-              params: { id: businessId },
-              href: `/dashboard/${businessId}/documents`,
-            },
-            {
-              label: tKnowledge('knowledgeEntries'),
-              to: '/dashboard/$id/knowledge-entries',
-              params: { id: businessId },
-              href: `/dashboard/${businessId}/knowledge-entries`,
-            },
-            {
-              label: tKnowledge('websites'),
-              to: '/dashboard/$id/websites',
-              params: { id: businessId },
-              href: `/dashboard/${businessId}/websites`,
-            },
-            {
-              label: tKnowledge('products'),
-              to: '/dashboard/$id/products',
-              params: { id: businessId },
-              href: `/dashboard/${businessId}/products`,
-            },
-            {
-              label: tKnowledge('contacts'),
-              to: '/dashboard/$id/contacts',
-              params: { id: businessId },
-              href: `/dashboard/${businessId}/contacts`,
-            },
-          ],
         },
-        ...(showAutomations
-          ? [
-              {
-                label: tNav('automations'),
-                to: '/dashboard/$id/automations',
-                params: { id: businessId },
-                href: `/dashboard/${businessId}/automations`,
-                icon: Workflow,
-              },
-            ]
-          : []),
+        {
+          label: tKnowledge('knowledgeEntries'),
+          to: '/dashboard/$id/knowledge-entries',
+          params: { id: businessId },
+          href: `/dashboard/${businessId}/knowledge-entries`,
+        },
+        {
+          label: tKnowledge('websites'),
+          to: '/dashboard/$id/websites',
+          params: { id: businessId },
+          href: `/dashboard/${businessId}/websites`,
+        },
+        {
+          label: tKnowledge('products'),
+          to: '/dashboard/$id/products',
+          params: { id: businessId },
+          href: `/dashboard/${businessId}/products`,
+        },
+        {
+          label: tKnowledge('contacts'),
+          to: '/dashboard/$id/contacts',
+          params: { id: businessId },
+          href: `/dashboard/${businessId}/contacts`,
+        },
+      ],
+    };
+    // Which of the 5 sibling tabs was last open — never anything deeper,
+    // there isn't anything deeper here.
+    if (!isItemActive(knowledgeItem, pathname)) {
+      const rememberedTab = readKnowledgeTabMemory(businessId);
+      if (rememberedTab !== undefined) {
+        knowledgeItem.to = `/dashboard/$id/${rememberedTab}`;
+        knowledgeItem.params = { id: businessId };
+      }
+    }
+
+    const automationsItem: NavItem = {
+      label: tNav('automations'),
+      to: '/dashboard/$id/automations',
+      params: { id: businessId },
+      href: `/dashboard/${businessId}/automations`,
+      icon: Workflow,
+    };
+    // The exact sub-path under a specific automation — org-scoped only
+    // (see `features/automations/lib/detail-memory.ts`).
+    if (!isItemActive(automationsItem, pathname)) {
+      const rememberedPath = readAutomationMemory(businessId);
+      if (rememberedPath !== undefined) {
+        automationsItem.to = rememberedPath;
+        automationsItem.params = {};
+        automationsItem.state = { navRestore: true };
+      }
+    }
+
+    return {
+      primary: [
+        homeItem,
+        knowledgeItem,
+        ...(showAutomations ? [automationsItem] : []),
       ],
       pinned: [
         {
@@ -180,14 +244,14 @@ export function useNavigationItems(businessId: string): NavigationItems {
           icon: SettingsIcon,
         },
       ],
-    }),
-    [
-      businessId,
-      tNav,
-      tKnowledge,
-      unreadConversations,
-      newChatShortcut,
-      showAutomations,
-    ],
-  );
+    };
+  }, [
+    businessId,
+    tNav,
+    tKnowledge,
+    unreadConversations,
+    newChatShortcut,
+    pathname,
+    showAutomations,
+  ]);
 }

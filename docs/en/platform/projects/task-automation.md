@@ -48,6 +48,42 @@ For an automation-owned task, mention the owning automation to request another r
 
 A task can have only one queued, running, or waiting run at a time, whichever automation started it. Repeating a start request while one is active returns the existing run, even when it names another automation. Once it finishes, another start can create a new run and repeat the work. Check the current run and its effects before requesting another attempt.
 
+## Let a manager agent keep the queue moving
+
+A manager agent is a project agent whose instructions are to read the whole board, hand out ready work and answer the routine questions other agents leave, so that people see only what needs them. It reads with **Find tasks** and **Read a task**; neither tool changes anything.
+
+### Read the whole queue in passes
+
+**Find tasks** answers at most 50 tasks at a time. While a page says `isDone: false`, its `continueCursor`, passed back as `cursor` with the same arguments, returns the next page; the last page says `isDone: true`. A cursor that comes back with other filters, another order or from another project's run is refused, and so is a damaged one: it is never read as the first page. A total appears only when one page holds every matching task.
+
+To walk a whole queue, use `order: "created"`. Tasks come oldest first and keep their place, so a pass lists each task at most once, as it stands when its page is read. The default order groups tasks by status and keeps each column's order within it, so a task that moves while the manager pages can be missed or listed twice.
+
+A pass can outlast one run. Before its run ends, the manager saves a checkpoint comment on its own task: the pass, its order and filters, the next `continueCursor` and the last task it examined. Its next run finds that checkpoint with **Read a task** and continues from it. When a pass ends, or its cursor is refused, the next pass starts at the first page. A read that fails is not an empty queue: the manager reports it and stops.
+
+### Tell running, finished and waiting work apart
+
+**Read a task** names subtasks, blockers and comments by their IDs and pages back through older comments with `commentCursor`. It also lists the task's project-agent runs, newest first, each with the first 500 characters of the message its start carried, along with the task's automation run and any pending review:
+
+- A run with `live: true` is queued or running, and nothing else starts on the task until it ends.
+- A run that has settled, failed or been cancelled is finished; `settledAt` says when.
+- A `workflowRun` waiting for an `ask` or an `approval`, and a `pendingReview`, wait on a person.
+
+The answer leaves out transcripts, error texts and results, and anything from another project.
+
+### Answer a routine question
+
+A routine question is one the manager can answer from what the project already records. Write the same protocol into the instructions of the working agents and of the manager:
+
+1. The working agent posts the question as a task comment with a stable question key, its evidence and the question. It names the comment's ID and its own run ID in its result (**Read a task** on its task shows that run as the live one) and finishes the run instead of waiting inside it. Mentioning the manager in that comment starts nothing: a comment by an agent never starts an agent.
+2. On its next pass, the manager answers only while the task still waits on that question: the run that asked is the task's newest run and has finished, nothing is live on the task, and the task waits in review of that run (`pendingReview.runId`). It keeps that run's ID and `pendingReview.approvalId` from this read. If a person has since moved the task on, by accepting or cancelling it or asking for changes, the question is no longer the manager's to answer, and it reports the question instead.
+3. It posts its answer as a comment that names the question's comment ID; the answer stays on the task whatever happens next. It then resumes the agent with **Start other agents on tasks**, passing `resumeFrom: {runId, approvalId}` with the two IDs it kept, and a message that opens with the question's key, the run's ID and the answer's comment ID: a later **Read a task** shows only the first 500 characters of a start's message. The start checks, as it happens, that this is still the task's open question. Only then does it withdraw the pending review, without approving it, and resume the agent.
+4. If the start answers `stale_question`, the question was overtaken between the manager's read and the start: a person decided, a newer run or review exists, or the assignee changed. Nothing was changed. The manager reads the task again and drops the outdated question. It does not start again, and never without `resumeFrom`.
+5. If the start's response is lost, the manager reads the task again before trying anything else: a newer run whose message opens with that question's key, run ID and answer comment ID means the start went through. If the same start is sent again, it answers `stale_question` and changes nothing.
+
+A question from a standing task, one a schedule starts with `moveToInProgress: false`, waits for no review. The manager only posts its answer there, and the run at the schedule's next occurrence reads it. Neither the manager nor anyone else starts the task early to deliver the answer.
+
+Accepting a result, answering an automation's question and deciding an approval stay with people. The manager sees them in **Read a task** so that it can leave them to the person concerned and report them.
+
 ## Handle waiting and failed runs
 
 | State or symptom | What to do |
@@ -56,7 +92,7 @@ A task can have only one queued, running, or waiting run at a time, whichever au
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
 | The run remains failed | Read the error and resolve its cause, then use **Retry** to continue the conversation. Deleted agents and time-limit failures need intervention. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. |
-| Two automations keep mentioning each other on one task | There is no per-task rate cap: the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
+| Agents or automations keep restarting one task | A task takes at most three starts of its agent by automations and other agents in any hour, their automatic retries included; the next start is refused, a retry past the limit is not started, and the timeline says **Run refused: agent runs are paused on this task**. Starts by people, and their retries, are never counted. Automation runs have no such cap: between two automations that keep mentioning each other, the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
 | The task cannot close | Finish its open subtasks first. |
 
 Recoverable failures get up to three automatic retries, which start right away except in the case below. A run that makes sustained progress for at least fifteen minutes receives a fresh retry allowance. This helps long work recover from interruptions; it does not prove the resulting work is correct.
@@ -66,6 +102,14 @@ An automatic retry continues the work of the person who started the run, so it s
 An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance: the retry shows the same count as the run it replaces, or **Resumed after a token refresh** when that run showed none or had worked for at least fifteen minutes, which earned it a fresh retry allowance. After two such interruptions in a row, a further one counts like any other failure.
 
 A run can also fail to start because every account of its subscription broker is cooling down after a rate limit. Its retry is queued at once but starts only when the first account is available again, at most a minute later. The wait uses no attempt when the refused run was itself retrying a rate-limit failure; otherwise the refused start counts as one.
+
+## Work an automation or another agent starts
+
+A project agent can also be put to work without anyone pressing **Start agent**: by a [scheduled automation](/platform/automations/triggers#start-a-project-agent-on-a-schedule), or by another agent of the project that holds the **Start other agents on tasks** tool, such as a manager agent that hands out ready work and answers questions. The timeline lists such a run as **automation**, with a link to the automation run, or as **delegated**, started by the agent that asked. The agent is told who started it, and a message that automation or agent passed reads as theirs, never as a person's review: where it contradicts the description or a person's comment, those win.
+
+The run answers to whoever the requesting run answers to: the person who started it, or nobody for a schedule's chain, whose spend counts as automation spend. That person, or the schedule, has to be able to act in the project when the run starts; a lost Editor role, a paused schedule, or an automation removed from the project stops the next start. An agent another agent started cannot start further agents, and a run a Member started cannot start any. Such a start also checks what a person might forget: a task an open task blocks does not start, and an agent already working another task is not started twice.
+
+The review gate stays a person's. A delegated run parks its result at **In review** like any other, and resuming a task that waits there withdraws its pending review without approving it. A start that leaves the card where it is (`moveToInProgress: false`) is refused under a card waiting for review, or a **Done** or **Cancelled** one, so earlier work is never presented for judgment while new work runs under it. A manager that answers an agent's question resumes it naming the run that asked and the review it waits at. The resumption happens only while that is still the task's open question. If a person decided in the meantime (Done, Cancelled or another move), a newer run or review exists, or the assignee changed, the agent answers `stale_question` and nothing is assigned, withdrawn, moved or started. When your organization requires an independent reviewer, the person the run answers to cannot accept its result.
 
 ## Cancel or pause work
 

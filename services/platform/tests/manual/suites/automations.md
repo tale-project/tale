@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 76 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 78 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -596,6 +596,20 @@ output:
       the agent reports it has no image tool and the node's `files` hold no
       image — env-gated: mark **ENVIRONMENT** without a runnable harness and an
       image-capable credential.
+- [ ] `AUTO-F55` · **A schedule starts a project agent** — In a project with
+      an agent assigned to a task in **To do** (`tasks.status.todo`), save and
+      deploy an automation installed in that project whose only node has
+      `type: task.start_agent`, that task's id and `moveToInProgress: false`,
+      and bind a `* * * * *` schedule with **Enabled** on → within a minute
+      the run succeeds and its output reads `started: true` with a `runId`;
+      the task's timeline lists the agent run (`tasks.timeline.runLabel`) as
+      `tasks.agentRuns.trigger.automation` beside the automation's name, which
+      opens that run; the card is still in **To do**. While that agent run is
+      live, the next minute's run reads `started: false`,
+      `reason: already_running` with the same `runId`, and no second agent run
+      appears. Turn **Enabled** off and **Save** → no run starts at the next
+      minute. (Without a runnable harness the agent run itself fails at its
+      launch; the start and the coalesced occurrence still show.)
 
 ## Boundary & error tests
 
@@ -651,6 +665,14 @@ output:
       leaves the team project bound (check as the admin). The second
       automation is missing from the Developer's automations list and
       breadcrumb switcher instead of appearing as an organization one.
+- [ ] `AUTO-B10` · **Only a schedule or a person starts an agent** — Give the
+      automation from `AUTO-F55` a **Webhook** trigger instead and post `{}`
+      to its project URL; then remove it from the project under **Projects**
+      (`automations.bindings.title`) and **Test run** it live yourself →
+      the delivered run fails at the start node with "Only a schedule or a
+      person can start a project agent; a webhook or platform-event run
+      cannot", and the unbound run fails as "Task not found"; neither adds a
+      run to the task's timeline.
 
 ## Run liveness — chaos recovery (backend, scripted)
 

@@ -65,7 +65,7 @@ When a conversation ends in work that needs a file, such as a presentation, a re
 
 <Frame caption="Create task from chat opens the task dialog with the request and a link back to the chat.">
 
-![The Create task dialog holds the title and description "Draft a launch checklist for the website relaunch project" and, below the request, a link labelled From the chat.](/images/platform/chat-create-task.webp)
+![The Create task dialog holds the title and description "Plan the quarterly business review agenda for Friday" and, below the request, a link labelled From the chat.](/images/platform/chat-create-task.webp)
 
 </Frame>
 

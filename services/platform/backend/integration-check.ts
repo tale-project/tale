@@ -96,14 +96,21 @@ import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.t
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
+import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
   checkCooledStartRetry,
   checkCredentialRotationRetry,
 } from './domains/tasks/credential-rotation.integration.ts';
+import {
+  checkDelegatedAgentStartTool,
+  checkInPlaceCompletionCycle,
+  checkScheduledAgentStarts,
+} from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
@@ -56192,6 +56199,22 @@ async function main(): Promise<void> {
         () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
       ],
       [
+        'checkScheduledAgentStarts',
+        () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkDelegatedAgentStartTool',
+        () => checkDelegatedAgentStartTool(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkInPlaceCompletionCycle',
+        () => checkInPlaceCompletionCycle(sql, authCtx, record),
+      ],
+      [
+        'checkImportCursorContinuation',
+        () => checkImportCursorContinuation(sql, authCtx, record),
+      ],
+      [
         'checkTaskWorkflowParentMoves',
         async () =>
           checkTaskWorkflowParentMoves(
@@ -56235,6 +56258,10 @@ async function main(): Promise<void> {
       [
         'checkTaskBoardSearch',
         () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReadTools',
+        () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
       [

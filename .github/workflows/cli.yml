@@ -1,6 +1,10 @@
 name: CLI
 
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
 on:
+  repository_dispatch:
+    types: [release-candidate]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -38,19 +42,30 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
   # ---------------------------------------------------------------------------
   # Resolve the version string for the build matrix.
   # ---------------------------------------------------------------------------
   prepare:
+    needs: candidate-source
     name: Prepare
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
       version: ${{ steps.version.outputs.version }}
+      source_sha: ${{ steps.version.outputs.source_sha }}
 
     steps:
       - name: Resolve version
@@ -58,16 +73,38 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          SOURCE_SHA=
           if [ "$EVENT_NAME" = workflow_dispatch ]; then
             VERSION="${RELEASE_TAG#v}"
             if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
               echo '::error::Release tag must be an exact semantic version'; exit 1
             fi
+            # Tag-bound publication evidence must describe the actual checkout.
+            # The commits endpoint peels both lightweight and annotated tags.
+            # Branch/main manual recovery may still explicitly build a tag.
+            if [[ "${GITHUB_REF:-}" == refs/tags/* ]] && [ "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ]; then
+              echo '::error::The dispatch tag must match release_tag exactly'; exit 1
+            fi
+            if ! SOURCE_SHA=$(gh api "repos/${REPOSITORY}/commits/refs%2Ftags%2F${RELEASE_TAG}" --jq .sha); then
+              echo '::error::Could not resolve the release tag commit'; exit 1
+            fi
+            if [[ ! "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              echo '::error::The release tag did not resolve to a full commit SHA'; exit 1
+            fi
+            if [[ "${GITHUB_REF:-}" == refs/tags/* ]] && [ "$SOURCE_SHA" != "$GITHUB_SHA" ]; then
+              echo '::error::The release tag no longer matches the dispatched commit'; exit 1
+            fi
           else
             VERSION="dev"
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$VERSION"
+            echo "source_sha=$SOURCE_SHA"
+          } >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # Build the CLI binary for each target platform.
@@ -75,7 +112,7 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     name: Build (${{ matrix.platform }})
-    needs: prepare
+    needs: [candidate-source, prepare]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -122,8 +159,8 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # A manual release dispatch may be started from another branch.
-          # The binaries must still come from the tag they are attached to.
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+          # Prepare resolves that tag once; every binary builds its exact commit.
+          ref: ${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -233,7 +270,7 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Attach to release
-    needs: build
+    needs: [candidate-source, build]
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -301,3 +338,14 @@ jobs:
             release/tale_checksums.txt \
             --repo "$REPO" \
             --clobber
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, prepare, build]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/cli.yml
+      jobs: ${{ toJSON(needs) }}

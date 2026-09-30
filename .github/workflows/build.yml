@@ -5,6 +5,16 @@ name: Build
 # on that job's checkout AND pass the version/ref via build-args from the
 # workflow rather than reading `.git` from inside the build context.
 
+# A release candidate (.github/RELEASING.md) is one full commit SHA on main
+# that a release is meant to ship. A maintainer dispatches it from the Actions
+# tab or with `gh workflow run build.yml -f candidate_sha=<sha>`; a token that
+# may push but not dispatch workflows sends a `release-candidate` repository
+# dispatch with `client_payload.candidate_sha`. Either one runs this file from
+# main against that SHA: every job checks it out, every check runs whatever
+# its last commit touched, and the Candidate gate at the end is the verdict
+# the release lane reads before it tags.
+run-name: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') && format('Release candidate {0}', inputs.candidate_sha || github.event.client_payload.candidate_sha) || '' }}
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -52,19 +62,42 @@ on:
       - 'package.json'
       - 'bun.lock'
   merge_group:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: 'Release candidate: the full 40-character commit SHA on main to validate'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [release-candidate]
 
+# Pushes and pull requests keep one run per ref: a newer commit cancels the
+# run it supersedes. A release candidate gets a group of its own, keyed by its
+# SHA and never cancelled — a merge to main must not starve it (#3951), and a
+# second dispatch of the same SHA waits behind the first instead of replacing
+# it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') && format('candidate-{0}', inputs.candidate_sha || github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' && github.event_name != 'repository_dispatch' }}
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch' }}
+      candidate_sha: ${{ inputs.candidate_sha || github.event.client_payload.candidate_sha }}
+
   # ---------------------------------------------------------------------------
   # Discover which services changed so matrix jobs only run for them.
   # ---------------------------------------------------------------------------
   changes:
+    needs: candidate-source
     name: Detect changes
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -74,14 +107,22 @@ jobs:
     outputs:
       services: ${{ steps.services.outputs.list }}
       scannable_services: ${{ steps.services.outputs.scannable }}
-      ci_tests: ${{ steps.filter.outputs.ci_tests }}
-      storybook: ${{ steps.filter.outputs.storybook }}
+      ci_tests: ${{ steps.services.outputs.ci_tests }}
+      storybook: ${{ steps.services.outputs.storybook }}
       image_tag: ${{ steps.tag.outputs.value }}
+      # The commit every job builds and tests. `candidate_sha` is that same
+      # commit in a release-candidate run and empty otherwise, so a checkout
+      # given it as `ref` keeps its event's default everywhere else.
+      source_sha: ${{ needs.candidate-source.outputs.sha }}
+      candidate_sha: ${{ needs.candidate-source.outputs.candidate_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
 
       - name: Filter paths
+        if: needs.candidate-source.outputs.candidate_sha == ''
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         id: filter
         with:
@@ -141,34 +182,63 @@ jobs:
 
       - name: Compute service matrix
         id: services
+        env:
+          CANDIDATE_SHA: ${{ needs.candidate-source.outputs.candidate_sha }}
+          CHANGES: ${{ steps.filter.outputs.changes }}
+          CI_TESTS: ${{ steps.filter.outputs.ci_tests }}
+          STORYBOOK: ${{ steps.filter.outputs.storybook }}
         run: |
+          set -euo pipefail
+          if [ -n "$CANDIDATE_SHA" ]; then
+            # A release candidate runs every check, whatever its last commit
+            # touched: a check skipped for the candidate never passed for it.
+            # Every filter above, pseudo-filters included (deployment-ci.test.ts).
+            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","ai-gateway","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests"]'
+            CI_TESTS=true
+            STORYBOOK=true
+          fi
           # Strip pseudo-filters that aren't real services from the matrix list.
-          SERVICES=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "ci_tests" and . != "storybook")]')
+          SERVICES=$(jq -c '[.[] | select(. != "ci_tests" and . != "storybook")]' <<< "$CHANGES")
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
 
           # Vulnerability scan covers the compose-stack services + sandbox
           # trio that `build` actually pushes to GHCR. Web, docs and ui-docs
           # use their own compose stacks and are reachable via security.yml's
-          # filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]')
-          echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
+          # filesystem scan. A release candidate is not scanned here: the scan
+          # is advisory, and its SARIF would be filed against main's head, not
+          # against the candidate.
+          SCANNABLE=$(jq -c '[.[] | select(. == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]' <<< "$SERVICES")
+          if [ -n "$CANDIDATE_SHA" ]; then SCANNABLE='[]'; fi
+          {
+            echo "scannable=${SCANNABLE}"
+            echo "ci_tests=${CI_TESTS}"
+            echo "storybook=${STORYBOOK}"
+          } >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
       # CI image tag shared across build/smoke/validate/scan jobs. PR runs use
       # `pr-{n}-sha-{fullsha}` so every source commit has an unambiguous tag that
       # cleanup-pr-images.yml can wipe by prefix when the PR closes. Pushes to
-      # main and merge-queue runs lack a PR number and fall back to `sha-…`.
+      # main and merge-queue runs lack a PR number and fall back to `sha-…`. A
+      # release candidate's images are `candidate-sha-{fullsha}`: only its own
+      # runs write that tag, and its jobs pull the recorded digests anyway.
       - name: Compute image tag
         id: tag
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          CANDIDATE_SHA: ${{ needs.candidate-source.outputs.candidate_sha }}
         run: |
           set -euo pipefail
           if [[ ! "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo '::error::Image source must be a full commit SHA'; exit 1
           fi
-          if [ -n "$PR_NUMBER" ]; then
+          if [ -n "${CANDIDATE_SHA:-}" ]; then
+            if [[ ! "$CANDIDATE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              echo '::error::Image source must be a full commit SHA'; exit 1
+            fi
+            echo "value=candidate-sha-${CANDIDATE_SHA}" >> "$GITHUB_OUTPUT"
+          elif [ -n "$PR_NUMBER" ]; then
             if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
               echo '::error::Pull request number must contain only digits'; exit 1
             fi
@@ -225,6 +295,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         if: matrix.service == 'platform' || matrix.service == 'sandbox-runtime'
@@ -260,11 +332,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # The revision label names the commit the image was built from: the
+      # checkout, which a release candidate pins to its own SHA rather than
+      # the dispatched ref's head.
       - name: Resolve build metadata
         id: meta
+        env:
+          SOURCE_SHA: ${{ needs.changes.outputs.source_sha }}
         run: |
+          set -euo pipefail
+          HEAD_SHA=$(git rev-parse HEAD)
+          if [ "$HEAD_SHA" != "$SOURCE_SHA" ]; then
+            echo "::error::Checked out ${HEAD_SHA}, expected ${SOURCE_SHA}"; exit 1
+          fi
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-          echo "revision=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "revision=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
 
       # Fail the build (not just the separate test job) on a broken builtin
       # config catalog — build.yml and test.yml otherwise run independently,
@@ -285,6 +367,7 @@ jobs:
       # workflow's tag-prefix filter assumes single-manifest tags — re-enabling
       # provenance would require widening that filter (see N2 in cleanup file).
       - name: Build and push
+        id: image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -307,6 +390,41 @@ jobs:
             org.opencontainers.image.version=${{ needs.changes.outputs.image_tag }}
           provenance: false
 
+      # One receipt per pushed image: the digest this run pushed and the
+      # commit it was built from. The smoke test, the image validation and the
+      # candidate gate read these, so they test and name the exact bytes built
+      # here, never whatever a tag points at by the time they pull it.
+      - name: Record image receipt
+        if: steps.pushmode.outputs.push == 'true'
+        env:
+          SERVICE: ${{ matrix.service }}
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}
+          TAG: ${{ needs.changes.outputs.image_tag }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          REVISION: ${{ steps.meta.outputs.revision }}
+          RECEIPTS: ${{ runner.temp }}/image-receipts
+        run: |
+          set -euo pipefail
+          if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "::error::The build of tale-${SERVICE} reported no image digest"; exit 1
+          fi
+          mkdir -p "$RECEIPTS"
+          jq -n --arg service "$SERVICE" --arg image "$IMAGE" --arg tag "$TAG" \
+            --arg digest "$DIGEST" --arg revision "$REVISION" \
+            '{service: $service, image: $image, tag: $tag, digest: $digest, revision: $revision}' \
+            > "${RECEIPTS}/${SERVICE}.json"
+
+      - name: Upload image receipt
+        if: steps.pushmode.outputs.push == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: image-receipt-${{ matrix.service }}
+          path: ${{ runner.temp }}/image-receipts/${{ matrix.service }}.json
+          # Re-running failed jobs reuses the receipts of the images that built.
+          retention-days: 30
+          overwrite: true
+          if-no-files-found: error
+
       - name: Summary
         if: success()
         run: |
@@ -315,6 +433,8 @@ jobs:
             echo ""
             if [ "${{ steps.pushmode.outputs.push }}" = "true" ]; then
               echo "Pushed: \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
+              echo ""
+              echo "Digest: \`${{ steps.image.outputs.digest }}\` from \`${{ steps.meta.outputs.revision }}\`"
             else
               echo "Loaded locally (fork PR): \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}\`"
             fi
@@ -348,6 +468,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -368,22 +490,42 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Pull each service image from GHCR and re-tag locally as `:latest`.
-      # compose.yml resolves `${VERSION:-latest}`; with PULL_POLICY=never the
-      # smoke script will use these local images verbatim and skip its own
-      # `docker compose build` step.
+      - name: Download image receipts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: image-receipt-*
+          path: ${{ runner.temp }}/image-receipts
+          merge-multiple: true
+
+      # Pull each service image by the digest the build job recorded and
+      # re-tag it locally as `:latest`. compose.yml resolves
+      # `${VERSION:-latest}`; with PULL_POLICY=never the smoke script will use
+      # these local images verbatim and skip its own `docker compose build`
+      # step. An image whose revision label is not this run's source fails
+      # the pull.
       - name: Pull images from GHCR
+        env:
+          SOURCE_SHA: ${{ needs.changes.outputs.source_sha }}
+          RECEIPTS: ${{ runner.temp }}/image-receipts
         run: |
+          set -euo pipefail
           # Compose-stack services + sandbox-runtime. Keep in sync with build.yml
           # (build matrix) and cleanup-pr-images.yml matrix. sandbox-runtime is
           # not a compose service but the spawner pulls it at boot — re-tag it
           # locally so smoke tests with PULL_POLICY=never find it.
-          TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
           for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
-            IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
+            DIGEST=$(jq -r '.digest // empty' "${RECEIPTS}/${svc}.json" 2> /dev/null || true)
+            if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "::error::No image receipt with a digest for tale-${svc}"; exit 1
+            fi
+            IMAGE="${REGISTRY_PATH}/tale-${svc}@${DIGEST}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
+            REVISION=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")
+            if [ "$REVISION" != "$SOURCE_SHA" ]; then
+              echo "::error::tale-${svc} was built from ${REVISION}, not ${SOURCE_SHA}"; exit 1
+            fi
             docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
           done
           # See note in image-validate: the spawner's SANDBOX_RUNTIME_IMAGE
@@ -447,6 +589,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -518,6 +662,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -548,6 +694,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -578,6 +726,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -611,6 +761,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -647,6 +799,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -660,18 +814,38 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Download image receipts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: image-receipt-*
+          path: ${{ runner.temp }}/image-receipts
+          merge-multiple: true
+
+      # Pull by the recorded digest and check the revision label, exactly as
+      # the smoke test does.
       - name: Pull images from GHCR
+        env:
+          SOURCE_SHA: ${{ needs.changes.outputs.source_sha }}
+          RECEIPTS: ${{ runner.temp }}/image-receipts
         run: |
+          set -euo pipefail
           # Compose-stack services + sandbox-runtime. Keep in sync with build.yml
           # (build matrix) and cleanup-pr-images.yml matrix. sandbox-runtime is
           # not a compose service but the spawner pulls it at boot — re-tag it
           # locally so PULL_POLICY=never validation finds it.
-          TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
           for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
-            IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
+            DIGEST=$(jq -r '.digest // empty' "${RECEIPTS}/${svc}.json" 2> /dev/null || true)
+            if [[ ! "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "::error::No image receipt with a digest for tale-${svc}"; exit 1
+            fi
+            IMAGE="${REGISTRY_PATH}/tale-${svc}@${DIGEST}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
+            REVISION=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")
+            if [ "$REVISION" != "$SOURCE_SHA" ]; then
+              echo "::error::tale-${svc} was built from ${REVISION}, not ${SOURCE_SHA}"; exit 1
+            fi
             docker tag "${IMAGE}" "ghcr.io/tale-project/tale/tale-${svc}:latest"
           done
           # The spawner reads SANDBOX_RUNTIME_IMAGE which defaults to
@@ -717,6 +891,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Reclaim disk space
         run: |
@@ -769,6 +945,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -855,6 +1033,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.changes.outputs.candidate_sha }}
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -863,3 +1043,105 @@ jobs:
 
       - name: Build Storybook
         run: bunx turbo run storybook:build
+
+  # ---------------------------------------------------------------------------
+  # Release candidate gate — the verdict the release lane reads before it tags
+  # (.github/RELEASING.md). Candidate runs only; it runs after every job it
+  # needs whatever their result, and passes only if each one succeeded against
+  # the pinned SHA: a skipped or cancelled job fails the gate, it never passes
+  # by omission. Its receipt names the source, this run and the digest of
+  # every image the smoke test and the image validation pulled. Fork-PR jobs
+  # never run for a candidate, and the advisory scan is not one of its checks.
+  # ---------------------------------------------------------------------------
+  candidate-gate:
+    name: Candidate gate
+    needs:
+      - candidate-source
+      - changes
+      - build
+      - smoke-test
+      - image-validate
+      - web-test
+      - docs-test
+      - ui-docs-test
+      - ai-gateway-test
+      - storybook
+    if: always() && needs.changes.outputs.candidate_sha != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      # A build that failed uploads no receipt; the next step names the gap.
+      - name: Download image receipts
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: image-receipt-*
+          path: ${{ runner.temp }}/image-receipts
+          merge-multiple: true
+
+      - name: Judge the candidate
+        env:
+          CANDIDATE_SHA: ${{ needs.changes.outputs.candidate_sha }}
+          IMAGE_TAG: ${{ needs.changes.outputs.image_tag }}
+          NEEDS: ${{ toJSON(needs) }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+          RECEIPTS: ${{ runner.temp }}/image-receipts
+        run: |
+          set -euo pipefail
+          verdict=passed
+          JOBS=$(jq -c 'with_entries(.value = .value.result)' <<< "$NEEDS")
+          while IFS=$'\t' read -r job result; do
+            if [ "$result" != success ]; then
+              echo "::error::${job} did not succeed for release candidate ${CANDIDATE_SHA} (${result})"
+              verdict=failed
+            fi
+          done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' <<< "$JOBS")
+          # The build matrix; keep in sync with it (deployment-ci.test.ts).
+          IMAGES='[]'
+          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+            if ! ENTRY=$(jq -ce --arg service "$svc" --arg revision "$CANDIDATE_SHA" --arg tag "$IMAGE_TAG" \
+              'select(.service == $service and .revision == $revision and .tag == $tag and (.digest | test("^sha256:[a-f0-9]{64}$")))' \
+              "${RECEIPTS}/${svc}.json" 2> /dev/null); then
+              echo "::error::No image receipt of tale-${svc} built from ${CANDIDATE_SHA}"
+              verdict=failed
+              continue
+            fi
+            IMAGES=$(jq -c --argjson entry "$ENTRY" '. + [$entry]' <<< "$IMAGES")
+          done
+          jq -n --arg candidate "$CANDIDATE_SHA" --arg verdict "$verdict" \
+            --argjson jobs "$JOBS" --argjson images "$IMAGES" \
+            --arg id "$RUN_ID" --arg attempt "$RUN_ATTEMPT" --arg url "$RUN_URL" \
+            --arg event "$EVENT_NAME" --arg workflow "$WORKFLOW_SHA" \
+            --arg ref "$DISPATCH_REF" --arg sha "$DISPATCH_SHA" \
+            '{schemaVersion: 1, workflow: ".github/workflows/build.yml", candidate: $candidate, verdict: $verdict,
+              run: {id: $id, attempt: $attempt, url: $url, event: $event, workflowSha: $workflow, ref: $ref, sha: $sha},
+              jobs: $jobs, images: $images}' > release-candidate.json
+          {
+            echo "## Release candidate \`${CANDIDATE_SHA}\`: ${verdict}"
+            echo ""
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            jq -r 'to_entries[] | "| \(.key) | \(.value) |"' <<< "$JOBS"
+            echo ""
+            echo "| Image | Digest |"
+            echo "| --- | --- |"
+            jq -r '.[] | "| \(.image) | `\(.digest)` |"' <<< "$IMAGES"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$verdict" = passed ]
+
+      - name: Upload candidate receipt
+        if: always() && hashFiles('release-candidate.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-candidate-build-${{ needs.changes.outputs.candidate_sha }}-attempt-${{ github.run_attempt }}
+          path: release-candidate.json
+          retention-days: 90
+          overwrite: true

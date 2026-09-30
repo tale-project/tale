@@ -1,5 +1,9 @@
 import { CronExpressionParser } from 'cron-parser';
 
+import {
+  cronMatches,
+  firstOccurrenceBetween,
+} from '@/backend/core/automations/cron';
 import { parseCron } from '@/lib/automations/cron';
 
 export type CronPreview =
@@ -25,6 +29,11 @@ export type CronPreview =
         | null;
     };
 
+/** How far past a candidate the parser named a run that never fires the
+ * preview walks for the real one: a leap day's schedule is four years
+ * apart at most. */
+const PREVIEW_HORIZON_MS = 4 * 366 * 24 * 60 * 60 * 1000;
+
 const EVERY_MINUTES = /^\*\/(\d+)\s+\*\s+\*\s+\*\s+\*$/;
 const EVERY_HOURS = /^0\s+\*\/(\d+)\s+\*\s+\*\s+\*$/;
 const DAILY_AT = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$/;
@@ -49,8 +58,9 @@ export function previewCronExpression(
   const trimmed = cron.trim();
   if (trimmed === '') return { kind: 'empty' };
 
+  let schedule: ReturnType<typeof parseCron>;
   try {
-    parseCron(trimmed);
+    schedule = parseCron(trimmed);
   } catch (error) {
     return {
       kind: 'invalid',
@@ -61,11 +71,28 @@ export function previewCronExpression(
   }
 
   try {
+    const zone = timezone.trim() !== '' ? timezone.trim() : 'UTC';
     const interval = CronExpressionParser.parse(trimmed, {
       currentDate: now,
-      ...(timezone.trim() !== '' && { tz: timezone.trim() }),
+      tz: zone,
     });
-    const nextAt = interval.next().toDate();
+    const candidate = interval.next().toDate().getTime();
+    // The packaged parser's answer only bounds the search: it skips the
+    // hour after a spring-forward gap (a 03:00 Zurich slot on the last
+    // Sunday of March), which the schedule scan fires. The time shown is the
+    // scan's own — the first minute its matcher accepts — so the preview
+    // never names a later run than the one that will start.
+    const nextAt = new Date(
+      firstOccurrenceBetween(schedule, zone, now.getTime(), candidate) ??
+        (cronMatches(schedule, candidate, zone)
+          ? candidate
+          : (firstOccurrenceBetween(
+              schedule,
+              zone,
+              candidate,
+              candidate + PREVIEW_HORIZON_MS,
+            ) ?? candidate)),
+    );
 
     let pattern: Extract<CronPreview, { kind: 'ok' }>['pattern'] = null;
     const everyMinutes = EVERY_MINUTES.exec(trimmed);

@@ -54,6 +54,8 @@ vi.mock('@/app/hooks/use-ability', () => ({
 vi.mock('@tale/ui/use-is-mac', () => ({ useIsMac: () => false }));
 
 vi.mock('@/app/hooks/use-navigation-items', () => ({
+  isItemActive: (item: { href: string }, pathname: string) =>
+    pathname === item.href || pathname.startsWith(`${item.href}/`),
   useNavigationItems: () => ({
     primary: [
       {

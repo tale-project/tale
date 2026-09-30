@@ -5,6 +5,7 @@ import { type ReactNode } from 'react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 import type { DonutSegment } from './types';
+import { useChartAnimation } from './use-chart-animation';
 
 interface DonutChartProps {
   segments: readonly DonutSegment[];
@@ -29,6 +30,7 @@ export function DonutChart({
   valueFormatter,
 }: DonutChartProps) {
   const slices = segments.filter((s) => s.value > 0);
+  const animate = useChartAnimation();
 
   return (
     <div className="relative flex size-full items-center justify-center">
@@ -50,6 +52,7 @@ export function DonutChart({
             outerRadius="92%"
             paddingAngle={2}
             stroke="none"
+            isAnimationActive={animate}
           >
             {slices.map((s) => (
               <Cell key={s.key} fill={s.color} />

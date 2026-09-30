@@ -216,15 +216,20 @@ export function CredentialTable<
           );
           return (
             <div className="flex min-w-0 flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-foreground truncate text-sm font-medium">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="text-foreground min-w-0 truncate text-sm font-medium">
                   {credential.name}
                 </span>
                 {credential.isDefault && (
-                  <Badge variant="blue">{t('credentials.default')}</Badge>
+                  <Badge variant="blue" className="shrink-0">
+                    {t('credentials.default')}
+                  </Badge>
                 )}
                 {status !== null && (
-                  <Badge variant={adapter.statusTone(credential.status)}>
+                  <Badge
+                    variant={adapter.statusTone(credential.status)}
+                    className="shrink-0"
+                  >
                     {status}
                   </Badge>
                 )}

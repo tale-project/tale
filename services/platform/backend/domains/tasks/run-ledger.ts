@@ -1,5 +1,6 @@
 import type { TransactionSql } from 'postgres';
 
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
@@ -47,6 +48,10 @@ interface RunRow {
   trigger: string | null;
   startedBy: string;
   startedAt: number | null;
+  startedVia: string | null;
+  startedViaRunId: string | null;
+  startedViaAutomation: string | null;
+  startedViaAgentId: string | null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -79,7 +84,11 @@ export async function recordTaskAgentRunLedgerEntry(
            project_id AS "projectId", agent_id AS "agentId",
            session_id AS "sessionId", exec_id AS "execId", harness, model,
            trigger, started_by AS "startedBy",
-           started_at_ms::float8 AS "startedAt"
+           started_at_ms::float8 AS "startedAt",
+           started_via AS "startedVia",
+           started_via_run_id AS "startedViaRunId",
+           started_via_automation AS "startedViaAutomation",
+           started_via_agent_id AS "startedViaAgentId"
     FROM app.project_agent_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
     LIMIT 1
@@ -207,9 +216,12 @@ export async function recordTaskAgentRunLedgerEntry(
     // The kick is a person's act on every task lane (board verb, comment
     // @mention, review request-changes). An auto-retry run carries its
     // failed predecessor's starter — the retry continues THAT person's
-    // kick; `metadata.trigger` tells the two apart.
+    // kick; `metadata.trigger` tells the two apart. A run a schedule began
+    // names no person: its door (`trigger:<id>`) is the system's act, and
+    // `metadata.startedVia` names the automation or agent that asked.
     actorId: run.startedBy,
-    actorType: 'user',
+    actorType:
+      parseRunStarter(run.startedBy).kind === 'trigger' ? 'system' : 'user',
     action: AGENT_RUN_LEDGER_ACTION,
     category: 'agent',
     resourceType: AGENT_RUN_LEDGER_RESOURCE_TYPE,
@@ -229,6 +241,20 @@ export async function recordTaskAgentRunLedgerEntry(
       ...(agents[0] !== undefined ? { agentName: agents[0].name } : {}),
       ...(run.harness !== null ? { harness: run.harness } : {}),
       ...(run.trigger !== null ? { trigger: run.trigger } : {}),
+      ...(run.startedVia !== null && run.startedViaRunId !== null
+        ? {
+            startedVia: {
+              kind: run.startedVia,
+              runId: run.startedViaRunId,
+              ...(run.startedViaAutomation !== null
+                ? { automation: run.startedViaAutomation }
+                : {}),
+              ...(run.startedViaAgentId !== null
+                ? { agentId: run.startedViaAgentId }
+                : {}),
+            },
+          }
+        : {}),
       finalStatus: args.finalStatus,
       startedAt,
       settledAt: args.settledAt,

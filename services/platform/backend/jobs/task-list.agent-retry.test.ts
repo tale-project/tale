@@ -11,11 +11,19 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { kickAgentRun } = vi.hoisted(() => ({
+const { inPlaceOfRun, kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
+  inPlaceOfRun: vi.fn(async () => false),
   kickAgentRun: vi.fn(async () => ({ runId: 'run-retry' })),
+  startedViaOfRun: vi.fn(
+    async (): Promise<Record<string, string> | undefined> => undefined,
+  ),
 }));
 
-vi.mock('../domains/tasks/agent-runs.ts', () => ({ kickAgentRun }));
+vi.mock('../domains/tasks/agent-runs.ts', () => ({
+  inPlaceOfRun,
+  kickAgentRun,
+  startedViaOfRun,
+}));
 
 import {
   AUTO_RETRY_HISTORY_LIMIT,
@@ -44,6 +52,12 @@ interface World {
   teams?: string[];
   /** Who created the task (default: someone other than the starter). */
   createdBy?: string;
+  /** Whether the schedule a `trigger:` starter names may still act in the
+   * project — enabled, its automation bound there (default: it may). */
+  schedule?: boolean;
+  /** When the task's automated starts of the last hour began, as the
+   * per-task budget reads them (default: none). */
+  automatedStarts?: number[];
 }
 
 /** A transaction that answers the job's reads: the task, its runs newest
@@ -71,9 +85,23 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
         },
       ]);
     }
+    if (
+      text.includes('FROM app.project_agent_runs') &&
+      text.includes('started_via IS NOT NULL')
+    ) {
+      return Promise.resolve(
+        (world.automatedStarts ?? []).map((startedAt) => ({ startedAt })),
+      );
+    }
     if (text.includes('FROM app.project_agent_runs')) {
       reads.push({ text, values });
       return Promise.resolve(runs);
+    }
+    if (
+      text.includes('INSERT INTO app.task_activity') ||
+      text.includes('INSERT INTO app_realtime.outbox')
+    ) {
+      return Promise.resolve([]);
     }
     if (text.includes('FROM app.project_agents')) {
       return Promise.resolve([
@@ -109,6 +137,11 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
     }
     if (text.includes('FROM "teamMember"')) {
       return Promise.resolve((world.teams ?? []).map((teamId) => ({ teamId })));
+    }
+    if (text.includes('FROM app.automation_triggers')) {
+      return Promise.resolve(
+        world.schedule === false ? [] : [{ id: 'schedule-1' }],
+      );
     }
     throw new Error(`unexpected query: ${text}`);
   };
@@ -358,7 +391,7 @@ describe('task.agent_retry admission', () => {
     expect(kickAgentRun).toHaveBeenCalledTimes(1);
   });
 
-  it('lets the project alone decide for a run a trigger started', async () => {
+  it('retries a run a schedule began while that schedule may act in the project', async () => {
     const archived = await deliver(
       { project: { archivedAt: 1_700_000_000_000, teamIds: [] }, member: null },
       'trigger:schedule-1',
@@ -370,6 +403,122 @@ describe('task.agent_retry admission', () => {
 
     await deliver({ member: null }, 'trigger:schedule-1');
     expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    const probe = statements.find((text) =>
+      text.includes('FROM app.automation_triggers'),
+    );
+    expect(probe).toContain("t.kind = 'schedule'");
+    expect(probe).toContain('t.enabled = true');
+    expect(probe).toContain('app.automation_project_bindings');
+  });
+
+  it('starts nothing for a run whose schedule was paused, removed or unbound since', async () => {
+    const lines = await deliver({ schedule: false }, 'trigger:schedule-1');
+
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(lines).toEqual(['[task-agent] auto-retry skipped: not_permitted']);
+  });
+
+  it('keeps the lane of a run an automation step or another agent started', async () => {
+    const via = { kind: 'agent', runId: 'run-manager', agentId: 'agent-9' };
+    startedViaOfRun.mockResolvedValueOnce(via);
+
+    await deliver({});
+
+    expect(startedViaOfRun).toHaveBeenCalledWith(
+      expect.anything(),
+      'run-failed',
+    );
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ trigger: 'auto_retry', startedVia: via }),
+    );
+  });
+
+  it('counts an automated run’s retry against the per-task budget, and kicks it while the hour has room', async () => {
+    startedViaOfRun.mockResolvedValueOnce({
+      kind: 'agent',
+      runId: 'run-manager',
+      agentId: 'agent-9',
+    });
+    const now = Date.now();
+
+    await deliver({ automatedStarts: [now - 30_000, now - 20_000] });
+
+    const budget = statements.find((text) =>
+      text.includes('started_via IS NOT NULL'),
+    );
+    expect(budget).toContain('FROM app.project_agent_runs');
+    expect(budget).not.toContain('trigger');
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(
+      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
+    ).toBe(false);
+  });
+
+  it('refuses an automated run’s retry once the hour holds three automated starts, retries included, and records why', async () => {
+    startedViaOfRun.mockResolvedValueOnce({
+      kind: 'automation',
+      runId: 'run-occurrence',
+      nodeId: 'start',
+      automation: 'autonomous-cycle/fleet-manager',
+    });
+    const now = Date.now();
+
+    const lines = await deliver({
+      automatedStarts: [now - 50_000, now - 40_000, now - 30_000],
+    });
+
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(lines).toEqual([
+      '[task-agent] auto-retry skipped: task_circuit_breaker',
+    ]);
+    const refusal = statements.find((text) =>
+      text.includes('INSERT INTO app.task_activity'),
+    );
+    expect(refusal).toBeDefined();
+  });
+
+  it('never counts or refuses the retry of a run a person started', async () => {
+    const now = Date.now();
+
+    const lines = await deliver({
+      automatedStarts: [now - 50_000, now - 40_000, now - 30_000],
+    });
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(lines).toEqual([]);
+    expect(
+      statements.some((text) => text.includes('started_via IS NOT NULL')),
+    ).toBe(false);
+  });
+
+  it('carries an in-place start into its retry, so the retry completes in place too', async () => {
+    const via = {
+      kind: 'automation',
+      runId: 'run-occurrence',
+      nodeId: 'start',
+      automation: 'autonomous-cycle/local-qa',
+    };
+    startedViaOfRun.mockResolvedValueOnce(via);
+    inPlaceOfRun.mockResolvedValueOnce(true);
+
+    await deliver({});
+
+    expect(inPlaceOfRun).toHaveBeenCalledWith(expect.anything(), 'run-failed');
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ startedVia: via, inPlace: true }),
+    );
+  });
+
+  it('never asks a person’s run whether it was in place', async () => {
+    await deliver({});
+
+    expect(inPlaceOfRun).not.toHaveBeenCalled();
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ inPlace: expect.anything() }),
+    );
   });
 
   it('refuses a starter that names nobody', async () => {

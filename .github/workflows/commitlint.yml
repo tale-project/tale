@@ -1,6 +1,10 @@
 name: Commitlint
 
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
 on:
+  repository_dispatch:
+    types: [release-candidate]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -10,11 +14,21 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
 
 jobs:
+  candidate-source:
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
   commitlint:
+    needs: candidate-source
     name: Lint commits
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -26,6 +40,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
           fetch-depth: 0
 
       - name: Setup toolchain
@@ -37,17 +52,33 @@ jobs:
       - name: Run commitlint
         # PR: lint the branch range. Push: lint the pushed range; a forced or
         # history-less push (all-zero `before`) degrades to the last commit.
+        # Candidate: lint C itself, never the workflow head H or a tag input.
         env:
           EVENT_NAME: ${{ github.event_name }}
+          CANDIDATE_SHA: ${{ needs.candidate-source.outputs.candidate_sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_SHA: ${{ github.sha }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            git show -s --format=%B "$CANDIDATE_SHA" | bunx commitlint --verbose
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
             bunx commitlint --from "$PR_BASE" --to "$PR_HEAD" --verbose
           elif [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
             bunx commitlint --last --verbose
           else
             bunx commitlint --from "$PUSH_BEFORE" --to "$PUSH_SHA" --verbose
           fi
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, commitlint]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/commitlint.yml
+      jobs: ${{ toJSON(needs) }}

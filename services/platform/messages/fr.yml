@@ -7712,6 +7712,8 @@ tasks:
       decomposition: décomposition
       manual: manuel
       auto_retry: relance automatique
+      automation: automatisation
+      delegated: délégué
     refused:
       agent_disabled: l'agent n'est pas installé ou est désactivé
       agent_not_found: agent introuvable ou mal configuré
@@ -7726,6 +7728,7 @@ tasks:
       noLiveDetail: Aucun transcript en direct n'est disponible pour cette exécution.
   timeline:
     runLabel: Exécution d'agent
+    startedByAgent: lancé par
     systemActor: Système
     unresolvedWorkflow: Automatisation
     deletedAgent: Agent supprimé
@@ -8390,6 +8393,7 @@ projects:
       task_create: Créer des tâches
       task_comment: Commenter des tâches
       task_update_status: Déplacer des tâches entre colonnes
+      task_start_agent: Lancer d'autres agents sur des tâches
       task_upsert_by_external_ref: Synchroniser un élément externe vers une tâche
       document_find: Trouver des documents
       knowledge_entry_find: Trouver des entrées de connaissances

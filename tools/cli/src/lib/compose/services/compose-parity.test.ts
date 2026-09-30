@@ -739,10 +739,15 @@ describe('release artifact identity', () => {
       env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
     });
 
+  /** The Build lanes pull each image by the digest its build job recorded
+   * (one receipt per image) and check its revision label; the release lane
+   * pulls its version tags. Either way the stand-in `docker` logs the pulls
+   * and tags, and answers an inspect with the source commit. */
+  const CI_DIGEST = `sha256:${'a'.repeat(64)}`;
+  const CI_SOURCE = 'b'.repeat(40);
   const prepareImages = (step: Step, services: string[]) => {
     const script = step
       .run!.replaceAll('${{ needs.prepare.outputs.version_number }}', '0.5.43')
-      .replaceAll('${{ needs.changes.outputs.image_tag }}', 'ci-proof')
       .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
       .replaceAll('${{ github.repository }}', 'tale-project/tale');
     // Match the Ubuntu workflow's LF output when Git Bash uses native jq.exe.
@@ -750,12 +755,28 @@ describe('release artifact identity', () => {
       process.platform === 'win32'
         ? 'jq() { command jq --binary "$@"; };\n'
         : '';
-    const result = shell(
-      jqMode +
-        'docker() { printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
-        script,
-      { SERVICE_NAMES: JSON.stringify(services) },
-    );
+    const receipts = mkdtempSync(resolve(tmpdir(), 'tale-image-receipts-'));
+    let result: ReturnType<typeof shell>;
+    try {
+      for (const service of services) {
+        writeFileSync(
+          resolve(receipts, `${service}.json`),
+          JSON.stringify({ service, digest: CI_DIGEST, revision: CI_SOURCE }),
+        );
+      }
+      result = shell(
+        jqMode +
+          'docker() { if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "$SOURCE_SHA"; return; fi; printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
+          script,
+        {
+          SERVICE_NAMES: JSON.stringify(services),
+          RECEIPTS: receipts,
+          SOURCE_SHA: CI_SOURCE,
+        },
+      );
+    } finally {
+      rmSync(receipts, { recursive: true, force: true });
+    }
     expect(result.status).toBe(0);
     const images = new Map<string, string>();
     for (const line of result.stdout.split('\n')) {
@@ -793,10 +814,13 @@ describe('release artifact identity', () => {
         )!,
         services,
       );
+      const repositoryOf = (image: string) =>
+        image.split('@')[0]!.replace(/:[^/]*$/, '');
       for (const [alias, source] of tested) {
-        if (alias.endsWith(':ci-proof')) continue;
+        if (alias === source) continue;
+        expect(source).toEndWith(`@${CI_DIGEST}`);
         expect(released.get(alias)).toBe(
-          source.replace(':ci-proof', ':0.5.43-amd64'),
+          `${repositoryOf(source)}:0.5.43-amd64`,
         );
       }
     },
@@ -1012,7 +1036,7 @@ describe('release artifact identity', () => {
       step.uses?.startsWith('actions/checkout@'),
     )!;
     expect(checkout.with?.ref).toBe(
-      "${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.sha }}",
+      '${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}',
     );
   });
 
@@ -1032,14 +1056,21 @@ describe('release artifact identity', () => {
       const directory = mkdtempSync(resolve(tmpdir(), 'tale-cli-release-'));
       const output = resolve(directory, 'output');
       try {
-        const result = shell(step.run!, {
-          EVENT_NAME: 'workflow_dispatch',
-          RELEASE_TAG: String(tag),
-          GITHUB_OUTPUT: output,
-        });
+        const result = shell(
+          `gh() { printf '%s\\n' "$TEST_TAG_SOURCE"; };\n` + step.run!,
+          {
+            TEST_TAG_SOURCE: CI_SOURCE,
+            REPOSITORY: 'synthetic/tale',
+            EVENT_NAME: 'workflow_dispatch',
+            RELEASE_TAG: String(tag),
+            GITHUB_OUTPUT: output,
+          },
+        );
         expect(result.status).toBe(status);
         if (status === 0) {
-          expect(readFileSync(output, 'utf8')).toBe(`version=${version}\n`);
+          expect(readFileSync(output, 'utf8')).toBe(
+            `version=${version}\nsource_sha=${CI_SOURCE}\n`,
+          );
         }
       } finally {
         rmSync(directory, { recursive: true, force: true });

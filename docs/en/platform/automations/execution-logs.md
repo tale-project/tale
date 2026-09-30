@@ -5,6 +5,12 @@ description: Trace a run from its status to the failing node, inspect recorded w
 
 Open an automation, switch to its **Runs** tab and select a row to understand what happened. Start with its status, version and mode, then inspect the relevant node. A successful test run proves the workflow’s mocked execution; it does not prove that a real external account will accept the same action.
 
+<Frame caption="A finished test run: its status, mode, version, starter, and times above the workflow, with each node's result.">
+
+![The run page of a test run of Triage GitHub issues, marked Succeeded, Test, and v1 and started by you, with its start and finish times above the workflow graph, where the issues, open issues, score, and report nodes each show Ran; the run's effects list begins below the graph.](/images/platform/automation-run-detail.webp)
+
+</Frame>
+
 ## Read the run’s state
 
 The **Runs** tab lists the latest 50 runs you can see, newest first. Every member sees the organization’s own runs; a run in a project, and any question it waits on, appears only to people who can open that project. Each row identifies its version, time, mode and starter, or gives a failure or waiting reason. The detail shows the workflow with node results and run timing; an unfinished run has no completion time. The tabs stay visible while you inspect a run. Choose **Runs** to return to the list or **Editor** to change the workflow.

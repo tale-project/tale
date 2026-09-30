@@ -116,6 +116,15 @@ export function TaskTimelineEntry({
     const { run } = item;
     const agentPreview = resolveAgentRunPreview(run);
     const workflowPreview = resolveWorkflowRunPreview(run);
+    // The agent whose run put this one to work (`task_start_agent`).
+    const delegatorPreview =
+      run.delegatedByAgentId !== undefined
+        ? resolveActorPreview('agent', run.delegatedByAgentId)
+        : null;
+    const delegatorName =
+      run.delegatedByAgentId !== undefined
+        ? resolveActor('agent', run.delegatedByAgentId).name
+        : undefined;
     return (
       <div className="flex items-start gap-2 text-sm">
         <span
@@ -149,6 +158,18 @@ export function TaskTimelineEntry({
                   preview={workflowPreview}
                   name={workflowPreview.name}
                 />
+              </>
+            ) : null}
+            {delegatorName !== undefined ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {t('timeline.startedByAgent')}{' '}
+                  <TaskActorName
+                    preview={delegatorPreview}
+                    name={delegatorName}
+                  />
+                </span>
               </>
             ) : null}
             <span aria-hidden="true">·</span>
