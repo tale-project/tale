@@ -3,7 +3,7 @@ title: Create and manage project agents
 description: Configure a reusable worker, grant its equipment and start a task whose result you can review.
 ---
 
-Create a project agent when you want a reusable worker for that project’s tasks. It combines a coding runtime, a model, instructions and allowed equipment. You need project edit access; the project must be active. Only Owners and Admins can change secret grants.
+Create a project agent when you want a reusable worker for that project’s tasks. It combines a coding runtime, a model, instructions and allowed equipment. You need project edit access; the project must be active. Members see the project's agents on its **Agents** tab, which tells them to ask an Editor or Admin for a new one. Only Owners and Admins can change secret grants.
 
 ## Prepare the first task
 
@@ -24,6 +24,8 @@ Separate reusable instructions from the task. “Identify missing evidence and r
 <Step title="Name it and choose the runtime">
 
 Open the project’s **Agents** tab and select **New agent**. Give it a recognizable **Name**, then choose **Agent type**, the coding [harness](/platform/agents/harnesses). Names are unique within the project; a project supports up to 50 agents.
+
+You can also start from a task: while the project has no agent, **Create an agent…** under **Assignee** opens **New agent** over the task and assigns the agent you create to it.
 
 </Step>
 
@@ -77,4 +79,4 @@ The agent’s report appears in task comments and collected files appear as deli
 
 Use the agent’s row actions to edit or delete it. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. Review current work before removing the worker it belongs to.
 
-If creation or execution fails, use the displayed reason to distinguish a duplicate name, missing project access, an unavailable provider/model, a skill visibility issue or unavailable sandbox capacity. Changing instructions does not fix those dependencies.
+If creation fails, use the displayed reason to distinguish a duplicate name, missing project access, an unavailable provider/model or a skill visibility issue. A run that fails for good says at the top of its task what went wrong and who can fix it; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) lists the cases. Changing instructions does not fix those dependencies.

@@ -115,6 +115,7 @@ import { ReviewerPicker } from './reviewer-picker';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { StatusPicker } from './status-picker';
 import { TaskAgentRunEntry } from './task-agent-run-entry';
+import { TaskAgentRunFailureNotice } from './task-agent-run-failure-notice';
 import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
@@ -138,7 +139,10 @@ import { TaskParentLink } from './task-parent-link';
 import { TaskRepeatField } from './task-repeat-field';
 import { TaskRepeatNextLink } from './task-repeat-next-link';
 import { TaskRepeatStopButton } from './task-repeat-stop-button';
-import { TaskRunFailureBanner } from './task-run-failure-banner';
+import {
+  TaskRunFailureBanner,
+  useLatestRunRefusal,
+} from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
 import { TaskSubjectPanel } from './task-subject-panel';
@@ -1093,9 +1097,6 @@ function CreateTaskBody({
                 projectId={projectId}
                 assigneeType={assignee?.type}
                 assigneeId={assignee?.id}
-                taskTitle={title}
-                taskDescription={description}
-                taskLabels={labels}
                 align="end"
                 afterTrigger={
                   <span
@@ -1239,6 +1240,9 @@ export function EditTaskBody({
     { canEdit, canCreate },
   );
   const { project } = useProject(task?.projectId);
+  // The refused start the banner shows, if one is the latest thing that
+  // happened to the task.
+  const latestRefusal = useLatestRunRefusal(taskId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const { copy } = useCopy();
   const copyIdentifier = () => {
@@ -1775,6 +1779,19 @@ export function EditTaskBody({
         organizationId={task.organizationId}
         projectId={task.projectId}
       />
+      {/* The agent's run failed and the task still waits on it — unless a
+          refused start is the newer account of why, said just above. */}
+      {task.assigneeType === 'agent' &&
+        task.assigneeId &&
+        task.status === 'in_progress' &&
+        latestRefusal === null && (
+          <TaskAgentRunFailureNotice
+            organizationId={task.organizationId}
+            taskId={task._id}
+            assigneeId={task.assigneeId}
+            canRetry={canMutate && assigneeLive}
+          />
+        )}
 
       {/* A plain task's description IS its body, so it stays first. An
                 automation-owned task leads with the work instead — who owns it,
@@ -2082,9 +2099,6 @@ export function EditTaskBody({
           taskId={task._id}
           assigneeType={task.assigneeType}
           assigneeId={task.assigneeId}
-          taskTitle={task.title}
-          taskDescription={task.description}
-          taskLabels={labelNames}
           disabled={!canMutate}
           align="end"
           afterTrigger={

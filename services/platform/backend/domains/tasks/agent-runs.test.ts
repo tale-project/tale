@@ -6,13 +6,19 @@ import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   AGENT_RUN_FEEDBACK_EXCERPT_CHARS,
   cancelAgentRunInTx,
+  failAgentRun,
   failAgentRunFromTurn,
+  getLatestAgentRunCardForTask,
   kickAgentRun,
   launchAgentRun,
   listTaskAgentRunSummaries,
   settleAgentRun,
   wakeParkedAgentRuns,
 } from './agent-runs.ts';
+import {
+  announceAgentRunFailed,
+  withdrawAgentRunFailedNotices,
+} from './run-failure-notice.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 vi.mock('../../lib/org-config.ts', () => ({
@@ -20,6 +26,13 @@ vi.mock('../../lib/org-config.ts', () => ({
 }));
 vi.mock('./run-ledger.ts', () => ({ recordTaskAgentRunLedgerEntry: vi.fn() }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('./run-failure-notice.ts', () => ({
+  announceAgentRunFailed: vi.fn(),
+  withdrawAgentRunFailedNotices: vi.fn(),
+}));
+vi.mock('../sandbox/gateway-keys.ts', () => ({
+  revokeSessionGatewayKeys: vi.fn(async () => {}),
+}));
 
 type Row = Record<string, unknown>;
 
@@ -28,18 +41,21 @@ type Row = Record<string, unknown>;
 function fakeTx(answer: (text: string) => Row[]): {
   tx: TransactionSql;
   statements: string[];
+  calls: { text: string; values: unknown[] }[];
 } {
   const statements: string[] = [];
+  const calls: { text: string; values: unknown[] }[] = [];
   const tag = (
     strings: TemplateStringsArray,
-    ..._values: unknown[]
+    ...values: unknown[]
   ): Promise<Row[]> => {
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
     statements.push(text);
+    calls.push({ text, values });
     return Promise.resolve(answer(text));
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
-  return { tx: tag as unknown as TransactionSql, statements };
+  return { tx: tag as unknown as TransactionSql, statements, calls };
 }
 
 const KEYS = { organizationId: 'org-1', runId: 'run-1', taskId: 'task-1' };
@@ -108,13 +124,14 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
 function fakeSql(answer: (text: string) => Row[]): {
   sql: Sql;
   statements: string[];
+  calls: { text: string; values: unknown[] }[];
 } {
-  const { tx, statements } = fakeTx(answer);
+  const { tx, statements, calls } = fakeTx(answer);
   const sql = Object.assign(tx, {
     begin: (callback: (tx: TransactionSql) => unknown): unknown => callback(tx),
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js root instance
-  return { sql: sql as unknown as Sql, statements };
+  return { sql: sql as unknown as Sql, statements, calls };
 }
 
 describe('the turn host’s terminal marks write the provenance entry', () => {
@@ -279,15 +296,16 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
   });
 });
 
+/** The realtime hint every run write sends its task. */
+const TASK_HINT = 'INSERT INTO app_realtime.outbox';
+
 describe('launchAgentRun — the running flip is exec-fenced', () => {
   it('flips only a QUEUED run still owned by this exec, and says so', async () => {
-    const { tx, statements } = fakeTx((text) =>
-      text.startsWith('UPDATE app.project_agent_runs') ? [{ id: 'run-1' }] : [],
+    const { sql, statements } = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ organizationId: 'org-1', taskId: 'task-1' }]
+        : [],
     );
-    // A root sql and a tx share the tagged-template shape; the flip takes
-    // the root handle in production.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same one-member stand-in
-    const sql = tx as unknown as Sql;
     await expect(
       launchAgentRun(sql, { runId: 'run-1', execId: 'exec-1' }),
     ).resolves.toBe(true);
@@ -298,16 +316,17 @@ describe('launchAgentRun — the running flip is exec-fenced', () => {
     // the queued-run recovery rotated away cannot flip (and so cannot spawn).
     expect(update).toContain('WHERE id = ? AND exec_id = ?');
     expect(update).toContain("status = 'queued'");
-    expect(update).toContain('RETURNING id');
+    expect(update).toContain('RETURNING org_id');
+    // Queued → Working reaches an open task without a poll.
+    expect(statements.some((text) => text.startsWith(TASK_HINT))).toBe(true);
   });
 
-  it('a start under a rotated-away exec loses the launch', async () => {
-    const { tx } = fakeTx(() => []);
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same one-member stand-in
-    const sql = tx as unknown as Sql;
+  it('a start under a rotated-away exec loses the launch, and hints nothing', async () => {
+    const { sql, statements } = fakeSql(() => []);
     await expect(
       launchAgentRun(sql, { runId: 'run-1', execId: 'exec-stale' }),
     ).resolves.toBe(false);
+    expect(statements.some((text) => text.startsWith(TASK_HINT))).toBe(false);
   });
 });
 
@@ -537,7 +556,7 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
     expect(woken).toBe(0);
     const claim = statements.find((text) =>
       text.startsWith(
-        'SELECT id, exec_id AS "execId" FROM app.project_agent_runs',
+        'SELECT id, exec_id AS "execId", task_id AS "taskId" FROM app.project_agent_runs',
       ),
     );
     expect(claim).toBeDefined();
@@ -656,5 +675,310 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
     expect(statements.map((statement) => statement.values.at(-1))).toEqual([
       1, 100,
     ]);
+  });
+});
+
+describe('an open task follows its run: every run write hints the task', () => {
+  const hinted = (statements: string[]) =>
+    statements.filter((text) => text.startsWith(TASK_HINT)).length;
+
+  beforeEach(() => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
+    vi.mocked(addJobInTx).mockReset();
+    vi.mocked(announceAgentRunFailed).mockReset();
+    vi.mocked(withdrawAgentRunFailedNotices).mockReset();
+  });
+
+  it('a kick hints the task and withdraws the last failure’s unread notices', async () => {
+    const { tx, statements } = fakeTx((text) =>
+      text.startsWith('INSERT INTO app.project_agent_runs')
+        ? [{ id: 'run-new' }]
+        : [],
+    );
+    await kickAgentRun(tx, {
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      taskId: 'task-1',
+      agentId: 'agent-1',
+      harness: 'claude-code',
+      model: 'm',
+      startedBy: 'u-1',
+    });
+    expect(withdrawAgentRunFailedNotices).toHaveBeenCalledWith(tx, {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+    });
+    expect(hinted(statements)).toBe(1);
+  });
+
+  it('a settle hints the task it settled', async () => {
+    const { sql, statements } = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ organizationId: 'org-1', taskId: 'task-1' }]
+        : [],
+    );
+    await settleAgentRun(sql, { runId: 'run-1', resultText: 'done' });
+    expect(hinted(statements)).toBe(1);
+  });
+
+  it('a cancel hints the task only when it cancelled something', async () => {
+    const won = fakeTx((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [
+            {
+              id: 'run-1',
+              execId: 'exec-1',
+              sessionId: 'pa-1',
+              agentId: 'agent-1',
+              harness: 'opencode',
+              deadlineAt: 1000,
+            },
+          ]
+        : [],
+    );
+    await cancelAgentRunInTx(won.tx, KEYS);
+    expect(hinted(won.statements)).toBe(1);
+
+    const lost = fakeTx(() => []);
+    await cancelAgentRunInTx(lost.tx, KEYS);
+    expect(hinted(lost.statements)).toBe(0);
+  });
+
+  it('a woken parked run hints its task', async () => {
+    const { sql, statements } = fakeSql((text) =>
+      text.startsWith('SELECT id, exec_id AS "execId"')
+        ? [{ id: 'run-1', execId: 'exec-1', taskId: 'task-1' }]
+        : [],
+    );
+    await wakeParkedAgentRuns(sql, 'org-1');
+    expect(hinted(statements)).toBe(1);
+  });
+});
+
+/** The value a flip bound to `auto_retry_armed_at_ms`, found by the column's
+ * place among the statement's placeholders. */
+function armedValue(
+  call: { text: string; values: unknown[] } | undefined,
+): unknown {
+  if (call === undefined) return undefined;
+  const before = call.text.slice(
+    0,
+    call.text.indexOf('auto_retry_armed_at_ms'),
+  );
+  return call.values[before.split('?').length - 1];
+}
+
+describe('a failure no retry follows is announced where it becomes final', () => {
+  const failedFlip = () =>
+    fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' }]
+        : [],
+    );
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+    vi.mocked(announceAgentRunFailed).mockReset();
+    vi.mocked(recordTaskAgentRunLedgerEntry).mockReset();
+  });
+
+  it('a failure the retry cannot change is announced in the failing transaction', async () => {
+    const { sql, statements, calls } = failedFlip();
+    await failAgentRunFromTurn(sql, {
+      runId: 'run-1',
+      error: 'the organization spend cap refused the run',
+      failureCode: 'budget_exceeded',
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    // No retry armed, and the row says so.
+    const flip = calls.find((call) =>
+      call.text.startsWith('UPDATE app.project_agent_runs'),
+    );
+    expect(flip?.text).toContain('auto_retry_armed_at_ms = ?');
+    expect(armedValue(flip)).toBeNull();
+    expect(announceAgentRunFailed).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      runId: 'run-1',
+    });
+    expect(statements.some((text) => text.startsWith(TASK_HINT))).toBe(true);
+  });
+
+  it('a failure the platform retries is not announced: the retry is the answer', async () => {
+    const { sql, statements, calls } = failedFlip();
+    await failAgentRunFromTurn(sql, {
+      runId: 'run-1',
+      error: 'the harness crashed',
+      failureCode: 'harness_error',
+    });
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('task.agent_retry');
+    // The arm is stamped on the row it continues, in the same flip.
+    const flip = calls.find((call) =>
+      call.text.startsWith('UPDATE app.project_agent_runs'),
+    );
+    expect(armedValue(flip)).toEqual(expect.any(Number));
+    expect(announceAgentRunFailed).not.toHaveBeenCalled();
+    expect(statements.some((text) => text.startsWith(TASK_HINT))).toBe(true);
+  });
+
+  it('a lost election announces nothing', async () => {
+    const { sql } = fakeSql(() => []);
+    await failAgentRunFromTurn(sql, {
+      runId: 'run-1',
+      error: 'late',
+      failureCode: 'deadline',
+    });
+    expect(announceAgentRunFailed).not.toHaveBeenCalled();
+  });
+
+  it('a sweep’s fail stamps why, announces and hints', async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ sessionId: 'pa-agent-1', taskId: 'task-1' }]
+        : [],
+    );
+    await expect(
+      failAgentRun(sql, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'the agent run ran past its time limit and was stopped',
+        failureCode: 'deadline',
+      }),
+    ).resolves.toBe(true);
+    const update = calls.find((call) =>
+      call.text.startsWith('UPDATE app.project_agent_runs'),
+    );
+    expect(update?.text).toContain('failure_code = ?');
+    expect(update?.values).toContain('deadline');
+    expect(announceAgentRunFailed).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      runId: 'run-1',
+    });
+    expect(calls.some((call) => call.text.startsWith(TASK_HINT))).toBe(true);
+  });
+});
+
+describe('the run card tells a final failure from one about to be retried', () => {
+  /** The card's read and the retry history behind it. */
+  function cardSql(
+    card: Record<string, unknown>,
+    history: Record<string, unknown>[],
+  ): Sql {
+    return fakeSql((text) => {
+      if (text.includes('LEFT JOIN app.project_agents a')) return [card];
+      if (text.includes('auto_retry_refused_at_ms::float8')) return history;
+      return [];
+    }).sql;
+  }
+
+  const failedCard = (failureCode: string | null) => ({
+    id: 'run-1',
+    status: 'failed',
+    agentId: 'agent-1',
+    agentName: 'Content editor',
+    harness: 'claude-code',
+    model: 'm',
+    error: 'boom',
+    failureCode,
+    resultText: null,
+    waitingForCapacityAt: null,
+    trigger: 'manual',
+    autoRetryAttempt: null,
+    startedBy: 'u-1',
+    startedAt: 1,
+    settledAt: 2,
+  });
+
+  const historyRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 'run-1',
+    status: 'failed',
+    agentId: 'agent-1',
+    startedBy: 'u-1',
+    launchedAt: 1,
+    settledAt: 2,
+    failureCode: 'harness_error',
+    apiErrorStatus: null,
+    autoRetryAttempt: null,
+    autoRetryRefusedAt: null,
+    // The turn host's failed mark armed its retry.
+    autoRetryArmedAt: 2,
+    ...overrides,
+  });
+
+  it('carries the failure code and reads a retryable first failure as pending', async () => {
+    const card = await getLatestAgentRunCardForTask(
+      cardSql(failedCard('harness_error'), [historyRow()]),
+      'org-1',
+      'task-1',
+    );
+    expect(card).toMatchObject({
+      status: 'failed',
+      failureCode: 'harness_error',
+      retryPending: true,
+    });
+  });
+
+  it('reads a failure a retry cannot change as final', async () => {
+    const card = await getLatestAgentRunCardForTask(
+      cardSql(failedCard('budget_exceeded'), [
+        // Its failed mark armed nothing: no retry changes a spent limit.
+        historyRow({ failureCode: 'budget_exceeded', autoRetryArmedAt: null }),
+      ]),
+      'org-1',
+      'task-1',
+    );
+    expect(card?.retryPending).toBeUndefined();
+    expect(card?.failureCode).toBe('budget_exceeded');
+  });
+
+  it('reads a retired retry as final', async () => {
+    const card = await getLatestAgentRunCardForTask(
+      cardSql(failedCard('turn_crashed'), [
+        historyRow({ failureCode: 'turn_crashed', autoRetryRefusedAt: 5 }),
+      ]),
+      'org-1',
+      'task-1',
+    );
+    expect(card?.retryPending).toBeUndefined();
+  });
+
+  it('reads a spent budget as final', async () => {
+    const spent = [0, 1, 2, 3].map((n) =>
+      historyRow({
+        id: n === 0 ? 'run-1' : `run-${n + 1}`,
+        failureCode: 'turn_crashed',
+        autoRetryAttempt: n === 3 ? null : 3 - n,
+      }),
+    );
+    const card = await getLatestAgentRunCardForTask(
+      cardSql(failedCard('turn_crashed'), spent),
+      'org-1',
+      'task-1',
+    );
+    expect(card?.retryPending).toBeUndefined();
+  });
+
+  it('reads a failure no retry was armed for as final, whatever its code says', async () => {
+    // A sweep's fail, or a row failed before the mark: the code alone reads
+    // retryable (absent = the default posture), but nothing is coming.
+    const card = await getLatestAgentRunCardForTask(
+      cardSql(failedCard(null), [
+        historyRow({ failureCode: null, autoRetryArmedAt: null }),
+      ]),
+      'org-1',
+      'task-1',
+    );
+    expect(card?.retryPending).toBeUndefined();
+  });
+
+  it('never reads a failure without a live agent as pending', async () => {
+    const card = await getLatestAgentRunCardForTask(
+      cardSql({ ...failedCard('harness_error'), agentName: null }, [
+        historyRow(),
+      ]),
+      'org-1',
+      'task-1',
+    );
+    expect(card?.retryPending).toBeUndefined();
   });
 });

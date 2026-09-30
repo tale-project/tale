@@ -213,6 +213,7 @@ export async function recoverStuckQueuedTaskAgentRuns(
         runId: run.runId,
         execId: run.execId,
         error: 'the assigned agent was deleted before the run could start',
+        failureCode: 'agent_deleted',
       });
       if (didFail) {
         failed += 1;

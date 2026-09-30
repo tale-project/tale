@@ -56,6 +56,9 @@ interface ProjectAgentDialogProps {
   connectors: readonly SkillOption[];
   /** The row being edited; absent = create. */
   agent?: ProjectAgentRow;
+  /** Create mode: the new agent's id, once it exists and before the dialog
+   * closes — for a caller that goes on to use it (assign it to a task). */
+  onCreated?: (agentId: string) => void;
 }
 
 /** Mirrors the mutation's `PROJECT_AGENT_INSTRUCTIONS_MAX`. */
@@ -77,6 +80,7 @@ export function ProjectAgentDialog({
   skills,
   connectors,
   agent,
+  onCreated,
 }: ProjectAgentDialogProps) {
   const { t } = useT('projects');
   const { mutateAsync: createAgent } = useCreateProjectAgent();
@@ -247,7 +251,8 @@ export function ProjectAgentDialog({
       if (agent) {
         await updateAgent({ agentId: agent._id, ...payload });
       } else {
-        await createAgent({ projectId, ...payload });
+        const agentId = await createAgent({ projectId, ...payload });
+        onCreated?.(agentId);
       }
       toast({
         title: t(agent ? 'agents.editSuccess' : 'agents.createSuccess'),

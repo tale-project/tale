@@ -9,11 +9,18 @@ import type { MentionSource } from '../../core/tasks/mentions.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
   isAutoRetryableFailure,
+  resolveAutoRetryBudget,
 } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
+import { loadTaskRetryHistory } from './kick-plan.ts';
 import { sessionIdForAgentRun } from './run-authority.ts';
+import {
+  announceAgentRunFailed,
+  withdrawAgentRunFailedNotices,
+} from './run-failure-notice.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
 
@@ -32,9 +39,32 @@ import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
  * exec-fenced launch (`queued` → `running`). The turn host's other
  * non-terminal marks (broker token, park, rotate) live on its shim
  * (`agent-turn-shim.ts`).
+ *
+ * Every write that changes what a task's run looks like — queued, launched,
+ * parked, woken, settled, failed, cancelled — hints the task
+ * ({@link emitTaskRunHint}), so an open task follows its run without asking
+ * again: the run strip, the run rows of the activity list and the board's
+ * indicators all key under the task entity.
  */
 
 const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Tell every open view of the task that its run changed. The run card used
+ * to poll for this every two seconds while a task was open, and the run rows
+ * of the activity list had no signal at all: a run that failed kept reading
+ * "Queued" there until the page was reloaded.
+ */
+export async function emitTaskRunHint(
+  db: Sql | TransactionSql,
+  run: { organizationId: string; taskId: string },
+): Promise<void> {
+  await emitHintInTx(db, {
+    orgId: run.organizationId,
+    entity: 'task',
+    entityId: run.taskId,
+  });
+}
 
 export interface AgentRunRow {
   id: string;
@@ -49,6 +79,9 @@ export interface AgentRunRow {
   model: string;
   modelProvider: string | null;
   error: string | null;
+  /** The producer's classification of a failed run (`TaskRunFailureCode`);
+   * null on a run that did not fail and on rows failed before the column. */
+  failureCode: string | null;
   resultText: string | null;
   resultMessageId: string | null;
   trigger: string | null;
@@ -73,7 +106,8 @@ const RUN_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId",
   task_id AS "taskId", agent_id AS "agentId", exec_id AS "execId",
   session_id AS "sessionId", status, harness, model,
-  model_provider AS "modelProvider", error, result_text AS "resultText",
+  model_provider AS "modelProvider", error, failure_code AS "failureCode",
+  result_text AS "resultText",
   result_message_id AS "resultMessageId", trigger, feedback,
   waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
   agent_session_id AS "agentSessionId", started_by AS "startedBy",
@@ -250,6 +284,15 @@ export async function kickAgentRun(
       ? { startAfter: new Date(args.startAfterMs) }
       : {},
   );
+  // A new run answers whatever the last failure asked of its readers: their
+  // unread "the run failed" rows stop ringing. An automatic retry never gets
+  // here with one to withdraw — the notice is written only once no retry
+  // follows.
+  await withdrawAgentRunFailedNotices(tx, {
+    organizationId: args.organizationId,
+    taskId: args.taskId,
+  });
+  await emitTaskRunHint(tx, args);
   return { runId, execId, reused: false };
 }
 
@@ -351,16 +394,21 @@ export async function launchAgentRun(
   args: { runId: string; execId: string },
 ): Promise<boolean> {
   const now = Date.now();
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.project_agent_runs SET
-      status = 'running',
-      launched_at_ms = coalesce(launched_at_ms, ${now}),
-      updated_at_ms = ${now}
-    WHERE id = ${args.runId} AND exec_id = ${args.execId}
-      AND status = 'queued'
-    RETURNING id
-  `;
-  return rows.length > 0;
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ organizationId: string; taskId: string }[]>`
+      UPDATE app.project_agent_runs SET
+        status = 'running',
+        launched_at_ms = coalesce(launched_at_ms, ${now}),
+        updated_at_ms = ${now}
+      WHERE id = ${args.runId} AND exec_id = ${args.execId}
+        AND status = 'queued'
+      RETURNING org_id AS "organizationId", task_id AS "taskId"
+    `;
+    const run = rows[0];
+    if (run === undefined) return false;
+    await emitTaskRunHint(tx, run);
+    return true;
+  });
 }
 
 /**
@@ -393,7 +441,7 @@ export async function settleAgentRunInTx(
   args: SettleAgentRunArgs,
 ): Promise<boolean> {
   const now = Date.now();
-  const rows = await tx<{ organizationId: string }[]>`
+  const rows = await tx<{ organizationId: string; taskId: string }[]>`
       UPDATE app.project_agent_runs SET
         status = 'settled', result_text = ${args.resultText},
         result_message_id = ${args.resultMessageId ?? null},
@@ -404,7 +452,7 @@ export async function settleAgentRunInTx(
         AND status NOT IN ('settled', 'failed', 'cancelled')
         AND (${args.execId ?? null}::text IS NULL
              OR exec_id = ${args.execId ?? null})
-      RETURNING org_id AS "organizationId"
+      RETURNING org_id AS "organizationId", task_id AS "taskId"
     `;
   const run = rows[0];
   if (run === undefined) return false;
@@ -414,6 +462,7 @@ export async function settleAgentRunInTx(
     finalStatus: 'settled',
     settledAt: now,
   });
+  await emitTaskRunHint(tx, run);
   return true;
 }
 
@@ -424,7 +473,11 @@ export async function settleAgentRunInTx(
  * provenance entry rides the flip. Auto-retry hangs off the SAME once-only
  * claim: only the winning terminal flip arms `task.agent_retry`, so at most
  * one retry arm per failed run — the kick job re-derives the budget and
- * every guard; this is just the arm. Returns whether THIS call won the flip.
+ * every guard; this is just the arm. A failure no retry follows is final
+ * here, so the people the run answers to are told in the same transaction
+ * ({@link announceAgentRunFailed}); one a retry follows is announced by the
+ * retry job, once its budget is spent. Returns whether THIS call won the
+ * flip.
  */
 export async function failAgentRunFromTurn(
   sql: Sql,
@@ -447,6 +500,9 @@ export async function failAgentRunFromTurn(
 ): Promise<boolean> {
   const now = Date.now();
   const error = args.error.slice(0, 2000);
+  // Stamped on the failed row with the arm, so the run card knows a retry
+  // is coming without asking the queue.
+  const armRetry = isAutoRetryableFailure(args.failureCode);
   return sql.begin(async (tx) => {
     const flipped = await tx<
       { organizationId: string; taskId: string; agentId: string }[]
@@ -454,6 +510,7 @@ export async function failAgentRunFromTurn(
       UPDATE app.project_agent_runs SET
         status = 'failed', error = ${error},
         failure_code = ${args.failureCode ?? null},
+        auto_retry_armed_at_ms = ${armRetry ? now : null},
         api_error_status = ${args.apiErrorStatus ?? null},
         agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
         session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),
@@ -474,7 +531,7 @@ export async function failAgentRunFromTurn(
       settledAt: now,
       error,
     });
-    if (isAutoRetryableFailure(args.failureCode)) {
+    if (armRetry) {
       // A cooldown ends a minute after its 429 at the latest, so a wait
       // stays far inside the stranded-queued-run sweep's window.
       const startAfterMs =
@@ -488,7 +545,13 @@ export async function failAgentRunFromTurn(
         expectedRunId: args.runId,
         ...(startAfterMs !== undefined && { startAfterMs }),
       });
+    } else {
+      await announceAgentRunFailed(tx, {
+        organizationId: run.organizationId,
+        runId: args.runId,
+      });
     }
+    await emitTaskRunHint(tx, run);
     return true;
   });
 }
@@ -499,7 +562,8 @@ export async function failAgentRunFromTurn(
  * without reaching `releaseTurnKey`, so its gateway key is reclaimed here:
  * the winning flip IS the election, so the revoke fires once even when two
  * sweeps race. Scoped to THIS exec — a sibling turn on the same standing
- * `pa-<agentId>` session keeps its own key.
+ * `pa-<agentId>` session keeps its own key. Nothing retries a run failed
+ * here, so it is announced in the same transaction.
  */
 export async function failAgentRun(
   sql: Sql,
@@ -508,19 +572,23 @@ export async function failAgentRun(
     runId: string;
     execId: string;
     error: string;
+    /** Why the sweep failed it (`TaskRunFailureCode`), so the run reads as
+     * what happened instead of as an unclassified failure. */
+    failureCode?: string;
     apiErrorStatus?: number;
   },
 ): Promise<boolean> {
   const now = Date.now();
   const failed = await sql.begin(async (tx) => {
-    const rows = await tx<{ sessionId: string }[]>`
+    const rows = await tx<{ sessionId: string; taskId: string }[]>`
       UPDATE app.project_agent_runs SET
         status = 'failed', error = ${args.error.slice(0, 2000)},
+        failure_code = ${args.failureCode ?? null},
         api_error_status = ${args.apiErrorStatus ?? null},
         settled_at_ms = ${now}, updated_at_ms = ${now}
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND exec_id = ${args.execId} AND status IN ('queued', 'running')
-      RETURNING session_id AS "sessionId"
+      RETURNING session_id AS "sessionId", task_id AS "taskId"
     `;
     const run = rows[0];
     if (run === undefined) return null;
@@ -533,6 +601,14 @@ export async function failAgentRun(
       finalStatus: 'failed',
       settledAt: now,
       error: args.error.slice(0, 2000),
+    });
+    await announceAgentRunFailed(tx, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+    });
+    await emitTaskRunHint(tx, {
+      organizationId: args.organizationId,
+      taskId: run.taskId,
     });
     return run.sessionId;
   });
@@ -610,6 +686,7 @@ export async function cancelAgentRunInTx(
     harness: run.harness,
     deadlineAt: run.deadlineAt,
   });
+  await emitTaskRunHint(tx, args);
   return true;
 }
 
@@ -646,8 +723,9 @@ export async function wakeParkedAgentRuns(
   organizationId: string,
 ): Promise<number> {
   return sql.begin(async (tx) => {
-    const parked = await tx<{ id: string; execId: string }[]>`
-      SELECT id, exec_id AS "execId" FROM app.project_agent_runs
+    const parked = await tx<{ id: string; execId: string; taskId: string }[]>`
+      SELECT id, exec_id AS "execId", task_id AS "taskId"
+      FROM app.project_agent_runs
       WHERE org_id = ${organizationId} AND status = 'queued'
         AND waiting_for_capacity_at_ms IS NOT NULL
         AND deadline_at_ms > ${Date.now()}
@@ -667,6 +745,7 @@ export async function wakeParkedAgentRuns(
       runId: run.id,
       execId: run.execId,
     });
+    await emitTaskRunHint(tx, { organizationId, taskId: run.taskId });
     return 1;
   });
 }
@@ -712,6 +791,14 @@ export interface TaskAgentRunCard {
   harness: string;
   model: string;
   error?: string;
+  /** The producer's classification of a failed run — what the card words
+   * its reason by (`lib/shared/task-run-failure.ts`); `error` stays the raw
+   * detail. */
+  failureCode?: string;
+  /** A failed run the platform is about to retry by itself: the card says
+   * "Failed" for the moment it takes the retry to queue, and nothing should
+   * tell the reader to act on a failure that is not final. */
+  retryPending?: boolean;
   resultText?: string;
   waitingForCapacity?: boolean;
   trigger?: string;
@@ -737,6 +824,7 @@ export async function getLatestAgentRunCardForTask(
       harness: string;
       model: string;
       error: string | null;
+      failureCode: string | null;
       resultText: string | null;
       waitingForCapacityAt: number | null;
       trigger: string | null;
@@ -747,7 +835,8 @@ export async function getLatestAgentRunCardForTask(
     }[]
   >`
     SELECT r.id, r.status, r.agent_id AS "agentId", a.name AS "agentName",
-           r.harness, r.model, r.error, r.result_text AS "resultText",
+           r.harness, r.model, r.error, r.failure_code AS "failureCode",
+           r.result_text AS "resultText",
            r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
            r.trigger, r.auto_retry_attempt AS "autoRetryAttempt",
            r.started_by AS "startedBy",
@@ -761,6 +850,10 @@ export async function getLatestAgentRunCardForTask(
   `;
   const run = rows[0];
   if (!run) return null;
+  const retryPending =
+    run.status === 'failed' && run.agentName !== null
+      ? await failedRunRetryPending(sql, taskId, run.id)
+      : false;
   return {
     _id: run.id,
     status: run.status,
@@ -769,6 +862,8 @@ export async function getLatestAgentRunCardForTask(
     harness: run.harness,
     model: run.model,
     ...(run.error !== null ? { error: run.error } : {}),
+    ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
+    ...(retryPending ? { retryPending: true } : {}),
     ...(run.resultText !== null ? { resultText: run.resultText } : {}),
     ...(run.waitingForCapacityAt !== null ? { waitingForCapacity: true } : {}),
     ...(run.trigger !== null ? { trigger: run.trigger } : {}),
@@ -782,6 +877,29 @@ export async function getLatestAgentRunCardForTask(
     startedAt: run.startedAt,
     ...(run.settledAt !== null ? { settledAt: run.settledAt } : {}),
   };
+}
+
+/**
+ * Whether the task's newest run, which failed, is one the retry job will
+ * start again: its retry was armed when it failed, it is still the newest
+ * run, the job has not retired it, and the budget has room — the job's own
+ * walk (`resolveAutoRetryBudget` over `loadTaskRetryHistory`). Every final
+ * refusal the job makes retires the run, so the card and the job cannot
+ * disagree about whether a failure is final; the job's other stand-downs
+ * (the card moved, the agent reassigned, a newer run) change what the task
+ * shows by themselves.
+ */
+async function failedRunRetryPending(
+  sql: Sql,
+  taskId: string,
+  runId: string,
+): Promise<boolean> {
+  const history = await loadTaskRetryHistory(sql, taskId);
+  const newest = history[0];
+  if (newest === undefined || newest.id !== runId) return false;
+  if (newest.autoRetryArmedAt === undefined) return false;
+  if (newest.autoRetryRefusedAt !== undefined) return false;
+  return resolveAutoRetryBudget(history).retry;
 }
 
 /** How much of a run's `feedback` an agent reading the task sees — enough

@@ -44,6 +44,7 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
       runId: run.id,
       execId: run.execId,
       error: 'the agent run ran past its time limit and was stopped',
+      failureCode: 'deadline',
     });
     if (!didFail) continue;
     failed += 1;
@@ -91,6 +92,7 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
       execId: run.execId,
       error:
         'the agent run waited for sandbox capacity past its time limit and was stopped',
+      failureCode: 'park_deadline',
     });
     if (didFail) failed += 1;
   }

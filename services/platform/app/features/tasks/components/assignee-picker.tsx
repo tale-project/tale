@@ -11,11 +11,12 @@ import {
 } from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
-import { useNavigate } from '@tanstack/react-router';
+import { useTriggerTooltipGuard } from '@tale/ui/use-trigger-tooltip-guard';
 import { CircleHelp, Plus, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { ProjectAgentCreateDialog } from '@/app/features/projects/components/project-agent-create-dialog';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useT } from '@/lib/i18n/client';
@@ -26,7 +27,6 @@ import {
   taskSubjectEntries,
   useTaskContractAutomations,
 } from '../hooks/use-task-subject-contract';
-import { looksLikeCodeTask } from '../lib/agent-display';
 import type { TaskActorType } from '../lib/display';
 import { AssigneeAvatar } from './assignee-avatar';
 
@@ -36,7 +36,8 @@ type PendingAssign =
   | { kind: 'unassign' };
 
 /** Sentinel option value: not an assignee but the way OUT of having none —
- * selecting it leaves for the project's Agents tab. */
+ * selecting it opens the New agent dialog in place. Offered to the project's
+ * editors, who alone may add agents. */
 const CREATE_AGENT_ACTION = '__action:create-agent';
 
 /**
@@ -46,6 +47,13 @@ const CREATE_AGENT_ACTION = '__action:create-agent';
  * members, then project Agents, then the project's subject-contract Automations
  * (so a task handed away from its automation can be handed BACK — reassignment
  * is a two-way door), with an Unassign action in the footer.
+ *
+ * A project with no agent says so by who is looking: an editor gets an
+ * Agents section holding "Create an agent…", which opens the New agent
+ * dialog over the picker and assigns the agent it creates — nothing
+ * navigates away, so a task being drafted keeps its draft; anyone else is
+ * told in the footer that an Editor or Admin can add one, because the row
+ * they used to get sent them to a tab they cannot change.
  *
  * Taking a task away from an automation is an ownership TRANSFER, not a field
  * edit: when `taskId` is provided, moving off an `app` assignee asks first,
@@ -65,9 +73,6 @@ export function AssigneePicker({
   size = 'sm',
   align = 'start',
   disabled = false,
-  taskTitle,
-  taskDescription,
-  taskLabels,
   afterTrigger,
 }: {
   organizationId: string;
@@ -83,11 +88,6 @@ export function AssigneePicker({
   size?: 'sm' | 'md';
   align?: 'start' | 'center' | 'end';
   disabled?: boolean;
-  /** When set, enables the third-party-agent / non-code-task guidance under
-   * the trigger. */
-  taskTitle?: string;
-  taskDescription?: string;
-  taskLabels?: string[];
   /** Renders beside the avatar trigger (e.g. assignee name in the task modal). */
   afterTrigger?: ReactNode;
 }) {
@@ -96,12 +96,23 @@ export function AssigneePicker({
   const {
     assignableMembers,
     assignableAgents,
-    agents,
     agentsLoading,
     currentUserId,
     resolveActor,
+    // Agents are the project editors' to add; everyone else reads them.
+    canAddAgents,
+    projectResolved,
   } = useAssignableActors(organizationId, projectId);
-  const navigate = useNavigate();
+  // Settled on "this project has no agent", so neither the create row nor
+  // the reader's note flashes over a list or a role that is still loading.
+  // A project the read could not return stays silent: who may add to it is
+  // unknown.
+  const projectHasNoAgents =
+    projectId !== undefined &&
+    !agentsLoading &&
+    projectResolved &&
+    assignableAgents.length === 0;
+  const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const automations = useTaskContractAutomations(organizationId, projectId);
   const { locale } = useLocale();
   const subjectEntries = useMemo(
@@ -114,6 +125,9 @@ export function AssigneePicker({
   );
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
   const [open, setOpen] = useState(false);
+  // The trigger's name tip stays shut while its list or the New agent
+  // dialog is open, and does not flash back when focus returns to it.
+  const tooltipGuard = useTriggerTooltipGuard(open || createAgentOpen);
   const [pending, setPending] = useState<PendingAssign | null>(null);
   const [pendingLiveRun, setPendingLiveRun] = useState<
     'automation' | 'agent' | null
@@ -122,26 +136,6 @@ export function AssigneePicker({
 
   const resolved =
     assigneeType && assigneeId ? resolveActor(assigneeType, assigneeId) : null;
-
-  const assignedAgent =
-    assigneeType === 'agent' && assigneeId
-      ? agents.find((a) => a.id === assigneeId)
-      : undefined;
-
-  // Only when the caller supplied task context (modal) — compact board/list
-  // pickers omit these props and must stay a single avatar control.
-  const hasTaskContext =
-    taskTitle !== undefined ||
-    taskDescription !== undefined ||
-    taskLabels !== undefined;
-  const showNonCodeWarning =
-    hasTaskContext &&
-    assignedAgent?.displayCategory === 'coding-agent' &&
-    !looksLikeCodeTask({
-      title: taskTitle,
-      description: taskDescription,
-      labels: taskLabels,
-    });
 
   const sectionInfoButton = useCallback(
     (content: string): ReactNode => (
@@ -194,7 +188,7 @@ export function AssigneePicker({
     }));
 
     const agentOption = (
-      agent: (typeof agents)[number],
+      agent: (typeof assignableAgents)[number],
     ): SearchableSelectOption => ({
       value: `agent:${agent.id}`,
       label: agent.name,
@@ -211,12 +205,12 @@ export function AssigneePicker({
         labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
       });
       agentSections.push(...assignableAgents.map(agentOption));
-    } else if (projectId !== undefined && !agentsLoading) {
-      // A project with no agents yet still shows the section — otherwise the
-      // ability to hand tasks to an agent is invisible exactly when the user
-      // has never met it. The one row is the way in: it leaves for the
-      // project's Agents tab. Loading stays blank (no flash of "create one"
-      // over a list that is about to arrive).
+    } else if (projectHasNoAgents && canAddAgents) {
+      // A project with no agents yet still shows the section to whoever may
+      // add one — otherwise the ability to hand tasks to an agent is
+      // invisible exactly when the user has never met it. Everyone else
+      // reads the same fact in the footer, as text rather than as a row
+      // nothing can select.
       agentSections.push({
         value: '__section:agents',
         label: t('assignee.agents'),
@@ -252,8 +246,8 @@ export function AssigneePicker({
   }, [
     assignableMembers,
     assignableAgents,
-    agentsLoading,
-    projectId,
+    projectHasNoAgents,
+    canAddAgents,
     currentUserId,
     subjectEntries,
     t,
@@ -371,12 +365,7 @@ export function AssigneePicker({
     if (val.startsWith('__section:')) return;
     if (val === CREATE_AGENT_ACTION) {
       setOpen(false);
-      if (projectId !== undefined) {
-        void navigate({
-          to: '/dashboard/$id/projects/$projectId/agents',
-          params: { id: organizationId, projectId },
-        });
-      }
+      setCreateAgentOpen(true);
       return;
     }
     const { type, id } = parseOptionValue(val);
@@ -403,7 +392,10 @@ export function AssigneePicker({
       onValueChange={handleSelect}
       options={options}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => {
+        if (!next) tooltipGuard.suppressNextOpen();
+        setOpen(next);
+      }}
       align={align}
       modal
       trigger={trigger}
@@ -437,7 +429,13 @@ export function AssigneePicker({
               gated on the section being non-empty) so that exact "why
               can't I find it" case still gets an answer. */}
           <Text variant="muted" className="px-2 py-1 text-[11px] text-wrap">
-            {t('assignee.liveAgentsOnly')}
+            {t(
+              canAddAgents
+                ? 'assignee.liveAgentsOnly'
+                : projectHasNoAgents
+                  ? 'assignee.noAgentsReader'
+                  : 'assignee.liveAgentsOnlyReader',
+            )}
           </Text>
           {assigneeId && (
             <Button
@@ -479,8 +477,12 @@ export function AssigneePicker({
     />
   );
 
-  const triggerRow = (
-    <Tooltip content={label}>
+  return (
+    <Tooltip
+      content={label}
+      open={tooltipGuard.open}
+      onOpenChange={tooltipGuard.onOpenChange}
+    >
       {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
       <span
         className="inline-flex max-w-full min-w-0 items-center gap-1.5"
@@ -490,29 +492,24 @@ export function AssigneePicker({
         {select}
         {afterTrigger}
         {handoffDialog}
+        {/* Mounted only while open: the form's reads (runtimes, models,
+            skills) are its own, not this picker's. */}
+        {createAgentOpen && projectId !== undefined && (
+          <ProjectAgentCreateDialog
+            organizationId={organizationId}
+            projectId={projectId}
+            open={createAgentOpen}
+            onOpenChange={(next) => {
+              if (!next) tooltipGuard.suppressNextOpen();
+              setCreateAgentOpen(next);
+            }}
+            // The agent was created to take this task: assign it.
+            onCreated={(agentId) =>
+              requestChange({ kind: 'assign', type: 'agent', id: agentId })
+            }
+          />
+        )}
       </span>
     </Tooltip>
-  );
-
-  if (!showNonCodeWarning) {
-    return triggerRow;
-  }
-
-  // Full-width under the avatar row — never beside it. The task-modal side
-  // panel is a constrained flex column that shrinks PropertyField rows to
-  // min-h-7; a tall warning inlined next to the avatar overflowed and
-  // painted over Status/Priority/Due date.
-  return (
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary
-    <span
-      className="flex w-full min-w-0 flex-col gap-1"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {triggerRow}
-      <Text variant="muted" className="text-xs text-pretty">
-        {t('assignee.nonCodeWarning')}
-      </Text>
-    </span>
   );
 }

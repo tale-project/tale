@@ -117,6 +117,7 @@ import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.inte
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
+import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
@@ -56591,6 +56592,10 @@ async function main(): Promise<void> {
       [
         'checkTaskRetryProjectEligibility',
         () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentRunFailureNotice',
+        () => checkAgentRunFailureNotice(sql, authCtx, record),
       ],
       [
         'checkScheduledAgentStarts',

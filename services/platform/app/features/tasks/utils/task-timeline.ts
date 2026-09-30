@@ -18,6 +18,9 @@ export type TaskAgentRunRow = {
   trigger: string;
   status: string;
   error?: string;
+  /** The producer's classification of a failed run (see
+   * `lib/shared/task-run-failure.ts`). */
+  failureCode?: string;
   startedAt: number;
   durationMs?: number;
   costCents: number;

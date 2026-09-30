@@ -3,7 +3,7 @@ title: Créer et gérer des agents de projet
 description: Configure un agent réutilisable, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat.
 ---
 
-Crée un agent de projet pour disposer d’un agent réutilisable sur les tâches du projet. Il associe un environnement de code, un modèle, des instructions et un équipement autorisé. Tu dois pouvoir modifier le projet actif. Seuls un Propriétaire ou un Admin peuvent changer les secrets accordés.
+Crée un agent de projet pour disposer d’un agent réutilisable sur les tâches du projet. Il associe un environnement de code, un modèle, des instructions et un équipement autorisé. Tu dois pouvoir modifier le projet actif. Les Membres voient les agents du projet dans son onglet **Agents**, qui leur indique de demander un nouvel agent à un Éditeur ou à un Admin. Seuls un Propriétaire ou un Admin peuvent changer les secrets accordés.
 
 ## Préparer la première tâche
 
@@ -24,6 +24,8 @@ Sépare les instructions réutilisables de la tâche. « Repère les preuves ma
 <Step title="Choisir un nom et un environnement">
 
 Ouvre l’onglet **Agents** du projet et choisis **Nouvel agent**. Donne-lui un **Nom** reconnaissable, puis choisis le **Harness**, son [environnement de code](/fr/platform/agents/harnesses). Les noms sont uniques dans le projet, qui accepte jusqu’à 50 agents.
+
+Tu peux aussi partir d’une tâche : tant que le projet n’a pas d’agent, **Créer un agent…** sous **Assigné à** ouvre **Nouvel agent** par-dessus la tâche et lui assigne l’agent que tu crées.
 
 </Step>
 
@@ -77,4 +79,4 @@ L’[automatisation des tâches](/fr/platform/projects/task-automation) explique
 
 Utilise le menu de sa ligne pour le modifier ou le supprimer. Les changements concernent les prochaines exécutions ; une exécution active conserve sa configuration initiale. La suppression retire les affectations à l’agent mais conserve l’historique des tâches. Examine le travail en cours avant de retirer l’agent concerné.
 
-En cas d’échec, lis la cause affichée. Un nom déjà utilisé, un accès au projet manquant, un modèle indisponible, un skill invisible et une capacité de sandbox absente sont des problèmes distincts. Modifier les instructions ne résout pas ces prérequis.
+Si la création échoue, lis la cause affichée : un nom déjà utilisé, un accès au projet manquant, un modèle indisponible et un skill invisible sont des problèmes distincts. Une exécution qui échoue définitivement indique en haut de sa tâche ce qui s’est passé et qui peut y remédier ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) détaille les cas. Modifier les instructions ne résout pas ces prérequis.

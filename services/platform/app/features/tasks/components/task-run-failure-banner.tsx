@@ -11,15 +11,33 @@ import { TASK_RUN_REFUSAL_LABEL_KEY } from '../lib/display';
 import { mergeTaskTimeline } from '../utils/task-timeline';
 
 /**
+ * The run-admission refusal that is still the LATEST thing that happened to
+ * the task (the top of the merged activity + run timeline), or null. A later
+ * reassignment, a successful run, or any other activity clears it — no
+ * separate dismiss/ack state to persist.
+ *
+ * Read by the task dialog too: a refused automatic retry leaves a failed run
+ * behind it, and the refusal is the newer and more precise account of why
+ * nothing is working on the task, so the failed-run notice
+ * (`TaskAgentRunFailureNotice`) steps aside while this banner speaks.
+ */
+export function useLatestRunRefusal(taskId: string) {
+  const { activity } = useTaskActivity(taskId);
+  const { runs } = useTaskAgentRuns(taskId);
+  const latest = mergeTaskTimeline(activity, runs)[0];
+  return latest?.kind === 'activity' &&
+    latest.entry.action === 'agent_run.refused'
+    ? latest.entry
+    : null;
+}
+
+/**
  * Primary, can't-miss failure state for a run-admission refusal (#2609) — a
  * refused run never touches the task status (#2604) and never creates a
  * `taskAgentRuns` row, so without this banner the only trace is an automated
- * comment and an activity row buried below the fold.
- *
- * Shows only while the refusal is still the LATEST thing that happened to the
- * task (the top of the merged activity + run timeline): a later reassignment,
- * a successful run, or any other activity naturally clears it — no separate
- * dismiss/ack state to persist.
+ * comment and an activity row buried below the fold. Shown while the
+ * refusal is the latest thing that happened to the task
+ * ({@link useLatestRunRefusal}).
  */
 export function TaskRunFailureBanner({
   taskId,
@@ -31,20 +49,11 @@ export function TaskRunFailureBanner({
   projectId?: string;
 }) {
   const { t } = useT('tasks');
-  const { activity } = useTaskActivity(taskId);
-  const { runs } = useTaskAgentRuns(taskId);
+  const entry = useLatestRunRefusal(taskId);
   const { resolveActor } = useActorDirectory(organizationId, projectId);
 
-  const latest = mergeTaskTimeline(activity, runs)[0];
-  if (
-    !latest ||
-    latest.kind !== 'activity' ||
-    latest.entry.action !== 'agent_run.refused'
-  ) {
-    return null;
-  }
+  if (entry === null) return null;
 
-  const { entry } = latest;
   const actor = resolveActor(entry.actorType, entry.actorId);
   const reasonKey = entry.toValue
     ? TASK_RUN_REFUSAL_LABEL_KEY[entry.toValue]

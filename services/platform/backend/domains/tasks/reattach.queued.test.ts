@@ -1,9 +1,15 @@
 import type { PgBoss } from 'pg-boss';
 import type { Sql } from 'postgres';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { setEnqueueBoss } from '../../jobs/enqueue.ts';
+import { failAgentRun } from './agent-runs.ts';
 import { recoverStuckQueuedTaskAgentRuns } from './reattach.ts';
+
+vi.mock('./agent-runs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./agent-runs.ts')>()),
+  failAgentRun: vi.fn(async () => true),
+}));
 
 /**
  * Unit lock for the queued-run waker (job-liveness class): a run stranded at
@@ -98,5 +104,30 @@ describe('recoverStuckQueuedTaskAgentRuns', () => {
 
     expect(result).toEqual({ examined: 1, requeued: 0, failed: 0 });
     expect(sent).toHaveLength(0);
+  });
+
+  it('fails a run whose agent was deleted as a setup failure, not an unknown one', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const sql = scriptedSql([
+      [
+        {
+          runId: 'run_gone',
+          organizationId: 'org_1',
+          execId: 'exec_gone',
+          agentPresent: false,
+        },
+      ],
+    ]);
+
+    await recoverStuckQueuedTaskAgentRuns(sql);
+
+    expect(failAgentRun).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      runId: 'run_gone',
+      execId: 'exec_gone',
+      error: 'the assigned agent was deleted before the run could start',
+      failureCode: 'agent_deleted',
+    });
+    warn.mockRestore();
   });
 });

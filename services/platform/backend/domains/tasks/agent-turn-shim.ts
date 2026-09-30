@@ -36,6 +36,7 @@ import {
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
 import {
+  emitTaskRunHint,
   failAgentRunFromTurn,
   kickAgentRun,
   launchAgentRun,
@@ -362,13 +363,18 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     'tasks/agent_runs:parkTaskAgentRunForCapacity': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { runId: string; execId: string };
-      await sql`
-        UPDATE app.project_agent_runs SET
-          waiting_for_capacity_at_ms = ${Date.now()},
-          updated_at_ms = ${Date.now()}
-        WHERE id = ${args.runId} AND exec_id = ${args.execId}
-          AND status = 'queued'
-      `;
+      await sql.begin(async (tx) => {
+        const parked = await tx<{ organizationId: string; taskId: string }[]>`
+          UPDATE app.project_agent_runs SET
+            waiting_for_capacity_at_ms = ${Date.now()},
+            updated_at_ms = ${Date.now()}
+          WHERE id = ${args.runId} AND exec_id = ${args.execId}
+            AND status = 'queued'
+          RETURNING org_id AS "organizationId", task_id AS "taskId"
+        `;
+        // The card now reads "Waiting for a sandbox slot", not "Queued".
+        if (parked[0] !== undefined) await emitTaskRunHint(tx, parked[0]);
+      });
       return null;
     },
 

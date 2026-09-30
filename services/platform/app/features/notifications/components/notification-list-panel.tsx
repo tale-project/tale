@@ -23,8 +23,10 @@ import {
   useMyNotificationsList,
   useUnreadNotificationCount,
 } from '@/app/features/inbox/hooks/queries';
+import { isTaskStatus } from '@/app/features/tasks/lib/display';
 import { useT } from '@/lib/i18n/client';
 import { isActionableNotificationType } from '@/lib/shared/attention';
+import { readableNotificationParams } from '@/lib/shared/notification-params';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import {
@@ -105,6 +107,7 @@ export function NotificationListPanel({
   const { t } = useT('notifications');
   const { t: tInbox } = useT('inbox');
   const { t: tCommon } = useT('common');
+  const { t: tTasks } = useT('tasks');
 
   const { results, status, loadMore } = useNotificationsList(organizationId);
   const { data: unread } = useNotificationsUnreadCount(organizationId);
@@ -491,7 +494,11 @@ export function NotificationListPanel({
                     body={tInbox(
                       n.bodyKey,
                       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- jsonRecord interpolation map
-                      params as Record<string, string | number>,
+                      readableNotificationParams(params, (statusId) =>
+                        isTaskStatus(statusId)
+                          ? tTasks(`status.${statusId}`)
+                          : undefined,
+                      ) as Record<string, string | number> | undefined,
                     )}
                     createdAt={n.createdAt}
                     read={n.read}

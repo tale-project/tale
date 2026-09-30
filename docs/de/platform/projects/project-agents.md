@@ -3,7 +3,7 @@ title: Projektagenten erstellen und verwalten
 description: Konfiguriere einen wiederverwendbaren Agenten, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis.
 ---
 
-Erstelle einen Projektagenten, wenn ein wiederverwendbarer Agent die Aufgaben dieses Projekts bearbeiten soll. Er verbindet Coding-Laufzeit, Modell, Anweisungen und erlaubte Ausstattung. Du brauchst Bearbeitungszugriff auf das aktive Projekt. Secret-Zuordnungen dürfen nur Inhaber und Admins ändern.
+Erstelle einen Projektagenten, wenn ein wiederverwendbarer Agent die Aufgaben dieses Projekts bearbeiten soll. Er verbindet Coding-Laufzeit, Modell, Anweisungen und erlaubte Ausstattung. Du brauchst Bearbeitungszugriff auf das aktive Projekt. Mitglieder sehen die Agenten des Projekts im Tab **Agenten**, der ihnen sagt, dass sie einen Redakteur oder Admin um einen neuen bitten können. Secret-Zuordnungen dürfen nur Inhaber und Admins ändern.
 
 ## Die erste Aufgabe vorbereiten
 
@@ -24,6 +24,8 @@ Trenne dauerhafte Anweisungen von der jeweiligen Aufgabe. „Erkenne fehlende Be
 <Step title="Namen und Laufzeit wählen">
 
 Öffne den Tab **Agenten** des Projekts und wähle **Neuer Agent**. Gib unter **Name** einen erkennbaren Namen ein und wähle die **Agent-Laufzeit**, also den Coding-[Harness](/de/platform/agents/harnesses). Namen sind innerhalb des Projekts eindeutig; bis zu 50 Agenten sind möglich.
+
+Du kannst auch bei einer Aufgabe beginnen: Solange das Projekt keinen Agenten hat, öffnet **Agent erstellen …** unter **Zuständig** den Dialog **Neuer Agent** über der Aufgabe und weist ihr den Agenten zu, den du erstellst.
 
 </Step>
 
@@ -77,4 +79,4 @@ Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt F
 
 Bearbeite oder lösche den Agenten über sein Zeilenmenü. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Prüfe laufende Arbeit, bevor du den zugehörigen Agenten entfernst.
 
-Lies bei einem Fehler die Begründung. Ein doppelter Name, fehlender Projektzugriff, ein nicht verfügbares Modell, unsichtbare Skills und fehlende Sandbox-Kapazität sind unterschiedliche Ursachen. Neue Anweisungen beheben diese Voraussetzungen nicht.
+Scheitert das Erstellen, lies die Begründung: Ein doppelter Name, fehlender Projektzugriff, ein nicht verfügbares Modell und unsichtbare Skills sind unterschiedliche Ursachen. Ein Lauf, der endgültig scheitert, sagt oben in seiner Aufgabe, was schiefging und wer es beheben kann; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) zählt die Fälle auf. Neue Anweisungen beheben diese Voraussetzungen nicht.
