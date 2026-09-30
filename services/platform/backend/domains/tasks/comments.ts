@@ -1,4 +1,5 @@
 import {
+  isSerializationFailure,
   markRetryQueueKey,
   RETRY_QUEUE_LOCK_CLASS,
 } from '@tale/shared/db/serializable';
@@ -21,7 +22,7 @@ import type { CommentEventComment } from '../../core/tasks/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
 import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -135,7 +136,9 @@ export async function lockTaskCommentQueue(
  * task AND the chain head, in that order (the retry-queue note in
  * `@tale/shared/db/serializable`). Under contention on this task's rows a
  * writer wastes at most one attempt. Plain READ COMMITTED callers pay only
- * the lock, which orders the task's comments and marks nothing.
+ * the lock, which orders the task's comments and marks nothing. A comment
+ * write adds the chain head's key whatever it lost on
+ * (`queuedCommentWrite`).
  */
 export async function queuedOnTask<T>(
   tx: TransactionSql,
@@ -163,17 +166,46 @@ interface AddTaskCommentArgs {
   author?: CommentAuthor;
 }
 
+/**
+ * A comment write, queued on its task (`queuedOnTask`), that ends on the
+ * org's audit chain head. A loss anywhere in it queues the retry on the head
+ * too. A loss before the head (a read/write dependency on the org's other
+ * comment writes, which serializable isolation reports wherever it finds
+ * one) used to carry the task's key alone, so the retry lost again at the
+ * head: a burst of commenters across one org's tasks spent up to three
+ * attempts a writer, and now and then one ran out of attempts.
+ */
+function queuedCommentWrite<T>(
+  tx: TransactionSql,
+  organizationId: string,
+  taskId: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  return queuedOnTask(tx, taskId, async () => {
+    try {
+      return await work();
+    } catch (error) {
+      if (isSerializationFailure(error)) {
+        throw markRetryQueueKey(error, auditChainQueueKey(organizationId));
+      }
+      throw error;
+    }
+  });
+}
+
 /** Append one comment (message + lockstep meta + count + activity + audit),
- * queued on its task (`queuedOnTask`). `bodyByLocale` is the same text
- * written natively per language (the workflow `task.comment` native and the
- * automated date nudge carry it); the reader picks their locale and falls
- * back to `body`. */
+ * queued on its task and the org's audit chain (`queuedCommentWrite`).
+ * `bodyByLocale` is the same text written natively per language (the
+ * workflow `task.comment` native and the automated date nudge carry it);
+ * the reader picks their locale and falls back to `body`. */
 export function addTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: AddTaskCommentArgs,
 ): Promise<AddedTaskComment> {
-  return queuedOnTask(tx, args.taskId, () => appendTaskComment(tx, auth, args));
+  return queuedCommentWrite(tx, auth.organizationId, args.taskId, () =>
+    appendTaskComment(tx, auth, args),
+  );
 }
 
 async function appendTaskComment(
@@ -611,15 +643,16 @@ export async function editTaskComment(
   });
 }
 
-/** Delete one comment, queued on its task (`queuedOnTask`): the count it
- * decrements is the same hot row every append bumps. */
+/** Delete one comment, queued on its task and the org's audit chain
+ * (`queuedCommentWrite`): the count it decrements is the same hot row every
+ * append bumps. */
 export async function deleteTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   messageId: string,
 ): Promise<void> {
   const meta = await loadCommentMeta(tx, messageId);
-  await queuedOnTask(tx, meta.taskId, () =>
+  await queuedCommentWrite(tx, auth.organizationId, meta.taskId, () =>
     removeTaskComment(tx, auth, messageId, meta),
   );
 }
