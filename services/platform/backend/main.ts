@@ -131,6 +131,7 @@ async function main(): Promise<void> {
       taskList: createTaskList({ sql }),
       concurrency: env.WORKER_CONCURRENCY,
       shouldDefer: () => isBackendDraining(sql),
+      sql,
     });
     await registerSchedules(boss);
   }

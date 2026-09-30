@@ -212,6 +212,9 @@ export async function resolveTaskKickStartArgs(
 export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
   readonly id: string;
   readonly startedBy: string;
+  /** When this failed run's automatic retry was refused for good
+   * (`retireBusyRetry`); absent while it may still start. */
+  readonly autoRetryRefusedAt?: number | undefined;
 }
 
 /**
@@ -236,6 +239,7 @@ export async function loadTaskRetryHistory(
       failureCode: string | null;
       apiErrorStatus: number | null;
       autoRetryAttempt: number | null;
+      autoRetryRefusedAt: number | null;
     }[]
   >`
     SELECT id, status, agent_id AS "agentId",
@@ -244,7 +248,8 @@ export async function loadTaskRetryHistory(
            settled_at_ms::float8 AS "settledAt",
            failure_code AS "failureCode",
            api_error_status AS "apiErrorStatus",
-           auto_retry_attempt AS "autoRetryAttempt"
+           auto_retry_attempt AS "autoRetryAttempt",
+           auto_retry_refused_at_ms::float8 AS "autoRetryRefusedAt"
     FROM app.project_agent_runs
     WHERE task_id = ${taskId}
     ORDER BY seq DESC
@@ -261,5 +266,6 @@ export async function loadTaskRetryHistory(
     failureCode: row.failureCode ?? undefined,
     apiErrorStatus: row.apiErrorStatus ?? undefined,
     autoRetryAttempt: row.autoRetryAttempt ?? undefined,
+    autoRetryRefusedAt: row.autoRetryRefusedAt ?? undefined,
   }));
 }

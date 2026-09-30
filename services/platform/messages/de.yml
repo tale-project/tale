@@ -7628,6 +7628,7 @@ tasks:
       automation: Automatisierung
       delegated: delegiert
     refused:
+      agent_busy: Agent arbeitet an einer anderen Aufgabe
       agent_disabled: Agent ist nicht installiert oder deaktiviert
       agent_not_found: Agent nicht gefunden oder falsch konfiguriert
       automation_disabled: Aufgaben-Automatisierung ist aus

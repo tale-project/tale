@@ -114,6 +114,7 @@ import { checkImportCursorContinuation } from './domains/tasks/import-cursors.in
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
+import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
@@ -130,6 +131,7 @@ import {
 } from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
+import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
@@ -56475,6 +56477,14 @@ async function main(): Promise<void> {
       [
         'checkInPlaceCompletionCycle',
         () => checkInPlaceCompletionCycle(sql, authCtx, record),
+      ],
+      [
+        'checkAutomatedRetryAgentBusy',
+        () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkWorkerDrainHandOff',
+        () => checkWorkerDrainHandOff(sql, boss, record),
       ],
       [
         'checkImportCursorContinuation',
