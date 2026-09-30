@@ -117,9 +117,9 @@ export async function checkRagStatusHintScope(
   // the same. A corpus the harness cannot reach proves nothing: the
   // watchdog's own corpus lookup throws, it defers the whole organization
   // to its next tick, and the watchdog record below fails with no row
-  // settled — the skipped seeds it counts say why.
+  // settled — the failed seeds it counts say why.
   const pool = await getKnowledgePoolForOrg(orgSlug);
-  let seedsSkipped = 0;
+  let seedsFailed = 0;
   const indexedInCorpus = async (ref: string) => {
     try {
       await pool.unsafe(
@@ -130,8 +130,8 @@ export async function checkRagStatusHintScope(
         [orgSlug, ref],
       );
     } catch (error) {
-      seedsSkipped += 1;
-      console.warn('[itest] hint-scope corpus seed skipped:', error);
+      seedsFailed += 1;
+      console.warn('[itest] hint-scope corpus seed failed:', error);
     }
   };
 
@@ -178,7 +178,7 @@ export async function checkRagStatusHintScope(
         settled.every(
           (row) => row.ragStatus === 'completed' || row.ragStatus === 'failed',
         ),
-      `attachments=${attachmentSweepHints} (want 0), with listed rows=${listedSweepHints} (want 1), settled=${settled.map((row) => row.ragStatus).join('/')} (want completed/failed ×6), corpus seeds skipped=${seedsSkipped}`,
+      `attachments=${attachmentSweepHints} (want 0), with listed rows=${listedSweepHints} (want 1), settled=${settled.map((row) => row.ragStatus).join('/')} (want completed/failed ×6), corpus seeds failed=${seedsFailed}`,
     );
 
     // ---- index health: the re-stamp, then the requeue --------------------

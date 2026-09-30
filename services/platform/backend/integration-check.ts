@@ -120,7 +120,15 @@ import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
-import { cookieHeaderFrom, signUpUser } from './integration-lane-helpers.ts';
+import {
+  cookieHeaderFrom,
+  fullCoverageBlockers,
+  isSkippedCheck,
+  itestObjectStore,
+  recordSkip,
+  requestedLanes,
+  signUpUser,
+} from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -3298,17 +3306,16 @@ async function checkFiles(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  const endpoint = process.env.ITEST_S3_ENDPOINT;
-  if (!endpoint) {
-    record(
-      'files upload/serve/delete (SKIPPED)',
-      true,
+  const store = itestObjectStore();
+  if (!store) {
+    recordSkip(
+      record,
+      'files upload/serve/delete',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
   }
-  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
-  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
+  const { endpoint, accessKeyId, secretAccessKey } = store;
 
   // The deployment default is SEEDED THE WAY THE STACK SEEDS IT — this calls
   // the same `ensureDefaultObjectStore` the backend runs at boot, rather than
@@ -3800,10 +3807,10 @@ async function checkBlobRefAuthority(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'blob-ref authority (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'blob-ref authority',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -4289,10 +4296,10 @@ async function checkDocuments(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'documents + folders (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'documents + folders',
       'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
     );
     return;
@@ -6135,10 +6142,10 @@ async function checkFolderBoundTaskFacts(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'folder-bound task facts + document natives (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'folder-bound task facts + document natives',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -6349,10 +6356,10 @@ async function checkDocumentWriteGuards(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'document write guards (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'document write guards',
       'no ITEST_S3_ENDPOINT — document write-guard lanes not exercised',
     );
     return;
@@ -8545,10 +8552,10 @@ async function checkKnowledge(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'knowledge RAG loop (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'knowledge RAG loop',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9368,10 +9375,10 @@ async function checkIndexingReleaseRace(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'indexing vs release race (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'indexing vs release race',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9722,10 +9729,10 @@ async function checkEmbeddingCredentialRefusal(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'embedding credential refusal (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'embedding credential refusal',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -9931,8 +9938,12 @@ async function checkEmbeddingCredentialRefusal(
     credentialId = created.success ? created.data.credentialId : '';
     // The door re-queues before it answers: the refusal is gone at once.
     const requeuedRow = await ragRow();
+    // pg-boss completes a job only after its handler returns, so the file
+    // reads completed a moment before its job does: wait for both.
     const indexed = await waitFor(
-      async () => (await ragRow()).status === 'completed',
+      async () =>
+        (await ragRow()).status === 'completed' &&
+        settled((await jobs())[1]?.state),
       60_000,
     );
     const laterJobs = await jobs();
@@ -9996,10 +10007,10 @@ async function checkCorpusPurgeConsistency(
   ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'corpus purge consistency (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'corpus purge consistency',
       'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
     );
     return;
@@ -10785,10 +10796,10 @@ async function checkChat(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'chat turn engine (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'chat turn engine',
       'no ITEST_S3_ENDPOINT — chat vertical rides the knowledge fixture',
     );
     return;
@@ -14560,10 +14571,10 @@ async function checkRestMachineJourney(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'REST machine journey (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'REST machine journey',
       'no ITEST_S3_ENDPOINT — the upload lane needs blob storage',
     );
     return;
@@ -20006,10 +20017,10 @@ async function checkSandboxBlobDoor(
   base: string,
   ctx: { orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'sandbox-blob staging door (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'sandbox-blob staging door',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -21967,7 +21978,7 @@ async function checkTasksCollabIntegrity(
     ) RETURNING id
   `;
   const doomedAutomationId = doomedAutomation[0]?.id ?? '';
-  const blobLane = process.env.ITEST_S3_ENDPOINT !== undefined;
+  const blobLane = itestObjectStore() !== null;
   let deliverableRef = '';
   let blobBefore: number | null = null;
   if (blobLane) {
@@ -22036,8 +22047,15 @@ async function checkTasksCollabIntegrity(
     // by the delete — never left as a live row pointing at leaked bytes.
     fileRowDead = fileRows.every((row) => row.lifecycleStatus === 'trashed');
   }
+  if (!blobLane) {
+    recordSkip(
+      record,
+      "tasks/collab: hard delete reclaims the subtree's blobs",
+      'no ITEST_S3_ENDPOINT — the blob half needs an object store',
+    );
+  }
   record(
-    `tasks/collab: hard delete stops the subtree's live runs and reclaims its blobs${blobLane ? '' : ' (blob lane SKIPPED: no ITEST_S3_ENDPOINT)'}`,
+    `tasks/collab: hard delete stops the subtree's live runs${blobLane ? ' and reclaims its blobs' : ''}`,
     deletion.ok &&
       deletionBody.success &&
       deletionBody.data.deletedChildCount === 1 &&
@@ -23088,7 +23106,13 @@ async function checkRecoverySweeps(
   //      whose transcription already COMPLETED must not clobber the file
   //      row to 'skipped' (the cleanup would then delete the org's donor
   //      transcript). Blob cleanup runs, so this needs the S3 lane. ------
-  if (process.env.ITEST_S3_ENDPOINT) {
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'watchdog: dismissing a Ready whisper chip keeps the settled donor',
+      'no ITEST_S3_ENDPOINT — the dismissal runs blob cleanup',
+    );
+  } else {
     const donorKeepFile = await sql<{ id: string }[]>`
       INSERT INTO app.file_metadata (
         org_id, file_name, content_type, size, storage_ref, uploaded_by,
@@ -23155,7 +23179,10 @@ async function checkRecoverySweeps(
   `;
   const { getKnowledgePoolForOrg, PRIVATE_KNOWLEDGE_SCHEMA } =
     await import('./core/knowledge/pool.ts');
-  let corpusSeeded = false;
+  // The adoption half needs this corpus row. tale-db ships the corpus and
+  // other lanes write to it with no fallback, so a seed that fails fails the
+  // check below: it must never quietly drop the half it cannot prove.
+  let corpusSeedError: string | null = null;
   try {
     const pool = await getKnowledgePoolForOrg(orgSlugRow[0]?.slug ?? '');
     await pool.unsafe(
@@ -23165,9 +23192,8 @@ async function checkRecoverySweeps(
        ON CONFLICT DO NOTHING`,
       [orgSlugRow[0]?.slug ?? '', 's3:rag-done-1', 'rag-done.pdf'],
     );
-    corpusSeeded = true;
   } catch (error) {
-    console.warn('[itest] corpus seed skipped:', error);
+    corpusSeedError = errorText(error);
   }
 
   const { recoverStuckRagIndexing, RAG_INTERRUPTED_MESSAGE } =
@@ -23194,9 +23220,10 @@ async function checkRecoverySweeps(
       // Still inside the window → untouched.
       ragFresh?.status === 'running' &&
       // Corpus says completed → ADOPTED, never failed.
-      (!corpusSeeded || ragDone?.status === 'completed') &&
+      corpusSeedError === null &&
+      ragDone?.status === 'completed' &&
       ragOutcome.failed >= 1,
-    `outcome=${JSON.stringify(ragOutcome)}, stale=${ragStale?.status} fresh=${ragFresh?.status} done=${ragDone?.status} (corpusSeeded=${corpusSeeded})`,
+    `outcome=${JSON.stringify(ragOutcome)}, stale=${ragStale?.status} fresh=${ragFresh?.status} done=${ragDone?.status}${corpusSeedError === null ? '' : ` (corpus seed failed: ${corpusSeedError})`}`,
   );
 
   // ---- erasure: a stuck run fails and becomes non-retriable -------------
@@ -24161,7 +24188,7 @@ async function checkConnectorOauth(
     // the org's store, a file_metadata row names the connector as source, and
     // the body gets the blob ref back. Needs the object store, like every
     // blob lane.
-    if (process.env.ITEST_S3_ENDPOINT) {
+    if (itestObjectStore()) {
       const files = await import('./domains/files/service.ts');
       const { credentialId: confluenceId } =
         await credentialService.createCredential(sql, {
@@ -24285,10 +24312,10 @@ async function checkConnectorOauth(
         `error=${storedError || '-'} file=${storedParsed.success ? `${storedParsed.data.file.fileName}/${storedParsed.data.file.contentType}/${storedParsed.data.file.size}B` : JSON.stringify(storedOut).slice(0, 200)} wikiCalls=${wikiCalls.length} text=${JSON.stringify(storedText)} row=${fileRow.length ? `${fileRow[0]?.source}/${fileRow[0]?.fileName}/${fileRow[0]?.size}B/by=${fileRow[0]?.uploadedBy === userId}/skipRag=${fileRow[0]?.skipRag}` : 'none'} foreignRefused=${foreignRefused}`,
       );
     } else {
-      record(
+      recordSkip(
+        record,
         'connector live: ctx.files stores into the org blob store and returns the ref',
-        true,
-        'SKIPPED, no ITEST_S3_ENDPOINT',
+        'no ITEST_S3_ENDPOINT — ctx.files stores into the object store',
       );
     }
   } finally {
@@ -25418,19 +25445,29 @@ async function checkConversations(
   // and that failure deliberately fails OPEN — a store it cannot reach is not
   // evidence the blob is gone.
   const goneChip = attChips.find((attachment) => attachment.id === 'att-gone');
+  const goneProbed = itestObjectStore() !== null;
+  if (!goneProbed) {
+    recordSkip(
+      record,
+      'conversations: a vanished attachment offers no download',
+      'no ITEST_S3_ENDPOINT — only a store can tell a vanished blob from one out of reach',
+    );
+  }
   const goneMarked =
-    !process.env.ITEST_S3_ENDPOINT ||
+    !goneProbed ||
     (goneChip !== undefined &&
       goneChip.unavailable === true &&
       !('url' in goneChip));
   record(
-    'conversations: connectorName filters the Inbox; a bytesless and a vanished attachment both offer no download',
+    goneProbed
+      ? 'conversations: connectorName filters the Inbox; a bytesless and a vanished attachment both offer no download'
+      : 'conversations: connectorName filters the Inbox; a bytesless attachment offers no download',
     matchedFilter.includes(conversationId) &&
       !wrongFilter.includes(conversationId) &&
       bytelessChip !== undefined &&
       !('url' in bytelessChip) &&
       goneMarked,
-    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)} goneMarked=${goneMarked}${process.env.ITEST_S3_ENDPOINT ? ` (unavailableFlag=${goneChip?.unavailable === true} url=${goneChip !== undefined && 'url' in goneChip})` : ' (SKIPPED, no ITEST_S3_ENDPOINT)'}`,
+    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)}${goneProbed ? ` goneMarked=${goneMarked} (unavailableFlag=${goneChip?.unavailable === true} url=${goneChip !== undefined && 'url' in goneChip})` : ''}`,
   );
 
   const closed = z
@@ -29930,10 +29967,10 @@ async function checkTts(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'tts (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'tts',
       'no ITEST_S3_ENDPOINT — audio needs a blob store',
     );
     return;
@@ -34027,10 +34064,10 @@ async function checkTranscription(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'transcription (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'transcription',
       'no ITEST_S3_ENDPOINT — audio needs a blob store',
     );
     return;
@@ -34586,10 +34623,10 @@ async function checkVideoLinks(
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'video links (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'video links',
       'no ITEST_S3_ENDPOINT — transcripts need a blob store',
     );
     return;
@@ -35730,10 +35767,10 @@ async function checkTaskAgentTurnDrive(
   ctx: { cookie: string; orgId: string },
   orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'task-agent turn drive (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'task-agent turn drive',
       'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
     );
     return;
@@ -36550,10 +36587,10 @@ async function checkAutomationAgentNode(
   ctx: { cookie: string; orgId: string },
   _orgSlug: string,
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'automation agent node (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'automation agent node',
       'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
     );
     return;
@@ -39148,7 +39185,12 @@ async function checkSandboxSpawner(
         sessionId: leftover,
       });
     }
-    await provision('itest-spawn-tools', {
+    // The agent's standing session: a project agent's session that serves
+    // no task run acts for the project only when it is that one (#3810).
+    const { standingSessionIdForProjectAgent } =
+      await import('./core/sandbox/session_naming.ts');
+    const toolSessionId = standingSessionIdForProjectAgent(toolAgentId);
+    await provision(toolSessionId, {
       ownerType: 'project_agent',
       ownerId: toolAgentId,
     });
@@ -39156,7 +39198,7 @@ async function checkSandboxSpawner(
     const vk = 'itest-vk-tools-1';
     await sessions.insertSessionToken(sql, {
       organizationId: orgId,
-      sessionId: 'itest-spawn-tools',
+      sessionId: toolSessionId,
       tokenHash: hashFn('sha256').update(vk).digest('hex'),
       llmGatewayKeyId: 'vk-id-1',
       scope: {
@@ -39214,7 +39256,7 @@ async function checkSandboxSpawner(
     );
     const ledger = await sql<{ tool: string; outcome: string }[]>`
       SELECT tool, outcome FROM app.sandbox_tool_calls
-      WHERE session_id = 'itest-spawn-tools'
+      WHERE session_id = ${toolSessionId}
       ORDER BY created_at_ms
     `;
     record(
@@ -39245,7 +39287,7 @@ async function checkSandboxSpawner(
     ] as const) {
       await sessions.insertSessionToken(sql, {
         organizationId: orgId,
-        sessionId: 'itest-spawn-tools',
+        sessionId: toolSessionId,
         tokenHash: hashFn('sha256').update(token).digest('hex'),
         scope: {
           agentKind: 'claude-code',
@@ -40225,16 +40267,81 @@ async function checkAskAnswer(
   );
 
   // The ask BELLS: creating an ask through the tool door's handler fans out
-  // agent_escalation rows to the project audience (org admins here — the
-  // run has no project), a FOLD rewrites the unread row in place, and the
-  // answer dismisses it transactionally.
+  // agent_escalation rows to the org's owners and admins (the run has no
+  // project) who have not turned escalations off, a FOLD writes each of them
+  // a row carrying the merged question, and the answer dismisses them all
+  // transactionally. It runs in an organization of its own, whose members
+  // this lane sets, so the recipients are known exactly, never read back
+  // from the bells or from the audience rule itself: the owner, an admin and
+  // an admin whose other preferences are off (an unset escalation is on) —
+  // and never a plain member, a disabled member or an admin who turned
+  // escalations off.
+  const bellOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${bellOrgId}, 'Ask bells', ${`itest-ask-bells-${bellOrgId}`}, now())
+  `;
+  const bellOwner = await signUpUser(base, 'ask-bell-owner');
+  const bellFixture = {
+    admin: `ask-bell-admin-${bellOrgId}`,
+    quietAdmin: `ask-bell-quiet-admin-${bellOrgId}`,
+    member: `ask-bell-member-${bellOrgId}`,
+    disabled: `ask-bell-disabled-${bellOrgId}`,
+    mutedAdmin: `ask-bell-muted-admin-${bellOrgId}`,
+  };
+  for (const id of Object.values(bellFixture)) {
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${id}, 'Ask bell fixture', ${`${id}@example.com`}, true, now(), now())
+    `;
+  }
+  for (const [id, role] of [
+    [bellOwner.userId, 'owner'],
+    [bellFixture.admin, 'admin'],
+    [bellFixture.quietAdmin, 'admin'],
+    [bellFixture.member, 'member'],
+    [bellFixture.disabled, 'disabled'],
+    [bellFixture.mutedAdmin, 'admin'],
+  ] as const) {
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${randomUUID()}, ${bellOrgId}, ${id}, ${role}, now())
+    `;
+  }
+  await sql`
+    INSERT INTO app.notification_preferences (
+      user_id, org_id, task_commented, escalation, updated_at_ms
+    ) VALUES
+      (${bellFixture.quietAdmin}, ${bellOrgId}, false, NULL, ${now}),
+      (${bellFixture.mutedAdmin}, ${bellOrgId}, NULL, false, ${now})
+  `;
+  const expectedBellRecipients = [
+    bellOwner.userId,
+    bellFixture.admin,
+    bellFixture.quietAdmin,
+  ].toSorted();
+  const bellWho = (id: string): string =>
+    id === bellOwner.userId
+      ? 'owner'
+      : (Object.entries(bellFixture).find(
+          ([, fixtureId]) => fixtureId === id,
+        )?.[0] ?? `stranger:${id}`);
+  const bellRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, checkpoints,
+      started_at_ms
+    ) VALUES (
+      ${bellOrgId}, 'itest/ask-bells', 1, 'waiting', 'live', 'itest:ask',
+      ${sql.json(toJson(checkpointsA))}, ${now}
+    ) RETURNING id
+  `;
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES (
-      ${orgId}, 'wf-ask-bell', 'active', 'workflow_run', ${runAId},
-      'itest:ask', ${now}, ${now + 3_600_000}
+      ${bellOrgId}, 'wf-ask-bell', 'active', 'workflow_run',
+      ${bellRun[0]?.id ?? ''}, 'itest:ask', ${now}, ${now + 3_600_000}
     )
   `;
   const createAsk = shim['automations/human_asks:createAskForExec'];
@@ -40243,31 +40350,46 @@ async function checkAskAnswer(
     .loose()
     .safeParse(
       await createAsk?.({
-        organizationId: orgId,
+        organizationId: bellOrgId,
         sessionId: 'wf-ask-bell',
         question: 'Which ledger account applies?',
       }),
     );
   const bellAskId = bellAsk.success ? bellAsk.data.askId : '';
-  const bellAfterCreate = await sql<
-    { read: boolean; params: Record<string, unknown> | null }[]
-  >`
-    SELECT read, params FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellRows = () =>
+    sql<
+      {
+        userId: string;
+        read: boolean;
+        params: Record<string, unknown> | null;
+      }[]
+    >`
+      SELECT user_id AS "userId", read, params FROM app.user_notifications
+      WHERE org_id = ${bellOrgId} AND type = 'agent_escalation'
+        AND params ->> 'askId' = ${bellAskId}
+    `;
+  /** Exactly the expected people, one row each: a missing, a doubled or an
+   * unexpected recipient all fail it. */
+  const exactlyExpected = (rows: readonly { userId: string }[]): boolean =>
+    JSON.stringify(rows.map((row) => row.userId).toSorted()) ===
+    JSON.stringify(expectedBellRecipients);
+  const recipientsOf = (rows: readonly { userId: string }[]): string =>
+    rows
+      .map((row) => bellWho(row.userId))
+      .toSorted()
+      .join('+');
+  const bellAfterCreate = await bellRows();
   await createAsk?.({
-    organizationId: orgId,
+    organizationId: bellOrgId,
     sessionId: 'wf-ask-bell',
     question: 'And which VAT box?',
   });
-  const bellAfterFold = await sql<
-    { read: boolean; params: Record<string, unknown> | null }[]
-  >`
-    SELECT read, params FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellAfterFold = await bellRows();
+  // A no-task ask has no collapse subject (the 0.4 posture): the fold writes
+  // each recipient a row of its own carrying the MERGED question.
+  const foldRows = bellAfterFold.filter((row) =>
+    JSON.stringify(row.params?.question ?? '').includes('And which VAT box'),
+  );
   // Two ask_human calls RACING inside one turn (an at-least-once tool lane)
   // converge on ONE pending row carrying both questions — the partial unique
   // index (0082) plus the single INSERT … ON CONFLICT fold; the former
@@ -40412,12 +40534,19 @@ async function checkAskAnswer(
     );
   }
 
-  await answerRoute(bellAskId, 'Account 4400, box 81.');
-  const bellAfterAnswer = await sql<{ read: boolean }[]>`
-    SELECT read FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellAnswer = await fetch(
+    `${base}/api/app/automations/asks/${bellAskId}/answer?orgId=${bellOrgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bellOwner.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ answer: 'Account 4400, box 81.' }),
+    },
+  );
+  const bellAfterAnswer = await bellRows();
   // A TASK-BOUND run: the ask must hang off the card the person is being
   // asked about — otherwise the bell lands on the bare dashboard and the
   // task panel cannot say which question is waiting.
@@ -40535,21 +40664,22 @@ async function checkAskAnswer(
     UPDATE app.sandbox_sessions SET status = 'destroyed'
     WHERE session_id IN ('wf-ask-bell', 'wf-ask-task', 'wf-ask-race')
   `;
+  const wantRecipients = expectedBellRecipients
+    .map(bellWho)
+    .toSorted()
+    .join('+');
   record(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
     bellAsk.success &&
-      bellAfterCreate.length === 1 &&
-      !(bellAfterCreate[0]?.read ?? true) &&
-      // A no-task ask has no collapse subject (the 0.4 posture): the fold
-      // writes its own row carrying the MERGED question.
-      bellAfterFold.some((row) =>
-        JSON.stringify(row.params?.question ?? '').includes(
-          'And which VAT box',
-        ),
-      ) &&
-      bellAfterAnswer.length >= 1 &&
+      exactlyExpected(bellAfterCreate) &&
+      bellAfterCreate.every((row) => !row.read) &&
+      exactlyExpected(foldRows) &&
+      bellAnswer.status === 200 &&
+      JSON.stringify(
+        [...new Set(bellAfterAnswer.map((row) => row.userId))].toSorted(),
+      ) === JSON.stringify(expectedBellRecipients) &&
       bellAfterAnswer.every((row) => row.read),
-    `created=${bellAfterCreate.length}/${bellAfterCreate[0]?.read} (want 1/false), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
+    `created=${recipientsOf(bellAfterCreate)} unread=${bellAfterCreate.every((row) => !row.read)}, folded=${recipientsOf(foldRows)} (want ${wantRecipients} each time: never the member, the disabled member or the admin who turned escalations off), answer=${bellAnswer.status} (want 200), answeredAllRead=${bellAfterAnswer.length}/${bellAfterAnswer.every((row) => row.read)}`,
   );
 }
 
@@ -47306,12 +47436,14 @@ async function checkDataResidencyConfig(
   );
 
   // --- Object storage: connection files + probe + blob backfill ---------
-  const endpoint = process.env.ITEST_S3_ENDPOINT ?? '';
-  // Same defaults as checkFiles — a run that only sets ITEST_S3_ENDPOINT
-  // (the documented minimum) must reach MinIO here too, not sign with an
-  // empty key and fail the bucket create.
-  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
-  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
+  // Without a store this section fails rather than skips: its bucket create
+  // cannot succeed. The credentials carry checkFiles' defaults, so a run that
+  // only sets ITEST_S3_ENDPOINT (the documented minimum) reaches MinIO here
+  // too, instead of signing with an empty key and failing the bucket create.
+  const store = itestObjectStore();
+  const endpoint = store?.endpoint ?? '';
+  const accessKeyId = store?.accessKeyId ?? 'minioadmin';
+  const secretAccessKey = store?.secretAccessKey ?? 'minioadmin';
   const byoBucket = 'itest-byo';
   // Create the BYO bucket directly (MinIO: signed PUT on the bucket URL).
   const { buildS3ObjectStore } =
@@ -51738,10 +51870,10 @@ async function checkAbandonedUploadReclaim(
   sql: Sql,
   ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'abandoned upload reclaim (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'abandoned upload reclaim',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -51886,10 +52018,10 @@ async function checkVideoFinalizerCas(
   sql: Sql,
   ctx: { orgId: string; userId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'video finalizer CAS (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'video finalizer CAS',
       'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
     );
     return;
@@ -52104,10 +52236,10 @@ async function checkProjectTextConvergence(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  if (!process.env.ITEST_S3_ENDPOINT) {
-    record(
-      'project-text convergence (SKIPPED)',
-      true,
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'project-text convergence',
       'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
     );
     return;
@@ -54875,10 +55007,16 @@ async function checkOrganizationLifecycle(
     }
   }
   const storage = await import('./core/lib/storage/object_store.ts');
-  const lifeStore = process.env.ITEST_S3_ENDPOINT
+  const lifeStore = itestObjectStore()
     ? await storage.resolveOrgObjectStore(slugA)
     : null;
-  if (lifeStore) {
+  if (!lifeStore) {
+    recordSkip(
+      record,
+      "org lifecycle: the teardown job removes the organization's blobs",
+      'no ITEST_S3_ENDPOINT — the blob half needs an object store',
+    );
+  } else {
     await storage.s3PutObject(
       lifeStore,
       storage.buildObjectKey(lifeStore, slugA),
@@ -55412,6 +55550,24 @@ async function sharedSessionAlive(
 }
 
 /**
+ * The organizations the suite's shared user belongs to, with the role in
+ * each, as one comparable string. A lane that leaves the shared user in an
+ * organization of its own breaks lanes far away from it: the /api/v1 door
+ * answers ORG_SLUG_REQUIRED to every key whose holder belongs to more than
+ * one organization, and those refusals still spend the holder's `rest:api`
+ * budget. The erasure race lane once did, and ten REST checks forty lanes
+ * later failed on it, the last ones on 429.
+ */
+async function sharedMemberships(sql: Sql, userId: string): Promise<string> {
+  const rows = await sql<{ organizationId: string; role: string }[]>`
+    SELECT "organizationId", role FROM member
+    WHERE "userId" = ${userId}
+    ORDER BY "organizationId"
+  `;
+  return rows.map((row) => `${row.organizationId}:${row.role}`).join(',');
+}
+
+/**
  * Reads a JSON response body, naming the request when it cannot. `.json()`
  * on a non-JSON error body throws a bare SyntaxError, so a 401/404/500 with
  * a text body used to truncate the run as "Unexpected token …" and hide the
@@ -55478,14 +55634,8 @@ function selectLanes(lanes: readonly Lane[]): {
   selected: readonly Lane[];
   filter: string | null;
 } {
-  const raw = process.env.ITEST_LANES?.trim();
-  if (!raw) return { selected: lanes, filter: null };
-  const wanted = new Set(
-    raw
-      .split(',')
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0),
-  );
+  const wanted = requestedLanes();
+  if (wanted === null) return { selected: lanes, filter: null };
   const unknown = [...wanted].filter(
     (name) => !lanes.some(([laneName]) => laneName === name),
   );
@@ -55502,6 +55652,7 @@ function selectLanes(lanes: readonly Lane[]): {
 }
 
 async function runLanes(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; userId: string },
   registered: readonly Lane[],
@@ -55511,6 +55662,7 @@ async function runLanes(
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
     const envBefore = new Map(Object.entries(process.env));
+    const membershipsBefore = await sharedMemberships(sql, ctx.userId);
     try {
       await run();
     } catch (error) {
@@ -55534,6 +55686,17 @@ async function runLanes(
         `${leaked.join(', ')} — the lane overrode these and did not restore ` +
           `them, so every later lane reads the lane's value (or nothing) ` +
           `instead. Wrap the override in overrideEnv().`,
+      );
+    }
+    const membershipsAfter = await sharedMemberships(sql, ctx.userId);
+    if (membershipsAfter !== membershipsBefore) {
+      record(
+        `harness: ${name} leaves the shared user's organizations as it found them`,
+        false,
+        `before=[${membershipsBefore}] after=[${membershipsAfter}] — every ` +
+          `later lane that resolves the shared user's organization reads ` +
+          `the change. A lane that needs another organization gives it an ` +
+          `owner of its own.`,
       );
     }
     if (!(await sharedSessionAlive(base, ctx))) {
@@ -55578,6 +55741,13 @@ async function main(): Promise<void> {
   if (!databaseUrl) {
     console.error(
       'DATABASE_URL is required (throwaway database — see services/platform/backend/README.md).',
+    );
+    process.exit(2);
+  }
+  const blockers = fullCoverageBlockers();
+  if (blockers.length > 0) {
+    console.error(
+      `[itest] ITEST_REQUIRE_ALL_LANES=1 needs every lane to run, and this run cannot: ${blockers.join('; ')}.`,
     );
     process.exit(2);
   }
@@ -55864,7 +56034,7 @@ async function main(): Promise<void> {
     // session dead, ends the run as a recorded FAIL naming the lane and the
     // lanes that never ran — the tally can never read green for a run that
     // executed fewer checks than it contains.
-    lanes = await runLanes(baseUrl, authCtx, [
+    lanes = await runLanes(sql, baseUrl, authCtx, [
       ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
       [
         'checkOutboxRetention',
@@ -56091,7 +56261,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkErasureReviewHandoverRaces',
-        () => checkErasureReviewHandoverRaces(sql, authCtx, record),
+        () => checkErasureReviewHandoverRaces(sql, record),
       ],
       // Reliability batch probes (self-contained; each seeds and cleans its
       // own rows).
@@ -56676,13 +56846,14 @@ async function main(): Promise<void> {
   }
 
   const failed = results.filter((r) => !r.ok);
+  const skipped = results.filter((r) => isSkippedCheck(r.name)).length;
   if (lanes === null || lanes.truncatedAt !== null) {
     console.log(
       `\n[itest] RUN TRUNCATED${lanes === null ? ' before the lanes' : ` at ${lanes.truncatedAt}`} — ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes ran; the tally below covers only those`,
     );
   }
   console.log(
-    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
+    `\n[itest] ${results.length - failed.length}/${results.length} checks passed across ${lanes?.ran ?? 0}/${lanes?.total ?? '?'} lanes${skipped > 0 ? `, ${skipped} of them skipped: not full coverage` : ''}${lanes?.filter ? ` — ITEST_LANES=${lanes.filter}: a filtered run, not full coverage` : ''}`,
   );
   process.exit(failed.length === 0 ? 0 : 1);
 }
