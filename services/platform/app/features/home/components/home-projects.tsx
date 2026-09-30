@@ -25,9 +25,7 @@ import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
 import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
-  ChevronDown,
   ChevronRight,
-  Folder,
   FolderOpen,
   FolderPlus,
   LayoutList,
@@ -357,125 +355,5 @@ export function HomeProjects({
         />
       )}
     </section>
-  );
-}
-
-/**
- * Floating project selector dropdown: displays current selection and offers
- * project filtering and access to the project table.
- */
-export function HomeProjectSelector({
-  organizationId,
-  projects,
-  selectedProjectId,
-  onSelectProject,
-}: {
-  organizationId: string;
-  projects: readonly ChatProjectSummary[];
-  selectedProjectId?: string;
-  onSelectProject: (projectId: string | undefined) => void;
-}) {
-  const { t } = useT('home');
-
-  const selectedProject = useMemo(
-    () => projects.find((p) => p.id === selectedProjectId),
-    [projects, selectedProjectId],
-  );
-
-  const sorted = useMemo(
-    () =>
-      [...projects].sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-      ),
-    [projects],
-  );
-
-  const navigate = useNavigate();
-
-  const menuItems: DropdownMenuGroup[] = [
-    [
-      {
-        type: 'radio-group',
-        value: selectedProjectId ?? 'all',
-        onValueChange: (val) =>
-          onSelectProject(val === 'all' ? undefined : val),
-        options: [
-          {
-            value: 'all',
-            label: (
-              <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span className="flex items-center gap-2">
-                  <Folder className="text-muted-foreground size-4 shrink-0" />
-                  <span>{t('projects.allProjectsFilter')}</span>
-                </span>
-                <span className="text-muted-foreground text-xs font-normal tabular-nums">
-                  ({sorted.length})
-                </span>
-              </span>
-            ),
-          },
-          ...sorted.map((project) => ({
-            value: project.id,
-            label: (
-              <span className="flex min-w-0 items-center gap-2 truncate">
-                <ProjectAvatar
-                  name={project.name}
-                  icon={project.icon}
-                  color={project.color}
-                  size={14}
-                />
-                <span className="truncate">{project.name}</span>
-              </span>
-            ),
-          })),
-        ],
-      },
-    ],
-    [
-      {
-        type: 'item' as const,
-        label: t('projects.manageProjects'),
-        icon: LayoutList,
-        onClick: () =>
-          void navigate({
-            to: '/dashboard/$id/projects',
-            params: { id: organizationId },
-          }),
-      },
-    ],
-  ];
-
-  return (
-    <DropdownMenu
-      align="start"
-      trigger={
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-foreground -ml-1 h-7 gap-1 px-2 text-xs font-medium"
-        >
-          {selectedProject ? (
-            <>
-              <ProjectAvatar
-                name={selectedProject.name}
-                icon={selectedProject.icon}
-                color={selectedProject.color}
-                size={14}
-              />
-              <span className="max-w-[140px] truncate">
-                {selectedProject.name}
-              </span>
-            </>
-          ) : (
-            <>
-              <Folder className="text-muted-foreground size-3.5 shrink-0" />
-              <span>{t('projects.allProjectsFilter')}</span>
-            </>
-          )}
-          <ChevronDown className="text-muted-foreground size-3.5 shrink-0" />
-        </Button>
-      }
-      items={menuItems}
-    />
   );
 }

@@ -4501,8 +4501,6 @@ home:
     title: Projets
     newProject: Nouveau projet
     allProjects: Tous les projets
-    allProjectsFilter: Tous les projets
-    manageProjects: Voir les projets
     actions: 'Actions pour {project}'
     empty: Aucun projet pour le moment
   scope:

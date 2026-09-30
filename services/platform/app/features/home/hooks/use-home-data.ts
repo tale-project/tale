@@ -129,9 +129,11 @@ export function useHomeData(
   const myUserId = me?.userId;
 
   const taskStatuses =
-    options?.taskStatuses !== undefined && options.taskStatuses.length > 0
-      ? options.taskStatuses
-      : OPEN_TASK_STATUSES;
+    options?.taskStatuses === undefined
+      ? OPEN_TASK_STATUSES
+      : options.taskStatuses.length > 0
+        ? options.taskStatuses
+        : undefined;
 
   // Two reads make "my tasks": the open work assigned to me, and the work
   // waiting on my review — whoever it is assigned to.
@@ -174,10 +176,10 @@ export function useHomeData(
     if (
       includeArchived &&
       archivedThreads.status === 'ready' &&
-      archivedThreads.data?.threads
+      archivedThreads.data.rows
     ) {
       const existingIds = new Set(list.map((t) => t.id));
-      for (const thread of archivedThreads.data.threads) {
+      for (const thread of archivedThreads.data.rows) {
         if (!existingIds.has(thread.id)) {
           list.push(thread);
         }
@@ -259,10 +261,10 @@ export function useHomeData(
     if (
       includeArchived &&
       archivedThreads.status === 'ready' &&
-      archivedThreads.data?.threads
+      archivedThreads.data.rows
     ) {
-      for (const thread of archivedThreads.data.threads) {
-        map.set(thread.id, thread);
+      for (const thread of archivedThreads.data.rows) {
+        if (!map.has(thread.id)) map.set(thread.id, thread);
       }
     }
     return map;
@@ -273,7 +275,9 @@ export function useHomeData(
     threadsById,
     projects,
     loading: {
-      chats: threads.status === 'loading',
+      chats:
+        threads.status === 'loading' ||
+        (includeArchived && archivedThreads.status === 'loading'),
       tasks:
         myUserId === undefined ||
         tasksQuery.isLoading ||

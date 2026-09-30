@@ -343,9 +343,12 @@ function renderHome({
     <div
       data-testid="frame"
       style={{ height, ...(width !== undefined ? { width } : {}) }}
-      className="bg-background flex w-70 flex-col overflow-hidden"
+      className={`bg-background flex w-70 flex-col overflow-hidden ${variant === 'screen' ? 'mobile-nav-shell' : ''}`}
     >
       <HomeNavigator organizationId={ORG} variant={variant} />
+      {variant === 'screen' && (
+        <nav aria-label="Primary navigation" className="mobile-tab-bar" />
+      )}
     </div>,
   );
 }
@@ -688,6 +691,21 @@ describe('desktop Home panel resizing', () => {
 });
 
 describe('Home screen on a phone', () => {
+  it('keeps the archive control above the mobile navigation', async () => {
+    await resizeViewport(390, 844);
+    renderHome({
+      variant: 'screen',
+      width: 390,
+      height: 844,
+      threads: chatList(20),
+    });
+    const archive = screen.getByRole('button', {
+      name: 'Archived',
+    });
+    const nav = screen.getByRole('navigation', { name: 'Primary navigation' });
+    expect(box(archive).bottom).toBeLessThan(box(nav).top);
+  });
+
   it('fits 390px wide when narrowed, with tappable controls', async () => {
     await resizeViewport(390, 800);
     const longName =
@@ -705,8 +723,10 @@ describe('Home screen on a phone', () => {
     });
 
     await user.click(screen.getByRole('radio', { name: /Chats/ }));
-    await user.click(screen.getByRole('button', { name: /All projects/i }));
-    await user.click(screen.getByRole('menuitemradio', { name: /Quarterly/i }));
+    const project = within(
+      screen.getByRole('region', { name: 'Projects' }),
+    ).getByRole('button', { name: /^(?!Actions for).*Quarterly/ });
+    await user.click(project);
     await nextFrame();
 
     // Only the project's two chats are left.
@@ -718,10 +738,7 @@ describe('Home screen on a phone', () => {
       ).getAllByRole('link'),
     ).toHaveLength(2);
 
-    const controls = [
-      screen.getByRole('button', { name: /Quarterly/i }),
-      screen.getByPlaceholderText(/Search/i),
-    ];
+    const controls = [project, screen.getByPlaceholderText(/Search/i)];
     const frameBox = frame().getBoundingClientRect();
     for (const control of controls) {
       const controlBox = control.getBoundingClientRect();

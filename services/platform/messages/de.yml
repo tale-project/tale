@@ -4433,8 +4433,6 @@ home:
     title: Projekte
     newProject: Neues Projekt
     allProjects: Alle Projekte
-    allProjectsFilter: Alle Projekte
-    manageProjects: Projekte anzeigen
     actions: 'Aktionen für {project}'
     empty: Noch keine Projekte
   scope:

@@ -56,7 +56,10 @@ import {
   type ThreadListFrame,
 } from '@/app/features/chat/components/thread-list-context';
 import { useThreadHolds } from '@/app/features/chat/data/chat-backend';
-import type { TaskStatus } from '@/app/features/tasks/lib/display';
+import {
+  isTaskStatus,
+  type TaskStatus,
+} from '@/app/features/tasks/lib/display';
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
@@ -312,7 +315,7 @@ export function HomeNavigator({
 
   const data = useHomeData(organizationId, {
     includeArchivedChats: chatArchivedFilter,
-    taskStatuses: taskStatusFilter.length > 0 ? taskStatusFilter : undefined,
+    taskStatuses: taskStatusFilter,
   });
   const { data: me } = useCurrentUser();
   const myUserId = me?.userId;
@@ -341,7 +344,7 @@ export function HomeNavigator({
     [chatArchivedFilter, tChat, t],
   );
 
-  const defaultTaskStatuses = useMemo(
+  const defaultTaskStatuses = useMemo<TaskStatus[]>(
     () => ['backlog', 'todo', 'in_progress', 'in_review'],
     [],
   );
@@ -362,7 +365,7 @@ export function HomeNavigator({
         ],
         selectedValues: taskStatusFilter,
         defaultValues: defaultTaskStatuses,
-        onChange: setTaskStatusFilter,
+        onChange: (values) => setTaskStatusFilter(values.filter(isTaskStatus)),
         widensResultSet: taskStatusFilter.some(
           (s) => s === 'done' || s === 'cancelled',
         ),
@@ -496,32 +499,22 @@ export function HomeNavigator({
             }
           }
 
-          // Search chat snippet / model name
-          if (item.kind === 'chat') {
-            const thread = data.threadsById.get(item.id);
-            if (thread) {
-              if (
-                thread.lastMessageSnippet &&
-                thread.lastMessageSnippet.toLowerCase().includes(query)
-              ) {
-                return true;
-              }
-              if (
-                thread.modelName &&
-                thread.modelName.toLowerCase().includes(query)
-              ) {
-                return true;
-              }
-            }
-          }
-
           return false;
         }),
         now,
       ),
     // `now` moves every render; the bands only need to follow the data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.items, view, scopeId, query, data.projects, data.threadsById],
+    [
+      data.items,
+      view,
+      scopeId,
+      query,
+      data.projects,
+      chatArchivedFilter,
+      taskStatusFilter,
+      taskPriorityFilter,
+    ],
   );
 
   const scoped = scopeProject !== undefined;
@@ -694,7 +687,12 @@ export function HomeNavigator({
       ) : (
         <ThreadListFrameProvider value={frame}>
           <ThreadDndProvider organizationId={organizationId}>
-            <div className="flex min-h-0 flex-1 flex-col px-2.5">
+            <div
+              className={cn(
+                'flex min-h-0 flex-1 flex-col px-2.5',
+                variant === 'screen' && 'mobile-nav-clearance mobile-nav-inset',
+              )}
+            >
               {viewIncludesScope && (
                 <HomeProjects
                   organizationId={organizationId}

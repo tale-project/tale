@@ -4271,8 +4271,6 @@ home:
     title: Projects
     newProject: New project
     allProjects: All projects
-    allProjectsFilter: All projects
-    manageProjects: View projects
     actions: 'Actions for {project}'
     empty: No projects yet
   scope:

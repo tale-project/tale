@@ -344,6 +344,29 @@ describe('HomeNavigator', () => {
     ).not.toHaveTextContent('Draft');
   });
 
+  it('updates task rows when the priority facet changes without new source data', async () => {
+    const base = data();
+    homeData.current = data({
+      items: base.items.map((item) =>
+        item.kind === 'task'
+          ? Object.assign({}, item, { priority: 'p0' as const })
+          : item,
+      ),
+    });
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: /Priority/ }));
+    await user.click(screen.getByRole('checkbox', { name: 'High' }));
+    expect(
+      screen.queryByRole('link', { name: /Review the launch checklist/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Urgent' }));
+    expect(
+      screen.getByRole('link', { name: /Review the launch checklist/ }),
+    ).toBeInTheDocument();
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(<HomeNavigator organizationId="org-1" />);
     await checkAccessibility(container);

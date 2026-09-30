@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,7 +19,7 @@ const HOOK = resolve(import.meta.dir, '../../tale-vision-read-hook');
 // /usr/bin, so `spawnSync('bash', …)` resolves; on macOS bash lives elsewhere
 // (Homebrew), so the shell must be invoked by absolute path.
 const BASH =
-  spawnSync('bash', ['-lc', 'command -v bash'], {
+  spawnSync('bash', ['-c', 'command -v bash'], {
     encoding: 'utf8',
   }).stdout.trim() || '/bin/bash';
 
@@ -186,28 +187,22 @@ printf '\\f\\n  \\n'
     const pdf = join(workDir, 'alone.pdf');
     writeFileSync(pdf, '%PDF-fake');
 
+    // Expose only the hook's required tools, even when jq and pdftotext
+    // share an installation directory. Preserve the current Bash version.
+    for (const bin of ['jq', 'cat', 'tr', 'head']) {
+      const tool = spawnSync('bash', ['-c', `command -v ${bin}`], {
+        encoding: 'utf8',
+      }).stdout.trim();
+      symlinkSync(tool, join(binDir, bin));
+    }
+
     const res = spawnSync(BASH, [HOOK], {
       input: readPayload(pdf),
       env: {
         ...process.env,
         TALE_VISION_READ_POLYFILL: '1',
         TALE_VISION_MODEL: 'openai/gpt-4o',
-        // Run the hook with only the tools it needs on PATH (jq plus coreutils
-        // like cat) and WITHOUT pdftotext, to exercise the "no extractable
-        // text" deny path. Resolve each tool's own directory rather than
-        // assuming one shared dir: on macOS jq is in /usr/bin but cat is in
-        // /bin, while pdftotext lives in a third (Homebrew) dir that stays
-        // excluded either way. On Linux CI these collapse to /usr/bin.
-        PATH: (() => {
-          const dirOf = (bin: string) =>
-            resolve(
-              spawnSync('bash', ['-lc', `command -v ${bin}`], {
-                encoding: 'utf8',
-              }).stdout.trim(),
-              '..',
-            );
-          return [dirOf('jq'), dirOf('cat')].join(':');
-        })(),
+        PATH: binDir,
       },
       encoding: 'utf8',
     });
