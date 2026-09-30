@@ -1036,16 +1036,28 @@ describePosix('model gateway recovery point', () => {
     'a retry of the pending release',
     'a superseding bundle',
   ] as const;
+  /** A successful answer: `docker volume ls` printed `stdout`. */
+  const listed = (stdout: string) => ({
+    success: true,
+    exitCode: 0,
+    stdout,
+    stderr: '',
+  });
   const UNREADABLE = [
     [
-      'a malformed but successful listing',
-      () => ({
-        success: true,
-        exitCode: 0,
-        stdout: '[{"Name":"tale_llm-gateway-data"}]',
-        stderr: '',
-      }),
-      'Docker returned invalid volume names.',
+      'a JSON array of records',
+      () => listed('[{"Name":"tale_llm-gateway-data"}]'),
+      'Docker volume metadata is incomplete.',
+    ],
+    [
+      'a later record without a name',
+      (listing: string) => listed(`${listing}\n{"Driver":"local"}`),
+      'Docker volume metadata is incomplete.',
+    ],
+    [
+      'a later line that is not a record',
+      (listing: string) => listed(`${listing}\ntale_llm-gateway-data`),
+      'Docker returned invalid runtime metadata.',
     ],
     [
       'a transport failure',
@@ -1076,6 +1088,8 @@ describePosix('model gateway recovery point', () => {
       'Docker could not complete the managed runtime operation.',
     ],
   ] as const;
+  /** Volumes a plugin keeps, named as no local volume can be. */
+  const PLUGIN_VOLUMES = ['foreign/plugin-data', 'x'];
   /** A pending pre-capture receipt for the next release, stopped at its pull,
    * and the bundle the lane continues it with. */
   async function pendingPreCapture(run: Run, lane: (typeof LANES)[number]) {
@@ -1129,9 +1143,10 @@ describePosix('model gateway recovery point', () => {
       },
     );
 
-    test('a readable listing with foreign names and the gateway volume refuses at the gateway check', async () => {
+    test('a listing with plugin and foreign volumes and the gateway volume refuses at the gateway check', async () => {
       const run = await create();
       const { bundle } = await pendingPreCapture(run, lane);
+      run.docker.pluginVolumes.push(...PLUGIN_VOLUMES);
       run.docker.volumes.push('other-project_llm-gateway-data', 'a'.repeat(64));
       const before = receipts(run);
       run.events.length = 0;
@@ -1147,30 +1162,50 @@ describePosix('model gateway recovery point', () => {
       expect(receipts(run)).toEqual(before);
     });
 
-    test('a readable listing without the gateway volume, its gateway gone, continues', async () => {
-      const run = await create();
-      const { bundle } = await pendingPreCapture(run, lane);
-      run.docker.containers = run.docker.containers.filter(
-        (container) => container !== gatewayContainer(run),
-      );
-      run.docker.volumes = run.docker.volumes.filter(
-        (volume) => volume !== 'tale_llm-gateway-data',
-      );
-      run.docker.volumes.push('other-project_llm-gateway-data');
+    test.each([
+      [
+        'plugin and foreign volumes',
+        (run: Run) => {
+          run.docker.pluginVolumes.push(...PLUGIN_VOLUMES);
+          run.docker.volumes.push('other-project_llm-gateway-data');
+        },
+      ],
+      [
+        'no volumes at all',
+        (run: Run) => {
+          run.docker.volumes = [];
+        },
+      ],
+    ])(
+      'a listing of %s without the gateway volume, its gateway gone, continues',
+      async (_name, arrange) => {
+        const run = await create();
+        const { bundle } = await pendingPreCapture(run, lane);
+        run.docker.containers = run.docker.containers.filter(
+          (container) => container !== gatewayContainer(run),
+        );
+        run.docker.volumes = run.docker.volumes.filter(
+          (volume) => volume !== 'tale_llm-gateway-data',
+        );
+        arrange(run);
 
-      expect(await applyBundle(run, bundle)).toMatchObject({
-        phase: 'ready',
-        snapshotId: PRE_CAPTURE_SNAPSHOT,
-      });
-    });
+        expect(await applyBundle(run, bundle)).toMatchObject({
+          phase: 'ready',
+          snapshotId: PRE_CAPTURE_SNAPSHOT,
+        });
+      },
+    );
   });
 
   // A stopped container on the target image counts as the store having run it
-  // only by a start time in Moby's contract.
+  // only by a start time in Moby's contract after the Unix epoch, fraction
+  // included.
   test.each([
     ['1', false],
     ['not-a-timestamp', false],
     ['2026-09-30T08:01:07.123456789Z', true],
+    ['1970-01-01T00:00:00.001Z', true],
+    ['1970-01-01T01:00:00.001+01:00', true],
   ] as const)(
     'a stopped release gateway whose start time reads %p: the store has run it: %p',
     async (startedAt, ran) => {

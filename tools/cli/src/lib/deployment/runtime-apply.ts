@@ -265,10 +265,6 @@ function validateOptions(options: ApplyRuntimeOptions): void {
   }
 }
 
-/** Moby's rule for container names and local volume names
- * (`RestrictedNamePattern`). */
-const DOCKER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]+$/;
-
 async function runtimeContainers(
   project: string,
   dependencies: RuntimeDependencies,
@@ -315,7 +311,7 @@ async function assertFixedContainerNames(
       if (service.container_name === undefined) return [];
       requireRuntime(
         typeof service.container_name === 'string' &&
-          DOCKER_NAME.test(service.container_name),
+          /^[a-zA-Z0-9][a-zA-Z0-9_.-]+$/.test(service.container_name),
         'Runtime contains an invalid fixed container name.',
       );
       return [service.container_name];
@@ -513,60 +509,47 @@ function converged(
 }
 
 /**
- * Moby writes `State.StartedAt` in Go's RFC3339Nano (daemon/inspect.go), and
- * the zero time, year 1, for a container that never started.
+ * Moby writes `State.StartedAt` in Go's RFC3339Nano (daemon/inspect.go): a
+ * calendar date and time with seconds, at most nine fraction digits and a
+ * zone, and the zero time, year 1, for a container that never started. Zod
+ * checks the calendar, the ranges and the offset; the pattern adds the
+ * seconds, which Zod leaves optional, and the fraction's bound.
  */
-const RFC3339_NANO =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|([+-])(\d{2}):(\d{2}))$/;
-
-/** The instant a start time in that contract names, or `null` for any other
- * value: a date or time the calendar does not have is not one either. */
-function startInstant(value: string | undefined): number | null {
-  const match = value === undefined ? null : RFC3339_NANO.exec(value);
-  if (!match) return null;
-  const [year, month, day, hour, minute, second] = match
-    .slice(1, 7)
-    .map(Number);
-  const at = new Date(0);
-  at.setUTCFullYear(year, month - 1, day);
-  at.setUTCHours(hour, minute, second);
-  if (
-    at.getUTCFullYear() !== year ||
-    at.getUTCMonth() !== month - 1 ||
-    at.getUTCDate() !== day ||
-    at.getUTCHours() !== hour ||
-    at.getUTCMinutes() !== minute ||
-    at.getUTCSeconds() !== second
-  )
-    return null;
-  if (match[7] === undefined) return at.getTime();
-  const [offsetHours, offsetMinutes] = [Number(match[8]), Number(match[9])];
-  if (offsetHours > 23 || offsetMinutes > 59) return null;
-  const offset = (offsetHours * 60 + offsetMinutes) * 60_000;
-  return match[7] === '+' ? at.getTime() - offset : at.getTime() + offset;
-}
+const startedAtSchema = z.iso
+  .datetime({ offset: true })
+  .regex(/T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/);
 
 /** A running container has started; a stopped one only by a start time in
- * Moby's contract after 1970, so an empty, malformed or zero time is no
- * evidence that its image ever ran. */
+ * Moby's contract after the Unix epoch, so an empty, malformed or zero time is
+ * no evidence that its image ever ran. */
 function hasStarted(container: RuntimeContainer): boolean {
   if (container.State.Running) return true;
-  const startedAt = startInstant(container.State.StartedAt);
-  return startedAt !== null && startedAt > 0;
+  const startedAt = startedAtSchema.safeParse(container.State.StartedAt);
+  if (!startedAt.success) return false;
+  // Date.parse keeps milliseconds only. The whole second is exact, and the
+  // fraction decides alone for a start within the epoch's own second.
+  const second = Date.parse(startedAt.data.replace(/\.\d+/, ''));
+  const fraction = /\.(\d+)/.exec(startedAt.data)?.[1] ?? '';
+  return second > 0 || (second === 0 && /[1-9]/.test(fraction));
 }
 
+/** One record of `docker volume ls --format '{{json .}}'`. Its name is opaque:
+ * Moby leaves the rule to each volume driver, and a plugin may choose any. */
+const volumeRecordSchema = z.object({ Name: z.string().min(1) });
+
 /**
- * The names `docker volume ls --format '{{.Name}}'` printed, one per line,
- * each checked against Docker's name rule before any is read. A listing that
- * is not a list of names is not an inventory: filtered as one, it would read
- * every volume, the gateway store's included, as absent. An empty listing is a
- * host without volumes.
+ * The names of the volumes Docker listed, read only once every line is a
+ * record with a name. A listing that is not a list of records is not an
+ * inventory: filtered as one, it would read every volume, the gateway store's
+ * included, as absent. An empty listing is a host without volumes.
  */
 function volumeInventory(stdout: string): string[] {
-  const names = stdout === '' ? [] : stdout.split('\n');
-  if (!names.every((name) => DOCKER_NAME.test(name)))
-    throw externalDepError('Docker returned invalid volume names.');
-  return names;
+  const records = (stdout === '' ? [] : stdout.split('\n')).map((line) =>
+    parseJson(line),
+  );
+  const parsed = z.array(volumeRecordSchema).safeParse(records);
+  requireRuntime(parsed.success, 'Docker volume metadata is incomplete.');
+  return parsed.data.map((record) => record.Name);
 }
 
 /**
@@ -737,7 +720,7 @@ export async function applyRuntime(
   assertContainerCustody(containers, compose, options);
   await assertFixedContainerNames(containers, compose, dependencies);
   const volumeResult = await runtimeCommand(
-    ['volume', 'ls', '--format', '{{.Name}}'],
+    ['volume', 'ls', '--format', '{{json .}}'],
     dependencies,
   );
   const projectVolumes = volumeInventory(volumeResult.stdout).filter((name) =>

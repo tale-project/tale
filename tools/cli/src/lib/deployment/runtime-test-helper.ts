@@ -183,6 +183,9 @@ export class RuntimeDockerFixture {
   unsafeNetwork: Record<string, unknown> | null = null;
   containers: Record<string, unknown>[] = [];
   volumes: string[] = [];
+  /** Volumes a plugin driver keeps: Docker lists them under whatever name the
+   * plugin chose, and no managed service mounts them. */
+  pluginVolumes: string[] = [];
   foreignNames: string[] = [];
   missingTags = new Set<string>();
   imageRevision: string | null = null;
@@ -190,8 +193,9 @@ export class RuntimeDockerFixture {
   variantTag: string | null = null;
   upFailure = false;
   onUp: (() => void) | null = null;
-  /** What `docker volume ls` answers instead of the listed volumes: a
-   * transport failure, a throw, or a malformed but successful response. */
+  /** What `docker volume ls` answers instead of `listing`, the volumes in the
+   * format asked for: a transport failure, a throw, or a malformed but
+   * successful response. */
   volumeListing:
     | ((listing: string) => Awaited<ReturnType<typeof exec>>)
     | null = null;
@@ -356,10 +360,10 @@ export class RuntimeDockerFixture {
       }
       return ok(this.containers);
     }
-    if (args[0] === 'volume' && args[1] === 'ls')
-      return this.volumeListing
-        ? this.volumeListing(this.volumes.join('\n'))
-        : ok(this.volumes.join('\n'));
+    if (args[0] === 'volume' && args[1] === 'ls') {
+      const listing = this.volumeLines(args.at(-1));
+      return this.volumeListing ? this.volumeListing(listing) : ok(listing);
+    }
     if (args[0] === 'tag') {
       const image = this.imageMetadata.get(args[1]);
       if (!image) throw new Error('Fixture tag source missing');
@@ -399,6 +403,45 @@ export class RuntimeDockerFixture {
       return ok();
     throw new Error(`Unexpected fixture command ${args[0]} ${args[1]}`);
   };
+  /**
+   * The listed volumes in the format asked for: one record per line for
+   * `{{json .}}`, as the Docker CLI's formatter writes it (every field, keys
+   * sorted), or the bare names for `{{.Name}}`.
+   */
+  private volumeLines(format: string | undefined): string {
+    const volumes = [
+      ...this.volumes.map((name) => ({
+        name,
+        driver: 'local',
+        mountpoint: `/var/lib/docker/volumes/${name}/_data`,
+      })),
+      ...this.pluginVolumes.map((name) => ({
+        name,
+        driver: 'example/volume-plugin',
+        mountpoint: '',
+      })),
+    ];
+    if (format === '{{.Name}}')
+      return volumes.map(({ name }) => name).join('\n');
+    if (format !== '{{json .}}')
+      throw new Error(`Unexpected fixture volume format ${format}`);
+    return volumes
+      .map(({ name, driver, mountpoint }) =>
+        JSON.stringify({
+          Availability: 'N/A',
+          Driver: driver,
+          Group: 'N/A',
+          Labels: '',
+          Links: 'N/A',
+          Mountpoint: mountpoint,
+          Name: name,
+          Scope: 'local',
+          Size: 'N/A',
+          Status: 'N/A',
+        }),
+      )
+      .join('\n');
+  }
   dependencies(): RuntimeDependencies {
     return {
       exec: this.execute,

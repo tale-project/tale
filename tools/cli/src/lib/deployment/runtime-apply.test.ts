@@ -437,17 +437,26 @@ describePosix('managed source-Compose runtime adoption', () => {
   });
 
   // A stopped container has started only by a start time in Moby's
-  // RFC3339Nano contract: Docker's zero time, or a value outside the contract
-  // or the calendar that a lenient date parser would still read, is none.
+  // RFC3339Nano contract after the Unix epoch, fraction included: Docker's
+  // zero time, or a value outside the contract or the calendar that a lenient
+  // date parser would still read, is none.
   test.each([
     ['2026-09-30T08:01:07.123456789Z', true],
     ['2026-09-30T08:01:07Z', true],
     ['2026-09-30T10:01:07+02:00', true],
+    ['1970-01-01T00:00:00.001Z', true],
+    ['1970-01-01T01:00:00.001+01:00', true],
+    ['1969-12-31T23:00:00.5-01:00', true],
+    ['1970-01-01T00:00:00.000000001Z', true],
+    ['1970-01-01T00:00:00.000Z', false],
+    ['1969-12-31T23:59:59.999999999Z', false],
     ['0001-01-01T00:00:00Z', false],
     ['', false],
     ['1', false],
     ['not-a-timestamp', false],
     ['2026-09-30', false],
+    ['2026-09-30T08:01Z', false],
+    ['2026-09-30T08:01:07.1234567891Z', false],
     ['2026-02-30T00:00:00Z', false],
     ['2026-09-30T24:00:00Z', false],
     ['2026-09-30T08:01:07+24:00', false],
@@ -469,17 +478,47 @@ describePosix('managed source-Compose runtime adoption', () => {
     },
   );
 
-  // A listing is read only once every line is a volume name by Docker's own
-  // rule: filtered as it came, a malformed one would hide the gateway store.
+  // A listing is read only once every line is a record with a name, as
+  // Docker's formatter writes it: filtered as it came, a malformed one would
+  // hide the gateway store. `listing` is the host's own, one record per line.
+  const INVALID = 'Docker returned invalid runtime metadata.';
+  const INCOMPLETE = 'Docker volume metadata is incomplete.';
   test.each([
-    ['JSON instead of names', '[{"Name":"tale_llm-gateway-data"}]'],
-    ['a line with a space', 'tale_db-data\ntale_llm-gateway-data extra'],
-    ['a blank line', 'tale_db-data\n\ntale_llm-gateway-data'],
-    ['a leading space', ' tale_llm-gateway-data'],
-    ['a carriage return', 'tale_llm-gateway-data\r'],
-  ])(
+    [
+      'the bare names `{{.Name}}` prints',
+      () => 'tale_db-data\ntale_llm-gateway-data',
+      INVALID,
+    ],
+    ['a truncated record', () => '{"Name":"tale_llm-gateway-data"', INVALID],
+    [
+      'a blank line between records',
+      (listing: string) => listing.replace('\n', '\n\n'),
+      INVALID,
+    ],
+    [
+      'a JSON array of records',
+      () => '[{"Name":"tale_llm-gateway-data"}]',
+      INCOMPLETE,
+    ],
+    ['null', () => 'null', INCOMPLETE],
+    [
+      'a later record without a name',
+      (listing: string) => `${listing}\n{"Driver":"local"}`,
+      INCOMPLETE,
+    ],
+    [
+      'a later record with an empty name',
+      (listing: string) => `${listing}\n{"Driver":"local","Name":""}`,
+      INCOMPLETE,
+    ],
+    [
+      'a later record whose name is not a string',
+      (listing: string) => `${listing}\n{"Driver":"local","Name":7}`,
+      INCOMPLETE,
+    ],
+  ] as const)(
     'a successful volume listing with %s refuses a preview and a rollout before anything changes',
-    async (_name, listing) => {
+    async (_name, answer, message) => {
       const run = await create();
       await run.apply();
       run.docker.calls = [];
@@ -488,26 +527,29 @@ describePosix('managed source-Compose runtime adoption', () => {
           join(run.fixture.options.stateDirectory, '.tale/runtime.json'),
         );
       const before = receiptBytes();
-      run.docker.volumeListing = () => ({
+      run.docker.volumeListing = (listing) => ({
         success: true,
         exitCode: 0,
-        stdout: listing,
+        stdout: answer(listing),
         stderr: '',
       });
       for (const dryRun of [true, false])
-        await expect(run.apply(dryRun)).rejects.toThrow(
-          'Docker returned invalid volume names.',
-        );
+        await expect(run.apply(dryRun)).rejects.toThrow(message);
       expect(mutations(run.docker)).toEqual([]);
       expect(receiptBytes()).toEqual(before);
     },
   );
 
-  test('an empty volume listing and foreign volume names read as they are', async () => {
+  // A name is the volume driver's, so a plugin's is read as it is, however
+  // unlike a local volume's it looks.
+  test('an empty volume listing, and plugin and foreign volume names, read as they are', async () => {
     const fresh = await create();
+    expect((await fresh.apply(true)).gateway.volume).toBe(false);
+    fresh.docker.pluginVolumes.push('foreign/plugin-data', 'x');
     expect((await fresh.apply(true)).gateway.volume).toBe(false);
     const run = await create();
     await run.apply();
+    run.docker.pluginVolumes.push('foreign/plugin-data', 'x');
     run.docker.volumes.push('other-project_llm-gateway-data', 'a'.repeat(64));
     expect((await run.apply(true)).gateway).toMatchObject({
       volume: true,
