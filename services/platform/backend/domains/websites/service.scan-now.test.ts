@@ -20,6 +20,7 @@ vi.mock('../../core/knowledge/crawl.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../core/knowledge/crawl.ts')>()),
   isMemberDomain: vi.fn(),
   registerDomain: vi.fn(async () => undefined),
+  deregisterDomain: vi.fn(async () => undefined),
 }));
 vi.mock('../../core/knowledge/crawl_action.ts', () => ({
   scanWebsiteImpl: vi.fn(async () => null),
@@ -30,7 +31,11 @@ vi.mock('../../lib/org-config.ts', () => ({
   resolveOrgSlug: vi.fn(async () => 'acme'),
 }));
 
-import { isMemberDomain, registerDomain } from '../../core/knowledge/crawl.ts';
+import {
+  deregisterDomain,
+  isMemberDomain,
+  registerDomain,
+} from '../../core/knowledge/crawl.ts';
 import { scanWebsiteImpl } from '../../core/knowledge/crawl_action.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { runWebsitesScan, scanWebsiteNow, type WebsiteRow } from './service.ts';
@@ -175,6 +180,35 @@ describe('runWebsitesScan — a registration that never landed', () => {
 
     expect(registerDomain).not.toHaveBeenCalled();
     expect(scanWebsiteImpl).toHaveBeenCalledTimes(3);
+  });
+
+  // The row read before the registration was deleted while it was written:
+  // the registration would outlive the site.
+  it('releases the registration it wrote when the site was deleted meanwhile', async () => {
+    vi.mocked(isMemberDomain).mockResolvedValue(false);
+    const rows = [row({ scanInterval: '1d' })];
+    const { sql } = fakeSql(rows);
+    vi.mocked(registerDomain).mockImplementationOnce(async () => {
+      // The delete lands while the corpus write is under way.
+      rows.length = 0;
+    });
+
+    await runWebsitesScan(sql, payload);
+
+    expect(deregisterDomain).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      'example.com',
+    );
+  });
+
+  it('keeps the registration it wrote while the site stands', async () => {
+    vi.mocked(isMemberDomain).mockResolvedValue(false);
+
+    await runWebsitesScan(fakeSql([row({ scanInterval: '1d' })]).sql, payload);
+
+    expect(registerDomain).toHaveBeenCalledTimes(1);
+    expect(deregisterDomain).not.toHaveBeenCalled();
   });
 
   it('still scans when the corpus cannot be asked', async () => {

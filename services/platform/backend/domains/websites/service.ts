@@ -1595,6 +1595,18 @@ async function restoreSiteRegistration(
       payload.domain,
       scanIntervalToSeconds(website.scanInterval),
     );
+    // A delete that ran meanwhile has already released the registration it
+    // found: the one just written would outlive the site, its pages still
+    // searchable with nothing left on the page to remove them.
+    const still = await getWebsiteByDomain(
+      sql,
+      payload.organizationId,
+      payload.domain,
+    );
+    if (!still || still.status === 'deleting') {
+      await deregisterDomain(pool, payload.orgSlug, payload.domain);
+      return;
+    }
     console.log(
       `[websites] ${payload.domain}: corpus registration restored before its scan`,
     );
