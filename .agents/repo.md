@@ -67,8 +67,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   numbered `.ts` data migration in the same directory and order, which writes every statement
   itself and imports only pure rules (it runs against the schema at its number, with the newest
   image's code). The real-Postgres proof is
-  `bun run --filter @tale/platform backend:integration` (there is no separate migrations gate or
-  generated registry — filename order is the registry).
+  `bun run --filter @tale/platform backend:integration`, which CI's **Backend integration** check
+  runs against the `tale-db` image built from the change and the CLI's object-store pin (there is
+  no separate migrations gate or generated registry — filename order is the registry).
   Scaffold with `bun run gen:migration` and follow the
   [`create-migration`](skills/create-migration/SKILL.md) skill.
 - **Spend is booked under a person, never a door** — every `app.usage_ledger` write names its
@@ -166,6 +167,16 @@ beside the task; `--force` re-runs it locally. A task whose result depends on an
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
+The **Backend integration** check is always a run: it calls `backend:integration` directly,
+never through turbo, with `ITEST_REQUIRE_ALL_LANES=1`, so a lane that cannot run fails instead of
+skipping. Its **Integration scope** job owes it to every push to `main`, merge group and release
+candidate, and to a pull request that touches the backend, its libraries, either database's
+migrations, the database image, the object-store pin, the dependencies or `checks.yml`; on other
+pull requests the check reads skipped, and when the scope job itself fails the check fails. The
+path list is held to every module the harness imports and every file it reads by
+`services/platform/tests/guards/integration-scope.guard.test.ts`: a new import from outside the
+list fails that guard until the list names it.
+
 Turbo's default source inputs cover a task's own workspace. A task that reads a file outside
 it lists the file in its workspace's `turbo.json` `inputs`; otherwise an edit to that file
 alone replays the cached verdict. Open the list with `$TURBO_EXTENDS$` (keeps the root task's
@@ -174,8 +185,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
-  knowledge-db migrations, `packages/ui/src` (two suites read it as text) and other outside
-  files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
+  knowledge-db migrations, `packages/ui/src` (two suites read it as text), `checks.yml` (the
+  integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
   component suites render it, and all three list `@tale/ui`'s `package.json` and every file
   it exports from outside `src/` (`tailwind-preset.ts`). Its guard is
   `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
@@ -183,8 +194,10 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
-  pages; the three CI files `scripts/deployment-ci.test.ts` checks: the `build.yml` and
-  `cleanup-pr-images.yml` workflows and the `setup-cli` action; the files the compose parity
+  pages; the CI files `scripts/deployment-ci.test.ts` and the candidate graph suite
+  (`scripts/release-candidate-workflows.test.ts`) check: the `build.yml`, `checks.yml`,
+  `cleanup-pr-images.yml`, `commitlint.yml`, `e2e.yml`, `sast.yml`, `security.yml` and both
+  `release-candidate-*` workflows and the `setup-cli` action; the files the compose parity
   suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the

@@ -24,10 +24,10 @@
  * change to the leg's SQL surfaces here instead of passing against a stale
  * stand-in.
  *
- * The real-database counterpart is narrower, and not a CI job: the
- * `checkChatConversationSearchLeg` lane of the local `backend:integration`
- * run proves the subject, body and contact matches and the admin / own-row
- * member / stranger split on the live schema.
+ * The real-database counterpart is narrower: the
+ * `checkChatConversationSearchLeg` lane of `backend:integration` (the
+ * Backend integration check) proves the subject, body and contact matches
+ * and the admin / own-row member / stranger split on the live schema.
  */
 
 import type { Sql } from 'postgres';

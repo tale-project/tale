@@ -7,6 +7,7 @@
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/.env.example",
+        "$TURBO_ROOT$/.github/workflows/checks.yml",
         "$TURBO_ROOT$/compose.yml",
         "$TURBO_ROOT$/compose.dev.yml",
         "$TURBO_ROOT$/configs/platform/**",

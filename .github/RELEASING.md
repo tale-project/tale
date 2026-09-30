@@ -66,7 +66,11 @@ eight `candidate-sha-<sha>` images, records each pushed digest, and tests those 
 checking their revision labels. It also runs the web, docs, ui-docs and ai-gateway container tests
 and Storybook. Candidate images remain in GHCR. Build's advisory image Trivy job stays skipped;
 SAST's Opengrep and Security's high/critical dependency and filesystem checks remain blocking.
-Candidate scans do not upload SARIF attributed to H.
+Candidate scans do not upload SARIF attributed to H. Checks' **Integration scope** likewise owes
+**Backend integration** (the real-Postgres suite against `tale-db` built from C) to every candidate,
+whatever its last commit touched. A few of its lanes still reach real vendors (Anthropic, the
+OpenRouter and Vercel AI Gateway catalogs, public DNS); when one of them fails on a vendor outage,
+re-run the job once the vendor answers. Never waive it.
 
 Each workflow's final **Candidate gate** records the results of every required dependency and
 fails if any is missing, failed, skipped or cancelled. Build's gate is a normal job; the other
