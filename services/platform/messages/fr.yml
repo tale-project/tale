@@ -2458,6 +2458,18 @@ documents:
       Configure-la dans Paramètres > Connectors > Apps OAuth, puis reviens te
       connecter.
     openConnectorSettings: Ouvrir les paramètres des connectors
+    importedPartial: '{imported} sur {total} fichiers importés'
+    syncedPartial: '{imported} sur {total} fichiers synchronisés'
+    failedFileDetail: '{name} : {reason}'
+    importInterrupted: >-
+      L’accès à ton compte {provider} a pris fin pendant l’importation.
+      {imported, plural, =0 {Aucun fichier n’a été importé.} one {# fichier
+      sur {total} a été importé et reste en place.} other {# fichiers sur
+      {total} ont été importés et restent en place.}}
+    reconnectToImportRest: >-
+      Reconnecte ton compte, puis importe à nouveau les mêmes fichiers ou
+      dossiers pour récupérer le reste. Les fichiers déjà importés ne sont
+      pas importés une seconde fois.
   onedrive:
     importSettings: Paramètres d'importation
     settingsDescription:
@@ -2476,6 +2488,7 @@ documents:
     redirecting: Redirection…
     folderEmpty: Ce dossier est vide.
     loadFailed: Échec du chargement des éléments
+    noFilesSelected: Aucun fichier importable dans la sélection
     listingTruncated: >-
       Affiche les {count} premiers éléments — ce dossier en contient
       davantage. Ouvre un sous-dossier ou lance une recherche pour atteindre

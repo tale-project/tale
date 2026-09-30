@@ -14,6 +14,7 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
 import { useCloudImportAuthorizationStatus } from '../hooks/queries';
+import type { CloudImportInterruption } from '../lib/cloud-import-outcome';
 import { CloudImportConnectDialog } from './cloud-import-connect-dialog';
 import { CreateFolderDialog } from './create-folder-dialog';
 
@@ -83,6 +84,14 @@ export function DocumentsActionMenu({
   const [isOneDriveConnectOpen, setIsOneDriveConnectOpen] = useState(false);
   const [isGoogleDriveConnectOpen, setIsGoogleDriveConnectOpen] =
     useState(false);
+  // An import that access ended part-way: the connect dialog says how many
+  // files came in before it. Cleared whenever that dialog closes.
+  const [oneDriveInterruption, setOneDriveInterruption] = useState<
+    CloudImportInterruption | undefined
+  >(undefined);
+  const [googleDriveInterruption, setGoogleDriveInterruption] = useState<
+    CloudImportInterruption | undefined
+  >(undefined);
 
   // Menu click while auth status is still loading — resolve once the query
   // settles so we open connect vs picker without guessing.
@@ -140,15 +149,33 @@ export function DocumentsActionMenu({
     openGoogleDriveFlow();
   }, [googleAuthLoading, openGoogleDriveFlow]);
 
-  const handleOneDriveDisconnected = useCallback(() => {
-    setIsOneDriveImportOpen(false);
-    setIsOneDriveConnectOpen(true);
-  }, [setIsOneDriveImportOpen]);
+  const handleOneDriveDisconnected = useCallback(
+    (interruption?: CloudImportInterruption) => {
+      setOneDriveInterruption(interruption);
+      setIsOneDriveImportOpen(false);
+      setIsOneDriveConnectOpen(true);
+    },
+    [setIsOneDriveImportOpen],
+  );
 
-  const handleGoogleDriveDisconnected = useCallback(() => {
-    setIsGoogleDriveImportOpen(false);
-    setIsGoogleDriveConnectOpen(true);
-  }, [setIsGoogleDriveImportOpen]);
+  const handleGoogleDriveDisconnected = useCallback(
+    (interruption?: CloudImportInterruption) => {
+      setGoogleDriveInterruption(interruption);
+      setIsGoogleDriveImportOpen(false);
+      setIsGoogleDriveConnectOpen(true);
+    },
+    [setIsGoogleDriveImportOpen],
+  );
+
+  const handleOneDriveConnectOpenChange = useCallback((open: boolean) => {
+    setIsOneDriveConnectOpen(open);
+    if (!open) setOneDriveInterruption(undefined);
+  }, []);
+
+  const handleGoogleDriveConnectOpenChange = useCallback((open: boolean) => {
+    setIsGoogleDriveConnectOpen(open);
+    if (!open) setGoogleDriveInterruption(undefined);
+  }, []);
 
   const handleCreateFolder = useCallback(() => {
     setIsCreateFolderOpen(true);
@@ -212,8 +239,9 @@ export function DocumentsActionMenu({
         <CloudImportConnectDialog
           restoreFocusRef={triggerRef}
           open={isOneDriveConnectOpen}
-          onOpenChange={setIsOneDriveConnectOpen}
+          onOpenChange={handleOneDriveConnectOpenChange}
           provider="onedrive"
+          interruption={oneDriveInterruption}
         />
       )}
 
@@ -221,8 +249,9 @@ export function DocumentsActionMenu({
         <CloudImportConnectDialog
           restoreFocusRef={triggerRef}
           open={isGoogleDriveConnectOpen}
-          onOpenChange={setIsGoogleDriveConnectOpen}
+          onOpenChange={handleGoogleDriveConnectOpenChange}
           provider="google-drive"
+          interruption={googleDriveInterruption}
         />
       )}
 

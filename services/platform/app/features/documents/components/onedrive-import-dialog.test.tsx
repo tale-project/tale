@@ -29,8 +29,11 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
+// A toast hands back its handle, as the real one does: the dialog dismisses
+// its "Import started" notice when the import ends in the connect dialog.
+const toastHandle = vi.hoisted(() => ({ dismiss: () => {} }));
 vi.mock('@tale/ui/use-toast', () => ({
-  toast: vi.fn(),
+  toast: vi.fn(() => ({ id: 'toast-1', update: () => {}, ...toastHandle })),
 }));
 
 vi.mock('@tale/ui/use-format-date', () => ({
@@ -204,21 +207,74 @@ describe('OneDriveImportDialog', () => {
     });
   });
 
-  // The import's own `error` is the backend's English — the grant check's
-  // sentence when the token could not be had.
-  it("keeps an unsuccessful import answer's own words out of the toast", async () => {
+  // The grant check's sentence on the answer: access ended part-way. The
+  // connect dialog says so, with the count — no toast, and the "Import
+  // started" notice is taken down.
+  it('hands an import the grant stopped to the connect dialog, with no toast', async () => {
+    const dismiss = vi.spyOn(toastHandle, 'dismiss');
     mockImportFiles.mockResolvedValueOnce({
       success: false,
-      results: [],
-      totalFiles: 0,
-      successCount: 0,
+      results: [
+        { fileId: 'file-1', fileName: 'notes.docx', status: 'success' },
+      ],
+      totalFiles: 2,
+      successCount: 1,
       failedCount: 0,
       skippedCount: 0,
       error:
         'OneDrive is not authorized for importing. Connect Microsoft 365 from Documents.',
     });
+    const onRequireConnect = vi.fn();
+    const onOpenChange = vi.fn();
     const user = userEvent.setup();
-    render(<OneDriveImportDialog {...defaultProps} />);
+    render(
+      <OneDriveImportDialog
+        {...defaultProps}
+        onOpenChange={onOpenChange}
+        onRequireConnect={onRequireConnect}
+      />,
+    );
+
+    await user.click(meetingsCheckbox());
+    await user.click(
+      screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    );
+
+    await waitFor(() =>
+      expect(onRequireConnect).toHaveBeenCalledWith({ imported: 1, total: 2 }),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(vi.mocked(toast).mock.calls.map(([shown]) => shown.title)).toEqual([
+      'documents.onedrive.importStarted',
+    ]);
+    expect(dismiss).toHaveBeenCalled();
+    dismiss.mockRestore();
+  });
+
+  // Any other `error` on the answer is the backend's own English (a token
+  // refresh the provider could not answer): the toast keeps the counts.
+  it("keeps an unsuccessful import answer's own words out of the toast", async () => {
+    mockImportFiles.mockResolvedValueOnce({
+      success: false,
+      results: [],
+      totalFiles: 2,
+      successCount: 0,
+      failedCount: 0,
+      skippedCount: 0,
+      error:
+        'Cloud authorization could not be refreshed right now (HTTP 503) — the next sync retries',
+    });
+    const onRequireConnect = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <OneDriveImportDialog
+        {...defaultProps}
+        onRequireConnect={onRequireConnect}
+      />,
+    );
 
     await user.click(meetingsCheckbox());
     await user.click(
@@ -232,9 +288,39 @@ describe('OneDriveImportDialog', () => {
       expect(toast).toHaveBeenCalledWith({
         variant: 'destructive',
         title: 'documents.onedrive.importFailed',
-        description: 'common.errors.generic',
+        description: 'documents.onedrive.filesImportedCount',
       }),
     );
+    expect(onRequireConnect).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(toast).mock.calls)).not.toContain(
+      'HTTP 503',
+    );
+  });
+
+  // An empty folder used to send an empty list, which the door refused in
+  // zod's English ("items: Too small: …") after an "Importing 0 items".
+  it('says there is nothing to import in a selection of empty folders', async () => {
+    mockListFiles.mockResolvedValue({ success: true, items: [] });
+    const user = userEvent.setup();
+    render(<OneDriveImportDialog {...defaultProps} />);
+
+    await user.click(meetingsCheckbox());
+    await user.click(
+      screen.getByRole('button', { name: 'documents.onedrive.importCount' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: /documents\.onedrive\.importItems/ }),
+    );
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        title: 'documents.onedrive.importFailed',
+        description: 'documents.onedrive.noFilesSelected',
+        variant: 'destructive',
+      }),
+    );
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(mockImportFiles).not.toHaveBeenCalled();
   });
 
   it('says when the shown folder holds more than the listing bound', () => {

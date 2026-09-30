@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 60 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -587,7 +587,11 @@ records and delete them after.
   picker stays open. Unblock and reopen → the files list. The same with
   Google Drive connected, `*/api/app/google-drive/list-files*` and **From
   Google Drive** (`documents.upload.fromGoogleDrive`) →
-  `documents.googledrive.loadFailed`.
+  `documents.googledrive.loadFailed`. With the picker open, remove Tale's
+  access in the Google Account's third-party access settings, then open
+  another folder → the picker closes and **Connect Google Drive**
+  (`documents.googledrive.notConnected`) opens, with no toast — never
+  **Couldn't load items**.
 - [ ] `KNOW-B17` · **A library that cannot load says so** — With more than
   20 knowledge entries, block `*/api/app/knowledge-entries?limit=*` in
   DevTools (Network → request blocking) and reload **Knowledge entries** →
@@ -614,6 +618,47 @@ records and delete them after.
   appears. An entry never edited reads
   `knowledgeEntries.viewDialog.historyEmpty`; while the read runs, the
   section reads `knowledgeEntries.viewDialog.historyLoading`.
+- [ ] `KNOW-B19` · **Access that ends mid-import lands in the connect
+  dialog** — With Microsoft 365 connected and a OneDrive folder of 40 or so
+  small files: **Documents** → **Upload documents** → **From Microsoft 365**
+  (`documents.upload.fromMicrosoft365`) → select the folder → **Import (1)**
+  (`documents.onedrive.importCount`) → **Import 1 item**
+  (`documents.onedrive.importItems`); while **Import started**
+  (`documents.onedrive.importStarted`) shows, open the same picker in a
+  second tab and choose **Disconnect Microsoft 365**
+  (`documents.onedrive.disconnect`) → back in the first tab the picker closes
+  and **Reconnect Microsoft 365** (`documents.onedrive.reconnect`) opens:
+  its first line (`documents.cloudImport.importInterrupted`) says that
+  access ended during the import and how many of the files were imported
+  (**N of M files were imported and are kept.**), the second
+  (`documents.cloudImport.reconnectToImportRest`) says to reconnect and
+  import the same files again; no toast — the **Import started** notice is
+  gone and no **Import failed** follows. Close it → the library shows those
+  N files. Reconnect, select the same folder again and import → **Import
+  completed** (`documents.onedrive.importCompleted`) reads **M of M files
+  imported**, and each file is in the library once. Disconnect again after
+  selecting the folder but before choosing **Import 1 item** → the same
+  dialog reads **No files were imported.** The same with Google Drive
+  (**Disconnect Google Drive**, **Reconnect Google Drive**). Repeat in German
+  and French: both sentences read in the page's language.
+- [ ] `KNOW-B20` · **A partial import says so in one warning** — With
+  Microsoft 365 connected and a OneDrive folder holding two small files and
+  one over 512 MiB (a video, a disk image): import the folder → after
+  **Import started**, one amber warning toast, not a red one, titled
+  **Imported 2 of 3 files** (`documents.cloudImport.importedPartial`) whose
+  line names the large file beside the size cap's sentence
+  (`documents.cloudImport.failedFileDetail`: `<name>: The file is … bytes;
+  the limit is 512 MiB`, or `The file exceeds the 512 MiB limit`);
+  the picker stays on its settings step and the two small files are in the
+  library. Replace the large file with an empty one and import again → the
+  same title with no second line (an empty file fails as a fault, which
+  has no words), and never a provider's text such as `Failed to download
+  file: …`. A folder holding only the large file → a red **Import failed**
+  (`documents.onedrive.importFailed`) with the size line; one holding only
+  the empty file → **Import failed** with **0 of 1 files imported**
+  (`documents.onedrive.filesImportedCount`). The same with Google Drive, and
+  in German and French: the titles read in the page's language, the size
+  sentence stays the door's own.
 
 ## Accessibility (WCAG 2.1 AA)
 
