@@ -195,8 +195,9 @@ const PLAYWRIGHT_VISION_ARGS = ['--image-responses', 'omit'] as const;
 const BRIDGE_MCP_COMMAND = 'tale-connectors-mcp';
 
 /** How long a CLI lets one bridge call run, in seconds, where its own
- * default is shorter. Codex and OpenClaw give up on an MCP call after 60 s
- * by default, without counting the bridge's progress reports, and a
+ * default is shorter. Codex, OpenClaw and OpenCode give up on an MCP call
+ * after 60 s by default, without counting the bridge's progress reports
+ * (OpenCode would reset its timer on progress, but asks for none), and a
  * platform-side image generation can take minutes; this sits just past the
  * bridge's own bound for its longest tool (300 s), so the bridge's timeout
  * sentence — not the CLI's — reaches the agent. Every other bridge call keeps

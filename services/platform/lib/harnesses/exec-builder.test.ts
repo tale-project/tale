@@ -276,23 +276,37 @@ describe('optional headless browser execution', () => {
 describe("a CLI waits for the bridge's longest tool", () => {
   const BRIDGE = { bridgeUrl: 'http://platform.internal/bridge' };
 
-  // Codex and OpenClaw give up on an MCP call after 60 s and ignore the
-  // bridge's progress reports; an image generation may take up to 300 s.
-  // Every other MCP-capable CLI already waits longer, or counts progress.
-  it.each([
-    ['codex', 'mcp_servers.connectors.tool_timeout_sec=330'],
-    ['openclaw', '"requestTimeoutMs":330000'],
-  ])('%s is told to wait past the bridge bound', (slug, needle) => {
-    const exec = buildHarnessExec(fact(slug), managedSpec({ mcp: BRIDGE }));
-    expect(execCarries(exec, needle)).toBe(true);
-  });
+  // Codex, OpenClaw and OpenCode give up on an MCP call after 60 s, and no
+  // progress report from the bridge keeps the call alive (OpenCode would
+  // count one, but sends no progress token to report against); an image
+  // generation may take up to 300 s. Every other MCP-capable CLI already
+  // waits longer, or counts progress.
+  const BOUNDED: Readonly<Record<string, string>> = {
+    codex: 'mcp_servers.connectors.tool_timeout_sec=330',
+    openclaw: '"requestTimeoutMs":330000',
+    opencode: '"timeout":330000',
+  };
+
+  it.each(Object.entries(BOUNDED))(
+    '%s is told to wait past the bridge bound',
+    (slug, needle) => {
+      const exec = buildHarnessExec(fact(slug), managedSpec({ mcp: BRIDGE }));
+      expect(execCarries(exec, needle)).toBe(true);
+    },
+  );
 
   it('adds no timeout to a CLI whose own default already waits', () => {
     for (const harness of loadHarnesses()) {
       if (!harness.capabilities.mcp) continue;
-      if (harness.slug === 'codex' || harness.slug === 'openclaw') continue;
+      if (harness.slug in BOUNDED) continue;
       const exec = buildHarnessExec(harness, managedSpec({ mcp: BRIDGE }));
-      expect(execCarries(exec, 'requestTimeoutMs'), harness.slug).toBe(false);
+      for (const form of [
+        'tool_timeout_sec',
+        'requestTimeoutMs',
+        '"timeout":330',
+      ]) {
+        expect(execCarries(exec, form), `${harness.slug} ${form}`).toBe(false);
+      }
     }
   });
 
