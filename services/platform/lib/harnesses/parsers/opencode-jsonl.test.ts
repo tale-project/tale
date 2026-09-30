@@ -64,10 +64,12 @@ describe('opencode-jsonl parser', () => {
         status: 'completed',
         sessionId: 'ses_xyz',
         finalText: 'Opening the PR.',
+        // The turn is both steps, cache included: (900 + 500) + (1100 +
+        // 800) in, (40 + 10 reasoning) + 55 out, 0.0042 + 0.0061 USD.
         usageTotals: {
-          inputTokens: 1100,
-          outputTokens: 55,
-          costEstimateUsd: 0.0061,
+          inputTokens: 3300,
+          outputTokens: 105,
+          costEstimateUsd: expect.closeTo(0.0103, 10),
         },
       },
     ]);

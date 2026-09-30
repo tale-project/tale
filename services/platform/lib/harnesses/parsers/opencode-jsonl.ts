@@ -11,7 +11,8 @@
 //   { type: "error", error: { name, data: { message } } }
 //
 // The first event carrying a sessionID seeds `turn-started`; the terminal
-// `step_finish` with reason "stop" is the run's accounting + result record.
+// `step_finish` with reason "stop" is the result record, and the turn's
+// accounting is the sum of every `step_finish` (one per model call).
 
 import {
   asNumber,
@@ -33,6 +34,12 @@ class OpenCodeJsonlParser implements HarnessEventParser {
   /** The CLI usually emits only a completed tool part; a running phase is
    * optional. Every result still needs one named call in the transcript. */
   private readonly toolStarted = new Set<string>();
+  /** The turn's totals so far. Every step (one model call) finishes with
+   * its own counts, so the turn's are their sum — the terminal step alone
+   * is only the last call. */
+  private turnInput = 0;
+  private turnOutput = 0;
+  private turnCostUsd: number | undefined;
 
   constructor(private readonly slug: HarnessSlug) {}
 
@@ -118,16 +125,27 @@ class OpenCodeJsonlParser implements HarnessEventParser {
       const tokens = asRecord(part?.tokens);
       const cache = asRecord(tokens?.cache);
       const costUsd = typeof part?.cost === 'number' ? part.cost : undefined;
+      const inputTokens = asNumber(tokens?.input) ?? 0;
+      const cacheReadTokens = asNumber(cache?.read) ?? 0;
+      const cacheWriteTokens = asNumber(cache?.write) ?? 0;
+      // Reasoning tokens are billed output — fold them in.
+      const outputTokens =
+        (asNumber(tokens?.output) ?? 0) + (asNumber(tokens?.reasoning) ?? 0);
       events.push({
         type: 'usage',
-        inputTokens: asNumber(tokens?.input) ?? 0,
-        // Reasoning tokens are billed output — fold them in.
-        outputTokens:
-          (asNumber(tokens?.output) ?? 0) + (asNumber(tokens?.reasoning) ?? 0),
-        cacheReadTokens: asNumber(cache?.read) ?? 0,
-        cacheWriteTokens: asNumber(cache?.write) ?? 0,
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
         ...(costUsd !== undefined ? { costEstimateUsd: costUsd } : {}),
       });
+      // OpenCode's `input` is the uncached remainder (1.17.3 reports a
+      // 1000-token prompt with 400 cached as input 600, cache read 400).
+      this.turnInput += inputTokens + cacheReadTokens + cacheWriteTokens;
+      this.turnOutput += outputTokens;
+      if (costUsd !== undefined) {
+        this.turnCostUsd = (this.turnCostUsd ?? 0) + costUsd;
+      }
       if (asString(part?.reason) === 'stop') {
         const result: HarnessEvent = {
           type: 'turn-ended',
@@ -135,13 +153,11 @@ class OpenCodeJsonlParser implements HarnessEventParser {
         };
         if (this.sessionId) result.sessionId = this.sessionId;
         if (this.lastText) result.finalText = this.lastText;
-        if (costUsd !== undefined) {
+        if (this.turnCostUsd !== undefined) {
           result.usageTotals = {
-            inputTokens: asNumber(tokens?.input) ?? 0,
-            outputTokens:
-              (asNumber(tokens?.output) ?? 0) +
-              (asNumber(tokens?.reasoning) ?? 0),
-            costEstimateUsd: costUsd,
+            inputTokens: this.turnInput,
+            outputTokens: this.turnOutput,
+            costEstimateUsd: this.turnCostUsd,
           };
         }
         events.push(result);

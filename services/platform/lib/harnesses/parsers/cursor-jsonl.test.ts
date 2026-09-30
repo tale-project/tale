@@ -68,7 +68,8 @@ describe('cursor-jsonl parser', () => {
       isError: false,
       sessionId: 'cur_ses_abc',
       finalText: 'Opening the PR.',
-      usageTotals: { inputTokens: 8107, outputTokens: 102 },
+      // The turn's input counts the cached tokens as well: 8107 + 20160.
+      usageTotals: { inputTokens: 28267, outputTokens: 102 },
     });
   });
 

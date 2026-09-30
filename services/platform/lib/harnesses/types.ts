@@ -294,9 +294,12 @@ export type HarnessEvent =
       sessionId?: string;
       finalText?: string;
       durationMs?: number;
-      /** The turn's token totals as the harness reports them, where it does.
-       * The usage ledger books them, and `classifyHarnessEnd` reads their
-       * output tokens as model output. */
+      /** The turn's token totals as the harness reports them, where it does:
+       * every model call of the turn summed, and `inputTokens` counting all
+       * of their input — the uncached part, cache reads and cache writes
+       * alike, the way the chat lane books a turn. The usage ledger books
+       * them, and `classifyHarnessEnd` reads their output tokens as model
+       * output. */
       usageTotals?: Pick<
         HarnessUsage,
         'inputTokens' | 'outputTokens' | 'costEstimateUsd'
