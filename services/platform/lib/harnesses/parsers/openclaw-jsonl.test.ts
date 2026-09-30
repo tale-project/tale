@@ -37,6 +37,8 @@ describe('openclaw-jsonl parser', () => {
         sessionId: SESSION,
         finalText: 'Hello from the mock model! Nothing else to do.',
         durationMs: 1295,
+        // The run's usage record is its totals: the ledger books them.
+        usageTotals: { inputTokens: 128, outputTokens: 12 },
       },
     ]);
   });
@@ -48,7 +50,7 @@ describe('openclaw-jsonl parser', () => {
     );
   });
 
-  it('maps an errored run_end and keeps cache-token detail on usage', () => {
+  it('maps an errored run_end and books the cache tokens in its totals', () => {
     const text = `${[
       { type: 'run_start', session_id: 'oc-1' },
       { type: 'usage', input: 10, output: 5, cache_read: 3, cache_write: 2 },
@@ -73,6 +75,8 @@ describe('openclaw-jsonl parser', () => {
       status: 'error',
       sessionId: 'oc-1',
       isError: true,
+      // `input` is only the uncached part: 10 + 3 read + 2 written.
+      usageTotals: { inputTokens: 15, outputTokens: 5 },
     });
   });
 
