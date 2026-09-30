@@ -1,7 +1,7 @@
 /**
  * The harness's stand-in for the vendors a `backend:integration` run would
- * otherwise reach, so the check depends on nothing off the box but the
- * database and the object store it starts itself.
+ * otherwise reach: with it, the suite's HTTP needs nothing off the box but
+ * the object store the run is given.
  *
  * Three lanes used to go out to real vendors. Every model resolution walks
  * the shipped connectors, and two of them list their catalogs live:

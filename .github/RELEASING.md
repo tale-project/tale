@@ -68,11 +68,10 @@ and Storybook. Candidate images remain in GHCR. Build's advisory image Trivy job
 SAST's Opengrep and Security's high/critical dependency and filesystem checks remain blocking.
 Candidate scans do not upload SARIF attributed to H. Checks' **Integration scope** likewise owes
 **Backend integration** (the real-Postgres suite against `tale-db` built from C) to every candidate,
-whatever its last commit touched. Its suite reaches nothing off the runner but the database and
-object store the job starts: the harness answers its lanes' vendor calls itself and refuses any other
-host, so no vendor outage can fail a check. The job's setup still pulls from registries and mirrors
-(the images, the ffmpeg install); re-run a setup step that fails on their outage. Never waive a
-failed check.
+whatever its last commit touched. The harness keeps its suite's HTTP on the runner: it answers the
+lanes' vendor calls itself and refuses any other host, a redirect's next hop included, so no vendor
+outage can fail a check. The job's setup still pulls from registries and mirrors (the images, the
+ffmpeg install); re-run a setup step that fails on their outage. Never waive a failed check.
 
 Each workflow's final **Candidate gate** records the results of every required dependency and
 fails if any is missing, failed, skipped or cancelled. Build's gate is a normal job; the other
