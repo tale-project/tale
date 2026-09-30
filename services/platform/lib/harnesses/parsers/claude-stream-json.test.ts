@@ -380,6 +380,51 @@ describe('claude-stream-json parser', () => {
     ]);
   });
 
+  it.each([
+    [
+      // Anthropic's split, as Claude Code reports it: `input_tokens` is
+      // only the uncached remainder, so cache reads and writes add up to the
+      // turn's input (a live Haiku turn read 81 input tokens for 13 cents).
+      'claude-code',
+      {
+        input_tokens: 81,
+        cache_read_input_tokens: 20_000,
+        cache_creation_input_tokens: 90_000,
+        output_tokens: 3_965,
+      },
+      110_081,
+    ],
+    [
+      // Qwen Code's `input_tokens` is its whole prompt count already; its
+      // cache reads are a share of it and must not count twice.
+      'qwen-code',
+      {
+        input_tokens: 86_141,
+        cache_read_input_tokens: 40_000,
+        output_tokens: 866,
+      },
+      86_141,
+    ],
+  ] as const)(
+    'books every input token of a %s turn once',
+    (slug, usage, inputTokens) => {
+      const events = collectEvents(
+        createParser(slug),
+        JSON.stringify({
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: 'Done.',
+          usage,
+        }),
+      );
+      expect(events.at(-1)).toMatchObject({
+        type: 'turn-ended',
+        usageTotals: { inputTokens, outputTokens: usage.output_tokens },
+      });
+    },
+  );
+
   it('refuses the Qwen CLI authentication error reported as a successful zero-token reply', () => {
     // Pinned Qwen 0.23.3, real HTTP 401 against an isolated gateway:
     // the process exits 0 and both success flags are wrong.

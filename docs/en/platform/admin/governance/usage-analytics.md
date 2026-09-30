@@ -24,7 +24,7 @@ Assistant names can include supporting work such as chat-title generation. A req
 
 ## Read cost alongside tokens
 
-The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice output or image generation may have different billing units. A token total alone cannot explain every cost.
+The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice output or image generation may have different billing units. A token total alone cannot explain every cost. Input tokens include the part of a prompt that a provider read from or wrote to its cache. That part is priced differently from other input, so a run that reuses a long prompt can show many input tokens for a small cost.
 
 An image an agent generated appears under its image model in **Top models** and under the agent or automation in **Top assistants**, as one request per image and without tokens. Its cost is the charge OpenRouter reported, or for OpenAI the list price of the image tokens OpenAI reported. A request the provider billed without returning a usable image counts the same way.
 

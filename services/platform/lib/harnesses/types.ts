@@ -294,9 +294,14 @@ export type HarnessEvent =
       sessionId?: string;
       finalText?: string;
       durationMs?: number;
-      /** The turn's token totals as the harness reports them, where it does.
-       * The usage ledger books them, and `classifyHarnessEnd` reads their
-       * output tokens as model output. */
+      /** The turn's token totals as the harness reports them, where it does,
+       * with `inputTokens` counting all input — the uncached part, cache
+       * reads and cache writes alike, the way the chat lane books a turn. A
+       * CLI's own turn totals are taken as they are; a parser that sums the
+       * turn's model calls itself (OpenCode, Pi) sums the calls its drain
+       * window replays, and a window replays only the last 256 KB of output
+       * (see the contract debt ledger). The usage ledger books them, and
+       * `classifyHarnessEnd` reads their output tokens as model output. */
       usageTotals?: Pick<
         HarnessUsage,
         'inputTokens' | 'outputTokens' | 'costEstimateUsd'

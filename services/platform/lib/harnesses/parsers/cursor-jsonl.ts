@@ -223,7 +223,16 @@ class CursorJsonlParser implements HarnessEventParser {
       if (this.sessionId) result.sessionId = this.sessionId;
       if (resultText) result.finalText = resultText;
       if (usage && hasUsage) {
-        result.usageTotals = { inputTokens, outputTokens };
+        // `inputTokens` is only the uncached remainder: a captured turn
+        // reads 20160 cached tokens beside 8107 input ones, more than any
+        // share of them could be. The turn's input adds the cache back.
+        result.usageTotals = {
+          inputTokens:
+            inputTokens +
+            (asNumber(usage.cacheReadTokens) ?? 0) +
+            (asNumber(usage.cacheWriteTokens) ?? 0),
+          outputTokens,
+        };
       }
       events.push(result);
       return events;

@@ -137,6 +137,40 @@ describe('pi-jsonl parser', () => {
     ]);
   });
 
+  it("books every message's cache reads and writes in the turn's input", () => {
+    // pi-ai's `input` is only the uncached remainder of each call.
+    const events = collectEvents(
+      createParser('pi'),
+      ndjson([
+        { type: 'session', version: 3, id: 'pi-cache' },
+        {
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: [],
+            stopReason: 'toolUse',
+            usage: { input: 30, output: 5, cacheRead: 0, cacheWrite: 900 },
+          },
+        },
+        {
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'done' }],
+            stopReason: 'stop',
+            usage: { input: 40, output: 7, cacheRead: 900, cacheWrite: 60 },
+          },
+        },
+        { type: 'agent_end', messages: [] },
+      ]),
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn-ended',
+      status: 'completed',
+      usageTotals: { inputTokens: 30 + 900 + 40 + 900 + 60, outputTokens: 12 },
+    });
+  });
+
   it('finalizes as an error when the retry loop reports failure', () => {
     const events = collectEvents(
       createParser('pi'),
