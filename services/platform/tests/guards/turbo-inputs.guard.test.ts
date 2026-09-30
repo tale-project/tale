@@ -126,6 +126,11 @@ const OUTSIDE_READS = [
     readers: 'backend/core/node_only/sandbox/gateway_setup_token.test.ts',
   },
   {
+    // Its engine install RUN, run under /bin/sh with recording doubles.
+    path: 'services/sandbox-runtime/Dockerfile',
+    readers: 'tests/guards/dockerfile-fail-closed.guard.test.ts',
+  },
+  {
     path: 'services/sandbox/src/config.ts',
     readers: 'scripts/dev-sandbox-runtime.test.ts',
   },
