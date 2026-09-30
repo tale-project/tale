@@ -36,6 +36,7 @@ import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
+import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
@@ -114,6 +115,7 @@ import { checkImportCursorContinuation } from './domains/tasks/import-cursors.in
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
+import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
@@ -130,6 +132,7 @@ import {
 } from './integration-lane-helpers.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
+import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
@@ -32865,7 +32868,7 @@ async function checkWebsitesCrawl(
   const site = new Map<
     string,
     {
-      body: string;
+      body: string | Uint8Array<ArrayBuffer>;
       type: string;
       status?: number;
       headers?: Record<string, string>;
@@ -33230,6 +33233,65 @@ async function checkWebsitesCrawl(
         pagesAfterRevival.success &&
         pagesAfterRevival.data.total === 3,
       `b=${bRevived[0]?.status ?? 'MISSING'}/active fail=${bRevived[0]?.failCount ?? '?'}/0 chunks=${bRevived[0]?.chunks ?? '0'}>=1, pages=${pagesAfterRevival.success ? pagesAfterRevival.data.total : 'ERR'}/3`,
+    );
+
+    // 2c. The bench expires (2026-09-30). A discovered page that failed five
+    //     scans in a row is left alone — for a week; then one scan probes it
+    //     again, and a page that is back re-indexes with its row cleared.
+    //     Before, five scans with the render sandbox's proxy refusing every
+    //     tunnel benched a whole site for good, and fixing the proxy revived
+    //     nothing short of deleting and re-adding the website.
+    const benchedUrl = `https://${DOMAIN}/docs/b.txt`;
+    await pool`
+      UPDATE public_web.website_urls
+         SET fail_count = 5, last_crawled_at = now() - interval '2 days',
+             last_error = 'itest: benched', last_error_kind = 'render_failed',
+             last_error_at = now() - interval '2 days'
+       WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const benchedRowQuery = () => pool<
+      {
+        status: string;
+        failCount: number;
+        lastError: string | null;
+        crawledDaysAgo: number;
+      }[]
+    >`
+      SELECT status, fail_count AS "failCount", last_error AS "lastError",
+             (extract(epoch FROM now() - last_crawled_at) / 86400)::float8
+               AS "crawledDaysAgo"
+      FROM public_web.website_urls
+      WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    const stillBenched = await benchedRowQuery();
+    await pool`
+      UPDATE public_web.website_urls
+         SET last_crawled_at = now() - interval '8 days'
+       WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const amnestied = await benchedRowQuery();
+    record(
+      'websites revival: a page benched after five failures waits a week, then one scan probes it again',
+      stillBenched[0]?.failCount === 5 &&
+        stillBenched[0].lastError === 'itest: benched' &&
+        stillBenched[0].crawledDaysAgo > 1.5 &&
+        amnestied[0]?.status === 'active' &&
+        amnestied[0].failCount === 0 &&
+        amnestied[0].lastError === null &&
+        amnestied[0].crawledDaysAgo < 0.5,
+      `benched 2 days ago: fail=${stillBenched[0]?.failCount ?? '?'}/5 error=${stillBenched[0]?.lastError ?? 'null'} probed=${stillBenched[0] ? stillBenched[0].crawledDaysAgo < 0.5 : '?'}/false; benched 8 days ago: ${amnestied[0]?.status ?? 'MISSING'}/active fail=${amnestied[0]?.failCount ?? '?'}/0 error=${amnestied[0]?.lastError ?? 'null'}/null probed=${amnestied[0] ? amnestied[0].crawledDaysAgo < 0.5 : '?'}/true`,
     );
 
     // 3. The failure ledger: attempts advance the scheduler clock, repeated
@@ -33697,6 +33759,7 @@ async function checkWebsitesCrawl(
     const listWebsiteId = listCreated.success ? listCreated.data.id : '';
     const failurePage = z.looseObject({
       url: z.string(),
+      title: z.string().nullable(),
       status: z.string(),
       indexed: z.boolean(),
       wordCount: z.number(),
@@ -33867,7 +33930,7 @@ async function checkWebsitesCrawl(
       `;
       const listRowSkipped = await websites.getWebsite(sql, listWebsiteId);
       record(
-        'websites page failure: a JSON page and a noindex page store nothing and say why (unsupported_content, robots_noindex)',
+        'websites page failure: a JSON page and a noindex page store nothing and say why (unsupported_content, robots_noindex), skipped rather than failed',
         listSkipped.status === 200 &&
           jsonPage !== undefined &&
           jsonPage.status === 'discovered' &&
@@ -33883,9 +33946,74 @@ async function checkWebsitesCrawl(
           noindexPage.lastErrorKind === 'robots_noindex' &&
           Number(noindexChunks[0]?.count ?? '-1') === 0 &&
           listRowSkipped?.status === 'active' &&
-          listRowSkipped.failedPageCount === 2 &&
+          // Skips are the crawler's choice, not failures: the site does
+          // not count them among its failed pages (2026-09-30).
+          listRowSkipped.failedPageCount === 0 &&
           listRowSkipped.crawledPageCount === 4,
-        `relist=${listSkipped.status}/200 json=${jsonPage ? `${jsonPage.status}/${jsonPage.indexed}/${jsonPage.wordCount}w fail=${jsonPage.failCount} kind=${jsonPage.lastErrorKind} err=${jsonPage.lastError}` : 'MISSING'} (want discovered/false/0w fail=1 kind=unsupported_content), noindex=${noindexPage ? `${noindexPage.status}/${noindexPage.indexed} fail=${noindexPage.failCount} kind=${noindexPage.lastErrorKind}` : 'MISSING'} (want discovered/false fail=1 kind=robots_noindex) chunks=${noindexChunks[0]?.count}/0, row=${listRowSkipped?.status}/active failed=${listRowSkipped?.failedPageCount}/2 attempted=${listRowSkipped?.crawledPageCount}/4`,
+        `relist=${listSkipped.status}/200 json=${jsonPage ? `${jsonPage.status}/${jsonPage.indexed}/${jsonPage.wordCount}w fail=${jsonPage.failCount} kind=${jsonPage.lastErrorKind} err=${jsonPage.lastError}` : 'MISSING'} (want discovered/false/0w fail=1 kind=unsupported_content), noindex=${noindexPage ? `${noindexPage.status}/${noindexPage.indexed} fail=${noindexPage.failCount} kind=${noindexPage.lastErrorKind}` : 'MISSING'} (want discovered/false fail=1 kind=robots_noindex) chunks=${noindexChunks[0]?.count}/0, row=${listRowSkipped?.status}/active failed=${listRowSkipped?.failedPageCount}/0 attempted=${listRowSkipped?.crawledPageCount}/4`,
+      );
+
+      // 4f. A download whose declared type says nothing or the wrong thing
+      //     (2026-09-30): a TYPO3 export answered `application/vnd.ms-excel`
+      //     with an `.xlsx` named in its Content-Disposition, and read as
+      //     unsupported. The bytes decide, and the offered name is the
+      //     document's.
+      // The fixture serves by path; the listed URL keeps its query string
+      // (an export action), which the crawler dials as is.
+      const exportPath = '/tables';
+      const exportUrl = `https://${LIST_DOMAIN}${exportPath}?export=1`;
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.aoa_to_sheet([
+          ['Component', 'Admission status'],
+          [
+            'Security module card',
+            'admitted for the telematics infrastructure since spring',
+          ],
+          ['Card terminal', 'admission pending a firmware review'],
+        ]),
+        'Admissions',
+      );
+      // The same way the extraction tests build a workbook: `array` output,
+      // copied into a fresh buffer.
+      const workbookBytes: ArrayLike<number> = XLSX.write(workbook, {
+        type: 'array',
+        bookType: 'xlsx',
+      });
+      site.set(exportPath, {
+        body: new Uint8Array(workbookBytes),
+        type: 'application/vnd.ms-excel',
+        headers: {
+          'content-disposition': 'attachment;filename="admission-tables.xlsx"',
+        },
+      });
+      const listExport = await v1('/websites', {
+        body: {
+          domain: LIST_DOMAIN,
+          scanInterval: '1d',
+          urls: [listUrl, redirectUrl, jsonUrl, noindexUrl, exportUrl],
+        },
+      });
+      await drainCrawlJobs();
+      await websites.runWebsitesRowSync(sql, { orgSlug, domain: LIST_DOMAIN });
+      const exportPages = z
+        .object({ pages: z.array(failurePage) })
+        .loose()
+        .safeParse(await (await v1(`/websites/${listWebsiteId}/pages`)).json());
+      const exportPage = exportPages.success
+        ? exportPages.data.pages.find((page) => page.url === exportUrl)
+        : undefined;
+      record(
+        'websites documents: a download served as a generic or legacy type is read by its bytes and named by its Content-Disposition',
+        listExport.status === 200 &&
+          exportPage !== undefined &&
+          exportPage.status === 'active' &&
+          exportPage.wordCount >= 8 &&
+          exportPage.title === 'admission-tables.xlsx' &&
+          exportPage.failCount === 0 &&
+          exportPage.lastError === null,
+        `relist=${listExport.status}/200 page=${exportPage ? `${exportPage.status} words=${exportPage.wordCount} title=${exportPage.title} fail=${exportPage.failCount} err=${exportPage.lastError}` : 'MISSING'} (want active words>=8 title=admission-tables.xlsx fail=0 err=null)`,
       );
     } finally {
       await new Promise<void>((resolve) => {
@@ -56767,6 +56895,14 @@ async function main(): Promise<void> {
       [
         'checkInPlaceCompletionCycle',
         () => checkInPlaceCompletionCycle(sql, authCtx, record),
+      ],
+      [
+        'checkAutomatedRetryAgentBusy',
+        () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkWorkerDrainHandOff',
+        () => checkWorkerDrainHandOff(sql, boss, record),
       ],
       [
         'checkImportCursorContinuation',

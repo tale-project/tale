@@ -13,6 +13,22 @@ describe('stripRuntimeLocations', () => {
     );
   });
 
+  // A crawled page's row read `net:ERR_ABORTED` — the doubled-colon sweep
+  // ate Chromium's namespace, the one token a reader searches for verbatim
+  // (2026-09-30).
+  it("keeps Chromium's net:: namespace while still folding stray doubled colons", () => {
+    expect(
+      stripRuntimeLocations(
+        'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a',
+      ),
+    ).toBe(
+      'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a',
+    );
+    expect(stripRuntimeLocations('SSL routines::alert')).toBe(
+      'SSL routines:alert',
+    );
+  });
+
   it('leaves an ordinary message alone', () => {
     expect(
       stripRuntimeLocations(

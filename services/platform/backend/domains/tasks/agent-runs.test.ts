@@ -511,6 +511,14 @@ describe('kickAgentRun — the workspace follows the person who starts the run',
     await kickAgentRun(tx, kick);
     expect(sessionId()).not.toBe('pa-agent-1');
   });
+
+  it('works in the workspace a caller already chose and judged — the automatic retry’s', async () => {
+    // An editor would join the standing workspace; the caller's choice wins,
+    // so the run lands where the caller's busy probe looked.
+    const { tx, sessionId } = kickTx('editor');
+    await kickAgentRun(tx, { ...kick, sessionId: 'pa-agent-1-mchosen' });
+    expect(sessionId()).toBe('pa-agent-1-mchosen');
+  });
 });
 
 describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its deadline', () => {

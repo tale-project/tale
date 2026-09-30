@@ -195,6 +195,7 @@ export const TASK_PRIORITY_LABEL_KEY: Record<string, string> = {
  * call site. Lowercase phrases: they render mid-sentence in the timeline.
  */
 export const TASK_RUN_REFUSAL_LABEL_KEY: Record<string, string> = {
+  agent_busy: 'agentRuns.refused.agent_busy',
   agent_disabled: 'agentRuns.refused.agent_disabled',
   agent_not_found: 'agentRuns.refused.agent_not_found',
   automation_disabled: 'agentRuns.refused.automation_disabled',

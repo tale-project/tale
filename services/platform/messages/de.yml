@@ -7628,6 +7628,7 @@ tasks:
       automation: Automatisierung
       delegated: delegiert
     refused:
+      agent_busy: Agent arbeitet an einer anderen Aufgabe
       agent_disabled: Agent ist nicht installiert oder deaktiviert
       agent_not_found: Agent nicht gefunden oder falsch konfiguriert
       automation_disabled: Aufgaben-Automatisierung ist aus
@@ -8035,6 +8036,7 @@ websites:
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} fehlgeschlagener Versuch} other {{count} fehlgeschlagene Versuche in Folge}} — {message}'
     failed: Fehlgeschlagen
+    skipped: Übersprungen
     failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
     errorKind:
       dnsFailed: Host konnte nicht aufgelöst werden.

@@ -52,6 +52,7 @@ import {
   parseRobots,
   parseSitemapLocs,
   publicPageError,
+  renderLaneHaltMessage,
   ROBOTS_TXT_MAX_BYTES,
   type RobotsPolicy,
   type RobotsRules,
@@ -94,6 +95,7 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { extractText } from '../lib/knowledge/extraction/router';
+import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import {
   RenderCapacityError,
   renderUrlsInSandbox,
@@ -104,9 +106,10 @@ import {
   WEBSITE_EMBEDDING_FAILED_PREFIX,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../websites/scan_scheduling';
-import type { PageFailureKind } from '../websites/types';
+import { type PageFailureKind, PAGE_SKIP_KINDS_SQL } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
+import { crawlDocumentMaxBytes } from './crawl_limits';
 import {
   CRAWLER_PRODUCT_TOKEN,
   crawlerRequestHeaders,
@@ -152,10 +155,11 @@ const PAGE_MAX_BYTES = 2 * 1024 * 1024;
 const SITEMAP_MAX_BYTES = 8 * 1024 * 1024;
 
 /** Content fetch budgets. Documents run far fatter and slower than HTML
- * pages (a consolidated legal handbook PDF is megabytes), so the page fetch
- * gets its own timeout and cap. */
+ * pages (a consolidated legal handbook PDF is megabytes, a brochure tens),
+ * so the page fetch gets its own timeout and cap — the cap the operator's
+ * `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`, read once at boot. */
 const PAGE_FETCH_TIMEOUT_MS = 30_000;
-const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;
+const DOCUMENT_MAX_BYTES = crawlDocumentMaxBytes();
 
 /** Render lane budgets. HTML pages are rendered in a sandboxed browser in
  * batches; the node action's hard kill sits near ten minutes, so a link
@@ -189,13 +193,23 @@ const BFS_FETCH_BUDGET = 30;
 const DISCOVERY_BUDGET_MS = 180_000;
 
 /** A DISCOVERED URL that failed this many scans in a row stops being
- * fetched. A LISTED one never does — the operator asked for it by name, so
- * it is probed once per scan for as long as it is listed (the scan interval
- * is the backoff, `last_crawled_at < scanStartedAt` the bound), and its
+ * fetched — for {@link BENCHED_PAGE_RETRY_INTERVAL}, after which one scan
+ * probes it once more (a further failure benches it again for as long). A
+ * LISTED one never stops — the operator asked for it by name, so it is
+ * probed once per scan for as long as it is listed (the scan interval is
+ * the backoff, `last_crawled_at < scanStartedAt` the bound), and its
  * `fail_count` keeps counting so the page list can say for how long it has
  * been failing. Before this a listed page that failed five scans was dead
- * for good, and re-listing it changed nothing. */
+ * for good, and re-listing it changed nothing; and a discovered page was
+ * dead for good too — five scans with the render sandbox's proxy refusing
+ * every tunnel benched a whole site, and fixing the proxy revived nothing
+ * (2026-09-30). The lane's own faults are no longer charged at all
+ * (`flushRenderBatch`), and the bench now expires. */
 const MAX_FETCH_FAILURES = 5;
+/** How long a benched page waits for its one further probe — a Postgres
+ * interval. A week bounds the cost of a dead URL to one request a week and
+ * still lets a page revived on the site come back on its own. */
+const BENCHED_PAGE_RETRY_INTERVAL = '7 days';
 
 /** A paragraph seen on at least this many pages of a domain is boilerplate
  * (navigation, footer, cookie banner) and is kept out of the chunks. */
@@ -407,20 +421,24 @@ export async function scanWebsiteImpl(
           return;
         }
         // Only per-URL render outcomes are charged to the page's fail_count.
+        // A navigation the browser lost twice is the row's to show, without
+        // a strike; the lane's own fault (`halted`) fails the scan below,
+        // once what rendered is stored.
         for (const page of batch) {
-          const outcome = results.get(page.url) ?? {
+          const outcome = results.outcomes.get(page.url) ?? {
             kind: 'not_attempted' as const,
           };
           if (outcome.kind === 'not_attempted') continue;
           if (outcome.kind === 'failed') {
             console.warn(
-              `[crawl] ${page.url}: render failed: ${outcome.reason}`,
+              `[crawl] ${page.url}: render failed${outcome.transient ? ' (browser fault, uncharged)' : ''}: ${outcome.reason}`,
             );
             await recordPageFailure(
               sql,
               args.domain,
               page.url,
               classifyRenderReason(outcome.reason),
+              { charge: !outcome.transient },
             );
             continue;
           }
@@ -454,6 +472,12 @@ export async function scanWebsiteImpl(
               policy,
             );
           }
+        }
+        if (results.halted) {
+          // The lane, not a page: what rendered is stored and indexed, the
+          // rest stays due, and the scan ends with the reason on the site's
+          // row — the next interval retries every page, none charged.
+          throw new Error(renderLaneHaltMessage(results.halted, args.domain));
         }
       };
 
@@ -533,27 +557,31 @@ export async function scanWebsiteImpl(
           stored: string;
           attempted: string;
           failed: string;
+          skipped: string;
           kind: string | null;
         }[]
       >(
         `SELECT
             count(*) FILTER (WHERE u.status = 'active')::text AS stored,
             count(*) FILTER (WHERE u.last_crawled_at IS NOT NULL)::text AS attempted,
-            count(*) FILTER (WHERE u.fail_count > 0)::text AS failed,
+            count(*) FILTER (WHERE u.last_error IS NOT NULL
+                               AND u.last_error_kind NOT IN (${PAGE_SKIP_KINDS_SQL}))::text AS failed,
+            count(*) FILTER (WHERE u.last_error_kind IN (${PAGE_SKIP_KINDS_SQL}))::text AS skipped,
             (SELECT u2.last_error_kind FROM ${PUBLIC_WEB_SCHEMA}.website_urls u2
-              WHERE u2.domain = $1 AND u2.status <> 'deleted' AND u2.fail_count > 0
+              WHERE u2.domain = $1 AND u2.status <> 'deleted' AND u2.last_error IS NOT NULL
               GROUP BY u2.last_error_kind ORDER BY count(*) DESC LIMIT 1) AS kind
            FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
           WHERE u.domain = $1 AND u.status <> 'deleted'`,
         [args.domain],
       );
       const stored = Number(tally?.stored ?? '0');
+      const skippedPages = Number(tally?.skipped ?? '0');
       const attempted = Number(tally?.attempted ?? '0');
       const failedPages = Number(tally?.failed ?? '0');
       if (stored === 0) {
         const reason = `No page could be stored: ${
           attempted > 0
-            ? `${failedPages} of ${attempted} attempted pages failed${tally?.kind ? ` (${tally.kind})` : ''}`
+            ? `${failedPages} of ${attempted} attempted pages failed${skippedPages > 0 ? ` and ${skippedPages} were skipped` : ''}${tally?.kind ? ` (${tally.kind})` : ''}`
             : remaining > 0
               ? `${remaining} page(s) were still waiting when the scan's continuation budget ran out`
               : isUrlDisallowed(`https://${args.domain}/`, policy)
@@ -1041,7 +1069,8 @@ interface DuePage {
 
 const DUE_PAGE_PREDICATE = `
       domain = $1 AND status <> 'deleted'
-      AND (listed OR fail_count < ${MAX_FETCH_FAILURES})
+      AND (listed OR fail_count < ${MAX_FETCH_FAILURES}
+           OR last_crawled_at < $2::timestamptz - interval '${BENCHED_PAGE_RETRY_INTERVAL}')
       AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)`;
 
 /** The next URLs this scan has not visited yet (never-crawled first). The
@@ -1218,7 +1247,10 @@ export async function fetchAndStorePage(
     return 'failed';
   }
   const contentType = response.headers.get('content-type') ?? '';
-  const dispatch = classifyContentType(contentType);
+  let dispatch = classifyContentType(
+    contentType,
+    response.headers.get('content-disposition'),
+  );
   if (dispatch.kind === 'skip') {
     // Not something this lane can turn into text (an image, a feed, a
     // binary download). Recorded as a failure with its own kind — the scan
@@ -1240,6 +1272,22 @@ export async function fetchAndStorePage(
     return 'render';
   }
   const bytes = new Uint8Array(await response.body.arrayBuffer());
+  if (dispatch.kind === 'sniff') {
+    // A download whose declared type says nothing or the wrong thing: the
+    // bytes decide. A TYPO3 export answered `application/vnd.ms-excel` with
+    // an `.xlsx` named in its Content-Disposition, and read as unsupported
+    // (2026-09-30).
+    const extension = await sniffDocumentExtension(bytes);
+    if (extension === null) {
+      const named = dispatch.filename === null ? '' : ` (${dispatch.filename})`;
+      await recordPageFailure(sql, domain, page.url, {
+        kind: 'unsupported_content',
+        message: `The page answered ${contentType === '' ? 'no content type' : `"${contentType}"`}${named}, and its bytes are not a document the crawler reads (PDF, DOCX, XLSX, PPTX, ODT)`,
+      });
+      return 'failed';
+    }
+    dispatch = { kind: 'document', extension, filename: dispatch.filename };
+  }
 
   let title: string | null;
   let text: string;
@@ -1247,7 +1295,11 @@ export async function fetchAndStorePage(
     title = null;
     text = new TextDecoder().decode(bytes);
   } else {
-    const name = documentNameForUrl(page.url, dispatch.extension);
+    const name = documentNameForUrl(
+      page.url,
+      dispatch.extension,
+      dispatch.filename,
+    );
     try {
       // The crawl lane carries no vision arm; extractors degrade on their
       // own (scanned PDF pages come back empty instead of failing).
@@ -1484,16 +1536,22 @@ const PAGE_ERROR_MAX_CHARS = 500;
  * with no words now says whether a guard refused a redirect, the origin
  * answered 500, or the render timed out, instead of looking like a page
  * nobody has fetched yet.
+ *
+ * `charge: false` records the reason and the attempt (`last_crawled_at`, so
+ * the row is not claimed again this scan) without a strike — for a failure
+ * that was the render sandbox's, not the page's.
  */
 async function recordPageFailure(
   sql: Sql,
   domain: string,
   url: string,
   failure: PageFailure,
+  options: { charge: boolean } = { charge: true },
 ): Promise<void> {
   await sql.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-        SET fail_count = fail_count + 1, last_crawled_at = NOW(),
+        SET fail_count = CASE WHEN $5::boolean THEN fail_count + 1 ELSE fail_count END,
+            last_crawled_at = NOW(),
             last_error = $3, last_error_kind = $4, last_error_at = NOW()
       WHERE domain = $1 AND url = $2`,
     [
@@ -1502,6 +1560,7 @@ async function recordPageFailure(
       // Customer-facing: one line, no toolchain locations, no secrets.
       sanitizeError(publicPageError(failure.message), PAGE_ERROR_MAX_CHARS),
       failure.kind,
+      options.charge,
     ],
   );
 }

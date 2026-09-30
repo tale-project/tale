@@ -7741,6 +7741,7 @@ tasks:
       automation: automation
       delegated: delegated
     refused:
+      agent_busy: agent is working on another task
       agent_disabled: agent is not installed or is disabled
       agent_not_found: agent not found or misconfigured
       automation_disabled: task automation is off
@@ -8131,6 +8132,7 @@ websites:
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} failed attempt} other {{count} failed attempts in a row}} — {message}'
     failed: Failed
+    skipped: Skipped
     failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
     errorKind:
       dnsFailed: Couldn't resolve the host.

@@ -46,6 +46,7 @@ import {
   type CrawlerChunk,
   type CrawlerPage,
   type CrawlerSearchResult,
+  isSkippedPageKind,
 } from '@/backend/core/websites/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -104,6 +105,9 @@ function pageFailureCaption(
     kind !== null && isFailureKind(kind)
       ? t(FAILURE_KIND_KEYS[kind])
       : (page.last_error ?? t('pagesDialog.errorKind.fallback'));
+  // A page the crawler skipped on purpose: the reason alone — its attempts
+  // are not failures to count up.
+  if (kind !== null && isSkippedPageKind(kind)) return reason;
   if (page.fail_count > 1) {
     return t('pagesDialog.lastError', {
       count: page.fail_count,
@@ -177,6 +181,8 @@ function PageRow({
   );
 
   const failedCaption = pageFailureCaption(page, t);
+  const skipped =
+    page.last_error_kind !== null && isSkippedPageKind(page.last_error_kind);
   const label = page.title || page.url;
 
   const summary = (
@@ -196,8 +202,15 @@ function PageRow({
           </SkeletonBox>
         </Text>
         {failedCaption !== null ? (
-          <Text variant="caption" className="text-destructive shrink-0">
-            {t('pagesDialog.failed')}
+          <Text
+            variant="caption"
+            className={
+              skipped
+                ? 'text-muted-foreground shrink-0'
+                : 'text-destructive shrink-0'
+            }
+          >
+            {skipped ? t('pagesDialog.skipped') : t('pagesDialog.failed')}
           </Text>
         ) : null}
       </Row>

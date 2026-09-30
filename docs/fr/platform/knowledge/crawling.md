@@ -34,7 +34,7 @@ Le crawl enregistre le texte d’une page. Le chat et la recherche dans les conn
 
 Une liste récupère uniquement les adresses fournies et ne suit aucun autre lien. Elle peut couvrir plusieurs sites ; Tale les regroupe en une source par site. Une adresse listée en `http://` est acceptée et récupérée en `https://`, contrairement à un domaine `http://` en mode site entier, qui est refusé ; une page qui ne répond qu’en clair reste inaccessible dans les deux cas. Ajouter une liste à une source de type liste d’URL existante complète les adresses sans retirer les précédentes et actualise son intervalle de scan.
 
-Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
+Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Un téléchargement servi sous un type générique ou ancien (`application/octet-stream`, `application/vnd.ms-excel` pour un export `.xlsx`) est reconnu à son nom de fichier et à son contenu. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
 
 ## Comprendre la découverte et l’actualisation
 
@@ -54,15 +54,15 @@ Utilise HTTPS sur le port standard et enregistre un nom d’hôte : une adresse 
 | --- | --- |
 | 10 000 URL suivies par site | Certaines pages d’un grand site peuvent rester inconnues. Fournis une liste ciblée pour le contenu nécessaire. |
 | Trois minutes de découverte, au plus 50 récupérations de sitemaps | Les ensembles de sitemaps volumineux ou lents peuvent rester incomplets. |
-| 25 Mio et 30 secondes par récupération de contenu | Les téléchargements trop volumineux et les réponses lentes échouent (`timeout` pour le budget de téléchargement et celui de 20 secondes du rendu) ; une page derrière plus de cinq redirections aussi (`redirect_limit_exceeded`). |
+| 100 Mio (`KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`) et 30 secondes par récupération de contenu | Les téléchargements trop volumineux et les réponses lentes échouent (`timeout` pour le budget de téléchargement et celui de 20 secondes du rendu) ; une page derrière plus de cinq redirections aussi (`redirect_limit_exceeded`). |
 | Cinq minutes de traitement par lot, jusqu’à 200 reprises | Un long scan se poursuit par lots. Une récupération ou un rendu déjà engagé peut dépasser le budget du lot ; il ne s’agit pas d’une durée totale garantie. |
-| Cinq échecs consécutifs pour une URL découverte automatiquement | Le crawler cesse de programmer cette URL. Les URL fournies explicitement restent candidates à chaque scan, et une page listée que le site répond en 404 reste dans la liste avec cette réponse. |
+| Cinq échecs consécutifs pour une URL découverte automatiquement | Le crawler cesse de programmer cette URL pendant sept jours, puis la sonde une fois de plus. Un échec de la sandbox qui effectue le rendu ne compte pas : si son proxy de sortie refuse la connexion ou si son navigateur ne répond plus, le scan se termine avec cette cause sur la source, et le scan suivant réessaie chaque page. Les URL fournies explicitement restent candidates à chaque scan, et une page listée que le site répond en 404 reste dans la liste avec cette réponse. |
 
 Tu ne peux pas fixer ton propre plafond de pages, filtrer les chemins à inclure ou exclure, ni arrêter un scan avec un bouton. Une liste d’URL réduit la sélection demandée ; ces limites continuent de s’appliquer.
 
 ## Vérifier le contenu indexé
 
-Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La colonne **Indexé** indique un nombre de pages. Ouvre la ligne du site pour examiner la liste des pages, le nombre de mots et de fragments et la date du dernier passage. Déplie une page pour lire ses fragments de texte enregistrés. Un échec de récupération affiche sa cause et le nombre d’échecs consécutifs.
+Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La colonne **Indexé** indique un nombre de pages. Ouvre la ligne du site pour examiner la liste des pages, le nombre de mots et de fragments et la date du dernier passage. Déplie une page pour lire ses fragments de texte enregistrés. Un échec de récupération affiche sa cause et le nombre d’échecs consécutifs. Une page que le crawler laisse volontairement de côté — la source refuse l’indexation, le type de contenu ne fournit aucun texte lisible, ou une redirection quitte le site — apparaît comme **Ignorée** avec sa cause et ne compte pas comme un échec.
 
 | Statut | Signification |
 | --- | --- |
@@ -86,7 +86,7 @@ Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ou
 | Certificat non approuvé | L’administrateur du site doit corriger un certificat TLS expiré, autosigné, associé au mauvais hôte ou non approuvé pour une autre raison. Répéter les scans ne le répare pas. |
 | Adresse privée, redirection refusée ou URL invalide | Utilise l’adresse HTTPS publique prévue. Demande à ton exploitant quelles sources internes sont autorisées si nécessaire. |
 | Erreur HTTP, échec réseau ou délai dépassé | Ouvre la page d’origine et vérifie sa disponibilité. Un scan ultérieur peut réussir après réparation du service source. |
-| Réponse trop volumineuse | Publie un document plus petit ou divise la source. La limite de récupération est de 25 Mio. |
+| Réponse trop volumineuse | Publie un document plus petit ou divise la source. La limite de récupération est de 100 Mio, sauf si ton opérateur a défini `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`. |
 | La source refuse l’indexation | La réponse contient `X-Robots-Tag: noindex` ou `none`, ou la page porte `<meta name="robots" content="noindex">`. Le responsable du site doit modifier cette consigne pour que Tale puisse indexer le contenu. |
 | Contenu non pris en charge ou sans texte lisible | Les points d’accès JSON/XML, téléchargements binaires, images ou scans peuvent ne fournir aucun texte exploitable. Fournis une page HTML ou un document pris en charge dont le texte peut être extrait. |
 | Échec du rendu ou de l’extraction | Vérifie que la page publique se charge et que le document d’origine s’ouvre. Répare ou exporte à nouveau une source endommagée. |

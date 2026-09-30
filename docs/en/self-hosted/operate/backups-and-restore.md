@@ -32,10 +32,11 @@ This prepares the configuration and backup volumes without starting a backend or
 | `config-data` | Organization configuration, supported secret sidecars, and branding. Provider credentials stored in Postgres belong to the database backup. |
 | `object-store-data` | Uploaded files and generated media when the deployment default uses the bundled store. |
 | `caddy-data`, `caddy-config` | Certificates and proxy state. |
+| `llm-gateway-data` | The model gateway's store: its admin account, provider keys, session keys with their budgets and spend, and its request log. |
 
-A snapshot contains an archive and SHA-256 sidecar for each captured volume. `manifest.json` is written last and records the platform version when it can be determined. A directory without a manifest is incomplete: it is excluded from restore listings and can be removed by rotation after a newer complete snapshot exists.
+A snapshot contains an archive and SHA-256 sidecar for each captured volume. `manifest.json` is written last and records the platform version when it can be determined. A directory without a manifest is incomplete: it is excluded from restore listings and can be removed by rotation after a newer complete snapshot exists. Snapshots taken before the CLI captured the gateway's store have no `llm-gateway-data` archive.
 
-Also preserve the workspace containing `tale.json`, its `.env`, and any separately mounted key files. In particular, retain `ENCRYPTION_SECRET_HEX` and the age identity needed to decrypt SOPS sidecars. The gateway's `llm-gateway-data` and sandbox workspaces are outside this snapshot inventory; include them in your own plan if you need to retain their state.
+Also preserve the workspace containing `tale.json`, its `.env`, and any separately mounted key files. In particular, retain `ENCRYPTION_SECRET_HEX` and the age identity needed to decrypt SOPS sidecars. Sandbox workspaces are outside this snapshot inventory; include them in your own plan if you need to retain their state.
 
 <Warning>
 
@@ -53,9 +54,9 @@ tale backup
 tale restore
 ```
 
-`backup` prints the snapshot result. `restore` without an ID only lists available snapshots, including the recorded version and whether blobs are absent. Record the snapshot ID with your external backup IDs.
+`backup` prints the snapshot result. `restore` without an ID only lists available snapshots, including the recorded version and whether blobs or the gateway's store are absent. Record the snapshot ID with your external backup IDs.
 
-The snapshot process pauses containers using each volume while that volume is archived. Uploads, downloads, and database work can stall during the relevant pause; duration depends on data size and host throughput. Docker reports a paused container as `unhealthy` until its next successful health check, so after each archive the snapshot waits until every container that was healthy before the pause reports `healthy` again; this usually takes one health-check interval. If a container does not recover within the retries its health check allows, the snapshot fails. These are volume-level crash-consistent archives, not an atomic transaction across all stores. For a coordinated recovery point, stop incoming writes and scheduled work or use a maintenance window that also covers external stores.
+The snapshot process pauses containers using each volume while that volume is archived. Uploads, downloads, database work, and model calls through the gateway can stall during the relevant pause; duration depends on data size and host throughput. Docker reports a paused container as `unhealthy` until its next successful health check, so after each archive the snapshot waits until every container that was healthy before the pause reports `healthy` again; this usually takes one health-check interval. If a container does not recover within the retries its health check allows, the snapshot fails. These are volume-level crash-consistent archives, not an atomic transaction across all stores. For a coordinated recovery point, stop incoming writes and scheduled work or use a maintenance window that also covers external stores.
 
 A version-changing `tale deploy`, or a host-config override, takes a snapshot before its mutating steps. Snapshot failure aborts that deployment. `--skip-backup` bypasses this protection; use it only when your recovery plan already provides the required backup.
 
@@ -83,13 +84,13 @@ Restoring replaces the contents of the included data volumes. Preserve the curre
 
 1. Retrieve the completed snapshot, deployment workspace, matching keys, and any external-store backups. On a fresh host, follow the empty-host preparation above before proceeding.
 2. Run `tale restore` to select an ID and read its platform version. If that version is unknown, resolve it from your deployment records before starting the application.
-3. Restore with the stack stopped. `--stop` stops running project containers; the CLI then verifies archive checksums and asks for confirmation before replacing data.
+3. Restore with the stack stopped. `--stop` stops running project containers; the CLI then verifies archive checksums and asks for confirmation before replacing data. Run it with your current CLI, before step 5 changes it: a CLI from before gateway capture skips the gateway archive.
 
 ```bash
 tale restore <snapshot-id> --stop
 ```
 
-4. Restore external databases and buckets to the coordinated recovery point while traffic remains stopped. A snapshot marked `without blobs` leaves the existing local blob volume untouched.
+4. Restore external databases and buckets to the coordinated recovery point while traffic remains stopped. A snapshot marked `without blobs` leaves the existing local blob volume untouched. One marked `without gateway` leaves `llm-gateway-data` untouched and cannot return the gateway to its store from before a gateway upgrade; the CLI warns before it asks for confirmation. If the gateway was upgraded after that snapshot, put your own copy of the volume back before the next step, as [Upgrades](/self-hosted/operate/upgrades) describes.
 5. Select the version recorded for the snapshot and deploy it, including the stateful services:
 
 ```bash

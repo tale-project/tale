@@ -11,6 +11,11 @@
  * retry spacing lets a deterministically-broken task drip retries forever,
  * while a streak terminates it and still refreshes the budget whenever an
  * attempt proves real progress by executing long enough.
+ *
+ * The one wait (2026-09-30, #3977): the retry of a run an automation or
+ * another agent started starts only into a free workspace; while its agent
+ * works another task there, it looks again later ({@link planAgentBusyWait})
+ * — a bounded wait that spends no attempt.
  */
 
 export const AUTO_RETRY_MAX_ATTEMPTS = 3;
@@ -252,4 +257,52 @@ export function resolveAutoRetryBudget(
 function freeRotationAttempt(cut: AutoRetryRunFacts | undefined): number {
   if (cut === undefined || executedMs(cut) >= AUTO_RETRY_PROGRESS_MS) return 0;
   return cut.autoRetryAttempt ?? 0;
+}
+
+/** How long an automated chain's retry that found its agent at work on
+ * another task in the same workspace waits before it looks again — minutes,
+ * never at once, so a busy agent is no hot loop. */
+export const AGENT_BUSY_RETRY_DELAY_MS = 5 * 60 * 1000;
+
+/** How long after its run failed such a retry still looks for the agent: a
+ * run takes about an hour at the median (#3977), so most end within it. */
+export const AGENT_BUSY_RETRY_MAX_WAIT_MS = 2 * 60 * 60 * 1000;
+
+/** How many times such a retry looks again at most. */
+export const AGENT_BUSY_RETRY_MAX_WAITS =
+  AGENT_BUSY_RETRY_MAX_WAIT_MS / AGENT_BUSY_RETRY_DELAY_MS;
+
+export type AgentBusyWait =
+  | {
+      readonly wait: true;
+      /** The looks taken once this one is sent — what its job carries. */
+      readonly waits: number;
+      /** When the next look runs, epoch ms. */
+      readonly lookAt: number;
+    }
+  | { readonly wait: false };
+
+/**
+ * Whether a retry that found its agent busy looks again, and when: after
+ * {@link AGENT_BUSY_RETRY_DELAY_MS}, while both bounds hold — the looks it
+ * already took (`waits`, carried by its job) and the age of the failure it
+ * retries (`failedAt`, the failed run's own settle stamp): no look is sent
+ * for past {@link AGENT_BUSY_RETRY_MAX_WAIT_MS} after it. Otherwise the
+ * wait is over and the retry is refused.
+ */
+export function planAgentBusyWait(args: {
+  waits: number;
+  failedAt: number | undefined;
+  now: number;
+}): AgentBusyWait {
+  const waits = args.waits + 1;
+  const lookAt = args.now + AGENT_BUSY_RETRY_DELAY_MS;
+  if (waits > AGENT_BUSY_RETRY_MAX_WAITS) return { wait: false };
+  if (
+    args.failedAt !== undefined &&
+    lookAt - args.failedAt > AGENT_BUSY_RETRY_MAX_WAIT_MS
+  ) {
+    return { wait: false };
+  }
+  return { wait: true, waits, lookAt };
 }

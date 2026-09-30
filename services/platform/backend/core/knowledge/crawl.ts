@@ -19,11 +19,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { PUBLIC_WEB_SCHEMA } from '../../../lib/knowledge/types';
-import type {
-  CrawlerChunk,
-  CrawlerPage,
-  CrawlerSearchResult,
-  CrawlerWebsiteInfo,
+import {
+  type CrawlerChunk,
+  type CrawlerPage,
+  type CrawlerSearchResult,
+  type CrawlerWebsiteInfo,
+  PAGE_SKIP_KINDS_SQL,
 } from '../websites/types';
 
 /** How many URLs one scan tracks per domain: discovery stops admitting here,
@@ -374,7 +375,8 @@ export async function fetchWebsiteInfoFromCorpus(
                 AND u.last_crawled_at IS NOT NULL)::text AS crawled_count,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
               WHERE u.domain = w.domain AND u.status <> 'deleted'
-                AND u.fail_count > 0)::text AS failed_count
+                AND u.last_error IS NOT NULL
+                AND u.last_error_kind NOT IN (${PAGE_SKIP_KINDS_SQL}))::text AS failed_count
        FROM ${PUBLIC_WEB_SCHEMA}.websites w
        JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
          ON m.domain = w.domain AND m.org_slug = $2

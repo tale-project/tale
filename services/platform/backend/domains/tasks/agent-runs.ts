@@ -148,6 +148,11 @@ export interface KickAgentRunArgs {
   /** The turn may not start before this, epoch ms: the run is queued at
    * once, its start job waits (a subscription broker's cooldown). */
   startAfterMs?: number;
+  /** The workspace the caller already chose and judged free for this run
+   * (`sessionIdForAgentRun`): the automatic retry, whose busy probe looked
+   * there, so the run lands where it looked. Absent, the kick chooses it
+   * from the starter. */
+  sessionId?: string;
 }
 
 /**
@@ -192,7 +197,7 @@ export async function kickAgentRun(
   // The workspace follows the starter: a project editor's run joins the
   // agent's standing session, a member's run works in its own
   // (`run-authority.ts`).
-  const sessionId = await sessionIdForAgentRun(tx, args);
+  const sessionId = args.sessionId ?? (await sessionIdForAgentRun(tx, args));
   const now = Date.now();
   const execId = randomUUID();
   // "At most one live run per task" is the schema's rule (migration 0080's
