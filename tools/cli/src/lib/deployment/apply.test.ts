@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { relative } from 'node:path';
 
 import { CliError, ExitCode } from '../../utils/fail';
+import * as logger from '../../utils/logger';
 import { platformConfigurationFixture } from '../config/platform-fixture';
 import { resourceId } from '../config/platform-model';
 import { sha256, valueHash, loadClient } from '../config/releases/identity';
@@ -915,18 +916,17 @@ describePosix('model gateway recovery point', () => {
     run.nativeFailure(false);
     run.preCaptureCli(false);
     run.events.length = 0;
-    const printed: string[] = [];
-    const stdout = spyOn(process.stdout, 'write').mockImplementation(
-      (chunk: string | Uint8Array) => {
-        printed.push(String(chunk));
-        return true;
-      },
-    );
+    // Read at the logger, not on stdout: the shared reporter drops lines while
+    // another suite in the same process has left it silenced (--json mode).
+    const warned: string[] = [];
+    const warn = spyOn(logger, 'warn').mockImplementation((message) => {
+      warned.push(message);
+    });
     let result: Awaited<ReturnType<typeof run.apply>>;
     try {
       result = await run.apply();
     } finally {
-      stdout.mockRestore();
+      warn.mockRestore();
     }
 
     expect(result).toMatchObject({
@@ -935,13 +935,9 @@ describePosix('model gateway recovery point', () => {
       snapshotId: PRE_CAPTURE_SNAPSHOT,
     });
     expect(run.events).toEqual(['verify-snapshot', 'provision', 'cleanup']);
-    expect(
-      printed.some((line) =>
-        line.includes(
-          `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data: restoring it leaves the model gateway's store as it is now.`,
-        ),
-      ),
-    ).toBe(true);
+    expect(warned).toContain(
+      `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data: restoring it leaves the model gateway's store as it is now.`,
+    );
   });
 
   test('a deployment without a gateway volume keeps its retained snapshot and continues', async () => {
