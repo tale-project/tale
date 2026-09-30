@@ -115,14 +115,16 @@ export const IMAGE_GENERATION_TOOL_DESCRIPTION =
   'its top level, so no subfolders there; an absolute path may also name a ' +
   'file anywhere under /agent/workspace/; the extension follows the ' +
   'format the model returns; default: a timestamped name in the delivery ' +
-  'box), size?: "square"|"landscape"|"portrait" (default square; a pixel ' +
-  'size such as "1536x1024" is read by its orientation), ' +
+  'box), size?: "square"|"landscape"|"portrait" (default square; ' +
+  'landscape is 3:2 and portrait 2:3, in pixels the model picks; another ' +
+  'shape such as "16:9" or "1920x1080" is read by its orientation), ' +
   `count?: 1-${IMAGE_COUNT_MAX} (default 1; several are saved as ` +
   '<name>-1, <name>-2, …), inputImages?: string[] (up to ' +
   `${REFERENCE_IMAGES_MAX} workspace PNG, JPEG or WebP images of at most ` +
   `${REFERENCE_IMAGE_MAX_BYTES / MIB} MB each, to edit or take as ` +
   'reference, when the model accepts images)}. Answers with the saved ' +
-  'paths and the model used. One call at a time, and at most ' +
+  "paths, each image's width and height in pixels, and the model used — " +
+  'report those, not the size you asked for. One call at a time, and at most ' +
   `${SANDBOX_TURN_MAX_GENERATED_IMAGES} images a turn, within the turn's ` +
   'spend allowance. Generation can take a minute or two; if the call times ' +
   'out, call it again with exactly the same arguments — it collects the ' +
@@ -148,17 +150,19 @@ interface ImageToolArgs {
 }
 
 /** The shape an agent asked for: one of {@link IMAGE_SIZES}, or a pixel size
- * (`1536x1024`, the spelling image APIs teach models) read by its
- * orientation. */
+ * (`1536x1024`, the spelling image APIs teach models) or an aspect ratio
+ * (`16:9`, the spelling people use) read by its orientation. */
 function imageSizeOf(raw: unknown): ImageSize | undefined {
   if (typeof raw !== 'string') return undefined;
   const value = raw.trim().toLowerCase();
   const named = IMAGE_SIZES.find((candidate) => candidate === value);
   if (named !== undefined) return named;
-  const pixels = /^(\d{2,5})\s*[x×]\s*(\d{2,5})$/.exec(value);
-  if (pixels === null) return undefined;
-  const width = Number(pixels[1]);
-  const height = Number(pixels[2]);
+  const shape =
+    /^(\d{2,5})\s*[x×]\s*(\d{2,5})$/.exec(value) ??
+    /^([1-9]\d{0,3})\s*:\s*([1-9]\d{0,3})$/.exec(value);
+  if (shape === null) return undefined;
+  const width = Number(shape[1]);
+  const height = Number(shape[2]);
   return width === height
     ? 'square'
     : width > height
@@ -207,7 +211,7 @@ function readImageToolArgs(
     const known = imageSizeOf(callArgs.size);
     if (known === undefined) {
       return {
-        error: `"size" must be one of ${IMAGE_SIZES.map((s) => `"${s}"`).join(', ')}, or a pixel size such as "1536x1024".`,
+        error: `"size" must be one of ${IMAGE_SIZES.map((s) => `"${s}"`).join(', ')}, or a shape such as "16:9" or "1536x1024".`,
       };
     }
     size = known;
@@ -801,10 +805,13 @@ async function generateForTurn(
   return {
     status: 'ok',
     output: {
-      files: saved.map((file) => ({
-        path: file.path,
-        mediaType: file.image.mediaType,
-        bytes: file.image.bytes.byteLength,
+      files: saved.map(({ path, image }) => ({
+        path,
+        mediaType: image.mediaType,
+        bytes: image.bytes.byteLength,
+        ...(image.width !== undefined && image.height !== undefined
+          ? { width: image.width, height: image.height }
+          : {}),
       })),
       model: `${model.providerSlug}/${model.modelId}`,
       ...(saved.length < request.count

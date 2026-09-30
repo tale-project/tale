@@ -586,6 +586,274 @@ describe('syncMailbox attachment handling', () => {
   });
 });
 
+/**
+ * A raw Gmail `format=full` message with one attachment part. Gmail mints a
+ * fresh attachment id on every fetch, so each response names its own.
+ */
+function gmailMessage(attachmentId: string, size = 3) {
+  return {
+    id: 'g1',
+    payload: {
+      mimeType: 'multipart/mixed',
+      headers: [
+        { name: 'Message-ID', value: '<g1@example.com>' },
+        { name: 'From', value: 'Ada <ada@example.com>' },
+        { name: 'Date', value: 'Fri, 04 Apr 2025 00:00:00 +0000' },
+      ],
+      parts: [
+        {
+          mimeType: 'text/plain',
+          body: { data: Buffer.from('See attached').toString('base64url') },
+        },
+        {
+          mimeType: 'application/pdf',
+          filename: 'report.pdf',
+          headers: [],
+          body: { attachmentId, size },
+        },
+      ],
+    },
+  };
+}
+
+/** One Gmail envelope; the plain fetch lists the part, and `withBytes`
+ *  answers the fetch that asks for the attachments. */
+function gmailMailbox(withBytes: (call: ConnectorCall) => unknown): Reply {
+  return (call) => {
+    if (call.action === 'list_messages') {
+      return { messages: [{ id: 'g1', threadId: 't1' }] };
+    }
+    if (call.input.includeAttachments !== true) {
+      return { message: gmailMessage('att-first-fetch'), attachments: [] };
+    }
+    return withBytes(call);
+  };
+}
+
+function ingestedAttachments(): unknown {
+  const ingested = createConversationFromEmail.mock.calls[0]?.[1] as {
+    emails: Array<{ attachments?: unknown }>;
+  };
+  return ingested.emails[0]?.attachments;
+}
+
+async function syncOnce(ctx: ActionCtx, connectorSlug: string): Promise<void> {
+  await syncMailbox(ctx, {
+    organizationId: 'org',
+    connectorSlug,
+    limit: 25,
+    includeSent: false,
+    mode: 'live',
+  });
+}
+
+describe('syncMailbox connector-stored attachments (Gmail, Outlook)', () => {
+  it('asks Gmail for the bytes of a new message and ingests the stored reference', async () => {
+    const { ctx, calls } = harness(
+      gmailMailbox(() => ({
+        message: gmailMessage('att-second-fetch'),
+        attachments: [
+          {
+            id: 'att-second-fetch',
+            filename: 'report.pdf',
+            contentType: 'application/pdf',
+            size: 3,
+            fileId: 's3:org/report',
+          },
+        ],
+      })),
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'g1' },
+      { messageId: 'g1', includeAttachments: true },
+    ]);
+    // The reference matches the part of the SAME response — the first fetch's
+    // attachment id is already stale.
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'att-second-fetch',
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 3,
+        storageId: 's3:org/report',
+      },
+    ]);
+  });
+
+  // The cursor message is re-fetched on every poll; asking again would store
+  // another copy of every attachment each time.
+  it('keeps the stored references of a message already ingested', async () => {
+    const stored = {
+      id: 'att-old',
+      filename: 'report.pdf',
+      contentType: 'application/pdf',
+      size: 3,
+      storageId: 's3:org/report',
+    };
+    const { ctx, calls } = harness(
+      gmailMailbox(() => {
+        throw new Error('must not ask for the bytes again');
+      }),
+      {
+        existingMessages: {
+          'g1@example.com': { metadata: { attachments: [stored] } },
+        },
+      },
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([{ messageId: 'g1' }]);
+    expect(ingestedAttachments()).toEqual([stored]);
+  });
+
+  it('asks again for a message ingested before its attachments were stored', async () => {
+    const { ctx, calls } = harness(
+      gmailMailbox(() => ({
+        message: gmailMessage('att-second-fetch'),
+        attachments: [
+          {
+            id: 'att-second-fetch',
+            filename: 'report.pdf',
+            contentType: 'application/pdf',
+            size: 3,
+            fileId: 's3:org/report',
+          },
+        ],
+      })),
+      {
+        existingMessages: {
+          'g1@example.com': {
+            metadata: {
+              attachments: [
+                {
+                  id: 'att-old',
+                  filename: 'report.pdf',
+                  contentType: 'application/pdf',
+                  size: 3,
+                },
+              ],
+            },
+          },
+        },
+      },
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'g1' },
+      { messageId: 'g1', includeAttachments: true },
+    ]);
+    expect(ingestedAttachments()).toEqual([
+      expect.objectContaining({ storageId: 's3:org/report' }),
+    ]);
+  });
+
+  it('records a part the connector could not carry as truncated', async () => {
+    const { ctx } = harness(
+      gmailMailbox(() => ({
+        message: gmailMessage('att-second-fetch', 9_000_000),
+        attachments: [
+          {
+            id: 'att-second-fetch',
+            filename: 'report.pdf',
+            contentType: 'application/pdf',
+            size: 9_000_000,
+            truncated: true,
+          },
+        ],
+      })),
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'att-second-fetch',
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 9_000_000,
+        truncated: true,
+      },
+    ]);
+  });
+
+  it('still ingests the mail with metadata-only chips when the download fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx } = harness(
+      gmailMailbox(() => {
+        throw new Error('vendor unavailable');
+      }),
+    );
+
+    await syncOnce(ctx, 'gmail');
+
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'att-first-fetch',
+        filename: 'report.pdf',
+        contentType: 'application/pdf',
+        size: 3,
+      },
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('attachments not stored'),
+    );
+    warn.mockRestore();
+  });
+
+  it('takes Outlook attachments from the connector, the only place Graph lists them', async () => {
+    const outlookMessage = {
+      id: 'o1',
+      internetMessageId: '<o1@example.com>',
+      hasAttachments: true,
+      from: { emailAddress: { name: 'Ada', address: 'ada@example.com' } },
+      receivedDateTime: '2025-04-04T00:00:00Z',
+      body: { contentType: 'text', content: 'See attached' },
+    };
+    const { ctx, calls } = harness((call) => {
+      if (call.action === 'list_messages') return { messages: [{ id: 'o1' }] };
+      if (call.input.includeAttachments !== true) {
+        return { message: outlookMessage, attachments: [] };
+      }
+      return {
+        message: outlookMessage,
+        attachments: [
+          {
+            id: 'o-att',
+            name: 'invoice.pdf',
+            contentType: 'application/pdf',
+            size: 5,
+            fileId: 's3:org/invoice',
+            contentId: 'logo',
+          },
+        ],
+      };
+    });
+
+    await syncOnce(ctx, 'outlook');
+
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'o1' },
+      { messageId: 'o1', includeAttachments: true },
+    ]);
+    expect(ingestedAttachments()).toEqual([
+      {
+        id: 'o-att',
+        filename: 'invoice.pdf',
+        contentType: 'application/pdf',
+        size: 5,
+        contentId: 'logo',
+        storageId: 's3:org/invoice',
+      },
+    ]);
+  });
+});
+
 describe('syncMailbox over multiple credentials', () => {
   it('fans out each active credential from its own watermark (null = first tail)', async () => {
     const reply: Reply = (call) => {

@@ -94,6 +94,7 @@ export function routeClass(path: string): string {
   }
   if (path.startsWith('/dav')) return '/dav';
   if (path === '/events') return '/events';
+  if (path === '/api/image-proxy') return '/api/image-proxy';
   if (
     path === '/ping' ||
     path === '/ready' ||

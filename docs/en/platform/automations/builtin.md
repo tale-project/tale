@@ -29,6 +29,8 @@ These workflows pull new messages into conversations every five minutes. Each de
 
 Connect the matching mailbox first. After the first live run, inspect its [execution log](/platform/automations/execution-logs) and check that the expected messages appear in the **Inbox** view in Home.
 
+Attachments are stored with their message, so you open and download them from the conversation. Gmail hands over each attachment only up to 3.5 MB: a larger one is still listed with its name and size, but you open it in Gmail.
+
 ## Read a digest of recent mail
 
 These workflows read recent messages from every connected mailbox of their kind every six hours. They return a summary and identify messages that appear to need a reply today. The digest is the run’s output: open the run to read it. They do not write back to the mailbox or change conversation status.

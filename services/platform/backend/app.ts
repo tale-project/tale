@@ -44,6 +44,7 @@ import { createSandboxBlobRoutes } from './domains/files/sandbox-blob-routes.ts'
 import { createFolderRoutes } from './domains/folders/routes.ts';
 import { createGoogleDriveRoutes } from './domains/google_drive/routes.ts';
 import { createGovernanceRoutes } from './domains/governance/routes.ts';
+import { createImageProxyRoutes } from './domains/image_proxy/routes.ts';
 import { createKnowledgeRoutes } from './domains/knowledge/routes.ts';
 import { createKnowledgeEntryRoutes } from './domains/knowledge_entries/routes.ts';
 import { createLegalHoldRoutes } from './domains/legal_holds/routes.ts';
@@ -319,6 +320,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     ),
   );
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
+  // The remote images an email draws, fetched by the backend so the sender
+  // never sees the reader (`EmailPreview` rewrites every one to this door).
+  app.route('/api/image-proxy', createImageProxyRoutes(deps));
   // Oracle for the platform web tier's own browser connection — it forwards
   // the request Cookie and acts on the verdict (realtime/oracle-routes.ts).
   app.route('/api/sse', createSseAuthRoutes(deps));

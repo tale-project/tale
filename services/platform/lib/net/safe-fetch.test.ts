@@ -493,4 +493,73 @@ describe('lib/net/safe-fetch resolution guard', () => {
       }),
     ).rejects.toMatchObject({ kind: 'private_ip' });
   });
+
+  // The email image proxy: no credential rides the request, so cleartext and
+  // a hop onto another public host leak nothing — but every hop is still
+  // resolved and checked.
+  it('lets a credentialless request use plaintext and follow a redirect onto another public host', async () => {
+    answering({
+      'mail.example.com': [{ address: '93.184.216.34', family: 4 }],
+      'cdn.example.net': [{ address: '93.184.216.35', family: 4 }],
+    });
+    stubFetch([
+      new Response(null, {
+        status: 302,
+        headers: { Location: 'https://cdn.example.net/logo.png' },
+      }),
+      new Response('png'),
+    ]);
+    const res = await safeFetchBinary('http://mail.example.com/t?id=1', {
+      credentialless: true,
+    });
+    expect(res.status).toBe(200);
+    expect(res.finalUrl).toBe('https://cdn.example.net/logo.png');
+  });
+
+  it('still refuses a credentialless hop onto a private address', async () => {
+    answering({
+      'mail.example.com': [{ address: '93.184.216.34', family: 4 }],
+      'intranet.example.com': [{ address: '10.0.0.9', family: 4 }],
+    });
+    stubFetch([
+      new Response(null, {
+        status: 302,
+        headers: { Location: 'https://intranet.example.com/admin.png' },
+      }),
+    ]);
+    await expect(
+      safeFetchBinary('https://mail.example.com/t', { credentialless: true }),
+    ).rejects.toMatchObject({ kind: 'private_ip' });
+  });
+
+  it('keeps refusing plaintext and a cross-host redirect without it', async () => {
+    answering({
+      'mail.example.com': [{ address: '93.184.216.34', family: 4 }],
+      'cdn.example.net': [{ address: '93.184.216.35', family: 4 }],
+    });
+    stubFetch([]);
+    await expect(
+      safeFetchBinary('http://mail.example.com/t'),
+    ).rejects.toMatchObject({ kind: 'insecure_public_http' });
+    stubFetch([
+      new Response(null, {
+        status: 302,
+        headers: { Location: 'https://cdn.example.net/logo.png' },
+      }),
+    ]);
+    await expect(
+      safeFetchBinary('https://mail.example.com/t'),
+    ).rejects.toMatchObject({ kind: 'host_not_allowed' });
+  });
+
+  it('refuses to send a credential on a credentialless request', async () => {
+    const { spy } = stubFetch([]);
+    await expect(
+      safeFetchBinary('https://mail.example.com/t', {
+        credentialless: true,
+        headers: { Cookie: 'session=1' },
+      }),
+    ).rejects.toThrow(/must not send Cookie/);
+    expect(spy).not.toHaveBeenCalled();
+  });
 });

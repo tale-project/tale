@@ -104,17 +104,29 @@ function extractBody(
   return '';
 }
 
+/**
+ * Gmail's `format=full` hands every text part's `body.data` over already
+ * transcoded to UTF-8 — the part's Content-Type keeps its original charset
+ * label — so the bytes decode as UTF-8 whatever that label says. `atob` alone
+ * yields one character per byte (Latin-1), which turns any non-ASCII body into
+ * mojibake (`你好` → `ä½ å¥½`).
+ */
 function decodeBase64Url(data: string): string {
   if (!data) return '';
   let base64 = data.replace(/-/g, '+').replace(/_/g, '/');
   const pad = base64.length % 4;
   if (pad === 2) base64 += '==';
   else if (pad === 3) base64 += '=';
+  let binary: string;
   try {
-    return atob(base64);
-  } catch {
+    binary = atob(base64);
+  } catch (error) {
+    console.warn('[normalizeEmail] invalid base64url body; dropping it', error);
     return '';
   }
+  return new TextDecoder().decode(
+    Uint8Array.from(binary, (char) => char.charCodeAt(0)),
+  );
 }
 
 function findAttachmentParts(part: RawGmailPayloadPart): Array<{

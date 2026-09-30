@@ -45,6 +45,7 @@ describe('routeClass', () => {
 
   test('keeps the fixed routes and buckets everything else', () => {
     expect(routeClass('/events')).toBe('/events');
+    expect(routeClass('/api/image-proxy')).toBe('/api/image-proxy');
     expect(routeClass('/ping')).toBe('/ping');
     expect(routeClass('/metrics')).toBe('/metrics');
     expect(routeClass('/health/stores')).toBe('/health/stores');
