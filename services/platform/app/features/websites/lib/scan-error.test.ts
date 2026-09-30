@@ -1,20 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
 import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '@/backend/core/websites/scan_scheduling';
+import { renderLaneHaltMessage } from '@/lib/knowledge/crawl-parse';
 
 import {
   classifyScanError,
   isHollowSiteScan,
   isSiteLevelScanError,
+  scanEmptyMessageKey,
+  scanErrorMessageKey,
 } from './scan-error';
 
 describe('isSiteLevelScanError', () => {
   it('holds for what stops a scan as a whole', () => {
     expect(
-      (['embedding', 'runtime', 'notInCorpus'] as const).map(
+      (['embedding', 'runtime', 'renderLane', 'notInCorpus'] as const).map(
         isSiteLevelScanError,
       ),
-    ).toEqual([true, true, true]);
+    ).toEqual([true, true, true, true]);
   });
 
   it('does not hold for what the page rows carry themselves', () => {
@@ -25,6 +28,36 @@ describe('isSiteLevelScanError', () => {
 });
 
 describe('classifyScanError', () => {
+  // The render lane's own halts end a scan with a sentence for operators.
+  // They read as the last scan not finishing, told beside the pages.
+  it('maps a render lane halt, whichever the cause', () => {
+    expect(
+      classifyScanError(
+        renderLaneHaltMessage(
+          {
+            reason: 'egress_proxy',
+            error: 'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED',
+          },
+          'docs.example.com',
+        ),
+      ),
+    ).toBe('renderLane');
+    expect(
+      classifyScanError(
+        renderLaneHaltMessage(
+          { reason: 'browser', error: 'Target page has been closed; Timeout' },
+          'docs.example.com',
+        ),
+      ),
+    ).toBe('renderLane');
+    expect(scanErrorMessageKey('renderLane')).toBe(
+      'viewDialog.scanError.generic',
+    );
+    expect(scanEmptyMessageKey('renderLane')).toBe(
+      'viewDialog.scanEmpty.generic',
+    );
+  });
+
   it('maps a sandbox/docker dump to runtime', () => {
     expect(
       classifyScanError(

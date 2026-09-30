@@ -8,6 +8,7 @@ export type ScanErrorKind =
   | 'dns'
   | 'notInCorpus'
   | 'embedding'
+  | 'renderLane'
   | 'timeout'
   | 'generic';
 
@@ -16,6 +17,11 @@ export function classifyScanError(message: string): ScanErrorKind {
   if (m.includes('website not found in crawler')) return 'notInCorpus';
   // Before the timeout test: a provider's own words may name one.
   if (m.includes('embedding model could not embed')) return 'embedding';
+  // The render lane halted the scan: its egress proxy refused the site, or
+  // its browser stopped answering. The pages are not the cause, and what
+  // rendered before the halt is stored, so it is neither a scan that did
+  // not run nor anything a page row says.
+  if (m.includes('the render sandbox')) return 'renderLane';
   if (
     m.includes('sandbox session') ||
     m.includes('tale-sandbox-runtime') ||
@@ -43,7 +49,12 @@ export function classifyScanError(message: string): ScanErrorKind {
  * beside it failed for reasons of their own.
  */
 export function isSiteLevelScanError(kind: ScanErrorKind): boolean {
-  return kind === 'embedding' || kind === 'runtime' || kind === 'notInCorpus';
+  return (
+    kind === 'embedding' ||
+    kind === 'runtime' ||
+    kind === 'renderLane' ||
+    kind === 'notInCorpus'
+  );
 }
 
 export function scanErrorMessageKey(

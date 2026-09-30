@@ -465,9 +465,11 @@ records and delete them after.
   documents and websites, and the page shows no second notice; with no AI
   provider yet → the page notice carries **Configure embedding model**
   (`websites.searchNotice.configureCta`), which opens Settings › Data
-  residency. Save an embedding model → on an open Websites page the notice
-  (or banner) disappears without a reload, and every site crawled before the
-  model turns **Scanning** by itself.
+  residency. As the Editor, keep Websites open while an admin saves an
+  embedding model in another session → the notice disappears without a
+  reload, and every site crawled before the model turns **Scanning** by
+  itself. (The Owner's banner follows in the tab that saved the model; in
+  another tab it reads the setting on the next load.)
 - [ ] `KNOW-F35` · **A scan survives a restart** — Websites → add a site
   with a few hundred pages and wait until **Indexed** (`websites.indexed`)
   shows a few dozen. While the badge reads **Scanning**
