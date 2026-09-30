@@ -18,7 +18,7 @@ Un agent de projet travaille sur une tâche et remet son résultat à une person
 3. Désigne dans **Relecteur** la personne qui vérifiera le résultat. À défaut, la demande revient à la personne qui a créé la tâche ou le projet. Un relecteur doit pouvoir modifier le projet : un Membre qui a créé la tâche ne reçoit donc pas la demande de revue, mais il suit la tâche, est prévenu quand elle passe à **En revue** et peut accepter le résultat lui-même, sauf si ton organisation exige une relecture indépendante et qu’il a démarré l’exécution.
 4. Clique sur **Démarrer l'agent** ou passe la tâche à **En cours**.
 
-L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille. Une exécution qu’un Membre démarre s’en tient à sa tâche et se passe des secrets de l’agent ; [Exécutions démarrées par un Membre](/fr/platform/projects/tasks#executions-demarrees-par-un-membre) détaille ce qui change.
+L’assignation seule ne démarre pas l’exécution. Une tâche déjà assignée peut rester dans **Backlog** tant que l’équipe n’a pas décidé de la lancer. Tant que personne n’a démarré l’agent, la tâche affiche à toute personne qui peut le démarrer **Démarrer l'agent** et la mention **L’agent attend que tu le démarres.** Une fois démarré, l’agent utilise la description, les commentaires et les fichiers d’entrée dans sa sandbox. La fiche d’exécution indique s’il attend ou travaille. Une exécution qu’un Membre démarre s’en tient à sa tâche et se passe des secrets de l’agent ; [Exécutions démarrées par un Membre](/fr/platform/projects/tasks#executions-demarrees-par-un-membre) détaille ce qui change.
 
 Les agents reçoivent la consigne de rédiger les mises à jour, les comptes rendus, les tâches associées et les questions dans la langue du titre et de la description de la tâche. Si ces éléments ne permettent pas de déterminer une langue, ils utilisent la langue par défaut de l’organisation pour les agents. Un identifiant, un trimestre ou un titre issu d’un modèle ne détermine pas cette langue. Changer la langue de ton interface ne change pas celle de la tâche ; tu peux demander explicitement à l’agent d’en changer.
 
@@ -90,7 +90,7 @@ Accepter un résultat, répondre à la question d’une automatisation et tranch
 | --- | --- |
 | Attente d’une place de sandbox | La capacité de l’organisation ou de l’infrastructure partagée peut être épuisée. Attends une place ou demande à un admin d’examiner [Sandboxes](/fr/platform/admin/sandboxes). |
 | Nouvelle tentative automatique affichée | Tale reprend après un échec récupérable. Surveille le compteur sans lancer une autre exécution. |
-| L’exécution reste en échec | Lis l’erreur, corrige sa cause, puis utilise **Relancer** pour continuer la conversation. Un agent supprimé ou une limite de temps atteinte demande une intervention. |
+| **L’agent n’a pas pu terminer cette tâche** | Aucune nouvelle tentative automatique ne suit. L’avis indique ce qui s’est passé et qui peut y remédier, et **Détails**, à côté de l’exécution, montre ce que l’exécution elle-même a signalé ; [Quand l’agent ne peut pas terminer](#quand-lagent-ne-peut-pas-terminer) détaille les cas. Corrige la cause, puis utilise **Relancer** pour continuer la conversation. |
 | Réassignation refusée | Annule l’exécution active avant de choisir un autre responsable. |
 | Des agents ou des automatisations relancent sans cesse une même tâche | Une tâche accepte au plus trois démarrages de son agent par des automatisations et d’autres agents en une heure, leurs relances automatiques comprises ; le démarrage suivant est refusé, une relance au-delà de la limite ne démarre pas, et la chronologie indique **Exécution refusée: les exécutions d'agents sont en pause sur cette tâche**. Les démarrages par des personnes, et leurs relances, ne sont jamais comptés. Les exécutions d’automatisations n’ont pas ce plafond : entre deux automatisations qui se mentionnent sans fin, c’est la règle d’un seul moteur qui arrête la boucle. Annule l’exécution active, puis lis la chronologie avant de laisser l’une ou l’autre redémarrer. |
 | **Exécution refusée: l'agent travaille sur une autre tâche** | Une nouvelle tentative automatique a attendu son agent pendant deux heures, et il travaille encore sur une autre tâche. Rien n’attend derrière ce refus : relance la tâche dès que l’agent est libre, ou laisse faire l’agent coordinateur ou l’automatisation qui distribue le travail. |
@@ -103,6 +103,20 @@ Une nouvelle tentative automatique poursuit le travail de la personne qui a dém
 Un agent servi par un courtier d’abonnement peut perdre son jeton en cours de travail, lorsque le courtier actualise le compte. La nouvelle tentative poursuit alors la conversation avec un nouveau jeton, sans faire avancer le compteur de tentatives : elle affiche le même compteur que l’exécution qu’elle remplace, ou **Reprise après l'actualisation du jeton** si celle-ci n’en affichait aucun ou avait travaillé au moins quinze minutes, ce qui lui a valu une nouvelle réserve de tentatives. Après deux interruptions de ce type d’affilée, une nouvelle interruption compte comme n’importe quel autre échec.
 
 Une exécution peut aussi ne pas démarrer du tout, parce que tous les comptes de son courtier d’abonnement sont en pause après avoir atteint une limite de requêtes. Sa nouvelle tentative est alors mise en file d’attente aussitôt, mais ne démarre que lorsque le premier compte redevient disponible, au plus tard une minute après. Cette attente ne consomme aucune tentative si l’exécution refusée relançait elle-même un échec dû à une limite de requêtes ; sinon, le démarrage refusé est décompté comme une tentative.
+
+### Quand l’agent ne peut pas terminer
+
+Quand une exécution échoue et que plus rien ne la relance, parce que ses nouvelles tentatives automatiques sont épuisées ou qu’une nouvelle tentative ne changerait rien à la cause, la tâche l’indique tout en haut : **L’agent n’a pas pu terminer cette tâche**, avec ce qui s’est passé et qui peut y remédier. **Relancer**, à cet endroit, redémarre l’agent pour toute personne qui peut modifier la tâche.
+
+| L’avis indique | Qui agit |
+| --- | --- |
+| Une limite d’utilisation a arrêté l’exécution | Un Admin relève la limite ; relance ensuite l’agent. |
+| Il manque quelque chose à l’agent : son modèle, l’un de ses skills ou l’agent lui-même | Un Éditeur ou un Admin corrige l’agent dans l’onglet **Agents** du projet. |
+| L’exécution a atteint sa limite de temps | Relance l’agent, ou découpe la tâche en tâches plus petites. |
+| L’exécution a attendu trop longtemps une sandbox libre | Relance l’agent quand moins d’agents sont occupés. |
+| Le modèle d’IA a échoué, ou l’exécution n’a pas pu démarrer ou a été interrompue | Relance l’agent. S’il échoue encore, montre à un Admin ce que l’exécution a signalé dans **Détails**. |
+
+Tale prévient aussi la personne qui a démarré l’exécution et toutes celles qui suivent la tâche : par la notification **Échec de l’exécution de l’agent** et, si l’organisation dispose d’une boîte mail connectée, par e-mail. Seules les personnes qui peuvent encore ouvrir le projet sont prévenues. Une nouvelle exécution démarrée sur la tâche marque la notification non lue comme lue. Tu peux désactiver ces avis avec **Escalades d'agent** dans **Paramètres > Notifications**.
 
 ## Travail lancé par une automatisation ou un autre agent
 
