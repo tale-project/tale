@@ -40,9 +40,11 @@ After adding a person, assign the teams they need. A role alone does not put the
 | **Owner** | All product and administration work | Includes transferring ownership and deleting the organization; deleting asks you to type the organization's name before the button enables. |
 | **Admin** | Manage people, services, policies, and the team's work | Full organization settings; cannot transfer ownership. |
 | **Developer** | Build agents, automations, and integrations | Technical settings such as providers, connectors, and API access; no member administration. |
-| **Editor** | Maintain content and operate day-to-day work | Content editing; workflow and connector resources are read-only. |
+| **Editor** | Maintain content and operate day-to-day work | Content editing; no access to **Automations**; connector resources are read-only. |
 | **Member** | Use chat, read resources shared with them, and create project tasks, working their own tasks with project agents | No organization administration; can submit message feedback. |
 | **Disabled** | No active access | Retains the membership record without granting permissions. |
+
+Only Owners, Admins, and Developers see **Automations**, in the navigation and in projects; anyone else who follows a link to an automation sees **Access denied**.
 
 People who are not Owners or Admins cannot open **Settings > Members**; they see their own role under [**Settings > Account > Your role**](/platform/member/preferences#role).
 

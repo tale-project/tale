@@ -40,9 +40,11 @@ Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne don
 | **Propriétaire** | Toutes les tâches du produit et de son administration | Peut aussi transférer la propriété et supprimer l’organisation ; la suppression demande de taper le nom de l’organisation avant d’activer le bouton. |
 | **Admin** | Gérer les personnes, les services, les politiques et le travail de l’équipe | Tous les paramètres de l’organisation, sans transfert de propriété. |
 | **Développeur** | Créer des agents, des automatisations et des intégrations | Paramètres techniques des fournisseurs, connecteurs et API ; pas de gestion des membres. |
-| **Éditeur** | Entretenir les contenus et traiter le travail quotidien | Modification du contenu ; lecture seule des ressources de workflows et de connecteurs. |
+| **Éditeur** | Entretenir les contenus et traiter le travail quotidien | Modification du contenu ; pas d’accès à **Automatisations** ; lecture seule des ressources de connecteurs. |
 | **Membre** | Utiliser le chat, lire les ressources partagées et créer des tâches de projet, en confiant les siennes aux agents du projet | Pas d’administration ; peut donner un avis sur les messages. |
 | **Désactivé** | Aucun accès actif | Conserve l’adhésion sans accorder de permissions. |
+
+Seuls les propriétaires, les admins et les développeurs voient **Automatisations**, dans la navigation comme dans les projets ; pour les autres, un lien vers une automatisation affiche **Accès refusé**.
 
 Les personnes qui ne sont ni propriétaires ni admins ne peuvent pas ouvrir **Paramètres > Membres** ; elles voient leur propre rôle dans [**Paramètres > Compte > Ton rôle**](/fr/platform/member/preferences#role).
 

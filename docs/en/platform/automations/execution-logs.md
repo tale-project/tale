@@ -13,7 +13,7 @@ Open an automation, switch to its **Runs** tab and select a row to understand wh
 
 ## Read the run’s state
 
-The **Runs** tab lists the latest 50 runs you can see, newest first. Every member sees the organization’s own runs; a run in a project, and any question it waits on, appears only to people who can open that project. Each row identifies its version, time, mode and starter, or gives a failure or waiting reason. The detail shows the workflow with node results and run timing; an unfinished run has no completion time. The tabs stay visible while you inspect a run. Choose **Runs** to return to the list or **Editor** to change the workflow.
+The **Runs** tab lists the latest 50 runs you can see, newest first. Owners, Admins, and Developers see the organization’s own runs; a run in a project, and any question it waits on, appears only to those of them who can open that project. Each row identifies its version, time, mode and starter, or gives a failure or waiting reason. The detail shows the workflow with node results and run timing; an unfinished run has no completion time. The tabs stay visible while you inspect a run. Choose **Runs** to return to the list or **Editor** to change the workflow.
 
 | Status | Meaning | What to do |
 | --- | --- | --- |

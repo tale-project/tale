@@ -24,7 +24,7 @@ The card does not edit the operation. If an input is wrong, reject it, correct t
 
 <Note>
 
-Organization members can decide connector operation approvals. These cards do not route to a named reviewer or approver group; the run detail is where the decision is made. Other kinds of review can have stricter permissions.
+Organization members can decide connector operation approvals. These cards do not route to a named reviewer or approver group; the decision is made on the run detail, which only Owners, Admins, and Developers open. When the run works a task, its card also appears on the task, where anyone who can open the task decides it. Other kinds of review can have stricter permissions.
 
 </Note>
 

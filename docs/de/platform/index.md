@@ -8,7 +8,7 @@ Diese Anleitungen helfen dir bei der Arbeit in Tale, in der Cloud und im eigenen
 
 ## Zwischen Bereichen wechseln {#navigation}
 
-Am Computer zeigt die Navigationsleiste am linken Rand die Bereiche als Symbole: **Start**, **Wissen** und **Automatisierungen**. Am unteren Ende der Leiste liegen **Einstellungen**, deine Benachrichtigungen und dein Profilmenü. Zeigst du auf ein Symbol, erscheint sein Name. Auf dem Smartphone findest du **Start**, **Wissen**, **Automatisierungen** und **Einstellungen** in der Tab-Leiste am unteren Bildschirmrand. **Automatisierungen** sehen Inhaber, Admins und Entwickler immer, weil sie Automatisierungen bauen; alle anderen sehen den Bereich, sobald die Organisation eine organisationsweite Automatisierung live betreibt. Automatisierungen eines Projekts erscheinen im eigenen Tab dieses Projekts.
+Am Computer zeigt die Navigationsleiste am linken Rand die Bereiche als Symbole: **Start**, **Wissen** und **Automatisierungen**. Am unteren Ende der Leiste liegen **Einstellungen**, deine Benachrichtigungen und dein Profilmenü. Zeigst du auf ein Symbol, erscheint sein Name. Auf dem Smartphone findest du **Start**, **Wissen**, **Automatisierungen** und **Einstellungen** in der Tab-Leiste am unteren Bildschirmrand. **Automatisierungen** sehen nur Inhaber, Admins und Entwickler, weil sie Automatisierungen bauen; Mitglieder und Redakteure sehen den Bereich nicht.
 
 Auf dem Smartphone schwebt die Navigation als abgerundete Leiste über der Seite. Inhalte scrollen dahinter weiter; Nachrichtenfelder und Seitenaktionen bleiben darüber erreichbar. Sobald sich die Bildschirmtastatur öffnet, wird die Leiste ausgeblendet. Schließt du die Tastatur, erscheint sie wieder.
 
