@@ -32,10 +32,11 @@ Damit entstehen Konfigurations- und Backup-Volume, ohne ein Backend zu starten o
 | `config-data` | Organisationskonfiguration, unterstützte Geheimnis-Begleitdateien und Branding. In Postgres gespeicherte Anbieterzugangsdaten gehören zur Datenbanksicherung. |
 | `object-store-data` | Hochgeladene Dateien und erzeugte Medien, wenn der Bereitstellungsstandard den mitgelieferten Speicher verwendet. |
 | `caddy-data`, `caddy-config` | Zertifikate und Proxy-Zustand. |
+| `llm-gateway-data` | Der Speicher des Modell-Gateways: Admin-Konto, Anbieterschlüssel, Sitzungsschlüssel mit ihren Budgets und Ausgaben sowie das Anfrageprotokoll. |
 
-Für jedes erfasste Volume enthält der Snapshot ein Archiv und eine SHA-256-Prüfsummendatei. `manifest.json` wird zuletzt geschrieben und hält die Plattformversion fest, sofern sie ermittelt werden kann. Ein Verzeichnis ohne Manifest ist unvollständig: Es erscheint nicht in der Wiederherstellungsliste und kann bei der Rotation entfernt werden, sobald ein neuerer vollständiger Snapshot vorliegt.
+Für jedes erfasste Volume enthält der Snapshot ein Archiv und eine SHA-256-Prüfsummendatei. `manifest.json` wird zuletzt geschrieben und hält die Plattformversion fest, sofern sie ermittelt werden kann. Ein Verzeichnis ohne Manifest ist unvollständig: Es erscheint nicht in der Wiederherstellungsliste und kann bei der Rotation entfernt werden, sobald ein neuerer vollständiger Snapshot vorliegt. Snapshots, die entstanden sind, bevor die CLI den Speicher des Gateways erfasste, enthalten kein Archiv von `llm-gateway-data`.
 
-Bewahre zusätzlich den Ordner mit `tale.json`, seine `.env` und separat eingebundene Schlüsseldateien auf. Dazu gehören insbesondere `ENCRYPTION_SECRET_HEX` und die age-Identität für SOPS-Dateien. `llm-gateway-data` und Sandbox-Arbeitsverzeichnisse sind nicht Teil dieser Snapshot-Liste. Nimm sie bei Bedarf in deinen eigenen Sicherungsplan auf.
+Bewahre zusätzlich den Ordner mit `tale.json`, seine `.env` und separat eingebundene Schlüsseldateien auf. Dazu gehören insbesondere `ENCRYPTION_SECRET_HEX` und die age-Identität für SOPS-Dateien. Sandbox-Arbeitsverzeichnisse sind nicht Teil dieser Snapshot-Liste. Nimm sie bei Bedarf in deinen eigenen Sicherungsplan auf.
 
 <Warning>
 
@@ -53,9 +54,9 @@ tale backup
 tale restore
 ```
 
-`backup` zeigt das Ergebnis an. `restore` ohne ID listet nur vorhandene Snapshots auf, einschließlich der erfassten Version und eines Hinweises auf fehlende Dateien. Halte die Snapshot-ID zusammen mit den IDs externer Backups fest.
+`backup` zeigt das Ergebnis an. `restore` ohne ID listet nur vorhandene Snapshots auf, einschließlich der erfassten Version und eines Hinweises, wenn Dateien oder der Speicher des Gateways fehlen. Halte die Snapshot-ID zusammen mit den IDs externer Backups fest.
 
-Während ein Volume archiviert wird, pausiert der Sicherungsprozess die Container, die es verwenden. Uploads, Downloads und Datenbankarbeit können während der jeweiligen Pause warten müssen. Die Dauer hängt von Datenmenge und Durchsatz ab. Docker meldet einen pausierten Container bis zu seiner nächsten erfolgreichen Zustandsprüfung als `unhealthy`. Nach jedem Archiv wartet der Sicherungsprozess deshalb, bis jeder Container, der vor der Pause gesund war, wieder `healthy` meldet; das dauert meist ein Intervall der Zustandsprüfung. Erholt sich ein Container nicht innerhalb der Wiederholungen, die seine Zustandsprüfung zulässt, schlägt die Sicherung fehl. Die Archive bilden einen absturzähnlichen Zustand je Volume ab, keine atomare Transaktion über alle Speicher. Für einen abgestimmten Wiederherstellungspunkt halte Schreibzugriffe und geplante Arbeit an oder nutze ein Wartungsfenster, das auch externe Speicher umfasst.
+Während ein Volume archiviert wird, pausiert der Sicherungsprozess die Container, die es verwenden. Uploads, Downloads, Datenbankarbeit und Modellaufrufe über das Gateway können während der jeweiligen Pause warten müssen. Die Dauer hängt von Datenmenge und Durchsatz ab. Docker meldet einen pausierten Container bis zu seiner nächsten erfolgreichen Zustandsprüfung als `unhealthy`. Nach jedem Archiv wartet der Sicherungsprozess deshalb, bis jeder Container, der vor der Pause gesund war, wieder `healthy` meldet; das dauert meist ein Intervall der Zustandsprüfung. Erholt sich ein Container nicht innerhalb der Wiederholungen, die seine Zustandsprüfung zulässt, schlägt die Sicherung fehl. Die Archive bilden einen absturzähnlichen Zustand je Volume ab, keine atomare Transaktion über alle Speicher. Für einen abgestimmten Wiederherstellungspunkt halte Schreibzugriffe und geplante Arbeit an oder nutze ein Wartungsfenster, das auch externe Speicher umfasst.
 
 Ein `tale deploy` mit Versionswechsel oder einer Überschreibung der Host-Konfiguration erstellt vor Änderungen einen Snapshot. Schlägt die Sicherung fehl, bricht die Bereitstellung ab. `--skip-backup` umgeht diesen Schutz. Verwende die Option nur, wenn dein Wiederherstellungsplan die erforderliche Sicherung bereits bereitstellt.
 
@@ -89,7 +90,7 @@ Die Wiederherstellung ersetzt den Inhalt der enthaltenen Daten-Volumes. Sichere 
 tale restore <snapshot-id> --stop
 ```
 
-4. Stelle externe Datenbanken und Buckets bei weiterhin gesperrtem Zugriff auf den abgestimmten Zeitpunkt zurück. Ein als `without blobs` markierter Snapshot lässt das vorhandene lokale Datei-Volume unangetastet.
+4. Stelle externe Datenbanken und Buckets bei weiterhin gesperrtem Zugriff auf den abgestimmten Zeitpunkt zurück. Ein als `without blobs` markierter Snapshot lässt das vorhandene lokale Datei-Volume unangetastet. Einer mit der Markierung `without gateway` lässt `llm-gateway-data` unangetastet und kann das Gateway nicht auf seinen Speicher von vor einem Gateway-Upgrade zurückbringen; die CLI warnt davor, bevor sie nach der Bestätigung fragt. Wurde das Gateway nach diesem Snapshot aktualisiert, spiele vor dem nächsten Schritt deine eigene Kopie des Volumes zurück, wie unter [Upgrades](/de/self-hosted/operate/upgrades) beschrieben.
 5. Wähle die im Snapshot vermerkte Version und stelle sie einschließlich der zustandsbehafteten Dienste bereit:
 
 ```bash

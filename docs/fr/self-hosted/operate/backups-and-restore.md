@@ -32,10 +32,11 @@ Ces commandes préparent les volumes de configuration et de sauvegarde sans dém
 | `config-data` | Configuration des organisations, fichiers de secrets associés pris en charge et identité visuelle. Les identifiants de fournisseurs stockés dans Postgres font partie de la sauvegarde de la base. |
 | `object-store-data` | Fichiers importés et médias générés lorsque le stockage par défaut utilise le service fourni. |
 | `caddy-data`, `caddy-config` | Certificats et état du proxy. |
+| `llm-gateway-data` | Le stockage de la passerelle de modèles : son compte d’administration, les clés des fournisseurs, les clés de session avec leurs budgets et leurs dépenses, et son journal des requêtes. |
 
-Un snapshot contient une archive et son fichier de somme SHA-256 pour chaque volume capturé. `manifest.json`, écrit en dernier, indique la version de la plateforme lorsqu’elle peut être déterminée. Un dossier sans manifeste est incomplet : il ne figure pas dans la liste de restauration et la rotation peut le supprimer après la création d’un snapshot complet plus récent.
+Un snapshot contient une archive et son fichier de somme SHA-256 pour chaque volume capturé. `manifest.json`, écrit en dernier, indique la version de la plateforme lorsqu’elle peut être déterminée. Un dossier sans manifeste est incomplet : il ne figure pas dans la liste de restauration et la rotation peut le supprimer après la création d’un snapshot complet plus récent. Les snapshots pris avant que la CLI capture le stockage de la passerelle ne contiennent pas d’archive de `llm-gateway-data`.
 
-Conserve aussi le workspace qui contient `tale.json`, son `.env` et les fichiers de clés montés séparément. Garde notamment `ENCRYPTION_SECRET_HEX` et l’identité age nécessaire aux fichiers SOPS. `llm-gateway-data` et les espaces de travail des sandbox ne font pas partie de cet inventaire ; ajoute-les à ton plan si tu dois conserver leur état.
+Conserve aussi le workspace qui contient `tale.json`, son `.env` et les fichiers de clés montés séparément. Garde notamment `ENCRYPTION_SECRET_HEX` et l’identité age nécessaire aux fichiers SOPS. Les espaces de travail des sandbox ne font pas partie de cet inventaire ; ajoute-les à ton plan si tu dois conserver leur état.
 
 <Warning>
 
@@ -53,9 +54,9 @@ tale backup
 tale restore
 ```
 
-`backup` affiche le résultat. Sans identifiant, `restore` liste seulement les snapshots disponibles, leur version enregistrée et l’éventuelle absence des fichiers. Note l’identifiant du snapshot avec ceux des sauvegardes externes.
+`backup` affiche le résultat. Sans identifiant, `restore` liste seulement les snapshots disponibles, leur version enregistrée et l’éventuelle absence des fichiers ou du stockage de la passerelle. Note l’identifiant du snapshot avec ceux des sauvegardes externes.
 
-Pendant l’archivage d’un volume, le processus suspend les conteneurs qui l’utilisent. Les imports, téléchargements et opérations de base peuvent attendre pendant cette pause, dont la durée dépend de la quantité de données et du débit. Docker signale un conteneur suspendu comme `unhealthy` jusqu’à ce que sa sonde réussisse de nouveau. Après chaque archive, le processus attend donc que chaque conteneur sain avant la pause soit de nouveau signalé comme `healthy`, ce qui prend en général un intervalle de sonde. Si un conteneur ne se rétablit pas dans la limite des tentatives que permet sa sonde, le snapshot échoue. Ces archives correspondent à un état de reprise après arrêt brutal par volume, pas à une transaction atomique entre tous les stockages. Pour obtenir un point de reprise coordonné, arrête les écritures et tâches planifiées ou utilise une fenêtre de maintenance qui couvre aussi les stockages externes.
+Pendant l’archivage d’un volume, le processus suspend les conteneurs qui l’utilisent. Les imports, téléchargements, opérations de base et appels de modèle passant par la passerelle peuvent attendre pendant cette pause, dont la durée dépend de la quantité de données et du débit. Docker signale un conteneur suspendu comme `unhealthy` jusqu’à ce que sa sonde réussisse de nouveau. Après chaque archive, le processus attend donc que chaque conteneur sain avant la pause soit de nouveau signalé comme `healthy`, ce qui prend en général un intervalle de sonde. Si un conteneur ne se rétablit pas dans la limite des tentatives que permet sa sonde, le snapshot échoue. Ces archives correspondent à un état de reprise après arrêt brutal par volume, pas à une transaction atomique entre tous les stockages. Pour obtenir un point de reprise coordonné, arrête les écritures et tâches planifiées ou utilise une fenêtre de maintenance qui couvre aussi les stockages externes.
 
 Un `tale deploy` qui change de version ou remplace la configuration de l’hôte prend un snapshot avant ses modifications. L’échec du snapshot interrompt ce déploiement. `--skip-backup` contourne cette protection ; utilise cette option uniquement si ton plan de reprise fournit déjà la sauvegarde nécessaire.
 
@@ -89,7 +90,7 @@ La restauration remplace le contenu des volumes inclus. Préserve l’état actu
 tale restore <snapshot-id> --stop
 ```
 
-4. Restaure les bases et buckets externes au point de reprise coordonné, sans rouvrir le trafic. Un snapshot marqué `without blobs` laisse le volume local de fichiers existant intact.
+4. Restaure les bases et buckets externes au point de reprise coordonné, sans rouvrir le trafic. Un snapshot marqué `without blobs` laisse le volume local de fichiers existant intact. Un snapshot marqué `without gateway` laisse `llm-gateway-data` intact et ne peut pas ramener la passerelle au stockage qu’elle avait avant sa mise à niveau ; la CLI le signale avant de demander confirmation. Si la passerelle a été mise à niveau après ce snapshot, remets ta propre copie du volume en place avant l’étape suivante, comme l’explique [Mises à niveau](/fr/self-hosted/operate/upgrades).
 5. Sélectionne la version indiquée dans le snapshot et déploie-la, y compris les services persistants :
 
 ```bash

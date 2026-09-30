@@ -8,7 +8,11 @@ import { z } from 'zod';
 
 import { externalDepError, preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
-import { isValidSnapshotId, RESTORABLE_ARCHIVES } from '../backup/constants';
+import {
+  GATEWAY_VOLUME,
+  isValidSnapshotId,
+  RESTORABLE_ARCHIVES,
+} from '../backup/constants';
 import { createSnapshot } from '../backup/create-snapshot';
 import { verifySnapshot } from '../backup/verify-snapshot';
 import { verifyArtifactBytes } from '../config/releases/artifacts';
@@ -17,6 +21,7 @@ import { loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { sha, slug } from '../config/releases/model';
 import { validateNativeRelease } from '../config/releases/native';
+import { volumeExists } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { setProjectId } from '../project/project-context';
 import { withLock } from '../state/with-lock';
@@ -57,6 +62,7 @@ type Dependencies = {
   runtime?: typeof applyRuntime;
   snapshot?: typeof createSnapshot;
   verifySnapshot?: typeof verifySnapshot;
+  volumeExists?: typeof volumeExists;
   exec?: typeof exec;
   bootstrapPassword?: typeof readBootstrapPassword;
   activateConfiguration?: typeof activateRuntimeConfiguration;
@@ -86,6 +92,40 @@ const deploymentIntentSchema = z.strictObject({
   snapshot: recoverySnapshotSchema.optional(),
   supersededBundles: z.array(sha).max(64).optional(),
 });
+
+/**
+ * A newer model gateway migrates its store in `llm-gateway-data` in place,
+ * forward-only, on its first start, and only an archive of that volume taken
+ * before then can return it. A snapshot this CLI takes holds the volume
+ * whenever it exists, but a pending deployment keeps the snapshot taken before
+ * it began, and one taken by a CLI that did not capture the gateway store yet
+ * holds none. A snapshot taken now cannot stand in for it: the interrupted
+ * rollout may already have migrated the store. So an existing gateway's
+ * runtime does not change without its recovery point, and the refusal comes
+ * before anything is written, the pending receipt included.
+ */
+async function requireGatewayRecoveryPoint(
+  snapshot: z.infer<typeof recoverySnapshotSchema> | undefined,
+  retained: boolean,
+  preview: RuntimeResult,
+  prefix: string,
+  exists: typeof volumeExists,
+): Promise<void> {
+  // No snapshot is recorded for a fresh installation, whose gateway volume is
+  // the one its own rollout created.
+  if (!snapshot || GATEWAY_VOLUME in snapshot.volumes) return;
+  if (!(await exists(`${prefix}${GATEWAY_VOLUME}`))) return;
+  if (preview.existing && preview.changed)
+    throw preconditionError(
+      `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}, and this rollout changes the runtime of the existing model gateway, which migrates that store forward-only.`,
+      retained
+        ? `Nothing was changed and the pending deployment keeps its recovery snapshot. It was taken before snapshots captured the gateway store, and a snapshot taken now could already hold a migrated store, so keep ${prefix}${GATEWAY_VOLUME} as it is and do not remove the pending receipt.`
+        : 'Nothing was changed and no pending deployment was recorded. Retry to take a new snapshot.',
+    );
+  logger.warn(
+    `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}: restoring it leaves the model gateway's store as it is now.`,
+  );
+}
 
 function nativeInput(
   bundle: DeploymentBundle,
@@ -507,6 +547,7 @@ async function applyVerifiedDeployment(
           JSON.parse(readRegular(intentPath).toString('utf8')),
         )
       : undefined;
+    let supersedes: string | undefined;
     if (
       intent &&
       (intent.name !== bundle.spec.name || intent.bundleSha256 !== bundleSha256)
@@ -517,10 +558,9 @@ async function applyVerifiedDeployment(
       ) {
         // The reviewed bundle takes over the pending one's recovery point: the
         // snapshot taken before anything changed stays the recovery point, and
-        // the superseded bundle is named in the ready receipt.
-        logger.notice(
-          `Superseding the pending deployment bundle ${intent.bundleSha256}; its recovery snapshot is kept.`,
-        );
+        // the superseded bundle is named in the ready receipt. The takeover is
+        // recorded below, once the recovery point is known to hold.
+        supersedes = intent.bundleSha256;
         intent = {
           ...intent,
           bundleSha256,
@@ -529,7 +569,6 @@ async function applyVerifiedDeployment(
             intent.bundleSha256,
           ],
         };
-        atomicRuntimeFile(intentPath, `${JSON.stringify(intent, null, 2)}\n`);
       } else
         throw preconditionError(
           `A different deployment bundle is pending (${intent.bundleSha256}). Recover the same reviewed bundle first.`,
@@ -569,6 +608,13 @@ async function applyVerifiedDeployment(
         );
       snapshot = recoverySnapshotSchema.parse(created);
     }
+    await requireGatewayRecoveryPoint(
+      snapshot,
+      intent !== undefined,
+      preview,
+      `${bundle.spec.composeProject}_`,
+      dependencies.volumeExists ?? volumeExists,
+    );
     if (snapshot)
       await (dependencies.verifySnapshot ?? verifySnapshot)(
         `${bundle.spec.composeProject}_`,
@@ -577,7 +623,12 @@ async function applyVerifiedDeployment(
     // Persist the original recovery point before any runtime or native write.
     // Retrying a failed deployment must never substitute a snapshot of its
     // partially applied state for the pre-deployment snapshot.
-    if (!intent) {
+    if (supersedes && intent) {
+      logger.notice(
+        `Superseding the pending deployment bundle ${supersedes}; its recovery snapshot is kept.`,
+      );
+      atomicRuntimeFile(intentPath, `${JSON.stringify(intent, null, 2)}\n`);
+    } else if (!intent) {
       intent = {
         schemaVersion: 1,
         phase: 'pending',

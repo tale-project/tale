@@ -9,6 +9,7 @@ import {
   BACKUP_VOLUME,
   BLOB_VOLUME,
   CONFIG_VOLUME,
+  GATEWAY_VOLUME,
   LEGACY_CONFIG_VOLUME,
   RESTORABLE_ARCHIVES,
   isValidSnapshotId,
@@ -111,11 +112,15 @@ function hasBlobArchive(manifest: SnapshotManifest): boolean {
   return BLOB_VOLUME in manifest.volumes;
 }
 
+function hasGatewayArchive(manifest: SnapshotManifest): boolean {
+  return GATEWAY_VOLUME in manifest.volumes;
+}
+
 function printSnapshotList(snapshots: SnapshotManifest[]): void {
   logger.table(
     snapshots.map((snapshot) => [
       snapshot.id,
-      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}`,
+      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}${hasGatewayArchive(snapshot) ? '' : ' · without gateway'}`,
     ]),
   );
 }
@@ -226,6 +231,15 @@ export async function restore(
     if (!volumes.includes(CONFIG_VOLUME)) {
       logger.warn(
         `Snapshot ${snapshotId} has no ${CONFIG_VOLUME} (or ${LEGACY_CONFIG_VOLUME}) archive — the org config store is left untouched. This snapshot is incomplete.`,
+      );
+    }
+    // Snapshots taken before the gateway's store was captured still restore
+    // everything they hold. What they cannot do is undo a gateway upgrade: a
+    // newer gateway migrated that store forward-only, and an older release
+    // started on it afterwards runs on the migrated store.
+    if (!volumes.includes(GATEWAY_VOLUME)) {
+      logger.warn(
+        `Snapshot ${snapshotId} has no ${GATEWAY_VOLUME} archive (taken before snapshots captured the model gateway's store, or without a gateway) — the gateway volume is left untouched, so this snapshot cannot return the model gateway to its store from before a gateway upgrade. Restore your own copy of ${prefix}${GATEWAY_VOLUME} before starting an older release.`,
       );
     }
 

@@ -25,6 +25,16 @@ export const LEGACY_CONFIG_VOLUME = 'convex-data';
 export const BLOB_VOLUME = 'object-store-data';
 
 /**
+ * The model gateway's store (`sandbox-llm-gateway`, mounted at `/app/data`):
+ * SQLite databases holding its admin account, providers and their keys,
+ * virtual keys with their budgets and spend, and its request log, each beside
+ * its `-wal` and `-shm` files. A newer gateway migrates the store in place,
+ * forward-only, on its first start, so only an archive taken before that start
+ * can return it. The name predates the service rename and never changes.
+ */
+export const GATEWAY_VOLUME = 'llm-gateway-data';
+
+/**
  * Volumes captured by a snapshot: every project volume that holds
  * non-rederivable state. `db-backup` is excluded (never back up backups —
  * nothing writes to it today anyway) along with the legacy `platform-data`
@@ -39,6 +49,7 @@ export const SNAPSHOT_VOLUMES = [
   BLOB_VOLUME,
   'caddy-data',
   'caddy-config',
+  GATEWAY_VOLUME,
 ] as const;
 
 /**

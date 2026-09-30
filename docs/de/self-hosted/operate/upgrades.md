@@ -83,18 +83,20 @@ tale rollback
 
 `--yes` überspringt die Bestätigung für einen bereits genehmigten unbeaufsichtigten Lauf. Die Prüfung derselben Versionslinie ist eine Schranke, kein eigenständiger Nachweis der Kompatibilität aller externen Integrationen und lokalen Anpassungen. Eine ältere Migrationsliste als Präfix der neuen macht ein Downgrade allein nicht sicher.
 
+`tale rollback` tauscht nur die Anwendungs-Images von `platform`, `backend-api` und `backend-worker` aus. Es stellt kein Volume wieder her und lässt Datenbank, Speicher, Proxy, Sandbox-Dienste und Modell-Gateway, wie sie sind. Auch sonst stellt kein Bereitstellungsschritt von selbst Daten wieder her: Scheitert ein Deploy an seinen Zustandsprüfungen, bleibt die bisherige Anwendungsfarbe in Betrieb, doch was er bereits an Ort und Stelle ersetzt hat, bleibt ersetzt. Nur `tale restore` spielt die Volumes eines Snapshots zurück.
+
 ## Bifrost 1.6 → 2.2: Der Speicher des Modell-Gateways wird migriert
 
 Ein Release nach 0.5.64 stellt das Modell-Gateway (`sandbox-llm-gateway`) von Bifrost 1.6 auf Bifrost 2.2 um; seine Release Notes nennen den Wechsel. Beim ersten Start migriert das neue Gateway seinen Speicher in `llm-gateway-data` an Ort und Stelle und behält Anbieter, Schlüssel, Budgets und Admin-Konto; von Hand ist nichts zu tun. Die Migration indiziert auch das Anfrageprotokoll des Gateways, daher kann dieser Start bei einer Instanz mit langer Anfragehistorie länger dauern.
 
-Das [Backup-Inventar](/de/self-hosted/operate/backups-and-restore) lässt `llm-gateway-data` aus. Kopiere das Volume deshalb selbst, bevor du bereitstellst: Stoppe das Gateway, was laufende Agent-Turns und Modellaufrufe beendet, kopiere das Volume und stelle dann bereit. `<id>` ist die `id` in `tale.json`:
+`tale deploy` ersetzt das Gateway, bevor es die neue Anwendungsfarbe startet. Scheitert die Bereitstellung danach, kann der Speicher also schon migriert sein. Der Snapshot, den ein `tale deploy` mit Versionswechsel vorher erstellt, enthält `llm-gateway-data` zusammen mit den anderen Volumes und ist damit auch der Wiederherstellungspunkt des Gateways. Snapshots, die entstanden sind, bevor die CLI den Speicher des Gateways erfasste, enthalten kein solches Archiv; `tale restore` führt sie als `without gateway`. Stellst du mit `--skip-backup` bereit, kopiere das Volume vorher selbst: Stoppe das Gateway, was laufende Agent-Turns und Modellaufrufe beendet, kopiere das Volume und stelle dann bereit. `<id>` ist die `id` in `tale.json`:
 
 ```bash
 docker stop <id>-sandbox-llm-gateway
 docker run --rm -v <id>_llm-gateway-data:/from:ro -v "$PWD/llm-gateway-data-backup:/to" alpine:3.22 cp -a /from/. /to/
 ```
 
-Das Gateway eines Releases vor dem Wechsel startet auf dem migrierten Speicher und bedient Tale, protokolliert aber Fehler `no such column: oauth_configs.token_id`, und Bifrost unterstützt dieses Downgrade nicht. `tale rollback` innerhalb der Linie 0.5 startet genau dieses Gateway. Stoppe das Gateway deshalb vor dem Rollback und spiele die Kopie zurück:
+Das Gateway eines Releases vor dem Wechsel startet auf dem migrierten Speicher und bedient Tale, protokolliert aber Fehler `no such column: oauth_configs.token_id`, und Bifrost unterstützt dieses Downgrade nicht. `tale rollback` startet dieses Gateway nicht: Das Gateway bleibt bei dem neueren Image und seinem Speicher. Gestartet wird es, sobald wieder ein Release vor dem Wechsel bereitgestellt wird, etwa mit `tale update --version` und `tale deploy` nach einer Snapshot-Wiederherstellung. Bring deshalb zuerst den Speicher zurück. Stellst du den Snapshot von vor dem Upgrade wieder her, kommt `llm-gateway-data` mit den anderen Volumes zurück. Führt `tale restore` diesen Snapshot als `without gateway`, stoppe das Gateway und spiele deine Kopie zurück, bevor du das ältere Release bereitstellst:
 
 ```bash
 docker stop <id>-sandbox-llm-gateway

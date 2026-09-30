@@ -125,6 +125,18 @@ const MANIFEST_WITH_BLOBS = {
   },
 };
 
+/** A snapshot that captured the model gateway's store. */
+const MANIFEST_WITH_GATEWAY = {
+  ...MANIFEST_RENAMED,
+  id: '20260930-080000-deploy',
+  createdAt: '2026-09-30T08:00:00.000Z',
+  platformVersion: '0.5.64',
+  volumes: {
+    ...MANIFEST_RENAMED.volumes,
+    'llm-gateway-data': { sha256: 'd'.repeat(64), sizeBytes: 8192 },
+  },
+};
+
 function restoreScripts(): string[] {
   return execMock.mock.calls.map((call) => call[1][call[1].length - 1]);
 }
@@ -353,6 +365,145 @@ describe('restore', () => {
       const byId = new Map(rows);
       expect(byId.get(MANIFEST_WITH_BLOBS.id)).not.toContain('without blobs');
       expect(byId.get(MANIFEST.id)).toContain('without blobs');
+    });
+  });
+
+  describe('the model gateway archive', () => {
+    const restoreReady = () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      isContainerRunningMock.mockResolvedValue(false);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+    };
+
+    const warnings = () =>
+      loggerWarnMock.mock.calls.map((call) => String(call[0]));
+
+    test('is verified, then restored into the live gateway volume of the same name', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY]);
+      restoreReady();
+      const order: string[] = [];
+      verifySnapshotMock.mockImplementation(() => {
+        order.push('verify');
+        return Promise.resolve();
+      });
+      execMock.mockImplementation(() => {
+        order.push('extract');
+        return Promise.resolve({
+          success: true,
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+        });
+      });
+
+      await run({
+        env,
+        snapshotId: MANIFEST_WITH_GATEWAY.id,
+        assumeYes: true,
+      });
+
+      expect(order[0]).toBe('verify');
+      const gatewayRestore = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes('llm-gateway-data.tar.gz'),
+      );
+      expect(gatewayRestore?.[1]).toContain('tale_llm-gateway-data:/data');
+      // The same guarded wipe-then-extract as every other volume: nothing is
+      // deleted unless the archive is there.
+      expect(gatewayRestore?.[1][gatewayRestore[1].length - 1]).toBe(
+        `test -f /backup/${MANIFEST_WITH_GATEWAY.id}/llm-gateway-data.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${MANIFEST_WITH_GATEWAY.id}/llm-gateway-data.tar.gz -C /data`,
+      );
+      expect(ensureVolumesMock).toHaveBeenCalledWith(
+        expect.arrayContaining(['llm-gateway-data']),
+        'tale_',
+      );
+      expect(execMock).toHaveBeenCalledTimes(3);
+      expect(warnings().some((line) => line.includes('llm-gateway-data'))).toBe(
+        false,
+      );
+    });
+
+    // Every snapshot written before the gateway store was captured restores
+    // as before, but must not read as a way back to the gateway's old store.
+    test('is named as absent by an older snapshot, which leaves the gateway store untouched', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST_RENAMED]);
+      restoreReady();
+
+      await run({ env, snapshotId: MANIFEST_RENAMED.id, assumeYes: true });
+
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(
+        restoreScripts().some((script) => script.includes('llm-gateway-data')),
+      ).toBe(false);
+      const gateway = warnings().filter((line) =>
+        line.includes('llm-gateway-data'),
+      );
+      expect(gateway).toHaveLength(1);
+      expect(gateway[0]).toContain(
+        `Snapshot ${MANIFEST_RENAMED.id} has no llm-gateway-data archive`,
+      );
+      expect(gateway[0]).toContain('left untouched');
+      expect(gateway[0]).toContain(
+        'cannot return the model gateway to its store from before a gateway upgrade',
+      );
+    });
+
+    test('is announced before the consent prompt, so the restore can still be declined', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST_RENAMED]);
+      restoreReady();
+      let warnedBeforePrompt = false;
+      confirmMock.mockImplementation(() => {
+        warnedBeforePrompt = warnings().some((line) =>
+          line.includes('no llm-gateway-data archive'),
+        );
+        return Promise.resolve(false);
+      });
+
+      await expect(
+        run({ env, snapshotId: MANIFEST_RENAMED.id }),
+      ).rejects.toThrow('Restore aborted');
+      expect(warnedBeforePrompt).toBe(true);
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    test('is restored only under its exact name, never under a look-alike one', async () => {
+      const lookalike = {
+        ...MANIFEST_RENAMED,
+        volumes: {
+          ...MANIFEST_RENAMED.volumes,
+          'llm-gateway-data-old': { sha256: 'e'.repeat(64), sizeBytes: 1 },
+          'gateway-data': { sha256: 'f'.repeat(64), sizeBytes: 1 },
+        },
+      };
+      listSnapshotsMock.mockResolvedValue([lookalike]);
+      restoreReady();
+
+      await run({ env, snapshotId: lookalike.id, assumeYes: true });
+
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(
+        restoreScripts().some((script) => script.includes('gateway-data')),
+      ).toBe(false);
+    });
+
+    test('is visible in the listing: snapshots without one are marked', async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY, MANIFEST]);
+
+      await run({ env });
+
+      const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
+      const byId = new Map(rows);
+      expect(byId.get(MANIFEST_WITH_GATEWAY.id)).not.toContain(
+        'without gateway',
+      );
+      expect(byId.get(MANIFEST.id)).toContain('without gateway');
     });
   });
 
