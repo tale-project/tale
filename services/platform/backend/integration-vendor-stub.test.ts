@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 
 import { isPrivateIp } from '@tale/shared/net/private-ip';
+import { getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { safeFetch } from '../lib/net/safe-fetch';
@@ -17,6 +18,7 @@ import {
   startItestVendorStub,
   vendorAnswer,
   type ItestVendorStub,
+  type OffBoxRequest,
 } from './integration-vendor-stub';
 
 function shippedProvider(name: string) {
@@ -291,5 +293,251 @@ describe('routeVendorFetch without the network', () => {
       'fetch failed',
     );
     expect(refused).toEqual(['http://object-store.itest:9001']);
+  });
+});
+
+/**
+ * Redirects, on native `fetch`'s own redirect engine: an undici MockAgent is
+ * the global dispatcher with the network disabled, so every origin below is
+ * an interceptor and no socket, DNS query or vendor request exists. The
+ * foreign interceptor stands for any host off the box: it must never be
+ * reached through a permitted origin's redirect.
+ */
+describe('routeVendorFetch keeps redirected hops inside the boundary', () => {
+  const LOOPBACK = 'http://127.0.0.1:49112';
+  const STORE = 'http://object-store.itest:9000';
+  const FOREIGN = 'https://unmodeled.invalid';
+  const STUB = 'http://127.0.0.1:49199';
+  let previous: ReturnType<typeof getGlobalDispatcher>;
+  let agent: MockAgent;
+  let refused: OffBoxRequest[];
+  let foreignHits: string[];
+  let routed: typeof globalThis.fetch;
+
+  /** A mocked request's body as text, whether it came as a string or bytes. */
+  const textOf = (body: unknown): string =>
+    body instanceof Uint8Array ? new TextDecoder().decode(body) : String(body);
+  const redirectTo = (status: number, location: string) => ({
+    statusCode: status,
+    data: '',
+    responseOptions: { headers: { location } },
+  });
+
+  beforeEach(() => {
+    previous = getGlobalDispatcher();
+    agent = new MockAgent();
+    agent.disableNetConnect();
+    setGlobalDispatcher(agent);
+    refused = [];
+    foreignHits = [];
+    agent
+      .get(FOREIGN)
+      .intercept({ path: () => true, method: () => true })
+      .reply((opts) => {
+        foreignHits.push(`${opts.method} ${opts.path}`);
+        return { statusCode: 200, data: 'escaped' };
+      })
+      .persist();
+    routed = routeVendorFetch(globalThis.fetch, {
+      stubOrigin: STUB,
+      onTheBox: [STORE],
+      onOffBox: (request) => {
+        refused.push(request);
+      },
+    });
+  });
+
+  afterEach(async () => {
+    setGlobalDispatcher(previous);
+    await agent.close();
+  });
+
+  it('refuses a loopback redirect to an unknown origin, naming only its method and origin', async () => {
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/redirect' })
+      .reply(() => redirectTo(302, `${FOREIGN}/escaped?token=secret`));
+    await expect(routed(`${LOOPBACK}/redirect`)).rejects.toMatchObject({
+      message: 'fetch failed',
+      cause: { code: 'ECONNREFUSED' },
+    });
+    expect(foreignHits).toEqual([]);
+    expect(refused).toEqual([{ method: 'GET', origin: FOREIGN }]);
+  });
+
+  it("refuses the object store's redirect to an unknown origin", async () => {
+    agent
+      .get(STORE)
+      .intercept({ path: '/bucket/key', method: 'PUT' })
+      .reply(() => redirectTo(307, `${FOREIGN}/escaped`));
+    await expect(
+      routed(`${STORE}/bucket/key`, { method: 'PUT', body: 'blob bytes' }),
+    ).rejects.toMatchObject({
+      message: 'fetch failed',
+      cause: { code: 'ECONNREFUSED' },
+    });
+    expect(foreignHits).toEqual([]);
+    expect(refused).toEqual([{ method: 'PUT', origin: FOREIGN }]);
+  });
+
+  it('follows a permitted redirect as fetch would: same origin, then on to the object store', async () => {
+    const seen: string[] = [];
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/hop', method: 'POST' })
+      .reply((opts) => {
+        seen.push(`${opts.method} /hop ${textOf(opts.body)}`);
+        return redirectTo(307, '/kept');
+      });
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/kept', method: 'POST' })
+      .reply((opts) => {
+        seen.push(`${opts.method} /kept ${textOf(opts.body)}`);
+        return redirectTo(303, `${STORE}/landed`);
+      });
+    agent
+      .get(STORE)
+      .intercept({ path: '/landed' })
+      .reply((opts) => {
+        const headers = new Headers(
+          Object.entries(opts.headers ?? {}).map(
+            ([name, value]): [string, string] => [name, String(value)],
+          ),
+        );
+        const body =
+          opts.body === undefined || opts.body === null
+            ? 'none'
+            : textOf(opts.body);
+        seen.push(
+          `${opts.method} /landed body=${body} type=${headers.get('content-type') ?? 'none'} auth=${headers.get('authorization') ?? 'none'}`,
+        );
+        return { statusCode: 200, data: 'landed' };
+      });
+    const response = await routed(`${LOOPBACK}/hop`, {
+      method: 'POST',
+      body: 'payload',
+      headers: {
+        'content-type': 'text/plain',
+        authorization: 'Bearer itest-key',
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('landed');
+    expect(response.redirected).toBe(true);
+    expect(response.url).toBe(`${STORE}/landed`);
+    // 307 keeps the method and body; 303 turns it into a bodiless GET; the
+    // cross-origin hop drops the credential header.
+    expect(seen).toEqual([
+      'POST /hop payload',
+      'POST /kept payload',
+      'GET /landed body=none type=none auth=none',
+    ]);
+    expect(refused).toEqual([]);
+    expect(foreignHits).toEqual([]);
+  });
+
+  it("re-sends a Request's own body on a 307, as fetch does for the object store's signed requests", async () => {
+    const bodies: string[] = [];
+    agent
+      .get(STORE)
+      .intercept({ path: '/bucket/key', method: 'PUT' })
+      .reply((opts) => {
+        bodies.push(textOf(opts.body));
+        return redirectTo(307, '/bucket/moved');
+      });
+    agent
+      .get(STORE)
+      .intercept({ path: '/bucket/moved', method: 'PUT' })
+      .reply((opts) => {
+        bodies.push(textOf(opts.body));
+        return { statusCode: 200, data: 'stored' };
+      });
+    const response = await routed(
+      new Request(`${STORE}/bucket/key`, { method: 'PUT', body: 'blob bytes' }),
+    );
+    expect(await response.text()).toBe('stored');
+    expect(response.url).toBe(`${STORE}/bucket/moved`);
+    expect(bodies).toEqual(['blob bytes', 'blob bytes']);
+    expect(refused).toEqual([]);
+  });
+
+  it('sends a redirect onto a vendor host to the vendor stub, like a first request', async () => {
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/to-vendor' })
+      .reply(() => redirectTo(302, 'https://openrouter.ai/api/v1/models'));
+    agent
+      .get(STUB)
+      .intercept({ path: '/openrouter.ai/api/v1/models' })
+      .reply(200, '{"data":[]}');
+    const response = await routed(`${LOOPBACK}/to-vendor`);
+    expect(await response.text()).toBe('{"data":[]}');
+    expect(response.url).toBe('https://openrouter.ai/api/v1/models');
+    expect(refused).toEqual([]);
+  });
+
+  it("keeps the caller's manual and error modes: nothing is followed", async () => {
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/redirect' })
+      .reply(() => redirectTo(302, `${FOREIGN}/escaped`))
+      .times(3);
+    const manual = await routed(`${LOOPBACK}/redirect`, { redirect: 'manual' });
+    expect(manual.status).toBe(302);
+    expect(manual.headers.get('location')).toBe(`${FOREIGN}/escaped`);
+    const manualRequest = await routed(
+      new Request(`${LOOPBACK}/redirect`, { redirect: 'manual' }),
+    );
+    expect(manualRequest.status).toBe(302);
+    await expect(
+      routed(`${LOOPBACK}/redirect`, { redirect: 'error' }),
+    ).rejects.toThrow('fetch failed');
+    expect(refused).toEqual([]);
+    expect(foreignHits).toEqual([]);
+  });
+
+  it('stops where fetch stops: 20 redirects, a streamed body, a missing Location', async () => {
+    let loops = 0;
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/loop' })
+      .reply(() => {
+        loops += 1;
+        return redirectTo(302, '/loop');
+      })
+      .persist();
+    await expect(routed(`${LOOPBACK}/loop`)).rejects.toMatchObject({
+      message: 'fetch failed',
+      cause: { message: 'redirect count exceeded' },
+    });
+    expect(loops).toBe(21);
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/stream', method: 'POST' })
+      .reply(() => redirectTo(307, '/again'));
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('once'));
+        controller.close();
+      },
+    });
+    const streamed: RequestInit & { duplex: 'half' } = {
+      method: 'POST',
+      body: stream,
+      duplex: 'half',
+    };
+    await expect(routed(`${LOOPBACK}/stream`, streamed)).rejects.toThrow(
+      'fetch failed',
+    );
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/no-location' })
+      .reply(302, 'no location');
+    const bare = await routed(`${LOOPBACK}/no-location`);
+    expect(bare.status).toBe(302);
+    expect(bare.redirected).toBe(false);
+    expect(refused).toEqual([]);
+    expect(foreignHits).toEqual([]);
   });
 });
