@@ -6,7 +6,7 @@ The platform adapter (gemini-cli/adapter.ts) sends ONE JSON object on stdin:
   {"prompt": ..., "system_prompt"?: ..., "settings"?: {...}}
 and gemini-cli/parse.ts normalizes the CLI's stream-json stdout into
 AgentEvent[]. The wrapper exists because two inputs have no CLI flag and must
-be ON DISK before the CLI starts (verified @google/gemini-cli 0.49.0):
+be ON DISK before the CLI starts (verified @google/gemini-cli 0.59.0):
 
   - settings (auth-type pin, tools.exclude, mcpServers, maxSessionTurns) —
     staged to a private per-exec file and pointed at via
@@ -95,7 +95,7 @@ def main() -> int:
     try:
         if system_prompt is not None:
             # Per-exec context file: ~/.gemini/<name> is a global context path
-            # for every name in context.fileName (verified 0.49.0
+            # for every name in context.fileName (verified 0.59.0
             # memoryDiscovery). Keep GEMINI.md first so the working repo's own
             # context files still load.
             os.makedirs(gemini_dir, exist_ok=True)
@@ -117,7 +117,7 @@ def main() -> int:
 
         # --approval-mode yolo: fully autonomous — the container is the safety
         # boundary. --skip-trust: headless folder-trust gate would otherwise
-        # silently downgrade yolo to interactive approvals (verified 0.49.0).
+        # silently downgrade yolo to interactive approvals (verified 0.59.0).
         cmd = [
             "gemini",
             "--output-format",
