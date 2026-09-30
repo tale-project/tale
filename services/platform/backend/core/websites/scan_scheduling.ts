@@ -39,6 +39,22 @@
  *   running scan refreshes, copied over by each row sync (and stamped when a
  *   scan is queued). It is what tells a scan that runs for hours from one
  *   that crashed; cleared whenever the row is not scanning.
+ * - `scanResumes` — how often the scan the row is in was picked up again
+ *   after it stopped without a successor (see below); cleared when that
+ *   scan ends, either way.
+ *
+ * ## A scan that stops without ending
+ *
+ * A scan is a chain of jobs: each link queues the next before its own job
+ * ends, so a running scan always has a job queued or active. A link cut off
+ * mid-flight — the process was restarted, deployed over, or killed — leaves
+ * none, and nothing records an end: the corpus claim stays held and the row
+ * reads `scanning`. Before this was told apart, such a site sat there for
+ * {@link STUCK_SCANNING_RETRY_MS} with no way to retry it, on every deploy
+ * that met a scan in progress, and then started over from its first page.
+ * The scheduler now resumes it on its next tick: it takes the dead claim
+ * over by its heartbeat and continues from the pages the scan had not
+ * reached ({@link mayResumeScan}, {@link resumedScanEpoch}).
  */
 
 /** Retry cadence while a site's scans are failing: `min(interval, this)`.
@@ -55,6 +71,21 @@ export const CONNECTION_FAILURES_BEFORE_PAUSE = 3;
 /** A Convex row stuck in `scanning` longer than this belongs to a crashed
  * scan; the corpus-side claim takeover makes the retry safe. */
 export const STUCK_SCANNING_RETRY_MS = 2 * 60 * 60 * 1000;
+
+/** How often one scan is picked up again after it stopped without a
+ * successor. Bounded so that a scan which takes its process down with it
+ * cannot do so every few minutes: past this the claim's own takeover window
+ * ({@link STUCK_SCANNING_RETRY_MS}) is the retry, as it was before. */
+export const MAX_SCAN_RESUMES = 3;
+
+/** How long a scan whose last job ran out its whole expiry is left alone.
+ * Such a job ended in one of two ways, and the queue cannot tell which: its
+ * process was killed and the job timed out, or the link is simply slow — it
+ * outlived the job and is still working, and will queue its own successor.
+ * Waiting this long after the job's end lets the second case finish before
+ * the first is assumed. A job cut short before its expiry (a restart) has no
+ * such doubt and is resumed on the next tick. */
+export const EXPIRED_LINK_GRACE_MS = 15 * 60 * 1000;
 
 /** The row's error when its domain has no corpus registration — written by
  * the status sync AND by a scan that finds nothing to claim, so the failure
@@ -121,6 +152,44 @@ export function isDueForScan(site: ScanSchedulingSite, now: number): boolean {
   return now - anchor > window;
 }
 
+/** What the scheduler knows about a `scanning` row whose scan has no job
+ * queued or running. */
+export interface InterruptedScan {
+  /** How often this scan was resumed already (`scanResumes`). */
+  readonly resumes: number;
+  /** How the domain's most recent failed scan job came to its end, when the
+   * queue still holds one. */
+  readonly lastFailedJob: {
+    readonly endedAt: number;
+    readonly ranOutItsExpiry: boolean;
+  } | null;
+}
+
+/** Whether an interrupted scan is resumed at `now` (see the module note). */
+export function mayResumeScan(scan: InterruptedScan, now: number): boolean {
+  if (scan.resumes >= MAX_SCAN_RESUMES) return false;
+  const job = scan.lastFailedJob;
+  if (job === null || !job.ranOutItsExpiry) return true;
+  return now - job.endedAt >= EXPIRED_LINK_GRACE_MS;
+}
+
+/**
+ * The instant a resumed scan counts its pages from: a page crawled since
+ * then is done for this scan, every other one is still due. That is where
+ * the interrupted scan began (`cycleStartedAt`, the first scan job since the
+ * site's last finished scan) — so a restart costs the pages in flight, not
+ * the hours already crawled — but never further back than one scan
+ * interval: a page older than that is due on any scan. Null when nothing is
+ * known about the scan's beginning; the resumed scan then starts afresh.
+ */
+export function resumedScanEpoch(
+  scan: { cycleStartedAt: number | null; scanIntervalSeconds: number },
+  now: number,
+): number | null {
+  if (scan.cycleStartedAt === null || scan.cycleStartedAt > now) return null;
+  return Math.max(scan.cycleStartedAt, now - scan.scanIntervalSeconds * 1000);
+}
+
 function latestOf(a?: number, b?: number): number | undefined {
   if (a === undefined) return b;
   if (b === undefined) return a;
@@ -158,6 +227,16 @@ export function scanHeartbeatAt(
   return typeof raw === 'number' && Number.isFinite(raw) && raw > 0
     ? raw
     : null;
+}
+
+/** How often the scan the row is in was resumed after stopping without a
+ * successor. */
+export function scanResumeCount(
+  metadata: Record<string, unknown> | undefined,
+): number {
+  const raw = metadata?.scanResumes;
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.floor(raw);
 }
 
 /** When the site's scans were paused, or `null` while scanning is active. */

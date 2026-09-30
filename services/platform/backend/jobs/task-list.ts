@@ -750,7 +750,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     'websites.scan_due': async () => {
       await runWebsitesScanDue(deps.sql);
     },
-    'websites.scan': async (payload) => {
+    'websites.scan': async (payload, context) => {
       const input = z
         .object({
           domain: z.string().min(1),
@@ -758,9 +758,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           organizationId: z.string().min(1),
           continuation: z.number().int().min(0).optional(),
           scanStartedAt: z.string().optional(),
+          takeover: z.string().min(1).optional(),
         })
         .parse(payload);
-      await runWebsitesScan(deps.sql, input);
+      await runWebsitesScan(deps.sql, input, context?.signal);
     },
     'websites.register': async (payload) => {
       const input = z

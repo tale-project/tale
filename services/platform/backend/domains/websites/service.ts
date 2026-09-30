@@ -25,6 +25,7 @@ import {
   listPageChunks,
   listVectorlessDomains,
   listWebsitePages,
+  readScanClaim,
   registerDomain,
   registerUrlList,
   searchDomainContent,
@@ -46,8 +47,12 @@ import {
   CONNECTION_FAILURES_BEFORE_PAUSE,
   connectionFailureCount,
   lastScanAttemptAt,
+  MAX_SCAN_RESUMES,
+  mayResumeScan,
+  resumedScanEpoch,
   scanHeartbeatAt,
   scanPausedAt,
+  scanResumeCount,
   type ScanSchedulingSite,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../../core/websites/scan_scheduling.ts';
@@ -71,6 +76,11 @@ import {
   markSessionDestroyed,
   reserveSessionSlot,
 } from '../sandbox/sessions.ts';
+import {
+  lastFailedScanJob,
+  listScanningRowsWithoutJob,
+  scanCycleStartedAt,
+} from './scan-queue.ts';
 
 /**
  * Websites — the 0.5 twin of `convex/websites` + the crawl engine host.
@@ -526,6 +536,8 @@ export async function recordScanFailure(
         lastSyncError: args.message.slice(0, 1000),
         lastScanAttemptAt: now,
         corpusConnectionFailures: failures > 0 ? failures : null,
+        // The scan ended here; the next one counts its resumes from zero.
+        scanResumes: null,
         ...(pauseNow ? { scanPausedAt: now } : {}),
       },
     });
@@ -940,7 +952,7 @@ export async function registerWebsite(
         callerOrgId: args.organizationId,
         scanInterval: args.scanInterval,
         status: 'scanning',
-        metadata: { scanHeartbeatAt: Date.now() },
+        metadata: { scanHeartbeatAt: Date.now(), scanResumes: null },
       });
       id = existing.id;
       merged = true;
@@ -1148,6 +1160,8 @@ export async function syncSingleWebsite(
             info.status === 'scanning' && info.updated_at !== null
               ? new Date(info.updated_at).getTime()
               : null,
+          // Counted per scan: kept while it runs, cleared once it ended.
+          ...(info.status === 'scanning' ? {} : { scanResumes: null }),
         },
       });
     } else {
@@ -1312,6 +1326,7 @@ async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
         // Queued now: the scheduler leaves the row to this scan rather than
         // reading its last completed scan as a stuck one.
         scanHeartbeatAt: Date.now(),
+        scanResumes: null,
       },
     });
     await addJobInTx(tx, 'websites.scan', {
@@ -1410,8 +1425,93 @@ export async function searchWebsiteContent(
 
 // -------------------------------------------------------------------- jobs
 
-/** The five-minute scheduler tick (the 0.4 cron) on the reused engine. */
+/** Rows one tick considers for a resume. A restart that interrupted more
+ * scans than this resumes the rest on the ticks that follow. */
+const RESUME_BATCH_SIZE = 50;
+
+/**
+ * Resume the scans that stopped without a successor — a link cut off by a
+ * restart, a deploy or a crash (see `core/websites/scan_scheduling.ts`).
+ *
+ * A row is resumed when it reads `scanning`, no scan job for its domain is
+ * queued or running, and the corpus claim is still held. The resumed scan is
+ * a first link that takes exactly that claim over, by its heartbeat, and
+ * counts its pages from where the interrupted scan began, so the pages
+ * already crawled stay done. The job and the row's bookkeeping are written
+ * in one transaction; the fresh heartbeat keeps the tick that follows from
+ * queueing the row a second time as a stuck one.
+ *
+ * Returns how many scans it resumed. Exported for tests only.
+ */
+export async function resumeInterruptedScans(sql: Sql): Promise<number> {
+  const rows = await listScanningRowsWithoutJob(sql, RESUME_BATCH_SIZE);
+  const resumed = new Set<string>();
+  for (const row of rows) {
+    // Two organizations that registered one domain share its scan.
+    if (resumed.has(row.domain)) continue;
+    const resumes = scanResumeCount(row.metadata ?? undefined);
+    try {
+      const now = Date.now();
+      const lastFailedJob = await lastFailedScanJob(sql, row.domain);
+      if (!mayResumeScan({ resumes, lastFailedJob }, now)) continue;
+      const orgSlug = await requireSlug(sql, row.organizationId);
+      const pool = await getKnowledgePoolForOrg(orgSlug);
+      const claim = await readScanClaim(pool, row.domain);
+      // No claim is held: the row is only behind the corpus, which the
+      // status sync settles.
+      if (claim === null) continue;
+      const epoch = resumedScanEpoch(
+        {
+          cycleStartedAt: await scanCycleStartedAt(
+            sql,
+            row.domain,
+            claim.lastScannedAt,
+          ),
+          scanIntervalSeconds: scanIntervalToSeconds(row.scanInterval),
+        },
+        now,
+      );
+      await sql.begin(async (tx) => {
+        await patchWebsite(tx, {
+          websiteId: row.id,
+          metadata: { scanHeartbeatAt: now, scanResumes: resumes + 1 },
+        });
+        await addJobInTx(tx, 'websites.scan', {
+          domain: row.domain,
+          orgSlug,
+          organizationId: row.organizationId,
+          takeover: claim.heartbeat,
+          ...(epoch === null
+            ? {}
+            : { scanStartedAt: new Date(epoch).toISOString() }),
+        });
+      });
+      resumed.add(row.domain);
+      console.log(
+        `[websites] ${row.domain}: its scan stopped without a successor; resumed (${resumes + 1} of ${MAX_SCAN_RESUMES})`,
+      );
+    } catch (error) {
+      // One site's trouble must not keep the others waiting.
+      console.warn(
+        `[websites] ${row.domain}: an interrupted scan could not be resumed:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  return resumed.size;
+}
+
+/** The five-minute scheduler tick (the 0.4 cron) on the reused engine,
+ * after the scans a restart interrupted are back on the queue. */
 export async function runWebsitesScanDue(sql: Sql): Promise<void> {
+  try {
+    await resumeInterruptedScans(sql);
+  } catch (error) {
+    console.warn(
+      '[websites] interrupted scans could not be listed:',
+      error instanceof Error ? error.message : error,
+    );
+  }
   await scanDueWebsitesImpl(crawlCtx(sql));
 }
 
@@ -1458,7 +1558,8 @@ async function restoreSiteRegistration(
   }
 }
 
-/** One continuation link of a domain scan (the reused engine body). */
+/** One continuation link of a domain scan (the reused engine body).
+ * `signal` is the job's own: aborted once the job has ended under the link. */
 export async function runWebsitesScan(
   sql: Sql,
   payload: {
@@ -1467,12 +1568,17 @@ export async function runWebsitesScan(
     organizationId: string;
     continuation?: number;
     scanStartedAt?: string;
+    takeover?: string;
   },
+  signal?: AbortSignal,
 ): Promise<void> {
   if ((payload.continuation ?? 0) === 0) {
     await restoreSiteRegistration(sql, payload);
   }
-  await scanWebsiteImpl(crawlCtx(sql), payload);
+  await scanWebsiteImpl(crawlCtx(sql), {
+    ...payload,
+    ...(signal === undefined ? {} : { signal }),
+  });
 }
 
 /** Corpus → row push for one (orgSlug, domain) — the fan-out target. */

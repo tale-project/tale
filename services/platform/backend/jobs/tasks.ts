@@ -281,13 +281,16 @@ export interface TaskPayloads {
   /** 5-min website crawl scheduler tick (the 0.4 cron). */
   'websites.scan_due': Record<string, never>;
   /** One continuation link of a domain scan — the reused engine body
-   * self-chains through this queue; the corpus-side claim is the fence. */
+   * self-chains through this queue; the corpus-side claim is the fence.
+   * `takeover` is set by the scheduler alone, on the first link of a scan
+   * it resumes: the heartbeat of the claim whose scan stopped. */
   'websites.scan': {
     domain: string;
     orgSlug: string;
     organizationId: string;
     continuation?: number;
     scanStartedAt?: string;
+    takeover?: string;
   };
   /** Register a website (or URL list) in the corpus + kick its first scan
    * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */
@@ -542,7 +545,8 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'video.watchdog': { retryLimit: 1, expireInSeconds: 240 },
   'browser.sweep': { retryLimit: 1, expireInSeconds: 120 },
   // At-most-once per link: the engine records its own failures on the row
-  // and the 5-min scheduler is the retry; the corpus claim fences overlap.
+  // and the 5-min scheduler is the retry — it also resumes a scan whose
+  // link was cut off by a restart; the corpus claim fences overlap.
   // A link's budget is ~9 minutes (the 0.4 action hard wall).
   'websites.scan': { retryLimit: 0, expireInSeconds: 900 },
   'websites.register': { retryLimit: 1, expireInSeconds: 300 },

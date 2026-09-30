@@ -33392,6 +33392,137 @@ async function checkWebsitesCrawl(
       `membersBefore=${healMemberBefore[0]?.count ?? '?'}/0 membersAfter=${healMemberAfter.map((row) => row.orgSlug).join(',')}/${orgSlug} corpus=${healCorpus[0]?.status ?? 'MISSING'}/completed interval=${healCorpus[0]?.interval ?? '?'}/21600 row=${healRow?.status ?? 'MISSING'}/active crawled=${healRow?.crawledPageCount ?? '?'}/1 failed=${healRow?.failedPageCount ?? '?'}/0 error=${String(healError)} corpusAfterDelete=${healGone[0]?.count ?? '?'}/0`,
     );
 
+    // 3d. A scan cut off mid-link — a restart, a deploy, a crash — ends
+    //     nowhere: the corpus claim stays held, the row reads `scanning` and
+    //     no scan job is left. The claim turned every new scan away for its
+    //     two-hour takeover window, and the scan that then replaced it
+    //     began again from the first page. The scheduler now resumes it: a
+    //     first link that takes exactly that claim over, by its heartbeat,
+    //     and counts its pages from where the interrupted scan began — here
+    //     one page is still due, and the two crawled since stay done.
+    const scanQueue = await import('./domains/websites/scan-queue.ts');
+    const aUrl = `https://${DOMAIN}/a.txt`;
+    const bUrl = `https://${DOMAIN}/docs/b.txt`;
+    const bBody = site.get('/docs/b.txt');
+    site.set('/a.txt', {
+      body: 'Alpha content v3 — the page the interrupted scan had not reached, rewritten so the resumed scan can be told by what it stores.',
+      type: 'text/plain',
+    });
+    site.set('/docs/b.txt', {
+      body: 'Bravo content v9 — changed at the origin after the interrupted scan crawled it; a resumed scan must not come back to it.',
+      type: 'text/plain',
+    });
+    await pool`
+      UPDATE public_web.website_urls
+      SET last_crawled_at = CASE WHEN url = ${aUrl}
+        THEN NOW() - INTERVAL '1 hour' ELSE NOW() END
+      WHERE domain = ${DOMAIN}
+    `;
+    const heldClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET status = 'scanning', updated_at = NOW(),
+          last_scanned_at = NOW() - INTERVAL '3 hours'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const claimHeartbeat = async (): Promise<string | undefined> =>
+      (
+        await pool<{ heartbeat: string }[]>`
+          SELECT updated_at::text AS heartbeat FROM public_web.websites
+          WHERE domain = ${DOMAIN} AND status = 'scanning'
+        `
+      )[0]?.heartbeat;
+    // A scan that is not a resume is turned away by the held claim.
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    const heartbeatAfterPlain = await claimHeartbeat();
+    // The interrupted scan's last link, as the queue would hold it. First a
+    // job that ran out its whole expiry half a minute ago: its link may
+    // still be working, so the scan is left alone for the grace.
+    const lastLink = await sql<{ id: string }[]>`
+      UPDATE pgboss.job
+      SET state = 'failed', started_on = now() - interval '16 minutes',
+          completed_on = now() - interval '30 seconds'
+      WHERE name = 'websites.scan' AND id = (
+        SELECT id FROM pgboss.job
+        WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+        ORDER BY created_on DESC LIMIT 1
+      )
+      RETURNING id
+    `;
+    const lastLinkId = lastLink[0]?.id ?? '';
+    const candidates = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    const ranOut = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const resumedInGrace = await websites.resumeInterruptedScans(sql);
+    // Then the same link cut short a minute into its run, ten minutes ago —
+    // what a restart leaves behind.
+    const cutShortAt = await sql<{ startedAt: number }[]>`
+      UPDATE pgboss.job
+      SET started_on = now() - interval '10 minutes',
+          completed_on = now() - interval '9 minutes'
+      WHERE name = 'websites.scan' AND id = ${lastLinkId}
+      RETURNING (EXTRACT(EPOCH FROM started_on) * 1000)::float8 AS "startedAt"
+    `;
+    const cutShort = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const resumedScans = await websites.resumeInterruptedScans(sql);
+    const resumeJob = await sql<{ data: unknown }[]>`
+      SELECT data FROM pgboss.job
+      WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+      ORDER BY created_on DESC LIMIT 1
+    `;
+    const resumePayload = z
+      .object({ takeover: z.string(), scanStartedAt: z.string() })
+      .safeParse(resumeJob[0]?.data);
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const resumedCorpus = await pool<{ status: string }[]>`
+      SELECT status FROM public_web.websites WHERE domain = ${DOMAIN}
+    `;
+    const chunkTexts = async (url: string): Promise<string[]> =>
+      (
+        await pool<{ content: string }[]>`
+          SELECT chunk_content AS content FROM public_web.chunks
+          WHERE domain = ${DOMAIN} AND url = ${url}
+        `
+      ).map((chunk) => chunk.content);
+    const aResumed = await chunkTexts(aUrl);
+    const bResumed = await chunkTexts(bUrl);
+    const rowAfterResume = await websites.getWebsite(sql, websiteId);
+    if (bBody) site.set('/docs/b.txt', bBody);
+    const epochDrift = resumePayload.success
+      ? Math.abs(
+          Date.parse(resumePayload.data.scanStartedAt) -
+            (cutShortAt[0]?.startedAt ?? 0),
+        )
+      : -1;
+    record(
+      'websites resume: a scan cut off by a restart is taken over on the next tick and continues where it stopped',
+      heldClaim.length === 1 &&
+        heartbeatAfterPlain === heldClaim[0]?.heartbeat &&
+        candidates.some((row) => row.id === websiteId) &&
+        ranOut?.ranOutItsExpiry === true &&
+        resumedInGrace === 0 &&
+        cutShort?.ranOutItsExpiry === false &&
+        resumedScans === 1 &&
+        resumePayload.success &&
+        resumePayload.data.takeover === heldClaim[0]?.heartbeat &&
+        epochDrift >= 0 &&
+        epochDrift < 5 &&
+        resumedCorpus[0]?.status === 'completed' &&
+        aResumed.length >= 1 &&
+        aResumed.every((text) => text.includes('v3')) &&
+        bResumed.length >= 1 &&
+        bResumed.every((text) => !text.includes('v9')) &&
+        rowAfterResume?.status === 'active' &&
+        rowAfterResume.metadata?.scanResumes == null &&
+        rowAfterResume.metadata?.scanHeartbeatAt == null,
+      `claim=${heldClaim[0]?.heartbeat ?? 'NONE'} afterPlainScan=${heartbeatAfterPlain === heldClaim[0]?.heartbeat ? 'unchanged' : `CHANGED(${heartbeatAfterPlain ?? 'released'})`} candidate=${candidates.some((row) => row.id === websiteId)} ranOut=${String(ranOut?.ranOutItsExpiry)}/true resumedInGrace=${resumedInGrace}/0 cutShort=${String(cutShort?.ranOutItsExpiry)}/false resumedScans=${resumedScans}/1 payload=${resumePayload.success ? `takeover ${resumePayload.data.takeover === heldClaim[0]?.heartbeat ? 'matches' : 'DIFFERS'}, epoch drift ${epochDrift}ms` : 'BAD SHAPE'} corpus=${resumedCorpus[0]?.status ?? 'MISSING'}/completed a=${aResumed.length} allV3=${aResumed.every((text) => text.includes('v3'))} b=${bResumed.length} noneV9=${bResumed.every((text) => !text.includes('v9'))} row=${rowAfterResume?.status ?? 'MISSING'}/active resumes=${String(rowAfterResume?.metadata?.scanResumes)} heartbeat=${String(rowAfterResume?.metadata?.scanHeartbeatAt)}`,
+    );
+
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
     //    registration merging on re-post, and delete deregistering the
     //    corpus rows (last member takes the domain with it).

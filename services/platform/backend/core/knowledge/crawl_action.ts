@@ -229,6 +229,14 @@ export async function scanWebsiteImpl(
     organizationId: string;
     continuation?: number;
     scanStartedAt?: string;
+    /** The heartbeat of a claim whose scan is known to have stopped: the
+     * scheduler found the row scanning with no scan job left for it. Link 0
+     * takes exactly that claim over instead of waiting out
+     * {@link STUCK_SCAN_TAKEOVER}; a claim that moved since is left alone. */
+    takeover?: string;
+    /** Aborted once the job this link runs in has ended under it — the
+     * process is stopping, or the link outlived the job's expiry. */
+    signal?: AbortSignal;
   },
 ): Promise<null> {
   {
@@ -263,7 +271,7 @@ export async function scanWebsiteImpl(
       // judges by: read fresh on link 0, from the row on every later link.
       let policy: RobotsPolicy = facts.policy;
       if (continuation === 0) {
-        const claim = await claimScan(sql, args.domain);
+        const claim = await claimScan(sql, args.domain, args.takeover);
         if (claim === 'held') {
           console.log(`[crawl] ${args.domain}: scan already running, skipping`);
           return null;
@@ -595,6 +603,17 @@ export async function scanWebsiteImpl(
       }
     } catch (error) {
       if (isConnectionFailure(error)) {
+        if (args.signal?.aborted === true) {
+          // The job this link ran in has already ended: the process is
+          // stopping and has closed its pools under the link. That is not
+          // the corpus being unreachable, and recorded as that it would
+          // count toward the three failures that pause a site and notify
+          // its admins. The scheduler resumes the scan.
+          console.warn(
+            `[crawl] ${args.domain}: link ${continuation} lost its connection after its job ended; nothing recorded`,
+          );
+          return null;
+        }
         // The corpus database dropped away mid-scan. Recording the failure
         // into it would fail with it, and the row-sync fan-out below reads
         // it — the Convex row is the only store still standing, so record
@@ -808,19 +827,27 @@ async function loadRobotsRules(
  * another scan holds it (`held`) or that the domain has no corpus row at all
  * (`missing` — the two zero-row cases must not be conflated: a held claim is
  * routine, a missing row is a failure to record). A claim older than
- * {@link STUCK_SCAN_TAKEOVER} belongs to a crashed scan and is taken over. */
+ * {@link STUCK_SCAN_TAKEOVER} belongs to a crashed scan and is taken over,
+ * and so is the claim whose heartbeat is `takeover` — the one the scheduler
+ * established has no scan left behind it. Compared by value, so a claim
+ * that was taken or refreshed since is another scan's and stays held. The
+ * heartbeat travels as text and is cast by the server: bound as a timestamp
+ * the driver would round it to the millisecond, and it would match nothing. */
 async function claimScan(
   sql: Sql,
   domain: string,
+  takeover?: string,
 ): Promise<'claimed' | 'held' | 'missing'> {
   const rows = await sql.unsafe<{ domain: string }[]>(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
         SET status = 'scanning', error = NULL, updated_at = NOW()
       WHERE domain = $1
         AND (status NOT IN ('scanning', 'deleting')
-             OR (status = 'scanning' AND updated_at < NOW() - INTERVAL '${STUCK_SCAN_TAKEOVER}'))
+             OR (status = 'scanning'
+                 AND (updated_at < NOW() - INTERVAL '${STUCK_SCAN_TAKEOVER}'
+                      OR updated_at = $2::text::timestamptz)))
       RETURNING domain`,
-    [domain],
+    [domain, takeover ?? null],
   );
   if (rows.length > 0) return 'claimed';
   const present = await sql.unsafe<{ domain: string }[]>(

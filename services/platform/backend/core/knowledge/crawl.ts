@@ -304,6 +304,30 @@ export async function deregisterDomain(
   });
 }
 
+/**
+ * The scan claim a domain's corpus row holds, or null when none is held (no
+ * row, or a row that is not scanning). `heartbeat` is the claim's own clock
+ * exactly as stored — what a takeover names, so that it takes this claim and
+ * no later one — and `lastScannedAt` the end of the last scan that finished
+ * (epoch ms), which bounds the scan the claim belongs to.
+ */
+export async function readScanClaim(
+  sql: Sql,
+  domain: string,
+): Promise<{ heartbeat: string; lastScannedAt: number | null } | null> {
+  const rows = await sql.unsafe<
+    { heartbeat: string; lastScannedAt: number | null }[]
+  >(
+    `SELECT updated_at::text AS heartbeat,
+            (EXTRACT(EPOCH FROM last_scanned_at) * 1000)::float8
+              AS "lastScannedAt"
+       FROM ${PUBLIC_WEB_SCHEMA}.websites
+      WHERE domain = $1 AND status = 'scanning'`,
+    [domain],
+  );
+  return rows[0] ?? null;
+}
+
 /** True when the organization registered this domain — the guard every
  * org-scoped read runs before answering from a domain-keyed table. */
 export async function isMemberDomain(
