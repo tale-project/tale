@@ -4,6 +4,7 @@ import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import { type ReactNode, isValidElement } from 'react';
 
 import { cn } from '../../lib/cn';
+import { isFileHref } from '../is-file-href';
 
 const KNOWN_ICON_NAMES = new Set<string>(iconNames);
 
@@ -83,6 +84,15 @@ export function Card({ title, icon, href, children, className }: CardProps) {
         rel="noopener noreferrer"
         className={baseCls}
       >
+        {inner}
+      </a>
+    );
+  }
+  // A file (`/llms.txt`, a page's `.md` export) is the server's to answer —
+  // the client router would render its not-found page for it.
+  if (isFileHref(href)) {
+    return (
+      <a href={href} className={baseCls}>
         {inner}
       </a>
     );
