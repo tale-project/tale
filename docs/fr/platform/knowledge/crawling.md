@@ -71,7 +71,7 @@ Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La c
 | **Erreur** | Le scan a échoué ou les tentatives de récupération n’ont laissé aucun contenu stocké. Ouvre la source pour connaître la cause. |
 | **Suppression en cours** | La source est en cours de retrait. |
 
-Un scan en cours au moment où Tale a été redémarré ou mis à jour reprend de lui-même, en général en moins de cinq minutes, avec les pages qu’il n’avait pas encore atteintes. Après un arrêt brutal du serveur, cela peut prendre environ une demi-heure. La source affiche **En cours d'analyse** pendant tout ce temps.
+Un scan en cours au moment où Tale a été redémarré ou mis à jour reprend de lui-même, en général en moins de cinq minutes, avec les pages qu’il n’avait pas encore atteintes. Les pages qui ont besoin du navigateur peuvent suivre jusqu’à un quart d’heure plus tard. Après un arrêt brutal du serveur, le scan peut mettre environ une demi-heure à reprendre. La source affiche **En cours d'analyse** pendant tout ce temps.
 
 Pour lancer un scan en dehors de l’intervalle, ouvre le menu de la ligne ou les détails de la source et choisis **Analyser maintenant**. C’est utile quand le site a changé ou après un scan en échec, qui sinon est relancé automatiquement dans les deux heures. L’action est proposée tant que la source n’est ni en cours d’analyse ni en cours de suppression.
 

@@ -475,8 +475,9 @@ records and delete them after.
   process, or the platform container) → once it is back the badge still
   reads **Scanning**, never **Error** and never **Paused**
   (`websites.scanPausedBadge`), and the row menu offers no **Scan now**.
-  Within about five minutes the count moves again by itself. Open the
-  details → the pages crawled before the restart keep their earlier
+  Within about five minutes the count moves again by itself; on a site
+  whose pages need the browser it can take up to a quarter of an hour. Open
+  the details → the pages crawled before the restart keep their earlier
   crawled time: the scan continued, it did not begin again. Restart once
   more while it still scans → the same again.
 
