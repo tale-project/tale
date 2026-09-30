@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
+  chmod,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rm,
@@ -1773,4 +1775,85 @@ describe('Playwright diagnostics', () => {
       }
     },
   );
+
+  // A listing that could not be read is no clean run: the step fails, the
+  // upload then runs through `failure()`, and neither `found=false` nor the
+  // clean-run line is written. Under plain `bash -e` the pipeline took its
+  // status from `paste`, so a failed `find` read as a clean run.
+  const UNREAD =
+    '::error title=Playwright diagnostics::Could not read test-results/, so this run is not reported clean\n';
+  // Stand-ins fail one stage the same way for every user, root included.
+  const STAGES = [
+    [
+      'find lists nothing',
+      'find',
+      `#!/bin/sh\necho "find: 'test-results': Permission denied" >&2\nexit 1\n`,
+    ],
+    [
+      'find stops part-way',
+      'find',
+      `#!/bin/sh\necho "test-results/${FLAKE}"\necho "find: 'test-results': Input/output error" >&2\nexit 1\n`,
+    ],
+    [
+      'a later stage fails',
+      'sort',
+      `#!/bin/sh\ncat > /dev/null\necho 'sort: write failed: standard output' >&2\nexit 2\n`,
+    ],
+  ] as const;
+  test
+    .skipIf(process.platform === 'win32')
+    .each(
+      SITES.flatMap(([job]) =>
+        STAGES.map(
+          ([when, command, standIn]) => [job, when, command, standIn] as const,
+        ),
+      ),
+    )(
+    '%s fails, and never reports a clean run, when %s',
+    async (job, _, command, standIn) => {
+      const service = await mkdtemp(join(tmpdir(), 'tale-playwright-'));
+      roots.push(service);
+      await mkdir(join(service, 'test-results', `${FLAKE}-retry1`), {
+        recursive: true,
+      });
+      const { find } = await pair(job);
+      const result = await execute(
+        `set -e\ncd "$SERVICE"\n${find?.run}`,
+        { SERVICE: service },
+        { [command]: standIn },
+      );
+      expect(result.code, result.stderr).toBe(1);
+      expect(result.output).toBe('');
+      expect(result.stdout).toBe(UNREAD);
+    },
+  );
+
+  // The same failure from a real directory: an owned test-results/ that its
+  // owner may not read. Root reads it anyway, so the stand-ins above carry
+  // the case there.
+  test
+    .skipIf(process.platform === 'win32' || process.getuid?.() === 0)
+    .each(SITES)('%s fails on a test-results/ it may not read', async (job) => {
+    const service = await mkdtemp(join(tmpdir(), 'tale-playwright-'));
+    roots.push(service);
+    const results = join(service, 'test-results');
+    await mkdir(join(results, `${FLAKE}-retry1`), { recursive: true });
+    await writeFile(join(results, `${FLAKE}-retry1`, 'trace.zip'), 'zip');
+    await chmod(results, 0o000);
+    try {
+      await expect(readdir(results)).rejects.toMatchObject({
+        code: 'EACCES',
+      });
+      const { find } = await pair(job);
+      const result = await execute(`set -e\ncd "$SERVICE"\n${find?.run}`, {
+        SERVICE: service,
+      });
+      expect(result.code, result.stderr).toBe(1);
+      expect(result.stderr).toContain('Permission denied');
+      expect(result.output).toBe('');
+      expect(result.stdout).toBe(UNREAD);
+    } finally {
+      await chmod(results, 0o755);
+    }
+  });
 });

@@ -248,14 +248,20 @@ jobs:
       # diagnostic, and the upload skips hidden files anyway. A flake the retry
       # recovered leaves the job green, and `failure()` alone then dropped the
       # only record of it (#4013). This step runs only while the job is green;
-      # the static-sites job keeps the identical pair.
+      # the static-sites job keeps the identical pair. A test-results/ it
+      # cannot read fails the step, and the upload then runs through
+      # `failure()`. Without pipefail, the default `bash -e` took the listing's
+      # status from `paste`, and a failed `find` read as a clean run.
       - name: Find Playwright diagnostics
         id: diagnostics
         working-directory: services/platform
         run: |
+          set -euo pipefail
           attempts=''
           if [ -d test-results ]; then
-            attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"
+            if ! attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"; then
+              echo '::error title=Playwright diagnostics::Could not read test-results/, so this run is not reported clean'; exit 1
+            fi
           fi
           if [ -z "$attempts" ]; then
             echo 'found=false' >> "$GITHUB_OUTPUT"
@@ -345,9 +351,12 @@ jobs:
         id: diagnostics
         working-directory: services/${{ matrix.service }}
         run: |
+          set -euo pipefail
           attempts=''
           if [ -d test-results ]; then
-            attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"
+            if ! attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"; then
+              echo '::error title=Playwright diagnostics::Could not read test-results/, so this run is not reported clean'; exit 1
+            fi
           fi
           if [ -z "$attempts" ]; then
             echo 'found=false' >> "$GITHUB_OUTPUT"
