@@ -68,7 +68,7 @@
     "class-variance-authority": "0.7.1",
     "cron-parser": "5.5.0",
     "dayjs": "1.11.20",
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.16",
     "fast-xml-parser": "5.8.0",
     "file-type": "^22.0.1",
     "framer-motion": "12.38.0",

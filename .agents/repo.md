@@ -167,6 +167,15 @@ beside the task; `--force` re-runs it locally. A task whose result depends on an
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
+The **Type check** job gives every `tsc` a 6 GiB Node heap (`NODE_OPTIONS`, #4005). The
+platform checks its frontend, backend and tests as one program, which outgrew V8's default of
+about 4 GiB on the hosted runner. The job logs the Node it resolves, the heap limit, each
+program's `--extendedDiagnostics` and the largest process's peak RSS. `NODE_OPTIONS` is not
+part of a task's hash, so a budget change alone replays cached verdicts; the pass-through
+`--extendedDiagnostics` is. A job that dies with `Ineffective mark-compacts near heap limit`
+(exit 137) and no TypeScript diagnostic has run out of budget. Measure before you read it as a
+type error or raise the budget.
+
 The **Backend integration** check is always a run: it calls `backend:integration` directly,
 never through turbo, with `ITEST_REQUIRE_ALL_LANES=1`, so a lane that cannot run fails instead of
 skipping. Its **Integration scope** job owes it to every push to `main`, merge group and release

@@ -110,6 +110,16 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    # This repo's one deviation from the standard job. The platform checks
+    # its frontend, backend and tests as ONE program (about 9,500 files, a
+    # million lines), which has outgrown V8's default heap under the image's
+    # Node: about 4 GiB on this 16 GB runner, where cold runs died with
+    # "Ineffective mark-compacts near heap limit" at ~4,015 MB retained
+    # (exit 137, #4005). A bounded budget for every Node process of this
+    # job; Turbo's strict env mode passes NODE_OPTIONS through to each
+    # task's tsc. Programs, strictness and every other gate are unchanged.
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
 
     steps:
       - name: Checkout
@@ -122,8 +132,31 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The budget the compiler runs under: the Node `bunx tsc` resolves (the
+      # runner image's, not pinned here) and V8's heap limit under this job's
+      # NODE_OPTIONS.
+      - name: Report the compiler's heap budget
+        run: |
+          set -euo pipefail
+          echo "node $(node --version) at $(command -v node), V8 $(node -p 'process.versions.v8')"
+          echo "NODE_OPTIONS=${NODE_OPTIONS}"
+          echo "heap_size_limit: $(node -p 'Math.round(require("node:v8").getHeapStatistics().heap_size_limit / 1048576)') MiB"
+          echo "runner: $(nproc) CPUs"
+          free -m
+
+      # --extendedDiagnostics logs each program's size, memory and check
+      # time, so the log shows how close the platform runs to its budget. As
+      # a pass-through argument it is part of every typecheck task's hash,
+      # which NODE_OPTIONS is not. GNU time (the image's `time` package) logs
+      # the peak RSS of the largest process, the platform's tsc.
       - name: Run type check
-        run: bunx turbo run typecheck
+        run: |
+          set -euo pipefail
+          if [ -x /usr/bin/time ]; then
+            /usr/bin/time --format 'Type check peak RSS: %M KiB, %e s' bunx turbo run typecheck -- --extendedDiagnostics
+          else
+            bunx turbo run typecheck -- --extendedDiagnostics
+          fi
 
   build:
     needs: candidate-source

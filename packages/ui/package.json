@@ -421,7 +421,7 @@
     "clsx": "2.1.1",
     "date-fns": "4.1.0",
     "dayjs": "1.11.20",
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.16",
     "elkjs": "0.11.1",
     "framer-motion": "12.38.0",
     "i18next": "26.0.4",

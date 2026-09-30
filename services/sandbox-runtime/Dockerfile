@@ -34,7 +34,7 @@ ARG CLAUDE_CODE_VERSION=2.1.283
 ARG OPENCODE_VERSION=1.17.3
 ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG HERMES_AGENT_VERSION=0.18.0
-ARG GEMINI_CLI_VERSION=0.49.0
+ARG GEMINI_CLI_VERSION=0.59.0
 ARG CODEX_VERSION=0.142.5
 ARG PI_CODING_AGENT_VERSION=0.80.3
 ARG OPENCLAW_VERSION=2026.6.11
@@ -420,7 +420,9 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/* \
     # The image's dockerd is started per-session by the entrypoint in DinD mode,
     # never as a baked service — strip any auto-start unit (no-op without systemd).
-    && rm -f /etc/systemd/system/multi-user.target.wants/docker.service 2>/dev/null || true
+    # Only this strip may fail: its `|| true` is braced, so a failed engine
+    # install above still fails the build.
+    && { rm -f /etc/systemd/system/multi-user.target.wants/docker.service 2>/dev/null || true; }
 
 # subuid/subgid ranges for the agent user. Sysbox handles userns mapping at the
 # container boundary; these are here for any rootless inner tooling and are inert
