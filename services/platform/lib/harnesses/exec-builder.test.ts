@@ -865,7 +865,7 @@ describe('a managed Claude Code exec compacts inside the model window', () => {
 });
 
 describe('gemini requests the model it was given', () => {
-  // The pinned Gemini CLI (0.49.0) rewrites any `--model` ending in
+  // Every Gemini CLI before 0.61.0 rewrites any `--model` ending in
   // "flash" to its own gemini-3.5-flash on API-key auth; the harness YAML
   // turns on dynamic model configuration so the CLI requests the id the
   // platform resolved — on both lanes (a byo Google `gemini-3-flash` is
