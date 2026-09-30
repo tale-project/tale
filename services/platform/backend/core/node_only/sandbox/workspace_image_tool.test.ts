@@ -195,6 +195,8 @@ describe('generate_image — arguments before anything is spent', () => {
     ],
     [{ prompt: 'a cat', count: 1.5 }, '"count"'],
     [{ prompt: 'a cat', size: 'huge' }, '"size" must be one of'],
+    [{ prompt: 'a cat', size: '0:9' }, '"size" must be one of'],
+    [{ prompt: 'a cat', size: '16/9' }, 'a shape such as "16:9"'],
     [{ prompt: 'a cat', count: 'two' }, '"count"'],
     [{ prompt: 'a cat', path: 42 }, '"path"'],
     [{ prompt: 'a cat', inputImages: 'logo.png' }, '"inputImages"'],
@@ -453,6 +455,43 @@ describe('generate_image — generation, booking and delivery', () => {
       }),
     );
     expect(JSON.stringify(info.mock.calls)).not.toContain('secret product');
+  });
+
+  it.each([
+    ['16:9', 'landscape'],
+    ['9:16', 'portrait'],
+    ['1:1', 'square'],
+    ['1920x1080', 'landscape'],
+    ['1024×1536', 'portrait'],
+    [' Portrait ', 'portrait'],
+  ])('reads the size %j as %s', async (size, shape) => {
+    await call({ prompt: 'a lighthouse', size });
+    expect(prepareMock).toHaveBeenCalledWith(
+      MODEL,
+      expect.objectContaining({ size: shape }),
+    );
+  });
+
+  it("answers with each image's pixel size, where its header gave one", async () => {
+    generateMock
+      .mockResolvedValueOnce({
+        images: [
+          { bytes: PNG, mediaType: 'image/png', width: 1248, height: 832 },
+        ],
+        costCents: 3.9,
+      })
+      .mockResolvedValueOnce(image());
+    const result = await call({ prompt: 'a lighthouse', count: 2 });
+    expect(result).toEqual({
+      status: 'ok',
+      output: {
+        files: [
+          expect.objectContaining({ width: 1248, height: 832 }),
+          expect.not.objectContaining({ width: expect.anything() }),
+        ],
+        model: 'openrouter/google/gemini-2.5-flash-image',
+      },
+    });
   });
 
   it('names the file by the path it was asked for, with the extension the format decides', async () => {
