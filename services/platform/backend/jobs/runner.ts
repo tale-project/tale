@@ -125,7 +125,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
               // pg-boss aborts `job.signal` once the batch outlives the
               // queue's `expireInSeconds` and retries the job; a handler that
               // honours it stops instead of running beside its retry.
-              await handler(job.data, { signal: job.signal });
+              await handler(job.data, { signal: job.signal, jobId: job.id });
               return { id: job.id, status: 'completed' };
             } catch (error) {
               if (isDatabaseUnavailable(error)) {

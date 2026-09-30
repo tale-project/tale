@@ -166,7 +166,10 @@ describe('startWorker shouldDefer', () => {
 
     const results = await handlers.get('noop')?.([job]);
     expect(send).not.toHaveBeenCalled();
-    expect(handler).toHaveBeenCalledWith({ seq: 1 }, { signal: job.signal });
+    expect(handler).toHaveBeenCalledWith(
+      { seq: 1 },
+      { signal: job.signal, jobId: job.id },
+    );
     expect(results).toEqual([{ id: 'job-1', status: 'completed' }]);
   });
 });

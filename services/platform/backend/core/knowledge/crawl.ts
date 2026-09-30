@@ -309,17 +309,24 @@ export async function deregisterDomain(
  * The scan claim a domain's corpus row holds, or null when none is held (no
  * row, or a row that is not scanning). `heartbeat` is the claim's own clock
  * exactly as stored — what a takeover names, so that it takes this claim and
- * no later one — and `lastScannedAt` the end of the last scan that finished
- * (epoch ms), which bounds the scan the claim belongs to.
+ * no later one; `ageMs` how long ago it was last refreshed, by the
+ * database's clock; and `lastScannedAt` the end of the last scan that
+ * finished (epoch ms), which bounds the scan the claim belongs to.
  */
 export async function readScanClaim(
   sql: Sql,
   domain: string,
-): Promise<{ heartbeat: string; lastScannedAt: number | null } | null> {
+): Promise<{
+  heartbeat: string;
+  ageMs: number;
+  lastScannedAt: number | null;
+} | null> {
   const rows = await sql.unsafe<
-    { heartbeat: string; lastScannedAt: number | null }[]
+    { heartbeat: string; ageMs: number; lastScannedAt: number | null }[]
   >(
     `SELECT updated_at::text AS heartbeat,
+            (EXTRACT(EPOCH FROM (NOW() - updated_at)) * 1000)::float8
+              AS "ageMs",
             (EXTRACT(EPOCH FROM last_scanned_at) * 1000)::float8
               AS "lastScannedAt"
        FROM ${PUBLIC_WEB_SCHEMA}.websites

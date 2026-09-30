@@ -52,7 +52,9 @@ export async function listScanningRowsWithoutJob(
  * How the domain's most recent failed scan job came to its end, or null when
  * the queue holds none. A job that ran out its whole expiry (within a few
  * seconds) either timed out after its process was killed or belongs to a
- * link that is still working past it; one that failed sooner was cut short.
+ * link that is still working past it; one that failed sooner was cut short
+ * — by its process on the way out, by the supervisor once its heartbeat
+ * stopped, or by an error.
  */
 export async function lastFailedScanJob(
   sql: Sql,
@@ -71,6 +73,21 @@ export async function lastFailedScanJob(
     LIMIT 1
   `;
   return rows[0] ?? null;
+}
+
+/**
+ * Whether a scan job has ended while its link may still be running: its row
+ * says it is no longer active — the supervisor failed it once its worker
+ * stopped refreshing it, or it ran out its expiry. A job the queue no longer
+ * holds counts as running: nothing says otherwise.
+ */
+export async function scanJobEnded(sql: Sql, jobId: string): Promise<boolean> {
+  const rows = await sql<{ state: string }[]>`
+    SELECT state::text AS state FROM pgboss.job
+    WHERE name = 'websites.scan' AND id = ${jobId}::uuid
+  `;
+  const state = rows[0]?.state;
+  return state !== undefined && state !== 'active';
 }
 
 /**

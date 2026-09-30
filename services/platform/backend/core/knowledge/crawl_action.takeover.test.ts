@@ -116,6 +116,29 @@ describe('scanWebsiteImpl — taking a stopped scan over', () => {
   });
 });
 
+describe('scanWebsiteImpl — a continuation link', () => {
+  // A resume takes over only a claim older than a link can hold it; a
+  // continuation may have waited in the queue long after the link before it
+  // refreshed the claim, so it refreshes the claim itself when it starts.
+  it('refreshes the claim when it starts, and only a claim that is scanning', async () => {
+    const { sql, statements } = heldCorpus();
+    vi.mocked(getKnowledgePoolForOrg).mockResolvedValue(sql);
+
+    await scanWebsiteImpl(engineCtx().ctx, {
+      ...SCAN,
+      continuation: 1,
+      scanStartedAt: '2026-09-30T13:00:00.000Z',
+    });
+
+    const refresh = statements.find((statement) =>
+      statement.text.startsWith('UPDATE'),
+    );
+    expect(refresh?.text).toContain('SET updated_at = NOW()');
+    expect(refresh?.text).toContain("status = 'scanning'");
+    expect(refresh?.params).toEqual([SCAN.domain]);
+  });
+});
+
 describe('scanWebsiteImpl — a link whose job has ended', () => {
   // A process that stops closes its pools under the links still running,
   // and their next query fails as a lost connection. Recorded as an

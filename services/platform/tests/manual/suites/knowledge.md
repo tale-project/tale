@@ -479,7 +479,9 @@ records and delete them after.
   whose pages need the browser it can take up to a quarter of an hour. Open
   the details → the pages crawled before the restart keep their earlier
   crawled time: the scan continued, it did not begin again. Restart once
-  more while it still scans → the same again.
+  more while it still scans → the same again. Then stop the backend without
+  warning (`kill -9`, or `docker kill` on the backend worker) → the same,
+  a couple of minutes later.
 
 ## Boundary & error tests
 

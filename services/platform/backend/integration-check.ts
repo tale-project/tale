@@ -33520,16 +33520,33 @@ async function checkWebsitesCrawl(
     const candidates = await scanQueue.listScanningRowsWithoutJob(sql, 50);
     const ranOut = await scanQueue.lastFailedScanJob(sql, DOMAIN);
     const resumedInGrace = await websites.resumeInterruptedScans(sql);
-    // Then the same link cut short a minute into its run, ten minutes ago —
-    // what a restart leaves behind.
+    // The claim's age is the database's reckoning of its last refresh. A
+    // resume that has no job to go by takes only a claim older than a link
+    // can hold it.
+    const crawlStore = await import('./core/knowledge/crawl.ts');
+    const freshClaim = await crawlStore.readScanClaim(pool, DOMAIN);
+    const agedClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET updated_at = now() - interval '16 minutes'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    const agedRead = await crawlStore.readScanClaim(pool, DOMAIN);
+    // Then the link a killed worker leaves: its heartbeat stopped a minute
+    // into its run and the supervisor failed the job. A link still running
+    // after its job ended queues no successor (the fence below), so the
+    // scan is resumed at once.
     const cutShortAt = await sql<{ startedAt: number }[]>`
       UPDATE pgboss.job
       SET started_on = now() - interval '10 minutes',
-          completed_on = now() - interval '9 minutes'
+          completed_on = now() - interval '9 minutes',
+          output = ${sql.json({ value: { message: 'job heartbeat timeout' } })}
       WHERE name = 'websites.scan' AND id = ${lastLinkId}
       RETURNING (EXTRACT(EPOCH FROM started_on) * 1000)::float8 AS "startedAt"
     `;
     const cutShort = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const jobEnded = await scanQueue.scanJobEnded(sql, lastLinkId);
+    const unknownJobEnded = await scanQueue.scanJobEnded(sql, randomUUID());
     const resumedScans = await websites.resumeInterruptedScans(sql);
     const resumeJob = await sql<{ data: unknown }[]>`
       SELECT data FROM pgboss.job
@@ -33568,10 +33585,16 @@ async function checkWebsitesCrawl(
         candidates.some((row) => row.id === websiteId) &&
         ranOut?.ranOutItsExpiry === true &&
         resumedInGrace === 0 &&
+        freshClaim !== null &&
+        freshClaim.ageMs < scheduling.LINK_LIFETIME_MS &&
+        agedRead?.heartbeat === agedClaim[0]?.heartbeat &&
+        agedRead.ageMs >= scheduling.LINK_LIFETIME_MS &&
         cutShort?.ranOutItsExpiry === false &&
+        jobEnded &&
+        !unknownJobEnded &&
         resumedScans === 1 &&
         resumePayload.success &&
-        resumePayload.data.takeover === heldClaim[0]?.heartbeat &&
+        resumePayload.data.takeover === agedClaim[0]?.heartbeat &&
         epochDrift >= 0 &&
         epochDrift < 5 &&
         resumedCorpus[0]?.status === 'completed' &&
@@ -33582,7 +33605,7 @@ async function checkWebsitesCrawl(
         rowAfterResume?.status === 'active' &&
         rowAfterResume.metadata?.scanResumes == null &&
         rowAfterResume.metadata?.scanHeartbeatAt == null,
-      `claim=${heldClaim[0]?.heartbeat ?? 'NONE'} afterPlainScan=${heartbeatAfterPlain === heldClaim[0]?.heartbeat ? 'unchanged' : `CHANGED(${heartbeatAfterPlain ?? 'released'})`} candidate=${candidates.some((row) => row.id === websiteId)} ranOut=${String(ranOut?.ranOutItsExpiry)}/true resumedInGrace=${resumedInGrace}/0 cutShort=${String(cutShort?.ranOutItsExpiry)}/false resumedScans=${resumedScans}/1 payload=${resumePayload.success ? `takeover ${resumePayload.data.takeover === heldClaim[0]?.heartbeat ? 'matches' : 'DIFFERS'}, epoch drift ${epochDrift}ms` : 'BAD SHAPE'} corpus=${resumedCorpus[0]?.status ?? 'MISSING'}/completed a=${aResumed.length} allV3=${aResumed.every((text) => text.includes('v3'))} b=${bResumed.length} noneV9=${bResumed.every((text) => !text.includes('v9'))} row=${rowAfterResume?.status ?? 'MISSING'}/active resumes=${String(rowAfterResume?.metadata?.scanResumes)} heartbeat=${String(rowAfterResume?.metadata?.scanHeartbeatAt)}`,
+      `claim=${heldClaim[0]?.heartbeat ?? 'NONE'} afterPlainScan=${heartbeatAfterPlain === heldClaim[0]?.heartbeat ? 'unchanged' : `CHANGED(${heartbeatAfterPlain ?? 'released'})`} candidate=${candidates.some((row) => row.id === websiteId)} ranOut=${String(ranOut?.ranOutItsExpiry)}/true resumedInGrace=${resumedInGrace}/0 claimAge=${Math.round((freshClaim?.ageMs ?? -1) / 1000)}s→${Math.round((agedRead?.ageMs ?? -1) / 1000)}s cutShort=${String(cutShort?.ranOutItsExpiry)}/false jobEnded=${jobEnded}/true unknownJobEnded=${unknownJobEnded}/false resumedScans=${resumedScans}/1 payload=${resumePayload.success ? `takeover ${resumePayload.data.takeover === agedClaim[0]?.heartbeat ? 'matches' : 'DIFFERS'}, epoch drift ${epochDrift}ms` : 'BAD SHAPE'} corpus=${resumedCorpus[0]?.status ?? 'MISSING'}/completed a=${aResumed.length} allV3=${aResumed.every((text) => text.includes('v3'))} b=${bResumed.length} noneV9=${bResumed.every((text) => !text.includes('v9'))} row=${rowAfterResume?.status ?? 'MISSING'}/active resumes=${String(rowAfterResume?.metadata?.scanResumes)} heartbeat=${String(rowAfterResume?.metadata?.scanHeartbeatAt)}`,
     );
 
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list

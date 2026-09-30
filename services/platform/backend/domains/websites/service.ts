@@ -80,6 +80,8 @@ import {
   lastFailedScanJob,
   listScanningRowsWithoutJob,
   scanCycleStartedAt,
+  type ScanningRowWithoutJob,
+  scanJobEnded,
 } from './scan-queue.ts';
 
 /**
@@ -537,7 +539,9 @@ export async function recordScanFailure(
         lastSyncError: args.message.slice(0, 1000),
         lastScanAttemptAt: now,
         corpusConnectionFailures: failures > 0 ? failures : null,
-        // The scan ended here; the next one counts its resumes from zero.
+        // The scan ended here: no heartbeat, and the next one counts its
+        // resumes from zero.
+        scanHeartbeatAt: null,
         scanResumes: null,
         ...(pauseNow ? { scanPausedAt: now } : {}),
       },
@@ -737,8 +741,15 @@ export function crawlHandlers(sql: Sql): ShimHandlers {
   };
 }
 
-/** The engine's scheduled refs, mapped onto pg-boss jobs. */
-function crawlScheduler(sql: Sql): ShimScheduler {
+/**
+ * The engine's scheduled refs, mapped onto pg-boss jobs. `jobId` is the scan
+ * link's own job, when a link is what schedules: a link whose job has ended
+ * under it — the supervisor failed it once its worker stopped refreshing it,
+ * or it ran out its expiry — queues no successor. The scan is the
+ * scheduler's to resume then (`resumeInterruptedScans`), and a successor
+ * from this link would grow a second chain beside the resumed one.
+ */
+function crawlScheduler(sql: Sql, jobId?: string): ShimScheduler {
   return async (name, delayMs, args) => {
     if (name === SCHEDULED_CRAWL_REFS.scanWebsite) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine self-chains with exactly this shape
@@ -749,6 +760,12 @@ function crawlScheduler(sql: Sql): ShimScheduler {
         continuation?: number;
         scanStartedAt?: string;
       };
+      if (jobId !== undefined && (await scanJobEnded(sql, jobId))) {
+        console.warn(
+          `[websites] ${payload.domain}: link ${payload.continuation ?? 0} queues no successor — its job ended while it ran; the scheduler resumes the scan`,
+        );
+        return;
+      }
       await addJobInTx(
         sql,
         'websites.scan',
@@ -769,10 +786,10 @@ function crawlScheduler(sql: Sql): ShimScheduler {
   };
 }
 
-function crawlCtx(sql: Sql): never {
+function crawlCtx(sql: Sql, jobId?: string): never {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused engine's ActionCtx surface is exactly what the shim provides
   return createCtxShim(crawlHandlers(sql), {
-    scheduler: crawlScheduler(sql),
+    scheduler: crawlScheduler(sql, jobId),
   }) as never;
 }
 
@@ -1172,6 +1189,8 @@ export async function syncSingleWebsite(
         metadata: {
           lastSyncError: WEBSITE_NOT_IN_CORPUS_MESSAGE,
           lastStatusSyncAt: syncTimestamp,
+          scanHeartbeatAt: null,
+          scanResumes: null,
         },
       });
     }
@@ -1181,7 +1200,12 @@ export async function syncSingleWebsite(
     await patchWebsite(sql, {
       websiteId: args.websiteId,
       status: 'error',
-      metadata: { lastSyncError: message, lastStatusSyncAt: syncTimestamp },
+      metadata: {
+        lastSyncError: message,
+        lastStatusSyncAt: syncTimestamp,
+        scanHeartbeatAt: null,
+        scanResumes: null,
+      },
     });
   }
 }
@@ -1434,72 +1458,97 @@ const RESUME_BATCH_SIZE = 50;
  * Resume the scans that stopped without a successor — a link cut off by a
  * restart, a deploy or a crash (see `core/websites/scan_scheduling.ts`).
  *
- * A row is resumed when it reads `scanning`, no scan job for its domain is
- * queued or running, and the corpus claim is still held. The resumed scan is
- * a first link that takes exactly that claim over, by its heartbeat, and
- * counts its pages from where the interrupted scan began, so the pages
- * already crawled stay done. The job and the row's bookkeeping are written
- * in one transaction; the fresh heartbeat keeps the tick that follows from
- * queueing the row a second time as a stuck one.
+ * A domain is resumed when its rows read `scanning`, no scan job for it is
+ * queued or running, and the corpus claim is still held and free to take
+ * ({@link mayResumeScan}). The resumed scan is a first link that takes
+ * exactly that claim over, by its heartbeat, and counts its pages from
+ * where the interrupted scan began, so the pages already crawled stay done.
+ * The job and the rows' bookkeeping are written in one transaction; the
+ * fresh heartbeat keeps the tick that follows from queueing the rows a
+ * second time as stuck ones.
+ *
+ * Two organizations that registered one domain share its scan, so its rows
+ * are judged together: one resume, counted against the most any of them
+ * already had. A row whose claim is no longer held is only behind the
+ * corpus, and a row sync settles it now rather than whenever someone opens
+ * the page.
  *
  * Returns how many scans it resumed. Exported for tests only.
  */
 export async function resumeInterruptedScans(sql: Sql): Promise<number> {
-  const rows = await listScanningRowsWithoutJob(sql, RESUME_BATCH_SIZE);
-  const resumed = new Set<string>();
-  for (const row of rows) {
-    // Two organizations that registered one domain share its scan.
-    if (resumed.has(row.domain)) continue;
-    const resumes = scanResumeCount(row.metadata ?? undefined);
+  const byDomain = new Map<string, ScanningRowWithoutJob[]>();
+  for (const row of await listScanningRowsWithoutJob(sql, RESUME_BATCH_SIZE)) {
+    byDomain.set(row.domain, [...(byDomain.get(row.domain) ?? []), row]);
+  }
+  let resumedScans = 0;
+  for (const [domain, rows] of byDomain) {
+    const [first] = rows;
+    if (first === undefined) continue;
+    const resumes = Math.max(
+      ...rows.map((row) => scanResumeCount(row.metadata ?? undefined)),
+    );
+    if (resumes >= MAX_SCAN_RESUMES) continue;
     try {
-      const now = Date.now();
-      const lastFailedJob = await lastFailedScanJob(sql, row.domain);
-      if (!mayResumeScan({ resumes, lastFailedJob }, now)) continue;
-      const orgSlug = await requireSlug(sql, row.organizationId);
+      const orgSlug = await requireSlug(sql, first.organizationId);
       const pool = await getKnowledgePoolForOrg(orgSlug);
-      const claim = await readScanClaim(pool, row.domain);
-      // No claim is held: the row is only behind the corpus, which the
-      // status sync settles.
-      if (claim === null) continue;
+      const claim = await readScanClaim(pool, domain);
+      if (claim === null) {
+        await addJobInTx(
+          sql,
+          'websites.row_sync',
+          { orgSlug, domain },
+          { singletonKey: `websites-row-sync-${orgSlug}-${domain}` },
+        );
+        continue;
+      }
+      const now = Date.now();
+      const lastFailedJob = await lastFailedScanJob(sql, domain);
+      if (
+        !mayResumeScan({ resumes, lastFailedJob, claimAgeMs: claim.ageMs }, now)
+      ) {
+        continue;
+      }
       const epoch = resumedScanEpoch(
         {
           cycleStartedAt: await scanCycleStartedAt(
             sql,
-            row.domain,
+            domain,
             claim.lastScannedAt,
           ),
-          scanIntervalSeconds: scanIntervalToSeconds(row.scanInterval),
+          scanIntervalSeconds: scanIntervalToSeconds(first.scanInterval),
         },
         now,
       );
       await sql.begin(async (tx) => {
-        await patchWebsite(tx, {
-          websiteId: row.id,
-          metadata: { scanHeartbeatAt: now, scanResumes: resumes + 1 },
-        });
+        for (const row of rows) {
+          await patchWebsite(tx, {
+            websiteId: row.id,
+            metadata: { scanHeartbeatAt: now, scanResumes: resumes + 1 },
+          });
+        }
         await addJobInTx(tx, 'websites.scan', {
-          domain: row.domain,
+          domain,
           orgSlug,
-          organizationId: row.organizationId,
+          organizationId: first.organizationId,
           takeover: claim.heartbeat,
           ...(epoch === null
             ? {}
             : { scanStartedAt: new Date(epoch).toISOString() }),
         });
       });
-      resumed.add(row.domain);
+      resumedScans += 1;
       console.log(
-        `[websites] ${row.domain}: its scan stopped without a successor; resumed (${resumes + 1} of ${MAX_SCAN_RESUMES})`,
+        `[websites] ${domain}: its scan stopped without a successor; resumed (${resumes + 1} of ${MAX_SCAN_RESUMES})`,
       );
     } catch (error) {
       // One site's trouble must not keep the others waiting.
       console.warn(
-        `[websites] ${row.domain}: an interrupted scan could not be resumed:`,
+        `[websites] ${domain}: an interrupted scan could not be resumed:`,
         error instanceof Error ? error.message : error,
       );
     }
   }
-  return resumed.size;
+  return resumedScans;
 }
 
 /** The five-minute scheduler tick (the 0.4 cron) on the reused engine,
@@ -1559,8 +1608,9 @@ async function restoreSiteRegistration(
   }
 }
 
-/** One continuation link of a domain scan (the reused engine body).
- * `signal` is the job's own: aborted once the job has ended under the link. */
+/** One continuation link of a domain scan (the reused engine body). `job`
+ * is the link's own: its signal is aborted once the job has ended under the
+ * link, and its id tells the link whether it may still queue a successor. */
 export async function runWebsitesScan(
   sql: Sql,
   payload: {
@@ -1571,14 +1621,14 @@ export async function runWebsitesScan(
     scanStartedAt?: string;
     takeover?: string;
   },
-  signal?: AbortSignal,
+  job?: { signal?: AbortSignal; jobId?: string },
 ): Promise<void> {
   if ((payload.continuation ?? 0) === 0) {
     await restoreSiteRegistration(sql, payload);
   }
-  await scanWebsiteImpl(crawlCtx(sql), {
+  await scanWebsiteImpl(crawlCtx(sql, job?.jobId), {
     ...payload,
-    ...(signal === undefined ? {} : { signal }),
+    ...(job?.signal === undefined ? {} : { signal: job.signal }),
   });
 }
 

@@ -351,6 +351,15 @@ export interface TaskQueueOptions {
   /** Seconds a job may stay active before it is retried as expired. */
   expireInSeconds?: number;
   /**
+   * Seconds a running job may go without its worker refreshing it before
+   * the supervisor fails it (`job heartbeat timeout`) — how a job whose
+   * process was killed is told from one that is still running, well before
+   * its expiry. The worker refreshes it every half of this while the
+   * handler runs. Also set on every job at send time (`enqueue.ts`):
+   * `createQueue` never changes a queue that already exists.
+   */
+  heartbeatSeconds?: number;
+  /**
    * pg-boss queue policy. The default (`standard`) treats `singletonKey` as a
    * throttling label only — dedup by key needs `short` (at most ONE QUEUED
    * job per key). Set it where an upstream retries a delivery we have already
@@ -572,8 +581,14 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once per link: the engine records its own failures on the row
   // and the 5-min scheduler is the retry — it also resumes a scan whose
   // link was cut off by a restart; the corpus claim fences overlap.
-  // A link's budget is ~9 minutes (the 0.4 action hard wall).
-  'websites.scan': { retryLimit: 0, expireInSeconds: 900 },
+  // A link's budget is ~9 minutes (the 0.4 action hard wall); the expiry is
+  // the claim lifetime the resume waits out (`LINK_LIFETIME_MS`), and the
+  // heartbeat tells a killed worker's link apart within two minutes.
+  'websites.scan': {
+    retryLimit: 0,
+    expireInSeconds: 900,
+    heartbeatSeconds: 60,
+  },
   'websites.register': { retryLimit: 1, expireInSeconds: 300 },
   'websites.row_sync': { retryLimit: 0, expireInSeconds: 120 },
 };

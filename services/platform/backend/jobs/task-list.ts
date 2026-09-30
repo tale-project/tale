@@ -92,6 +92,9 @@ import { addJobInTx } from './enqueue.ts';
 
 /** What the worker hands a handler beside its payload. */
 export interface TaskContext {
+  /** The job's id, for a handler that checks whether its job is still its
+   * own — pg-boss may have failed it from outside while the handler ran. */
+  readonly jobId?: string;
   /**
    * Aborted when pg-boss gives up on the job: it ran past its queue's
    * `expireInSeconds` (pg-boss then fails it and schedules any retry), or
@@ -1004,7 +1007,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           takeover: z.string().min(1).optional(),
         })
         .parse(payload);
-      await runWebsitesScan(deps.sql, input, context?.signal);
+      await runWebsitesScan(deps.sql, input, context);
     },
     'websites.register': async (payload) => {
       const input = z

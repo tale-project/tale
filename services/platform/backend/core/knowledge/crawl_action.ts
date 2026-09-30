@@ -284,6 +284,17 @@ export async function scanWebsiteImpl(
       // The robots rules every non-listed admission and fetch of this link
       // judges by: read fresh on link 0, from the row on every later link.
       let policy: RobotsPolicy = facts.policy;
+      if (continuation > 0) {
+        // The link's sign of life on the claim, as link 0's claim is: a
+        // claim is taken over only once it is older than a link can hold it
+        // (`LINK_LIFETIME_MS`), and a continuation may have waited in the
+        // queue for long after the link before it refreshed it.
+        await sql.unsafe(
+          `UPDATE ${PUBLIC_WEB_SCHEMA}.websites SET updated_at = NOW()
+            WHERE domain = $1 AND status = 'scanning'`,
+          [args.domain],
+        );
+      }
       if (continuation === 0) {
         const claim = await claimScan(sql, args.domain, args.takeover);
         if (claim === 'held') {

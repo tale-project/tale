@@ -1,7 +1,11 @@
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 
-import type { TaskIdentifier, TaskPayloads } from './tasks.ts';
+import {
+  TASK_QUEUE_OPTIONS,
+  type TaskIdentifier,
+  type TaskPayloads,
+} from './tasks.ts';
 
 export interface EnqueueOptions {
   /** Deferred execution ("runAfter"): absolute instant the job may run. */
@@ -82,6 +86,9 @@ export async function addJobInTx<TName extends TaskIdentifier>(
   payload: TaskPayloads[TName],
   options: EnqueueOptions = {},
 ): Promise<string | null> {
+  // Per job, not only on the queue: a queue created before its heartbeat
+  // was declared keeps none (`createQueue` inserts, it never updates).
+  const heartbeatSeconds = TASK_QUEUE_OPTIONS[identifier].heartbeatSeconds;
   return requireBoss().send(identifier, payload, {
     db: {
       executeSql: async (text, values) => {
@@ -98,5 +105,6 @@ export async function addJobInTx<TName extends TaskIdentifier>(
       ? { singletonKey: options.singletonKey }
       : {}),
     ...(options.priority !== undefined ? { priority: options.priority } : {}),
+    ...(heartbeatSeconds !== undefined ? { heartbeatSeconds } : {}),
   });
 }

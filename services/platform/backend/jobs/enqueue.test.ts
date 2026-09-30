@@ -3,6 +3,7 @@ import type { TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import { addJobInTx, setEnqueueBoss } from './enqueue.ts';
+import { TASK_QUEUE_OPTIONS } from './tasks.ts';
 
 interface CapturedSend {
   name: string;
@@ -84,5 +85,24 @@ describe('addJobInTx', () => {
     expect(second?.options.startAfter).toBe(startAfter);
     expect(second?.options.singletonKey).toBe('org-scaffold:acme');
     expect(second?.options.priority).toBe(10);
+  });
+
+  // `createQueue` inserts a queue and never updates one, so a heartbeat
+  // declared after a deployment created the queue would never reach its
+  // jobs: it rides every job instead.
+  it("sends a queue's heartbeat with each of its jobs, and none elsewhere", async () => {
+    const calls = installFakeBoss();
+    const { tx } = createFakeTx();
+    await addJobInTx(tx, 'websites.scan', {
+      domain: 'example.com',
+      orgSlug: 'acme',
+      organizationId: 'org-1',
+    });
+    await addJobInTx(tx, 'noop', {});
+    expect(calls[0]?.options.heartbeatSeconds).toBe(
+      TASK_QUEUE_OPTIONS['websites.scan'].heartbeatSeconds,
+    );
+    expect(calls[0]?.options.heartbeatSeconds).toBeGreaterThanOrEqual(10);
+    expect(calls[1]?.options).not.toHaveProperty('heartbeatSeconds');
   });
 });

@@ -52,9 +52,19 @@
  * reads `scanning`. Before this was told apart, such a site sat there for
  * {@link STUCK_SCANNING_RETRY_MS} with no way to retry it, on every deploy
  * that met a scan in progress, and then started over from its first page.
- * The scheduler now resumes it on its next tick: it takes the dead claim
- * over by its heartbeat and continues from the pages the scan had not
- * reached ({@link mayResumeScan}, {@link resumedScanEpoch}).
+ * The scheduler now resumes it: it takes the dead claim over by its
+ * heartbeat and continues from the pages the scan had not reached
+ * ({@link mayResumeScan}, {@link resumedScanEpoch}). A link's job ends
+ * with its process: the process fails it on the way out, or, when it was
+ * killed, its heartbeat stops and the supervisor fails it within two
+ * minutes. Either way the scan is resumed on the next tick. A process that
+ * only stalled may still be running the link whose job was failed; that
+ * link cannot queue its successor, because the scan host checks that its
+ * own job is still active before it does (`domains/websites/service.ts`),
+ * so no second chain grows beside the resumed one. When no job is left to
+ * say how the scan stopped, the claim is taken over only once it is older
+ * than a link can hold it ({@link LINK_LIFETIME_MS}); every link refreshes
+ * it when it starts, so a claim that old belongs to no running link.
  */
 
 /** Retry cadence while a site's scans are failing: `min(interval, this)`.
@@ -77,6 +87,12 @@ export const STUCK_SCANNING_RETRY_MS = 2 * 60 * 60 * 1000;
  * cannot do so every few minutes: past this the claim's own takeover window
  * ({@link STUCK_SCANNING_RETRY_MS}) is the retry, as it was before. */
 export const MAX_SCAN_RESUMES = 3;
+
+/** How long one link of a scan may hold the claim: the `websites.scan` job's
+ * expiry (`jobs/tasks.ts`; a test holds the two equal). Every link refreshes
+ * the claim when it starts and when it ends, so a claim older than this
+ * belongs to no link that is still running. */
+export const LINK_LIFETIME_MS = 15 * 60 * 1000;
 
 /** How long a scan whose last job ran out its whole expiry is left alone.
  * Such a job ended in one of two ways, and the queue cannot tell which: its
@@ -158,19 +174,22 @@ export interface InterruptedScan {
   /** How often this scan was resumed already (`scanResumes`). */
   readonly resumes: number;
   /** How the domain's most recent failed scan job came to its end, when the
-   * queue still holds one. */
+   * queue still holds one: when, and whether it ran out its whole expiry. */
   readonly lastFailedJob: {
     readonly endedAt: number;
     readonly ranOutItsExpiry: boolean;
   } | null;
+  /** How long ago the corpus claim was last refreshed. */
+  readonly claimAgeMs: number;
 }
 
 /** Whether an interrupted scan is resumed at `now` (see the module note). */
 export function mayResumeScan(scan: InterruptedScan, now: number): boolean {
   if (scan.resumes >= MAX_SCAN_RESUMES) return false;
   const job = scan.lastFailedJob;
-  if (job === null || !job.ranOutItsExpiry) return true;
-  return now - job.endedAt >= EXPIRED_LINK_GRACE_MS;
+  if (job === null) return scan.claimAgeMs >= LINK_LIFETIME_MS;
+  if (job.ranOutItsExpiry) return now - job.endedAt >= EXPIRED_LINK_GRACE_MS;
+  return true;
 }
 
 /**
