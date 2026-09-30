@@ -17,8 +17,15 @@
  *  - Infra failures (quota, session create, exec transport, no output file)
  *    THROW — the caller fails the whole scan visibly and retries next
  *    interval; per-page `fail_count` is never charged for a down sandbox.
+ *    The worker reports the lane's own faults the same way, as a `halted`
+ *    marker beside its pages: the egress proxy refusing the tunnel, or the
+ *    browser gone — the caller stores what rendered and throws for the rest.
  *  - Per-URL render outcomes (nav timeout, blocked redirect, oversized DOM)
- *    come back as `failed` and are charged to that page alone.
+ *    come back as `failed` and are charged to that page alone. A navigation
+ *    the browser lost (a crashed helper process, an aborted document) is
+ *    retried once in a fresh context; when that fails too the outcome is
+ *    `failed` with `transient` set, and the caller records it without a
+ *    strike (`lib/knowledge/crawl-parse.ts`, the failure classes).
  *
  * One session per batch, destroyed in `finally` — a session never spans
  * loop iterations or scan continuation links. A batch whose create failed
@@ -28,6 +35,11 @@
 
 import { z } from 'zod';
 
+import {
+  RENDER_CRASH_ERROR_PATTERN,
+  RENDER_PROXY_ERROR_PATTERN,
+  type RenderLaneHalt,
+} from '../../../../lib/knowledge/crawl-parse';
 import { crawlerUserAgent } from '../../knowledge/crawler_identity';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
@@ -59,8 +71,21 @@ const RENDER_MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 
 export type RenderPageOutcome =
   | { kind: 'ok'; status: number; finalUrl: string; html: string }
-  | { kind: 'failed'; reason: string }
+  | {
+      kind: 'failed';
+      reason: string;
+      /** The browser lost this navigation twice (a crashed helper process,
+       * an aborted document): the row records the reason, uncharged. */
+      transient: boolean;
+    }
   | { kind: 'not_attempted' };
+
+/** One batch as the worker left it: an outcome per URL, and why it stopped
+ * early when it did — a lane fault the caller fails the scan over. */
+export interface RenderBatchResult {
+  readonly outcomes: Map<string, RenderPageOutcome>;
+  readonly halted: RenderLaneHalt | null;
+}
 
 export interface RenderBatchArgs {
   organizationId: string;
@@ -108,26 +133,36 @@ const renderRecordSchema = z.object({
   finalUrl: z.string().optional(),
   html: z.string().optional(),
   error: z.string().optional(),
+  transient: z.boolean().optional(),
 });
-const renderPayloadSchema = z.object({ pages: z.array(z.unknown()) });
+const renderHaltSchema = z.object({
+  reason: z.enum(['egress_proxy', 'browser']),
+  error: z.string(),
+});
+const renderPayloadSchema = z.object({
+  pages: z.array(z.unknown()),
+  halted: renderHaltSchema.nullish(),
+});
 
 /**
  * Map the worker's output file onto per-URL outcomes. A URL the worker never
  * reached (or a malformed record) is `not_attempted` — the row stays due and
- * the next continuation link retries it.
+ * the next continuation link retries it. A `halted` marker the file carries
+ * is handed on as it is; a malformed one reads as no halt.
  */
 export function parseRenderResults(
   payload: unknown,
   urls: readonly string[],
-): Map<string, RenderPageOutcome> {
+): RenderBatchResult {
   const byUrl = new Map<string, RenderPageOutcome>();
   for (const url of urls) byUrl.set(url, { kind: 'not_attempted' });
   const parsed = renderPayloadSchema.safeParse(payload);
-  if (!parsed.success) return byUrl;
+  if (!parsed.success) return { outcomes: byUrl, halted: null };
   for (const entry of parsed.data.pages) {
     const record = renderRecordSchema.safeParse(entry);
     if (!record.success) continue;
-    const { url, attempted, status, finalUrl, html, error } = record.data;
+    const { url, attempted, status, finalUrl, html, error, transient } =
+      record.data;
     if (!byUrl.has(url) || attempted !== true) continue;
     if (html !== undefined && status !== undefined) {
       byUrl.set(url, {
@@ -144,19 +179,21 @@ export function parseRenderResults(
         error !== undefined && error.length > 0
           ? error
           : 'render produced no content',
+      transient: transient === true,
     });
   }
-  return byUrl;
+  return { outcomes: byUrl, halted: parsed.data.halted ?? null };
 }
 
 /**
  * Render one batch of URLs in a throwaway sandbox session and return the
- * per-URL outcomes. Throws on any infrastructure failure (see module doc).
+ * per-URL outcomes, with the worker's halt marker when it stopped early.
+ * Throws on any infrastructure failure of its own (see module doc).
  */
 export async function renderUrlsInSandbox(
   ctx: ActionCtx,
   args: RenderBatchArgs,
-): Promise<Map<string, RenderPageOutcome>> {
+): Promise<RenderBatchResult> {
   const sessionId = sessionIdForRender(args.batchKey);
   let rowId: string;
   try {
@@ -214,6 +251,10 @@ export async function renderUrlsInSandbox(
       crawlDelayMs: args.crawlDelayMs ?? 0,
       // The same identity the probe leg sends (2026-09-15 evaluation, i6).
       userAgent: crawlerUserAgent(process.env.TALE_VERSION),
+      // What is the lane's fault, not the page's — one definition, handed
+      // in because the worker cannot import it.
+      proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
+      crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
     };
     await sessionStageFiles(sessionId, [
       {
@@ -405,16 +446,43 @@ const userAgent =
   typeof input.userAgent === 'string' && input.userAgent !== ''
     ? input.userAgent
     : undefined;
+// The host's one definition of what is the lane's fault, not the page's
+// (lib/knowledge/crawl-parse.ts): a proxy refusal halts the batch, a
+// browser crash earns the page one retry in a fresh context.
+const proxyErrorPattern = compilePattern(input.proxyErrorPattern);
+const crashErrorPattern = compilePattern(input.crashErrorPattern);
+
+function compilePattern(source) {
+  if (typeof source !== 'string' || source === '') return null;
+  try {
+    return new RegExp(source, 'i');
+  } catch (error) {
+    console.warn('render worker: unusable error pattern ' + JSON.stringify(source) + ': ' + errorText(error));
+    return null;
+  }
+}
+function errorText(error) {
+  return error && error.message ? String(error.message) : 'navigation failed';
+}
+function failureClass(message) {
+  if (proxyErrorPattern && proxyErrorPattern.test(message)) return 'proxy';
+  if (crashErrorPattern && crashErrorPattern.test(message)) return 'crash';
+  return 'page';
+}
 
 const startedAt = Date.now();
 const records = new Map();
 for (const url of urls) records.set(url, { url, attempted: false });
+// Set when the lane itself failed: the host stores what rendered and fails
+// the scan for the rest, charging no page.
+let halted = null;
 mkdirSync('/agent/output', { recursive: true });
 // Rewrites the whole output after every page and returns its size in BYTES —
 // the budget is what the host reads back (UTF-8, JSON-escaped), never a count
 // of UTF-16 code units.
 function flush() {
-  const serialized = JSON.stringify({ pages: Array.from(records.values()) });
+  const pages = Array.from(records.values());
+  const serialized = JSON.stringify(halted ? { pages, halted } : { pages });
   writeFileSync('/agent/output/pages.json', serialized);
   return Buffer.byteLength(serialized, 'utf8');
 }
@@ -440,11 +508,99 @@ if (proxyServer) {
 }
 
 const browser = await chromium.launch(launchOptions);
+// The batch's context, under the crawler's own User-Agent (handed in by the
+// host: a site owner can name TaleBot in robots.txt and tell its traffic
+// apart in their logs). A crash retry replaces it, closing the crashed one
+// first, so the browser never carries a broken context on.
+let context = null;
+async function openContext() {
+  const previous = context;
+  context = null;
+  if (previous) await previous.close().catch(() => {});
+  context = await browser.newContext(userAgent ? { userAgent } : {});
+}
+
+// One navigation. \`ok\` carries the rendered document. A failure carries the
+// browser's words and their class: \`page\` (this page's own — a non-2xx, a
+// blocked redirect, an oversized DOM, a load timeout), \`crash\` (the browser
+// lost the navigation), \`proxy\` (the egress proxy refused the tunnel) or
+// \`browser\` (no page could be opened at all).
+async function renderOnce(url) {
+  let page;
+  try {
+    page = await context.newPage();
+  } catch (error) {
+    return { ok: false, cls: 'browser', error: errorText(error) };
+  }
+  try {
+    const response = await page.goto(url, {
+      timeout: perPageTimeoutMs,
+      waitUntil: 'domcontentloaded',
+    });
+    await page
+      .waitForLoadState('networkidle', { timeout: idleTimeoutMs })
+      .catch(() => {});
+    // SPAs go network-quiet between boot and their data fetch, so idle
+    // alone captures the shell. Wait until the rendered TEXT stops
+    // growing: stable across two samples (or the cap) is the document.
+    const settleDeadline = Date.now() + Math.min(perPageTimeoutMs, 15000);
+    let previousLength = -1;
+    let stableSamples = 0;
+    while (Date.now() < settleDeadline && stableSamples < 2) {
+      const length = await page
+        .evaluate('document.body ? document.body.innerText.length : 0')
+        .catch(() => 0);
+      if (length === previousLength && length > 0) stableSamples += 1;
+      else stableSamples = 0;
+      previousLength = length;
+      if (stableSamples < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    }
+    // A document whose body broke off after its headers (the browser's
+    // network service died mid-download) parses as a page — a shell with a
+    // few words that would be stored as the content. The request knows.
+    if (response) {
+      await response.finished().catch(() => null);
+      const failure = response.request().failure();
+      if (failure) {
+        return {
+          ok: false,
+          cls: 'crash',
+          error: 'document download broke off: ' + (failure.errorText || 'unknown cause'),
+        };
+      }
+    }
+    const finalUrl = page.url();
+    let finalHost = '';
+    try {
+      finalHost = new URL(finalUrl).hostname;
+    } catch {
+      finalHost = '';
+    }
+    const status = response ? response.status() : 0;
+    if (finalHost === '' || isBlockedHost(finalHost)) {
+      return { ok: false, cls: 'page', error: 'redirected to a blocked host' };
+    }
+    if (status < 200 || status >= 300) {
+      return { ok: false, cls: 'page', status, error: 'HTTP ' + status + ' at render time' };
+    }
+    const html = await page.content();
+    if (Buffer.byteLength(html, 'utf8') > maxHtmlBytes) {
+      return { ok: false, cls: 'page', error: 'rendered HTML exceeds the per-page bound' };
+    }
+    return { ok: true, status, finalUrl, html };
+  } catch (error) {
+    const message = errorText(error);
+    return { ok: false, cls: failureClass(message), error: message };
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 let budgetExhausted = false;
 try {
-  // The crawler's own User-Agent, handed in by the host: a site owner can
-  // name TaleBot in robots.txt and tell its traffic apart in their logs.
-  const context = await browser.newContext(userAgent ? { userAgent } : {});
+  await openContext();
   let renderedOne = false;
   for (const url of urls) {
     if (Date.now() - startedAt > softBudgetMs) break;
@@ -468,67 +624,48 @@ try {
       flush();
       continue;
     }
-    const page = await context.newPage();
-    try {
-      const response = await page.goto(url, {
-        timeout: perPageTimeoutMs,
-        waitUntil: 'domcontentloaded',
-      });
-      await page
-        .waitForLoadState('networkidle', { timeout: idleTimeoutMs })
-        .catch(() => {});
-      // SPAs go network-quiet between boot and their data fetch, so idle
-      // alone captures the shell. Wait until the rendered TEXT stops
-      // growing: stable across two samples (or the cap) is the document.
-      const settleDeadline = Date.now() + Math.min(perPageTimeoutMs, 15000);
-      let previousLength = -1;
-      let stableSamples = 0;
-      while (Date.now() < settleDeadline && stableSamples < 2) {
-        const length = await page
-          .evaluate('document.body ? document.body.innerText.length : 0')
-          .catch(() => 0);
-        if (length === previousLength && length > 0) stableSamples += 1;
-        else stableSamples = 0;
-        previousLength = length;
-        if (stableSamples < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-        }
-      }
-      const finalUrl = page.url();
-      let finalHost = '';
+    let result = await renderOnce(url);
+    if (!result.ok && result.cls === 'crash') {
+      // Once more, in a fresh context: a helper process the host killed is
+      // back by now. A second loss is the page's row to show, uncharged.
+      let reopened = true;
       try {
-        finalHost = new URL(finalUrl).hostname;
-      } catch {
-        finalHost = '';
+        await openContext();
+      } catch (error) {
+        reopened = false;
+        result = { ok: false, cls: 'browser', error: errorText(error) };
       }
-      const status = response ? response.status() : 0;
-      if (finalHost === '' || isBlockedHost(finalHost)) {
-        record.error = 'redirected to a blocked host';
-      } else if (status < 200 || status >= 300) {
-        record.status = status;
-        record.error = 'HTTP ' + status + ' at render time';
+      if (reopened) {
+        const retry = await renderOnce(url);
+        result = !retry.ok && retry.cls === 'crash' ? { ...retry, transient: true } : retry;
+      }
+    }
+    if (!result.ok && (result.cls === 'proxy' || result.cls === 'browser')) {
+      // The lane, not the page: hand the page back untouched, say why, stop.
+      record.attempted = false;
+      halted = {
+        reason: result.cls === 'proxy' ? 'egress_proxy' : 'browser',
+        error: result.error.slice(0, 500),
+      };
+      flush();
+      break;
+    }
+    if (!result.ok) {
+      record.error = result.error.slice(0, 500);
+      if (result.status !== undefined) record.status = result.status;
+      if (result.transient) record.transient = true;
+    } else {
+      const fields = { status: result.status, finalUrl: result.finalUrl, html: result.html };
+      // Admit the page only while the output stays under the batch cap —
+      // decided BEFORE storing, in bytes. A page that does not fit is
+      // handed back (not attempted) for the next batch, and this batch
+      // ends here.
+      if (fileBytes + admissionBytes(record, fields) > maxTotalBytes) {
+        record.attempted = false;
+        budgetExhausted = true;
       } else {
-        const html = await page.content();
-        if (Buffer.byteLength(html, 'utf8') > maxHtmlBytes) {
-          record.error = 'rendered HTML exceeds the per-page bound';
-        } else {
-          const fields = { status, finalUrl, html };
-          // Admit the page only while the output stays under the batch cap —
-          // decided BEFORE storing, in bytes. A page that does not fit is
-          // handed back (not attempted) for the next batch, and this batch
-          // ends here.
-          if (fileBytes + admissionBytes(record, fields) > maxTotalBytes) {
-            record.attempted = false;
-            budgetExhausted = true;
-          } else {
-            Object.assign(record, fields);
-          }
-        }
+        Object.assign(record, fields);
       }
-    } catch (error) {
-      record.error = (error && error.message ? String(error.message) : 'navigation failed').slice(0, 500);
-    } finally {
-      await page.close().catch(() => {});
     }
     fileBytes = flush();
     if (budgetExhausted) break;

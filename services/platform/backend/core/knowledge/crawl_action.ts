@@ -52,6 +52,7 @@ import {
   parseRobots,
   parseSitemapLocs,
   publicPageError,
+  renderLaneHaltMessage,
   ROBOTS_TXT_MAX_BYTES,
   type RobotsPolicy,
   type RobotsRules,
@@ -182,13 +183,23 @@ const BFS_FETCH_BUDGET = 30;
 const DISCOVERY_BUDGET_MS = 180_000;
 
 /** A DISCOVERED URL that failed this many scans in a row stops being
- * fetched. A LISTED one never does — the operator asked for it by name, so
- * it is probed once per scan for as long as it is listed (the scan interval
- * is the backoff, `last_crawled_at < scanStartedAt` the bound), and its
+ * fetched — for {@link BENCHED_PAGE_RETRY_INTERVAL}, after which one scan
+ * probes it once more (a further failure benches it again for as long). A
+ * LISTED one never stops — the operator asked for it by name, so it is
+ * probed once per scan for as long as it is listed (the scan interval is
+ * the backoff, `last_crawled_at < scanStartedAt` the bound), and its
  * `fail_count` keeps counting so the page list can say for how long it has
  * been failing. Before this a listed page that failed five scans was dead
- * for good, and re-listing it changed nothing. */
+ * for good, and re-listing it changed nothing; and a discovered page was
+ * dead for good too — five scans with the render sandbox's proxy refusing
+ * every tunnel benched a whole site, and fixing the proxy revived nothing
+ * (2026-09-30). The lane's own faults are no longer charged at all
+ * (`flushRenderBatch`), and the bench now expires. */
 const MAX_FETCH_FAILURES = 5;
+/** How long a benched page waits for its one further probe — a Postgres
+ * interval. A week bounds the cost of a dead URL to one request a week and
+ * still lets a page revived on the site come back on its own. */
+const BENCHED_PAGE_RETRY_INTERVAL = '7 days';
 
 /** A paragraph seen on at least this many pages of a domain is boilerplate
  * (navigation, footer, cookie banner) and is kept out of the chunks. */
@@ -392,20 +403,24 @@ export async function scanWebsiteImpl(
           return;
         }
         // Only per-URL render outcomes are charged to the page's fail_count.
+        // A navigation the browser lost twice is the row's to show, without
+        // a strike; the lane's own fault (`halted`) fails the scan below,
+        // once what rendered is stored.
         for (const page of batch) {
-          const outcome = results.get(page.url) ?? {
+          const outcome = results.outcomes.get(page.url) ?? {
             kind: 'not_attempted' as const,
           };
           if (outcome.kind === 'not_attempted') continue;
           if (outcome.kind === 'failed') {
             console.warn(
-              `[crawl] ${page.url}: render failed: ${outcome.reason}`,
+              `[crawl] ${page.url}: render failed${outcome.transient ? ' (browser fault, uncharged)' : ''}: ${outcome.reason}`,
             );
             await recordPageFailure(
               sql,
               args.domain,
               page.url,
               classifyRenderReason(outcome.reason),
+              { charge: !outcome.transient },
             );
             continue;
           }
@@ -439,6 +454,12 @@ export async function scanWebsiteImpl(
               policy,
             );
           }
+        }
+        if (results.halted) {
+          // The lane, not a page: what rendered is stored and indexed, the
+          // rest stays due, and the scan ends with the reason on the site's
+          // row — the next interval retries every page, none charged.
+          throw new Error(renderLaneHaltMessage(results.halted, args.domain));
         }
       };
 
@@ -523,9 +544,9 @@ export async function scanWebsiteImpl(
         `SELECT
             count(*) FILTER (WHERE u.status = 'active')::text AS stored,
             count(*) FILTER (WHERE u.last_crawled_at IS NOT NULL)::text AS attempted,
-            count(*) FILTER (WHERE u.fail_count > 0)::text AS failed,
+            count(*) FILTER (WHERE u.last_error IS NOT NULL)::text AS failed,
             (SELECT u2.last_error_kind FROM ${PUBLIC_WEB_SCHEMA}.website_urls u2
-              WHERE u2.domain = $1 AND u2.status <> 'deleted' AND u2.fail_count > 0
+              WHERE u2.domain = $1 AND u2.status <> 'deleted' AND u2.last_error IS NOT NULL
               GROUP BY u2.last_error_kind ORDER BY count(*) DESC LIMIT 1) AS kind
            FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
           WHERE u.domain = $1 AND u.status <> 'deleted'`,
@@ -1006,7 +1027,8 @@ interface DuePage {
 
 const DUE_PAGE_PREDICATE = `
       domain = $1 AND status <> 'deleted'
-      AND (listed OR fail_count < ${MAX_FETCH_FAILURES})
+      AND (listed OR fail_count < ${MAX_FETCH_FAILURES}
+           OR last_crawled_at < $2::timestamptz - interval '${BENCHED_PAGE_RETRY_INTERVAL}')
       AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)`;
 
 /** The next URLs this scan has not visited yet (never-crawled first). The
@@ -1408,16 +1430,22 @@ const PAGE_ERROR_MAX_CHARS = 500;
  * with no words now says whether a guard refused a redirect, the origin
  * answered 500, or the render timed out, instead of looking like a page
  * nobody has fetched yet.
+ *
+ * `charge: false` records the reason and the attempt (`last_crawled_at`, so
+ * the row is not claimed again this scan) without a strike — for a failure
+ * that was the render sandbox's, not the page's.
  */
 async function recordPageFailure(
   sql: Sql,
   domain: string,
   url: string,
   failure: PageFailure,
+  options: { charge: boolean } = { charge: true },
 ): Promise<void> {
   await sql.unsafe(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-        SET fail_count = fail_count + 1, last_crawled_at = NOW(),
+        SET fail_count = CASE WHEN $5::boolean THEN fail_count + 1 ELSE fail_count END,
+            last_crawled_at = NOW(),
             last_error = $3, last_error_kind = $4, last_error_at = NOW()
       WHERE domain = $1 AND url = $2`,
     [
@@ -1426,6 +1454,7 @@ async function recordPageFailure(
       // Customer-facing: one line, no toolchain locations, no secrets.
       sanitizeError(publicPageError(failure.message), PAGE_ERROR_MAX_CHARS),
       failure.kind,
+      options.charge,
     ],
   );
 }

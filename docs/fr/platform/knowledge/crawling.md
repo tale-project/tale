@@ -50,7 +50,7 @@ Utilise HTTPS sur le port standard et enregistre un nom d’hôte : une adresse 
 | Trois minutes de découverte, au plus 50 récupérations de sitemaps | Les ensembles de sitemaps volumineux ou lents peuvent rester incomplets. |
 | 25 Mio et 30 secondes par récupération de contenu | Les téléchargements trop volumineux et les réponses lentes échouent (`timeout` pour le budget de téléchargement et celui de 20 secondes du rendu) ; une page derrière plus de cinq redirections aussi (`redirect_limit_exceeded`). |
 | Cinq minutes de traitement par lot, jusqu’à 200 reprises | Un long scan se poursuit par lots. Une récupération ou un rendu déjà engagé peut dépasser le budget du lot ; il ne s’agit pas d’une durée totale garantie. |
-| Cinq échecs consécutifs pour une URL découverte automatiquement | Le crawler cesse de programmer cette URL. Les URL fournies explicitement restent candidates à chaque scan, et une page listée que le site répond en 404 reste dans la liste avec cette réponse. |
+| Cinq échecs consécutifs pour une URL découverte automatiquement | Le crawler cesse de programmer cette URL pendant sept jours, puis la sonde une fois de plus. Un échec de la sandbox qui effectue le rendu ne compte pas : si son proxy de sortie refuse la connexion ou si son navigateur ne répond plus, le scan se termine avec cette cause sur la source, et le scan suivant réessaie chaque page. Les URL fournies explicitement restent candidates à chaque scan, et une page listée que le site répond en 404 reste dans la liste avec cette réponse. |
 
 Tu ne peux pas fixer ton propre plafond de pages, filtrer les chemins à inclure ou exclure, ni arrêter un scan avec un bouton. Une liste d’URL réduit la sélection demandée ; ces limites continuent de s’appliquer.
 

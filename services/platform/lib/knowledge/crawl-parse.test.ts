@@ -7,6 +7,8 @@ import {
   isUrlDisallowed,
   MAX_CRAWL_DELAY_MS,
   publicPageError,
+  renderFailureClass,
+  renderLaneHaltMessage,
   robotsMetaNoindexDirective,
   robotsPolicyFromStored,
   robotsPolicyToStored,
@@ -654,6 +656,77 @@ describe('classifyRenderReason', () => {
       kind: 'render_failed',
       message: 'blocked host',
     });
+  });
+});
+
+/**
+ * The render lane's own faults, told apart from a page's (2026-09-30): the
+ * egress proxy refusing a tunnel benched a whole site in five scans, and a
+ * navigation the browser lost (its network service killed under the host)
+ * was charged in runs to the end of a batch.
+ */
+describe('renderFailureClass', () => {
+  it.each([
+    'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a',
+    'page.goto: net::ERR_PROXY_CONNECTION_FAILED at https://docs.example/a',
+    'page.goto: net::ERR_PROXY_AUTH_UNSUPPORTED at https://docs.example/a',
+    'page.goto: net::ERR_NO_SUPPORTED_PROXIES at https://x/',
+    'page.goto: net::ERR_SOCKS_CONNECTION_FAILED at https://x/',
+  ])('reads a refused or failed tunnel as the proxy: %s', (reason) => {
+    expect(renderFailureClass(reason)).toBe('proxy');
+  });
+
+  it.each([
+    'page.goto: net::ERR_ABORTED; maybe frame was detached?',
+    'page.goto: net::ERR_ABORTED at https://docs.example/a',
+    'page.goto: Page crashed',
+    'page.goto: Navigation failed because page crashed!',
+    'page.content: Target crashed',
+    'page.goto: Target page, context or browser has been closed',
+    'document download broke off: net::ERR_ABORTED',
+  ])('reads a lost navigation as a crash: %s', (reason) => {
+    expect(renderFailureClass(reason)).toBe('crash');
+  });
+
+  it.each([
+    'page.goto: Timeout 20000ms exceeded.',
+    'page.goto: net::ERR_NAME_NOT_RESOLVED at https://gone.example/',
+    'page.goto: net::ERR_CONNECTION_REFUSED at https://x/',
+    'HTTP 503 at render time',
+    'redirected to a blocked host',
+    'rendered HTML exceeds the per-page bound',
+  ])("keeps the page's own failure with the page: %s", (reason) => {
+    expect(renderFailureClass(reason)).toBe('page');
+  });
+});
+
+describe('renderLaneHaltMessage', () => {
+  it('names the proxy, the domain and the browser’s one-line cause, and says no page was charged', () => {
+    const message = renderLaneHaltMessage(
+      {
+        reason: 'egress_proxy',
+        error:
+          'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a\nCall log:\n  - navigating to "https://docs.example/a"',
+      },
+      'docs.example',
+    );
+    expect(message).toBe(
+      'The render sandbox could not reach docs.example through the sandbox egress proxy (page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a). The proxy refused or failed the connection — check the sandbox-egress service and SANDBOX_EGRESS_ALLOWLIST; no page was charged, and the next scan retries.',
+    );
+  });
+
+  it('names the browser when it stopped answering', () => {
+    expect(
+      renderLaneHaltMessage(
+        {
+          reason: 'browser',
+          error: 'Target page, context or browser has been closed',
+        },
+        'docs.example',
+      ),
+    ).toBe(
+      "The render sandbox's browser stopped answering (Target page, context or browser has been closed); no page was charged, and the next scan retries.",
+    );
   });
 });
 

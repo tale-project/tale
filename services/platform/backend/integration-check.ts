@@ -33217,6 +33217,65 @@ async function checkWebsitesCrawl(
       `b=${bRevived[0]?.status ?? 'MISSING'}/active fail=${bRevived[0]?.failCount ?? '?'}/0 chunks=${bRevived[0]?.chunks ?? '0'}>=1, pages=${pagesAfterRevival.success ? pagesAfterRevival.data.total : 'ERR'}/3`,
     );
 
+    // 2c. The bench expires (2026-09-30). A discovered page that failed five
+    //     scans in a row is left alone — for a week; then one scan probes it
+    //     again, and a page that is back re-indexes with its row cleared.
+    //     Before, five scans with the render sandbox's proxy refusing every
+    //     tunnel benched a whole site for good, and fixing the proxy revived
+    //     nothing short of deleting and re-adding the website.
+    const benchedUrl = `https://${DOMAIN}/docs/b.txt`;
+    await pool`
+      UPDATE public_web.website_urls
+         SET fail_count = 5, last_crawled_at = now() - interval '2 days',
+             last_error = 'itest: benched', last_error_kind = 'render_failed',
+             last_error_at = now() - interval '2 days'
+       WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const benchedRowQuery = () => pool<
+      {
+        status: string;
+        failCount: number;
+        lastError: string | null;
+        crawledDaysAgo: number;
+      }[]
+    >`
+      SELECT status, fail_count AS "failCount", last_error AS "lastError",
+             (extract(epoch FROM now() - last_crawled_at) / 86400)::float8
+               AS "crawledDaysAgo"
+      FROM public_web.website_urls
+      WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    const stillBenched = await benchedRowQuery();
+    await pool`
+      UPDATE public_web.website_urls
+         SET last_crawled_at = now() - interval '8 days'
+       WHERE domain = ${DOMAIN} AND url = ${benchedUrl}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const amnestied = await benchedRowQuery();
+    record(
+      'websites revival: a page benched after five failures waits a week, then one scan probes it again',
+      stillBenched[0]?.failCount === 5 &&
+        stillBenched[0].lastError === 'itest: benched' &&
+        stillBenched[0].crawledDaysAgo > 1.5 &&
+        amnestied[0]?.status === 'active' &&
+        amnestied[0].failCount === 0 &&
+        amnestied[0].lastError === null &&
+        amnestied[0].crawledDaysAgo < 0.5,
+      `benched 2 days ago: fail=${stillBenched[0]?.failCount ?? '?'}/5 error=${stillBenched[0]?.lastError ?? 'null'} probed=${stillBenched[0] ? stillBenched[0].crawledDaysAgo < 0.5 : '?'}/false; benched 8 days ago: ${amnestied[0]?.status ?? 'MISSING'}/active fail=${amnestied[0]?.failCount ?? '?'}/0 error=${amnestied[0]?.lastError ?? 'null'}/null probed=${amnestied[0] ? amnestied[0].crawledDaysAgo < 0.5 : '?'}/true`,
+    );
+
     // 3. The failure ledger: attempts advance the scheduler clock, repeated
     //    connection failures pause the site + notify admins ONCE, resume
     //    clears the bookkeeping and re-kicks a scan.

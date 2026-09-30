@@ -7842,7 +7842,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             failCount: {
               ...int,
               description:
-                'Failed attempts in a row since the last stored fetch (or since the operator re-listed the URL); 0 when the last attempt stored the page. A discovered page stops being fetched after 5; a listed one never does',
+                'Failed attempts in a row since the last stored fetch (or since the operator re-listed the URL); 0 when the last attempt stored the page. A discovered page stops being fetched after 5, and is probed once more after seven days; a listed one never stops. A failure of the render sandbox itself (its egress proxy refusing the connection, its browser stopping) counts nothing: the scan ends with that reason on the website',
             },
             lastError: nullable({
               ...str,

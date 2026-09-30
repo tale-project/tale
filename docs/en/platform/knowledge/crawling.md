@@ -50,7 +50,7 @@ Use HTTPS on the standard port, and register a hostname: addresses with a non-de
 | Three minutes for discovery, at most 50 sitemap fetches | Large or slow sitemap collections can be incomplete. |
 | 25 MiB and 30 seconds per content fetch | Oversized downloads and slow responses fail (`timeout` for the download and the 20-second browser-render budgets); so does a page behind more than five redirects (`redirect_limit_exceeded`). |
 | Five-minute processing budget per batch, up to 200 continuations | Long scans continue in batches. Work already being fetched or rendered can outlast a batch's budget; this is not a guaranteed total scan duration. |
-| Five consecutive failures for an automatically discovered URL | The crawler stops scheduling that URL. Listed URLs remain eligible on each scan, and a listed page the site answers 404 for stays in the list with that answer on it. |
+| Five consecutive failures for an automatically discovered URL | The crawler stops scheduling that URL for seven days, then probes it once more. A failure of the render sandbox itself is not counted: when its egress proxy refuses the connection or its browser stops answering, the scan ends with that reason on the source and the next scan retries every page. Listed URLs remain eligible on each scan, and a listed page the site answers 404 for stays in the list with that answer on it. |
 
 There is no configurable page cap, include/exclude path filter, or stop-scan button. A URL list narrows what you request; it does not remove these limits.
 

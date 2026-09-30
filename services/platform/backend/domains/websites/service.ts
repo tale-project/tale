@@ -156,8 +156,9 @@ export interface WebsiteRow {
   /** Pages the crawler ATTEMPTED — stored or not; the corpus mirror of
    * `last_crawled_at IS NOT NULL`. */
   crawledPageCount: number | null;
-  /** Pages whose last attempt failed (`fail_count > 0` in the corpus);
-   * NULL on a row no sync has stamped since the column arrived (0099). */
+  /** Pages whose last attempt failed (`last_error` set in the corpus — a
+   * strike, or a render sandbox fault recorded without one); NULL on a row
+   * no sync has stamped since the column arrived (0099). */
   failedPageCount: number | null;
   metadata: Record<string, unknown> | null;
   createdAt: number;

@@ -135,7 +135,8 @@ export interface CrawlerWebsiteInfo {
   page_count: number;
   /** Pages the crawler ATTEMPTED — stored or not (`last_crawled_at` set). */
   crawled_count: number;
-  /** Pages whose last attempt failed (`fail_count > 0`). */
+  /** Pages whose last attempt failed (`last_error` set — a strike, or a
+   * render sandbox fault recorded without one). */
   failed_count: number;
   status: WebsiteStatus;
   last_scanned_at: string | null;

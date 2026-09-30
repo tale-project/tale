@@ -569,3 +569,59 @@ export function classifyRenderReason(reason: string): {
   }
   return { kind: 'render_failed', message: publicPageError(reason) };
 }
+
+/**
+ * Navigation failures that are the render LANE's, never the page's.
+ *
+ * `proxy`: Chromium got no tunnel through the sandbox egress proxy — the
+ * proxy answered the CONNECT with an error (a default-deny allowlist that
+ * omits the host, a client it does not admit, no route out) or was not
+ * reachable at all. The probe leg fetched this very page over the host's own
+ * network seconds earlier, so a refused CONNECT is the lane, not the site.
+ * Charging it benched every page of a site whose host an operator's
+ * `SANDBOX_EGRESS_ALLOWLIST` omitted (2026-09-30).
+ *
+ * `crash`: the browser lost the navigation — a helper process killed under
+ * it (`net::ERR_ABORTED` once its network service died), a renderer crash, a
+ * frame detached, the browser gone. The worker retries such a page once in a
+ * fresh context; a second failure is recorded on the row without a strike.
+ *
+ * The worker runs inside the sandbox with no import path to this module, so
+ * the host hands it the pattern SOURCES with the batch: one definition.
+ */
+export const RENDER_PROXY_ERROR_PATTERN =
+  /net::ERR_(?:TUNNEL_CONNECTION_FAILED|PROXY_[A-Z_]+|NO_SUPPORTED_PROXIES|MANDATORY_PROXY_CONFIGURATION_FAILED|SOCKS_[A-Z_]+)\b/i;
+export const RENDER_CRASH_ERROR_PATTERN =
+  /net::ERR_ABORTED\b|frame was detached|page crashed|target crashed|browser has been closed|document download broke off/i;
+
+export type RenderFailureClass = 'proxy' | 'crash' | 'page';
+
+/** Which of the three the worker's reason for a failed page names. */
+export function renderFailureClass(reason: string): RenderFailureClass {
+  if (RENDER_PROXY_ERROR_PATTERN.test(reason)) return 'proxy';
+  if (RENDER_CRASH_ERROR_PATTERN.test(reason)) return 'crash';
+  return 'page';
+}
+
+/** Why a render batch stopped early: what the scan's row says. */
+export interface RenderLaneHalt {
+  readonly reason: 'egress_proxy' | 'browser';
+  /** The worker's own words for the failure that stopped it. */
+  readonly error: string;
+}
+
+/**
+ * The sentence a halted render lane leaves on the website row. It names the
+ * lane (the operator's proxy, or the browser) and the browser's error, and
+ * says that no page was charged — the next scan retries every one of them.
+ */
+export function renderLaneHaltMessage(
+  halt: RenderLaneHalt,
+  domain: string,
+): string {
+  const cause = publicPageError(halt.error);
+  if (halt.reason === 'egress_proxy') {
+    return `The render sandbox could not reach ${domain} through the sandbox egress proxy (${cause}). The proxy refused or failed the connection — check the sandbox-egress service and SANDBOX_EGRESS_ALLOWLIST; no page was charged, and the next scan retries.`;
+  }
+  return `The render sandbox's browser stopped answering (${cause}); no page was charged, and the next scan retries.`;
+}
