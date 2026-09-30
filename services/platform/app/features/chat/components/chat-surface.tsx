@@ -1329,6 +1329,7 @@ function ChatSurfaceInner({
           ...(threadId === undefined && projectId !== undefined
             ? { projectId }
             : {}),
+          locale,
         });
         if (target === undefined) {
           setPendingSend((previous) =>
@@ -1551,6 +1552,7 @@ function ChatSurfaceInner({
           ...(selection.reasoningEffort !== undefined
             ? { reasoningEffort: selection.reasoningEffort }
             : {}),
+          locale,
         });
         if (!outcome.refused) return;
         // A refusal that wrote nothing leaves the sibling without its

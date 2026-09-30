@@ -509,6 +509,8 @@ export async function sendChatTurn(
       fileSize: number;
     }[];
     resend?: boolean;
+    /** The UI's language (see the send door's `locale`). */
+    locale?: string;
   },
 ): Promise<ChatTurnOutcome> {
   const response = await fetch(
@@ -668,6 +670,7 @@ export function regenerateChatTurn(
     modelSelection?: 'auto';
     providerSlug?: string;
     reasoningEffort?: string;
+    locale?: string;
   },
 ): Promise<ChatTurnOutcome> {
   return sendChatTurn(organizationId, threadId, {

@@ -10,6 +10,7 @@ import {
   type TurnFinishReason,
 } from '../../lib/chat/types.ts';
 import { decodeChatError } from '../../lib/shared/chat-errors.ts';
+import { localeTagSchema } from '../../lib/shared/utils/locale-tag.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { servedByDirectCredential } from '../core/chat/composer.ts';
 import {
@@ -76,9 +77,6 @@ import {
 
 const MAX_MESSAGE = 100_000;
 const MAX_MODEL_ID = 200;
-/** A BCP 47 language tag as the reply-language directive reads it: a
- * language subtag and optional further subtags (`de`, `en-GB`, `zh-Hant`). */
-const LOCALE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 /** The UTF-16 code units of one streamed field a poller already holds
  * (`since` for the text, `reasoningSince` for the reasoning) — the unit of
  * `String.length`, which is what `textLength` answers: a whole number,
@@ -1004,14 +1002,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             // The caller's reply ceiling for this turn — checked below
             // against the listed model's own, so a turn can be bounded.
             maxOutputTokens: z.number().int().min(1).optional(),
-            locale: z
-              .string()
-              .max(20)
-              .regex(LOCALE_PATTERN, {
-                message:
-                  'locale must be a BCP 47 language tag such as "de" or "en-GB"',
-              })
-              .optional(),
+            locale: localeTagSchema.optional(),
           })
           .strict(),
       );

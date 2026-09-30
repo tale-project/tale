@@ -483,6 +483,30 @@ describe('useChatSend', () => {
     }
   });
 
+  it('carries the UI language on the send — the turn quotes the interface in it', async () => {
+    const fetchSpy = mockBackend({
+      '/messages': { status: 'completed' },
+    });
+    try {
+      const seam = renderSendProbe();
+      const handle = await seam.current?.start({
+        threadId: 't-9',
+        text: 'Erstell mir das als Word-Datei',
+        modelSelection: 'auto',
+        locale: 'de-CH',
+      });
+      await handle?.outcome;
+
+      expect(callsTo(fetchSpy, '/messages')[0]?.body).toEqual({
+        text: 'Erstell mir das als Word-Datei',
+        modelSelection: 'auto',
+        locale: 'de-CH',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it('stops a turn through the cancel door on the thread', async () => {
     const fetchSpy = mockBackend({ '/cancel': { cancelled: true } });
     try {
