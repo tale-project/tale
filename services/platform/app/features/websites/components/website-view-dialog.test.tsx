@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import type { CrawlerPage } from '@/backend/core/websites/types';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -314,6 +315,47 @@ describe('WebsiteViewDialog', () => {
     expect(screen.queryByText(/getaddrinfo/)).not.toBeInTheDocument();
     expect(screen.queryByText('0 words')).not.toBeInTheDocument();
     expect(screen.queryByText('0 chunks')).not.toBeInTheDocument();
+  });
+
+  // The row follows a scan through realtime hints; the pages were read once
+  // on open, so an open dialog showed the first batch for the whole scan.
+  it('reads the shown pages again when a scan moves the row', () => {
+    const { mutate: fetchPages } = useBackendAction(
+      'websites/actions:fetchPages',
+    );
+    vi.mocked(fetchPages).mockClear();
+    const { rerender } = render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, status: 'scanning' }}
+      />,
+    );
+    expect(fetchPages).toHaveBeenCalledTimes(1);
+
+    // The same row again: nothing moved, nothing is read.
+    rerender(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, status: 'scanning' }}
+      />,
+    );
+    expect(fetchPages).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, status: 'scanning', crawledPageCount: 12 }}
+      />,
+    );
+    expect(fetchPages).toHaveBeenCalledTimes(2);
+    expect(fetchPages).toHaveBeenLastCalledWith({
+      websiteId: 'w-1',
+      offset: 0,
+      limit: 20,
+    });
   });
 
   describe('accessibility', () => {

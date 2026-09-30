@@ -28,6 +28,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -361,6 +362,30 @@ export function WebsiteViewDialog({
       fetchPages({ websiteId: website._id, offset: 0, limit: PAGE_SIZE });
     }
   }, [isOpen, website._id, fetchPages]);
+
+  // The row follows the scan through realtime hints; the pages below are
+  // read on open, so they follow the row: whenever a scan moves what the row
+  // counts, the pages already shown are read again in place.
+  const scanProgress = [
+    website.status,
+    website.pageCount,
+    website.crawledPageCount,
+    website.failedPageCount,
+    website.lastScannedAt,
+  ].join(':');
+  const shownProgress = useRef(scanProgress);
+  useEffect(() => {
+    if (!isOpen || shownProgress.current === scanProgress) {
+      shownProgress.current = scanProgress;
+      return;
+    }
+    shownProgress.current = scanProgress;
+    fetchPages({
+      websiteId: website._id,
+      offset: 0,
+      limit: offset + PAGE_SIZE,
+    });
+  }, [isOpen, scanProgress, offset, website._id, fetchPages]);
 
   const triggerSearch = useCallback(() => {
     const query = searchQuery.trim();

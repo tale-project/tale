@@ -62,6 +62,7 @@ import {
   type ShimScheduler,
 } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
@@ -173,6 +174,47 @@ const WEBSITE_COLUMNS = `
   metadata, created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt"
 `;
+
+/**
+ * Tell the organization's open lists that a website row changed — the
+ * realtime hint the Websites table and its details refetch on. Without it
+ * the table could not follow a scan at all: a site just added sat on
+ * "Scanning · 0" until the page was reloaded, while the crawl landed page
+ * after page.
+ */
+async function hintWebsite(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  websiteId: string,
+): Promise<void> {
+  await emitHintInTx(db, {
+    orgId: organizationId,
+    entity: 'website',
+    entityId: websiteId,
+  });
+}
+
+/**
+ * What a reader of the list sees of a row: the fields whose change is worth
+ * a refetch. The bookkeeping stamps (`lastStatusSyncAt`, the attempt clock)
+ * are not among them — a status sweep that found nothing new would
+ * otherwise wake every open list once per row.
+ */
+function readerView(row: WebsiteRow): string {
+  return JSON.stringify([
+    row.kind,
+    row.title,
+    row.description,
+    row.scanInterval,
+    row.lastScannedAt,
+    row.status,
+    row.pageCount,
+    row.crawledPageCount,
+    row.failedPageCount,
+    row.metadata?.lastSyncError ?? null,
+    row.metadata?.scanPausedAt ?? null,
+  ]);
+}
 
 export async function getWebsite(
   db: Sql | TransactionSql,
@@ -349,6 +391,7 @@ export async function createWebsiteRow(
       409,
     );
   }
+  await hintWebsite(db, args.organizationId, id);
   return id;
 }
 
@@ -416,21 +459,27 @@ export async function patchWebsite(
     WHERE id = ${args.websiteId}
     RETURNING ${db.unsafe(WEBSITE_COLUMNS)}
   `;
-  return rows[0] ?? null;
+  const updated = rows[0] ?? null;
+  if (updated !== null && readerView(updated) !== readerView(existing)) {
+    await hintWebsite(db, updated.organizationId, updated.id);
+  }
+  return updated;
 }
 
 async function deleteWebsiteRow(
   db: Sql | TransactionSql,
   websiteId: string,
 ): Promise<string> {
-  const rows = await db<{ domain: string }[]>`
-    DELETE FROM app.websites WHERE id = ${websiteId} RETURNING domain
+  const rows = await db<{ domain: string; organizationId: string }[]>`
+    DELETE FROM app.websites WHERE id = ${websiteId}
+    RETURNING domain, org_id AS "organizationId"
   `;
-  const domain = rows[0]?.domain;
-  if (domain === undefined) {
+  const deleted = rows[0];
+  if (deleted === undefined) {
     throw new WebsiteError('WEBSITE_NOT_FOUND', 'Website not found', 404);
   }
-  return domain;
+  await hintWebsite(db, deleted.organizationId, websiteId);
+  return deleted.domain;
 }
 
 // ----------------------------------------------------- failure bookkeeping
