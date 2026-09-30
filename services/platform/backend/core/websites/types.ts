@@ -105,6 +105,32 @@ export const PAGE_FAILURE_KINDS = [
 
 export type PageFailureKind = (typeof PAGE_FAILURE_KINDS)[number];
 
+/**
+ * The kinds that are the crawler's own choice, not a failure: the origin
+ * asked not to be indexed, the content is of a type this lane cannot turn
+ * into text, or a redirect left the registered site and was not followed.
+ * Such a row keeps its reason (and its strikes, which stop the re-probing),
+ * but reads **Skipped** in the page list and does not count among the
+ * website's failed pages (2026-09-30).
+ */
+export const PAGE_SKIP_KINDS = [
+  'robots_noindex',
+  'unsupported_content',
+  'host_not_allowed',
+] as const satisfies readonly PageFailureKind[];
+
+export type PageSkipKind = (typeof PAGE_SKIP_KINDS)[number];
+
+export function isSkippedPageKind(kind: string): kind is PageSkipKind {
+  return (PAGE_SKIP_KINDS as readonly string[]).includes(kind);
+}
+
+/** The skip kinds as a SQL list, for a `NOT IN (…)` against
+ * `last_error_kind` — the identifiers are this module's own literals. */
+export const PAGE_SKIP_KINDS_SQL = PAGE_SKIP_KINDS.map(
+  (kind) => `'${kind}'`,
+).join(', ');
+
 export interface CrawlerPage {
   url: string;
   title: string | null;

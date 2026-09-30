@@ -8025,6 +8025,7 @@ websites:
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} fehlgeschlagener Versuch} other {{count} fehlgeschlagene Versuche in Folge}} — {message}'
     failed: Fehlgeschlagen
+    skipped: Übersprungen
     failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
     errorKind:
       dnsFailed: Host konnte nicht aufgelöst werden.

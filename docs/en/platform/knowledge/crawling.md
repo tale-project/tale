@@ -28,7 +28,7 @@ Choose **Scan interval** and **Save**. The default interval is six hours; the av
 
 A URL list fetches only the addresses you provide and follows no additional links. It can contain pages from several websites; Tale groups them into one source per website. A listed `http://` address is accepted and fetched as `https://`, unlike a whole-website `http://` domain, which is refused; a page that serves plaintext only stays out of reach either way. Adding another list for an existing URL-list source adds addresses without dropping the existing ones and updates its scan interval.
 
-Use complete public URLs. Linked PDF and modern Office documents can be indexed when they contain readable text. Images and scans without extractable text do not become searchable content.
+Use complete public URLs. Linked PDF and modern Office documents can be indexed when they contain readable text. A download served under a generic or legacy type (`application/octet-stream`, `application/vnd.ms-excel` on an `.xlsx` export) is recognised by its filename and its bytes. Images and scans without extractable text do not become searchable content.
 
 ## Understand discovery and refresh
 
@@ -56,7 +56,7 @@ There is no configurable page cap, include/exclude path filter, or stop-scan but
 
 ## Check what was indexed
 
-The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures.
+The table shows **Status**, the **Indexed** page count, **Scanned**, and **Interval**. Open the source row to inspect its page list, word and chunk counts, and last-crawled times. Expand a page to read its stored text chunks. A failed fetch shows its reason and number of consecutive failures. A page the crawler skipped on purpose — the source asked not to be indexed, the content type has no readable text, or a redirect left the site — reads **Skipped** with its reason and does not count as failed.
 
 | Status | Meaning |
 | --- | --- |

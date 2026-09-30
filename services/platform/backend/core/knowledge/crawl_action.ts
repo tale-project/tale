@@ -95,6 +95,7 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { extractText } from '../lib/knowledge/extraction/router';
+import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import {
   RenderCapacityError,
   renderUrlsInSandbox,
@@ -103,7 +104,7 @@ import {
   isDueForScan,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../websites/scan_scheduling';
-import type { PageFailureKind } from '../websites/types';
+import { type PageFailureKind, PAGE_SKIP_KINDS_SQL } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
 import {
@@ -538,13 +539,16 @@ export async function scanWebsiteImpl(
           stored: string;
           attempted: string;
           failed: string;
+          skipped: string;
           kind: string | null;
         }[]
       >(
         `SELECT
             count(*) FILTER (WHERE u.status = 'active')::text AS stored,
             count(*) FILTER (WHERE u.last_crawled_at IS NOT NULL)::text AS attempted,
-            count(*) FILTER (WHERE u.last_error IS NOT NULL)::text AS failed,
+            count(*) FILTER (WHERE u.last_error IS NOT NULL
+                               AND u.last_error_kind NOT IN (${PAGE_SKIP_KINDS_SQL}))::text AS failed,
+            count(*) FILTER (WHERE u.last_error_kind IN (${PAGE_SKIP_KINDS_SQL}))::text AS skipped,
             (SELECT u2.last_error_kind FROM ${PUBLIC_WEB_SCHEMA}.website_urls u2
               WHERE u2.domain = $1 AND u2.status <> 'deleted' AND u2.last_error IS NOT NULL
               GROUP BY u2.last_error_kind ORDER BY count(*) DESC LIMIT 1) AS kind
@@ -553,12 +557,13 @@ export async function scanWebsiteImpl(
         [args.domain],
       );
       const stored = Number(tally?.stored ?? '0');
+      const skippedPages = Number(tally?.skipped ?? '0');
       const attempted = Number(tally?.attempted ?? '0');
       const failedPages = Number(tally?.failed ?? '0');
       if (stored === 0) {
         const reason = `No page could be stored: ${
           attempted > 0
-            ? `${failedPages} of ${attempted} attempted pages failed${tally?.kind ? ` (${tally.kind})` : ''}`
+            ? `${failedPages} of ${attempted} attempted pages failed${skippedPages > 0 ? ` and ${skippedPages} were skipped` : ''}${tally?.kind ? ` (${tally.kind})` : ''}`
             : remaining > 0
               ? `${remaining} page(s) were still waiting when the scan's continuation budget ran out`
               : isUrlDisallowed(`https://${args.domain}/`, policy)
@@ -1176,7 +1181,10 @@ async function fetchAndStorePage(
     return 'failed';
   }
   const contentType = response.headers.get('content-type') ?? '';
-  const dispatch = classifyContentType(contentType);
+  let dispatch = classifyContentType(
+    contentType,
+    response.headers.get('content-disposition'),
+  );
   if (dispatch.kind === 'skip') {
     // Not something this lane can turn into text (an image, a feed, a
     // binary download). Recorded as a failure with its own kind — the scan
@@ -1198,6 +1206,22 @@ async function fetchAndStorePage(
     return 'render';
   }
   const bytes = new Uint8Array(await response.body.arrayBuffer());
+  if (dispatch.kind === 'sniff') {
+    // A download whose declared type says nothing or the wrong thing: the
+    // bytes decide. A TYPO3 export answered `application/vnd.ms-excel` with
+    // an `.xlsx` named in its Content-Disposition, and read as unsupported
+    // (2026-09-30).
+    const extension = await sniffDocumentExtension(bytes);
+    if (extension === null) {
+      const named = dispatch.filename === null ? '' : ` (${dispatch.filename})`;
+      await recordPageFailure(sql, domain, page.url, {
+        kind: 'unsupported_content',
+        message: `The page answered ${contentType === '' ? 'no content type' : `"${contentType}"`}${named}, and its bytes are not a document the crawler reads (PDF, DOCX, XLSX, PPTX, ODT)`,
+      });
+      return 'failed';
+    }
+    dispatch = { kind: 'document', extension, filename: dispatch.filename };
+  }
 
   let title: string | null;
   let text: string;
@@ -1205,7 +1229,11 @@ async function fetchAndStorePage(
     title = null;
     text = new TextDecoder().decode(bytes);
   } else {
-    const name = documentNameForUrl(page.url, dispatch.extension);
+    const name = documentNameForUrl(
+      page.url,
+      dispatch.extension,
+      dispatch.filename,
+    );
     try {
       // The crawl lane carries no vision arm; extractors degrade on their
       // own (scanned PDF pages come back empty instead of failing).

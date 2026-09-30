@@ -7723,7 +7723,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             failedPageCount: nullable({
               ...int,
               description:
-                'Pages whose LAST attempt failed — each carries its `lastError` in the pages list; `null` until the next corpus → row sync stamps the row',
+                'Pages whose LAST attempt failed — each carries its `lastError` in the pages list. A page the crawler skipped on purpose (`lastErrorKind` `robots_noindex`, `unsupported_content` or `host_not_allowed`) keeps its reason but is not counted here; `null` until the next corpus → row sync stamps the row',
             }),
             metadata: nullable(obj),
             createdAt: epochMs,

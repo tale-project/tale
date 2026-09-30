@@ -14,6 +14,8 @@ import {
   robotsPolicyToStored,
   type RobotsPolicy,
   classifyContentType,
+  dispositionFilename,
+  documentExtensionFromFileType,
   documentNameForUrl,
   extractLinks,
   isDisallowed,
@@ -404,21 +406,28 @@ describe('classifyContentType', () => {
     expect(classifyContentType('application/pdf')).toEqual({
       kind: 'document',
       extension: '.pdf',
+      filename: null,
     });
     expect(
       classifyContentType(
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       ),
-    ).toEqual({ kind: 'document', extension: '.docx' });
+    ).toEqual({ kind: 'document', extension: '.docx', filename: null });
   });
 
-  it('skips everything the lane cannot turn into text', () => {
+  it('skips everything the lane cannot turn into text, and lets the bytes decide a generic download', () => {
     expect(classifyContentType('image/png')).toEqual({ kind: 'skip' });
-    expect(classifyContentType('application/octet-stream')).toEqual({
-      kind: 'skip',
-    });
-    expect(classifyContentType('application/zip')).toEqual({ kind: 'skip' });
     expect(classifyContentType('text/css')).toEqual({ kind: 'skip' });
+    expect(classifyContentType('application/json')).toEqual({ kind: 'skip' });
+    // A generic download says nothing about its bytes: read them first.
+    expect(classifyContentType('application/octet-stream')).toEqual({
+      kind: 'sniff',
+      filename: null,
+    });
+    expect(classifyContentType('application/zip')).toEqual({
+      kind: 'sniff',
+      filename: null,
+    });
   });
 });
 
@@ -758,5 +767,112 @@ describe('the stored robots verdict and its sitemaps', () => {
     expect(robotsSitemapsFromStored(['/b'])).toBeNull();
     expect(robotsSitemapsFromStored(null)).toBeNull();
     expect(robotsSitemapsFromStored(undefined)).toBeNull();
+  });
+});
+
+/**
+ * A download whose declared type says nothing or the wrong thing: a TYPO3
+ * export answered `application/vnd.ms-excel` with an `.xlsx` named in its
+ * Content-Disposition and read as unsupported (2026-09-30). The bytes
+ * decide (`sniff`), and the offered filename becomes the document's name.
+ */
+describe('classifyContentType — downloads whose declared type says nothing', () => {
+  it('lets the bytes decide for a generic or legacy type, keeping the offered filename', () => {
+    expect(
+      classifyContentType(
+        'application/vnd.ms-excel',
+        'attachment;filename="admission-tables.xlsx"',
+      ),
+    ).toEqual({ kind: 'sniff', filename: 'admission-tables.xlsx' });
+    expect(classifyContentType('application/octet-stream')).toEqual({
+      kind: 'sniff',
+      filename: null,
+    });
+    expect(
+      classifyContentType(
+        'application/msword',
+        'inline; filename="brief.docx"',
+      ),
+    ).toEqual({ kind: 'sniff', filename: 'brief.docx' });
+  });
+
+  it('lets the bytes decide when only the filename names a document', () => {
+    expect(
+      classifyContentType('text/csv', 'attachment; filename="report.pdf"'),
+    ).toEqual({ kind: 'sniff', filename: 'report.pdf' });
+  });
+
+  it('still routes a declared document by its type, carrying the filename', () => {
+    expect(
+      classifyContentType('application/pdf', 'attachment; filename="a.pdf"'),
+    ).toEqual({ kind: 'document', extension: '.pdf', filename: 'a.pdf' });
+    expect(classifyContentType('application/pdf')).toEqual({
+      kind: 'document',
+      extension: '.pdf',
+      filename: null,
+    });
+  });
+
+  it('skips what is neither', () => {
+    expect(
+      classifyContentType('image/png', 'attachment; filename="a.png"'),
+    ).toEqual({ kind: 'skip' });
+    expect(classifyContentType('text/csv')).toEqual({ kind: 'skip' });
+  });
+});
+
+describe('dispositionFilename', () => {
+  it('prefers the RFC 8187 form, decodes it, and keeps the basename', () => {
+    expect(
+      dispositionFilename(
+        'attachment; filename="fallback.xlsx"; filename*=UTF-8\'\'Zulassungs%20tabellen.xlsx',
+      ),
+    ).toBe('Zulassungs tabellen.xlsx');
+    expect(
+      dispositionFilename('attachment;filename="dir\\sub/report.pdf"'),
+    ).toBe('report.pdf');
+    expect(dispositionFilename('attachment; filename=plain.docx')).toBe(
+      'plain.docx',
+    );
+  });
+
+  it('reads none from an absent, empty or pathless header', () => {
+    expect(dispositionFilename(null)).toBeNull();
+    expect(dispositionFilename('inline')).toBeNull();
+    expect(dispositionFilename('attachment; filename=""')).toBeNull();
+    expect(dispositionFilename('attachment; filename="../"')).toBeNull();
+  });
+});
+
+describe('documentExtensionFromFileType', () => {
+  it('maps the five documents the router reads and nothing else', () => {
+    expect(documentExtensionFromFileType('xlsx')).toBe('.xlsx');
+    expect(documentExtensionFromFileType('pdf')).toBe('.pdf');
+    expect(documentExtensionFromFileType('odt')).toBe('.odt');
+    expect(documentExtensionFromFileType('xls')).toBeNull();
+    expect(documentExtensionFromFileType('png')).toBeNull();
+    expect(documentExtensionFromFileType(undefined)).toBeNull();
+  });
+});
+
+describe('documentNameForUrl with an offered filename', () => {
+  it('uses the offered name, forcing the extension, and falls back to the path', () => {
+    expect(
+      documentNameForUrl(
+        'https://x.ch/page?export=1',
+        '.xlsx',
+        'admission-tables.xlsx',
+      ),
+    ).toBe('admission-tables.xlsx');
+    expect(
+      documentNameForUrl(
+        'https://x.ch/page?export=1',
+        '.xlsx',
+        'admission-tables',
+      ),
+    ).toBe('admission-tables.xlsx');
+    expect(documentNameForUrl('https://x.ch/page', '.xlsx', null)).toBe(
+      'page.xlsx',
+    );
   });
 });

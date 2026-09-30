@@ -28,7 +28,7 @@ Wähle das **Scan-Intervall** und **Speichern**. Standard sind sechs Stunden; di
 
 Eine URL-Liste ruft nur die angegebenen Adressen ab und folgt keinen weiteren Links. Sie darf Seiten mehrerer Websites enthalten. Tale fasst sie zu einer Quelle pro Website zusammen. Eine gelistete `http://`-Adresse wird angenommen und als `https://` abgerufen — anders als eine `http://`-Domain im Modus für ganze Websites, die abgewiesen wird; eine Seite, die nur unverschlüsselt antwortet, bleibt in beiden Fällen unerreichbar. Eine weitere Liste für eine vorhandene URL-Listenquelle ergänzt Adressen, ohne bestehende zu entfernen, und aktualisiert ihr Scan-Intervall.
 
-Nutze vollständige öffentliche URLs. Verlinkte PDF- und moderne Office-Dateien lassen sich indexieren, wenn sie lesbaren Text enthalten. Bilder und Scans ohne extrahierbaren Text werden dadurch nicht durchsuchbar.
+Nutze vollständige öffentliche URLs. Verlinkte PDF- und moderne Office-Dateien lassen sich indexieren, wenn sie lesbaren Text enthalten. Einen Download, den der Server unter einem generischen oder veralteten Typ ausliefert (`application/octet-stream`, `application/vnd.ms-excel` bei einem `.xlsx`-Export), erkennt der Crawler an Dateiname und Inhalt. Bilder und Scans ohne extrahierbaren Text werden dadurch nicht durchsuchbar.
 
 ## Entdeckung und Aktualisierung verstehen
 
@@ -56,7 +56,7 @@ Du kannst weder eine eigene Seitenobergrenze noch Pfadfilter festlegen oder eine
 
 ## Die indexierten Inhalte prüfen
 
-Die Tabelle zeigt **Status**, die Seitenzahl unter **Indexiert**, **Gescannt** und **Intervall**. Öffne die Quellzeile, um die Seitenliste, Wort- und Chunk-Anzahl sowie den letzten Abruf zu prüfen. Klappe eine Seite auf, um die gespeicherten Textabschnitte zu lesen. Bei einem fehlgeschlagenen Abruf stehen dort Ursache und Anzahl aufeinanderfolgender Fehler.
+Die Tabelle zeigt **Status**, die Seitenzahl unter **Indexiert**, **Gescannt** und **Intervall**. Öffne die Quellzeile, um die Seitenliste, Wort- und Chunk-Anzahl sowie den letzten Abruf zu prüfen. Klappe eine Seite auf, um die gespeicherten Textabschnitte zu lesen. Bei einem fehlgeschlagenen Abruf stehen dort Ursache und Anzahl aufeinanderfolgender Fehler. Eine Seite, die der Crawler bewusst auslässt — die Quelle wünscht keine Indexierung, der Inhaltstyp liefert keinen lesbaren Text, oder eine Weiterleitung führt von der Website weg — steht als **Übersprungen** mit ihrer Ursache in der Liste und zählt nicht als fehlgeschlagen.
 
 | Status | Bedeutung |
 | --- | --- |

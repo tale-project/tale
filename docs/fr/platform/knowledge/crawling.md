@@ -28,7 +28,7 @@ Choisis l’**Intervalle d'analyse**, puis **Enregistrer**. La valeur par défau
 
 Une liste récupère uniquement les adresses fournies et ne suit aucun autre lien. Elle peut couvrir plusieurs sites ; Tale les regroupe en une source par site. Une adresse listée en `http://` est acceptée et récupérée en `https://`, contrairement à un domaine `http://` en mode site entier, qui est refusé ; une page qui ne répond qu’en clair reste inaccessible dans les deux cas. Ajouter une liste à une source de type liste d’URL existante complète les adresses sans retirer les précédentes et actualise son intervalle de scan.
 
-Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
+Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Un téléchargement servi sous un type générique ou ancien (`application/octet-stream`, `application/vnd.ms-excel` pour un export `.xlsx`) est reconnu à son nom de fichier et à son contenu. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
 
 ## Comprendre la découverte et l’actualisation
 
@@ -56,7 +56,7 @@ Tu ne peux pas fixer ton propre plafond de pages, filtrer les chemins à inclure
 
 ## Vérifier le contenu indexé
 
-Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La colonne **Indexé** indique un nombre de pages. Ouvre la ligne du site pour examiner la liste des pages, le nombre de mots et de fragments et la date du dernier passage. Déplie une page pour lire ses fragments de texte enregistrés. Un échec de récupération affiche sa cause et le nombre d’échecs consécutifs.
+Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La colonne **Indexé** indique un nombre de pages. Ouvre la ligne du site pour examiner la liste des pages, le nombre de mots et de fragments et la date du dernier passage. Déplie une page pour lire ses fragments de texte enregistrés. Un échec de récupération affiche sa cause et le nombre d’échecs consécutifs. Une page que le crawler laisse volontairement de côté — la source refuse l’indexation, le type de contenu ne fournit aucun texte lisible, ou une redirection quitte le site — apparaît comme **Ignorée** avec sa cause et ne compte pas comme un échec.
 
 | Statut | Signification |
 | --- | --- |

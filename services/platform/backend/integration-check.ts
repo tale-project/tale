@@ -36,6 +36,7 @@ import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
+import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
@@ -32861,7 +32862,7 @@ async function checkWebsitesCrawl(
   const site = new Map<
     string,
     {
-      body: string;
+      body: string | Uint8Array<ArrayBuffer>;
       type: string;
       status?: number;
       headers?: Record<string, string>;
@@ -33554,6 +33555,7 @@ async function checkWebsitesCrawl(
     const listWebsiteId = listCreated.success ? listCreated.data.id : '';
     const failurePage = z.looseObject({
       url: z.string(),
+      title: z.string().nullable(),
       status: z.string(),
       indexed: z.boolean(),
       wordCount: z.number(),
@@ -33724,7 +33726,7 @@ async function checkWebsitesCrawl(
       `;
       const listRowSkipped = await websites.getWebsite(sql, listWebsiteId);
       record(
-        'websites page failure: a JSON page and a noindex page store nothing and say why (unsupported_content, robots_noindex)',
+        'websites page failure: a JSON page and a noindex page store nothing and say why (unsupported_content, robots_noindex), skipped rather than failed',
         listSkipped.status === 200 &&
           jsonPage !== undefined &&
           jsonPage.status === 'discovered' &&
@@ -33740,9 +33742,74 @@ async function checkWebsitesCrawl(
           noindexPage.lastErrorKind === 'robots_noindex' &&
           Number(noindexChunks[0]?.count ?? '-1') === 0 &&
           listRowSkipped?.status === 'active' &&
-          listRowSkipped.failedPageCount === 2 &&
+          // Skips are the crawler's choice, not failures: the site does
+          // not count them among its failed pages (2026-09-30).
+          listRowSkipped.failedPageCount === 0 &&
           listRowSkipped.crawledPageCount === 4,
-        `relist=${listSkipped.status}/200 json=${jsonPage ? `${jsonPage.status}/${jsonPage.indexed}/${jsonPage.wordCount}w fail=${jsonPage.failCount} kind=${jsonPage.lastErrorKind} err=${jsonPage.lastError}` : 'MISSING'} (want discovered/false/0w fail=1 kind=unsupported_content), noindex=${noindexPage ? `${noindexPage.status}/${noindexPage.indexed} fail=${noindexPage.failCount} kind=${noindexPage.lastErrorKind}` : 'MISSING'} (want discovered/false fail=1 kind=robots_noindex) chunks=${noindexChunks[0]?.count}/0, row=${listRowSkipped?.status}/active failed=${listRowSkipped?.failedPageCount}/2 attempted=${listRowSkipped?.crawledPageCount}/4`,
+        `relist=${listSkipped.status}/200 json=${jsonPage ? `${jsonPage.status}/${jsonPage.indexed}/${jsonPage.wordCount}w fail=${jsonPage.failCount} kind=${jsonPage.lastErrorKind} err=${jsonPage.lastError}` : 'MISSING'} (want discovered/false/0w fail=1 kind=unsupported_content), noindex=${noindexPage ? `${noindexPage.status}/${noindexPage.indexed} fail=${noindexPage.failCount} kind=${noindexPage.lastErrorKind}` : 'MISSING'} (want discovered/false fail=1 kind=robots_noindex) chunks=${noindexChunks[0]?.count}/0, row=${listRowSkipped?.status}/active failed=${listRowSkipped?.failedPageCount}/0 attempted=${listRowSkipped?.crawledPageCount}/4`,
+      );
+
+      // 4f. A download whose declared type says nothing or the wrong thing
+      //     (2026-09-30): a TYPO3 export answered `application/vnd.ms-excel`
+      //     with an `.xlsx` named in its Content-Disposition, and read as
+      //     unsupported. The bytes decide, and the offered name is the
+      //     document's.
+      // The fixture serves by path; the listed URL keeps its query string
+      // (an export action), which the crawler dials as is.
+      const exportPath = '/tables';
+      const exportUrl = `https://${LIST_DOMAIN}${exportPath}?export=1`;
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.aoa_to_sheet([
+          ['Component', 'Admission status'],
+          [
+            'Security module card',
+            'admitted for the telematics infrastructure since spring',
+          ],
+          ['Card terminal', 'admission pending a firmware review'],
+        ]),
+        'Admissions',
+      );
+      // The same way the extraction tests build a workbook: `array` output,
+      // copied into a fresh buffer.
+      const workbookBytes: ArrayLike<number> = XLSX.write(workbook, {
+        type: 'array',
+        bookType: 'xlsx',
+      });
+      site.set(exportPath, {
+        body: new Uint8Array(workbookBytes),
+        type: 'application/vnd.ms-excel',
+        headers: {
+          'content-disposition': 'attachment;filename="admission-tables.xlsx"',
+        },
+      });
+      const listExport = await v1('/websites', {
+        body: {
+          domain: LIST_DOMAIN,
+          scanInterval: '1d',
+          urls: [listUrl, redirectUrl, jsonUrl, noindexUrl, exportUrl],
+        },
+      });
+      await drainCrawlJobs();
+      await websites.runWebsitesRowSync(sql, { orgSlug, domain: LIST_DOMAIN });
+      const exportPages = z
+        .object({ pages: z.array(failurePage) })
+        .loose()
+        .safeParse(await (await v1(`/websites/${listWebsiteId}/pages`)).json());
+      const exportPage = exportPages.success
+        ? exportPages.data.pages.find((page) => page.url === exportUrl)
+        : undefined;
+      record(
+        'websites documents: a download served as a generic or legacy type is read by its bytes and named by its Content-Disposition',
+        listExport.status === 200 &&
+          exportPage !== undefined &&
+          exportPage.status === 'active' &&
+          exportPage.wordCount >= 8 &&
+          exportPage.title === 'admission-tables.xlsx' &&
+          exportPage.failCount === 0 &&
+          exportPage.lastError === null,
+        `relist=${listExport.status}/200 page=${exportPage ? `${exportPage.status} words=${exportPage.wordCount} title=${exportPage.title} fail=${exportPage.failCount} err=${exportPage.lastError}` : 'MISSING'} (want active words>=8 title=admission-tables.xlsx fail=0 err=null)`,
       );
     } finally {
       await new Promise<void>((resolve) => {

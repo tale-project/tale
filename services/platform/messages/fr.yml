@@ -8131,6 +8131,7 @@ websites:
     chunkIndex: Fragment {index}
     lastError: '{count, plural, one {{count} tentative échouée} other {{count} tentatives échouées de suite}} — {message}'
     failed: Échec
+    skipped: Ignorée
     failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
     errorKind:
       dnsFailed: Impossible de résoudre l'hôte.
