@@ -1,4 +1,4 @@
-import type { PgBoss } from 'pg-boss';
+import type { Db, PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 
 import type { TaskIdentifier, TaskPayloads } from './tasks.ts';
@@ -66,6 +66,24 @@ function requireBoss(): PgBoss {
 }
 
 /**
+ * pg-boss's `db` option over postgres.js: pg-boss runs its statements on
+ * the caller's connection, so a send or a completion commits or rolls back
+ * with the caller's own writes. The one adapter for every pg-boss call that
+ * rides a transaction — `addJobInTx` and the draining worker's hand-over
+ * (`runner.ts`).
+ */
+export function bossDbInTx(tx: TransactionSql | Sql): Db {
+  return {
+    executeSql: async (text, values) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg-boss hands plain JSON-safe parameters; postgres.js's ParameterOrJSON generic can't be named for a passthrough adapter
+      const parameters = (values ?? []) as never[];
+      const rows = await tx.unsafe(text, parameters);
+      return { rows: [...rows] };
+    },
+  };
+}
+
+/**
  * Enqueue a job INSIDE the caller's transaction.
  *
  * This is the replacement for Convex's transactional scheduler
@@ -83,14 +101,7 @@ export async function addJobInTx<TName extends TaskIdentifier>(
   options: EnqueueOptions = {},
 ): Promise<string | null> {
   return requireBoss().send(identifier, payload, {
-    db: {
-      executeSql: async (text, values) => {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg-boss hands plain JSON-safe parameters; postgres.js's ParameterOrJSON generic can't be named for a passthrough adapter
-        const parameters = (values ?? []) as never[];
-        const rows = await tx.unsafe(text, parameters);
-        return { rows: [...rows] };
-      },
-    },
+    db: bossDbInTx(tx),
     ...(options.startAfter !== undefined
       ? { startAfter: options.startAfter }
       : {}),
