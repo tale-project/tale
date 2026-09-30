@@ -40,6 +40,7 @@ import {
   sessionReadFile,
   sessionStageFiles,
 } from './helpers/session_client';
+import { RENDERED_LAYOUT_SCRIPT } from './render_layout';
 import { runStepsInSession } from './session_exec';
 
 /** Per-page navigation budget inside the worker. */
@@ -346,7 +347,8 @@ async function settleFailedCreate(
  * navigation dies). Re-validates hostnames because the engine-side SSRF
  * guard does not travel into the sandbox: single-label hosts (docker service
  * aliases like `convex`) and private/link-local IP literals are refused, on
- * the original URL and again on the post-redirect landing host.
+ * the original URL and again on the post-redirect landing host. A page's HTML
+ * comes back with its CSS layout written in (`RENDERED_LAYOUT_SCRIPT`).
  */
 export const RENDER_WORKER_SOURCE = `
 import { createRequire } from 'node:module';
@@ -391,6 +393,15 @@ function isBlockedHost(hostname) {
   }
   if (host.includes(':')) return true;
   return false;
+}
+
+// The page's HTML with its CSS layout written in, so the host's tag-level
+// text pass separates what the page shows separated; the plain
+// serialization when the page refuses the script.
+const LAYOUT_SCRIPT = ${JSON.stringify(RENDERED_LAYOUT_SCRIPT)};
+async function renderedHtml(page) {
+  const layout = await page.evaluate(LAYOUT_SCRIPT).catch(() => null);
+  return typeof layout === 'string' && layout !== '' ? layout : page.content();
 }
 
 const input = JSON.parse(readFileSync('/agent/code/urls.json', 'utf8'));
@@ -508,7 +519,7 @@ try {
         record.status = status;
         record.error = 'HTTP ' + status + ' at render time';
       } else {
-        const html = await page.content();
+        const html = await renderedHtml(page);
         if (Buffer.byteLength(html, 'utf8') > maxHtmlBytes) {
           record.error = 'rendered HTML exceeds the per-page bound';
         } else {

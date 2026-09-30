@@ -1,5 +1,6 @@
 /**
- * Lean HTML → readable text, for the chat `web_fetch` tool.
+ * Lean HTML → readable text, for the chat `web_fetch` tool, the website
+ * crawler and HTML message bodies.
  *
  * Deliberately NOT the jsdom-based converter in
  * `packages/ui/src/seo/transform/html-to-markdown.ts`: that one builds a real
@@ -9,6 +10,12 @@
  * markup stripped; block structure kept as line breaks; headings, list
  * markers, and absolute links kept in a markdown-ish spelling — which is what
  * a model needs from a page it is READING, not rendering.
+ *
+ * Inline formatting tags are zero-width, as a browser lays them out: a page
+ * that splits its words into one `<span>` per letter (a text effect) reads
+ * as words, and `<b>Im</b>portant` as one. What only CSS separates — spans
+ * laid out as flex items — is invisible at this level; the crawler's render
+ * lane writes that layout into the markup first (`renderedLayoutHtml`).
  *
  * Layer A: pure string work, no `node:*`, no DOM.
  */
@@ -58,6 +65,56 @@ const BLOCK_TAGS = new Set([
   'h5',
   'h6',
 ]);
+
+/** Phrasing tags a browser lays out without any space of their own: they
+ * disappear without a trace. Every other tag not in {@link BLOCK_TAGS}
+ * (images, form controls, custom elements) still separates words. */
+const INLINE_TAGS = new Set([
+  'a',
+  'abbr',
+  'b',
+  'bdi',
+  'bdo',
+  'big',
+  'cite',
+  'code',
+  'data',
+  'del',
+  'dfn',
+  'em',
+  'font',
+  'i',
+  'ins',
+  'kbd',
+  'label',
+  'mark',
+  'nobr',
+  'q',
+  'rp',
+  'rt',
+  'ruby',
+  's',
+  'samp',
+  'small',
+  'span',
+  'strike',
+  'strong',
+  'sub',
+  'sup',
+  'time',
+  'tt',
+  'u',
+  'var',
+  'wbr',
+]);
+
+/** What a stripped tag leaves behind: a line break for a block, nothing for
+ * inline formatting, a word boundary for anything else. */
+function tagSeparator(tag: string): string {
+  const name = tag.toLowerCase();
+  if (BLOCK_TAGS.has(name)) return '\n';
+  return INLINE_TAGS.has(name) ? '' : ' ';
+}
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
@@ -155,6 +212,9 @@ export function htmlToText(html: string): string {
     ) => {
       const href = (hrefA ?? hrefB ?? '').trim();
       const text = inner
+        .replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g, (_tag, name: string) =>
+          tagSeparator(name),
+        )
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
@@ -165,7 +225,7 @@ export function htmlToText(html: string): string {
   // Block boundaries become newlines; the rest of the markup disappears.
   work = work.replace(
     /<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g,
-    (whole, tag: string) => (BLOCK_TAGS.has(tag.toLowerCase()) ? '\n' : ' '),
+    (_whole, tag: string) => tagSeparator(tag),
   );
 
   work = decodeHtmlEntities(work);

@@ -44,6 +44,42 @@ describe('htmlToText', () => {
     expect(text).toBe('Example Domain');
   });
 
+  // Regression: every inline tag became a space and a whitespace-only span
+  // collapsed away, so example.com — whose script splits its text into one
+  // <span> per character — was indexed as "T h i s d o m a i n i s …" and
+  // no search for any of its words could match.
+  it('reads text split into one span per letter as words', () => {
+    const spell = (text: string): string =>
+      text
+        .split('')
+        .map((char) => `<span>${char}</span>`)
+        .join('');
+    const text = htmlToText(
+      `<body><p>${spell('This domain is for use in examples.')}</p></body>`,
+    );
+    expect(text).toBe('This domain is for use in examples.');
+  });
+
+  it('adds no space at inline formatting, inside links too', () => {
+    expect(htmlToText('<p><b>Im</b>portant <em>news</em>!</p>')).toBe(
+      'Important news!',
+    );
+    expect(
+      htmlToText(
+        '<p><a href="https://example.com/"><span>Ex</span><span>ample</span></a></p>',
+      ),
+    ).toBe('[Example](https://example.com/)');
+  });
+
+  it('keeps a word boundary at tags that are not inline formatting', () => {
+    expect(
+      htmlToText('<p><button>Save</button><button>Cancel</button></p>'),
+    ).toBe('Save Cancel');
+    expect(htmlToText('<p>Before<img src="x.png" alt="">after</p>')).toBe(
+      'Before after',
+    );
+  });
+
   it('renders table cells with separators instead of gluing them', () => {
     const text = htmlToText(
       '<table><tr><th>Name</th><th>Price</th></tr><tr><td>Widget</td><td>9</td></tr></table>',

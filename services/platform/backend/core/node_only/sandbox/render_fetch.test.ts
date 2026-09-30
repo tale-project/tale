@@ -431,12 +431,21 @@ const FAKE_PLAYWRIGHT = `
 const chars = Number(process.env.FAKE_HTML_CHARS || '100');
 // 'é' is one UTF-16 code unit but two UTF-8 bytes.
 const html = '<html><body>' + 'é'.repeat(chars) + '</body></html>';
+// The layout script's answer: unset, the page answers it like any other
+// expression (not markup); 'throw', the page refuses it.
+const layout = process.env.FAKE_LAYOUT_HTML;
 function makePage() {
   let current = '';
   return {
     async goto(url) { current = url; return { status: () => 200 }; },
     async waitForLoadState() {},
-    async evaluate() { return 42; },
+    async evaluate(expression) {
+      if (String(expression).includes('renderedLayoutHtml') && layout) {
+        if (layout === 'throw') throw new Error('the page refused the script');
+        return layout;
+      }
+      return 42;
+    },
     url() { return current; },
     async content() { return html; },
     async close() {},
@@ -494,6 +503,7 @@ describe('render worker — output budget in bytes', () => {
     caps: { maxHtmlBytes: number; maxTotalBytes: number },
     htmlChars: number,
     extraInput: Record<string, unknown> = {},
+    extraEnv: Record<string, string> = {},
   ): Promise<{ bytes: number; results: Map<string, unknown> }> {
     writeFileSync(
       path.join(agent, 'code', 'urls.json'),
@@ -511,6 +521,7 @@ describe('render worker — output budget in bytes', () => {
         ...process.env,
         FAKE_HTML_CHARS: String(htmlChars),
         FAKE_CONTEXT_OPTIONS_FILE: path.join(root, 'context-options.json'),
+        ...extraEnv,
       },
       timeout: 25_000,
     });
@@ -564,6 +575,38 @@ describe('render worker — output budget in bytes', () => {
       userAgent,
     });
   });
+
+  it('hands back the markup with the layout written in, and the plain serialization when the page refuses the script', async () => {
+    const caps = { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 };
+    const url = 'https://site.example/a';
+    const laidOut = '<html><body>\n<span>Price</span>\n</body></html>';
+    const withLayout = await runWorker(
+      [url],
+      caps,
+      10,
+      {},
+      {
+        FAKE_LAYOUT_HTML: laidOut,
+      },
+    );
+    expect(withLayout.results.get(url)).toMatchObject({
+      kind: 'ok',
+      html: laidOut,
+    });
+    const refused = await runWorker(
+      [url],
+      caps,
+      10,
+      {},
+      {
+        FAKE_LAYOUT_HTML: 'throw',
+      },
+    );
+    expect(refused.results.get(url)).toMatchObject({
+      kind: 'ok',
+      html: `<html><body>${'é'.repeat(10)}</body></html>`,
+    });
+  }, 30_000);
 
   it('applies the per-page bound in bytes, not UTF-16 code units', async () => {
     const urls = ['https://site.example/big'];
