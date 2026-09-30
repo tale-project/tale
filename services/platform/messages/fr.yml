@@ -2115,6 +2115,7 @@ documents:
   tableCaption: Documents et dossiers
   searchPlaceholder: Rechercher des documents
   refreshFailed: Impossible de charger les derniers documents. La liste est peut-être incomplète ou obsolète.
+  loadFailed: Impossible de charger les documents ici. Seuls les dossiers sont affichés tant que les documents ne sont pas chargés.
   record:
     badge: 'v{version} · {state}'
     state:
@@ -5265,7 +5266,16 @@ skills:
     notFound:
       Ce fichier n'est plus dans le bundle. Choisis un autre fichier dans
       l'arborescence.
+    loadFailed: Impossible de charger ce fichier.
+    refreshFailed:
+      Impossible d'actualiser ce fichier. Tu vois la version chargée
+      précédemment.
+    empty: Ce fichier est vide.
   detail:
+    loadFailed: Impossible de charger ce skill.
+    refreshFailed:
+      Impossible d'actualiser ce skill. Tu vois la version chargée
+      précédemment.
     tree:
       heading: Bundle
       empty: Seulement SKILL.md — les assets du bundle vivent sous scripts/,
@@ -5408,6 +5418,12 @@ skills:
     labels: Libellés
     labelsPlaceholder: recherche, pdf, finance
     labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir, pas pour le modèle.
+    labelsTooMany:
+      "Un skill accepte au plus {max} libellés. Retire {excess, plural, one {#
+      libellé} other {# libellés}} pour pouvoir enregistrer."
+    labelTooLong:
+      "Le libellé « {label} » dépasse {max} caractères. Raccourcis-le pour
+      pouvoir enregistrer."
     bodyHelp:
       Le markdown que le modèle lit quand il charge le skill — playbooks,
       conventions, référence. Jamais exécuté.

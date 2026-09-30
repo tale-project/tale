@@ -63,6 +63,7 @@ const paginatedMock = vi.hoisted(() => ({
   error: null as Error | null,
   retry: vi.fn(),
   errorCount: 0,
+  unavailable: false,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -77,6 +78,7 @@ vi.mock('../hooks/queries', () => ({
     error: paginatedMock.error,
     retry: paginatedMock.retry,
     isRetrying: false,
+    unavailable: paginatedMock.unavailable,
     errorCount: paginatedMock.errorCount,
   }),
 }));
@@ -111,6 +113,7 @@ describe('DocumentsTable', () => {
     paginatedMock.results = [];
     paginatedMock.error = null;
     paginatedMock.errorCount = 0;
+    paginatedMock.unavailable = false;
   });
 
   // Search/filters run client-side over loaded pages only; without this the

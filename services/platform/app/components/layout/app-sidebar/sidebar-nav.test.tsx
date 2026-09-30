@@ -40,22 +40,34 @@ type MockLinkProps = React.ComponentProps<'a'> & {
   params?: Record<string, string>;
   preload?: string;
   search?: Record<string, unknown>;
+  state?: Record<string, unknown>;
 };
 
 vi.mock('@tanstack/react-router', () => ({
   // Router-only props (`to`, `params`, `preload`) are stripped so that only real
   // DOM attributes — crucially `aria-label` — reach the rendered anchor.
   Link: React.forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
-    { to, params: _params, preload: _preload, search, children, ...rest },
+    {
+      to,
+      params: _params,
+      preload: _preload,
+      search,
+      state,
+      children,
+      ...rest
+    },
     ref,
   ) {
-    // `search` is a router prop, not a DOM attribute — surface it as a data-*
-    // so a test can assert what the rail decided to navigate with.
+    // `search`/`state` are router props, not DOM attributes — surface them as
+    // data-* so a test can assert what the rail decided to navigate with.
+    // `data-history-state`, not `data-state`: Radix's Tooltip trigger already
+    // clones a `data-state` (open/closed) onto this element via `{...rest}`.
     return (
       <a
         ref={ref}
         href={to}
         data-search={search ? JSON.stringify(search) : undefined}
+        data-history-state={state ? JSON.stringify(state) : undefined}
         {...rest}
       >
         {children}
@@ -79,7 +91,20 @@ vi.mock('@tale/ui/use-is-mac', () => ({
   useIsMac: () => false,
 }));
 
+function isPathMatch(itemHref: string, currentPath: string): boolean {
+  return itemHref === currentPath || currentPath.startsWith(itemHref + '/');
+}
+
 vi.mock('@/app/hooks/use-navigation-items', () => ({
+  // A real implementation, not a stub: `SidebarNav`'s sliding-indicator
+  // active-tile lookup depends on it matching the real hook's rules.
+  isItemActive: (
+    item: { isActivePath?: (pathname: string) => boolean; href: string },
+    pathname: string,
+  ) =>
+    item.isActivePath
+      ? item.isActivePath(pathname)
+      : isPathMatch(item.href, pathname),
   useNavigationItems: () => ({
     primary: [
       {
@@ -99,6 +124,11 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
         params: { id: 'test-org' },
         href: '/dashboard/test-org/automations',
         icon: LayoutGrid,
+        // As `useNavigationItems` would set it when `to` resolves to a
+        // remembered deep link — marks the arrival so the landing route can
+        // self-heal (unrelated to this fixture's own `to`, kept at the
+        // section root so the existing destination tests stay valid).
+        state: { navRestore: true },
       },
       {
         label: primaryLabels[2],
@@ -208,12 +238,16 @@ describe('SidebarNav', () => {
   });
 
   // -------------------------------------------------------------------------
-  // A rail click is a request for the SECTION. It lands on that section's own
-  // entry point every time — the first tab of a tabbed section — so the same
-  // click never opens two different pages on two different days.
+  // A rail click is a request for the SECTION — this tile only renders what
+  // `useNavigationItems` (mocked above) already decided the destination is,
+  // it never computes one of its own. That hook resolves most items to the
+  // section's own entry point, but for Home/Knowledge/Automations resolves
+  // to a remembered deep link when one exists and the tile isn't already
+  // active (its own tests own that behavior); this tile's only job is to
+  // pass `to`/`params`/`state` through untouched.
   // -------------------------------------------------------------------------
   describe('destination', () => {
-    it('opens the section entry point, not a deeper page inside it', () => {
+    it('opens whatever entry point the item carries, not a deeper page inside it', () => {
       mockLocation.pathname =
         '/dashboard/test-org/automations/qa__layout-check/runs';
 
@@ -230,6 +264,22 @@ describe('SidebarNav', () => {
       expect(
         screen.getByRole('link', { name: primaryLabels[2] }),
       ).toHaveAttribute('href', '/dashboard/$id/projects');
+    });
+
+    it('threads the item’s history state through, for a remembered deep link', () => {
+      render(<SidebarNav organizationId="test-org" />);
+
+      expect(
+        screen.getByRole('link', { name: primaryLabels[1] }),
+      ).toHaveAttribute('data-history-state', '{"navRestore":true}');
+    });
+
+    it('leaves an item with no state alone', () => {
+      render(<SidebarNav organizationId="test-org" />);
+
+      expect(
+        screen.getByRole('link', { name: primaryLabels[2] }),
+      ).not.toHaveAttribute('data-history-state');
     });
 
     it('opens a fresh composer when re-entering chat', () => {

@@ -135,13 +135,17 @@ ouvertes. Cite les preuves et marque les informations absentes « Non précisé 
 | `license` | Les conditions d’utilisation fournies par l’auteur. |
 | `recommended-packages` | Les dépendances conseillées ; l’import ne les installe pas. |
 | `disable-model-invocation` | Demande un usage explicite du skill. Cette métadonnée est une instruction, pas une restriction d’accès. |
-| `icon` / `labels` | La présentation dans la bibliothèque ; jusqu’à huit libellés. |
+| `icon` / `labels` | La présentation dans la bibliothèque ; jusqu’à huit libellés de 40 caractères au plus. |
 
 Tale conserve les clés de frontmatter inconnues. Le frontmatter est limité à 16 KB et le fichier `SKILL.md` complet à 512 KB. Les instructions lues souvent doivent rester bien plus courtes.
 
 ## Actualiser et résoudre les problèmes
 
 Ouvre une ligne pour modifier la description, les instructions, les libellés et la visibilité. L’arborescence **Bundle** permet d’examiner les fichiers complémentaires. Les agents ne sont pas liés à une version précise : la prochaine préparation utilise le bundle courant. Teste donc les changements partagés sur une tâche représentative.
+
+Le champ **Libellés** accepte jusqu’à huit libellés séparés par des virgules, de 40 caractères au plus chacun. Si la liste est plus longue ou qu’un libellé est trop long, le champ indique ce qu’il faut retirer ou raccourcir, et **Enregistrer** reste indisponible. Rien de ce que tu as saisi n’est perdu. L’arborescence **Bundle** retient, pour chaque skill et dans ton navigateur, les dossiers que tu as repliés.
+
+Si Tale ne parvient pas à charger un skill ou l’un de ses fichiers, la boîte de dialogue l’indique et propose **Réessayer**. Si une actualisation échoue, la version déjà affichée reste en place, modifications non enregistrées comprises. Un fichier retiré est signalé comme absent du bundle, et un fichier vide comme vide.
 
 Si un agent ne trouve pas le skill, vérifie son équipement et la visibilité pour le projet. Tale lui montre un extrait de la description, limité à 300 caractères, pour l’aider à choisir un skill pertinent. Indique donc d’abord quand le skill s’applique. S’il ignore un skill équipé, nomme-le dans la tâche et compare le résultat avec ses instructions. [Skills des agents](/fr/platform/agents/skills) explique comment le bundle équipé est préparé et présenté à l’agent.
 
