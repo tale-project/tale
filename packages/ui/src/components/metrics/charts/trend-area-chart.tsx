@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 
 import type { ChartRow, ChartSeries } from './types';
+import { useChartAnimation } from './use-chart-animation';
 
 interface TrendAreaChartProps {
   data: ChartRow[];
@@ -41,6 +42,7 @@ export function TrendAreaChart({
   valueFormatter,
   allowDecimals = false,
 }: TrendAreaChartProps) {
+  const animate = useChartAnimation();
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
@@ -76,6 +78,7 @@ export function TrendAreaChart({
             fill={s.color}
             fillOpacity={0.18}
             strokeWidth={1.5}
+            isAnimationActive={animate}
           />
         ))}
       </AreaChart>

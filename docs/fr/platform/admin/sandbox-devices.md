@@ -30,6 +30,12 @@ Ouvre **Paramètres > Sandboxes** et choisis **Ajouter un appareil** dans la sec
 
 La commande ne fonctionne qu’une fois, dans l’heure. Elle contient un jeton à usage unique que la machine échange contre ses propres identifiants.
 
+<Frame caption="Ajouter un appareil : la commande d’installation et de connexion, et la plus courte pour une machine où la CLI est déjà installée. Le jeton affiché est une valeur factice.">
+
+![La boîte de dialogue Ajouter un appareil avec la commande Installer et connecter, qui installe la CLI Tale et lance tale sandbox connect avec l’adresse du déploiement et un jeton à usage unique, le bouton Copier la commande, les prérequis, la mention que la commande ne fonctionne qu’une fois dans l’heure, la commande plus courte pour une machine où la CLI est déjà installée et l’état qui attend la connexion de l’appareil.](/images/platform/sandbox-add-device.webp)
+
+</Frame>
+
 </Step>
 
 <Step title="L’exécuter sur la machine">

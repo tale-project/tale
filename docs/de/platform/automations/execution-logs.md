@@ -5,6 +5,12 @@ description: Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte
 
 Öffne eine Automatisierung, wechsle zum Tab **Läufe** und wähle einen Eintrag. Prüfe zuerst Status, Version und Modus, dann die betroffene Node. Ein erfolgreicher Testlauf belegt den simulierten Ablauf. Er beweist nicht, dass ein echtes externes Konto dieselbe Aktion akzeptiert.
 
+<Frame caption="Ein abgeschlossener Testlauf: Status, Modus, Version, Starter und Zeiten über dem Workflow, mit dem Ergebnis jeder Node.">
+
+![Die Seite eines Testlaufs von Triage GitHub issues, markiert mit Succeeded, Test und v1 und von dir gestartet, mit Start- und Endzeit über dem Workflow-Graphen, in dem die Nodes issues, open issues, score und report jeweils Ran zeigen; unter dem Graphen beginnt die Liste der Auswirkungen des Laufs.](/images/platform/automation-run-detail.webp)
+
+</Frame>
+
 ## Den Laufstatus lesen
 
 Der Tab **Läufe** zeigt die letzten 50 Läufe, die du sehen kannst, neueste zuerst. Läufe der Organisation selbst sehen alle Mitglieder. Einen Lauf in einem Projekt und die Frage, auf die er wartet, sieht nur, wer dieses Projekt öffnen kann. Jede Zeile nennt Version, Zeitpunkt, Modus und Auslöser oder eine Fehler- beziehungsweise Wartebegründung. Im Detail siehst du Workflow, Node-Ergebnisse und Laufzeiten. Ein nicht abgeschlossener Lauf hat keinen Endzeitpunkt. Die Tabs bleiben beim Prüfen eines Laufs sichtbar. Mit **Läufe** kehrst du zur Liste zurück, mit **Editor** zum Bearbeiten des Workflows.

@@ -7,7 +7,7 @@ A team is a label on work, not a place you switch into. A document, folder, or p
 
 <Frame caption="Settings > Teams — every team the org has, with its member count, beside the Create team action.">
 
-![The Teams settings page listing three teams — Growth, Platform engineering, and Customer success — each with one member and the date it was added, beside a Create team button.](/images/platform/settings-teams.webp)
+![The Teams settings page listing three teams (Customer success, Growth, and Platform engineering), each with one member and the date it was added, beside a Create team button.](/images/platform/settings-teams.webp)
 
 </Frame>
 

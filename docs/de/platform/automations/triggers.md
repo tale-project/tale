@@ -5,6 +5,12 @@ description: Richte Zeitpläne, Webhooks und Plattform-Ereignisse ein, prüfe di
 
 Im Abschnitt **Trigger** im Tab **Allgemein** einer Automatisierung legst du fest, wann sie selbstständig startet. Jeder Trigger führt die Live-Version im Live-Modus aus. Teste den Workflow vorher mit der tatsächlich gelieferten Eingabestruktur und prüfe seine externen Aktionen.
 
+<Frame caption="Der Tab Allgemein eines mitgelieferten Pakets: Sein Zeitplan-Trigger ist eingeschaltet, startet aber nichts, solange keine Version bereitgestellt ist.">
+
+![Der Tab Allgemein von Triage the Gmail inbox mit einem eingeschalteten Trigger vom Typ Schedule, dem Cron-Ausdruck 0 */6 * * *, beschrieben als alle sechs Stunden und ohne Start, bevor eine Version bereitgestellt ist, der Zeitzone UTC und darunter einer leeren Projektauswahl.](/images/platform/automation-general-trigger.webp)
+
+</Frame>
+
 ## Den Auslöser wählen
 
 | Trigger-Typ | Geeignet für | Eingabe des Laufs |

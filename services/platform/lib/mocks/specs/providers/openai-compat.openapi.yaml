@@ -337,3 +337,10 @@ paths:
                     architecture:
                       input_modalities: [text, image]
                       output_modalities: [image]
+                  # A speech-to-text model (no token window), so the audio
+                  # transcription setting resolves an Automatic pick instead
+                  # of a warning. `/audio/transcriptions` above serves it.
+                  - id: openai/gpt-4o-mini-transcribe
+                    object: model
+                    owned_by: tale-mock
+                    type: transcription
