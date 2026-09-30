@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 102 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 104 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -122,6 +122,14 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   render on the card; More fields reveals read-only **Author** / **Created**
   (`tasks.fields.author` / `tasks.fields.created`); an overdue due date badges
   **Overdue** (`tasks.dueDate.overdue`)
+- [ ] `TASK-F54` · **Close a task, every way** — Open a task from the board
+  and close it with the dialog's **X**, then **Escape**, a click on the
+  backdrop and the browser's **Back**; open one of its subtasks from the
+  dialog and close that; repeat 390 px wide, where the task is a drawer → Each
+  close fades out the task that was open, at the height it had, and hands the
+  focus back to its card; the empty **Create task** (`tasks.actions.create`)
+  form never shows on the way out, and **Create task** in the header still
+  opens it.
 - [ ] `TASK-F8` · **Comments & mentions** — In the sheet: write a comment
   (**Comment**, `tasks.actions.comment`) containing `@` → the mention listbox
   (`tasks.mentionPicker.title`) → pick a member; edit then delete a comment →
@@ -1154,3 +1162,11 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   arrives nothing moves. Open `…/tasks/board?task={taskId}` the same way →
   the dialog shows the key, the title, the brief and the details masked in
   place, never an empty panel, and no focus ring frames the dialog itself.
+- [ ] `TASK-P4` · **A big board keeps its dialog quick** — On a production
+  build (see [performance.md](performance.md) Preconditions), in a project
+  with 2,000 tasks (the board's cap), record DevTools → Performance while you
+  open a task from the board, then close it with **Escape** → Neither the
+  click nor the key re-renders the cards (a dev build's React Profiler shows
+  the dialog, the route and the Home panel in the commits, never a card).
+  Target: the task shows < 1 s after the click, and the close ends with its
+  exit animation.

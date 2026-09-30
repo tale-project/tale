@@ -1,7 +1,7 @@
 import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row } from '@tale/ui/layout';
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -27,8 +27,11 @@ import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
  * (start / request changes / cancel) announces it in its header — the drag's
  * consequence is visible BEFORE the drop, not discovered from a toast after.
  * Cancelling a live run additionally asks first ({@link useRunCancelConfirm}).
+ *
+ * Memoized: opening or closing a task's dialog re-renders the workspace and
+ * its route, never the cards — the workspace hands stable props (#3939).
  */
-export function KanbanBoard({
+export const KanbanBoard = memo(function KanbanBoard({
   tasks,
   onOpenTask,
   projectKey,
@@ -149,4 +152,4 @@ export function KanbanBoard({
       {dialog}
     </DndContext>
   );
-}
+});
