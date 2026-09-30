@@ -719,6 +719,7 @@ describe('render worker — output budget in bytes', () => {
     urls: readonly string[],
     env: Record<string, string>,
     killAfterMs: number,
+    extraInput: Record<string, unknown> = {},
   ): Promise<Map<string, unknown>> {
     writeFileSync(
       path.join(agent, 'code', 'urls.json'),
@@ -731,6 +732,7 @@ describe('render worker — output budget in bytes', () => {
         maxTotalBytes: 2_000_000,
         proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
         crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
+        ...extraInput,
       }),
     );
     await expect(
@@ -776,6 +778,40 @@ describe('render worker — output budget in bytes', () => {
     expect(results.get(urls[2] ?? '')).toEqual({ kind: 'not_attempted' });
   }, 30_000);
 
+  // The same cut, under a page that was started with less than its own time
+  // left in the batch: the batch's doing, recorded without a strike. The
+  // page is still stamped, so it does not come back within the scan.
+  it('a page started too close to the batch end to finish is recorded without a strike', async () => {
+    const urls = ['a', 'b'].map((p) => `https://site.example/${p}`);
+    const results = await workerLeftBehind(
+      urls,
+      { FAKE_HANG_URL: urls[1] ?? '' },
+      6_000,
+      { hardBudgetMs: 50 },
+    );
+    expect(results.get(urls[1] ?? '')).toEqual({
+      kind: 'failed',
+      reason: RENDER_UNFINISHED_REASON,
+      transient: true,
+    });
+  }, 30_000);
+
+  // The pause a site asks for between two pages was slept through before
+  // the budget was looked at, so a page could start after it — and be cut.
+  it('does not start a page whose Crawl-delay would carry it past the budget', async () => {
+    const urls = ['a', 'b'].map((p) => `https://site.example/${p}`);
+    const startedAt = Date.now();
+    const { results } = await runWorker(
+      urls,
+      { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 },
+      10,
+      { softBudgetMs: 2_000, crawlDelayMs: 20_000 },
+    );
+    expect(results.get(urls[0] ?? '')).toMatchObject({ kind: 'ok' });
+    expect(results.get(urls[1] ?? '')).toEqual({ kind: 'not_attempted' });
+    expect(Date.now() - startedAt).toBeLessThan(15_000);
+  }, 30_000);
+
   // Regression: the batch total was `html.length` summed AFTER storing each
   // page and checked only before the NEXT one, so pages.json could exceed the
   // host's read cap (and by more with multibyte text) — the host then saw no
@@ -801,6 +837,25 @@ describe('render worker — output budget in bytes', () => {
     // Not written past the cap, not charged as a failure: due next batch.
     expect(results.get(urls[2] ?? '')).toEqual({ kind: 'not_attempted' });
     expect(results.get(urls[3] ?? '')).toEqual({ kind: 'not_attempted' });
+  }, 30_000);
+
+  // A page that fits no batch was handed back every time: it led the next
+  // batch, was rendered and handed back again, round after round.
+  it('charges a page that does not fit an empty batch instead of handing it back', async () => {
+    const urls = ['a', 'b'].map((p) => `https://site.example/${p}`);
+    // 1700 chars = 3400 bytes: under the per-page bound, over the batch's.
+    const { results } = await runWorker(
+      urls,
+      { maxHtmlBytes: 4_000, maxTotalBytes: 3_000 },
+      1_700,
+    );
+    for (const url of urls) {
+      expect(results.get(url)).toEqual({
+        kind: 'failed',
+        reason: 'rendered HTML exceeds the batch output bound',
+        transient: false,
+      });
+    }
   }, 30_000);
 
   it('opens the browser context under the User-Agent the host hands in, and under none otherwise', async () => {
