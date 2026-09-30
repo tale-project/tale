@@ -1,4 +1,4 @@
-import { EXPLICIT_ID_PATTERN, slugifyHeading } from './anchored-heading';
+import { EXPLICIT_ID_PATTERN, slugifyHeadingText } from './heading-id';
 
 export interface TocEntry {
   level: 2 | 3;
@@ -58,7 +58,7 @@ export function extractToc(body: string): TocEntry[] {
       .replace(/`([^`]*)`/g, '$1')
       .trim();
     if (!text) continue;
-    entries.push({ level, text, id: explicitId ?? slugifyHeading(text) });
+    entries.push({ level, text, id: explicitId ?? slugifyHeadingText(text) });
   }
   return entries;
 }

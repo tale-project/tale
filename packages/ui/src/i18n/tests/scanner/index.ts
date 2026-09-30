@@ -19,7 +19,6 @@ export type {
 } from './types';
 export { walkDocsRoot, walkMessagesDir } from './walk';
 export { lexIcu } from './icu-lexer';
-export { extractHeadingSlugs, slugifyHeading } from './slug';
 
 export interface Scanner {
   /** All sources the scanner knows about. */
