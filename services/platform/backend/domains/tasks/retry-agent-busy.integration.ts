@@ -41,6 +41,7 @@
  * enqueue is parked a day past its own start at the queue's insert, no
  * worker takes one, and the lane delivers each retry job itself, as pg-boss
  * would. No sandbox, provider or model is touched. */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
@@ -231,6 +232,12 @@ export async function checkAutomatedRetryAgentBusy(
   /** Every line the retry worker logged about its outcome, verbatim: the raw
    * record a case's detail quotes. */
   const raw: string[] = [];
+  /** The outcome lines of the delivery running in this async context — one
+   * list per delivery, so deliveries at once neither share one nor leave a
+   * stale capture behind (the harness's own `record` lines always print). */
+  const heard = new AsyncLocalStorage<string[]>();
+  const consoleLog = console.log;
+  const OUTCOME = /auto-retry (skipped|waiting): (\S+)/;
 
   /** Hand a retry job to the real worker of its queue, as pg-boss would;
    * answers what it logged: `skipped:<reason>` or `waiting:<reason>`,
@@ -246,23 +253,11 @@ export async function checkAutomatedRetryAgentBusy(
       throw new Error(`itest: no worker for ${queue}`);
     }
     const lines: string[] = [];
-    const log = console.log;
-    console.log = (...args: unknown[]) => {
-      const line = args.map(String).join(' ');
-      const match = /auto-retry (skipped|waiting): (\S+)/.exec(line);
-      if (match?.[1] !== undefined && match[2] !== undefined) {
-        lines.push(`${match[1]}:${match[2]}`);
-        raw.push(line);
-      } else {
-        log(...args);
-      }
-    };
-    try {
-      await handler(payload);
-    } finally {
-      console.log = log;
-    }
-    return lines;
+    await heard.run(lines, () => handler(payload));
+    return lines.map((line) => {
+      const match = OUTCOME.exec(line);
+      return `${match?.[1]}:${match?.[2]}`;
+    });
   };
   /** The worker's lines since the last call, verbatim. */
   const rawSince = (): string[] => raw.splice(0, raw.length);
@@ -461,6 +456,16 @@ export async function checkAutomatedRetryAgentBusy(
       role: 'editor',
     });
 
+  console.log = (...args: unknown[]) => {
+    const lines = heard.getStore();
+    const line = args.map(String).join(' ');
+    if (lines !== undefined && OUTCOME.test(line)) {
+      lines.push(line);
+      raw.push(line);
+      return;
+    }
+    consoleLog(...args);
+  };
   try {
     await fx.insertUser(editor, 'editor');
     await fx.insertProject(projectA, 'Busy agent retries');
@@ -1444,6 +1449,7 @@ export async function checkAutomatedRetryAgentBusy(
       await free(worker);
     }
   } finally {
+    console.log = consoleLog;
     await release();
     await sql`
       DELETE FROM app.projects WHERE id IN (${projectA}, ${foreignProject})
