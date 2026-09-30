@@ -164,18 +164,13 @@ function managementHeaders(): Record<string, string> {
   const basic = Buffer.from(`${adminUsername()}:${password}`).toString(
     'base64',
   );
+  // The gateway's setup token is this same password (the gateway image sets
+  // it so: services/sandbox-llm-gateway/docker-entrypoint.sh). The pinned
+  // gateway reads the token only from the body of the request that creates
+  // its first admin (applyGatewayConfig), so no header carries a second copy.
   return {
     'content-type': 'application/json',
     authorization: `Basic ${basic}`,
-    // The gateway's setup token is always this same password: the gateway
-    // image sets it so, replacing any BIFROST_SETUP_TOKEN the container was
-    // given (services/sandbox-llm-gateway/docker-entrypoint.sh), so the one
-    // secret both claims the gateway and manages it. The pinned gateway reads
-    // the token only from the body of the request that creates its first
-    // admin (applyGatewayConfig); a gateway that closes its whole management
-    // plane until that admin exists reads it from this header, and one that
-    // has an admin ignores it — so it rides every call.
-    'x-bifrost-setup-token': password,
   };
 }
 
