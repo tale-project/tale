@@ -83,9 +83,9 @@ tale rollback
 
 `--yes` skips its confirmation for an already approved unattended operation. The CLI's same-line check is a version guard, not an independent proof that every external integration or locally customized configuration is compatible. Never assume that downgrading is safe merely because an old migration list is a prefix of the new one.
 
-## After 0.5.63: the model gateway's store is migrated
+## Bifrost 1.6 → 2.2: the model gateway's store is migrated
 
-The first release after 0.5.63 moves the model gateway (`sandbox-llm-gateway`) from Bifrost 1.6 to Bifrost 2.2. On its first start, the new gateway migrates its store in `llm-gateway-data` in place and keeps its providers, keys, budgets and admin account; nothing needs to be done by hand. The migration also indexes the gateway's request log, so that start can take longer on an instance with a long request history.
+A release after 0.5.64 moves the model gateway (`sandbox-llm-gateway`) from Bifrost 1.6 to Bifrost 2.2; its release notes list the move. On its first start, the new gateway migrates its store in `llm-gateway-data` in place and keeps its providers, keys, budgets and admin account; nothing needs to be done by hand. The migration also indexes the gateway's request log, so that start can take longer on an instance with a long request history.
 
 The [backup inventory](/self-hosted/operate/backups-and-restore) leaves `llm-gateway-data` out, so copy it yourself before you deploy: stop the gateway, which ends running agent turns and model calls, copy the volume, then deploy. `<id>` is the `id` in `tale.json`:
 
@@ -94,7 +94,7 @@ docker stop <id>-sandbox-llm-gateway
 docker run --rm -v <id>_llm-gateway-data:/from:ro -v "$PWD/llm-gateway-data-backup:/to" alpine:3.22 cp -a /from/. /to/
 ```
 
-An older release's gateway starts on the migrated store and serves Tale, but it logs `no such column: oauth_configs.token_id` errors, and Bifrost does not support that downgrade. `tale rollback` within the 0.5 line starts exactly that gateway, so before you roll back, stop the gateway and put the copy back:
+The gateway of a release before the move starts on the migrated store and serves Tale, but it logs `no such column: oauth_configs.token_id` errors, and Bifrost does not support that downgrade. `tale rollback` within the 0.5 line starts exactly that gateway, so before you roll back, stop the gateway and put the copy back:
 
 ```bash
 docker stop <id>-sandbox-llm-gateway
