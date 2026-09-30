@@ -7,7 +7,11 @@
  * redirect never disagree about which page is closest.
  */
 
-import { buildNearMissIndex, rankNearMisses } from './near-miss';
+import {
+  buildNearMissIndex,
+  rankNearMisses,
+  type NearMissNavGroup,
+} from './near-miss';
 import { slugRoute } from './redirects';
 
 export interface SuggestionCandidate {
@@ -21,11 +25,14 @@ export interface SuggestionCandidate {
 /**
  * The `max` candidates closest to `query`, closest first. An empty query —
  * the reader landed on the site root's 404 — keeps the navigation order.
+ * `groups` is the site's sidebar, so a folder the reader spelled as a group
+ * label (`verwaltung/…`) ranks the pages under that group first.
  */
 export function suggestPages<T extends SuggestionCandidate>(
   query: string,
   candidates: readonly T[],
   max = 4,
+  groups: readonly NearMissNavGroup[] = [],
 ): T[] {
   if (!query) return candidates.slice(0, max);
   const byRoute = new Map<string, T>();
@@ -38,6 +45,7 @@ export function suggestPages<T extends SuggestionCandidate>(
       route,
       titles: candidate.titles ?? [],
     })),
+    groups,
   );
   return rankNearMisses(query, index)
     .slice(0, max)

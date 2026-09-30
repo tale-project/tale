@@ -10,10 +10,16 @@
  * as "did you mean", and a docs server redirects a guess to the one page that
  * clearly wins, so an agent that cannot read a 404 page still lands.
  *
+ * A sidebar section is guessed the same way, by the label the reader sees:
+ * `/de/verwaltung` is the German label of the `platform/admin` group, which
+ * no page carries as a title. The navigation's group labels, in every
+ * locale, therefore name their section's front page, and count as the
+ * folders of the pages under them (`/de/verwaltung/rollen`).
+ *
  * Deliberately conservative: an exact alias (the page's last segment, a
- * slugified title, a generic `overview` under a section) resolves; a fuzzy
- * match only when it beats every other page by a margin. Everything else
- * stays a 404 with suggestions.
+ * slugified title, a section's label, a generic `overview` under a section)
+ * resolves; a fuzzy match only when it beats every other page by a margin.
+ * Everything else stays a 404 with suggestions.
  */
 
 import { redirectLocation } from './redirects';
@@ -25,12 +31,32 @@ export interface NearMissPage {
   titles: readonly string[];
 }
 
+/**
+ * One sidebar group as a site's navigation stores it: a label, and the pages
+ * and nested groups under it in reading order.
+ */
+export interface NearMissNavGroup {
+  /** The group's sidebar label in every locale the site ships. */
+  labels: readonly string[];
+  /** Locale-less page routes and nested groups, in reading order. */
+  entries: readonly (string | NearMissNavGroup)[];
+}
+
 interface IndexedPage {
   route: string;
   position: number;
   segments: readonly string[];
   leaf: string;
   tokens: ReadonlySet<string>;
+  /** The labels of the sections above the page: folders a guess may name. */
+  context: ReadonlySet<string>;
+}
+
+interface IndexedSection {
+  /** The section's front page: the first page under it in reading order. */
+  route: string;
+  /** Where the section sits: the labels above it, its front page's folders. */
+  context: ReadonlySet<string>;
 }
 
 export interface NearMissIndex {
@@ -40,6 +66,10 @@ export interface NearMissIndex {
   readonly titleSlugs: ReadonlyMap<string, ReadonlySet<string>>;
   /** Stopword-free, stemmed title tokens (`create-import-automation`) → routes. */
   readonly titleKeys: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Folded section label (`verwaltung`) → its sections, in reading order. */
+  readonly sectionSlugs: ReadonlyMap<string, readonly IndexedSection[]>;
+  /** Stopword-free, stemmed section label → its sections, in reading order. */
+  readonly sectionKeys: ReadonlyMap<string, readonly IndexedSection[]>;
 }
 
 export interface NearMissCandidate {
@@ -125,8 +155,13 @@ const STOPWORDS: ReadonlySet<string> = new Set([
   'votre',
 ]);
 
-/** Leaves that name a section's front page rather than a page of their own. */
+/**
+ * Leaves that name a section's front page rather than a page of their own,
+ * in the three documentation languages and folded like a guess is
+ * (`Übersicht` arrives as `ubersicht`, or spelled out as `uebersicht`).
+ */
 const GENERIC_LEAVES: ReadonlySet<string> = new Set([
+  // en
   'about',
   'getting-started',
   'home',
@@ -137,6 +172,18 @@ const GENERIC_LEAVES: ReadonlySet<string> = new Set([
   'overview',
   'readme',
   'start',
+  // de
+  'einfuehrung',
+  'einfuhrung',
+  'startseite',
+  'uberblick',
+  'ubersicht',
+  'ueberblick',
+  'uebersicht',
+  // fr
+  'accueil',
+  'apercu',
+  'presentation',
 ]);
 
 /** Accents off, `ß` spelled out, lower case: `Übersicht` → `ubersicht`. */
@@ -185,10 +232,68 @@ function addTo(
   map.set(key, routes);
 }
 
-/** Index the pages once; `pages` in reading order (ties rank by it). */
+function addSection(
+  map: Map<string, IndexedSection[]>,
+  key: string,
+  section: IndexedSection,
+): void {
+  if (!key) return;
+  const sections = map.get(key) ?? [];
+  // One label is often spelled alike in several locales (`Governance`).
+  if (!sections.includes(section)) sections.push(section);
+  map.set(key, sections);
+}
+
+/** The first page under a group, in reading order. */
+function frontPage(group: NearMissNavGroup): string | undefined {
+  for (const entry of group.entries) {
+    const route = typeof entry === 'string' ? entry : frontPage(entry);
+    if (route !== undefined) return route;
+  }
+  return undefined;
+}
+
+const NO_CONTEXT: ReadonlySet<string> = new Set();
+
+/**
+ * Index the pages once; `pages` in reading order (ties rank by it). `groups`
+ * is the site's navigation: a group's labels name its front page, and count
+ * as folders of every page under it.
+ */
 export function buildNearMissIndex(
   pages: readonly NearMissPage[],
+  groups: readonly NearMissNavGroup[] = [],
 ): NearMissIndex {
+  const sectionSlugs = new Map<string, IndexedSection[]>();
+  const sectionKeys = new Map<string, IndexedSection[]>();
+  const contextByRoute = new Map<string, Set<string>>();
+  const walk = (group: NearMissNavGroup, above: readonly string[]) => {
+    const front = frontPage(group);
+    if (front !== undefined) {
+      const section: IndexedSection = {
+        route: front,
+        context: new Set(
+          [...above, ...front.split('/').slice(0, -1)].flatMap(meaningful),
+        ),
+      };
+      for (const label of group.labels) {
+        addSection(sectionSlugs, words(label).join('-'), section);
+        addSection(sectionKeys, meaningful(label).join('-'), section);
+      }
+    }
+    const here = [...above, ...group.labels];
+    for (const entry of group.entries) {
+      if (typeof entry !== 'string') {
+        walk(entry, here);
+        continue;
+      }
+      const context = contextByRoute.get(entry) ?? new Set<string>();
+      for (const word of here.flatMap(meaningful)) context.add(word);
+      contextByRoute.set(entry, context);
+    }
+  };
+  for (const group of groups) walk(group, []);
+
   const indexed: IndexedPage[] = [];
   const byRoute = new Map<string, IndexedPage>();
   const titleSlugs = new Map<string, Set<string>>();
@@ -206,6 +311,7 @@ export function buildNearMissIndex(
       segments,
       leaf: segments.at(-1) ?? '',
       tokens,
+      context: contextByRoute.get(page.route) ?? NO_CONTEXT,
     };
     indexed.push(entry);
     byRoute.set(page.route, entry);
@@ -214,7 +320,14 @@ export function buildNearMissIndex(
       addTo(titleKeys, meaningful(title).join('-'), page.route);
     }
   }
-  return { pages: indexed, byRoute, titleSlugs, titleKeys };
+  return {
+    pages: indexed,
+    byRoute,
+    titleSlugs,
+    titleKeys,
+    sectionSlugs,
+    sectionKeys,
+  };
 }
 
 /** Iterative Levenshtein distance between two short strings. */
@@ -293,9 +406,13 @@ function scorePage(
   for (const word of parsed.leafWords) {
     leafCredit += wordCredit(word, page.tokens);
   }
+  // A folder of the guess names the page itself or a section above it.
   let folderCredit = 0;
   for (const word of parsed.folderWords) {
-    folderCredit += wordCredit(word, page.tokens);
+    folderCredit += Math.max(
+      wordCredit(word, page.tokens),
+      wordCredit(word, page.context),
+    );
   }
   const weight = 2 * parsed.leafWords.length + parsed.folderWords.length;
   return {
@@ -358,6 +475,35 @@ function sectionPage(route: string, index: NearMissIndex): string | null {
   );
 }
 
+/**
+ * The front page of the section a guess names by its sidebar label
+ * (`verwaltung`, `plattform/automatisierungen`), or null. Two sections can
+ * carry one label — the platform's administration and the tutorials' group
+ * of the same name: the folders of the guess pick between them, and with
+ * none to go by the first in reading order wins, the one a reader meets
+ * first.
+ */
+function labelledSection(
+  parsed: ParsedQuery,
+  index: NearMissIndex,
+): string | null {
+  const sections =
+    index.sectionSlugs.get(parsed.segments.at(-1) ?? '') ??
+    index.sectionKeys.get(parsed.leafWords.join('-'));
+  let best: IndexedSection | undefined;
+  let bestOverlap = -1;
+  for (const section of sections ?? []) {
+    const overlap = parsed.folderWords.filter(
+      (word) => wordCredit(word, section.context) > 0,
+    ).length;
+    if (overlap > bestOverlap) {
+      best = section;
+      bestOverlap = overlap;
+    }
+  }
+  return best?.route ?? null;
+}
+
 /** Minimum fuzzy score a guess needs, and its lead over the runner-up. */
 const MIN_SCORE = 0.6;
 const MIN_MARGIN = 0.15;
@@ -377,9 +523,14 @@ export function resolveNearMiss(
   if (index.byRoute.has(route)) return route;
   const leaf = parsed.segments.at(-1) ?? '';
 
-  // `/platform/overview`, `/self-hosted/install/introduction`: the section.
+  // `/platform/overview`, `/self-hosted/install/introduction`: the section,
+  // by its folder or by its label (`/verwaltung/overview`).
   if (GENERIC_LEAVES.has(leaf) && parsed.segments.length > 1) {
-    const section = sectionPage(parsed.segments.slice(0, -1).join('/'), index);
+    const folder = parsed.segments.slice(0, -1).join('/');
+    const named = parseQuery(folder);
+    const section =
+      sectionPage(folder, index) ??
+      (named === null ? null : labelledSection(named, index));
     if (section !== null) return section;
   }
 
@@ -395,6 +546,10 @@ export function resolveNearMiss(
     only(index.titleSlugs.get(leaf)) ??
     only(index.titleKeys.get(parsed.leafWords.join('-')));
   if (byTitle !== null) return byTitle;
+
+  // A section's sidebar label, in any language the site ships.
+  const section = labelledSection(parsed, index);
+  if (section !== null) return section;
 
   if (parsed.leafWords.length === 0) return null;
   let best: { route: string; score: number } | null = null;

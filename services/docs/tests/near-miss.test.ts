@@ -41,7 +41,35 @@ describe('near misses on the real docs', () => {
       '/de/platform/automations/create-or-import-automations',
       '/de/platform/automations/catalog',
     ],
+    [
+      '/de/plattform/automatisierungen/automatisierungskonzepte',
+      '/de/platform/automations/concepts',
+    ],
   ])('sends the guess %s to %s', (guess, page) => {
+    expect(resolveMissingDocsPath(guess, paths)).toEqual({
+      location: page,
+      permanent: false,
+    });
+  });
+
+  // A sidebar group guessed by its label. `Verwaltung` is the German label
+  // of the admin group and the title of no page, so `/de/verwaltung` stayed
+  // a 404 while every page under it was already found.
+  it.each([
+    ['/de/verwaltung', '/de/platform/admin/overview'],
+    ['/de/plattform/verwaltung', '/de/platform/admin/overview'],
+    ['/de/verwaltung/governance', '/de/platform/admin/governance/audit-logs'],
+    ['/de/plattform/automatisierungen', '/de/platform/automations/concepts'],
+    ['/de/selbst-gehostet', '/de/self-hosted'],
+    ['/de/entwicklung', '/de/develop/overview'],
+    ['/fr/plateforme/automatisations', '/fr/platform/automations/concepts'],
+    ['/governance', '/platform/admin/governance/audit-logs'],
+    // The tutorials carry a group of the same label: its folder picks it.
+    ['/de/tutorials/verwaltung', '/de/tutorials/admin/connect-local-provider'],
+    // The label as the folder of a page under it.
+    ['/de/verwaltung/rollen', '/de/platform/admin/members-and-roles'],
+    ['/de/verwaltung/uebersicht', '/de/platform/admin/overview'],
+  ])('sends the sidebar label %s to its section %s', (guess, page) => {
     expect(resolveMissingDocsPath(guess, paths)).toEqual({
       location: page,
       permanent: false,
@@ -76,6 +104,7 @@ describe('near misses on the real docs', () => {
   it.each([
     '/wp-login.php',
     '/de/foo/bar-baz',
+    '/de/verwaltung/xyz',
     '/assets/index-0000.js',
     '/.env',
   ])('leaves %s to the 404 page', (address) => {

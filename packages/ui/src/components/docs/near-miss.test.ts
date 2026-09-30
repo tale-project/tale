@@ -6,18 +6,28 @@ import {
   resolveMissingAddress,
   resolveNearMiss,
   type MissingAddressSite,
+  type NearMissNavGroup,
+  type NearMissPage,
 } from './near-miss';
 
 // A slice of the product docs, titles in the three locales the site ships.
-const INDEX = buildNearMissIndex([
+const PAGE_LIST: NearMissPage[] = [
   { route: '', titles: ['Tale documentation', 'Tale-Dokumentation'] },
   { route: 'platform', titles: ['Platform', 'Plattform', 'Plateforme'] },
   {
     route: 'platform/admin/members-and-roles',
     titles: ['Members and roles', 'Mitglieder und Rollen', 'Membres et rôles'],
   },
-  { route: 'platform/admin/overview', titles: ['Admin', 'Verwaltung'] },
+  { route: 'platform/admin/overview', titles: ['Administration'] },
   { route: 'platform/admin/teams', titles: ['Teams', 'Teams', 'Équipes'] },
+  {
+    route: 'platform/admin/governance/audit-logs',
+    titles: ['Review audit logs', 'Audit-Logs prüfen'],
+  },
+  {
+    route: 'platform/admin/governance/policies-and-limits',
+    titles: ['Policies and limits', 'Richtlinien und Limits'],
+  },
   {
     route: 'platform/automations/concepts',
     titles: [
@@ -55,7 +65,101 @@ const INDEX = buildNearMissIndex([
     route: 'self-hosted/install/quickstart',
     titles: ['Run your first self-hosted instance'],
   },
-]);
+  {
+    route: 'tutorials/admin/connect-local-provider',
+    titles: ['Connect a local model server'],
+  },
+  {
+    route: 'tutorials/admin/meeting-transcription',
+    titles: ['Transcribe a meeting'],
+  },
+  {
+    route: 'tutorials/videos/people-roles-and-teams',
+    titles: ['People, roles and teams', 'Personen, Rollen und Teams'],
+  },
+];
+
+// The sidebar over those pages, each group labelled as the three locales
+// spell it. No page is titled `Verwaltung` — it is a group label only — and
+// two groups carry it.
+const NAV: NearMissNavGroup[] = [
+  { labels: ['Start'], entries: [''] },
+  {
+    labels: ['Platform', 'Plattform', 'Plateforme'],
+    entries: [
+      'platform',
+      {
+        labels: ['Chat'],
+        entries: [
+          'platform/chat/overview',
+          'platform/chat/basics',
+          'platform/chat/arena-mode',
+        ],
+      },
+      {
+        labels: ['Projects', 'Projekte'],
+        entries: ['platform/projects/concepts'],
+      },
+      {
+        labels: ['Automations', 'Automatisierungen', 'Automatisations'],
+        entries: [
+          'platform/automations/concepts',
+          'platform/automations/catalog',
+        ],
+      },
+      {
+        labels: ['Admin', 'Verwaltung', 'Administration'],
+        entries: [
+          'platform/admin/overview',
+          'platform/admin/members-and-roles',
+          'platform/admin/teams',
+          {
+            labels: ['Governance', 'Gouvernance'],
+            entries: [
+              'platform/admin/governance/audit-logs',
+              'platform/admin/governance/policies-and-limits',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    labels: ['Self-hosted', 'Selbst gehostet', 'Auto-hébergé'],
+    entries: [
+      {
+        labels: ['Install', 'Installation'],
+        entries: ['self-hosted/install', 'self-hosted/install/quickstart'],
+      },
+      {
+        labels: ['Configuration', 'Konfiguration'],
+        entries: [
+          'self-hosted/configuration/environment-reference',
+          'self-hosted/configuration/retention',
+          'self-hosted/configuration/approvals',
+        ],
+      },
+    ],
+  },
+  {
+    labels: ['Tutorials', 'Tutoriels'],
+    entries: [
+      {
+        labels: ['Admin', 'Verwaltung', 'Administration'],
+        entries: [
+          'tutorials/admin/connect-local-provider',
+          'tutorials/admin/meeting-transcription',
+        ],
+      },
+      {
+        labels: ['Videos', 'Vidéos'],
+        entries: ['tutorials/videos/people-roles-and-teams'],
+      },
+    ],
+  },
+];
+
+const INDEX = buildNearMissIndex(PAGE_LIST, NAV);
 
 describe('resolveNearMiss', () => {
   // Addresses Tale's own chat agent guessed while answering a German user.
@@ -102,6 +206,58 @@ describe('resolveNearMiss', () => {
     );
   });
 
+  // The label a reader sees in the sidebar, guessed as an address: no page
+  // is titled so, and before the sections were indexed each answered 404.
+  it.each([
+    ['verwaltung', 'platform/admin/overview'],
+    ['plattform/verwaltung', 'platform/admin/overview'],
+    ['verwaltung/governance', 'platform/admin/governance/audit-logs'],
+    ['plattform/automatisierungen', 'platform/automations/concepts'],
+    ['automatisations', 'platform/automations/concepts'],
+    ['selbst-gehostet', 'self-hosted/install'],
+    ['auto-heberge', 'self-hosted/install'],
+    ['start', ''],
+  ])('lands the sidebar label %s on its section %s', (guess, page) => {
+    expect(resolveNearMiss(guess, INDEX)).toBe(page);
+  });
+
+  it('picks between two sections of one label by the folders of the guess', () => {
+    // With nothing to go by, the section a reader meets first.
+    expect(resolveNearMiss('verwaltung', INDEX)).toBe(
+      'platform/admin/overview',
+    );
+    expect(resolveNearMiss('tutorials/verwaltung', INDEX)).toBe(
+      'tutorials/admin/connect-local-provider',
+    );
+    expect(resolveNearMiss('tutoriels/verwaltung', INDEX)).toBe(
+      'tutorials/admin/connect-local-provider',
+    );
+  });
+
+  it('reads a section label as the folder of the pages under it', () => {
+    // Two pages speak of `Rollen`: alone the word names neither, under the
+    // admin label it names the one in that section.
+    expect(resolveNearMiss('rollen', INDEX)).toBeNull();
+    expect(resolveNearMiss('verwaltung/rollen', INDEX)).toBe(
+      'platform/admin/members-and-roles',
+    );
+    expect(resolveNearMiss('verwaltung/overview', INDEX)).toBe(
+      'platform/admin/overview',
+    );
+    expect(resolveNearMiss('plattform/verwaltung/uebersicht', INDEX)).toBe(
+      'platform/admin/overview',
+    );
+    expect(resolveNearMiss('verwaltung/übersicht', INDEX)).toBe(
+      'platform/admin/overview',
+    );
+  });
+
+  it('keeps a page title ahead of a section label', () => {
+    // `Chat` is both the group and its front page's title.
+    expect(resolveNearMiss('chat', INDEX)).toBe('platform/chat/overview');
+    expect(resolveNearMiss('plattform', INDEX)).toBe('platform');
+  });
+
   it('answers a real page with itself', () => {
     expect(resolveNearMiss('platform/admin/teams', INDEX)).toBe(
       'platform/admin/teams',
@@ -117,6 +273,8 @@ describe('resolveNearMiss', () => {
     'cgi-bin/test',
     'self-hosted/configuration/xyz',
     'platform/chat/zzzz',
+    'verwaltung/xyz',
+    'verwaltungen-und-mehr',
     '',
     'a'.repeat(300),
   ])('refuses to guess %s — no page clearly wins', (guess) => {

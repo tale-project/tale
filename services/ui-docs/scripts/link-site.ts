@@ -19,9 +19,8 @@ import {
   type PageAddress,
   type SitePage,
 } from '@tale/ui/docs/links';
-import { buildNearMissIndex } from '@tale/ui/docs/near-miss';
 
-import { uiDocsNearMissPages } from '../lib/near-miss';
+import { uiDocsNearMissIndex } from '../lib/near-miss';
 import { guidePath, resolveRedirect } from '../lib/redirects';
 
 const SERVICE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -110,7 +109,7 @@ export const UI_DOCS_LINK_SITE: LinkSite = {
   origins: [UI_DOCS_ORIGIN],
   answer: answerUiDocsPath,
   nearMiss: {
-    index: buildNearMissIndex(uiDocsNearMissPages()),
+    index: uiDocsNearMissIndex(),
     routeOf: (pathname) =>
       pathname.replace(/\.md$/, '').replace(/^\/(?:docs\/?)?/, ''),
     pathFor: (route) => guidePath(route),
