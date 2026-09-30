@@ -94,6 +94,9 @@ interface HandlerNames {
     capabilities_action: FunctionRef & {
       dispatchCapabilityAs: FunctionRef;
     };
+    handover: FunctionRef & {
+      getTaskHandoverInternal: FunctionRef;
+    };
     messages: FunctionRef & {
       listRecentForTurnInternal: FunctionRef;
     };

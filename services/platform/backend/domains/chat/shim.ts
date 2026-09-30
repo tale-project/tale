@@ -41,6 +41,7 @@ import {
   getEffectiveCustomInstructions,
 } from '../user_preferences/service.ts';
 import { listWebsites } from '../websites/service.ts';
+import { readTaskHandoverFacts } from './handover.ts';
 import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
 
 /**
@@ -380,6 +381,14 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         userId: args.userId,
         orgId: args.organizationId,
       });
+    },
+    // What the chat's hand-over note is built from, for the person talking:
+    // their active projects with agent counts and edit rights, and whether
+    // agents may start at all.
+    'chat/handover:getTaskHandoverInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the turn passes exactly this shape
+      const args = raw as { userId: string; organizationId: string };
+      return readTaskHandoverFacts(sql, args);
     },
     // The person's custom instructions for the prompt, already gated by
     // their toggle over the org's `custom_instructions` default; null while

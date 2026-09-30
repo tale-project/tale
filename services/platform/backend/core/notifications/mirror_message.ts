@@ -1,10 +1,8 @@
-import { readFileSync } from 'node:fs';
-
-import { parse } from 'yaml';
 import { z } from 'zod';
 
 import { readableNotificationParams } from '../../../lib/shared/notification-params';
 import { interpolateTemplate } from '../../../lib/shared/utils/interpolate';
+import { messageCatalog } from '../i18n/catalog';
 
 const catalogSchema = z.object({
   inbox: z.record(z.string(), z.unknown()).default({}),
@@ -22,14 +20,7 @@ function catalog(locale: string) {
     : 'en';
   let loaded = catalogs.get(supported);
   if (!loaded) {
-    loaded = catalogSchema.parse(
-      parse(
-        readFileSync(
-          new URL(`../../../messages/${supported}.yml`, import.meta.url),
-          'utf8',
-        ),
-      ),
-    );
+    loaded = catalogSchema.parse(messageCatalog(supported));
     catalogs.set(supported, loaded);
   }
   return loaded;
