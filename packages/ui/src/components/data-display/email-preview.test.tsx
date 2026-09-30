@@ -132,6 +132,16 @@ describe('rewriteExternalImageSrcs', () => {
     expect(result).toContain(`/api/image-proxy?url=${encoded}`);
   });
 
+  it('proxies an image URL with non-ASCII characters instead of throwing', () => {
+    const html = '<img src="https://例子.com/图片.png">';
+    const result = rewriteExternalImageSrcs(html, 'http://localhost:3000');
+    expect(result).toBe(
+      `<img src="http://localhost:3000/api/image-proxy?url=${encodeURIComponent(
+        btoa('https://xn--fsqu00a.com/%E5%9B%BE%E7%89%87.png'),
+      )}">`,
+    );
+  });
+
   it('returns html unchanged when proxyBase is invalid', () => {
     const html = '<img src="https://external.com/img.jpg">';
     const result = rewriteExternalImageSrcs(html, '');

@@ -236,20 +236,23 @@ export function rewriteExternalImageSrcs(
   return html.replace(
     /src=(["'])(https?:\/\/[^"']+)\1/gi,
     (_match, quote: string, srcUrl: string) => {
-      try {
-        const parsed = new URL(srcUrl);
-        if (parsed.origin === proxyOrigin) return _match;
-      } catch {
-        return _match;
-      }
-
       // Decode HTML entities (e.g. &amp; → &) before encoding
       const decodedUrl = srcUrl
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"');
-      const encoded = encodeURIComponent(btoa(decodedUrl));
+      let parsed: URL;
+      try {
+        parsed = new URL(decodedUrl);
+      } catch {
+        return _match;
+      }
+      if (parsed.origin === proxyOrigin) return _match;
+
+      // `href` is ASCII (punycode host, percent-encoded path), which `btoa`
+      // needs: a raw non-ASCII URL made it throw, taking the preview with it.
+      const encoded = encodeURIComponent(btoa(parsed.href));
       return `src=${quote}${proxyBase}/api/image-proxy?url=${encoded}${quote}`;
     },
   );
