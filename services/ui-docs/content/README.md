@@ -39,9 +39,17 @@ excluded from the sitemap.
 
 Add the slug to [nav.json](nav.json). Its order also controls previous/next links.
 Group labels resolve through `nav.groups.<label>` in all three service catalogs.
-Use site links such as `/docs/components/input`, and test any heading fragment
-against the rendered ID. The navigation and content tests enforce file/nav parity,
-frontmatter, and heading structure.
+Use site links such as `/docs/components/input`, pointing at the guide itself and
+not at an address that redirects. The navigation and content tests enforce
+file/nav parity, frontmatter, and heading structure. The link test judges every
+link and heading fragment against what the site renders, and `bun run lint:links`
+also judges links into the guides from the rest of the repository.
+
+Every guide slug that ever shipped is recorded in [published.json](published.json);
+the content build adds new ones. To move, merge or delete a guide, add its old
+slug to [redirects.json](redirects.json) and keep its line in `published.json`.
+`/docs` and section folders such as `/docs/components` redirect to their first
+guide without entries.
 
 ## Show the actual component
 

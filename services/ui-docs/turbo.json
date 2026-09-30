@@ -6,10 +6,6 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/docs/**",
-        "$TURBO_ROOT$/README*.md",
-        "$TURBO_ROOT$/packages/ui/src/i18n/messages/*.yml",
-        "$TURBO_ROOT$/packages/ui/src/i18n/tests/**",
         "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts",
         "$TURBO_ROOT$/packages/ui/src/markdown/heading-id.ts"
       ]
@@ -18,24 +14,9 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/docs/**",
         "$TURBO_ROOT$/packages/ui/src/components/docs/*.ts"
       ],
       "outputs": ["$TURBO_EXTENDS$", "dist-seo/**"]
-    },
-    "typecheck": {
-      "inputs": [
-        "$TURBO_EXTENDS$",
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/docs/*.json"
-      ]
-    },
-    "lint": {
-      "inputs": [
-        "$TURBO_EXTENDS$",
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/docs/*.json"
-      ]
     },
     "test:prerender": {
       "inputs": [

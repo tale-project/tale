@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
+    "./crawl": "./src/crawl.ts",
     "./i18n": "./src/i18n.ts",
     "./smoke": "./src/smoke.ts"
   },
@@ -18,6 +19,7 @@
   },
   "dependencies": {
     "@playwright/test": "1.58.2",
+    "htmlparser2": "10.1.0",
     "yaml": "2.8.3"
   }
 }

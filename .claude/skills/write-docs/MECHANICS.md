@@ -20,8 +20,14 @@ troubleshooting, and precise noun headings for reference. A useful “Next steps
 its value comes from its destinations, not an elaborate heading.
 
 Use descriptive link text and link at the moment the reader needs the destination. Internal links
-in localized docs need that locale's prefix. Verify translated heading anchors in the rendered
-page. Keep external URLs fully qualified. Check links from READMEs and app help as well as docs.
+in localized docs need that locale's prefix. Link the page itself, never an address that only
+redirects to it. Verify translated heading anchors in the rendered page. Keep external URLs fully
+qualified. `bun run lint:links` judges every link in both docs sites and every link into them from
+READMEs, app help and the marketing site; run it after any link, heading or page move.
+
+A published address never goes away. Moving, merging or deleting a page needs a `redirects.json`
+entry for its old slug, and its line stays in the site's `published.json`: the published suites
+fail until the old address answers again.
 
 ## Examples
 
