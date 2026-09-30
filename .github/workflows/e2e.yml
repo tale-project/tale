@@ -242,11 +242,36 @@ jobs:
           TALE_E2E: '1'
         run: bunx playwright test --shard=${{ matrix.shard }}/16
 
+      # Under the shared config (`@tale/e2e/config`: failure screenshots,
+      # traces on the first retry) Playwright writes test-results/ only for an
+      # attempt that failed or retried; its hidden .last-run.json is no
+      # diagnostic, and the upload skips hidden files anyway. A flake the retry
+      # recovered leaves the job green, and `failure()` alone then dropped the
+      # only record of it (#4013). This step runs only while the job is green;
+      # the static-sites job keeps the identical pair.
+      - name: Find Playwright diagnostics
+        id: diagnostics
+        working-directory: services/platform
+        run: |
+          attempts=''
+          if [ -d test-results ]; then
+            attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"
+          fi
+          if [ -z "$attempts" ]; then
+            echo 'found=false' >> "$GITHUB_OUTPUT"
+            echo 'Every test passed on its first attempt; no diagnostics to keep.'
+            exit 0
+          fi
+          echo 'found=true' >> "$GITHUB_OUTPUT"
+          echo "::notice title=Playwright diagnostics::A test failed before its retry passed; keeping $attempts"
+
       - name: Upload Playwright report
-        if: failure()
+        if: failure() || steps.diagnostics.outputs.found == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report-shard-${{ matrix.shard }}
+          # One artifact per attempt: a re-run that fails or flakes again would
+          # otherwise collide with the earlier attempt's name (409 Conflict).
+          name: playwright-report-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: |
             services/platform/playwright-report/
             services/platform/test-results/
@@ -315,11 +340,28 @@ jobs:
           # IPs get rate-limited (403), so hand it the workflow token.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Same diagnostics pair as the platform shards above.
+      - name: Find Playwright diagnostics
+        id: diagnostics
+        working-directory: services/${{ matrix.service }}
+        run: |
+          attempts=''
+          if [ -d test-results ]; then
+            attempts="$(find test-results -mindepth 1 -maxdepth 1 ! -name '.*' | sed 's|^test-results/||' | sort | paste -sd ' ' -)"
+          fi
+          if [ -z "$attempts" ]; then
+            echo 'found=false' >> "$GITHUB_OUTPUT"
+            echo 'Every test passed on its first attempt; no diagnostics to keep.'
+            exit 0
+          fi
+          echo 'found=true' >> "$GITHUB_OUTPUT"
+          echo "::notice title=Playwright diagnostics::A test failed before its retry passed; keeping $attempts"
+
       - name: Upload Playwright report
-        if: failure()
+        if: failure() || steps.diagnostics.outputs.found == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-report-${{ matrix.service }}
+          name: playwright-report-${{ matrix.service }}-attempt-${{ github.run_attempt }}
           path: |
             services/${{ matrix.service }}/playwright-report/
             services/${{ matrix.service }}/test-results/

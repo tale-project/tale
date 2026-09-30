@@ -23,6 +23,7 @@ type Step = {
   uses?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
+  'working-directory'?: string;
   'continue-on-error'?: boolean;
 };
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
@@ -1656,6 +1657,120 @@ exit "$LANE_EXIT"
       expect(await readFile(join(result.root, 'environment'), 'utf8')).toBe(
         `PROOF_DIR=${proof}\n`,
       );
+    },
+  );
+});
+
+/** Playwright diagnostics (#4013): a flake the retry recovered leaves its job
+ * green, so its report and test results cannot wait for `failure()`. The
+ * platform shards and the static sites are one concept, held to one shape. */
+describe('Playwright diagnostics', () => {
+  const e2e = async () =>
+    parse(
+      await readFile(join(repository, '.github/workflows/e2e.yml'), 'utf8'),
+    ) as { jobs: Record<string, { steps: Step[] }> };
+  // Job, the service directory its suite writes into, the artifact's stem.
+  const SITES = [
+    ['e2e', 'services/platform', 'playwright-report-shard-${{ matrix.shard }}'],
+    [
+      'static-sites',
+      'services/${{ matrix.service }}',
+      'playwright-report-${{ matrix.service }}',
+    ],
+  ] as const;
+  const pair = async (job: string) => {
+    const steps = (await e2e()).jobs[job]?.steps ?? [];
+    const index = steps.findIndex(
+      (step) => step.name === 'Find Playwright diagnostics',
+    );
+    return { steps, index, find: steps[index], upload: steps[index + 1] };
+  };
+
+  test.each(SITES)(
+    '%s uploads the report and test results of a failure or a recovered flake',
+    async (job, service, stem) => {
+      const { steps, index, find, upload } = await pair(job);
+      const suite = steps.findIndex((step) =>
+        /playwright test|test:e2e/.test(step.run ?? ''),
+      );
+      expect(suite).toBeGreaterThanOrEqual(0);
+      expect(index).toBeGreaterThan(suite);
+      expect(find).toMatchObject({
+        id: 'diagnostics',
+        'working-directory': service,
+      });
+      // No condition: it runs only while the job is green. A failed job
+      // uploads through `failure()` as it always did.
+      expect(find?.if).toBeUndefined();
+      expect(upload?.name).toBe('Upload Playwright report');
+      expect(upload?.if).toBe(
+        "failure() || steps.diagnostics.outputs.found == 'true'",
+      );
+      expect(upload?.uses).toBe(
+        'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+      );
+      // The same two directories and retention, hidden files left out (the
+      // default); one artifact per attempt, because a re-run that uploads
+      // the name an earlier attempt used fails with 409 Conflict.
+      expect(upload?.with).toEqual({
+        name: `${stem}-attempt-\${{ github.run_attempt }}`,
+        path: `${service}/playwright-report/\n${service}/test-results/\n`,
+        'retention-days': 14,
+        'if-no-files-found': 'ignore',
+      });
+    },
+  );
+
+  test('both jobs decide with the same step', async () => {
+    const [platform, sites] = await Promise.all(
+      SITES.map(([job]) => pair(job)),
+    );
+    expect(platform?.find?.run).toContain('found=true');
+    expect(sites?.find?.run).toBe(platform?.find?.run);
+  });
+
+  // What Playwright 1.58 leaves in test-results/ under `@tale/e2e/config`.
+  const FLAKE =
+    'specs-changelog-changelog--f61e0-e-link-updates-aria-current-chromium';
+  const LAST_RUN = { '.last-run.json': '{"status":"passed","failedTests":[]}' };
+  test.skipIf(process.platform === 'win32').each([
+    ['no test results', 'false', null],
+    ['only the last-run record of a clean run', 'false', LAST_RUN],
+    [
+      'a recovered flake',
+      'true',
+      {
+        ...LAST_RUN,
+        [`${FLAKE}/test-failed-1.png`]: 'png',
+        [`${FLAKE}/error-context.md`]: '# Page snapshot',
+        [`${FLAKE}-retry1/trace.zip`]: 'zip',
+        '.playwright-artifacts-0/stale': 'hidden',
+      },
+    ],
+  ] as const)(
+    'finds diagnostics after %s: found=%s',
+    async (_, found, files) => {
+      const service = await mkdtemp(join(tmpdir(), 'tale-playwright-'));
+      roots.push(service);
+      for (const [path, body] of Object.entries(files ?? {})) {
+        const file = join(service, 'test-results', path);
+        await mkdir(join(file, '..'), { recursive: true });
+        await writeFile(file, body);
+      }
+      const { find } = await pair('e2e');
+      // GitHub runs a step as `bash -e {0}` in its working directory.
+      const result = await execute(`set -e\ncd "$SERVICE"\n${find?.run}`, {
+        SERVICE: service,
+      });
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.output).toBe(`found=${found}\n`);
+      if (found === 'true') {
+        expect(result.stdout).toBe(
+          `::notice title=Playwright diagnostics::A test failed before its retry passed; keeping ${FLAKE} ${FLAKE}-retry1\n`,
+        );
+      } else {
+        expect(result.stdout).not.toContain('::notice');
+      }
     },
   );
 });
