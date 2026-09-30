@@ -218,19 +218,24 @@ describe('splitQuotedContent', () => {
 });
 
 describe('EmailPreview', () => {
-  it('renders inline images when cidMap is provided', () => {
-    const html = '<p>Hello</p><img src="cid:logo@company" alt="Logo">';
-    const cidMap = { 'logo@company': 'https://storage.example.com/logo.png' };
+  it('renders an inline image from the cidMap URL itself, never through the image proxy', () => {
+    // The cidMap URL is a signed link to the caller's own storage; handing it
+    // to the proxy made every inline image a broken one.
+    const signed =
+      'https://storage.example.com/blobs/logo?X-Amz-Expires=900&X-Amz-Signature=abc';
+    const html =
+      '<p>Hello</p><img src="cid:logo@company" alt="Logo"><img src="https://tracker.example.com/pixel.png" alt="Remote">';
+    const cidMap = { 'logo@company': signed };
 
     render(<EmailPreview html={html} cidMap={cidMap} />);
 
-    const img = screen.getByAltText('Logo');
-    const encoded = encodeURIComponent(
-      btoa('https://storage.example.com/logo.png'),
-    );
-    expect(img).toHaveAttribute(
+    expect(screen.getByAltText('Logo')).toHaveAttribute('src', signed);
+    // A remote image in the same body still goes through the proxy.
+    expect(screen.getByAltText('Remote')).toHaveAttribute(
       'src',
-      `http://localhost:3000/api/image-proxy?url=${encoded}`,
+      `http://localhost:3000/api/image-proxy?url=${encodeURIComponent(
+        btoa('https://tracker.example.com/pixel.png'),
+      )}`,
     );
   });
 

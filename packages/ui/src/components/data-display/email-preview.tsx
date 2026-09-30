@@ -220,7 +220,7 @@ function sanitizeCssStyle(styleString: string): string {
 
 /**
  * Rewrite external img src URLs to route through the image proxy.
- * Skips same-origin, Convex storage, cid:, data:, and already-proxied URLs.
+ * Skips same-origin, cid:, data:, and already-proxied URLs.
  */
 export function rewriteExternalImageSrcs(
   html: string,
@@ -348,15 +348,23 @@ export function EmailPreview({
     const proxyBase =
       typeof window !== 'undefined' ? window.location.origin : '';
     const { main, quoted } = splitQuotedContent(html);
-    const resolvedMain = cidMap ? replaceCidReferences(main, cidMap) : main;
+    // Proxy first, resolve inline parts after: the proxy is for images on the
+    // sender's servers, while a `cid:` part resolves to a file the caller
+    // already serves (a signed link to its own storage), which it must never
+    // be handed to fetch.
+    const proxiedMain = rewriteExternalImageSrcs(main, proxyBase);
+    const proxiedQuoted = rewriteExternalImageSrcs(quoted, proxyBase);
+    const resolvedMain = cidMap
+      ? replaceCidReferences(proxiedMain, cidMap)
+      : proxiedMain;
     const resolvedQuoted = cidMap
-      ? replaceCidReferences(quoted, cidMap)
-      : quoted;
-    const proxiedMain = rewriteExternalImageSrcs(resolvedMain, proxyBase);
-    const proxiedQuoted = rewriteExternalImageSrcs(resolvedQuoted, proxyBase);
+      ? replaceCidReferences(proxiedQuoted, cidMap)
+      : proxiedQuoted;
     return {
-      sanitizedMain: sanitizePreviewHtml(proxiedMain),
-      sanitizedQuoted: proxiedQuoted ? sanitizePreviewHtml(proxiedQuoted) : '',
+      sanitizedMain: sanitizePreviewHtml(resolvedMain),
+      sanitizedQuoted: resolvedQuoted
+        ? sanitizePreviewHtml(resolvedQuoted)
+        : '',
     };
   }, [html, cidMap]);
 
