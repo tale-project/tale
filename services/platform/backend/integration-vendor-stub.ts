@@ -24,6 +24,8 @@
 
 import { createServer } from 'node:http';
 
+import { Agent, getGlobalDispatcher, type Dispatcher } from 'undici';
+
 import type { ResolvedAddress } from '../lib/net/safe-fetch.ts';
 
 /** RFC 5737 TEST-NET-3: public to every private-range check, routed nowhere.
@@ -272,17 +274,16 @@ function isLoopbackHost(hostname: string): boolean {
   );
 }
 
-/** undici's `fetch failed`, its cause coded as a connection nothing
- * answered, so a caller that reads the code (the relay's never-connected
- * check, the database-outage classifier) reads a refusal as one. */
-function offBoxRefusal(host: string): TypeError {
-  const cause = Object.assign(
+/** A connection nothing answered, so a caller that reads the code (the
+ * relay's never-connected check, the database-outage classifier) reads a
+ * refusal as one. fetch rejects with it as the cause of `fetch failed`. */
+function offBoxRefusal(host: string): Error {
+  return Object.assign(
     new Error(
       `connect ECONNREFUSED ${host}: the integration check reaches nothing off the box`,
     ),
     { code: 'ECONNREFUSED', syscall: 'connect' },
   );
-  return new TypeError('fetch failed', { cause });
 }
 
 export interface VendorRouteOptions {
@@ -294,98 +295,33 @@ export interface VendorRouteOptions {
   readonly onOffBox: (request: OffBoxRequest) => void;
 }
 
-/** The statuses fetch follows, and how many of them it follows at most
- * (the fetch standard's HTTP-redirect fetch). */
-const REDIRECT_STATUSES: ReadonlySet<number> = new Set([
-  301, 302, 303, 307, 308,
-]);
-const MAX_REDIRECTS = 20;
-/** Dropped with the body when a redirect turns the request into a GET. */
-const REQUEST_BODY_HEADERS = [
-  'content-encoding',
-  'content-language',
-  'content-location',
-  'content-type',
-  'content-length',
-];
-/** Dropped when a redirect leaves the request's origin. */
-const CROSS_ORIGIN_HEADERS = [
-  'authorization',
-  'proxy-authorization',
-  'cookie',
-  'host',
-];
-
-/** fetch's own failure for a redirect it does not follow. */
-function redirectFailure(reason: string, cause?: unknown): TypeError {
-  return new TypeError('fetch failed', {
-    cause:
-      cause === undefined ? new Error(reason) : new Error(reason, { cause }),
-  });
-}
-
-/** A body fetch can extract again for the next hop; a stream it cannot. */
-function replayableBody(body: RequestInit['body']): boolean {
-  return (
-    body === null ||
-    body === undefined ||
-    typeof body === 'string' ||
-    body instanceof ArrayBuffer ||
-    ArrayBuffer.isView(body) ||
-    body instanceof Blob ||
-    body instanceof URLSearchParams ||
-    body instanceof FormData
-  );
-}
-
-/** fetch's method normalization: the six standard methods upper-cased. */
-function normalizedMethod(method: string): string {
-  const upper = method.toUpperCase();
-  return ['DELETE', 'GET', 'HEAD', 'OPTIONS', 'POST', 'PUT'].includes(upper)
-    ? upper
-    : method;
-}
-
-/** A followed response reads as fetch's own: redirected, at the last URL. */
-function redirectedResponse(response: Response, url: URL): Response {
-  const last = new URL(url.href);
-  last.hash = '';
-  return Object.defineProperties(response, {
-    redirected: { value: true },
-    url: { value: last.href },
-  });
-}
-
-async function discardBody(response: Response): Promise<void> {
-  try {
-    await response.body?.cancel();
-  } catch (error) {
-    console.warn('[itest] could not discard a redirect response body:', error);
-  }
-}
+/** What fetch asks of the dispatcher it is given. */
+type FetchDispatcher = Pick<Dispatcher, 'dispatch'> & {
+  readonly isMockActive: boolean;
+};
 
 /**
  * The harness's outbound boundary, installed as `globalThis.fetch` for the
  * whole run. A lane's own fetch stub sits on top of it and answers its
- * fixture hosts first; what reaches this function is:
+ * fixture hosts first. What reaches this function goes on to the real fetch
+ * as it came, and is judged where fetch hands it to the network: the
+ * dispatcher, which sends the first request and every redirect fetch
+ * follows. A request to
  *
- *  - a loopback request (the backend under test, every lane's stub), one
- *    to an `onTheBox` origin, and a `data:` or `blob:` URL, which never
- *    leaves the process: passed through;
- *  - an `https` request to a shipped vendor host: sent to the vendor stub
- *    instead, path and query unchanged;
- *  - anything else: off the box, so refused the way a network without
- *    egress refuses it and handed to `onOffBox`, whatever the host would
- *    have answered — the lane's verdict never depends on it.
+ *  - loopback (the backend under test, every lane's stub) or an `onTheBox`
+ *    origin goes on through the caller's own dispatcher, else the global one;
+ *  - a shipped vendor host over `https` goes to the vendor stub instead,
+ *    path and query unchanged;
+ *  - anything else is off the box: refused the way a network without egress
+ *    refuses it, before any lookup or socket, and handed to `onOffBox`,
+ *    whatever the host would have answered — the lane's verdict never
+ *    depends on it.
  *
- * A redirect is judged like a first request. When the caller follows
- * redirects (fetch's default), every hop goes out `manual` and its redirect
- * is followed here, by the fetch standard's rules for method, body and
- * headers, so a permitted origin cannot hand the request on to a host off the
- * box. A caller's `manual` or `error` mode reaches fetch unchanged.
- *
- * Like `fetch` itself it answers a bad input with a rejected promise, never
- * a throw.
+ * Methods, bodies, headers, redirect modes and the response, clones
+ * included, stay fetch's own. A `data:` or `blob:` URL never reaches a
+ * dispatcher. A dispatcher a Request carries itself (none in the codebase)
+ * gives way to the global one. Like `fetch` it answers a bad input with a
+ * rejected promise, never a throw.
  */
 export function routeVendorFetch(
   realFetch: typeof globalThis.fetch,
@@ -394,137 +330,56 @@ export function routeVendorFetch(
   const onTheBox = options.onTheBox ?? [];
   const isVendor = (url: URL): boolean =>
     url.protocol === 'https:' && ITEST_VENDOR_HOSTS.includes(url.hostname);
-  const isPermitted = (url: URL): boolean =>
-    isLoopbackHost(url.hostname) ||
-    onTheBox.includes(url.origin) ||
-    isVendor(url);
-  /** What a hop is sent to: the stub's copy of a vendor URL, else the URL. */
-  const wire = (url: URL): string =>
-    isVendor(url)
-      ? `${options.stubOrigin}/${url.hostname}${url.pathname}${url.search}`
-      : url.href;
-  const refuse = (method: string, url: URL): TypeError => {
-    options.onOffBox({ method, origin: url.origin });
-    return offBoxRefusal(url.host);
-  };
+  const isOnTheBox = (url: URL): boolean =>
+    isLoopbackHost(url.hostname) || onTheBox.includes(url.origin);
+  // Every connection it is asked for fails in its connector: no lookup, no
+  // socket, and undici reports it as any refused connection.
+  const refusing = new Agent({
+    connect: (target, callback) => {
+      callback(offBoxRefusal(target.host ?? target.hostname), null);
+    },
+  });
+  const gate = (inner: Pick<Dispatcher, 'dispatch'>): FetchDispatcher => ({
+    dispatch: (opts, handler) => {
+      const target = new URL(opts.origin ?? '');
+      if (isVendor(target)) {
+        return getGlobalDispatcher().dispatch(
+          {
+            ...opts,
+            origin: options.stubOrigin,
+            path: `/${target.hostname}${opts.path}`,
+          },
+          handler,
+        );
+      }
+      if (isOnTheBox(target)) return inner.dispatch(opts, handler);
+      options.onOffBox({ method: opts.method, origin: target.origin });
+      return refusing.dispatch(opts, handler);
+    },
+    // fetch hands a mock agent the body as the caller gave it.
+    get isMockActive(): boolean {
+      return 'isMockActive' in inner && inner.isMockActive === true;
+    },
+  });
 
   const routed = async (
     input: Parameters<typeof globalThis.fetch>[0],
     init?: Parameters<typeof globalThis.fetch>[1],
   ): Promise<Response> => {
-    const url = new URL(
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.href
-          : input.url,
-    );
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      return realFetch(input, init);
-    }
-    let method = normalizedMethod(
-      init?.method ?? (input instanceof Request ? input.method : 'GET'),
-    );
-    if (!isPermitted(url)) throw refuse(method, url);
-    const mode =
-      init?.redirect ?? (input instanceof Request ? input.redirect : 'follow');
-    // A Request's own body is gone once sent: a redirect that keeps it sends
-    // this copy, taken before the first hop.
-    const requestCopy =
-      mode === 'follow' &&
-      init?.body === undefined &&
-      input instanceof Request &&
-      input.body !== null
-        ? input.clone()
-        : null;
-    // `safeFetch` pins the vendor host's checked address on a dispatcher of
-    // its own; the stub is a loopback literal and needs none.
+    // The request fetch builds first; handing fetch that request keeps every
+    // rule for its body, headers and redirects fetch's own.
+    const request = new Request(input, init);
     const {
-      dispatcher,
-      ...rest
-    }: RequestInit & {
-      dispatcher?: unknown;
-    } = init ?? {};
-    const firstMode = mode === 'follow' ? 'manual' : mode;
-    let response: Response;
-    if (isVendor(url)) {
-      response =
-        input instanceof Request
-          ? await realFetch(new Request(wire(url), input), {
-              ...rest,
-              redirect: firstMode,
-            })
-          : await realFetch(wire(url), { ...rest, redirect: firstMode });
-    } else {
-      response = await realFetch(input, { ...init, redirect: firstMode });
-    }
-    if (mode !== 'follow') return response;
-
-    const headers = new Headers(
-      init?.headers ?? (input instanceof Request ? input.headers : undefined),
-    );
-    const signal =
-      init?.signal ?? (input instanceof Request ? input.signal : undefined);
-    let body: RequestInit['body'] = init?.body ?? null;
-    let hasBody = body !== null || requestCopy !== null;
-    const replayable = requestCopy !== null || replayableBody(init?.body);
-    let current = url;
-    for (let redirects = 0; ; redirects += 1) {
-      const location = REDIRECT_STATUSES.has(response.status)
-        ? response.headers.get('location')
-        : null;
-      if (location === null) {
-        return redirects === 0
-          ? response
-          : redirectedResponse(response, current);
-      }
-      const status = response.status;
-      await discardBody(response);
-      let next: URL;
-      try {
-        next = new URL(location, current);
-      } catch (error) {
-        throw redirectFailure('invalid redirect location', error);
-      }
-      if (next.hash === '') next.hash = current.hash;
-      if (next.protocol !== 'http:' && next.protocol !== 'https:') {
-        throw redirectFailure('URL scheme must be a HTTP(S) scheme');
-      }
-      if (redirects === MAX_REDIRECTS) {
-        throw redirectFailure('redirect count exceeded');
-      }
-      if (next.username !== '' || next.password !== '') {
-        throw redirectFailure('redirect location cannot contain credentials');
-      }
-      const toGet =
-        ((status === 301 || status === 302) && method === 'POST') ||
-        (status === 303 && method !== 'GET' && method !== 'HEAD');
-      if (!isPermitted(next)) throw refuse(toGet ? 'GET' : method, next);
-      if (status !== 303 && hasBody && !replayable) {
-        throw redirectFailure('the request body cannot be sent again');
-      }
-      if (toGet) {
-        method = 'GET';
-        body = null;
-        hasBody = false;
-        for (const name of REQUEST_BODY_HEADERS) headers.delete(name);
-      } else if (hasBody && requestCopy !== null && body === null) {
-        body = await requestCopy.arrayBuffer();
-      }
-      if (next.origin !== current.origin) {
-        for (const name of CROSS_ORIGIN_HEADERS) headers.delete(name);
-      }
-      current = next;
-      const hop: RequestInit & { dispatcher?: unknown } = {
-        method,
-        headers,
-        body,
-        redirect: 'manual',
-        ...(signal !== undefined ? { signal } : {}),
-        ...(dispatcher !== undefined && !isVendor(next) ? { dispatcher } : {}),
-      };
-      response = await realFetch(wire(next), hop);
-    }
+      dispatcher: own,
+    }: RequestInit & { dispatcher?: Pick<Dispatcher, 'dispatch'> } = init ?? {};
+    const gated: RequestInit & { dispatcher: FetchDispatcher } = {
+      dispatcher: gate(own ?? getGlobalDispatcher()),
+      // Any init resets a Request's referrer and its policy: this one keeps
+      // what fetch would have sent.
+      referrer: request.referrer,
+      referrerPolicy: request.referrerPolicy,
+    };
+    return realFetch(request, gated);
   };
   // `preconnect` rides along so the global keeps its full shape.
   return Object.assign(routed, { preconnect: realFetch.preconnect });

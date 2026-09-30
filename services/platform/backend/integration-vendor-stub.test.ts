@@ -252,76 +252,48 @@ describe('the vendor stub behind the routed fetch', () => {
   });
 });
 
-describe('routeVendorFetch without the network', () => {
-  it("passes the run's own services and in-process URLs on, and refuses as fetch does: a rejected promise", async () => {
-    const passed: string[] = [];
-    const recording = async (
-      input: Parameters<typeof globalThis.fetch>[0],
-    ): Promise<Response> => {
-      passed.push(
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url,
-      );
-      return new Response('passed');
-    };
-    const refused: string[] = [];
-    const routed = routeVendorFetch(
-      Object.assign(recording, { preconnect: globalThis.fetch.preconnect }),
-      {
-        stubOrigin: 'http://127.0.0.1:1',
-        onTheBox: ['http://object-store.itest:9000'],
-        onOffBox: (request) => {
-          refused.push(request.origin);
-        },
-      },
-    );
-    await routed('http://object-store.itest:9000/bucket/key');
-    await routed('data:text/plain,on%20the%20box');
-    await routed('http://LocalHost.:8080/health');
-    expect(passed).toEqual([
-      'http://object-store.itest:9000/bucket/key',
-      'data:text/plain,on%20the%20box',
-      'http://LocalHost.:8080/health',
-    ]);
-    const relative = routed('/no-origin');
-    expect(relative).toBeInstanceOf(Promise);
-    await expect(relative).rejects.toThrow();
-    await expect(routed('http://object-store.itest:9001/key')).rejects.toThrow(
-      'fetch failed',
-    );
-    expect(refused).toEqual(['http://object-store.itest:9001']);
-  });
-});
-
 /**
- * Redirects, on native `fetch`'s own redirect engine: an undici MockAgent is
- * the global dispatcher with the network disabled, so every origin below is
- * an interceptor and no socket, DNS query or vendor request exists. The
- * foreign interceptor stands for any host off the box: it must never be
- * reached through a permitted origin's redirect.
+ * On native `fetch` itself: an undici MockAgent is the global dispatcher with
+ * the network disabled, so every origin below is an interceptor and no
+ * socket, DNS query or vendor request exists. The foreign interceptors stand
+ * for hosts off the box: nothing may reach them through the boundary, a
+ * permitted origin's redirect included.
  */
-describe('routeVendorFetch keeps redirected hops inside the boundary', () => {
+describe('routeVendorFetch on native fetch, without the network', () => {
   const LOOPBACK = 'http://127.0.0.1:49112';
   const STORE = 'http://object-store.itest:9000';
   const FOREIGN = 'https://unmodeled.invalid';
+  const OTHER_PORT = 'http://object-store.itest:9001';
   const STUB = 'http://127.0.0.1:49199';
+  const native = globalThis.fetch;
   let previous: ReturnType<typeof getGlobalDispatcher>;
   let agent: MockAgent;
   let refused: OffBoxRequest[];
   let foreignHits: string[];
   let routed: typeof globalThis.fetch;
 
-  /** A mocked request's body as text, whether it came as a string or bytes. */
+  /** A mocked request's body as text, whether it came as a string or bytes;
+   * a stream (a body with no source to send again) as `<stream>`. */
   const textOf = (body: unknown): string =>
-    body instanceof Uint8Array ? new TextDecoder().decode(body) : String(body);
+    body instanceof ReadableStream
+      ? '<stream>'
+      : body instanceof Uint8Array
+        ? new TextDecoder().decode(body)
+        : String(body);
   const redirectTo = (status: number, location: string) => ({
     statusCode: status,
     data: '',
     responseOptions: { headers: { location } },
   });
+  const headerOf = (headers: unknown, name: string): string =>
+    new Headers(
+      typeof headers === 'object' && headers !== null
+        ? Object.entries(headers).map(([key, value]): [string, string] => [
+            key,
+            String(value),
+          ])
+        : [],
+    ).get(name) ?? 'none';
 
   beforeEach(() => {
     previous = getGlobalDispatcher();
@@ -330,15 +302,17 @@ describe('routeVendorFetch keeps redirected hops inside the boundary', () => {
     setGlobalDispatcher(agent);
     refused = [];
     foreignHits = [];
-    agent
-      .get(FOREIGN)
-      .intercept({ path: () => true, method: () => true })
-      .reply((opts) => {
-        foreignHits.push(`${opts.method} ${opts.path}`);
-        return { statusCode: 200, data: 'escaped' };
-      })
-      .persist();
-    routed = routeVendorFetch(globalThis.fetch, {
+    for (const origin of [FOREIGN, OTHER_PORT]) {
+      agent
+        .get(origin)
+        .intercept({ path: () => true, method: () => true })
+        .reply((opts) => {
+          foreignHits.push(`${opts.method} ${origin}${opts.path}`);
+          return { statusCode: 200, data: 'escaped' };
+        })
+        .persist();
+    }
+    routed = routeVendorFetch(native, {
       stubOrigin: STUB,
       onTheBox: [STORE],
       onOffBox: (request) => {
@@ -539,5 +513,318 @@ describe('routeVendorFetch keeps redirected hops inside the boundary', () => {
     expect(bare.redirected).toBe(false);
     expect(refused).toEqual([]);
     expect(foreignHits).toEqual([]);
+  });
+
+  it("passes the run's own services and in-process URLs on, and refuses as fetch does: a rejected promise", async () => {
+    agent.get(STORE).intercept({ path: '/bucket/key' }).reply(200, 'stored');
+    agent
+      .get('http://localhost.:8080')
+      .intercept({ path: '/health' })
+      .reply(200, 'healthy');
+    expect(await (await routed(`${STORE}/bucket/key`)).text()).toBe('stored');
+    expect(await (await routed('data:text/plain,on%20the%20box')).text()).toBe(
+      'on the box',
+    );
+    expect(await (await routed('http://LocalHost.:8080/health')).text()).toBe(
+      'healthy',
+    );
+    const relative = routed('/no-origin');
+    expect(relative).toBeInstanceOf(Promise);
+    await expect(relative).rejects.toThrow('Failed to parse URL');
+    await expect(
+      routed(`${OTHER_PORT}/key?token=secret`),
+    ).rejects.toMatchObject({
+      message: 'fetch failed',
+      cause: {
+        code: 'ECONNREFUSED',
+        message: expect.stringContaining('reaches nothing off the box'),
+      },
+    });
+    expect(refused).toEqual([{ method: 'GET', origin: OTHER_PORT }]);
+    expect(foreignHits).toEqual([]);
+  });
+
+  it("sends the caller's own dispatcher the hops on the box, and none off it", async () => {
+    const through: string[] = [];
+    const own = {
+      dispatch: (
+        opts: Parameters<MockAgent['dispatch']>[0],
+        handler: Parameters<MockAgent['dispatch']>[1],
+      ) => {
+        through.push(`${opts.method} ${String(opts.origin)}${opts.path}`);
+        return agent.dispatch(opts, handler);
+      },
+      isMockActive: true,
+    };
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/first' })
+      .reply(() => redirectTo(302, '/second'));
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: '/second' })
+      .reply(() => redirectTo(302, `${FOREIGN}/escaped`));
+    const init: RequestInit & { dispatcher: typeof own } = {
+      dispatcher: own,
+    };
+    await expect(routed(`${LOOPBACK}/first`, init)).rejects.toMatchObject({
+      message: 'fetch failed',
+      cause: { code: 'ECONNREFUSED' },
+    });
+    expect(through).toEqual([
+      `GET ${LOOPBACK}/first`,
+      `GET ${LOOPBACK}/second`,
+    ]);
+    expect(refused).toEqual([{ method: 'GET', origin: FOREIGN }]);
+    expect(foreignHits).toEqual([]);
+  });
+
+  /**
+   * The same request through fetch itself and through the boundary, each
+   * against its own interceptors (under `/native` and `/routed`): the two
+   * observations must match, and fetch's is pinned as well, so a match
+   * cannot come from both going wrong together.
+   */
+  type Scenario<T> = (
+    fetchImpl: typeof globalThis.fetch,
+    base: string,
+    path: string,
+  ) => Promise<T>;
+  const paired = async <T>(
+    scenario: Scenario<T>,
+  ): Promise<{ native: T; routed: T }> => ({
+    native: await scenario(native, `${LOOPBACK}/native`, '/native'),
+    routed: await scenario(routed, `${LOOPBACK}/routed`, '/routed'),
+  });
+  const outcome = async (
+    pending: Promise<Response>,
+    base: string,
+  ): Promise<string> => {
+    try {
+      const response = await pending;
+      return `${response.status} redirected=${response.redirected} ${response.url.replace(base, '')} ${await response.text()}`;
+    } catch (error) {
+      if (!(error instanceof Error)) return `rejected ${String(error)}`;
+      const { cause } = error;
+      const reason =
+        cause === undefined
+          ? 'none'
+          : cause instanceof Error
+            ? JSON.stringify(cause.message)
+            : 'not an Error';
+      return `rejected ${error.name}: ${error.message} (cause ${reason})`;
+    }
+  };
+  const oneShot = (text: string): ReadableStream<Uint8Array> =>
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(text));
+        controller.close();
+      },
+    });
+  /** A PUT that answers 307 onto `/moved`, which answers 200: the bodies
+   * each hop carried, in order. */
+  const movedPut = (path: string): string[] => {
+    const bodies: string[] = [];
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: `${path}/put`, method: 'PUT' })
+      .reply((opts) => {
+        bodies.push(textOf(opts.body));
+        return redirectTo(307, `${path}/moved`);
+      });
+    agent
+      .get(LOOPBACK)
+      .intercept({ path: `${path}/moved`, method: 'PUT' })
+      .reply((opts) => {
+        bodies.push(textOf(opts.body));
+        return { statusCode: 200, data: 'stored' };
+      });
+    return bodies;
+  };
+
+  it("re-sends a Request's own body on a 307 whether the init omits the body or gives it as null", async () => {
+    for (const init of [undefined, { body: null }]) {
+      const result = await paired(async (fetchImpl, base, path) => {
+        const bodies = movedPut(path);
+        const request = new Request(`${base}/put`, {
+          method: 'PUT',
+          body: 'payload',
+        });
+        return {
+          outcome: await outcome(fetchImpl(request, init), base),
+          bodies,
+        };
+      });
+      expect(result.native).toEqual({
+        outcome: '200 redirected=true /moved stored',
+        bodies: ['payload', 'payload'],
+      });
+      expect(result.routed).toEqual(result.native);
+    }
+    expect(refused).toEqual([]);
+  });
+
+  it('fails a 307 as fetch does when the body it would re-send was a one-shot stream', async () => {
+    const cases: {
+      name: string;
+      send: (
+        fetchImpl: typeof globalThis.fetch,
+        base: string,
+      ) => Promise<Response>;
+      want: { outcome: string; bodies: string[] };
+    }[] = [
+      {
+        name: "a Request's own stream",
+        send: (fetchImpl, base) =>
+          fetchImpl(
+            new Request(`${base}/put`, {
+              method: 'PUT',
+              body: oneShot('once'),
+              duplex: 'half',
+            } as RequestInit & { duplex: 'half' }),
+          ),
+        want: {
+          outcome: 'rejected TypeError: fetch failed (cause "")',
+          bodies: ['<stream>'],
+        },
+      },
+      {
+        name: "the caller's stream over a Request's text",
+        send: (fetchImpl, base) =>
+          fetchImpl(
+            new Request(`${base}/put`, { method: 'PUT', body: 'text' }),
+            { body: oneShot('override'), duplex: 'half' } as RequestInit & {
+              duplex: 'half';
+            },
+          ),
+        want: {
+          outcome: 'rejected TypeError: fetch failed (cause "")',
+          bodies: ['<stream>'],
+        },
+      },
+      {
+        name: "the caller's text over a Request's stream",
+        send: (fetchImpl, base) =>
+          fetchImpl(
+            new Request(`${base}/put`, {
+              method: 'PUT',
+              body: oneShot('never sent'),
+              duplex: 'half',
+            } as RequestInit & { duplex: 'half' }),
+            { body: 'replacement' },
+          ),
+        want: {
+          outcome: '200 redirected=true /moved stored',
+          bodies: ['replacement', 'replacement'],
+        },
+      },
+    ];
+    for (const [index, { name, send, want }] of cases.entries()) {
+      // A path of its own: a case that fails leaves its `/moved` unanswered.
+      const result = await paired(async (fetchImpl, base, path) => {
+        const bodies = movedPut(`${path}/${index}`);
+        return {
+          outcome: await outcome(
+            send(fetchImpl, `${base}/${index}`),
+            `${base}/${index}`,
+          ),
+          bodies,
+        };
+      });
+      expect({ name, ...result.native }).toEqual({ name, ...want });
+      expect({ name, ...result.routed }).toEqual({ name, ...result.native });
+    }
+    expect(refused).toEqual([]);
+  });
+
+  it('keeps a followed response redirected through its clones', async () => {
+    const result = await paired(async (fetchImpl, base, path) => {
+      agent
+        .get(LOOPBACK)
+        .intercept({ path: `${path}/from` })
+        .reply(() => redirectTo(302, `${path}/to`));
+      agent
+        .get(LOOPBACK)
+        .intercept({ path: `${path}/to` })
+        .reply(200, 'followed');
+      const response = await fetchImpl(`${base}/from`);
+      const clone = response.clone();
+      const again = clone.clone();
+      return [response, clone, again].map(
+        (each) => `${each.redirected} ${each.url.replace(base, '')}`,
+      );
+    });
+    expect(result.native).toEqual(['true /to', 'true /to', 'true /to']);
+    expect(result.routed).toEqual(result.native);
+  });
+
+  it('sends the referrer, the headers and the body fetch would send', async () => {
+    const seen = (path: string): string[] => {
+      const requests: string[] = [];
+      agent
+        .get(LOOPBACK)
+        .intercept({ path: `${path}/echo`, method: () => true })
+        .reply((opts) => {
+          requests.push(
+            `${opts.method} referer=${headerOf(opts.headers, 'referer')} type=${headerOf(opts.headers, 'content-type')} body=${opts.body === undefined || opts.body === null ? 'none' : textOf(opts.body)}`,
+          );
+          return { statusCode: 200, data: 'echoed' };
+        })
+        .times(3);
+      return requests;
+    };
+    const result = await paired(async (fetchImpl, base, path) => {
+      const requests = seen(path);
+      // A referrer given with the call, one a Request carries on its own
+      // (undici 6 sends it, undici 7 drops it: the boundary does what the
+      // running fetch does), and a Request handed over as the init.
+      await (
+        await fetchImpl(`${base}/echo`, {
+          referrer: `${base}/page`,
+          referrerPolicy: 'unsafe-url',
+        })
+      ).text();
+      await (
+        await fetchImpl(
+          new Request(`${base}/echo`, {
+            referrer: `${base}/page`,
+            referrerPolicy: 'unsafe-url',
+          }),
+        )
+      ).text();
+      await (
+        await fetchImpl(
+          `${base}/echo`,
+          new Request('http://elsewhere.invalid/', {
+            method: 'POST',
+            body: 'from a request',
+            headers: { 'content-type': 'text/plain' },
+          }),
+        )
+      ).text();
+      return requests.map((line) => line.replace(base, ''));
+    });
+    expect(result.native[0]).toBe('GET referer=/page type=none body=none');
+    expect(result.native[2]).toBe(
+      'POST referer=none type=text/plain body=<stream>',
+    );
+    expect(result.routed).toEqual(result.native);
+    expect(foreignHits).toEqual([]);
+  });
+
+  it('rejects an aborted request as fetch does, sending nothing', async () => {
+    const result = await paired(async (fetchImpl, base) => {
+      const controller = new AbortController();
+      controller.abort();
+      return outcome(
+        fetchImpl(`${base}/never`, { signal: controller.signal }),
+        base,
+      );
+    });
+    expect(result.native).toBe(
+      'rejected AbortError: This operation was aborted (cause none)',
+    );
+    expect(result.routed).toEqual(result.native);
   });
 });
