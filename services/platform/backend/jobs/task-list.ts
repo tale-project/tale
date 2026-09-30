@@ -1195,7 +1195,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               return 'agent_busy';
             }
             // In the same transaction as the look that found the agent
-            // busy: the retry is never lost between two looks.
+            // busy: the retry is never lost between two looks. A look
+            // delivered twice sends two; both are bounded alike, and the
+            // newest-run guard above lets at most one start the retry.
             await addJobInTx(
               tx,
               'task.agent_retry',

@@ -656,9 +656,20 @@ export async function checkAutomatedRetryAgentBusy(
           projectId: projectA,
           title: `Unordered race ${round}: delegated`,
         });
+        let attempts = 0;
+        const errors: string[] = [];
         const [log, b] = await Promise.all([
           deliver(a.payload),
-          delegate(bTask, { agentId: worker }),
+          delegate(
+            bTask,
+            { agentId: worker },
+            traced(sql, {
+              onAttempt: () => {
+                attempts += 1;
+              },
+              onError: (code) => errors.push(code),
+            }),
+          ),
         ]);
         const live = await liveIn(standing);
         const retryWon =
@@ -670,8 +681,11 @@ export async function checkAutomatedRetryAgentBusy(
           b.outcome === 'started' &&
           live[0]?.taskId === bTask;
         if (live.length !== 1 || !(retryWon || startWon)) allOne = false;
+        // The raw outcome of the round: who won, what each side answered,
+        // how many serializable attempts the start took and what failed
+        // them, and every live run of the workspace by its trigger.
         rounds.push(
-          `${round}: retry=${JSON.stringify(log)} start=${b.outcome} live=${live.length}`,
+          `${round}: winner=${retryWon ? 'retry' : startWon ? 'start' : 'none'} retry=${JSON.stringify(log)} start=${b.outcome} start attempts=${attempts} failed with=${JSON.stringify(errors)} live=${JSON.stringify(live.map((run) => `${run.trigger ?? 'manual'}@${run.taskId === a.taskId ? 'retry task' : run.taskId === bTask ? 'start task' : run.taskId}`))}`,
         );
         await free(worker);
       }
