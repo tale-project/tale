@@ -84,6 +84,7 @@ import {
 } from './reviews.ts';
 import { scheduleMayActInProject } from './run-authority.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
+import { assertTaskSourceThreadReadable } from './source-thread.ts';
 
 /**
  * Tasks domain, Tier A — the task board core: CRUD, status choreography
@@ -1252,6 +1253,9 @@ export interface CreateTaskArgs {
   dueDate?: number;
   /** The rule the task repeats on: closing it creates the next copy. */
   repeat?: TaskRepeat;
+  /** The conversation the task was handed over from — its root thread, one
+   * the creator can read (`source-thread.ts`). */
+  sourceThreadId?: string;
 }
 
 export async function createTask(
@@ -1302,6 +1306,13 @@ export async function createTask(
     auth,
     attachments.map((entry) => entry.fileId),
   );
+  if (args.sourceThreadId !== undefined) {
+    await assertTaskSourceThreadReadable(tx, {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+      threadId: args.sourceThreadId,
+    });
+  }
 
   if (args.parentTaskId) {
     const parent = await loadTaskOrThrow(
@@ -1329,7 +1340,7 @@ export async function createTask(
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
       due_date_ms, repeat_rule, rank, number, created_by, created_by_type,
-      created_at_ms, updated_at_ms, status_changed_at_ms
+      created_at_ms, updated_at_ms, status_changed_at_ms, source_thread_id
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1339,7 +1350,8 @@ export async function createTask(
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
       ${args.startDate ?? null}, ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
-      ${auth.userId}, 'user', ${now}, ${now}, ${now}
+      ${auth.userId}, 'user', ${now}, ${now}, ${now},
+      ${args.sourceThreadId ?? null}
     )
     RETURNING id
   `;

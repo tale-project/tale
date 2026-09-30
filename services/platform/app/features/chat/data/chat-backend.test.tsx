@@ -101,6 +101,40 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
       fetchSpy.mockRestore();
     }
   });
+
+  // The seam routes only the names it lists; an unlisted one answers
+  // `unavailable`, which the chat's task tray renders as nothing at all.
+  it('reads the tasks a chat handed over from the backend', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ tasks: [{ id: 'task-1' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    function TrayProbe() {
+      const read = useChatQuery('tasks/queries:listTasksFromThread', {
+        organizationId: 'org-tray',
+        threadId: 'thread-1',
+      });
+      return (
+        <output>
+          {read.status === 'ready' ? `ready:${read.data.length}` : read.status}
+        </output>
+      );
+    }
+    try {
+      render(<TrayProbe />);
+      await screen.findByText('ready:1');
+      const firstUrl = fetchSpy.mock.calls[0]?.[0];
+      expect(typeof firstUrl === 'string' ? firstUrl : '').toContain(
+        '/api/app/tasks/by-thread/thread-1',
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
 
 describe('useChatQuery session cache', () => {

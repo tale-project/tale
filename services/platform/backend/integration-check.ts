@@ -119,6 +119,7 @@ import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.i
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
 import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
@@ -56978,6 +56979,10 @@ async function main(): Promise<void> {
       [
         'checkAgentRunFailureNotice',
         () => checkAgentRunFailureNotice(sql, authCtx, record),
+      ],
+      [
+        'checkTaskSourceThread',
+        () => checkTaskSourceThread(sql, authCtx, record),
       ],
       [
         'checkScheduledAgentStarts',

@@ -1955,6 +1955,30 @@ describe('ChatSurface on a conversation shared with the project', () => {
     expect(screen.queryByRole('menuitem', { name: 'Share' })).toBeNull();
   });
 
+  it('puts Create task in the header as its own verb, and the desktop menu does not repeat it', async () => {
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-shared" />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Create task' }),
+    ).toBeInTheDocument();
+    // The phone header's menu comes first and keeps the entry; the desktop
+    // header's menu, beside the verb, leaves it out.
+    const menus = screen.getAllByRole('button', {
+      name: 'Conversation actions',
+    });
+    const desktop = menus.at(-1);
+    if (desktop === undefined || menus.length < 2) {
+      throw new Error('expected a phone and a desktop conversation menu');
+    }
+    await user.click(desktop);
+    await screen.findByRole('menuitem', { name: 'Export' });
+    expect(
+      screen.queryByRole('menuitem', { name: 'Create task from chat' }),
+    ).toBeNull();
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(
       <ChatSurface organizationId="org-1" threadId="thread-shared" />,

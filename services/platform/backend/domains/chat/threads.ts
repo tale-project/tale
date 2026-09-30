@@ -233,7 +233,7 @@ export async function loadOwnedThread(
  * retry sibling never grants anything by id — what a reader is served of a
  * branched conversation is `projectSharedViewLeaf`'s business. */
 export async function loadProjectSharedThread(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   userId: string,
   threadId: string,

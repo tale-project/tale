@@ -1094,7 +1094,7 @@ chat:
   createTask:
     button: Créer une tâche depuis le chat
     projectTitle: Créer une tâche à partir de ce chat
-    projectDescription: Choisis le projet auquel la tâche appartient. Un agent de ce projet peut la traiter et livrer les fichiers.
+    projectDescription: Choisis le projet auquel la tâche appartient. Dans un projet avec un agent, l’agent peut s’y mettre tout de suite et livrer les fichiers.
     projectLabel: Projet
     projectPlaceholder: Choisir un projet
     projectEmpty: Aucun projet ne correspond
@@ -1106,6 +1106,24 @@ chat:
     openTask: Ouvrir la tâche
     openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
     readFailed: 'Tale n’a pas pu lire cette conversation : la tâche ne peut pas encore reprendre ta demande et tes fichiers. Réessaie, ou crée la tâche depuis le tableau du projet.'
+    headerButton: Créer une tâche
+    withAgents: Avec un agent
+    withoutAgents: Sans agent pour l’instant
+    agentCount: '{count, plural, one {# agent} other {# agents}}'
+    noAgentEditor: Tu peux en ajouter un dans la tâche
+    noAgentReader: Un éditeur ou un admin peut en ajouter un
+  taskTray:
+    label: Tâches issues de ce chat
+    working: L’agent travaille
+    waitingForSlot: En attente d’une place de sandbox
+    retrying: Nouvelle tentative…
+    failed: L’agent n’a pas pu la terminer
+    ready: Prête pour la revue
+    readyWithFiles: '{count, plural, one {Prête pour la revue · # fichier} other {Prête pour la revue · # fichiers}}'
+    notStarted: En attente de démarrage
+    open: Ouvrir
+    openAria: 'Ouvrir la tâche {title}'
+    more: '{count, plural, one {et # autre tâche} other {et # autres tâches}}'
   export:
     button: Exporter
     title: Exporter le chat
@@ -7539,6 +7557,8 @@ tasks:
       deleteFailed: Impossible de supprimer l'étiquette.
   actions:
     create: Créer une tâche
+    createAndStart: Créer et démarrer l'agent
+    createOnly: Créer seulement
     created: Tâche créée
     comment: Commenter
     commentPlaceholder: Écris un commentaire — tape @ pour mentionner une personne ou un agent

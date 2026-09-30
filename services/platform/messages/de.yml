@@ -1082,7 +1082,7 @@ chat:
   createTask:
     button: Aufgabe aus Chat erstellen
     projectTitle: Aufgabe aus diesem Chat erstellen
-    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. Ein Projekt-Agent dort kann sie bearbeiten und die Dateien liefern.
+    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. In einem Projekt mit Agent kann der Agent sofort loslegen und die Dateien liefern.
     projectLabel: Projekt
     projectPlaceholder: Projekt wählen
     projectEmpty: Kein passendes Projekt
@@ -1094,6 +1094,24 @@ chat:
     openTask: Aufgabe öffnen
     openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
     readFailed: Tale konnte dieses Gespräch nicht lesen, deshalb kann die Aufgabe deine Anfrage und Dateien noch nicht übernehmen. Versuche es erneut oder lege die Aufgabe auf dem Board des Projekts an.
+    headerButton: Aufgabe erstellen
+    withAgents: Mit Agent
+    withoutAgents: Noch ohne Agent
+    agentCount: '{count, plural, one {# Agent} other {# Agenten}}'
+    noAgentEditor: Du kannst in der Aufgabe einen hinzufügen
+    noAgentReader: Ein Redakteur oder Admin kann einen hinzufügen
+  taskTray:
+    label: Aufgaben aus diesem Chat
+    working: Der Agent arbeitet
+    waitingForSlot: Wartet auf einen Sandbox-Platz
+    retrying: Wird erneut versucht…
+    failed: Der Agent konnte sie nicht fertigstellen
+    ready: Bereit zur Prüfung
+    readyWithFiles: '{count, plural, one {Bereit zur Prüfung · # Datei} other {Bereit zur Prüfung · # Dateien}}'
+    notStarted: Wartet auf den Start
+    open: Öffnen
+    openAria: 'Aufgabe {title} öffnen'
+    more: '{count, plural, one {und # weitere Aufgabe} other {und # weitere Aufgaben}}'
   export:
     button: Exportieren
     title: Chat exportieren
@@ -7427,6 +7445,8 @@ tasks:
       deleteFailed: Label konnte nicht gelöscht werden.
   actions:
     create: Aufgabe erstellen
+    createAndStart: Erstellen und Agent starten
+    createOnly: Nur erstellen
     created: Aufgabe erstellt
     comment: Kommentieren
     commentPlaceholder: Schreib einen Kommentar – mit @ erwähnst du eine Person oder einen Agenten

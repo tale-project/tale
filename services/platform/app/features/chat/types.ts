@@ -61,6 +61,10 @@ export interface ChatProjectSummary {
   readonly icon?: string;
   readonly color?: string;
   readonly pinnedAt?: number;
+  /** How many agents the project has — the hand-over asks where work can go. */
+  readonly agentCount?: number;
+  /** The reader may add agents to it (its editors). */
+  readonly canEdit?: boolean;
 }
 
 export type ChatMessageRole = 'user' | 'assistant' | 'tool' | 'system';

@@ -32,6 +32,7 @@ import { Link } from '@tanstack/react-router';
 import {
   Archive,
   ArchiveRestore,
+  Play,
   Plus,
   Settings2,
   Trash2,
@@ -102,6 +103,7 @@ import {
   taskAutomationOwned,
   taskRepeatFieldState,
 } from '../lib/task-repeat-edit';
+import { taskRunErrorMessage } from '../lib/task-run-error';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
 import { EditableDescription } from './editable-description';
@@ -172,6 +174,15 @@ export interface TaskDraft {
     fileType: string;
     fileSize: number;
   }[];
+  /** Who takes it, picked for the person when the choice is obvious (the
+   * project's one agent). */
+  assignee?: { type: TaskActorType; id: string };
+  /** The conversation the task is handed over from — its root thread; the
+   * chat then shows the task (`tasks.source_thread_id`). */
+  sourceThreadId?: string;
+  /** The hand-over's main verb starts the agent: work handed over from a
+   * chat is meant to begin, while the board keeps Create as its verb. */
+  startAgent?: boolean;
 }
 
 /**
@@ -882,7 +893,7 @@ function CreateTaskBody({
   const [assignee, setAssignee] = useState<{
     type: TaskActorType;
     id: string;
-  } | null>(null);
+  } | null>(draft?.assignee ?? null);
   const [dueDate, setDueDate] = useState<number | undefined>(undefined);
   const [startDate, setStartDate] = useState<number | undefined>(undefined);
   const [repeat, setRepeat] = useState<TaskRepeat | null>(null);
@@ -915,7 +926,16 @@ function CreateTaskBody({
     ? resolveActor(assignee.type, assignee.id).name
     : t('assignee.unassigned');
 
-  const submit = async () => {
+  // An agent-owned card created at In progress gets its run at once (the
+  // server's own rule), so the verb says so; one created in Backlog or To do
+  // waits for a Start, so it can be created started instead.
+  const agentAssigned = assignee?.type === 'agent';
+  const startsOnCreate = agentAssigned && status === 'in_progress';
+  const offerStart =
+    agentAssigned && (status === 'backlog' || status === 'todo');
+  const startFirst = offerStart && draft?.startAgent === true;
+
+  const submit = async (options: { start?: boolean } = {}) => {
     const trimmed = title.trim();
     if (!trimmed || submitting || descriptionOverCap) return;
     setSubmitting(true);
@@ -928,7 +948,7 @@ function CreateTaskBody({
         attachments: attachments.length
           ? stripPreviews(attachments)
           : undefined,
-        status,
+        status: options.start === true ? 'in_progress' : status,
         priority: priority ?? undefined,
         labels: labels.length ? labels : undefined,
         assigneeType: assignee?.type,
@@ -939,6 +959,9 @@ function CreateTaskBody({
           repeatState.kind === 'editable' && repeat !== null
             ? repeat
             : undefined,
+        ...(draft?.sourceThreadId !== undefined
+          ? { sourceThreadId: draft.sourceThreadId }
+          : {}),
       });
       if (onTaskCreated === undefined) {
         toast({ title: t('actions.created'), variant: 'success' });
@@ -949,6 +972,10 @@ function CreateTaskBody({
       console.error('Create task error:', error);
       const code = error instanceof AppError ? error.data?.code : undefined;
       const limitRefusal = taskLimitRefusalMessage(error, t, formatNumber);
+      // A start the organization's policy refuses takes the create with it
+      // (one transaction): say which, so Create without starting is the
+      // obvious way on.
+      const runRefusal = taskRunErrorMessage(error, t);
       if (code === 'TASK_SCHEDULE_INVALID') {
         toast({ title: t('startDate.afterDue'), variant: 'destructive' });
       } else if (code === 'PROJECT_ARCHIVED') {
@@ -957,6 +984,8 @@ function CreateTaskBody({
         toast({ title: t('errors.PROJECT_ARCHIVED'), variant: 'destructive' });
       } else if (limitRefusal !== undefined) {
         toast({ title: limitRefusal, variant: 'destructive' });
+      } else if (runRefusal !== undefined) {
+        toast({ title: runRefusal, variant: 'destructive' });
       } else {
         toast({
           title: tCommon('errors.generic'),
@@ -1033,10 +1062,11 @@ function CreateTaskBody({
               // behind a generic error toast.
               maxLength={TASK_TITLE_MAX}
               onKeyDown={(e) => {
-                // Cmd/Ctrl+Enter submits from the title (fast path).
+                // Cmd/Ctrl+Enter submits from the title (fast path) — the
+                // footer's main verb.
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                   e.preventDefault();
-                  void submit();
+                  void submit({ start: startFirst });
                 }
               }}
             />
@@ -1176,16 +1206,42 @@ function CreateTaskBody({
           </>
         }
         footer={
-          <Row gap={2} justify="end">
+          <Row gap={2} justify="end" className="flex-wrap">
             <Button variant="secondary" onClick={onClose} disabled={submitting}>
               {tCommon('actions.cancel')}
             </Button>
+            {offerStart && startFirst && (
+              <Button
+                variant="secondary"
+                onClick={() => void submit()}
+                disabled={
+                  title.trim().length === 0 || descriptionOverCap || submitting
+                }
+              >
+                {t('actions.createOnly')}
+              </Button>
+            )}
+            {offerStart && !startFirst && (
+              <Button
+                variant="secondary"
+                icon={Play}
+                onClick={() => void submit({ start: true })}
+                disabled={
+                  title.trim().length === 0 || descriptionOverCap || submitting
+                }
+              >
+                {t('actions.createAndStart')}
+              </Button>
+            )}
             <Button
-              onClick={() => void submit()}
+              {...(startFirst || startsOnCreate ? { icon: Play } : {})}
+              onClick={() => void submit({ start: startFirst })}
               disabled={title.trim().length === 0 || descriptionOverCap}
               isLoading={submitting}
             >
-              {t('actions.create')}
+              {startFirst || startsOnCreate
+                ? t('actions.createAndStart')
+                : t('actions.create')}
             </Button>
           </Row>
         }
