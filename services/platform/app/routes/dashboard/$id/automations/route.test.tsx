@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AbilityContext,
   AbilityLoadingContext,
 } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
+import { documentTitle } from '@/lib/utils/seo';
 import { render, screen } from '@/tests/utils/render';
 
 vi.mock('@tanstack/react-router', () => ({
@@ -54,11 +55,18 @@ describe.each([
     expect(screen.getByText('automation page')).toBeInTheDocument();
   });
 
+  afterEach(() => {
+    document.title = '';
+  });
+
   it.each(['editor', 'member'] as const)('denies the %s role', (role) => {
+    document.title = 'Private ledger - Acme';
     renderAs(role);
     expect(
       screen.getByText('Automations are for Owners, Admins and Developers.'),
     ).toBeInTheDocument();
     expect(screen.queryByText('automation page')).not.toBeInTheDocument();
+    // The tab names the section, never the automation behind the denial.
+    expect(document.title).toBe(documentTitle('automations'));
   });
 });
