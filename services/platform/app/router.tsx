@@ -122,8 +122,6 @@ declare module '@tanstack/react-router' {
 
   /** One-shot handoffs that must not land in the URL (see Auto assign → routing). */
   interface HistoryState {
-    /** A main navigation tile restored a remembered section entry. */
-    navRestore?: boolean;
     openRoutingRule?: boolean;
     routingAddress?: string;
     /** Where the thread arrived, as the routing editor's Arrives on names
