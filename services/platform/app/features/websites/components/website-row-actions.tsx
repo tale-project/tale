@@ -33,7 +33,11 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
   const { mutate: resumeScanning } = useResumeScanning();
   const paused = isScanPaused(website);
-  const { available: canScanNow, scanNow } = useScanNow(website);
+  const {
+    available: canScanNow,
+    pending: scanPending,
+    scanNow,
+  } = useScanNow(website);
 
   const actions = useMemo(
     () => [
@@ -68,6 +72,7 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         icon: RefreshCw,
         onClick: scanNow,
         visible: canScanNow,
+        disabled: scanPending,
       },
       {
         key: 'delete',
@@ -87,6 +92,7 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
       resumeScanning,
       website._id,
       canScanNow,
+      scanPending,
       scanNow,
     ],
   );

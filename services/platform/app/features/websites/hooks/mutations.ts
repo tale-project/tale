@@ -31,6 +31,8 @@ export function useResumeScanning() {
   return useBackendAction('websites/actions:resumeScanning');
 }
 
-export function useScanWebsiteNow() {
-  return useBackendAction('websites/actions:scanNow');
+export function useScanWebsiteNow(
+  options?: Parameters<typeof useBackendAction<'websites/actions:scanNow'>>[1],
+) {
+  return useBackendAction('websites/actions:scanNow', options);
 }

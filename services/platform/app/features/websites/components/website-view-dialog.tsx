@@ -324,7 +324,11 @@ export function WebsiteViewDialog({
   const canWrite = ability.can('write', 'knowledgeWrite');
   const { mutate: resumeScanning } = useResumeScanning();
   const paused = isScanPaused(website);
-  const { available: canScanNow, scanNow } = useScanNow(website);
+  const {
+    available: canScanNow,
+    pending: scanPending,
+    scanNow,
+  } = useScanNow(website);
 
   const [pages, setPages] = useState<CrawlerPage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -337,15 +341,24 @@ export function WebsiteViewDialog({
 
   const isSearchMode = activeQuery.length > 0;
 
+  // How many pages the list holds, as the answers arrive. A refresh reads
+  // the shown pages again from the top, so a "Load more" answer that comes
+  // after it no longer continues the list: its rows are already there, and
+  // appended they showed twice.
+  const shownPages = useRef(0);
   const { mutate: fetchPages, isPending } = useBackendAction(
     'websites/actions:fetchPages',
     {
       errorToast: false,
       onSuccess: (data) => {
         if (data.offset === 0) {
+          shownPages.current = data.pages.length;
           setPages(data.pages);
-        } else {
+        } else if (data.offset === shownPages.current) {
+          shownPages.current += data.pages.length;
           setPages((prev) => [...prev, ...data.pages]);
+        } else {
+          return;
         }
         setHasMore(data.hasMore);
         setIsFirstLoad(false);
@@ -374,6 +387,7 @@ export function WebsiteViewDialog({
 
   useEffect(() => {
     if (isOpen) {
+      shownPages.current = 0;
       setPages([]);
       setOffset(0);
       setHasMore(false);
@@ -627,6 +641,7 @@ export function WebsiteViewDialog({
           icon: RefreshCw,
           onClick: scanNow,
           visible: canScanNow,
+          disabled: scanPending,
         },
       ]}
       facts={facts}

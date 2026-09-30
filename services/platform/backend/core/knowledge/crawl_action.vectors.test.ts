@@ -368,7 +368,7 @@ describe('PageIndexer.embedVectorless', () => {
     vi.mocked(embedderForOrg).mockResolvedValue(model());
     await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
 
-    expect(indexPage.mock.calls.map(([url]) => url)).toEqual([
+    expect(indexPage.mock.calls.map(([url]: unknown[]) => url)).toEqual([
       'https://ruler.example/a',
       'https://ruler.example/b',
     ]);

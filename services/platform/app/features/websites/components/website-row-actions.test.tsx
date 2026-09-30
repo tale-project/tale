@@ -11,6 +11,9 @@ const mockResumeScanning = vi.fn();
 const mockScanNow = vi.fn();
 const mockToast = vi.fn();
 let mockCanWrite = true;
+let mockScanPending = false;
+/** The success handler the Scan now hook registers on the action. */
+let scanNowSuccess: ((result: { queued: boolean }) => void) | undefined;
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -38,7 +41,12 @@ vi.mock('../hooks/mutations', () => ({
   useDeleteWebsite: () => ({ mutateAsync: vi.fn() }),
   useUpdateWebsite: () => ({ mutateAsync: vi.fn() }),
   useResumeScanning: () => ({ mutate: mockResumeScanning }),
-  useScanWebsiteNow: () => ({ mutate: mockScanNow }),
+  useScanWebsiteNow: (options?: {
+    onSuccess?: (result: { queued: boolean }) => void;
+  }) => {
+    scanNowSuccess = options?.onSuccess;
+    return { mutate: mockScanNow, isPending: mockScanPending };
+  },
 }));
 
 vi.mock('./website-edit-dialog', () => ({
@@ -75,6 +83,8 @@ const pausedWebsite = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockCanWrite = true;
+  mockScanPending = false;
+  scanNowSuccess = undefined;
 });
 
 describe('WebsiteRowActions', () => {
@@ -194,20 +204,15 @@ describe('WebsiteRowActions', () => {
       expect(screen.queryByText('websites.scanNow')).not.toBeInTheDocument();
     });
 
-    it('queues a scan and says so', async () => {
-      mockScanNow.mockImplementation(
-        (
-          _args: unknown,
-          options: { onSuccess: (result: { queued: boolean }) => void },
-        ) => options.onSuccess({ queued: true }),
-      );
+    // The answer is the action's own, not the click's: a click's callback
+    // fires for the last click only, and never once its menu or dialog has
+    // closed, so a scan could start without a word.
+    it('queues a scan and says so from the action, not the click', async () => {
+      mockScanNow.mockImplementation(() => scanNowSuccess?.({ queued: true }));
       render(<WebsiteRowActions website={failedWebsite} />);
       const user = await openMenu();
       await user.click(screen.getByText('websites.scanNow'));
-      expect(mockScanNow).toHaveBeenCalledWith(
-        { websiteId: 'website-1' },
-        expect.anything(),
-      );
+      expect(mockScanNow).toHaveBeenCalledWith({ websiteId: 'website-1' });
       expect(mockToast).toHaveBeenCalledWith({
         title: 'websites.toast.scanStarted',
         variant: 'success',
@@ -215,12 +220,7 @@ describe('WebsiteRowActions', () => {
     });
 
     it('says a scan was already running when none was queued', async () => {
-      mockScanNow.mockImplementation(
-        (
-          _args: unknown,
-          options: { onSuccess: (result: { queued: boolean }) => void },
-        ) => options.onSuccess({ queued: false }),
-      );
+      mockScanNow.mockImplementation(() => scanNowSuccess?.({ queued: false }));
       render(<WebsiteRowActions website={failedWebsite} />);
       const user = await openMenu();
       await user.click(screen.getByText('websites.scanNow'));
@@ -228,6 +228,15 @@ describe('WebsiteRowActions', () => {
       expect(mockToast).toHaveBeenCalledWith({
         title: 'websites.toast.scanAlreadyRunning',
       });
+    });
+
+    it('offers no second Scan now while the first is on its way', async () => {
+      mockScanPending = true;
+      render(<WebsiteRowActions website={failedWebsite} />);
+      await openMenu();
+      expect(
+        screen.getByRole('menuitem', { name: 'websites.scanNow' }),
+      ).toHaveAttribute('aria-disabled', 'true');
     });
   });
 });

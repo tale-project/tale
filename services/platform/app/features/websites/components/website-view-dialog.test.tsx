@@ -10,6 +10,10 @@ import { WebsiteViewDialog } from './website-view-dialog';
 
 const canWrite = { current: true };
 const scanNowMutate = vi.hoisted(() => vi.fn());
+/** Each action's hook-level success handler, to answer a request later. */
+const answerAction = vi.hoisted(
+  () => new Map<string, (data: unknown) => void>(),
+);
 const pagesPayload = {
   current: null as null | {
     pages: CrawlerPage[];
@@ -30,7 +34,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 }));
 
 vi.mock('@/app/hooks/use-backend-action', () => {
-  const onSuccessByName = new Map<string, (data: unknown) => void>();
+  const onSuccessByName = answerAction;
   const mutateByName = new Map<string, ReturnType<typeof vi.fn>>();
   return {
     useBackendAction: (
@@ -153,10 +157,7 @@ describe('WebsiteViewDialog', () => {
 
       await user.click(screen.getByRole('button', { name: 'Scan now' }));
 
-      expect(scanNowMutate).toHaveBeenCalledWith(
-        { websiteId: 'w-1' },
-        expect.anything(),
-      );
+      expect(scanNowMutate).toHaveBeenCalledWith({ websiteId: 'w-1' });
     });
 
     it('is not offered while the site is scanning, nor to a reader', () => {
@@ -486,6 +487,64 @@ describe('WebsiteViewDialog', () => {
       offset: 0,
       limit: 20,
     });
+  });
+
+  // A "Load more" answer that arrived after a refresh answer was appended
+  // again: the refresh had read the same rows, and they showed twice.
+  it('drops a page read that a refresh has overtaken', async () => {
+    const pageAt = (index: number): CrawlerPage => ({
+      url: `https://docs.example.com/${index}`,
+      title: null,
+      word_count: 10,
+      status: 'active',
+      content_hash: 'h',
+      last_crawled_at: '2026-09-14T11:11:00.000Z',
+      discovered_at: '2026-09-14T11:11:00.000Z',
+      chunks_count: 1,
+      indexed: true,
+      fail_count: 0,
+      last_error: null,
+      last_error_kind: null,
+      last_error_at: null,
+    });
+    const range = (from: number, to: number) =>
+      Array.from({ length: to - from }, (_, index) => pageAt(from + index));
+    pagesPayload.current = { offset: 0, hasMore: true, pages: range(0, 20) };
+    const { rerender, user } = render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, status: 'scanning' }}
+      />,
+    );
+    await screen.findByRole('link', { name: 'https://docs.example.com/19' });
+
+    // Both reads leave; neither has answered yet.
+    pagesPayload.current = null;
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    rerender(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, status: 'scanning', crawledPageCount: 40 }}
+      />,
+    );
+    const answer = answerAction.get('websites/actions:fetchPages');
+    // The refresh answers first, the page read after it.
+    answer?.({ offset: 0, hasMore: false, pages: range(0, 40) });
+    answer?.({ offset: 20, hasMore: true, pages: range(20, 40) });
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('link', { name: 'https://docs.example.com/39' }),
+      ).toHaveLength(1);
+    });
+    expect(
+      screen.getAllByRole('link', { name: 'https://docs.example.com/25' }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole('button', { name: 'Load more' }),
+    ).not.toBeInTheDocument();
   });
 
   // A page the crawler skipped on purpose — a JSON endpoint, a noindex page,
