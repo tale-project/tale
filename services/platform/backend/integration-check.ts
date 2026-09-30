@@ -55449,6 +55449,24 @@ async function sharedSessionAlive(
 }
 
 /**
+ * The organizations the suite's shared user belongs to, with the role in
+ * each, as one comparable string. A lane that leaves the shared user in an
+ * organization of its own breaks lanes far away from it: the /api/v1 door
+ * answers ORG_SLUG_REQUIRED to every key whose holder belongs to more than
+ * one organization, and those refusals still spend the holder's `rest:api`
+ * budget. The erasure race lane once did, and ten REST checks forty lanes
+ * later failed on it, the last ones on 429.
+ */
+async function sharedMemberships(sql: Sql, userId: string): Promise<string> {
+  const rows = await sql<{ organizationId: string; role: string }[]>`
+    SELECT "organizationId", role FROM member
+    WHERE "userId" = ${userId}
+    ORDER BY "organizationId"
+  `;
+  return rows.map((row) => `${row.organizationId}:${row.role}`).join(',');
+}
+
+/**
  * Reads a JSON response body, naming the request when it cannot. `.json()`
  * on a non-JSON error body throws a bare SyntaxError, so a 401/404/500 with
  * a text body used to truncate the run as "Unexpected token …" and hide the
@@ -55533,6 +55551,7 @@ function selectLanes(lanes: readonly Lane[]): {
 }
 
 async function runLanes(
+  sql: Sql,
   base: string,
   ctx: { cookie: string; userId: string },
   registered: readonly Lane[],
@@ -55542,6 +55561,7 @@ async function runLanes(
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
     const envBefore = new Map(Object.entries(process.env));
+    const membershipsBefore = await sharedMemberships(sql, ctx.userId);
     try {
       await run();
     } catch (error) {
@@ -55565,6 +55585,17 @@ async function runLanes(
         `${leaked.join(', ')} — the lane overrode these and did not restore ` +
           `them, so every later lane reads the lane's value (or nothing) ` +
           `instead. Wrap the override in overrideEnv().`,
+      );
+    }
+    const membershipsAfter = await sharedMemberships(sql, ctx.userId);
+    if (membershipsAfter !== membershipsBefore) {
+      record(
+        `harness: ${name} leaves the shared user's organizations as it found them`,
+        false,
+        `before=[${membershipsBefore}] after=[${membershipsAfter}] — every ` +
+          `later lane that resolves the shared user's organization reads ` +
+          `the change. A lane that needs another organization gives it an ` +
+          `owner of its own.`,
       );
     }
     if (!(await sharedSessionAlive(base, ctx))) {
@@ -55902,7 +55933,7 @@ async function main(): Promise<void> {
     // session dead, ends the run as a recorded FAIL naming the lane and the
     // lanes that never ran — the tally can never read green for a run that
     // executed fewer checks than it contains.
-    lanes = await runLanes(baseUrl, authCtx, [
+    lanes = await runLanes(sql, baseUrl, authCtx, [
       ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
       [
         'checkOutboxRetention',
@@ -56129,7 +56160,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkErasureReviewHandoverRaces',
-        () => checkErasureReviewHandoverRaces(sql, authCtx, record),
+        () => checkErasureReviewHandoverRaces(sql, record),
       ],
       // Reliability batch probes (self-contained; each seeds and cleans its
       // own rows).

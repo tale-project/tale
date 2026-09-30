@@ -166,4 +166,8 @@ Use the [database image's readiness check](../../db/README.md) before starting t
 suite. A bootstrap PostgreSQL process can accept a connection before initialization
 finishes. `integration-check.ts` registers the proof lanes; a thrown lane or lost
 shared session truncates the run as a failure. Identity-destructive probes must
-create their own throwaway account instead of invalidating the shared one.
+create their own throwaway account instead of invalidating the shared one. A lane
+must also leave the shared user's organization memberships as it found them, or
+it fails: every later `/api/v1` call on that user's keys would answer
+`ORG_SLUG_REQUIRED`. A probe that needs another organization gives it an owner of
+its own.
