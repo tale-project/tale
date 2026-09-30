@@ -136,6 +136,8 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
 }));
 
 vi.mock('@/app/hooks/use-navigation-items', () => ({
+  isItemActive: (item: { href: string }, pathname: string) =>
+    pathname === item.href || pathname.startsWith(`${item.href}/`),
   useNavigationItems: () => ({
     primary: [
       {

@@ -11,25 +11,13 @@ import { useBrandingContext } from '@/app/components/branding/branding-provider'
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
 import {
+  isItemActive,
   useNavigationItems,
-  type NavItem,
 } from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
 
 export interface MobileBottomNavProps {
   organizationId: string;
-}
-
-function isPathMatch(href: string, pathname: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function isItemActive(item: NavItem, pathname: string): boolean {
-  return item.isActivePath
-    ? item.isActivePath(pathname)
-    : isPathMatch(item.href, pathname) ||
-        (item.subItems?.some((sub) => isPathMatch(sub.href, pathname)) ??
-          false);
 }
 
 /**
@@ -46,13 +34,20 @@ function isItemActive(item: NavItem, pathname: string): boolean {
 export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const automationDetail = useMatches({
+  const forceCompact = useMatches({
     select: (matches) =>
-      matches.some(
-        (match) =>
-          'automationSlug' in match.params &&
-          match.params.automationSlug !== undefined,
-      ),
+      matches.some((match) => {
+        const params = match.params as Record<string, unknown>;
+        return (
+          (typeof params.automationSlug === 'string' &&
+            params.automationSlug !== '') ||
+          (typeof params.threadId === 'string' && params.threadId !== '') ||
+          (typeof params.taskId === 'string' && params.taskId !== '') ||
+          (typeof params.projectId === 'string' && params.projectId !== '') ||
+          (typeof params.conversationId === 'string' &&
+            params.conversationId !== '')
+        );
+      }),
   });
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
@@ -63,7 +58,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const { compact, expand } = useScrollCompact(
     pathname,
     keyboard.open,
-    automationDetail,
+    forceCompact,
   );
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -110,7 +105,13 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
                       to: '/dashboard/$id/home',
                       params: { id: organizationId },
                     }
-                  : { to: item.to, params: item.params },
+                  : {
+                      to: item.to,
+                      params: item.params,
+                      ...(item.state !== undefined
+                        ? { state: item.state }
+                        : {}),
+                    },
               );
             },
           };

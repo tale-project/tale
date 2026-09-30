@@ -107,6 +107,15 @@ describe('the mobile tab bar', () => {
       params: { id: 'org-1' },
     });
   });
+
+  it('opens the automations list from the Automations tab', async () => {
+    const { user } = render(<MobileBottomNav organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /^automations/ }));
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/automations',
+      params: { id: 'org-1' },
+    });
+  });
 });
 
 /** The phone's Home tab carries the same unread chip as the desktop rail —
