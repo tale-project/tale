@@ -28,7 +28,7 @@ Choisis l’**Intervalle d'analyse**, puis **Enregistrer**. La valeur par défau
 
 Le crawl enregistre le texte d’une page. Le chat et la recherche dans les connaissances n’y accèdent que lorsque ton organisation dispose d’un modèle d’embedding qui fonctionne, car chaque recherche transforme d’abord la question en vecteur. Sans modèle, une source peut afficher **Actif** avec toutes ses pages indexées pendant que l’assistant répond que la recherche dans les pages web n’est pas configurée.
 
-**Connaissances > Sites web** affiche alors l’avis **Le chat ne peut pas encore chercher dans ces sites web**. Un administrateur définit le modèle dans **Paramètres > Résidence des données** ; les détails destinés aux exploitants figurent dans [Résidence des données](/fr/self-hosted/configuration/data-residency). Dès qu’un modèle est enregistré, Tale relance un scan de chaque source explorée sans modèle et de chaque source dont le dernier scan a échoué. Tu n’as pas à les ajouter de nouveau.
+**Connaissances > Sites web** affiche alors l’avis **Le chat ne peut pas encore chercher dans ces sites web** ; un administrateur peut voir à sa place la bannière **La recherche de connaissances est coupée**, au-dessus de chaque page. Un administrateur définit le modèle dans **Paramètres > Résidence des données** ; les détails destinés aux exploitants figurent dans [Résidence des données](/fr/self-hosted/configuration/data-residency). Dès qu’un modèle est enregistré, Tale relance un scan de chaque source explorée sans modèle et de chaque source dont le dernier scan a échoué. Tu n’as pas à les ajouter de nouveau.
 
 ## Garder une liste d’URL ciblée
 

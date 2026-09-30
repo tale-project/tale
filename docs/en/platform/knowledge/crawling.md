@@ -28,7 +28,7 @@ Choose **Scan interval** and **Save**. The default interval is six hours; the av
 
 Crawling stores a page's text. Chat and knowledge search reach it only once your organization has a working embedding model, because every search first turns the question into a vector. Without one, a source can read **Active** with all its pages indexed while the assistant answers that web-page search is not set up.
 
-**Knowledge > Websites** then shows the notice **Chat can't search these websites yet**. An administrator sets the model under **Settings > Data residency**; operators find the setup details in [Data residency](/self-hosted/configuration/data-residency). Saving a model starts a scan of every source that was crawled without one and of every source whose last scan failed, so you do not add them again.
+**Knowledge > Websites** then shows the notice **Chat can't search these websites yet**; an administrator may see the banner **Knowledge search is off** in its place, above every page. An administrator sets the model under **Settings > Data residency**; operators find the setup details in [Data residency](/self-hosted/configuration/data-residency). Saving a model starts a scan of every source that was crawled without one and of every source whose last scan failed, so you do not add them again.
 
 ## Keep a URL list focused
 

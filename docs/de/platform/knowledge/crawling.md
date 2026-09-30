@@ -28,7 +28,7 @@ Wähle das **Scan-Intervall** und **Speichern**. Standard sind sechs Stunden; di
 
 Beim Crawlen wird der Text einer Seite gespeichert. Chat und Wissenssuche erreichen ihn erst, wenn deine Organisation ein funktionierendes Embedding-Modell hat, denn jede Suche wandelt die Frage zuerst in einen Vektor um. Ohne Modell kann eine Quelle **Aktiv** anzeigen und alle Seiten indexiert haben, während der Assistent antwortet, die Suche in Webseiten sei nicht eingerichtet.
 
-**Wissen > Websites** zeigt dann den Hinweis **Der Chat kann diese Websites noch nicht durchsuchen**. Ein Administrator legt das Modell unter **Einstellungen > Datenresidenz** fest; Einzelheiten für Betreiber stehen unter [Datenresidenz](/de/self-hosted/configuration/data-residency). Sobald ein Modell gespeichert ist, scannt Tale jede Quelle erneut, die ohne Modell gecrawlt wurde oder deren letzter Scan fehlgeschlagen ist. Du musst sie nicht neu hinzufügen.
+**Wissen > Websites** zeigt dann den Hinweis **Der Chat kann diese Websites noch nicht durchsuchen**; ein Administrator sieht an seiner Stelle unter Umständen das Banner **Wissenssuche ist aus**, über jeder Seite. Ein Administrator legt das Modell unter **Einstellungen > Datenresidenz** fest; Einzelheiten für Betreiber stehen unter [Datenresidenz](/de/self-hosted/configuration/data-residency). Sobald ein Modell gespeichert ist, scannt Tale jede Quelle erneut, die ohne Modell gecrawlt wurde oder deren letzter Scan fehlgeschlagen ist. Du musst sie nicht neu hinzufügen.
 
 ## Eine URL-Liste gezielt halten
 
