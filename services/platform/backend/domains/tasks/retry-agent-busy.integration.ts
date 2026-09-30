@@ -30,7 +30,9 @@
  *   at once, again after a worker took the queued check, or a check that
  *   expired unacknowledged — and the one chain still moves on; a refused
  *   retry stays retired when the same jobs arrive after the agent is free,
- *   while the manager's restart and a person's Start still start the task;
+ *   and the check that ends the wait, delivered twice at once, retires it
+ *   once (one mark, the migration's column, and one timeline row), while the
+ *   manager's restart and a person's Start still start the task;
  * - another agent's run, the agent's run in a member's own workspace and a
  *   run of another organization hold nothing; a confined retry looks in the
  *   member's workspace it joins; a payload naming another organization locks
@@ -1129,6 +1131,59 @@ export async function checkAutomatedRetryAgentBusy(
           personStart.status === 200 &&
           describeRuns(personRuns) === 'failed/delegated,queued/manual',
         `restart=${restart.outcome} newer retry=${JSON.stringify(newerRetry)} runs=${describeRuns(newerRuns)} person start=${personStart.status} runs=${describeRuns(personRuns)}`,
+      );
+      await free(worker);
+    }
+
+    // ---- a refusal is one transaction, delivered twice at once -----------
+    {
+      const twice = await failedDelegation('Refused twice at once');
+      const busy = await occupy('Work that outlasts both refusals');
+      rawSince();
+      // The check that ends the wait and its replay, at once: one of them
+      // writes the mark and the timeline row together, the other finds the
+      // mark once the agent row is its turn.
+      const lastCheck = { ...twice.payload, agentBusyWaits: 10_000 };
+      const both = await Promise.all([deliver(lastCheck), deliver(lastCheck)]);
+      const lines = rawSince();
+      const outcomes = both.map((run) => JSON.stringify(run)).sort();
+      const refusals = await refusalsOf(twice.taskId);
+      const retired = await retiredAt(twice.runId);
+      const looks = await looksOf(twice.runId);
+      const twiceRuns = await runsOf(sql, twice.taskId);
+      const live = await liveIn(standing);
+      // The mark is the migration's column: nullable epoch millis, applied
+      // once.
+      const column = await sql<{ type: string; nullable: string }[]>`
+        SELECT data_type AS type, is_nullable AS nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'app' AND table_name = 'project_agent_runs'
+          AND column_name = 'auto_retry_refused_at_ms'
+      `;
+      const applied = await sql<{ name: string }[]>`
+        SELECT name FROM app_migrations
+        WHERE name LIKE ${'%_project_agent_runs_auto_retry_refused.sql'}
+      `;
+      record(
+        'busy retry, refused at once: the check that ends the wait, delivered twice at once, retires the retry once — one refusal on the timeline and one mark on the failed run, written together, while the other delivery stands down on the mark — and the mark is the migration’s nullable column',
+        busy.outcome === 'started' &&
+          JSON.stringify(outcomes) ===
+            JSON.stringify([
+              JSON.stringify(['skipped:agent_busy']),
+              JSON.stringify(['skipped:retry_refused']),
+            ]) &&
+          refusals.length === 1 &&
+          refusals[0]?.toValue === 'agent_busy' &&
+          refusals[0].actorId === worker &&
+          retired !== null &&
+          looks.length === 0 &&
+          describeRuns(twiceRuns) === 'failed/delegated' &&
+          live.length === 1 &&
+          live[0]?.taskId === busy.taskId &&
+          column[0]?.type === 'bigint' &&
+          column[0].nullable === 'YES' &&
+          applied.length === 1,
+        `deliveries=${JSON.stringify(outcomes)} (want one agent_busy, one retry_refused) refusals=${JSON.stringify(refusals)} retired=${retired} looks=${looks.length} runs=${describeRuns(twiceRuns)} live=${JSON.stringify(live.map((run) => run.trigger))} column=${JSON.stringify(column)} migration=${JSON.stringify(applied.map((row) => row.name))} worker said=${JSON.stringify(lines)}`,
       );
       await free(worker);
     }
