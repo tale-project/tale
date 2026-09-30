@@ -4,6 +4,10 @@
 // out on its own clock — keeps waiting instead of giving up on a call the
 // platform is still finishing. Timeouts are shrunk through the bridge's
 // environment knobs so the test runs in about a second.
+//
+// `workspace_status` is a relay: the platform's answer — its tool
+// descriptions and the serving backend's platform version — reaches the
+// model byte for byte, and nothing the model passes reaches the platform.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -14,11 +18,52 @@ let server: ReturnType<typeof Bun.serve>;
 let bridge: ChildProcessWithoutNullStreams;
 const lines: Array<Record<string, unknown>> = [];
 const bodies: unknown[] = [];
+const statusCalls: Array<{
+  path: string;
+  authorization: string | null;
+  body: string;
+}> = [];
+
+// A status answer with the non-ASCII its tool descriptions carry, indented
+// and with one escaped character, so an answer the bridge parsed and wrote
+// out again would no longer match it.
+const STATUS_TEXT = JSON.stringify(
+  {
+    tools: [
+      {
+        name: 'task_comment',
+        description:
+          "Add a markdown comment to a task's discussion. Args: {taskId: string, body: string (≤ 10,000 UTF-16 code units)}.",
+        readOnly: false,
+      },
+      {
+        name: 'task_upsert_by_external_ref',
+        description:
+          'Create or update the task synced from an external issue. Args: {title: string (a longer one is cut to 200 UTF-16 code units, ending in "…")}.',
+        readOnly: false,
+      },
+    ],
+    platform: { version: '0.5.64' },
+  },
+  null,
+  2,
+).replace('…', String.raw`\u2026`);
 
 beforeAll(() => {
   server = Bun.serve({
     port: 0,
     async fetch(request) {
+      const url = new URL(request.url);
+      if (url.pathname === '/api/tools/status') {
+        statusCalls.push({
+          path: `${url.pathname}${url.search}`,
+          authorization: request.headers.get('authorization'),
+          body: await request.text(),
+        });
+        return new Response(STATUS_TEXT, {
+          headers: { 'content-type': 'application/json' },
+        });
+      }
       bodies.push(await request.json());
       // Slower than the ordinary bound, faster than the long one.
       await Bun.sleep(600);
@@ -141,5 +186,41 @@ describe('the platform bridge’s call bounds', () => {
     expect(
       lines.filter((line) => line.method === 'notifications/progress').length,
     ).toBe(before);
+  });
+});
+
+describe('workspace_status through the bridge', () => {
+  test('relays the platform’s answer byte for byte, whatever the model passes', async () => {
+    send({
+      id: 10,
+      method: 'tools/call',
+      params: {
+        name: 'workspace_status',
+        arguments: { version: '9.9.9', platform: { version: '9.9.9' } },
+      },
+    });
+    const response = await responseTo(10);
+    expect(textOf(response)).toBe(STATUS_TEXT);
+    expect(asRecord(response.result).isError).toBe(false);
+    expect(statusCalls).toEqual([
+      {
+        path: '/api/tools/status',
+        authorization: 'Bearer session-key',
+        body: '{}',
+      },
+    ]);
+  });
+
+  test('tells the model what the platform version is, and what it is not', async () => {
+    send({ id: 11, method: 'tools/list' });
+    const tools = asRecord((await responseTo(11)).result).tools;
+    if (!Array.isArray(tools)) throw new Error('tools/list answered no tools');
+    const status = tools
+      .map(asRecord)
+      .find((tool) => tool.name === 'workspace_status');
+    expect(status?.description).toContain('platform.version');
+    expect(status?.description).toContain(
+      'it does not show that the deployment is healthy',
+    );
   });
 });

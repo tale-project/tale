@@ -8,22 +8,40 @@
  * body is parsed or the tool dispatched; a legitimate body must still reach
  * the dispatch intact — including when no Content-Length header lets the
  * cap decide up front and the stream has to be re-wrapped.
+ *
+ * The status door answers only from the server's side: the token row's
+ * grants and this process's own build, never anything the request says.
  */
 
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { workspaceToolStatusImpl } from '../../core/node_only/sandbox/workspace_tools_bridge.ts';
 import { SANDBOX_DOOR_MAX_BODY_BYTES } from './door-body-limit.ts';
+
+const { workspaceToolStatusImpl: listGrantedTools } = await vi.importActual<
+  typeof import('../../core/node_only/sandbox/workspace_tools_bridge.ts')
+>('../../core/node_only/sandbox/workspace_tools_bridge.ts');
 
 const { dispatchWorkspaceToolImpl, getSessionTokenByHash } = vi.hoisted(() => ({
   dispatchWorkspaceToolImpl: vi.fn(),
   getSessionTokenByHash: vi.fn(),
 }));
 
-vi.mock('../../core/node_only/sandbox/workspace_tools_bridge.ts', () => ({
-  dispatchWorkspaceToolImpl,
-  workspaceToolStatusImpl: vi.fn(() => ({ status: 'ok', tools: [] })),
-}));
+vi.mock(
+  '../../core/node_only/sandbox/workspace_tools_bridge.ts',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('../../core/node_only/sandbox/workspace_tools_bridge.ts')
+      >();
+    return {
+      dispatchWorkspaceToolImpl,
+      // The real listing, watched: the status door must answer it unchanged.
+      workspaceToolStatusImpl: vi.fn(actual.workspaceToolStatusImpl),
+    };
+  },
+);
 vi.mock('../../lib/ctx-shim.ts', () => ({ createCtxShim: vi.fn(() => ({})) }));
 vi.mock('./shim.ts', () => ({ sandboxToolShimHandlers: vi.fn(() => ({})) }));
 vi.mock('./sessions.ts', () => ({ getSessionTokenByHash }));
@@ -168,5 +186,166 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
       blockers: [{ code: 'not_granted' }],
     });
     expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/tools/status — the serving platform version', () => {
+  const SHA = 'ebf4546fb1455a236c1046f3d73ef78c2e1d0109';
+  const NO_BUILD = 'This backend reports no build version.';
+  const DEV_BUILD =
+    'This backend runs a development build, not a published release.';
+  const NOT_A_RELEASE =
+    'This backend runs a build that is not labelled as a published release.';
+
+  function postStatus(
+    init: {
+      path?: string;
+      body?: string;
+      headers?: Record<string, string>;
+    } = {},
+  ) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the routes never touch sql directly; every db seam is mocked
+    const app = createToolDispatchRoutes({ sql: {} as Sql });
+    return app.request(init.path ?? '/status', {
+      method: 'POST',
+      headers: init.headers ?? {
+        authorization: 'Bearer vk-plaintext',
+        'content-type': 'application/json',
+      },
+      body: init.body ?? '{}',
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('TALE_VERSION', '0.5.64');
+    getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('adds the release beside the granted tools, which it lists unchanged', async () => {
+    const grants = ['document_find', 'task_create'];
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { ...TOKEN_ROW.scope, toolGrants: grants },
+    });
+    const listing = listGrantedTools(grants);
+    expect(listing.tools.map((tool) => [tool.name, tool.readOnly])).toEqual([
+      ['document_find', true],
+      ['task_create', false],
+    ]);
+
+    const res = await postStatus();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ...listing,
+      platform: { version: '0.5.64' },
+    });
+    expect(workspaceToolStatusImpl).toHaveBeenCalledExactlyOnceWith(grants);
+  });
+
+  it('adds it beside the no-tools note when nothing is granted', async () => {
+    for (const scope of [{ toolGrants: [] }, {}]) {
+      getSessionTokenByHash.mockResolvedValue({ ...TOKEN_ROW, scope });
+      const res = await postStatus();
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        tools: [],
+        note: 'No workspace tools are granted to this agent.',
+        platform: { version: '0.5.64' },
+      });
+    }
+  });
+
+  it('refuses a caller without a live session token and discloses nothing', async () => {
+    getSessionTokenByHash.mockResolvedValue(null);
+    for (const authorization of [
+      undefined,
+      'Bearer ',
+      'Basic dms6cGxhaW50ZXh0',
+      'Bearer vk-revoked',
+    ]) {
+      const res = await postStatus({
+        headers: {
+          'content-type': 'application/json',
+          ...(authorization !== undefined ? { authorization } : {}),
+        },
+      });
+      expect(res.status).toBe(401);
+      const text = await res.text();
+      expect(JSON.parse(text)).toEqual({
+        status: 'error',
+        message: 'Unauthorized.',
+      });
+      expect(text).not.toContain('0.5.64');
+    }
+    expect(workspaceToolStatusImpl).not.toHaveBeenCalled();
+  });
+
+  it('reports its own build and grants, whatever the request claims', async () => {
+    const baseline = await (await postStatus()).json();
+    expect(baseline).toMatchObject({ platform: { version: '0.5.64' } });
+
+    const forged = await postStatus({
+      path: '/status?version=9.9.9&platform=9.9.9',
+      headers: {
+        authorization: 'Bearer vk-plaintext',
+        'content-type': 'application/json',
+        'x-tale-version': '9.9.9',
+      },
+      body: JSON.stringify({
+        platform: { version: '9.9.9' },
+        version: '9.9.9',
+        TALE_VERSION: '9.9.9',
+        tools: [{ name: 'contact_find' }],
+        toolGrants: ['contact_find'],
+      }),
+    });
+    expect(forged.status).toBe(200);
+    expect(await forged.json()).toEqual(baseline);
+    // A body that is not even JSON is not read either.
+    expect(await (await postStatus({ body: '{"platform":' })).json()).toEqual(
+      baseline,
+    );
+    for (const call of vi.mocked(workspaceToolStatusImpl).mock.calls) {
+      expect(call).toEqual([['document_find']]);
+    }
+  });
+
+  it.each([
+    [' 0.5.64\n', '0.5.64'],
+    ['0.6.0-rc.1', '0.6.0-rc.1'],
+  ])('reads the release label %j as %s', async (label, version) => {
+    vi.stubEnv('TALE_VERSION', label);
+    expect(await (await postStatus()).json()).toMatchObject({
+      platform: { version },
+    });
+  });
+
+  it.each<[string | undefined, string]>([
+    [undefined, NO_BUILD],
+    ['', NO_BUILD],
+    ['   ', NO_BUILD],
+    ['dev', DEV_BUILD],
+    [`candidate-sha-${SHA}`, NOT_A_RELEASE],
+    [`pr-3969-sha-${SHA}`, NOT_A_RELEASE],
+    [`sha-${SHA}`, NOT_A_RELEASE],
+    ['v0.5.64', NOT_A_RELEASE],
+    ['0.5', NOT_A_RELEASE],
+    ['latest', NOT_A_RELEASE],
+  ])('confirms no release for the build label %j', async (label, note) => {
+    vi.stubEnv('TALE_VERSION', label);
+    const res = await postStatus();
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({
+      ...listGrantedTools(['document_find']),
+      platform: { version: null, note },
+    });
+    // The label itself is never echoed: an image can be stamped with anything.
+    expect(text).not.toContain(SHA);
   });
 });

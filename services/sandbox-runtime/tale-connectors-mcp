@@ -142,7 +142,11 @@ const TOOLS = [
       'List the platform workspace tools granted to this agent (each with its ' +
       'argument shape and whether it only reads or also writes). Call this ' +
       'before relying on workspace_tool. Tools are granted per agent by the ' +
-      'user when configuring the agent; an ungranted tool cannot be called.',
+      'user when configuring the agent; an ungranted tool cannot be called. ' +
+      'The answer also carries platform.version: the Tale release the ' +
+      'backend serving this session runs (for example "0.5.64"), or null ' +
+      'with a note for a development or unreleased build. It identifies ' +
+      'that backend only; it does not show that the deployment is healthy.',
     inputSchema: { type: 'object', properties: {} },
   },
 ];
