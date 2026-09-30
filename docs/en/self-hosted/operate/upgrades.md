@@ -83,7 +83,7 @@ tale rollback
 
 `--yes` skips its confirmation for an already approved unattended operation. The CLI's same-line check is a version guard, not an independent proof that every external integration or locally customized configuration is compatible. Never assume that downgrading is safe merely because an old migration list is a prefix of the new one.
 
-`tale rollback` swaps the application images of `platform`, `backend-api`, and `backend-worker` only. It restores no volume and leaves the database, the stores, the proxy, the sandbox services, and the model gateway as they are. No deployment step restores data on its own either: a deploy that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
+`tale rollback` swaps the application images of `platform`, `backend-api`, and `backend-worker` only. It restores no volume and leaves the database, the stores, the proxy, the sandbox services, and the model gateway as they are. No deployment step restores data on its own either: a default deploy (without `--services`) that fails its health checks keeps the previous application colour serving, but the services it already replaced in place stay replaced. Only `tale restore` puts a snapshot's volumes back.
 
 ## Bifrost 1.6 → 2.2: the model gateway's store is migrated
 

@@ -21,7 +21,6 @@ import { loadClient } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { sha, slug } from '../config/releases/model';
 import { validateNativeRelease } from '../config/releases/native';
-import { volumeExists } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { setProjectId } from '../project/project-context';
 import { withLock } from '../state/with-lock';
@@ -62,7 +61,6 @@ type Dependencies = {
   runtime?: typeof applyRuntime;
   snapshot?: typeof createSnapshot;
   verifySnapshot?: typeof verifySnapshot;
-  volumeExists?: typeof volumeExists;
   exec?: typeof exec;
   bootstrapPassword?: typeof readBootstrapPassword;
   activateConfiguration?: typeof activateRuntimeConfiguration;
@@ -97,34 +95,46 @@ const deploymentIntentSchema = z.strictObject({
  * A newer model gateway migrates its store in `llm-gateway-data` in place,
  * forward-only, on its first start, and only an archive of that volume taken
  * before then can return it. A snapshot this CLI takes holds the volume
- * whenever it exists, but a pending deployment keeps the snapshot taken before
- * it began, and one taken by a CLI that did not capture the gateway store yet
- * holds none. A snapshot taken now cannot stand in for it: the interrupted
- * rollout may already have migrated the store. So an existing gateway's
- * runtime does not change without its recovery point, and the refusal comes
- * before anything is written, the pending receipt included.
+ * whenever it exists, but a pending deployment keeps the recovery point it
+ * recorded before it began: a snapshot taken by a CLI that did not capture the
+ * gateway store yet, or none at all when that run changed nothing. A snapshot
+ * taken now cannot stand in for either: the interrupted rollout may already
+ * have migrated the store. So a rollout that would start a different gateway
+ * image on a store its recovery point does not hold is refused, before
+ * anything is written, the pending receipt included. One that leaves the
+ * gateway's image as it is only says what the snapshot lacks.
  */
-async function requireGatewayRecoveryPoint(
+function requireGatewayRecoveryPoint(
   snapshot: z.infer<typeof recoverySnapshotSchema> | undefined,
   retained: boolean,
+  readyBefore: boolean,
   preview: RuntimeResult,
   prefix: string,
-  exists: typeof volumeExists,
-): Promise<void> {
-  // No snapshot is recorded for a fresh installation, whose gateway volume is
-  // the one its own rollout created.
-  if (!snapshot || GATEWAY_VOLUME in snapshot.volumes) return;
-  if (!(await exists(`${prefix}${GATEWAY_VOLUME}`))) return;
-  if (preview.existing && preview.changed)
+): void {
+  if (snapshot && GATEWAY_VOLUME in snapshot.volumes) return;
+  // A deployment that was never ready records no snapshot: its gateway store
+  // is the one its own rollout created.
+  if (!snapshot && !readyBefore) return;
+  if (!preview.existing || !preview.gateway.volume) return;
+  const volume = `${prefix}${GATEWAY_VOLUME}`;
+  const onward = `supersede it with a reviewed bundle that keeps the gateway image the deployment runs now; the next rollout after that takes a new snapshot, which holds ${volume}.`;
+  if (preview.gateway.imageChanges) {
+    if (!snapshot)
+      throw preconditionError(
+        `The pending deployment recorded no recovery snapshot, and this rollout starts a different model gateway image on ${volume}, which migrates that store forward-only.`,
+        `Nothing was changed and the pending receipt is kept. Finish the pending bundle first, or ${onward}`,
+      );
     throw preconditionError(
-      `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}, and this rollout changes the runtime of the existing model gateway, which migrates that store forward-only.`,
+      `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}, and this rollout starts a different model gateway image on that store, which migrates it forward-only.`,
       retained
-        ? `Nothing was changed and the pending deployment keeps its recovery snapshot. It was taken before snapshots captured the gateway store, and a snapshot taken now could already hold a migrated store, so keep ${prefix}${GATEWAY_VOLUME} as it is and do not remove the pending receipt.`
-        : 'Nothing was changed and no pending deployment was recorded. Retry to take a new snapshot.',
+        ? `Nothing was changed and the pending deployment keeps its recovery snapshot. A snapshot taken now could already hold a migrated store, so do not remove the pending receipt; to continue, ${onward}`
+        : 'The runtime was not touched and no pending deployment was recorded; retry to take the snapshot again.',
     );
-  logger.warn(
-    `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}: restoring it leaves the model gateway's store as it is now.`,
-  );
+  }
+  if (snapshot)
+    logger.warn(
+      `Recovery snapshot ${snapshot.id} does not contain ${GATEWAY_VOLUME}: restoring it leaves the model gateway's store as it is now.`,
+    );
 }
 
 function nativeInput(
@@ -608,12 +618,12 @@ async function applyVerifiedDeployment(
         );
       snapshot = recoverySnapshotSchema.parse(created);
     }
-    await requireGatewayRecoveryPoint(
+    requireGatewayRecoveryPoint(
       snapshot,
       intent !== undefined,
+      previous !== undefined,
       preview,
       `${bundle.spec.composeProject}_`,
-      dependencies.volumeExists ?? volumeExists,
     );
     if (snapshot)
       await (dependencies.verifySnapshot ?? verifySnapshot)(

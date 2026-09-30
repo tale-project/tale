@@ -239,7 +239,7 @@ export async function restore(
     // started on it afterwards runs on the migrated store.
     if (!volumes.includes(GATEWAY_VOLUME)) {
       logger.warn(
-        `Snapshot ${snapshotId} has no ${GATEWAY_VOLUME} archive (taken before snapshots captured the model gateway's store, or without a gateway) — the gateway volume is left untouched, so this snapshot cannot return the model gateway to its store from before a gateway upgrade. Restore your own copy of ${prefix}${GATEWAY_VOLUME} before starting an older release.`,
+        `Snapshot ${snapshotId} has no ${GATEWAY_VOLUME} archive (taken before snapshots captured the model gateway's store, or without a gateway) — the gateway volume is left untouched, so this snapshot cannot return the model gateway to its store from before a gateway upgrade. If the gateway was upgraded after this snapshot, put your own copy of ${prefix}${GATEWAY_VOLUME} back before you deploy the snapshot's release.`,
       );
     }
 

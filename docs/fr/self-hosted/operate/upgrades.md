@@ -83,7 +83,7 @@ tale rollback
 
 `--yes` supprime la confirmation pour une opération sans surveillance déjà approuvée. La vérification de ligne de version est un garde-fou, pas une preuve indépendante de compatibilité de chaque intégration externe ou configuration personnalisée. Une liste d’anciennes migrations qui forme le préfixe de la nouvelle ne suffit pas à rendre un retour arrière sûr.
 
-`tale rollback` remplace uniquement les images applicatives de `platform`, `backend-api` et `backend-worker`. Il ne restaure aucun volume et laisse la base de données, les stockages, le proxy, les services de sandbox et la passerelle de modèles tels quels. Aucune étape de déploiement ne restaure non plus de données d’elle-même : un déploiement qui échoue à ses contrôles de santé laisse la couleur applicative précédente en service, mais les services qu’il a déjà remplacés sur place le restent. Seul `tale restore` remet en place les volumes d’un snapshot.
+`tale rollback` remplace uniquement les images applicatives de `platform`, `backend-api` et `backend-worker`. Il ne restaure aucun volume et laisse la base de données, les stockages, le proxy, les services de sandbox et la passerelle de modèles tels quels. Aucune étape de déploiement ne restaure non plus de données d’elle-même : un déploiement ordinaire (sans `--services`) qui échoue à ses contrôles de santé laisse la couleur applicative précédente en service, mais les services qu’il a déjà remplacés sur place le restent. Seul `tale restore` remet en place les volumes d’un snapshot.
 
 ## Bifrost 1.6 → 2.2 : le stockage de la passerelle de modèles est migré
 

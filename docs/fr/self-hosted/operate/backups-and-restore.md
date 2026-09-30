@@ -84,7 +84,7 @@ La restauration remplace le contenu des volumes inclus. Préserve l’état actu
 
 1. Récupère le snapshot complet, le dossier de déploiement, les clés correspondantes et les sauvegardes externes. Sur un nouvel hôte, suis d’abord la préparation décrite plus haut.
 2. Lance `tale restore` pour choisir un identifiant et lire sa version de plateforme. Si elle est inconnue, retrouve-la dans tes traces de déploiement avant de démarrer l’application.
-3. Restaure avec le stack arrêté. `--stop` arrête les conteneurs du projet ; la CLI vérifie ensuite les sommes de contrôle et demande confirmation avant de remplacer les données.
+3. Restaure avec le stack arrêté. `--stop` arrête les conteneurs du projet ; la CLI vérifie ensuite les sommes de contrôle et demande confirmation avant de remplacer les données. Utilise ta CLI actuelle, avant que l’étape 5 la change : une CLI antérieure à la capture du stockage de la passerelle ignore son archive.
 
 ```bash
 tale restore <snapshot-id> --stop

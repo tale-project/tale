@@ -322,6 +322,46 @@ describePosix('managed source-Compose runtime adoption', () => {
     expect(receipt().phase).toBe('ready');
   });
 
+  // What the deployment's recovery-point check reads: whether the store's
+  // volume exists and whether this rollout starts another gateway image.
+  test('a preview reports the gateway store and whether the rollout starts another gateway image on it', async () => {
+    const fresh = await create();
+    expect((await fresh.apply(true)).gateway).toEqual({
+      volume: false,
+      imageChanges: true,
+    });
+    const adopted = await create(true);
+    expect((await adopted.apply(true)).gateway).toEqual({
+      volume: true,
+      imageChanges: false,
+    });
+    const run = await create();
+    await run.apply();
+    expect((await run.apply(true)).gateway).toEqual({
+      volume: true,
+      imageChanges: false,
+    });
+    run.docker.calls = [];
+    const gateway = run.docker.containers.find(
+      (container) =>
+        (container.Config as { Labels: Record<string, string> }).Labels[
+          'com.docker.compose.service'
+        ] === 'sandbox-llm-gateway',
+    )!;
+    const target = (gateway.Config as { Image: string }).Image;
+    (gateway.Config as { Image: string }).Image =
+      'ghcr.io/tale-project/tale/tale-sandbox-llm-gateway@sha256:' +
+      '0'.repeat(64);
+    expect((await run.apply(true)).gateway).toEqual({
+      volume: true,
+      imageChanges: true,
+    });
+    (gateway.State as { Running: boolean }).Running = false;
+    (gateway.Config as { Image: string }).Image = target;
+    expect((await run.apply(true)).gateway.imageChanges).toBe(true);
+    expect(mutations(run.docker)).toEqual([]);
+  });
+
   test('fresh and existing previews do not create files or call any Docker mutation', async () => {
     const fresh = await create();
     expect(await fresh.apply(true)).toMatchObject({

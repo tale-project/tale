@@ -84,7 +84,7 @@ Restoring replaces the contents of the included data volumes. Preserve the curre
 
 1. Retrieve the completed snapshot, deployment workspace, matching keys, and any external-store backups. On a fresh host, follow the empty-host preparation above before proceeding.
 2. Run `tale restore` to select an ID and read its platform version. If that version is unknown, resolve it from your deployment records before starting the application.
-3. Restore with the stack stopped. `--stop` stops running project containers; the CLI then verifies archive checksums and asks for confirmation before replacing data.
+3. Restore with the stack stopped. `--stop` stops running project containers; the CLI then verifies archive checksums and asks for confirmation before replacing data. Run it with your current CLI, before step 5 changes it: a CLI from before gateway capture skips the gateway archive.
 
 ```bash
 tale restore <snapshot-id> --stop

@@ -6,7 +6,7 @@ import { splitSiteUrlList } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
 import { externalDepError } from '../../utils/fail';
-import { BACKUP_VOLUME } from '../backup/constants';
+import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
 import { runtimeCommand, runtimeSleep } from './runtime-command';
 import {
@@ -508,6 +508,29 @@ function converged(
   );
 }
 
+/** Whether the runtime would start a gateway image other than the one the
+ * gateway container runs now, compared the way {@link converged} compares
+ * every service. */
+function gatewayImageChanges(
+  containers: RuntimeContainer[],
+  bundle: RuntimeBundle,
+): boolean {
+  const target = bundle.images.find((image) =>
+    image.services.includes('sandbox-llm-gateway'),
+  );
+  const running = containers.find(
+    (container) =>
+      container.State.Running &&
+      container.Config.Labels?.['com.docker.compose.service'] ===
+        'sandbox-llm-gateway',
+  );
+  return (
+    target === undefined ||
+    running === undefined ||
+    running.Config.Image !== target.reference
+  );
+}
+
 function healthy(
   containers: RuntimeContainer[],
   bundle: RuntimeBundle,
@@ -778,6 +801,12 @@ export async function applyRuntime(
     revision: bundle.revision,
     changed,
     existing,
+    gateway: {
+      volume: projectVolumes.includes(
+        `${options.composeProject}_${GATEWAY_VOLUME}`,
+      ),
+      imageChanges: gatewayImageChanges(containers, bundle),
+    },
     dryRun: options.dryRun ?? false,
   });
   if (options.dryRun) return result();

@@ -452,6 +452,9 @@ describe('restore', () => {
       expect(gateway[0]).toContain(
         'cannot return the model gateway to its store from before a gateway upgrade',
       );
+      expect(gateway[0]).toContain(
+        "If the gateway was upgraded after this snapshot, put your own copy of tale_llm-gateway-data back before you deploy the snapshot's release.",
+      );
     });
 
     test('is announced before the consent prompt, so the restore can still be declined', async () => {

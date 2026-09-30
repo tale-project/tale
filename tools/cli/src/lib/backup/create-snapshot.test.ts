@@ -405,7 +405,7 @@ describe('createSnapshot', () => {
     // SQLite keeps committed writes in `<db>-wal` until a checkpoint, so the
     // database file alone is not the store: the whole volume root goes into
     // one archive, read-only, while its writer is paused.
-    test('archives the whole volume root, database, WAL and shared-memory files together', async () => {
+    test('archives the whole volume root read-only, so each database goes with its WAL and shared-memory files', async () => {
       seedGatewayStack();
 
       await createSnapshot({

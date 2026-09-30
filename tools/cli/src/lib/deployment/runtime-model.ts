@@ -123,6 +123,14 @@ export interface RuntimeResult {
   revision: string;
   changed: boolean;
   existing: boolean;
+  /**
+   * The model gateway's store as this runtime found it: whether its volume
+   * exists, and whether applying the runtime would start a gateway image other
+   * than the one its container runs now — the change on which a newer gateway
+   * migrates that store forward-only. A gateway without a running container
+   * counts as changing.
+   */
+  gateway: { volume: boolean; imageChanges: boolean };
   dryRun: boolean;
 }
 

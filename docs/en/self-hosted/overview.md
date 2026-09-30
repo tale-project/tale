@@ -35,7 +35,7 @@ The application roles use the same Tale platform image. `TALE_ROLE=api` starts t
 
 The packaged stack puts the two databases in one Postgres service and exposes its knowledge connection through the `knowledge-db` network alias. They remain separate databases. A source Compose deployment with a separate knowledge service also has `knowledge-db-data`.
 
-Replacing a container preserves data only if its persistent volumes or external stores remain attached. Keep the deployment workspace, environment, encryption keys, and off-host backups as well. The CLI's snapshots cover these volumes, the blob volume only while the deployment default uses the bundled store, and no external store; check [Backups and restore](/self-hosted/operate/backups-and-restore) before relying on them.
+Replacing a container preserves data only if its persistent volumes or external stores remain attached. Keep the deployment workspace, environment, encryption keys, and off-host backups as well. The CLI's snapshots cover these volumes but no external store, and skip the blob volume when the deployment default points at an external bucket; check [Backups and restore](/self-hosted/operate/backups-and-restore) before relying on them.
 
 ## Secrets and sign-in
 

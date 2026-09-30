@@ -35,7 +35,7 @@ Die Anwendungsrollen verwenden dasselbe Tale-Platform-Image. `TALE_ROLE=api` sta
 
 Im mitgelieferten Stack liegen beide Datenbanken in einem Postgres-Dienst. Der Netzwerkalias `knowledge-db` führt zur Wissensverbindung. Es bleiben zwei getrennte Datenbanken. Eine Bereitstellung aus dem Quellcode mit eigenem Wissensdienst besitzt zusätzlich `knowledge-db-data`.
 
-Beim Ersetzen eines Containers bleiben Daten nur erhalten, wenn seine dauerhaften Volumes oder externen Speicher weiter eingebunden sind. Sichere auch den Bereitstellungsordner, die Umgebung, Verschlüsselungsschlüssel und Kopien außerhalb des Hosts. Die Snapshots der CLI erfassen diese Volumes, das Datei-Volume aber nur, solange der Bereitstellungsstandard den mitgelieferten Speicher verwendet, und keine externen Speicher; prüfe den Umfang unter [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore).
+Beim Ersetzen eines Containers bleiben Daten nur erhalten, wenn seine dauerhaften Volumes oder externen Speicher weiter eingebunden sind. Sichere auch den Bereitstellungsordner, die Umgebung, Verschlüsselungsschlüssel und Kopien außerhalb des Hosts. Die Snapshots der CLI erfassen diese Volumes, aber keine externen Speicher, und lassen das Datei-Volume aus, wenn der Bereitstellungsstandard auf einen externen Bucket zeigt; prüfe den Umfang unter [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore).
 
 ## Geheimnisse und Anmeldung
 

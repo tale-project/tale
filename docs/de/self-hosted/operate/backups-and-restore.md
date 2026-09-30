@@ -84,7 +84,7 @@ Die Wiederherstellung ersetzt den Inhalt der enthaltenen Daten-Volumes. Sichere 
 
 1. Hole den vollständigen Snapshot, Bereitstellungsordner, passende Schlüssel und Backups externer Speicher zurück. Bereite einen neuen Host zuerst wie oben beschrieben vor.
 2. Wähle mit `tale restore` eine ID und lies die Plattformversion ab. Ist sie unbekannt, ermittle sie vor dem Anwendungsstart aus deinen Bereitstellungsunterlagen.
-3. Stelle bei angehaltenem Stack wieder her. `--stop` hält laufende Projektcontainer an. Danach prüft die CLI die Archiv-Prüfsummen und fragt vor dem Ersetzen der Daten nach Bestätigung.
+3. Stelle bei angehaltenem Stack wieder her. `--stop` hält laufende Projektcontainer an. Danach prüft die CLI die Archiv-Prüfsummen und fragt vor dem Ersetzen der Daten nach Bestätigung. Nutze dafür deine aktuelle CLI, bevor Schritt 5 sie wechselt: Eine CLI aus der Zeit vor der Erfassung des Gateway-Speichers überspringt dessen Archiv.
 
 ```bash
 tale restore <snapshot-id> --stop
