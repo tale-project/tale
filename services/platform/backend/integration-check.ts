@@ -40301,10 +40301,29 @@ async function checkAskAnswer(
     WHERE org_id = ${orgId} AND type = 'agent_escalation'
       AND params ->> 'askId' = ${bellAskId}
   `;
-  // One unread bell per recipient: the owner, and whichever admins earlier
-  // lanes added to the shared organization.
+  // An ask with no project rings the organization's owners and admins, less
+  // anyone who turned escalation bells off, and never a plain member. Other
+  // lanes add both admins and members to the shared organization, so the
+  // audience is read now, beside the bells it must equal.
+  const bellAudience = await sql<{ userId: string }[]>`
+    SELECT m."userId" FROM "member" m
+    WHERE m."organizationId" = ${orgId}
+      AND m."role" IN ('owner', 'admin')
+      AND COALESCE((
+        SELECT p.escalation FROM app.notification_preferences p
+        WHERE p.user_id = m."userId" AND p.org_id = ${orgId}
+        LIMIT 1
+      ), true)
+  `;
   const ownerBells = bellAfterCreate.filter((row) => row.userId === userId);
   const bellRecipients = new Set(bellAfterCreate.map((row) => row.userId));
+  const bellAudienceIds = new Set(bellAudience.map((row) => row.userId));
+  const bellsMissing = [...bellAudienceIds].filter(
+    (id) => !bellRecipients.has(id),
+  );
+  const bellsStray = [...bellRecipients].filter(
+    (id) => !bellAudienceIds.has(id),
+  );
   await createAsk?.({
     organizationId: orgId,
     sessionId: 'wf-ask-bell',
@@ -40588,6 +40607,8 @@ async function checkAskAnswer(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
     bellAsk.success &&
       ownerBells.length === 1 &&
+      bellsMissing.length === 0 &&
+      bellsStray.length === 0 &&
       bellRecipients.size === bellAfterCreate.length &&
       bellAfterCreate.every((row) => !row.read) &&
       // A no-task ask has no collapse subject (the 0.4 posture): the fold
@@ -40599,7 +40620,7 @@ async function checkAskAnswer(
       ) &&
       bellAfterAnswer.length >= 1 &&
       bellAfterAnswer.every((row) => row.read),
-    `created: owner=${ownerBells.length} (want 1), rows=${bellAfterCreate.length} for ${bellRecipients.size} recipient(s) (want one each), unread=${bellAfterCreate.every((row) => !row.read)} (want true), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
+    `created: owner=${ownerBells.length} (want 1), rows=${bellAfterCreate.length} for ${bellRecipients.size} recipient(s) (want one each of the ${bellAudienceIds.size} owners and admins), missing=[${bellsMissing.join(',')}] stray=[${bellsStray.join(',')}] (want none), unread=${bellAfterCreate.every((row) => !row.read)} (want true), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
   );
 }
 
