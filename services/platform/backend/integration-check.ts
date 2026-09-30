@@ -32850,6 +32850,10 @@ async function checkWebsitesCrawl(
       type: 'text/plain',
     });
   }
+  // A whole-site row whose corpus registration never landed (step 3b): one
+  // page, no robots.txt and no sitemap, so the scan that restores the
+  // registration finishes on the homepage.
+  const HEAL_DOMAIN = 'itest-heal.example';
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -32917,6 +32921,17 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (url.hostname === HEAL_DOMAIN || url.hostname === `www.${HEAL_DOMAIN}`) {
+      if (url.pathname !== '/') return new Response('gone', { status: 404 });
+      const body =
+        'Heal fixture home page. Enough words about the restored registration to survive the chunking thresholds of the pipeline.';
+      return new Response(body, {
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(body.length),
         },
       });
     }
@@ -33286,14 +33301,17 @@ async function checkWebsitesCrawl(
     );
 
     // 3b. A row whose domain has NO corpus registration (the register job
-    //     never landed, or the registration was released): the scan must
-    //     record the failure on the row — attempt clock + `error` status
-    //     with the delete-and-re-add message — instead of logging "already
-    //     running" and letting the scheduler re-pick it every tick forever.
+    //     never landed, or the registration was released). A URL list
+    //     cannot be registered again from its row — its URLs were the
+    //     registration — so its scan must record the failure on the row:
+    //     attempt clock + `error` status with the delete-and-re-add message,
+    //     instead of logging "already running" and letting the scheduler
+    //     re-pick it every tick forever.
     const UNREGISTERED_DOMAIN = 'itest-unregistered.example';
     const unregisteredId = await websites.createWebsiteRow(sql, {
       organizationId: orgId,
       domain: UNREGISTERED_DOMAIN,
+      kind: 'list',
       scanInterval: '6h',
       status: 'active',
     });
@@ -33312,13 +33330,66 @@ async function checkWebsitesCrawl(
       : true;
     await sql`DELETE FROM app.websites WHERE id = ${unregisteredId}`;
     record(
-      'websites scan of an unregistered domain records the failure',
+      'websites scan of an unregistered URL list records the failure',
       unregisteredRow?.status === 'error' &&
         typeof unregisteredMeta.lastScanAttemptAt === 'number' &&
         unregisteredMeta.lastSyncError ===
           scheduling.WEBSITE_NOT_IN_CORPUS_MESSAGE &&
         !unregisteredDueNow,
       `status=${unregisteredRow?.status}/error attemptStamped=${typeof unregisteredMeta.lastScanAttemptAt === 'number'} error=${String(unregisteredMeta.lastSyncError)} dueAgainNow=${unregisteredDueNow}(want false)`,
+    );
+
+    // 3c. The same gap on a WHOLE-SITE row heals: a site needs only its
+    //     domain and interval to register, so the scan that finds the
+    //     membership missing writes it and crawls. Before this the row read
+    //     "delete it and add it again" for good — one failed registration
+    //     (the knowledge database unreachable while the site was added) was
+    //     permanent.
+    const healId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: HEAL_DOMAIN,
+      scanInterval: '6h',
+      status: 'error',
+    });
+    const healMemberBefore = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: HEAL_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: HEAL_DOMAIN });
+    const healMemberAfter = await pool<{ orgSlug: string }[]>`
+      SELECT org_slug AS "orgSlug" FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healCorpus = await pool<{ status: string; interval: number }[]>`
+      SELECT status, scan_interval AS interval FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healRow = await websites.getWebsite(sql, healId);
+    const healError = healRow?.metadata?.lastSyncError;
+    if (healRow) await websites.deregisterAndDeleteWebsite(sql, healRow);
+    const healGone = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    record(
+      'websites scan of an unregistered whole site restores the registration and crawls',
+      healMemberBefore[0]?.count === '0' &&
+        healMemberAfter.length === 1 &&
+        healMemberAfter[0]?.orgSlug === orgSlug &&
+        healCorpus[0]?.status === 'completed' &&
+        healCorpus[0].interval === 21_600 &&
+        healRow?.status === 'active' &&
+        healRow.crawledPageCount === 1 &&
+        healRow.failedPageCount === 0 &&
+        healError == null &&
+        healGone[0]?.count === '0',
+      `membersBefore=${healMemberBefore[0]?.count ?? '?'}/0 membersAfter=${healMemberAfter.map((row) => row.orgSlug).join(',')}/${orgSlug} corpus=${healCorpus[0]?.status ?? 'MISSING'}/completed interval=${healCorpus[0]?.interval ?? '?'}/21600 row=${healRow?.status ?? 'MISSING'}/active crawled=${healRow?.crawledPageCount ?? '?'}/1 failed=${healRow?.failedPageCount ?? '?'}/0 error=${String(healError)} corpusAfterDelete=${healGone[0]?.count ?? '?'}/0`,
     );
 
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
