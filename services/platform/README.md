@@ -99,7 +99,8 @@ bun run check
 
 Choose browser and integration checks according to the change. Database migrations
 require `bun run --filter @tale/platform backend:integration` against an isolated
-real Postgres instance. Drive changed UI flows in a browser and update their docs,
+real Postgres instance; CI's **Backend integration (all lanes)** check runs it on every
+pull request, including drafts. Drive changed UI flows in a browser and update their docs,
 translations and manual coverage. Read the repository contracts before changing
 code; they own the complete definition of done.
 

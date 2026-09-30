@@ -13,7 +13,7 @@ import {
  * and the chat tools' wrapping. What is pinned here is the SQL each one
  * sends — the conversation-state and binding predicates that the real
  * Postgres lanes prove end to end (`checkChatMailAttachmentListing`,
- * `checkEmailedAttachments`), which are not a CI job.
+ * `checkEmailedAttachments`), in CI's Backend integration (all lanes) check.
  */
 
 const ATTACHMENT = {

@@ -126,7 +126,9 @@ A migration is not done until something exercises the shape it created:
 - `bun run --filter @tale/platform backend:integration` — the real-Postgres proof. It runs boot
   migrations twice CONCURRENTLY (the advisory lock's own test) and then drives every domain over
   the real schema. Add a probe for the behaviour your migration enables; see the backend README
-  for the throwaway-Postgres + MinIO invocation.
+  for the throwaway-Postgres + MinIO invocation. CI's **Backend integration (all lanes)** check
+  runs it on every pull request against the `tale-db` image built from that source, and fails
+  if any lane does not run.
 - `bunx vitest --run --project server` — the unit layer for the service that reads the new shape.
 
 ## Definition of done
@@ -137,4 +139,5 @@ A migration is not done until something exercises the shape it created:
 - [ ] The old code still works against the new schema (rolling-deploy safe)
 - [ ] Rules that can be constraints/indexes are constraints/indexes
 - [ ] A probe in `backend/integration-check.ts` covers what it enables
-- [ ] `bun run --filter @tale/platform backend:integration` green
+- [ ] `bun run --filter @tale/platform backend:integration` green, and the pull request's
+      **Backend integration (all lanes)** check with it

@@ -58,8 +58,9 @@ async function closedPort(): Promise<number> {
  * session: its database is a port nothing listens on, so an answer that
  * needed it would be a 500, never the lapse. The `backend:integration` lane
  * (`backend/auth/team-lapse.integration.ts`) asks the same writes with an
- * expired and a signed-out session on real Postgres; this is the half CI
- * runs, so a Better Auth upgrade that changes either answer fails here.
+ * expired and a signed-out session on real Postgres in CI's Backend
+ * integration (all lanes) check. This focused unit suite needs no database,
+ * so a Better Auth upgrade that changes either answer fails here too.
  */
 async function betterAuthLapseAnswers(): Promise<
   Record<keyof typeof LAPSED_TEAM_WRITE_ANSWERS, AuthClientRefusal | null>

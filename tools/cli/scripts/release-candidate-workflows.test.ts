@@ -472,6 +472,10 @@ describe('the real backend proof is a required uncached candidate job', () => {
     expect(job.permissions).toEqual({ contents: 'read' });
     expect(job['timeout-minutes']).toBeGreaterThan(0);
     expect(job['timeout-minutes']).toBeLessThanOrEqual(60);
+    expect(
+      job.steps!.find((step) => step.uses?.startsWith('actions/checkout@'))
+        ?.with?.['persist-credentials'],
+    ).toBe(false);
     expect(job.env?.ITEST_REQUIRE_ALL_LANES).toBe('1');
     expect(JSON.stringify(job)).not.toContain('ITEST_LANES');
     expect(job.env?.ITEST_S3_ENDPOINT).toBe('http://127.0.0.1:19000');

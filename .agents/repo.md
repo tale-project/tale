@@ -153,6 +153,12 @@ beside the task; `--force` re-runs it locally. A task whose result depends on an
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
+**Backend integration (all lanes)** runs directly, without Turbo, on every pull request
+(including drafts), push to `main`, merge group and release-candidate dispatch. Its
+`ITEST_REQUIRE_ALL_LANES=1` run fails if any lane cannot run; there is no path filter or
+cached integration verdict. The [backend README](../services/platform/backend/README.md)
+documents its services, limits and retained evidence.
+
 Turbo's default source inputs cover a task's own workspace. A task that reads a file outside
 it lists the file in its workspace's `turbo.json` `inputs`; otherwise an edit to that file
 alone replays the cached verdict. Open the list with `$TURBO_EXTENDS$` (keeps the root task's
