@@ -198,9 +198,12 @@ CMD ["/app/services/platform/docker-entrypoint.sh"]
 FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
-# bun resolves the whole workspace graph even for --production installs; every
-# manifest stage 1 copies must exist here too or install fails ("Workspace
-# dependency not found") before dev deps are even pruned.
+# bun resolves the whole workspace graph even for --production installs, and
+# --production freezes the lockfile stage 1 wrote; every manifest stage 1
+# copies must exist here too or install fails ("Workspace dependency not
+# found", or "lockfile had changes, but lockfile is frozen" for a missing
+# manifest-only workspace) before dev deps are even pruned.
+# tests/guards/dockerfile-fail-closed.guard.test.ts pins the two lists equal.
 COPY --from=workspace-deps /app/packages/e2e/package.json /tmp/workspace/packages/e2e/
 COPY --from=workspace-deps /app/packages/shared/package.json /tmp/workspace/packages/shared/
 COPY --from=workspace-deps /app/packages/ui/package.json /tmp/workspace/packages/ui/
@@ -214,12 +217,18 @@ COPY --from=workspace-deps /app/services/web/package.json /tmp/workspace/service
 COPY --from=workspace-deps /app/services/docs/package.json /tmp/workspace/services/docs/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
 COPY --from=workspace-deps /app/tools/plop/package.json /tmp/workspace/tools/plop/
+COPY --from=workspace-deps /app/tools/opengrep/package.json /tmp/workspace/tools/opengrep/
 
 WORKDIR /tmp/workspace
+# The install and the swap into /app/node_modules are required: either one
+# failing fails the build. Only the cleanup after them is optional, so its
+# `|| true`s stay inside the braces — sh groups && and || left to right, and
+# an unbraced `|| true` would swallow a failed install too, shipping the
+# builder's dev node_modules instead.
 RUN HUSKY=0 bun install --production \
     && rm -rf /app/node_modules \
     && mv /tmp/workspace/node_modules /app/node_modules \
-    && rm -rf /app/node_modules/@swc/core* \
+    && { rm -rf /app/node_modules/@swc/core* \
               /app/node_modules/lightningcss* \
               /app/node_modules/@parcel/watcher* \
               /app/node_modules/typescript \
@@ -240,7 +249,7 @@ RUN HUSKY=0 bun install --production \
     && find /app/node_modules -type f \( -name "*.d.ts" -o -name "*.d.ts.map" -o -name "*.d.mts" \) -delete 2>/dev/null || true \
     && find /app/node_modules -type d \( -name "docs" -o -name "doc" -o -name "example" -o -name "examples" \) 2>/dev/null \
        | while IFS= read -r d; do [ -f "${d%/*}/package.json" ] && rm -rf "$d"; done || true \
-    && find /app/node_modules -type d -empty -delete 2>/dev/null || true
+    && find /app/node_modules -type d -empty -delete 2>/dev/null || true; }
 
 # ============================================================================
 # Stage 4: Runtime
@@ -261,6 +270,8 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
+# Only the group and user creation may fail; their `|| true`s are braced so
+# a failed package install or SOPS download above them still fails the build.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
@@ -269,8 +280,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \
-    && groupadd --system --gid 1001 app || true \
-    && useradd --system --uid 1001 --gid app app || true \
+    && { groupadd --system --gid 1001 app || true; } \
+    && { useradd --system --uid 1001 --gid app app || true; } \
     && mkdir -p /home/app && chmod 777 /home/app \
     && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
 
