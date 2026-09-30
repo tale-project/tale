@@ -9937,8 +9937,12 @@ async function checkEmbeddingCredentialRefusal(
     credentialId = created.success ? created.data.credentialId : '';
     // The door re-queues before it answers: the refusal is gone at once.
     const requeuedRow = await ragRow();
+    // pg-boss completes a job only after its handler returns, so the file
+    // reads completed a moment before its job does: wait for both.
     const indexed = await waitFor(
-      async () => (await ragRow()).status === 'completed',
+      async () =>
+        (await ragRow()).status === 'completed' &&
+        settled((await jobs())[1]?.state),
       60_000,
     );
     const laterJobs = await jobs();
@@ -39177,7 +39181,12 @@ async function checkSandboxSpawner(
         sessionId: leftover,
       });
     }
-    await provision('itest-spawn-tools', {
+    // The agent's standing session: a project agent's session that serves
+    // no task run acts for the project only when it is that one (#3810).
+    const { standingSessionIdForProjectAgent } =
+      await import('./core/sandbox/session_naming.ts');
+    const toolSessionId = standingSessionIdForProjectAgent(toolAgentId);
+    await provision(toolSessionId, {
       ownerType: 'project_agent',
       ownerId: toolAgentId,
     });
@@ -39185,7 +39194,7 @@ async function checkSandboxSpawner(
     const vk = 'itest-vk-tools-1';
     await sessions.insertSessionToken(sql, {
       organizationId: orgId,
-      sessionId: 'itest-spawn-tools',
+      sessionId: toolSessionId,
       tokenHash: hashFn('sha256').update(vk).digest('hex'),
       llmGatewayKeyId: 'vk-id-1',
       scope: {
@@ -39243,7 +39252,7 @@ async function checkSandboxSpawner(
     );
     const ledger = await sql<{ tool: string; outcome: string }[]>`
       SELECT tool, outcome FROM app.sandbox_tool_calls
-      WHERE session_id = 'itest-spawn-tools'
+      WHERE session_id = ${toolSessionId}
       ORDER BY created_at_ms
     `;
     record(
@@ -39274,7 +39283,7 @@ async function checkSandboxSpawner(
     ] as const) {
       await sessions.insertSessionToken(sql, {
         organizationId: orgId,
-        sessionId: 'itest-spawn-tools',
+        sessionId: toolSessionId,
         tokenHash: hashFn('sha256').update(token).digest('hex'),
         scope: {
           agentKind: 'claude-code',
@@ -40279,12 +40288,20 @@ async function checkAskAnswer(
     );
   const bellAskId = bellAsk.success ? bellAsk.data.askId : '';
   const bellAfterCreate = await sql<
-    { read: boolean; params: Record<string, unknown> | null }[]
+    {
+      userId: string;
+      read: boolean;
+      params: Record<string, unknown> | null;
+    }[]
   >`
-    SELECT read, params FROM app.user_notifications
+    SELECT user_id AS "userId", read, params FROM app.user_notifications
     WHERE org_id = ${orgId} AND type = 'agent_escalation'
       AND params ->> 'askId' = ${bellAskId}
   `;
+  // One unread bell per recipient: the owner, and whichever admins earlier
+  // lanes added to the shared organization.
+  const ownerBells = bellAfterCreate.filter((row) => row.userId === userId);
+  const bellRecipients = new Set(bellAfterCreate.map((row) => row.userId));
   await createAsk?.({
     organizationId: orgId,
     sessionId: 'wf-ask-bell',
@@ -40567,8 +40584,9 @@ async function checkAskAnswer(
   record(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
     bellAsk.success &&
-      bellAfterCreate.length === 1 &&
-      !(bellAfterCreate[0]?.read ?? true) &&
+      ownerBells.length === 1 &&
+      bellRecipients.size === bellAfterCreate.length &&
+      bellAfterCreate.every((row) => !row.read) &&
       // A no-task ask has no collapse subject (the 0.4 posture): the fold
       // writes its own row carrying the MERGED question.
       bellAfterFold.some((row) =>
@@ -40578,7 +40596,7 @@ async function checkAskAnswer(
       ) &&
       bellAfterAnswer.length >= 1 &&
       bellAfterAnswer.every((row) => row.read),
-    `created=${bellAfterCreate.length}/${bellAfterCreate[0]?.read} (want 1/false), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
+    `created: owner=${ownerBells.length} (want 1), rows=${bellAfterCreate.length} for ${bellRecipients.size} recipient(s) (want one each), unread=${bellAfterCreate.every((row) => !row.read)} (want true), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
   );
 }
 
