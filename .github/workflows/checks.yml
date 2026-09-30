@@ -52,6 +52,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          # lint:links compares a change with HEAD^1 (a pull request's merge
+          # commit has the base branch as its first parent), so a page it
+          # retires without a redirect, or a ledger line it drops, is caught.
+          fetch-depth: 2
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -71,8 +75,9 @@ jobs:
         run: bun run lint:conflicts
 
       # Every link in the documentation sites, and every link into them from
-      # app code, READMEs and the marketing site, lands (tools/lint-links).
-      # Reads the whole tree, so it runs outside turbo's cache.
+      # app code, READMEs and the marketing site, lands, and no page is retired
+      # without a redirect (tools/lint-links). Reads the whole tree and its
+      # history, so it runs outside turbo's cache.
       - name: Refuse links that do not land
         run: bun run lint:links
 

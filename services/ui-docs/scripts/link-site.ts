@@ -16,6 +16,7 @@ import {
   type AddressAnswer,
   type LinkSite,
   type LinkSiteModule,
+  type PageAddress,
   type SitePage,
 } from '@tale/ui/docs/links';
 import { buildNearMissIndex } from '@tale/ui/docs/near-miss';
@@ -109,6 +110,14 @@ export const UI_DOCS_LINK_SITE: LinkSite = {
   },
 };
 
+const GUIDE_FILE = /^services\/ui-docs\/content\/([^/]+\/.+)\.md$/;
+
+/** Where a guide file is served — also for a deleted one; null for no guide. */
+export function uiDocsPageAddress(file: string): PageAddress | null {
+  const slug = GUIDE_FILE.exec(file)?.[1];
+  return slug ? { url: `${UI_DOCS_ORIGIN}${guidePath(slug)}`, slug } : null;
+}
+
 /** Every guide file, with the URL it is served at. */
 export function uiDocsPageFiles(): SitePage[] {
   return [...GUIDES].map(([slug, file]) => ({
@@ -122,4 +131,7 @@ export const LINK_SITE_MODULE: LinkSiteModule = {
   site: UI_DOCS_LINK_SITE,
   pages: uiDocsPageFiles,
   contentRoot: 'services/ui-docs/content/',
+  pageAddress: uiDocsPageAddress,
+  ledger: 'services/ui-docs/content/published.json',
+  redirects: 'services/ui-docs/content/redirects.json',
 };

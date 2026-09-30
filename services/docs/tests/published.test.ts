@@ -91,7 +91,7 @@ describe('published docs addresses', () => {
           file: 'published.json',
           line: 0,
           rule: 'published-address-lost',
-          detail: `${docPath(locale, slug === 'index' ? '' : slug)} was published and is now a 404 — add "${slug}" to docs/redirects.json, pointing at the page that replaced it`,
+          detail: `${docPath(locale, slug === 'index' ? '' : slug)} was published and is now a 404 — add "${slug}" to docs/redirects.json, pointing at the page that replaced it (never delete the ledger line; see docs/AGENTS.md "Retire, rename or merge a page")`,
         }));
       assertNoFindings(findings, `Lost docs addresses under ${locale}/`);
     },

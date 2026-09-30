@@ -36,6 +36,25 @@ answers (`services/<site>/scripts/link-site.ts`), with the documentation frame's
 External addresses are not fetched. The lockfile and the release notes fetched from GitHub
 (`services/web/app/generated/`) are not scanned, since they quote history.
 
+## Retired pages
+
+A page address a site ever served keeps answering. Each site's `published.json` records every
+slug, and its `redirects.json` sends a moved, merged or deleted page to the one that replaced it.
+The procedure is in [`docs/AGENTS.md`](../../docs/AGENTS.md#retire-rename-or-merge-a-page).
+`lint:links` holds a change to it by comparing the working tree with the change's base commit
+(`src/retirements.ts`):
+
+| Rule                     | The change…                                                            | Fix                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `retired-page-404`       | deletes or renames a page file, and the page's old address now 404s   | Add the `redirects.json` line the finding names (for a rename, it already names the new slug). |
+| `published-line-removed` | removes a slug from a `published.json` ledger                         | Put the line back. The ledger is append-only; retire the page with a redirect instead.        |
+
+The base commit is chosen in this order: `LINT_LINKS_BASE`, if set. In GitHub Actions it is
+`HEAD^1`: a pull request is checked out as GitHub's merge commit, whose first parent is the base
+branch, and a push or merge group as the commit on top of it. That is why CI's Format job checks
+out with `fetch-depth: 2`, and a missing parent there is an error, never a skip. Locally it is the
+merge base with `origin/main`; without `origin/main` the rules are skipped with a warning.
+
 ## Extending it
 
 - **A new way of building a docs address in code** belongs in `src/references.ts`, with a test.

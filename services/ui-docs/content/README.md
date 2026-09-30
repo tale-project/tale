@@ -46,10 +46,19 @@ link and heading fragment against what the site renders, and `bun run lint:links
 also judges links into the guides from the rest of the repository.
 
 Every guide slug that ever shipped is recorded in [published.json](published.json);
-the content build adds new ones. To move, merge or delete a guide, add its old
-slug to [redirects.json](redirects.json) and keep its line in `published.json`.
-`/docs` and section folders such as `/docs/components` redirect to their first
-guide without entries.
+the content build adds new ones. To move, merge or delete a guide:
+
+1. Add `"<old slug>": "<new slug>"` to [redirects.json](redirects.json), pointing at
+   the guide that answers the same question.
+2. Keep the old slug's line in `published.json`. Never delete a line.
+3. Move the file with `git mv` (or delete it), update [nav.json](nav.json), and run
+   `bun run --filter @tale/ui-docs build:content`.
+4. Run `bun run lint:links` and point every link it reports at the new guide.
+
+`bun run lint:links` compares the change with its base commit. It refuses a moved
+or deleted guide whose old address answers 404 and names the redirect to add; it
+also refuses a removed ledger line. `/docs` and section folders such as
+`/docs/components` redirect to their first guide without entries.
 
 ## Show the actual component
 

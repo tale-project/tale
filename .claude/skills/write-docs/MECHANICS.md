@@ -25,9 +25,12 @@ redirects to it. Verify translated heading anchors in the rendered page. Keep ex
 qualified. `bun run lint:links` judges every link in both docs sites and every link into them from
 READMEs, app help and the marketing site; run it after any link, heading or page move.
 
-A published address never goes away. Moving, merging or deleting a page needs a `redirects.json`
-entry for its old slug, and its line stays in the site's `published.json`: the published suites
-fail until the old address answers again.
+A published address never goes away. To move, merge or delete a page, follow the site's retirement
+procedure: [docs](../../../docs/AGENTS.md#retire-rename-or-merge-a-page) or
+[ui-docs](../../../services/ui-docs/content/README.md). In short, add a `redirects.json` entry for
+the old slug that points at the page answering the same task. Keep its line in `published.json`,
+and point the links `bun run lint:links` reports at the new page. The lint compares the change with
+its base commit and refuses a retired page that answers 404 or a deleted ledger line.
 
 ## Examples
 

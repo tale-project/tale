@@ -149,6 +149,28 @@ component rendering, image legibility, tables, and code. Read each locale indepe
 then compare factual meaning. Run checks and inspect advisory locale findings; a green structural
 suite does not establish fluent or accurate prose.
 
+## Retire, rename or merge a page
+
+A docs address that was ever published keeps answering: bookmarks, search results, links in older
+releases and language models all still ask for it.
+
+1. Choose the page that replaces it: the one that answers the same reader task. Only a page with
+   no successor falls back to its section.
+2. Add `"<old slug>": "<new slug>"` to [`docs/redirects.json`](redirects.json). One locale-less
+   entry covers `/de` and `/fr`, and a page that moved to tale.dev maps to its `https://tale.dev/…`
+   URL.
+3. Keep the old slug's line in [`docs/published.json`](published.json). Never delete a line.
+4. Move or delete the file in all three locales, with `git mv` for a rename, and update `nav.json`.
+5. Regenerate with `bun run --filter @tale/docs build:search-index` (the manifest and the ledger).
+6. Run `bun run lint:links`, then point every link it reports at the new page. That covers docs
+   pages, READMEs, app help and the marketing site.
+7. Renaming only a heading that others link to: keep its old id with `{#old-id}`.
+
+The gates hold you to it. `bun run lint:links` compares the change with its base commit. It refuses
+a deleted or renamed page whose old address now answers 404 (`retired-page-404`), naming the
+redirect to add, and a removed ledger line (`published-line-removed`). `tests/published.test.ts`
+refuses any published slug that stops answering in any locale.
+
 ## Pitfalls
 
 - A file on disk but missing from `nav.json` is invisible in the sidebar.
@@ -157,9 +179,7 @@ suite does not establish fluent or accurate prose.
   verifies every fragment against the ids the target page renders.
 - External links cast as internal (`](/external-site)`) 404 — fully qualify them.
 - Env-var and API reference content is authoritative in one place — link, don't duplicate.
-- Moving, renaming or deleting a page: add the `redirects.json` entry for the old slug (keep its
-  line in `published.json`), update `nav.json` + all three locales in the same change, then run
-  `bun run lint:links` — it finds every link into the page from app code, the marketing site, the
-  CLI and READMEs, and asks for the new address rather than the redirect.
+- Moving, renaming or deleting a page without a redirect: follow
+  [Retire, rename or merge a page](#retire-rename-or-merge-a-page); the gates refuse anything less.
 - Reordering `nav.json` can change where a section folder URL (`/platform/<section>`) redirects:
   it lands on the first page listed under that folder.

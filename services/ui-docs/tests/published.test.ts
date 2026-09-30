@@ -52,7 +52,7 @@ describe('published guide addresses', () => {
     });
     expect(
       lost,
-      'published guides that now 404 — add each to content/redirects.json',
+      'published guides that now 404 — add each to content/redirects.json, pointing at the guide that replaced it (never delete the ledger line; see content/README.md)',
     ).toEqual([]);
   });
 });

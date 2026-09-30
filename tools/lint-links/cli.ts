@@ -18,7 +18,9 @@ import { fileURLToPath } from 'node:url';
 
 import type { LinkSiteModule } from '@tale/ui/docs/links';
 
+import { createGitReader, resolveBase } from './src/git';
 import { lintLinks, type Finding } from './src/lint';
+import { lintRetirements } from './src/retirements';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -55,7 +57,13 @@ function isLinkSiteModule(value: unknown): value is LinkSiteModule {
     'pages' in value &&
     typeof value.pages === 'function' &&
     'contentRoot' in value &&
-    typeof value.contentRoot === 'string'
+    typeof value.contentRoot === 'string' &&
+    'pageAddress' in value &&
+    typeof value.pageAddress === 'function' &&
+    'ledger' in value &&
+    typeof value.ledger === 'string' &&
+    'redirects' in value &&
+    typeof value.redirects === 'string'
   );
 }
 
@@ -132,6 +140,27 @@ const findings = lintLinks({
   skip,
 });
 
+// A change that deletes or renames a page — compared with its base commit —
+// has to leave the old address answering and its ledger line in place.
+const resolution = resolveBase(REPO_ROOT);
+let retirements = '';
+if ('base' in resolution) {
+  findings.push(
+    ...lintRetirements({
+      modules,
+      base: resolution.base,
+      git: createGitReader(REPO_ROOT),
+      read,
+    }),
+  );
+  retirements = ` Retired pages checked against ${resolution.base.slice(0, 9)} (${resolution.source}).`;
+} else if ('skip' in resolution) {
+  console.warn(`lint:links — retired pages not checked: ${resolution.skip}`);
+} else {
+  console.error(`lint:links — cannot check retired pages: ${resolution.error}`);
+  process.exit(2);
+}
+
 if (findings.length > 0) {
   console.error(
     `Links that do not land (${findings.length}) — fix the address, or link the page a redirect lands on:`,
@@ -144,5 +173,5 @@ const pages = modules.reduce(
   0,
 );
 console.log(
-  `lint:links — ${pages} documentation pages and ${files.length} tracked files: every link lands.`,
+  `lint:links — ${pages} documentation pages and ${files.length} tracked files: every link lands.${retirements}`,
 );

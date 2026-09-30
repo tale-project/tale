@@ -257,16 +257,33 @@ export interface SitePage {
   locale?: string;
 }
 
+/** Where a content file is served, whether or not it still exists. */
+export interface PageAddress {
+  /** Absolute URL of the page. */
+  url: string;
+  /** Its slug in the site's `redirects.json` (locale-less), for a redirect entry. */
+  slug: string;
+}
+
 /**
  * A documentation site as the repository-wide link lint loads it
- * (`tools/lint-links`): its answers, its content pages, and the tree they
- * live in (whose files are judged as pages, not scanned for addresses).
+ * (`tools/lint-links`): its answers, its content pages, the tree they live
+ * in (whose files are judged as pages, not scanned for addresses), and the
+ * two files that retire a page — its published-address ledger and its
+ * redirect map.
  */
 export interface LinkSiteModule {
   site: LinkSite;
   pages: () => SitePage[];
   /** Repository-relative prefix of the content tree (`docs/`). */
   contentRoot: string;
+  /** The address a content file is served at — also for a deleted file —
+   *  or null for a file under the tree that is no page (`docs/AGENTS.md`). */
+  pageAddress: (file: string) => PageAddress | null;
+  /** Repository-relative path of the append-only published-slug ledger. */
+  ledger: string;
+  /** Repository-relative path of the redirect map a retired page needs an entry in. */
+  redirects: string;
 }
 
 export interface LinkProblem {
@@ -305,19 +322,24 @@ function decodedPath(url: URL): string {
 const SUGGESTION_SCORE = 0.5;
 
 function suggestionFor(site: LinkSite, pathname: string): string {
+  const nearMiss = site.nearMiss;
   // A missing image or file has no page to suggest.
-  if (
-    !site.nearMiss ||
-    /\.[a-z0-9]{1,8}$/i.test(pathname.replace(/\.md$/, ''))
-  ) {
+  if (!nearMiss || /\.[a-z0-9]{1,8}$/i.test(pathname.replace(/\.md$/, ''))) {
     return '';
   }
-  const [best] = rankNearMisses(
-    site.nearMiss.routeOf(pathname),
-    site.nearMiss.index,
-  );
-  if (!best || best.score < SUGGESTION_SCORE) return '';
-  return ` — did you mean ${site.nearMiss.pathFor(best.route, pathname)}?`;
+  // The closest page the site still answers: a page just deleted can linger
+  // in the navigation and the manifest the scorer reads.
+  for (const { route, score } of rankNearMisses(
+    nearMiss.routeOf(pathname),
+    nearMiss.index,
+  )) {
+    if (score < SUGGESTION_SCORE) return '';
+    const candidate = nearMiss.pathFor(route, pathname);
+    if (candidate !== pathname && site.answer(candidate).kind === 'page') {
+      return ` — did you mean ${candidate}?`;
+    }
+  }
+  return '';
 }
 
 /**

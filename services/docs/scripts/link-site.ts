@@ -19,12 +19,14 @@ import {
   type AddressAnswer,
   type LinkSite,
   type LinkSiteModule,
+  type PageAddress,
   type SitePage,
 } from '@tale/ui/docs/links';
 import { buildNearMissIndex } from '@tale/ui/docs/near-miss';
+import { slugRoute } from '@tale/ui/docs/redirects';
 
 import { docPath } from '../lib/content/paths';
-import { docsNearMissPages, isDocsPage } from '../lib/near-miss';
+import { docsNearMissPages } from '../lib/near-miss';
 import { buildRedirectPathMap, resolveRedirect } from '../lib/redirects';
 
 const SERVICE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -110,14 +112,12 @@ export function answerDocsPath(pathname: string): AddressAnswer {
   const { locale, route } = split(
     markdown ? pathname.replace(/\.md$/, '').replace(/\/index$/, '') : pathname,
   );
-  if (isDocsPage(locale, route)) {
+  // The content files on disk decide, not the generated manifest: a page
+  // deleted without regenerating it must still read as gone.
+  const file = pageFile(locale, route);
+  if (file) {
     if (markdown) return { kind: 'file' };
-    const file = pageFile(locale, route);
-    return {
-      kind: 'page',
-      locale,
-      ...(file ? { anchors: () => anchorsOf(file) } : {}),
-    };
+    return { kind: 'page', locale, anchors: () => anchorsOf(file) };
   }
   const target = resolveRedirect(pathname, PATHS);
   if (target !== null) return { kind: 'redirect', to: target };
@@ -137,23 +137,29 @@ export const DOCS_LINK_SITE: LinkSite = {
   },
 };
 
+const PAGE_FILE = /^docs\/(en|de|fr)\/(.+)\.mdx?$/;
+
+/** Where a docs file is served — also for a deleted one; null for no page. */
+export function docsPageAddress(file: string): PageAddress | null {
+  const match = PAGE_FILE.exec(file);
+  if (!match) return null;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the pattern only matches the three base locales
+  const locale = match[1] as 'en' | 'de' | 'fr';
+  const slug = match[2] ?? '';
+  return {
+    url: `${DOCS_ORIGIN}${docPath(locale, slug)}`,
+    slug: slugRoute(slug) || 'index',
+  };
+}
+
 /** Every docs page file, with the URL it is served at and its locale. */
 export function docsPageFiles(): (SitePage & { locale: string })[] {
-  return [...CONTENT_FILES]
-    .filter((file) => /^\/[^/]+\/.+\.mdx?$/.test(file))
-    .flatMap((file) => {
-      const [, locale = '', ...rest] = file.split('/');
-      const slug = rest.join('/').replace(/\.mdx?$/, '');
-      if (!['en', 'de', 'fr'].includes(locale)) return [];
-      return [
-        {
-          file: `docs${file}`,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- filtered to the three base locales above
-          url: `${DOCS_ORIGIN}${docPath(locale as 'en' | 'de' | 'fr', slug)}`,
-          locale,
-        },
-      ];
-    });
+  return [...CONTENT_FILES].flatMap((listed) => {
+    const file = `docs${listed}`;
+    const address = docsPageAddress(file);
+    const locale = PAGE_FILE.exec(file)?.[1];
+    return address && locale ? [{ file, url: address.url, locale }] : [];
+  });
 }
 
 /** docs.tale.dev for the repository-wide `bun run lint:links`. */
@@ -161,4 +167,7 @@ export const LINK_SITE_MODULE: LinkSiteModule = {
   site: DOCS_LINK_SITE,
   pages: docsPageFiles,
   contentRoot: 'docs/',
+  pageAddress: docsPageAddress,
+  ledger: 'docs/published.json',
+  redirects: 'docs/redirects.json',
 };

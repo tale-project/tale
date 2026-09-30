@@ -17,6 +17,9 @@ function site(
     },
     pages,
     contentRoot,
+    pageAddress: () => null,
+    ledger: `${contentRoot}published.json`,
+    redirects: `${contentRoot}redirects.json`,
   };
 }
 

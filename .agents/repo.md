@@ -146,8 +146,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   deleting a page therefore needs a redirect for its old slug, or the published suites fail. Every
   link in the two sites and every link into them from the rest of the repository (in-app help, the
   marketing site, the CLI, READMEs) must land on a page directly: not a 404, not a redirect.
-  `bun run lint:links` (`tools/lint-links`, CI's Format job and `bun run check`) enforces this, and
-  `test:prerender` crawls the built sites after `build`. An address that names nothing (a guess, a
+  `bun run lint:links` (`tools/lint-links`, CI's Format job and `bun run check`) enforces this. It
+  compares a change with its base commit, and refuses a deleted or renamed page whose old address
+  now 404s or a line removed from a ledger. `test:prerender` crawls the built sites after `build`.
+  The retirement procedure is in [`docs/AGENTS.md`](../docs/AGENTS.md#retire-rename-or-merge-a-page). An address that names nothing (a guess, a
   retired `/de-CH/…` tree) is answered by the near-miss resolver (`@tale/ui/docs/near-miss`)
   before the 404 page: a 359-of-932 loss of published URLs and agents guessing translated slugs
   showed why (2026-09).

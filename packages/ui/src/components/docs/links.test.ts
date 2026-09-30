@@ -167,6 +167,20 @@ describe('judgeLink', () => {
     });
   });
 
+  it('never suggests an address that is itself missing', () => {
+    const lingering: LinkSite = {
+      ...SITE,
+      answer: (pathname) =>
+        pathname === '/guide/basics'
+          ? { kind: 'missing' }
+          : (PAGES.get(pathname) ?? { kind: 'missing' }),
+    };
+    expect(
+      judgeLink('/guide/basic', { ...CONTEXT, sites: [lingering, OTHER] })
+        ?.detail,
+    ).toBe('/guide/basic is a 404');
+  });
+
   it('asks for the page a redirect lands on', () => {
     expect(judgeLink('/guide', CONTEXT)).toEqual({
       rule: 'link-via-redirect',
