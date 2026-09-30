@@ -35,10 +35,13 @@ export function useScanNow(website: WebsiteDoc): {
       { websiteId: website._id },
       {
         onSuccess: ({ queued }) => {
-          toast({
-            title: t(queued ? 'toast.scanStarted' : 'toast.scanAlreadyRunning'),
-            variant: 'success',
-          });
+          // "Already running" reports that nothing was started, in neutral
+          // colours: the scan that runs was not this click's doing.
+          toast(
+            queued
+              ? { title: t('toast.scanStarted'), variant: 'success' }
+              : { title: t('toast.scanAlreadyRunning') },
+          );
         },
       },
     );

@@ -208,9 +208,10 @@ describe('WebsiteRowActions', () => {
         { websiteId: 'website-1' },
         expect.anything(),
       );
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'websites.toast.scanStarted' }),
-      );
+      expect(mockToast).toHaveBeenCalledWith({
+        title: 'websites.toast.scanStarted',
+        variant: 'success',
+      });
     });
 
     it('says a scan was already running when none was queued', async () => {
@@ -223,11 +224,10 @@ describe('WebsiteRowActions', () => {
       render(<WebsiteRowActions website={failedWebsite} />);
       const user = await openMenu();
       await user.click(screen.getByText('websites.scanNow'));
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'websites.toast.scanAlreadyRunning',
-        }),
-      );
+      // Neutral, not a success: this click started nothing.
+      expect(mockToast).toHaveBeenCalledWith({
+        title: 'websites.toast.scanAlreadyRunning',
+      });
     });
   });
 });
