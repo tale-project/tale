@@ -7,6 +7,7 @@ accessDenied:
   organization: You need Admin permissions to access organization settings.
   branding: You need Admin permissions to access branding settings.
   knowledge: You don't have permission to access knowledge.
+  automations: Automations are for Owners, Admins and Developers.
   workspaceNotFound: That workspace doesn't exist or was removed.
   disabled: Your account is disabled. Contact support for help.
   noMembership: You're not a member of this workspace. Contact an administrator for access.
@@ -573,9 +574,6 @@ automations:
     empty:
       title: No automations yet
       description: Choose Create automation to start from a trigger and an agent, or to upload a package.
-    emptyReader:
-      title: No live automations
-      description: An automation appears here once an Owner, Admin, or Developer deploys it.
   createMenu:
     blank: Blank (trigger + agent)
   blank:

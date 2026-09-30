@@ -19,6 +19,7 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "bunx vitest --run --passWithNoTests",
     "test:watch": "bunx vitest",
+    "test:prerender": "bunx vitest --run --config vitest.prerender.config.ts",
     "test:e2e": "bunx playwright test",
     "test:e2e:ui": "bunx playwright test --ui"
   },

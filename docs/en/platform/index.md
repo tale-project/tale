@@ -8,7 +8,7 @@ Use these guides to work in Tale, whether your organization uses Cloud or runs i
 
 ## Move between sections {#navigation}
 
-On a computer, the rail along the left edge shows the sections as icons: **Home**, **Knowledge**, and **Automations**, with **Settings**, your notifications, and your profile menu at its foot. Point to an icon to see its name. On a phone, the tab bar at the bottom offers **Home**, **Knowledge**, **Automations**, and **Settings**. **Automations** always shows for Owners, Admins, and Developers, who build automations; everyone else sees it once the organization runs a live organization-wide automation. Automations bound to a project show on that project's own tab.
+On a computer, the rail along the left edge shows the sections as icons: **Home**, **Knowledge**, and **Automations**, with **Settings**, your notifications, and your profile menu at its foot. Point to an icon to see its name. On a phone, the tab bar at the bottom offers **Home**, **Knowledge**, **Automations**, and **Settings**. **Automations** shows only for Owners, Admins, and Developers, who build automations; Members and Editors don't see it.
 
 On a phone, navigation sits in a rounded capsule floating above the page. Content scrolls behind it, while message fields and page actions stay above it. The capsule hides when the on-screen keyboard opens and returns when you close the keyboard.
 

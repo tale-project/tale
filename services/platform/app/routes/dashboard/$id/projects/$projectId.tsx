@@ -30,9 +30,10 @@ import {
   type TabNavigationItem,
 } from '@/app/components/navigation/tab-navigation';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
-import { isListedForViewer } from '@/app/features/automations/lib/reader-listing';
+import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import {
   clearProjectMemory,
+  isProjectAutomationsPath,
   persistProjectMemory,
 } from '@/app/features/home/lib/project-memory';
 import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
@@ -42,7 +43,6 @@ import {
 } from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { useAbility } from '@/app/hooks/use-ability';
 import { ensureAdaptedQueryData } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -112,8 +112,10 @@ function ProjectDetailLayout() {
   // this project's own root: a route change updates `location.pathname` (and
   // re-runs this effect) on the render just before this component unmounts,
   // so an unguarded write would persist wherever the user navigated TO,
-  // under THIS project's key.
+  // under THIS project's key. An automation page this viewer may not open
+  // is never remembered: Home would keep reopening the denial.
   const projectRoot = `/dashboard/${organizationId}/projects/${projectId}`;
+  const canUseAutomations = useCanUseAutomations();
   useEffect(() => {
     if (isMissing) return;
     if (
@@ -122,8 +124,17 @@ function ProjectDetailLayout() {
     ) {
       return;
     }
+    if (!canUseAutomations && isProjectAutomationsPath(location.pathname)) {
+      return;
+    }
     persistProjectMemory(organizationId, location.pathname);
-  }, [isMissing, organizationId, location.pathname, projectRoot]);
+  }, [
+    isMissing,
+    organizationId,
+    location.pathname,
+    projectRoot,
+    canUseAutomations,
+  ]);
 
   // A remembered project can be deleted, or left behind by a membership
   // change, between one visit and the next. When the rail RESTORED us here,
@@ -145,17 +156,16 @@ function ProjectDetailLayout() {
   // The Automations tab is conditional: a project with nothing bound gets no
   // tab rather than one that opens an empty list. `listAutomations` scoped to
   // a project is a small indexed read, and the tab strip already re-renders on
-  // `project`, so this costs one extra subscription on the shell. The tab
-  // counts what the list will show this viewer: someone who cannot author
-  // sees deployed automations only, so undeployed drafts alone give no tab.
+  // `project`, so this costs one extra subscription on the shell. Like the
+  // rail's entry, the tab is only ever there for Owners, Admins and
+  // Developers — the automation pages are closed to everyone else, who skip
+  // the read.
   const projectAutomations = useAutomations(
-    organizationId,
+    canUseAutomations ? organizationId : undefined,
     asProjectId(projectId),
   );
-  const canAuthor = useAbility().can('read', 'developerSettings');
-  const hasAutomations = (projectAutomations.data ?? []).some((automation) =>
-    isListedForViewer(automation, canAuthor),
-  );
+  const hasAutomations =
+    canUseAutomations && (projectAutomations.data?.length ?? 0) > 0;
 
   // Bound automations used to contribute one first-class tab per bundled view
   // (the operator surfaces, e.g. a desk automation). The new engine has no views

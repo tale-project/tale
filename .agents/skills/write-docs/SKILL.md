@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: Write, reorganize, or review end-user documentation, navigation, examples, and screenshots. Ground instructions in the running product, choose structure for the reader's task, and verify the rendered result. Use for docs content and its structural checks; use write-translations as well for localized content.
+description: Write, reorganize, or review end-user documentation, navigation, examples, and screenshots, including moving, renaming, merging or deleting a page (which needs a redirect). Ground instructions in the running product, choose structure for the reader's task, and verify the rendered result. Use for docs content and its structural checks; use write-translations as well for localized content.
 ---
 
 # Write documentation people can use

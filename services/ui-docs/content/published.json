@@ -1,0 +1,25 @@
+{
+  "_comment": "Every guide slug ui.tale.dev has ever published, as the path under /docs. Append-only: the content build adds new guides; never remove a line. Each slug must keep answering — as a guide, or through content/redirects.json — so an old link, bookmark or search result never meets a 404. Guarded by services/ui-docs/tests/published.test.ts.",
+  "slugs": [
+    "components/app-shell",
+    "components/button",
+    "components/data-table",
+    "components/dialog",
+    "components/input",
+    "components/recurrence-picker",
+    "components/tabs-and-navigation",
+    "components/toast",
+    "foundations/accessibility",
+    "foundations/colors",
+    "foundations/icons",
+    "foundations/spacing-and-layout",
+    "foundations/typography",
+    "getting-started/i18n",
+    "getting-started/installation",
+    "getting-started/introduction",
+    "getting-started/theming",
+    "marketing-ui/overview",
+    "patterns/list-page",
+    "patterns/settings-page"
+  ]
+}

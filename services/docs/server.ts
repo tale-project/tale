@@ -17,6 +17,7 @@ import {
   startReactServer,
 } from '@tale/ui/server';
 
+import { createNearMissRoute } from './lib/near-miss';
 import { createRedirectRoute } from './lib/redirect-route';
 import { buildRedirectPathMap } from './lib/redirects';
 
@@ -37,8 +38,10 @@ const artifacts = await createPrecompiledServer({
 // Old → new URL paths for moved or merged pages (`docs/redirects.json`)
 // and for section folders without a page of their own (derived from
 // `docs/nav.json`), baked into the bundle at build time. Checked before
-// static serving so stale or guessed links 301 to a real page; an `/en`
-// page alias also pins the English locale cookie.
+// static serving so stale links 301 to a real page; an `/en` page alias
+// also pins the English locale cookie. An address still unanswered after
+// static serving — a retired `/de-CH/…` tree, a title guessed into a slug —
+// is read as a near miss before the 404 page (`lib/near-miss.ts`).
 const redirectPaths = buildRedirectPathMap();
 
 startReactServer({
@@ -55,6 +58,10 @@ startReactServer({
     paths: redirectPaths,
     basePath: BASE_PATH,
     localeCookieDomain: LOCALE_COOKIE_DOMAIN,
+  }),
+  resolveNotFound: createNearMissRoute({
+    paths: redirectPaths,
+    basePath: BASE_PATH,
   }),
   artifacts,
 });

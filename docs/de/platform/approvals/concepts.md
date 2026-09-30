@@ -24,7 +24,7 @@ Auf der Karte kannst du die Aktion nicht bearbeiten. Ist eine Eingabe falsch, le
 
 <Note>
 
-Organisationsmitglieder können über Connector-Aktionen entscheiden. Diese Karten werden keiner bestimmten prüfenden Person oder Gruppe zugewiesen; die Entscheidung erfolgt in den Laufdetails. Für andere Prüfverfahren können strengere Berechtigungen gelten.
+Organisationsmitglieder können über Connector-Aktionen entscheiden. Diese Karten werden keiner bestimmten prüfenden Person oder Gruppe zugewiesen; die Entscheidung erfolgt in den Laufdetails, die nur Inhaber, Admins und Entwickler öffnen. Bearbeitet der Lauf eine Aufgabe, erscheint seine Karte auch in der Aufgabe, und dort entscheidet jede Person, die die Aufgabe öffnen kann. Für andere Prüfverfahren können strengere Berechtigungen gelten.
 
 </Note>
 

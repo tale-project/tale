@@ -20,8 +20,17 @@ troubleshooting, and precise noun headings for reference. A useful “Next steps
 its value comes from its destinations, not an elaborate heading.
 
 Use descriptive link text and link at the moment the reader needs the destination. Internal links
-in localized docs need that locale's prefix. Verify translated heading anchors in the rendered
-page. Keep external URLs fully qualified. Check links from READMEs and app help as well as docs.
+in localized docs need that locale's prefix. Link the page itself, never an address that only
+redirects to it. Verify translated heading anchors in the rendered page. Keep external URLs fully
+qualified. `bun run lint:links` judges every link in both docs sites and every link into them from
+READMEs, app help and the marketing site; run it after any link, heading or page move.
+
+A published address never goes away. To move, merge or delete a page, follow the site's retirement
+procedure: [docs](../../../docs/AGENTS.md#retire-rename-or-merge-a-page) or
+[ui-docs](../../../services/ui-docs/content/README.md). In short, add a `redirects.json` entry for
+the old slug that points at the page answering the same task. Keep its line in `published.json`,
+and point the links `bun run lint:links` reports at the new page. The lint compares the change with
+its base commit and refuses a retired page that answers 404 or a deleted ledger line.
 
 ## Examples
 

@@ -11,6 +11,7 @@ import {
   dismissReviewRequestNotifications,
   dismissTriggerPausedNotifications,
   markAllNotificationsRead,
+  notifyAgentQuestionAsked,
   notifyTaskComment,
   notifyTaskMentions,
   notifyTaskReviewerAssigned,
@@ -673,5 +674,88 @@ describe('the paused-schedule notice (automation_failed)', () => {
         entityId: null,
       },
     ]);
+  });
+});
+
+describe('the agent-question bell (agent_escalation)', () => {
+  /** A stand-in that also serves the project lookup's `db.unsafe` column. */
+  function fakeAskDb(teamIds: string[]): {
+    db: Sql;
+    calls: { text: string; values: unknown[] }[];
+  } {
+    const calls: { text: string; values: unknown[] }[] = [];
+    const tag = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<Row[]> => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      calls.push({ text, values });
+      if (text.includes('FROM app.projects')) {
+        return Promise.resolve([{ teamIds }]);
+      }
+      if (text.includes('FROM "member"')) {
+        return Promise.resolve([{ userId: 'dev-1' }]);
+      }
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        return Promise.resolve([{ id: 'n-1' }]);
+      }
+      return Promise.resolve([]);
+    };
+    const db = Object.assign(tag, {
+      json: (value: unknown) => value,
+      unsafe: (value: string) => value,
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a three-member stand-in for the postgres.js template function
+    return { db: db as unknown as Sql, calls };
+  }
+
+  const ASK = {
+    organizationId: 'org-1',
+    askId: 'ask-1',
+    runId: 'run-1',
+    question: 'Which ledger account applies?',
+    automationLabel: 'ops/ledger',
+  };
+
+  const audience = (calls: { text: string; values: unknown[] }[]) =>
+    calls.find((c) => c.text.includes('FROM "member"'));
+
+  // Only the run page answers a question with no task, and only Owners,
+  // Admins and Developers may open it: asking anyone else is a dead end.
+  it.each([
+    ['an org-wide project', [] as string[]],
+    ['a project shared with teams', ['team-1']],
+  ])(
+    'asks only Owners, Admins and Developers about a run with no task in %s',
+    async (_label, teamIds) => {
+      const fake = fakeAskDb(teamIds);
+
+      await expect(
+        notifyAgentQuestionAsked(fake.db, {
+          ...ASK,
+          task: null,
+          projectId: 'proj-1',
+        }),
+      ).resolves.toBe(1);
+
+      const members = audience(fake.calls);
+      expect(members?.text).toContain(
+        `"role" IN ('owner', 'admin', 'developer')`,
+      );
+      expect(members?.values).toContain(false);
+    },
+  );
+
+  // A task-bound question is answered on the task, which everyone who can
+  // see the project opens.
+  it('asks everyone who can see the project about a task-bound run', async () => {
+    const fake = fakeAskDb([]);
+
+    await notifyAgentQuestionAsked(fake.db, {
+      ...ASK,
+      task: { id: 'task-1', title: 'Book the invoices', projectId: 'proj-1' },
+    });
+
+    expect(audience(fake.calls)?.values).toContain(true);
   });
 });

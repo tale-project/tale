@@ -2,6 +2,8 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AbilityContext } from '@/app/context/ability-context';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { render, screen } from '@/tests/utils/render';
 
 import { TaskActorName } from './task-actor-preview-popover';
@@ -50,4 +52,58 @@ describe('TaskActorName', () => {
 
     expect(screen.getByRole('button', { name: 'Writer' })).toBeInTheDocument();
   });
+});
+
+// One ability per platform role, built once: a context value constructed in
+// JSX would be a fresh object on every render.
+const abilities = {
+  owner: defineAbilityFor('owner'),
+  admin: defineAbilityFor('admin'),
+  developer: defineAbilityFor('developer'),
+  editor: defineAbilityFor('editor'),
+  member: defineAbilityFor('member'),
+};
+type Role = keyof typeof abilities;
+
+// A workflow's View link opens an automation page, which only Owners, Admins
+// and Developers may use; everyone else keeps the name and description.
+describe('TaskActorName for a workflow actor', () => {
+  function renderWorkflow(role: Role) {
+    return render(
+      <AbilityContext.Provider value={abilities[role]}>
+        <TaskActorName
+          name="Mail sync"
+          preview={{
+            kind: 'workflow',
+            name: 'Mail sync',
+            description: 'Pulls new mail.',
+            viewTo: '/dashboard/$id/automations/$automationSlug',
+            viewParams: { id: 'org_1', automationSlug: 'mail-sync' },
+          }}
+        />
+      </AbilityContext.Provider>,
+    );
+  }
+
+  it('links a developer to the automation', async () => {
+    const { user } = renderWorkflow('developer');
+    await user.hover(screen.getByRole('button', { name: 'Mail sync' }));
+
+    expect(
+      await screen.findByRole('link', { name: 'tasks.timeline.viewWorkflow' }),
+    ).toHaveAttribute('href', '/dashboard/$id/automations/$automationSlug');
+  });
+
+  it.each(['editor', 'member'] as const)(
+    'offers the %s role no link into Automations',
+    async (role) => {
+      const { user } = renderWorkflow(role);
+      await user.hover(screen.getByRole('button', { name: 'Mail sync' }));
+
+      expect(await screen.findByText('Pulls new mail.')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: 'tasks.timeline.viewWorkflow' }),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

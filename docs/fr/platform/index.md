@@ -8,7 +8,7 @@ Ces guides expliquent comment travailler dans Tale, dans le Cloud ou sur ton pro
 
 ## Passer d’une section à l’autre {#navigation}
 
-Sur ordinateur, la barre de navigation à gauche présente les sections sous forme d’icônes : **Accueil**, **Connaissances** et **Automatisations**. En bas de cette barre se trouvent **Paramètres**, tes notifications et ton menu de profil. Survole une icône pour lire son nom. Sur téléphone, la barre d’onglets en bas de l’écran propose **Accueil**, **Connaissances**, **Automatisations** et **Paramètres**. Les rôles Propriétaire, Admin et Développeur, qui construisent les automatisations, voient toujours **Automatisations** ; les autres la voient dès que l’organisation a une automatisation à l’échelle de l’organisation en service. Les automatisations liées à un projet apparaissent dans l’onglet de ce projet.
+Sur ordinateur, la barre de navigation à gauche présente les sections sous forme d’icônes : **Accueil**, **Connaissances** et **Automatisations**. En bas de cette barre se trouvent **Paramètres**, tes notifications et ton menu de profil. Survole une icône pour lire son nom. Sur téléphone, la barre d’onglets en bas de l’écran propose **Accueil**, **Connaissances**, **Automatisations** et **Paramètres**. Seuls les rôles Propriétaire, Admin et Développeur, qui construisent les automatisations, voient **Automatisations** ; les Membres et les Éditeurs ne la voient pas.
 
 Sur téléphone, la navigation flotte au-dessus de la page dans une barre arrondie. Le contenu défile derrière elle, tandis que les champs de message et les actions de la page restent accessibles au-dessus. La barre disparaît quand le clavier à l’écran s’ouvre et réapparaît quand tu le fermes.
 

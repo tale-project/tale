@@ -1,0 +1,4 @@
+{
+  "_comment": "Old slug → new slug for every moved, merged or deleted guide. Slugs are the paths under /docs (e.g. \"components/button\"). /docs itself and every section folder (/docs/components) are derived from nav.json and need no entry. Every slug in published.json must keep answering: when you move, merge or delete a guide, add its old slug here. Guarded by services/ui-docs/tests/redirects.test.ts and services/ui-docs/tests/published.test.ts.",
+  "redirects": {}
+}

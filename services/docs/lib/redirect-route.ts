@@ -1,11 +1,14 @@
 /**
- * The docs server's redirect route: answers every address `resolveRedirect`
- * maps (moved pages, section folders, `/en` and localized `llms.txt`
- * aliases) with a 301 that stays under the public mount prefix and keeps
- * the query string. Kept apart from `lib/redirects.ts` because that module
- * also feeds the prerender script, which needs no HTTP or cookie code.
+ * The docs server's 301 route: answers every address `resolveRedirect` maps
+ * (moved pages, section folders, `/en` and localized `llms.txt` aliases)
+ * before static serving, under the public mount prefix with the query
+ * string kept; a page that moved to another site is sent there as is. What
+ * is still unanswered after static serving goes to `lib/near-miss.ts`. Kept
+ * apart from `lib/redirects.ts` because that module also feeds the
+ * prerender script, which needs no HTTP or cookie code.
  */
 
+import { redirectLocation } from '@tale/ui/docs/redirects';
 import { serializeLocaleCookie } from '@tale/ui/i18n/cookie';
 import { isSecureRequest } from '@tale/ui/server';
 
@@ -31,7 +34,7 @@ export function createRedirectRoute({
     const target = resolveRedirect(url.pathname, paths);
     if (!target) return null;
     const headers = new Headers({
-      Location: `${basePath}${target}${url.search}`,
+      Location: redirectLocation(target, basePath, url.search),
     });
     // `/en/<page>` names English, but its unprefixed target is negotiated
     // again: pin the English cookie so a `de`/`fr` cookie or Accept-Language

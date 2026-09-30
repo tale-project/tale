@@ -10,6 +10,7 @@ accessDenied:
   branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
     zuzugreifen.
   knowledge: Du hast keine Berechtigung, auf Wissen zuzugreifen.
+  automations: Automatisierungen sind Inhabern, Admins und Entwicklern vorbehalten.
   workspaceNotFound: Dieser Workspace existiert nicht oder wurde entfernt.
   disabled: Dein Konto ist deaktiviert. Kontaktiere den Support.
   noMembership: Du bist kein Mitglied dieses Workspace. Wende dich an einen Administrator.
@@ -602,9 +603,6 @@ automations:
     empty:
       title: Noch keine Automatisierungen
       description: Wähle „Automatisierung erstellen“, um mit einem Trigger und einem Agenten zu beginnen oder ein Paket hochzuladen.
-    emptyReader:
-      title: Keine Automatisierungen live
-      description: Eine Automatisierung erscheint hier, sobald sie jemand mit der Rolle Inhaber, Admin oder Entwickler live schaltet.
   createMenu:
     blank: Leer (Trigger + Agent)
   blank:

@@ -1,6 +1,6 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 24 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 27 boxes
 
 Exercise every way a reader moves through the docs — the navigation rail
 (`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
@@ -96,7 +96,8 @@ this guide focuses on **behaviour**, not link rot.
   `{base}/platform/workflows/triggers`,
   `{base}/platform/conversations/overview` → Each answers **HTTP 301** with
   `Location:` on the new slug — `…/platform/connectors/overview`,
-  `…/platform/automations/triggers`, `…/platform/automations/builtin`;
+  `…/platform/automations/triggers`, `…/platform` (where Home documents the
+  Inbox);
   locale-preserving: `{base}/de/platform/integrations/overview` 301s to
   `{base}/de/platform/connectors/overview` (map: `docs/redirects.json`, served
   by `server.ts` before static files)
@@ -150,14 +151,39 @@ this guide focuses on **behaviour**, not link rot.
   `{base}/en/platform/workspace/skills` → The **English** Skills page renders at
   `{base}/platform/workspace/skills` and the language switcher shows English;
   opening `{base}/platform/automations/concepts` afterwards stays English too.
+- [ ] `NAV-F18` · **Retired regional trees** — Built server only — `curl -sIL`
+  `{base}/de-CH/platform/admin/members-and-roles`, `{base}/de-AT/use/chat/basics`
+  and `{base}/fr-CH/cloud/billing` → Each ends on **HTTP 200** at the base
+  locale's page — `…/de/platform/admin/members-and-roles`,
+  `…/de/platform/chat/basics`, `…/fr/cloud/billing` — through **301**s, never a
+  404 (the regional trees were published until 2026; `lib/near-miss.ts` folds
+  them).
+- [ ] `NAV-F19` · **Guessed addresses land** — Built server only — `curl -sI`
+  the addresses a language model guessed from page titles:
+  `{base}/de/verwaltung/mitglieder-und-rollen`,
+  `{base}/de/platform/automations/automation-concepts`,
+  `{base}/de/self-hosted/configuration/retention-limits`,
+  `{base}/platform/chat/basicz` → Each answers **HTTP 302** to the page it
+  means — `…/de/platform/admin/members-and-roles`,
+  `…/de/platform/automations/concepts`,
+  `…/de/self-hosted/configuration/retention`, `…/platform/chat/basics`; an
+  address no page is clearly closest to (`{base}/de/foo/bar-baz`) still answers
+  **404**, and so does a missing script (`{base}/assets/missing.js`).
+- [ ] `NAV-F20` · **Addresses from earlier docs** — Built server only —
+  `curl -sI` `{base}/quickstart`, `{base}/use/chat/basics` and
+  `{base}/de/legal/privacy-policy` → **HTTP 301** to
+  `…/self-hosted/install/quickstart`, `…/platform/chat/basics` and
+  `https://tale.dev/de/legal/privacy-policy` (every slug in `docs/published.json`
+  keeps answering; `tests/published.test.ts` proves all of them).
 
 ## Boundary & error tests
 
-- [ ] `NAV-B1` · **Unknown URL** — Open `{base}/platform/chat/basicz` (typo) →
+- [ ] `NAV-B1` · **Unknown URL** — Open `{base}/platform/chat/zzzz` (no page is
+  close; a near miss like `…/basicz` lands on its page instead, `NAV-F19`) →
   The styled 404 renders **inside the docs shell**: heading **Page not found**
   (`docs.notFound.title`), body `docs.notFound.body`, a **Did you mean** list
-  (`docs.notFound.suggestions`) whose Levenshtein-closest suggestion includes
-  `platform/chat/basics`, and a **Back to docs home** button
+  (`docs.notFound.suggestions`) ranked by the server's near-miss scorer — the
+  Chat pages, `platform/chat/basics` among them — and a **Back to docs home** button
   (`docs.notFound.backHome`)
 - [ ] `NAV-B2` · **Deep garbage URL** — Open `{base}/x/y/z/deep/garbage` →
   Same 404 page; suggestions still render (fallback list); no crash, no blank

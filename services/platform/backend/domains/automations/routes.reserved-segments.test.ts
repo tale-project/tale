@@ -37,7 +37,14 @@ function fixedPageSegments(): string[] {
       (entry) =>
         entry.endsWith('.tsx') &&
         !entry.startsWith('$') &&
-        entry !== 'index.tsx',
+        entry !== 'index.tsx' &&
+        // The directory's own layout (the access gate), not a page: it adds
+        // no URL segment.
+        entry !== 'route.tsx' &&
+        // What the route generator skips (`tsr.config.json`): tests and
+        // `-`-prefixed helpers are no routes at all.
+        !entry.includes('.test.') &&
+        !entry.startsWith('-'),
     )
     .map((entry) => entry.replace(/\.tsx$/, ''));
 }

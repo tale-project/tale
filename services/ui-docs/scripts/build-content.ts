@@ -4,11 +4,15 @@
 //  - `app/content/frontmatter.json` — every page's frontmatter keyed by slug,
 //    imported synchronously by the loader so the rail, the breadcrumbs and
 //    prev/next resolve titles without pulling a single page body.
+//
+// and appends any new guide to `content/published.json`, the append-only
+// ledger of every guide address the site has served.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { recordPublishedSlugs } from '@tale/ui/docs/published';
 import {
   buildSearchIndex,
   stripMarkdown,
@@ -20,6 +24,7 @@ import { listAllContent, type ContentRecord } from './walk-content';
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = resolve(SCRIPT_DIR, '..', 'public');
 const CONTENT_DIR = resolve(SCRIPT_DIR, '..', 'app', 'content');
+const PUBLISHED_FILE = resolve(SCRIPT_DIR, '..', 'content', 'published.json');
 
 function toSearchDoc(record: ContentRecord): SearchDoc {
   const headings: string[] = [];
@@ -71,6 +76,17 @@ async function main() {
     JSON.stringify(manifest, null, 2) + '\n',
   );
   process.stdout.write(`built frontmatter manifest: ${records.length} pages\n`);
+
+  // The append-only ledger of guide addresses: a guide this build publishes
+  // is recorded for good, so `tests/published.test.ts` fails if it later
+  // moves or goes away without a `content/redirects.json` entry.
+  const added = await recordPublishedSlugs(
+    PUBLISHED_FILE,
+    records.map((record) => record.slug),
+  );
+  if (added.length > 0) {
+    process.stdout.write(`recorded new published slugs: ${added.join(', ')}\n`);
+  }
 }
 
 await main();

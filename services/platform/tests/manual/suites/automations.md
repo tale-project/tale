@@ -570,19 +570,20 @@ output:
       reload, and no run starts at the next minute. Turn **Enabled** on and
       **Save** → the banner and the streak line are gone, and the next
       failure counts from one.
-- [ ] `AUTO-F53` · **What a reader's list shows** — As a Member or Editor, open
-      **Automations** (use its direct URL when the navigation entry is hidden) →
-      only deployed automations are listed (no **Not
-      deployed** rows, no **Create automation** button); with none deployed
-      the empty state reads **No live automations**
-      (`automations.list.emptyReader.title`) with
-      `automations.list.emptyReader.description`. An Owner, Admin or Developer
-      in the same organization sees every automation, and an empty list tells
-      them `automations.list.empty.description` (use **Create automation**).
-      In a project whose only bound automation is an undeployed draft, the
-      Member's project tab strip has no **Automations** tab while the author's
-      does; once that automation is deployed the tab appears for the Member
-      and lists it.
+- [ ] `AUTO-F53` · **Readers get no Automations** — In a project with a
+      deployed bound automation that has run on a task, sign in as a Member,
+      then as an Editor, and open the org list, an automation's
+      `…/{slug}/runs` and the project's `…/automations` by their URLs →
+      each shows **Access denied** (`accessDenied.title`) with
+      `accessDenied.automations`, and the browser tab never names the
+      automation; the project's tab strip has no **Automations** tab
+      (`automations.title`). On the task, the run's details show its steps
+      without **Open the full run** (`tasks.run.openFull`), and the
+      automation's name in the timeline shows no **View automation**
+      (`tasks.timeline.viewWorkflow`); choose **Home** in the rail after the
+      project URL → the project's own page or the chat opens, never the
+      denial. An Owner, Admin or Developer gets every page, the tab and both
+      links.
 - [ ] `AUTO-F54` · **An agent node creates an image into its output** — With
       **Image generation** on ([governance.md](governance.md) GOV-F38), test-run
       an automation whose `agent` node asks for "a landscape banner saved as

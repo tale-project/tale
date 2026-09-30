@@ -51,6 +51,12 @@ export interface CompileArtifactsParams {
   siteTitle: string;
   /** llms.txt blockquote shown right under the title. */
   siteDescription: string;
+  /**
+   * llms.txt paragraphs between the blockquote and the first section — the
+   * spec's place for how to read the index (for docs: how the locale trees
+   * are addressed, so an agent never has to guess).
+   */
+  preamble?: string;
   /** Page groups. Flattened into both the sitemap and the llms.txt index. */
   sections: readonly ArtifactSection[];
   /** Cross-link entries listed under llms.txt's trailing `## Optional`. */
@@ -86,6 +92,7 @@ export function compileArtifacts(
   const {
     siteTitle,
     siteDescription,
+    preamble,
     sections,
     optionalPages,
     robots,
@@ -108,6 +115,7 @@ export function compileArtifacts(
     buildLlmsTxt({
       siteTitle,
       siteDescription,
+      preamble,
       sections: sections
         .filter((s) => !s.hideFromIndex)
         .map((s) => ({
@@ -217,7 +225,8 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
     }
   >
 > {
-  const { siteUrl, siteTitle, siteDescription, robots, loadBody } = params;
+  const { siteUrl, siteTitle, siteDescription, preamble, robots, loadBody } =
+    params;
   const plugins = params.plugins ?? defaultPlugins();
 
   const resolved: ResolvedRoutes = {
@@ -247,6 +256,7 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
     siteUrl,
     siteTitle,
     siteDescription,
+    preamble,
     robots,
     routes: async () => resolved,
     body: bodyFor,
