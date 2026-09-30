@@ -108,6 +108,11 @@ export interface WebsitesContract {
     args: { organizationId: string };
     returns: number;
   };
+  'websites/queries:searchReadiness': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: { ready: boolean };
+  };
   'websites/queries:listWebsites': {
     kind: 'query';
     args: { organizationId: string };

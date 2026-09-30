@@ -7117,7 +7117,8 @@ settings:
       banner:
         title: Knowledge search is off
         body: This organization has an AI provider but no embedding model, so
-          documents cannot be indexed or searched.
+          documents cannot be indexed and neither documents nor websites can
+          be searched.
         link: Choose an embedding model
       recommendationBody:
         Your {provider} credential can serve {model} ({dimensions}-dimensional
@@ -8109,6 +8110,11 @@ websites:
   resumeScanning: Resume scanning
   scanNow: Scan now
   indexed: Indexed
+  searchNotice:
+    title: Chat can't search these websites yet
+    description: Pages are crawled and stored, but knowledge search needs a working embedding model, and this organization doesn't have one yet.
+    configureCta: Configure embedding model
+    askAdmin: Ask an organization admin to set one up under Settings → Data residency.
   pagesDialog:
     title: Website pages
     noPages: No pages crawled yet

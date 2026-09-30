@@ -48,16 +48,33 @@ export function EmbeddingSetupBanner({
   return <EmbeddingSetupNudge organizationId={organizationId} />;
 }
 
-function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
-  const { t } = useT('settings');
+/**
+ * Whether the banner shows for a reader who can read the organization's
+ * settings — `unknown` until both reads have answered. Its own hook so a
+ * page with a nudge of its own (the Websites page) can stay silent where
+ * this one already speaks. Both reads are admin doors: call it only behind
+ * the `read orgSettings` gate.
+ */
+export function useEmbeddingSetupNudge(
+  organizationId: string,
+): 'shown' | 'hidden' | 'unknown' {
   const embeddingQuery = useOrgKnowledgeEmbedding(organizationId);
   const credentialsQuery = useProviderCredentials(organizationId);
 
   // A failed or still-loading read is not evidence of a missing model. Saying
   // "knowledge search is off" on an unknown state is worse than saying nothing.
-  if (embeddingQuery.data === undefined || embeddingQuery.isError) return null;
-  if (embeddingQuery.data.configured) return null;
-  if ((credentialsQuery.data ?? []).length === 0) return null;
+  if (embeddingQuery.isError) return 'hidden';
+  if (embeddingQuery.data === undefined) return 'unknown';
+  if (embeddingQuery.data.configured) return 'hidden';
+  if (credentialsQuery.data === undefined) {
+    return credentialsQuery.isError ? 'hidden' : 'unknown';
+  }
+  return credentialsQuery.data.length > 0 ? 'shown' : 'hidden';
+}
+
+function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
+  const { t } = useT('settings');
+  if (useEmbeddingSetupNudge(organizationId) !== 'shown') return null;
 
   return (
     <ShellAlert>

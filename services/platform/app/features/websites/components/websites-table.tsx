@@ -19,6 +19,7 @@ import {
   useListWebsitesPaginated,
 } from '../hooks/queries';
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
+import { WebsiteSearchNotice } from './website-search-notice';
 import { WebsiteViewDialog } from './website-view-dialog';
 import { WebsitesActionMenu } from './websites-action-menu';
 
@@ -188,37 +189,42 @@ export function WebsitesTable({
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        stickyLayout
-        enableRowSelection
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onRowClick={handleRowClick}
-        actionMenu={
-          <WebsitesActionMenu
-            organizationId={organizationId}
-            createOpen={createOpen}
-            onCreateOpenChange={setCreateOpen}
-          />
-        }
-        emptyState={{
-          icon: Globe,
-          title: tEmpty('websites.title'),
-          description: tEmpty('websites.description'),
-          headingLevel: 2,
-        }}
-        footer={
-          <BulkDeleteBar
-            rowSelection={rowSelection}
-            onClearSelection={handleClearSelection}
-            onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
-            describeFailure={firstFailureDetail}
-          />
-        }
-        {...list.tableProps}
-      />
+      {/* The notice is a sibling above the table inside the list frame: it
+          keeps the page inset and the table keeps the remaining height. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-6">
+        <WebsiteSearchNotice organizationId={organizationId} />
+        <DataTable
+          columns={columns}
+          stickyLayout
+          enableRowSelection
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          onRowClick={handleRowClick}
+          actionMenu={
+            <WebsitesActionMenu
+              organizationId={organizationId}
+              createOpen={createOpen}
+              onCreateOpenChange={setCreateOpen}
+            />
+          }
+          emptyState={{
+            icon: Globe,
+            title: tEmpty('websites.title'),
+            description: tEmpty('websites.description'),
+            headingLevel: 2,
+          }}
+          footer={
+            <BulkDeleteBar
+              rowSelection={rowSelection}
+              onClearSelection={handleClearSelection}
+              onDeleteItem={handleDeleteItem}
+              onDeleteComplete={handleClearSelection}
+              describeFailure={firstFailureDetail}
+            />
+          }
+          {...list.tableProps}
+        />
+      </div>
 
       {viewedRecord && (
         <WebsiteViewDialog

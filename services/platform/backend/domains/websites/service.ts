@@ -23,6 +23,7 @@ import {
   fetchWebsiteInfoFromCorpus,
   isMemberDomain,
   listPageChunks,
+  listVectorlessDomains,
   listWebsitePages,
   registerDomain,
   registerUrlList,
@@ -1205,6 +1206,44 @@ export function needsStatusSync(website: WebsiteRow): boolean {
       ? website.metadata.lastStatusSyncAt
       : 0;
   return Date.now() - lastSyncAt > STATUS_SYNC_INTERVAL_MS;
+}
+
+/**
+ * What a change of the organization's embedding model means for its
+ * websites: the Websites page re-reads whether search can reach them, and —
+ * when a model was saved — every site that a scan can now do better by is
+ * scanned: the ones whose pages were chunked without vectors (the scan is
+ * what embeds them) and the ones whose last scan failed. Without this a
+ * site added before the model kept waiting for its own interval, up to
+ * thirty days, to become searchable by meaning.
+ */
+export async function websitesAfterEmbeddingChange(
+  sql: Sql,
+  organizationId: string,
+  change: 'saved' | 'removed',
+): Promise<{ queued: number }> {
+  await emitHintInTx(sql, {
+    orgId: organizationId,
+    entity: 'website',
+    entityId: null,
+  });
+  if (change === 'removed') return { queued: 0 };
+  const orgSlug = await resolveOrgSlug(sql, organizationId);
+  if (!orgSlug) return { queued: 0 };
+  const pool = await getKnowledgePoolForOrg(orgSlug);
+  const vectorless = new Set(await listVectorlessDomains(pool, orgSlug));
+  const rows = await sql<WebsiteRow[]>`
+    SELECT ${sql.unsafe(WEBSITE_COLUMNS)} FROM app.websites
+    WHERE org_id = ${organizationId}
+    ORDER BY created_at_ms ASC
+  `;
+  let queued = 0;
+  for (const website of rows) {
+    if (scanPausedAt(website.metadata ?? undefined) !== null) continue;
+    if (website.status !== 'error' && !vectorless.has(website.domain)) continue;
+    if ((await scanWebsiteNow(sql, website)).queued) queued += 1;
+  }
+  return { queued };
 }
 
 /** Interval change → corpus cadence sync (silent no-op when the org never

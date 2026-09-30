@@ -237,6 +237,24 @@ export async function registerUrlList(
   });
 }
 
+/**
+ * The organization's domains holding chunks without a vector — pages indexed
+ * while it had no embedding model, which a scan embeds once it has one.
+ */
+export async function listVectorlessDomains(
+  sql: Sql,
+  orgSlug: string,
+): Promise<string[]> {
+  const rows = await sql.unsafe<{ domain: string }[]>(
+    `SELECT DISTINCT c.domain
+       FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+       JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m ON m.domain = c.domain
+      WHERE m.org_slug = $1 AND c.embedding IS NULL`,
+    [orgSlug],
+  );
+  return rows.map((row) => row.domain);
+}
+
 /** Update the scan cadence on the domain row. */
 export async function setScanInterval(
   sql: Sql,

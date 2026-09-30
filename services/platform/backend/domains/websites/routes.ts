@@ -9,6 +9,7 @@ import { requireSession } from '../../auth/session.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { websiteSearchReady } from './search-readiness.ts';
 import {
   countWebsites,
   deregisterAndDeleteWebsite,
@@ -139,6 +140,14 @@ export function createWebsiteRoutes(deps: {
   app.post('/sync-statuses', async (c) => {
     await syncWebsiteStatuses(deps.sql, c.get('orgId'));
     return c.json({ ok: true });
+  });
+
+  // Whether the assistant can search what the crawl stores — the fact the
+  // Websites page states when it cannot (no embedding model).
+  app.get('/search-readiness', async (c) => {
+    return c.json({
+      ready: await websiteSearchReady(deps.sql, c.get('orgId')),
+    });
   });
 
   app.get('/:websiteId', async (c) => {

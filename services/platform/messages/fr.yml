@@ -7082,8 +7082,8 @@ settings:
       banner:
         title: La recherche de connaissances est coupée
         body: Cette organisation a un fournisseur IA mais aucun modèle
-          d'embedding, donc les documents ne peuvent être ni indexés ni
-          cherchés.
+          d'embedding, donc les documents ne peuvent pas être indexés, et ni
+          les documents ni les sites web ne peuvent être cherchés.
         link: Choisir un modèle d'embedding
       recommendationBody:
         Ton identifiant {provider} peut servir {model} (vecteurs à {dimensions}
@@ -8120,6 +8120,11 @@ websites:
   resumeScanning: Reprendre l'analyse
   scanNow: Analyser maintenant
   indexed: Indexé
+  searchNotice:
+    title: Le chat ne peut pas encore chercher dans ces sites web
+    description: Les pages sont explorées et enregistrées, mais la recherche de connaissances a besoin d'un modèle d'embedding qui fonctionne, et cette organisation n'en a pas encore.
+    configureCta: Configurer le modèle d'embedding
+    askAdmin: Demande à un administrateur de ton organisation d'en configurer un sous Paramètres → Résidence des données.
   pagesDialog:
     title: Pages du site web
     noPages: Aucune page explorée pour le moment

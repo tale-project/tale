@@ -6977,8 +6977,8 @@ settings:
       banner:
         title: Wissenssuche ist aus
         body: Diese Organisation hat einen KI-Anbieter, aber kein
-          Embedding-Modell — Dokumente lassen sich weder indexieren noch
-          durchsuchen.
+          Embedding-Modell — Dokumente lassen sich nicht indexieren, und
+          weder Dokumente noch Websites lassen sich durchsuchen.
         link: Embedding-Modell wählen
       recommendationBody:
         Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
@@ -8014,6 +8014,11 @@ websites:
   resumeScanning: Scans fortsetzen
   scanNow: Jetzt scannen
   indexed: Indexiert
+  searchNotice:
+    title: Der Chat kann diese Websites noch nicht durchsuchen
+    description: Die Seiten werden gecrawlt und gespeichert. Die Wissenssuche braucht aber ein funktionierendes Embedding-Modell, und diese Organisation hat noch keines.
+    configureCta: Embedding-Modell konfigurieren
+    askAdmin: Bitte einen Admin deiner Organisation, eines unter Einstellungen → Datenresidenz einzurichten.
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt
