@@ -107,6 +107,7 @@ import {
 import { type PageFailureKind, PAGE_SKIP_KINDS_SQL } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, admitUrls, reviveListedUrls } from './crawl';
+import { crawlDocumentMaxBytes } from './crawl_limits';
 import {
   CRAWLER_PRODUCT_TOKEN,
   crawlerRequestHeaders,
@@ -147,10 +148,11 @@ const PAGE_MAX_BYTES = 2 * 1024 * 1024;
 const SITEMAP_MAX_BYTES = 8 * 1024 * 1024;
 
 /** Content fetch budgets. Documents run far fatter and slower than HTML
- * pages (a consolidated legal handbook PDF is megabytes), so the page fetch
- * gets its own timeout and cap. */
+ * pages (a consolidated legal handbook PDF is megabytes, a brochure tens),
+ * so the page fetch gets its own timeout and cap — the cap the operator's
+ * `KNOWLEDGE_CRAWL_DOCUMENT_MAX_BYTES`, read once at boot. */
 const PAGE_FETCH_TIMEOUT_MS = 30_000;
-const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;
+const DOCUMENT_MAX_BYTES = crawlDocumentMaxBytes();
 
 /** Render lane budgets. HTML pages are rendered in a sandboxed browser in
  * batches; the node action's hard kill sits near ten minutes, so a link
