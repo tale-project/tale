@@ -645,6 +645,14 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null),
     invalidate: invalidateWebsites,
   },
+  'websites/actions:scanNow': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean; queued: boolean }>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}/scan`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then((body) => ({ queued: body.queued })),
+    invalidate: invalidateWebsites,
+  },
   'websites/actions:syncStatuses': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>('/websites/sync-statuses', {

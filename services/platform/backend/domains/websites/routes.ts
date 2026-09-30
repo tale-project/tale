@@ -20,6 +20,7 @@ import {
   patchWebsite,
   registerWebsite,
   resumeScanning,
+  scanWebsiteNow,
   searchWebsiteContent,
   syncScanIntervalToCorpus,
   syncWebsiteStatuses,
@@ -199,6 +200,18 @@ export function createWebsiteRoutes(deps: {
       const website = await loadOwnedWebsite(deps.sql, c);
       await resumeScanning(deps.sql, website);
       return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:websiteId/scan', async (c) => {
+    try {
+      const website = await loadOwnedWebsite(deps.sql, c);
+      return c.json({
+        ok: true,
+        ...(await scanWebsiteNow(deps.sql, website)),
+      });
     } catch (error) {
       return handleError(c, error);
     }

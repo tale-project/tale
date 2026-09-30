@@ -67,6 +67,11 @@ export interface WebsitesContract {
     args: { websiteId: string };
     returns: null;
   };
+  'websites/actions:scanNow': {
+    kind: 'action';
+    args: { websiteId: string };
+    returns: { queued: boolean };
+  };
   'websites/actions:searchContent': {
     kind: 'action';
     args: { limit?: number; query: string; websiteId: string };

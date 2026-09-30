@@ -1242,27 +1242,57 @@ export async function deregisterAndDeleteWebsite(
   await deleteWebsiteRow(sql, website.id);
 }
 
+/**
+ * Put a site back on the crawl now: the row reads `scanning`, its failure
+ * bookkeeping is cleared and a scan is queued — in one transaction, so a row
+ * never reads `scanning` without the job that will scan it.
+ */
+async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
+  const orgSlug = await requireSlug(sql, website.organizationId);
+  await sql.begin(async (tx) => {
+    await patchWebsite(tx, {
+      websiteId: website.id,
+      status: 'scanning',
+      metadata: {
+        scanPausedAt: null,
+        corpusConnectionFailures: null,
+        lastScanAttemptAt: null,
+        lastSyncError: null,
+      },
+    });
+    await addJobInTx(tx, 'websites.scan', {
+      domain: website.domain,
+      orgSlug,
+      organizationId: website.organizationId,
+    });
+  });
+}
+
 /** Resume paused scans and kick a verification scan now (the 0.4 twin). */
 export async function resumeScanning(
   sql: Sql,
   website: WebsiteRow,
 ): Promise<void> {
-  await patchWebsite(sql, {
-    websiteId: website.id,
-    status: 'scanning',
-    metadata: {
-      scanPausedAt: null,
-      corpusConnectionFailures: null,
-      lastScanAttemptAt: null,
-      lastSyncError: null,
-    },
-  });
-  const orgSlug = await requireSlug(sql, website.organizationId);
-  await addJobInTx(sql, 'websites.scan', {
-    domain: website.domain,
-    orgSlug,
-    organizationId: website.organizationId,
-  });
+  await queueScan(sql, website);
+}
+
+/**
+ * Scan a site now, on a reader's word, instead of at its next interval: the
+ * retry after a failed scan, which otherwise waits out the failure cadence
+ * (up to two hours) or takes deleting and re-adding the site. A site that is
+ * already scanning, or being deleted, is left as it is — the corpus claim
+ * would turn a second scan away anyway — and the answer says nothing was
+ * queued.
+ */
+export async function scanWebsiteNow(
+  sql: Sql,
+  website: WebsiteRow,
+): Promise<{ queued: boolean }> {
+  if (website.status === 'scanning' || website.status === 'deleting') {
+    return { queued: false };
+  }
+  await queueScan(sql, website);
+  return { queued: true };
 }
 
 // --------------------------------------------------------- corpus reads
@@ -1331,6 +1361,49 @@ export async function runWebsitesScanDue(sql: Sql): Promise<void> {
   await scanDueWebsitesImpl(crawlCtx(sql));
 }
 
+/**
+ * Give a whole-site row the corpus registration it is missing. A
+ * registration that failed (the knowledge database was unreachable when the
+ * site was added) used to be permanent: every later scan found nothing to
+ * claim and the row said "delete it and add it again" for good. A site
+ * needs only its domain and interval to register, so the scan that finds
+ * the membership missing writes it. A URL list cannot be restored here —
+ * its URLs were the registration — and keeps that instruction.
+ */
+async function restoreSiteRegistration(
+  sql: Sql,
+  payload: { domain: string; orgSlug: string; organizationId: string },
+): Promise<void> {
+  try {
+    const website = await getWebsiteByDomain(
+      sql,
+      payload.organizationId,
+      payload.domain,
+    );
+    if (!website || website.kind === 'list' || website.status === 'deleting') {
+      return;
+    }
+    const pool = await getKnowledgePoolForOrg(payload.orgSlug);
+    if (await isMemberDomain(pool, payload.orgSlug, payload.domain)) return;
+    await registerDomain(
+      pool,
+      payload.orgSlug,
+      payload.domain,
+      scanIntervalToSeconds(website.scanInterval),
+    );
+    console.log(
+      `[websites] ${payload.domain}: corpus registration restored before its scan`,
+    );
+  } catch (error) {
+    // Only the repair is skipped: the scan that follows reports an
+    // unreachable corpus itself and counts it toward the pause.
+    console.warn(
+      `[websites] ${payload.domain}: corpus registration could not be checked:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
 /** One continuation link of a domain scan (the reused engine body). */
 export async function runWebsitesScan(
   sql: Sql,
@@ -1342,6 +1415,9 @@ export async function runWebsitesScan(
     scanStartedAt?: string;
   },
 ): Promise<void> {
+  if ((payload.continuation ?? 0) === 0) {
+    await restoreSiteRegistration(sql, payload);
+  }
   await scanWebsiteImpl(crawlCtx(sql), payload);
 }
 

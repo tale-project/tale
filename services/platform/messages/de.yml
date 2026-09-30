@@ -7982,6 +7982,8 @@ websites:
     fetchPagesError: Seiten konnten nicht geladen werden
     searchError: Suche fehlgeschlagen
     deleteError: Website konnte nicht gelöscht werden
+    scanStarted: Scan gestartet
+    scanAlreadyRunning: Es läuft bereits ein Scan
   adding: Füge hinzu...
   viewDialog:
     title: Website-Details
@@ -8010,6 +8012,7 @@ websites:
       generic: Nichts wurde indexiert.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
+  scanNow: Jetzt scannen
   indexed: Indexiert
   pagesDialog:
     title: Website-Seiten

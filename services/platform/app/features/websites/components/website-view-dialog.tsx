@@ -20,7 +20,13 @@ import type { StatGridItem } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
-import { FileText, Globe, Play, Search as SearchIcon } from 'lucide-react';
+import {
+  FileText,
+  Globe,
+  Play,
+  RefreshCw,
+  Search as SearchIcon,
+} from 'lucide-react';
 import {
   type RefObject,
   type ChangeEvent,
@@ -44,6 +50,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
+import { useScanNow } from '../hooks/use-scan-now';
 import { indexedPageCount } from '../lib/indexed-page-count';
 import {
   classifyScanError,
@@ -303,6 +310,7 @@ export function WebsiteViewDialog({
   const canWrite = ability.can('write', 'knowledgeWrite');
   const { mutate: resumeScanning } = useResumeScanning();
   const paused = isScanPaused(website);
+  const { available: canScanNow, scanNow } = useScanNow(website);
 
   const [pages, setPages] = useState<CrawlerPage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -597,6 +605,14 @@ export function WebsiteViewDialog({
           icon: Play,
           onClick: () => resumeScanning({ websiteId: website._id }),
           visible: canWrite && paused,
+        },
+        {
+          // A scan outside the interval, as the row menu offers it.
+          key: 'scan',
+          label: t('scanNow'),
+          icon: RefreshCw,
+          onClick: scanNow,
+          visible: canScanNow,
         },
       ]}
       facts={facts}

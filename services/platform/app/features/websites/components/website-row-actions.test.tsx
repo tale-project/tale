@@ -8,6 +8,8 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
 const mockResumeScanning = vi.fn();
+const mockScanNow = vi.fn();
+const mockToast = vi.fn();
 let mockCanWrite = true;
 
 vi.mock('@tale/ui/i18n/client', () => ({
@@ -29,13 +31,14 @@ vi.mock('@/app/hooks/use-ability', () => ({
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
-  toast: vi.fn(),
+  toast: (props: unknown) => mockToast(props),
 }));
 
 vi.mock('../hooks/mutations', () => ({
   useDeleteWebsite: () => ({ mutateAsync: vi.fn() }),
   useUpdateWebsite: () => ({ mutateAsync: vi.fn() }),
   useResumeScanning: () => ({ mutate: mockResumeScanning }),
+  useScanWebsiteNow: () => ({ mutate: mockScanNow }),
 }));
 
 vi.mock('./website-edit-dialog', () => ({
@@ -137,6 +140,94 @@ describe('WebsiteRowActions', () => {
       expect(mockResumeScanning).toHaveBeenCalledWith({
         websiteId: 'website-1',
       });
+    });
+  });
+
+  // A failed scan could only be retried by waiting out the failure cadence
+  // (up to two hours) or by deleting the site and adding it again.
+  describe('scan now', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+      return user;
+    };
+    const failedWebsite = {
+      ...mockWebsite,
+      status: 'error',
+    } as Parameters<typeof WebsiteRowActions>[0]['website'];
+
+    it('offers Scan now between Edit and Delete for a site that is not scanning', async () => {
+      render(<WebsiteRowActions website={failedWebsite} />);
+      await openMenu();
+      expect(
+        screen.getAllByRole('menuitem').map((item) => item.textContent),
+      ).toEqual([
+        'common.actions.view',
+        'common.actions.edit',
+        'websites.scanNow',
+        'common.actions.delete',
+      ]);
+    });
+
+    it.each(['scanning', 'deleting'])(
+      'does not offer it while the site is %s',
+      async (status) => {
+        render(
+          <WebsiteRowActions
+            website={
+              { ...mockWebsite, status } as Parameters<
+                typeof WebsiteRowActions
+              >[0]['website']
+            }
+          />,
+        );
+        await openMenu();
+        expect(screen.queryByText('websites.scanNow')).not.toBeInTheDocument();
+      },
+    );
+
+    it('leaves a paused site to Resume scanning', async () => {
+      render(<WebsiteRowActions website={pausedWebsite} />);
+      await openMenu();
+      expect(screen.queryByText('websites.scanNow')).not.toBeInTheDocument();
+    });
+
+    it('queues a scan and says so', async () => {
+      mockScanNow.mockImplementation(
+        (
+          _args: unknown,
+          options: { onSuccess: (result: { queued: boolean }) => void },
+        ) => options.onSuccess({ queued: true }),
+      );
+      render(<WebsiteRowActions website={failedWebsite} />);
+      const user = await openMenu();
+      await user.click(screen.getByText('websites.scanNow'));
+      expect(mockScanNow).toHaveBeenCalledWith(
+        { websiteId: 'website-1' },
+        expect.anything(),
+      );
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'websites.toast.scanStarted' }),
+      );
+    });
+
+    it('says a scan was already running when none was queued', async () => {
+      mockScanNow.mockImplementation(
+        (
+          _args: unknown,
+          options: { onSuccess: (result: { queued: boolean }) => void },
+        ) => options.onSuccess({ queued: false }),
+      );
+      render(<WebsiteRowActions website={failedWebsite} />);
+      const user = await openMenu();
+      await user.click(screen.getByText('websites.scanNow'));
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'websites.toast.scanAlreadyRunning',
+        }),
+      );
     });
   });
 });

@@ -9,6 +9,7 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 import { WebsiteViewDialog } from './website-view-dialog';
 
 const canWrite = { current: true };
+const scanNowMutate = vi.hoisted(() => vi.fn());
 const pagesPayload = {
   current: null as null | {
     pages: CrawlerPage[];
@@ -54,6 +55,7 @@ vi.mock('@/app/hooks/use-backend-action', () => {
 vi.mock('../hooks/mutations', () => ({
   useUpdateWebsite: () => ({ mutate: vi.fn(), isPending: false }),
   useResumeScanning: () => ({ mutate: vi.fn(), isPending: false }),
+  useScanWebsiteNow: () => ({ mutate: scanNowMutate, isPending: false }),
 }));
 
 const WEBSITE: WebsiteDoc = {
@@ -74,6 +76,7 @@ describe('WebsiteViewDialog', () => {
   beforeEach(() => {
     canWrite.current = true;
     pagesPayload.current = null;
+    scanNowMutate.mockClear();
   });
 
   it('names the site in the shared record details', async () => {
@@ -136,6 +139,45 @@ describe('WebsiteViewDialog', () => {
     expect(
       screen.queryByRole('button', { name: 'Edit' }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('scan now', () => {
+    it('queues a scan for a writer on a site that is not scanning', async () => {
+      const { user } = render(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{ ...WEBSITE, status: 'error' }}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Scan now' }));
+
+      expect(scanNowMutate).toHaveBeenCalledWith(
+        { websiteId: 'w-1' },
+        expect.anything(),
+      );
+    });
+
+    it('is not offered while the site is scanning, nor to a reader', () => {
+      const { unmount } = render(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{ ...WEBSITE, status: 'scanning' }}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Scan now' }),
+      ).not.toBeInTheDocument();
+      unmount();
+
+      canWrite.current = false;
+      render(<WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />);
+      expect(
+        screen.queryByRole('button', { name: 'Scan now' }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('swaps to the edit dialog on Edit and back to the details on cancel', async () => {

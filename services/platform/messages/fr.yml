@@ -8089,6 +8089,8 @@ websites:
     fetchPagesError: Échec du chargement des pages
     searchError: La recherche a échoué
     deleteError: Échec de la suppression du site web
+    scanStarted: Analyse lancée
+    scanAlreadyRunning: Une analyse est déjà en cours
   adding: Ajout en cours...
   viewDialog:
     title: Détails du site web
@@ -8116,6 +8118,7 @@ websites:
       generic: Rien n'a été indexé.
   scanPausedBadge: Suspendu
   resumeScanning: Reprendre l'analyse
+  scanNow: Analyser maintenant
   indexed: Indexé
   pagesDialog:
     title: Pages du site web

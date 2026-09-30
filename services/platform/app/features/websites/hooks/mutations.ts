@@ -30,3 +30,7 @@ export function useSyncWebsiteStatuses() {
 export function useResumeScanning() {
   return useBackendAction('websites/actions:resumeScanning');
 }
+
+export function useScanWebsiteNow() {
+  return useBackendAction('websites/actions:scanNow');
+}
