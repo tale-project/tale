@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import { THIRD_PARTY_IMAGES } from '../src/lib/compose/types';
+
 type Step = {
   name?: string;
   id?: string;
@@ -1289,3 +1291,77 @@ test.skipIf(process.platform === 'win32')(
     );
   },
 );
+
+describe('the Backend integration check', () => {
+  type Job = {
+    if?: string;
+    'timeout-minutes'?: number;
+    env?: Record<string, string>;
+    steps: Step[];
+  };
+  const checks = async () =>
+    parse(
+      await readFile(join(repository, '.github/workflows/checks.yml'), 'utf8'),
+    ) as { jobs: Record<string, Job> };
+
+  test.skipIf(process.platform === 'win32')(
+    'is owed by every push, merge group and candidate, and by a pull request that touches what the suite runs',
+    async () => {
+      const script = (await checks()).jobs['integration-scope']?.steps.find(
+        (step) => step.id === 'decide',
+      )?.run;
+      for (const [event, touched, owed] of [
+        ['pull_request', 'true', 'true'],
+        ['pull_request', 'false', 'false'],
+        ['pull_request', '', 'false'],
+        ['push', '', 'true'],
+        ['merge_group', '', 'true'],
+        ['repository_dispatch', '', 'true'],
+      ] as const) {
+        const result = await execute(script, {
+          EVENT_NAME: event,
+          TOUCHED: touched,
+        });
+        expect(result.code, `${event}/${touched}`).toBe(0);
+        expect(result.output, `${event}/${touched}`).toBe(`run=${owed}\n`);
+      }
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    "starts the object store the CLI deploys, read from the CLI's own pin",
+    async () => {
+      const script = (await checks()).jobs['backend-integration']?.steps.find(
+        (step) => step.id === 'object-store',
+      )?.run;
+      // Read at run time, so a pin bump moves the job with it.
+      expect(script).toContain("THIRD_PARTY_IMAGES['object-store']");
+      const result = await execute(`cd "$REPOSITORY"\n${script}`, {
+        REPOSITORY: repository,
+      });
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.output).toBe(
+        `image=${THIRD_PARTY_IMAGES['object-store']}\n`,
+      );
+    },
+  );
+
+  test('runs every lane against the tale-db it builds, straight through the script', async () => {
+    const job = (await checks()).jobs['backend-integration'];
+    const steps = job?.steps ?? [];
+    const run = steps.find((step) => step.name === 'Run backend integration');
+    // Straight through the script: no turbo cache can replay the verdict.
+    expect(run?.run).toContain('bun run backend:integration');
+    expect(run?.run).not.toContain('turbo');
+    expect(run?.env?.ITEST_REQUIRE_ALL_LANES).toBe('1');
+    expect(run?.env?.ITEST_S3_ENDPOINT).toBeTruthy();
+    expect(job?.env?.ITEST_S3_ACCESS_KEY).toBeTruthy();
+    expect(job?.env?.ITEST_S3_SECRET_KEY).toBeTruthy();
+    expect(
+      steps.find((step) => step.uses?.startsWith('docker/build-push-action@'))
+        ?.with,
+    ).toMatchObject({ file: 'services/db/Dockerfile', push: false });
+    expect(job?.['timeout-minutes']).toBeGreaterThan(0);
+    expect(job?.if).toContain("needs.integration-scope.outputs.run == 'true'");
+  });
+});

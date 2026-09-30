@@ -8,9 +8,9 @@
  * alone and require `email` and `email_verified` in it (jose
  * `requiredClaims`). Better Auth 1.7 stopped putting the scope claims
  * there, so every "Continue with Tale" failed with `missing required
- * "email_verified" claim` — and nothing in CI minted a token: the
- * real-Postgres lane that does (`oidc-integration.ts`) is not a CI job.
- * This suite is.
+ * "email_verified" claim` — and nothing in CI minted a token then. The
+ * real-Postgres lane that does (`oidc-integration.ts`) runs only when the
+ * Backend integration check does; this suite runs on every change.
  *
  * Better Auth's memory adapter stands in for Postgres. The provider's own
  * reads through `sql` answer from the same memory tables (`memorySql`).
