@@ -132,8 +132,11 @@ describe('the vendor stub behind the routed fetch', () => {
   beforeEach(async () => {
     stub = await startItestVendorStub(() => undefined);
     refused.length = 0;
-    globalThis.fetch = routeVendorFetch(realFetch, stub.origin, (request) => {
-      refused.push(`${request.method} ${request.origin}${request.path}`);
+    globalThis.fetch = routeVendorFetch(realFetch, {
+      stubOrigin: stub.origin,
+      onOffBox: (request) => {
+        refused.push(`${request.method} ${request.origin}`);
+      },
     });
     invalidateCatalogFetchCache();
   });
@@ -227,17 +230,66 @@ describe('the vendor stub behind the routed fetch', () => {
     } finally {
       local.close();
     }
+    // Coded as a connection nothing answered, like a network without egress.
     await expect(
       fetch('https://graph.microsoft.com/v1.0/me/drive?token=secret'),
-    ).rejects.toThrow('fetch failed');
+    ).rejects.toMatchObject({
+      message: 'fetch failed',
+      cause: { code: 'ECONNREFUSED' },
+    });
     // Plaintext to a vendor host is no vendor call the stub answers either.
     await expect(fetch('http://openrouter.ai/api/v1/models')).rejects.toThrow(
       'fetch failed',
     );
+    // Named by host alone: a path or a query can carry a secret.
     expect(refused).toEqual([
-      'GET https://graph.microsoft.com/v1.0/me/drive',
-      'GET http://openrouter.ai/api/v1/models',
+      'GET https://graph.microsoft.com',
+      'GET http://openrouter.ai',
     ]);
     expect(stub.requests).toEqual([]);
+  });
+});
+
+describe('routeVendorFetch without the network', () => {
+  it("passes the run's own services and in-process URLs on, and refuses as fetch does: a rejected promise", async () => {
+    const passed: string[] = [];
+    const recording = async (
+      input: Parameters<typeof globalThis.fetch>[0],
+    ): Promise<Response> => {
+      passed.push(
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url,
+      );
+      return new Response('passed');
+    };
+    const refused: string[] = [];
+    const routed = routeVendorFetch(
+      Object.assign(recording, { preconnect: globalThis.fetch.preconnect }),
+      {
+        stubOrigin: 'http://127.0.0.1:1',
+        onTheBox: ['http://object-store.itest:9000'],
+        onOffBox: (request) => {
+          refused.push(request.origin);
+        },
+      },
+    );
+    await routed('http://object-store.itest:9000/bucket/key');
+    await routed('data:text/plain,on%20the%20box');
+    await routed('http://LocalHost.:8080/health');
+    expect(passed).toEqual([
+      'http://object-store.itest:9000/bucket/key',
+      'data:text/plain,on%20the%20box',
+      'http://LocalHost.:8080/health',
+    ]);
+    const relative = routed('/no-origin');
+    expect(relative).toBeInstanceOf(Promise);
+    await expect(relative).rejects.toThrow();
+    await expect(routed('http://object-store.itest:9001/key')).rejects.toThrow(
+      'fetch failed',
+    );
+    expect(refused).toEqual(['http://object-store.itest:9001']);
   });
 });

@@ -138,7 +138,8 @@ const VERCEL_LISTING: readonly unknown[] = [
 ];
 
 /** What the Messages API answers a key it does not know. Until this stub,
- * the title lane's CI log read `anthropic answered 401` with this body. */
+ * the title lane's CI log read `anthropic answered 401` with this body
+ * (Checks job 109833026266). */
 const ANTHROPIC_UNKNOWN_KEY = {
   type: 'error',
   error: { type: 'authentication_error', message: 'API key is invalid.' },
@@ -251,15 +252,18 @@ export async function startItestVendorStub(
   };
 }
 
-/** A request the boundary refused: no query, which may carry a secret. */
+/** A request the boundary refused, named by its host alone: a path or a
+ * query can carry a secret (a webhook URL, a bot token). */
 export interface OffBoxRequest {
   readonly method: string;
   readonly origin: string;
-  readonly path: string;
 }
 
 function isLoopbackHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const host = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
   return (
     host === 'localhost' ||
     host.endsWith('.localhost') ||
@@ -268,25 +272,51 @@ function isLoopbackHost(hostname: string): boolean {
   );
 }
 
+/** undici's `fetch failed`, its cause coded as a connection nothing
+ * answered, so a caller that reads the code (the relay's never-connected
+ * check, the database-outage classifier) reads a refusal as one. */
+function offBoxRefusal(host: string): TypeError {
+  const cause = Object.assign(
+    new Error(
+      `connect ECONNREFUSED ${host}: the integration check reaches nothing off the box`,
+    ),
+    { code: 'ECONNREFUSED', syscall: 'connect' },
+  );
+  return new TypeError('fetch failed', { cause });
+}
+
+export interface VendorRouteOptions {
+  /** The vendor stub's origin ({@link ItestVendorStub.origin}). */
+  readonly stubOrigin: string;
+  /** Origins that are part of the run although not loopback: the object
+   * store `ITEST_S3_ENDPOINT` names may be a service or a LAN host. */
+  readonly onTheBox?: readonly string[];
+  readonly onOffBox: (request: OffBoxRequest) => void;
+}
+
 /**
  * The harness's outbound boundary, installed as `globalThis.fetch` for the
  * whole run. A lane's own fetch stub sits on top of it and answers its
  * fixture hosts first; what reaches this function is:
  *
- *  - a loopback request (the backend under test, every lane's stub, the
- *    object store): passed through;
+ *  - a loopback request (the backend under test, every lane's stub), one
+ *    to an `onTheBox` origin, and a `data:` or `blob:` URL, which never
+ *    leaves the process: passed through;
  *  - an `https` request to a shipped vendor host: sent to the vendor stub
  *    instead, path and query unchanged;
  *  - anything else: off the box, so refused the way a network without
- *    egress refuses it (`fetch failed`) and handed to `onOffBox`, whatever
- *    the host would have answered — the lane's verdict never depends on it.
+ *    egress refuses it and handed to `onOffBox`, whatever the host would
+ *    have answered — the lane's verdict never depends on it.
+ *
+ * Like `fetch` itself it answers a bad input with a rejected promise, never
+ * a throw.
  */
 export function routeVendorFetch(
   realFetch: typeof globalThis.fetch,
-  stubOrigin: string,
-  onOffBox: (request: OffBoxRequest) => void,
+  options: VendorRouteOptions,
 ): typeof globalThis.fetch {
-  const routed = (
+  const onTheBox = options.onTheBox ?? [];
+  const routed = async (
     input: Parameters<typeof globalThis.fetch>[0],
     init?: Parameters<typeof globalThis.fetch>[1],
   ): Promise<Response> => {
@@ -297,12 +327,18 @@ export function routeVendorFetch(
           ? input.href
           : input.url,
     );
-    if (isLoopbackHost(url.hostname)) return realFetch(input, init);
+    if (
+      (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+      isLoopbackHost(url.hostname) ||
+      onTheBox.includes(url.origin)
+    ) {
+      return realFetch(input, init);
+    }
     if (
       url.protocol === 'https:' &&
       ITEST_VENDOR_HOSTS.includes(url.hostname)
     ) {
-      const target = `${stubOrigin}/${url.hostname}${url.pathname}${url.search}`;
+      const target = `${options.stubOrigin}/${url.hostname}${url.pathname}${url.search}`;
       // `safeFetch` pins the vendor host's checked address on a dispatcher
       // of its own; the stub is a loopback literal and needs none.
       const {
@@ -315,18 +351,11 @@ export function routeVendorFetch(
         ? realFetch(new Request(target, input), rest)
         : realFetch(target, rest);
     }
-    onOffBox({
+    options.onOffBox({
       method: init?.method ?? (input instanceof Request ? input.method : 'GET'),
       origin: url.origin,
-      path: url.pathname,
     });
-    return Promise.reject(
-      new TypeError('fetch failed', {
-        cause: new Error(
-          `${url.host} is off the box, and the integration check reaches nothing there`,
-        ),
-      }),
-    );
+    throw offBoxRefusal(url.host);
   };
   // `preconnect` rides along so the global keeps its full shape.
   return Object.assign(routed, { preconnect: realFetch.preconnect });

@@ -55788,6 +55788,7 @@ async function runLanes(
   sql: Sql,
   base: string,
   ctx: { cookie: string; userId: string },
+  boundary: typeof globalThis.fetch,
   registered: readonly Lane[],
 ): Promise<LaneSummary> {
   const { selected: lanes, filter } = selectLanes(registered);
@@ -55820,6 +55821,17 @@ async function runLanes(
           `them, so every later lane reads the lane's value (or nothing) ` +
           `instead. Wrap the override in overrideEnv().`,
       );
+    }
+    if (globalThis.fetch !== boundary) {
+      record(
+        `harness: ${name} puts the outbound boundary back`,
+        false,
+        `globalThis.fetch is not the harness's boundary after the lane, so ` +
+          `every later lane's requests went to what the lane left (a stub ` +
+          `that passes a request on to the real fetch reaches off the box). ` +
+          `Restore the saved fetch in the lane's finally.`,
+      );
+      globalThis.fetch = boundary;
     }
     const membershipsAfter = await sharedMemberships(sql, ctx.userId);
     if (membershipsAfter !== membershipsBefore) {
@@ -55870,30 +55882,31 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  // The run reaches nothing off the box but the database and the object
-  // store (`integration-vendor-stub.ts`). The lanes stub `fetch` for their
-  // own fixture hosts (`itest-crawl.example`, `itest.atlassian.net`); the
-  // shipped vendor origins the model catalogs and the title lane call are
-  // answered by the vendor stub; any other host is refused and named at the
-  // end. `safeFetch` resolves and pins every host before it dials, and the
-  // video-link pre-resolution checks every name: both read the fixture
+  // The suite's HTTP stays on the box (`integration-vendor-stub.ts`). The
+  // lanes stub `fetch` for their own fixture hosts (`itest-crawl.example`,
+  // `itest.atlassian.net`); the shipped vendor origins the model catalogs
+  // and the title lane call are answered by the vendor stub; the object
+  // store passes wherever it runs; any other host is refused and named at
+  // the end. `safeFetch` resolves and pins every host before it dials, and
+  // the video-link pre-resolution checks every name: both read the fixture
   // address, never a real resolver.
   const vendorStub = await startItestVendorStub();
-  const offBox = new Map<string, { count: number; first: string }>();
-  globalThis.fetch = routeVendorFetch(
-    globalThis.fetch,
-    vendorStub.origin,
-    (request) => {
-      const seen = offBox.get(request.origin);
-      if (seen !== undefined) {
-        seen.count += 1;
-        return;
+  const offBox = new Map<string, number>();
+  const objectStore = itestObjectStore();
+  const boundary = routeVendorFetch(globalThis.fetch, {
+    stubOrigin: vendorStub.origin,
+    onTheBox:
+      objectStore === null ? [] : [new URL(objectStore.endpoint).origin],
+    onOffBox: ({ method, origin }) => {
+      const key = `${method} ${origin}`;
+      const seen = offBox.get(key) ?? 0;
+      offBox.set(key, seen + 1);
+      if (seen === 0) {
+        console.warn(`[itest] refused ${key}: no stub answers that host`);
       }
-      const first = `${request.method} ${request.origin}${request.path}`;
-      offBox.set(request.origin, { count: 1, first });
-      console.warn(`[itest] refused ${first}: no stub answers that host`);
     },
-  );
+  });
+  globalThis.fetch = boundary;
   setSafeFetchResolverForTests(itestResolve);
   setUrlSafetyResolverForTests(itestResolve);
 
@@ -56179,7 +56192,7 @@ async function main(): Promise<void> {
     // session dead, ends the run as a recorded FAIL naming the lane and the
     // lanes that never ran — the tally can never read green for a run that
     // executed fewer checks than it contains.
-    lanes = await runLanes(sql, baseUrl, authCtx, [
+    lanes = await runLanes(sql, baseUrl, authCtx, boundary, [
       ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
       [
         'checkOutboxRetention',
@@ -57005,7 +57018,7 @@ async function main(): Promise<void> {
     answered.set(request.host, (answered.get(request.host) ?? 0) + 1);
   }
   console.log(
-    `\n[itest] off the box: the vendor stub answered ${[...answered].map(([host, count]) => `${host}×${count}`).join(', ') || 'nothing'}, ${vendorStub.unexpected.length} of them on a path it does not serve (404); refused ${[...offBox].map(([origin, { count, first }]) => `${origin}×${count} (first ${first})`).join(', ') || 'nothing'}`,
+    `\n[itest] off the box: the vendor stub answered ${[...answered].map(([host, count]) => `${host}×${count}`).join(', ') || 'nothing'}, ${vendorStub.unexpected.length} of them on a path it does not serve (404); refused ${[...offBox].map(([request, count]) => `${request}×${count}`).join(', ') || 'nothing'}`,
   );
 
   const failed = results.filter((r) => !r.ok);
