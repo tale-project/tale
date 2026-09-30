@@ -112,5 +112,42 @@ describe('TaskAgentRunStatusBadge', () => {
     expect(
       screen.getByText('TokenSourceError: broker request failed'),
     ).toBeInTheDocument();
+    // No code stamped: the failure reads as the unknown class.
+    expect(screen.getByText('agentRun.failure.unknown')).toBeInTheDocument();
+  });
+
+  it('leads a failed run with what its failure means, above what it reported', async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskAgentRunStatusBadge
+        agentName="PR Creator"
+        run={{
+          runId: 'run_3' as string,
+          agentSlug: 'agent-1',
+          trigger: 'manual',
+          status: 'failed',
+          error: 'the agent run could not start: no credential',
+          failureCode: 'start_failed',
+          startedAt: Date.now(),
+          costCents: 0,
+        }}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Failed details for PR Creator',
+      }),
+    );
+
+    const meaning = screen.getByText('agentRun.failure.start');
+    const reported = screen.getByText(
+      'the agent run could not start: no credential',
+    );
+    expect(screen.getByText('agentRun.reported')).toBeInTheDocument();
+    expect(
+      meaning.compareDocumentPosition(reported) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

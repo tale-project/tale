@@ -37,6 +37,11 @@ export type NotificationType =
   // question (`collab/notify_agent_asks.ts`), or a root escalation / circuit
   // breaker. Actionable.
   | 'agent_escalation'
+  // A project agent's run on a task failed and nothing retries it by itself
+  // (`collab/service.ts` `notifyAgentRunFailed`): one row for the person who
+  // started the run and for the task's watchers, withdrawn when a new run
+  // starts. Gated by the `escalation` preference. Actionable.
+  | 'agent_run_failed'
   // A schedule was paused because its runs kept failing for a reason the
   // next occurrence would repeat (`automations/trigger-failures.ts`): one
   // row per owner and admin, who fix the automation and turn the trigger

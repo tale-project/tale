@@ -5,13 +5,15 @@
  * the task modal's property panel — the run is the ASSIGNEE's state, not a
  * second subject, so it reads as one status line plus small verbs instead of
  * a card competing with the task body. Shows the task's LATEST agent run —
- * live with Cancel, failed with its error + Retry (a failed run keeps the
- * task at In progress — failure is the run's state, not the task's), settled
- * as "reported for review" (the report itself is the agent's comment in the
- * timeline) — and, before any run exists, an explicit Start so kicking the
- * agent never requires knowing the drag verb. Every run offers Details: the
- * agent's sandbox transcript, live while it works and preserved after it
- * settles.
+ * live with Cancel, failed with Retry (a failed run keeps the task at In
+ * progress — failure is the run's state, not the task's; what the failure
+ * means for the reader is said once, in the task's body, by
+ * `TaskAgentRunFailureNotice`), settled as "reported for review" (the report
+ * itself is the agent's comment in the timeline) — and, before any run
+ * exists, an explicit Start so kicking the agent never requires knowing the
+ * drag verb. Every run offers Details: the agent's sandbox transcript, live
+ * while it works and preserved after it settles, and for a failed run what
+ * the run itself reported.
  */
 
 import { Button } from '@tale/ui/button';
@@ -23,20 +25,15 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { toast } from '@tale/ui/use-toast';
 import { Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
-import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import { taskRunFailureClass } from '@/lib/shared/task-run-failure';
 
-import {
-  useCancelTaskAgentRun,
-  useStartTaskAgentRun,
-} from '../hooks/mutations';
-import { taskRunErrorMessage } from '../lib/task-run-error';
+import { useTaskAgentRunControls } from '../hooks/use-task-agent-run-controls';
 
 interface TaskAgentRunEntryProps {
   organizationId: string;
@@ -58,33 +55,19 @@ interface TaskAgentRunEntryProps {
   assigneeLive?: boolean;
 }
 
-/** The start refusal's reason, as a sentence the user can act on. */
-function notStartedMessage(
-  t: (key: string) => string,
-  reason: string | undefined,
-): string {
-  switch (reason) {
-    case 'agent_missing':
-    case 'agent_unavailable':
-      return t('agentRun.agentMissing');
-    case 'no_agent_assignee':
-      return t('agentRun.noAgentAssignee');
-    default:
-      return t('agentRun.notStarted');
-  }
-}
-
 /**
  * The run's sandbox transcript, inspected WITHOUT leaving the task — the
  * agent twin of the subject panel's `TaskRunDetailsDialog`. Nothing is
- * fetched until it opens; a run whose turn has not written its op yet (or
- * whose op was torn down) degrades to the empty line.
+ * fetched until it opens. A failed run leads with what it means and what it
+ * reported; a run whose turn never wrote an op (it could not start) shows
+ * that alone, and any other run without one degrades to the empty line.
  */
 function TaskAgentRunDetailsDialog({
   organizationId,
   runId,
   name,
   live,
+  failure,
   open,
   onOpenChange,
 }: {
@@ -96,6 +79,8 @@ function TaskAgentRunDetailsDialog({
    * tense ("progress" only while there is progress to watch) and the
    * header's spinner. */
   live: boolean;
+  /** Set for a failed run: its classification and the raw reason it kept. */
+  failure?: { failureCode?: string; error?: string };
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -106,6 +91,17 @@ function TaskAgentRunDetailsDialog({
     open ? { organizationId, runId } : 'skip',
   );
   const op = opQuery.data ?? null;
+  // A harness often ends its transcript on the very words the run reported
+  // (its own API error as its last text): then the log below says them, and
+  // the reported block would only repeat them. A reason the run row alone
+  // keeps — a watchdog's, a refused start's — still shows.
+  const reported = failure?.error?.trim();
+  const reportedInLog =
+    reported !== undefined &&
+    op !== null &&
+    [...(op.liveTimeline ?? []).map((part) => part.text), op.progressText].some(
+      (text) => text?.trim() === reported,
+    );
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
@@ -121,12 +117,39 @@ function TaskAgentRunDetailsDialog({
             />
           )}
         </ResponsiveDialogTitle>
+        {failure !== undefined && (
+          <Stack gap={2}>
+            <Text as="p">
+              {t(
+                `agentRun.failure.${taskRunFailureClass(failure.failureCode)}`,
+              )}
+            </Text>
+            {failure.error !== undefined && !reportedInLog && (
+              <Stack gap={1}>
+                <Text as="h3" variant="label">
+                  {t('agentRun.reported')}
+                </Text>
+                <Text
+                  as="p"
+                  variant="muted"
+                  className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
+                >
+                  {failure.error}
+                </Text>
+              </Stack>
+            )}
+          </Stack>
+        )}
         {op !== null ? (
           <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
         ) : opQuery.data === null ? (
-          <Text as="p" variant="muted">
-            {tAutomations('runs.agentLog.empty')}
-          </Text>
+          // A failed run said why above; "no log" would only repeat that it
+          // never got to work.
+          failure === undefined && (
+            <Text as="p" variant="muted">
+              {tAutomations('runs.agentLog.empty')}
+            </Text>
+          )
         ) : (
           <Loader2
             className="text-muted-foreground size-4 animate-spin"
@@ -154,11 +177,7 @@ export function TaskAgentRunEntry({
     'tasks/queries:getLatestTaskAgentRunForTask',
     { organizationId, taskId },
   );
-  const { mutateAsync: startRun } = useStartTaskAgentRun();
-  const { mutateAsync: cancelRun } = useCancelTaskAgentRun({
-    errorToast: false,
-  });
-  const [busy, setBusy] = useState(false);
+  const { start, cancel, busy } = useTaskAgentRunControls(taskId);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   const run = runQuery.data;
@@ -169,68 +188,30 @@ export function TaskAgentRunEntry({
     live && (canStopRun === undefined ? canEdit : canStopRun(run.startedBy));
   const previousAssignee = run !== null && run.agentId !== assigneeId;
 
-  const handleRetry = async () => {
-    setBusy(true);
-    try {
-      const result = await startRun({ taskId });
-      if (result.started) {
-        toast({ title: t('agentRun.started'), variant: 'success' });
-      } else if (result.reason === 'already_running') {
-        toast({ title: t('agentRun.alreadyRunning') });
-      } else {
-        toast({
-          title: notStartedMessage(t, result.reason),
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      console.error('startTaskAgentRun failed', error);
-      const known = taskRunErrorMessage(error, t);
-      toast({
-        title: known ?? t('agentRun.notStarted'),
-        // A refusal named above is the whole story; any other says why.
-        description: known === undefined ? failureDetail(error) : undefined,
-        variant: 'destructive',
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    setBusy(true);
-    try {
-      await cancelRun({ taskId });
-      toast({ title: t('agentRun.cancelled') });
-    } catch (error) {
-      console.error('cancelTaskAgentRun failed', error);
-      toast({
-        title: t('agentRun.cancelFailed'),
-        description: failureDetail(error),
-        variant: 'destructive',
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   // No run yet: the agent lane's explicit entry point — the same kick the
   // board's drag-to-In-progress performs, as one small verb. Readers see
   // nothing until a run exists.
   if (run === null) {
     if (!canKick) return null;
     return (
-      <Row gap={2}>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={busy}
-          icon={Play}
-          onClick={() => void handleRetry()}
-        >
-          {t('agentRun.start')}
-        </Button>
-      </Row>
+      <Stack gap={1} className="min-w-0">
+        <Row gap={2}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            icon={Play}
+            onClick={() => void start()}
+          >
+            {t('agentRun.start')}
+          </Button>
+        </Row>
+        {/* Assigning an agent does not start it — said where the person is
+            looking when nothing happens. */}
+        <Text variant="caption" className="text-muted-foreground text-pretty">
+          {t('agentRun.notStartedYet')}
+        </Text>
+      </Stack>
     );
   }
 
@@ -294,15 +275,10 @@ export function TaskAgentRunEntry({
               })}
         </Text>
       ) : null}
-      {run.status === 'failed' && run.error !== undefined ? (
-        <Text
-          variant="caption"
-          className="text-destructive line-clamp-2 text-pretty"
-        >
-          {run.error}
-        </Text>
-      ) : null}
-      <Row gap={1} className="-ml-2">
+      {/* The verbs wrap: the panel is 17rem wide, and two German labels side
+          by side ("Details", "Erneut ausführen") outgrew it and were cut at
+          its edge. */}
+      <Row gap={1} className="-ml-2 flex-wrap">
         {/* Reading the transcript is a READ — offered to every viewer, for
             live and settled runs alike. */}
         <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)}>
@@ -313,7 +289,7 @@ export function TaskAgentRunEntry({
             variant="ghost"
             size="sm"
             disabled={busy}
-            onClick={() => void handleCancel()}
+            onClick={() => void cancel()}
           >
             {t('agentRun.cancel')}
           </Button>
@@ -327,7 +303,7 @@ export function TaskAgentRunEntry({
             variant="ghost"
             size="sm"
             disabled={busy}
-            onClick={() => void handleRetry()}
+            onClick={() => void start()}
           >
             {t(previousAssignee ? 'agentRun.start' : 'agentRun.retry')}
           </Button>
@@ -338,6 +314,16 @@ export function TaskAgentRunEntry({
         runId={run._id}
         name={run.agentName ?? run.harness}
         live={live}
+        {...(run.status === 'failed'
+          ? {
+              failure: {
+                ...(run.failureCode !== undefined
+                  ? { failureCode: run.failureCode }
+                  : {}),
+                ...(run.error !== undefined ? { error: run.error } : {}),
+              },
+            }
+          : {})}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
       />

@@ -22,8 +22,9 @@ type Begin = (
 
 /** `sql` whose every transaction first runs `before` and, after its own
  * statements, `after` — both on the transaction itself, before it commits.
- * Covers `begin(fn)` and the serializable `begin(options, fn)`. */
-function aroundTransactions(
+ * Covers `begin(fn)` and the serializable `begin(options, fn)`. Shared with
+ * the lanes that hold their own jobs the same way. */
+export function aroundTransactions(
   sql: Sql,
   hooks: {
     before?: (tx: TransactionSql) => Promise<void>;

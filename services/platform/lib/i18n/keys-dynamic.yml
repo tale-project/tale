@@ -179,6 +179,13 @@ entries:
   # stopped itself after repeated permanent failures; owners and admins.
   - 'inbox.automationTriggerPaused'
   - 'inbox.automationTriggerPausedBody'
+  # Failed agent runs (domains/collab/service.ts notifyAgentRunFailed): a
+  # project agent's run failed and nothing retries it; the body is picked by
+  # who can act on the failure.
+  - 'inbox.agentRunFailed'
+  - 'inbox.agentRunFailedBody'
+  - 'inbox.agentRunFailedBudgetBody'
+  - 'inbox.agentRunFailedSetupBody'
 
   # Tasks feature: the board UI has shipped. `status`/`priority` labels are
   # enum-driven dynamic lookups (`t(`status.${status}`)` / `t(`priority.${p}`)`

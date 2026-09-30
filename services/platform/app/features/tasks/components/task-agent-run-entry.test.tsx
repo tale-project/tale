@@ -384,9 +384,125 @@ describe('TaskAgentRunEntry details', () => {
       />,
     );
     expect(screen.queryByText(/Auto-retry/)).not.toBeInTheDocument();
+    // The harness's own words are not the strip's to lead with: they sit
+    // behind Details, under what the failure means.
     expect(
-      screen.getByText('API Error: Request rejected (429)'),
-    ).toBeInTheDocument();
+      screen.queryByText('API Error: Request rejected (429)'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens a failed run on what its failure means, then what it reported', async () => {
+    const user = userEvent.setup();
+    state.run = {
+      ...settledRun(),
+      status: 'failed',
+      error: "the agent run was refused by the organization's spend cap: cap",
+      failureCode: 'budget_exceeded',
+    };
+    state.op = null;
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('agentRun.failure.budget');
+    expect(dialog).toHaveTextContent('agentRun.reported');
+    expect(dialog).toHaveTextContent(
+      "the agent run was refused by the organization's spend cap: cap",
+    );
+    // A run that never got to work has no log to miss.
+    expect(
+      screen.queryByText('The agent produced no log for this run.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says what the run reported once, when its transcript ends on it', async () => {
+    const user = userEvent.setup();
+    state.run = {
+      ...settledRun(),
+      status: 'failed',
+      error: 'API Error: 502 failed to execute HTTP request',
+      failureCode: 'harness_error',
+    };
+    state.op = {
+      execId: 'e1',
+      status: 'failed',
+      startedAt: 1,
+      liveTimeline: [
+        {
+          type: 'text',
+          text: 'API Error: 502 failed to execute HTTP request\n',
+        },
+      ],
+    };
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+
+    expect(screen.getByText('agentRun.failure.model')).toBeInTheDocument();
+    expect(screen.queryByText('agentRun.reported')).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText('API Error: 502 failed to execute HTTP request'),
+    ).toHaveLength(1);
+  });
+
+  it('reads an unclassified failure as the unknown class', async () => {
+    const user = userEvent.setup();
+    state.run = { ...settledRun(), status: 'failed', error: 'boom' };
+    state.op = null;
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'agentRun.failure.unknown',
+    );
+  });
+
+  it('says beside Start that assigning an agent does not start it', () => {
+    state.run = null;
+    const { rerender } = render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Start agent' })).toBeVisible();
+    expect(screen.getByText('agentRun.notStartedYet')).toBeVisible();
+
+    // Someone who cannot start it is told nothing they cannot act on.
+    rerender(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit={false}
+      />,
+    );
+    expect(screen.queryByText('agentRun.notStartedYet')).toBeNull();
   });
 
   it('titles a live run in the present tense', async () => {

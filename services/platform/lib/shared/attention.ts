@@ -16,6 +16,10 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   // stays out: losing work needs no action.
   'task_deadline',
   'agent_escalation',
+  // An agent's run failed for good: the task sits at In progress with
+  // nothing working on it until the person who started the agent comes back
+  // — and they left the task the moment they started it — so it emails too.
+  'agent_run_failed',
   // Inbound conversation messages route to the assignee (or org admins) and
   // need a reply, so they deliver by email too — not just the in-app bell.
   'conversation_message',

@@ -294,6 +294,11 @@ export interface TasksContract {
       waitingForCapacity?: boolean;
       resultText?: string;
       error?: string;
+      /** The producer's classification of a failed run; the card words its
+       * reason by it (`lib/shared/task-run-failure.ts`). */
+      failureCode?: string;
+      /** A failed run the platform is about to retry by itself. */
+      retryPending?: boolean;
       harness: string;
       model: string;
       agentName?: string;
@@ -599,6 +604,7 @@ export interface TasksContract {
         | 'decomposition';
       status: 'running' | 'failed' | 'completed' | 'timed_out';
       error: undefined | string;
+      failureCode: undefined | string;
       startedAt: number;
       durationMs: undefined | number;
       costCents: number;
