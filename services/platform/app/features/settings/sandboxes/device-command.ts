@@ -1,3 +1,5 @@
+import { isReleaseVersion } from '@/lib/shared/release-version';
+
 /**
  * The commands the "Add device" dialog hands out. One line installs the Tale
  * CLI and connects the machine; the second form is for a machine that already
@@ -8,8 +10,6 @@
 /** The published installer (docs: self-hosted/install/cli-install). */
 export const CLI_INSTALL_URL =
   'https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh';
-
-const RELEASE_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 /** Quote a value for a POSIX shell unless it is plainly safe as is. */
 function shellWord(value: string): string {
@@ -32,6 +32,8 @@ export function installAndConnectCommand(
   token: string,
   serverVersion: string,
 ): string {
-  const pin = RELEASE_RE.test(serverVersion) ? `VERSION=${serverVersion} ` : '';
+  const pin = isReleaseVersion(serverVersion)
+    ? `VERSION=${serverVersion} `
+    : '';
   return `curl -fsSL ${CLI_INSTALL_URL} | ${pin}bash && ${connectCommand(serverUrl, token)}`;
 }
