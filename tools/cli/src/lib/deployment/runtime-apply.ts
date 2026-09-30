@@ -508,13 +508,10 @@ function converged(
   );
 }
 
-/** Docker reports a container that never started at the zero time. */
+/** Docker reports a container that never started at the zero time, year 1. */
 function hasStarted(container: RuntimeContainer): boolean {
-  return (
-    container.State.Running ||
-    (container.State.StartedAt !== undefined &&
-      !container.State.StartedAt.startsWith('0001-01-01'))
-  );
+  const startedAt = Date.parse(container.State.StartedAt ?? '');
+  return container.State.Running || startedAt > 0;
 }
 
 /**

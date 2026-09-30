@@ -860,7 +860,9 @@ describePosix('model gateway recovery point', () => {
   }
   const UNCOVERED = `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data: restoring it leaves the model gateway's store as it is now.`;
   const ONWARD =
-    'While no runtime rollout is pending, a reviewed bundle that still resolves a gateway image this store has run can take the deployment over (`supersedesPendingBundle`), and the rollout after it takes a snapshot that holds the gateway store; otherwise the CLI has no way on for this state.';
+    'While no runtime rollout is pending, a reviewed bundle that still resolves the gateway image the deployment last ran can take it over (`supersedesPendingBundle`), and the rollout after it takes a snapshot that holds the gateway store; otherwise the CLI has no way forward for this state.';
+  const NO_RECOVERY_POINT =
+    'The pending deployment recorded no recovery snapshot, and none can be taken now: this rollout has no recovery point.';
 
   // The release stopped at its pull: the store has only run the previous
   // gateway, and its recovery snapshot came from a CLI that left it out.
@@ -879,7 +881,7 @@ describePosix('model gateway recovery point', () => {
 
     expect(error.info.code).toBe(ExitCode.Precondition);
     expect(error.message).toBe(
-      `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data, and this rollout would start gateway image ${gatewayOf(release)} on tale_llm-gateway-data, a store that has not run it (it runs ${gatewayOf(run.bundle)}); a newer gateway migrates that store forward-only.`,
+      `Recovery snapshot ${PRE_CAPTURE_SNAPSHOT} does not contain llm-gateway-data, and this rollout would start gateway image ${gatewayOf(release)} on tale_llm-gateway-data, and nothing shows the store has run it (its gateway container runs ${gatewayOf(run.bundle)}); a newer gateway migrates that store forward-only.`,
     );
     expect(error.info.next).toBe(
       `Nothing was changed. Do not remove the pending receipt: a snapshot taken now could already hold a migrated store. ${ONWARD}`,
@@ -1006,7 +1008,7 @@ describePosix('model gateway recovery point', () => {
 
     const retry = await refusal(() => applyBundle(run, release));
 
-    expect(retry.message).toContain('a store that has not run it');
+    expect(retry.message).toContain('nothing shows the store has run it');
     run.docker.variantTag = null;
     const keeping = join(run.fixture.directory, 'keeping-deployment');
     writeFileSync(
@@ -1082,8 +1084,9 @@ describePosix('model gateway recovery point', () => {
   });
 
   // A re-run of a ready bundle that changes nothing records no snapshot at
-  // all; the stack is still that ready state, so a takeover snapshots it first.
-  test('a pending receipt that recorded no snapshot takes one before a takeover changes the runtime', async () => {
+  // all; the stack is still that ready state, so a takeover snapshots it first
+  // and keeps that snapshot with the pending deployment before it rolls out.
+  test('a pending receipt that recorded no snapshot takes one before a takeover changes the runtime, and keeps it through an interruption', async () => {
     const run = await create();
     await run.apply();
     run.nativeFailure(true);
@@ -1095,14 +1098,17 @@ describePosix('model gateway recovery point', () => {
       supersedesPendingBundle: pending.bundleSha256,
     });
     run.events.length = 0;
+    await stopAtPull(run, superseding);
+    expect(run.events).toEqual(['snapshot', 'verify-snapshot']);
+    expect(JSON.parse(readFileSync(pendingPath(run), 'utf8'))).toMatchObject({
+      snapshot: { id: PRE_CAPTURE_SNAPSHOT },
+      supersededBundles: [pending.bundleSha256],
+    });
+    run.events.length = 0;
 
     const result = await applyBundle(run, superseding);
 
-    expect(run.events.slice(0, 3)).toEqual([
-      'snapshot',
-      'verify-snapshot',
-      'up',
-    ]);
+    expect(run.events.slice(0, 2)).toEqual(['verify-snapshot', 'up']);
     expect(result).toMatchObject({
       phase: 'ready',
       snapshotId: PRE_CAPTURE_SNAPSHOT,
@@ -1111,19 +1117,62 @@ describePosix('model gateway recovery point', () => {
     });
   });
 
-  // One an older CLI took over without a snapshot may carry a partial rollout.
-  test('a pending receipt taken over before without a snapshot refuses a release onto a gateway image the store has not run', async () => {
+  test('a same-bundle retry of such a receipt whose runtime drifted snapshots once and keeps that snapshot', async () => {
     const run = await create();
     await run.apply();
     run.nativeFailure(true);
     await expect(run.apply()).rejects.toThrow('did not complete provisioning');
     run.nativeFailure(false);
+    expect(
+      JSON.parse(readFileSync(pendingPath(run), 'utf8')),
+    ).not.toHaveProperty('snapshot');
+    // The proxy container is gone: the retry changes the runtime again.
+    run.docker.containers = run.docker.containers.filter(
+      (container) =>
+        (container.Config as { Labels: Record<string, string> }).Labels[
+          'com.docker.compose.service'
+        ] !== 'proxy',
+    );
+    run.events.length = 0;
+    await stopAtPull(run, run.bundle);
+    expect(run.events).toEqual(['snapshot', 'verify-snapshot']);
+    expect(JSON.parse(readFileSync(pendingPath(run), 'utf8'))).toMatchObject({
+      snapshot: { id: PRE_CAPTURE_SNAPSHOT },
+    });
+    run.events.length = 0;
+
+    expect(await run.apply()).toMatchObject({
+      phase: 'ready',
+      snapshotId: PRE_CAPTURE_SNAPSHOT,
+    });
+    expect(run.events).toEqual([
+      'verify-snapshot',
+      'up',
+      'provision',
+      'cleanup',
+    ]);
+  });
+
+  /** A pending receipt as an older CLI's snapshot-less takeover left it:
+   * another bundle, the superseded one listed, and still no snapshot. */
+  async function olderTakeoverReceipt(run: Run) {
+    await run.apply();
+    run.nativeFailure(true);
+    await expect(run.apply()).rejects.toThrow('did not complete provisioning');
+    run.nativeFailure(false);
     const intent = JSON.parse(readFileSync(pendingPath(run), 'utf8'));
-    intent.supersededBundles = ['e'.repeat(64)];
+    intent.supersededBundles = [intent.bundleSha256];
+    intent.bundleSha256 = 'f'.repeat(64);
     writeFileSync(pendingPath(run), `${JSON.stringify(intent, null, 2)}\n`);
-    const pending = readFileSync(pendingPath(run));
+    return readFileSync(pendingPath(run));
+  }
+
+  // One an older CLI took over without a snapshot may carry a partial rollout.
+  test('a pending receipt taken over before without a snapshot refuses a release onto a gateway image the store has not run', async () => {
+    const run = await create();
+    const pending = await olderTakeoverReceipt(run);
     const superseding = await nextRelease(run, 'superseding-deployment', {
-      supersedesPendingBundle: intent.bundleSha256,
+      supersedesPendingBundle: 'f'.repeat(64),
     });
     run.events.length = 0;
     run.docker.calls = [];
@@ -1131,16 +1180,56 @@ describePosix('model gateway recovery point', () => {
     const error = await refusal(() => applyBundle(run, superseding));
 
     expect(error.message).toBe(
-      `The pending deployment recorded no recovery snapshot, and this rollout would start gateway image ${gatewayOf(superseding)} on tale_llm-gateway-data, a store that has not run it (it runs ${gatewayOf(run.bundle)}); a newer gateway migrates that store forward-only.`,
+      `The pending deployment recorded no recovery snapshot, and this rollout would start gateway image ${gatewayOf(superseding)} on tale_llm-gateway-data, and nothing shows the store has run it (its gateway container runs ${gatewayOf(run.bundle)}); a newer gateway migrates that store forward-only.`,
     );
     expect(error.info.next).toBe(
-      `Nothing was changed and the pending receipt is kept: its earlier takeover may already have changed the stack, so a snapshot taken now cannot stand in for the missing one. ${ONWARD}`,
+      `Nothing was changed and the pending receipt is kept: its earlier takeover may already have changed the stack, so a snapshot taken now cannot stand in for the missing one. ${ONWARD} That takeover has no recovery point either.`,
     );
     expect(run.events).toEqual([]);
     expect(run.docker.calls.some(({ args }) => args.includes('up'))).toBe(
       false,
     );
     expect(readFileSync(pendingPath(run))).toEqual(pending);
+  });
+
+  test('a takeover of such a receipt that keeps the gateway image proceeds, and says it has no recovery point', async () => {
+    const run = await create();
+    await olderTakeoverReceipt(run);
+    const keeping = join(run.fixture.directory, 'keeping-deployment');
+    writeFileSync(
+      run.preparation.spec,
+      JSON.stringify({
+        ...run.spec,
+        runtime: { ...run.spec.runtime, containerPrefix: 'north-desk-prod' },
+        supersedesPendingBundle: 'f'.repeat(64),
+      }),
+    );
+    await prepareDeployment(
+      { ...run.preparation, output: keeping },
+      run.prepareDependencies,
+    );
+    writeFileSync(run.preparation.spec, JSON.stringify(run.spec));
+    expect(gatewayOf(keeping)).toBe(gatewayOf(run.bundle));
+    const notices: string[] = [];
+    const notice = spyOn(logger, 'notice').mockImplementation((message) => {
+      notices.push(message);
+    });
+    let outcome: Awaited<ReturnType<typeof warnings>>;
+    try {
+      outcome = await warnings(() => applyBundle(run, keeping));
+    } finally {
+      notice.mockRestore();
+    }
+
+    expect(outcome.result).toMatchObject({ phase: 'ready' });
+    expect(
+      (outcome.result as { snapshotId?: string }).snapshotId,
+    ).toBeUndefined();
+    expect(outcome.warned).toContain(NO_RECOVERY_POINT);
+    expect(notices).toContain(
+      `Superseding the pending deployment bundle ${'f'.repeat(64)}; it recorded no recovery snapshot.`,
+    );
+    expect(notices.some((line) => line.includes('is kept'))).toBe(false);
   });
 
   // The snapshot helper captures the volume whenever `docker volume inspect`

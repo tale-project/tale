@@ -412,12 +412,19 @@ describePosix('managed source-Compose runtime adoption', () => {
     expect(next.newImage).toBe(true);
     expect(next.target).not.toBe(target);
     expect(mutations(run.docker)).toEqual([]);
-    // A container Compose created on the target but never started has not run it.
+    // With the rollout pending, only the container says whether the store has
+    // run the target: a stopped one that started has; one Compose created but
+    // never started has not.
     const interrupted = await create();
     interrupted.docker.upFailure = true;
     await expect(interrupted.apply()).rejects.toThrow('could not complete');
+    (gatewayOf(interrupted.docker).State as { Running: boolean }).Running =
+      false;
+    expect((await interrupted.apply(true)).gateway).toMatchObject({
+      newImage: false,
+      running: null,
+    });
     Object.assign(gatewayOf(interrupted.docker).State as object, {
-      Running: false,
       StartedAt: '0001-01-01T00:00:00Z',
     });
     expect((await interrupted.apply(true)).gateway).toMatchObject({
