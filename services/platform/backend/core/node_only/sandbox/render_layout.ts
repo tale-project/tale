@@ -20,7 +20,7 @@
  * into the page, so its body may reference nothing but its argument and the
  * page's own globals.
  */
-export function renderedLayoutHtml(doc: Document): string {
+function renderedLayoutHtml(doc: Document): string {
   const blockDisplays = new Set([
     'block',
     'flex',
