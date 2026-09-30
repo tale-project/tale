@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 63 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 64 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -468,6 +468,17 @@ records and delete them after.
   residency. Save an embedding model → on an open Websites page the notice
   (or banner) disappears without a reload, and every site crawled before the
   model turns **Scanning** by itself.
+- [ ] `KNOW-F35` · **A scan survives a restart** — Websites → add a site
+  with a few hundred pages and wait until **Indexed** (`websites.indexed`)
+  shows a few dozen. While the badge reads **Scanning**
+  (`websites.filter.status.scanning`), restart the platform (the backend
+  process, or the platform container) → once it is back the badge still
+  reads **Scanning**, never **Error** and never **Paused**
+  (`websites.scanPausedBadge`), and the row menu offers no **Scan now**.
+  Within about five minutes the count moves again by itself. Open the
+  details → the pages crawled before the restart keep their earlier
+  crawled time: the scan continued, it did not begin again. Restart once
+  more while it still scans → the same again.
 
 ## Boundary & error tests
 

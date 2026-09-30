@@ -71,6 +71,8 @@ Die Tabelle zeigt **Status**, die Seitenzahl unter **Indexiert**, **Gescannt** u
 | **Fehler** | Der Scan ist fehlgeschlagen oder nach den Abrufversuchen sind keine Inhalte gespeichert. Öffne die Quelle für die Ursache. |
 | **Lösche…** | Die Quelle wird entfernt. |
 
+Ein Scan, der gerade lief, als Tale neu gestartet oder aktualisiert wurde, läuft von selbst weiter, in der Regel innerhalb von fünf Minuten, und zwar mit den Seiten, die er noch nicht erreicht hatte. Wurde der Server ohne Vorwarnung beendet, kann das etwa eine halbe Stunde dauern. Die Quelle zeigt währenddessen **Wird gescannt**.
+
 Um außerhalb des Intervalls zu scannen, öffne das Zeilenmenü der Quelle oder ihre Details und wähle **Jetzt scannen**. Das hilft, wenn sich die Website geändert hat oder ein Scan fehlgeschlagen ist; ein fehlgeschlagener Scan wird sonst innerhalb von zwei Stunden von selbst wiederholt. Die Aktion steht zur Verfügung, solange die Quelle weder gescannt noch gelöscht wird.
 
 Die Seitenansicht bietet auch eine Suche im indexierten Inhalt. Suche nach einer auffälligen Formulierung der Seite, bevor du dich im Chat darauf verlässt. Stelle anschließend eine konkrete Frage und prüfe den Quellenbeleg.

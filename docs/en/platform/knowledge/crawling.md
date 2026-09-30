@@ -71,6 +71,8 @@ The table shows **Status**, the **Indexed** page count, **Scanned**, and **Inter
 | **Error** | The scan failed, or attempted pages left the source with no stored content. Open the source for its reason. |
 | **Deleting** | The source is being removed. |
 
+A scan that was under way when Tale restarted or was updated continues on its own, usually within five minutes, with the pages it had not reached yet. After a server that stopped without warning, it can take about half an hour. The source reads **Scanning** throughout.
+
 To scan outside the interval, open the source's row menu or its details and choose **Scan now**. Use it after the site changed, or after a failed scan, which otherwise retries on its own within two hours. The action is offered while the source is neither scanning nor being deleted.
 
 The page view also offers search over indexed content. Try a distinctive phrase from a page before relying on it in chat, then ask a specific question and inspect the citation.
