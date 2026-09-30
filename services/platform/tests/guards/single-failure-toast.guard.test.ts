@@ -38,6 +38,11 @@ import { describe, expect, it } from 'vitest';
  * invocation's rejection up through awaits, returns, rethrowing catches, the
  * local functions it escapes and their callers, to the first place that
  * handles it, and fails on every place that toasts it again.
+ *
+ * A handoff to the connect dialog (`onRequireConnect`) reports a failure
+ * too: that dialog says what happened — a cloud grant that lapsed, an import
+ * access ended part-way. So a write that toasts must not have its failure
+ * handed off as well, and no toast may share the branch that hands off.
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -52,6 +57,10 @@ const WRITE_HOOKS = new Set(['useBackendMutation', 'useBackendAction']);
  * controller counts too: one declared an `EditorController`, or an object
  * carrying `save`, `isDirty` and `reset` (`isEditorController`). */
 const EDITOR_HOOKS = new Set(['useFormEditor', 'useJsonConfigEditor']);
+
+/** The callbacks that hand a failure to the connect dialog, whose copy is
+ * that failure's report. */
+const HANDOFF_CALLBACKS = new Set(['onRequireConnect']);
 
 /** Shared surfaces that toast when a callback they are handed rejects. */
 const SURFACES: ReadonlyMap<string, readonly string[]> = new Map([
@@ -282,6 +291,76 @@ function rethrows(body: ts.Node): boolean {
   return false;
 }
 
+/** The statements a node lists, when it is a block, a case or a file. */
+function statementList(node: ts.Node): readonly ts.Statement[] | undefined {
+  if (
+    ts.isBlock(node) ||
+    ts.isSourceFile(node) ||
+    ts.isCaseClause(node) ||
+    ts.isDefaultClause(node)
+  ) {
+    return node.statements;
+  }
+  return undefined;
+}
+
+/** Whether a statement leaves the code that follows it: a `return` or a
+ * `throw`. */
+function leaves(statement: ts.Node | undefined): boolean {
+  return (
+    statement !== undefined &&
+    (ts.isReturnStatement(statement) || ts.isThrowStatement(statement))
+  );
+}
+
+/** The branch `node` runs in, inside `boundary`: the nearest block or case
+ * around it, or the unbraced arm of an `if` or a loop that holds it. */
+function branchAround(node: ts.Node, boundary: ts.Node): ts.Node {
+  let child = node;
+  for (
+    let parent = node.parent;
+    parent !== undefined && child !== boundary;
+    child = parent, parent = parent.parent
+  ) {
+    if (statementList(parent) !== undefined) return parent;
+    if (
+      ts.isIfStatement(parent) &&
+      (parent.thenStatement === child || parent.elseStatement === child)
+    ) {
+      return child;
+    }
+    if (
+      (ts.isForStatement(parent) ||
+        ts.isForOfStatement(parent) ||
+        ts.isForInStatement(parent) ||
+        ts.isWhileStatement(parent) ||
+        ts.isDoStatement(parent)) &&
+      parent.statement === child
+    ) {
+      return child;
+    }
+  }
+  return child;
+}
+
+/** Whether `node` takes down the toast kept in `handle`: `handle.dismiss()`
+ * or `handle?.dismiss()`. */
+function dismisses(node: ts.Node, handle: string): boolean {
+  for (const child of walkTree(node, false)) {
+    if (!ts.isCallExpression(child)) continue;
+    const callee = unwrap(child.expression);
+    if (
+      ts.isPropertyAccessExpression(callee) &&
+      callee.name.text === 'dismiss' &&
+      ts.isIdentifier(unwrap(callee.expression)) &&
+      unwrap(callee.expression).getText() === handle
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** The names a catch block keeps the failure in for later — a list it
  * pushes onto, a count it bumps, a variable it assigns. */
 function recordedNames(block: ts.Block): Set<string> {
@@ -325,6 +404,7 @@ class Scan {
     Map<string, ts.Identifier[]>
   >();
   private readonly toasting = new Map<ts.Node, boolean>();
+  private readonly handingOff = new Map<ts.Node, boolean>();
   private readonly writes = new Map<ts.Node, Write[]>();
   /** Object-literal hooks by key, for the adapter shape
    * `mutations: { useUpdate: () => looseMutation(useUpdateCredential()) }`. */
@@ -618,6 +698,181 @@ class Scan {
       }
     }
     return undefined;
+  }
+
+  // ── Handoffs to the connect dialog ─────────────────────────────────────
+
+  /** A call that hands the failure to the connect dialog:
+   * `onRequireConnect(…)`, or a call of a function that does. */
+  private isHandoffCall(call: ts.CallExpression): boolean {
+    const callee = unwrap(call.expression);
+    const name = ts.isPropertyAccessExpression(callee)
+      ? callee.name.text
+      : ts.isIdentifier(callee)
+        ? callee.text
+        : undefined;
+    if (name !== undefined && HANDOFF_CALLBACKS.has(name)) return true;
+    if (!ts.isIdentifier(callee)) return false;
+    const fn = this.functionOf(this.lookup(callee));
+    return fn !== undefined && this.functionHandsOff(fn);
+  }
+
+  /** Whether calling `fn` always hands off: a handoff is one of its body's
+   * own statements (or its expression body). A function that hands off on
+   * one branch of many — an import handler — is not a handoff itself. */
+  private functionHandsOff(fn: FunctionNode): boolean {
+    const cached = this.handingOff.get(fn);
+    if (cached !== undefined) return cached;
+    this.handingOff.set(fn, false);
+    const direct = (node: ts.Node) => {
+      const value = ts.isExpressionStatement(node)
+        ? unwrap(node.expression)
+        : ts.isExpression(node)
+          ? unwrap(node)
+          : undefined;
+      return (
+        value !== undefined &&
+        ts.isCallExpression(value) &&
+        this.isHandoffCall(value)
+      );
+    };
+    const body = fn.body;
+    const handsOff =
+      body !== undefined &&
+      (ts.isBlock(body) ? body.statements.some(direct) : direct(body));
+    this.handingOff.set(fn, handsOff);
+    return handsOff;
+  }
+
+  /** The first handoff in `node`, nested functions included. */
+  private handoffCall(node: ts.Node): ts.CallExpression | undefined {
+    for (const child of walkTree(node, true)) {
+      if (ts.isCallExpression(child) && this.isHandoffCall(child)) {
+        return child;
+      }
+    }
+    return undefined;
+  }
+
+  /** The first toast in `statements`, nested functions aside. */
+  private toastIn(
+    statements: readonly ts.Node[],
+  ): ts.CallExpression | undefined {
+    for (const statement of statements) {
+      const found = this.toastingCall(statement, false);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+
+  /** The toast a statement raises whatever happens — `toast(…)`, its handle
+   * kept (`started = toast(…)`, `const started = toast(…)`) — with the name
+   * that keeps it. A toast inside an `if`, a loop or a `try` may not run. */
+  private directToast(
+    statement: ts.Node,
+  ): { call: ts.CallExpression; handle?: string } | undefined {
+    let value: ts.Expression | undefined;
+    let handle: string | undefined;
+    if (ts.isExpressionStatement(statement)) {
+      value = unwrap(statement.expression);
+      if (isAssignment(value) && ts.isIdentifier(value.left)) {
+        handle = value.left.text;
+        value = unwrap(value.right);
+      }
+    } else if (ts.isVariableStatement(statement)) {
+      const [declaration] = statement.declarationList.declarations;
+      if (
+        declaration?.initializer !== undefined &&
+        ts.isIdentifier(declaration.name)
+      ) {
+        handle = declaration.name.text;
+        value = unwrap(declaration.initializer);
+      }
+    }
+    if (value === undefined || !ts.isCallExpression(value)) return undefined;
+    if (!this.isToastCall(value)) return undefined;
+    return handle === undefined ? { call: value } : { call: value, handle };
+  }
+
+  /**
+   * A toast on the branch that makes the handoff `call`: in the block (or
+   * unbraced arm) around it, before or after it; before it, whatever
+   * happens, in each block it sits in — unless the branch takes that notice
+   * down (`started.dismiss()`); in a `finally` around it; and — while the
+   * branch runs on instead of returning — after it in each block around it,
+   * up to the function it sits in.
+   */
+  private toastOnBranch(
+    call: ts.CallExpression,
+  ): ts.CallExpression | undefined {
+    const boundary = enclosingFunction(call)?.body ?? call.getSourceFile();
+    const branch = branchAround(call, boundary);
+    const statements = statementList(branch) ?? [branch];
+    const inBranch = this.toastIn(statements);
+    if (inBranch !== undefined || branch === boundary) return inBranch;
+    const takenDown = (handle: string | undefined) =>
+      handle !== undefined &&
+      statements.some((statement) => dismisses(statement, handle));
+    let runsOn = !leaves(statements.at(-1));
+    let inner: ts.Node = branch;
+    while (inner !== boundary) {
+      let statement: ts.Node = inner;
+      let list: readonly ts.Statement[] | undefined;
+      for (;;) {
+        const parent: ts.Node | undefined = statement.parent;
+        if (parent === undefined) return undefined;
+        // A `finally` runs on the way out of the branch, whatever it does.
+        if (
+          ts.isTryStatement(parent) &&
+          parent.finallyBlock !== undefined &&
+          statement !== parent.finallyBlock
+        ) {
+          const inFinally = this.toastIn([parent.finallyBlock]);
+          if (inFinally !== undefined) return inFinally;
+        }
+        list = statementList(parent);
+        if (list !== undefined) break;
+        statement = parent;
+      }
+      const index = list.findIndex((entry) => entry === statement);
+      for (const prior of list.slice(0, index)) {
+        const raised = this.directToast(prior);
+        if (raised !== undefined && !takenDown(raised.handle)) {
+          return raised.call;
+        }
+      }
+      if (runsOn) {
+        for (const next of list.slice(index + 1)) {
+          const found = this.toastIn([next]);
+          if (found !== undefined) return found;
+          if (leaves(next)) {
+            runsOn = false;
+            break;
+          }
+        }
+      }
+      if (statement.parent === boundary) return undefined;
+      inner = statement.parent ?? boundary;
+    }
+    return undefined;
+  }
+
+  /** Every handoff a toast shares its branch with, as `file:line` of the
+   * handoff and the toast. */
+  handoffsBesideToasts(): string[] {
+    const out: string[] = [];
+    for (const file of this.files) {
+      const tree = this.tree(file);
+      if (tree === undefined) continue;
+      for (const node of walkTree(tree, true)) {
+        if (!ts.isCallExpression(node) || !this.isHandoffCall(node)) continue;
+        const shared = this.toastOnBranch(node);
+        if (shared !== undefined) {
+          out.push(`${file}:${lineOf(node)} (the toast at ${lineOf(shared)})`);
+        }
+      }
+    }
+    return out;
   }
 
   /** The function a handler is: inline, or the one a name refers to. */
@@ -1240,6 +1495,14 @@ class Scan {
             this.report(walk.write, parent.name, `its .${method} toasts`);
             return;
           }
+          if (this.handoffCall(handler.body) !== undefined) {
+            this.report(
+              walk.write,
+              parent.name,
+              `its .${method} hands the failure to the connect dialog`,
+            );
+            return;
+          }
           if (!rethrows(handler.body)) return;
         } else if (method !== 'then' && method !== 'finally') {
           return;
@@ -1291,6 +1554,15 @@ class Scan {
     const toast = this.toastingCall(clause.block, true);
     if (toast !== undefined) {
       this.report(walk.write, toast, 'its catch toasts');
+      return false;
+    }
+    const handoff = this.handoffCall(clause.block);
+    if (handoff !== undefined) {
+      this.report(
+        walk.write,
+        handoff,
+        'its catch hands the failure to the connect dialog',
+      );
       return false;
     }
     if (rethrows(clause.block)) return true;
@@ -1486,10 +1758,16 @@ function surfacesWithoutReason(
     .map(({ file, line, tag }) => `${file}:${line} ${tag}`);
 }
 
+let scanner: Scan | undefined;
 let scanned: Violation[] | undefined;
 
+function appScan(): Scan {
+  scanner ??= new Scan(readPlatformFile, sourceFiles('app'));
+  return scanner;
+}
+
 function scan(): Violation[] {
-  scanned ??= new Scan(readPlatformFile, sourceFiles('app')).run();
+  scanned ??= appScan().run();
   return scanned;
 }
 
@@ -1501,6 +1779,14 @@ function scanFiles(files: Record<string, string>): string[] {
       (violation) =>
         `${violation.file}:${violation.line} ${violation.origin.name}: ${violation.via}`,
     );
+}
+
+/** Handoffs a toast shares its branch with, in in-memory files. */
+function handoffsIn(files: Record<string, string>): string[] {
+  return new Scan(
+    (file) => files[file],
+    Object.keys(files),
+  ).handoffsBesideToasts();
 }
 
 interface Allowance {
@@ -1599,6 +1885,13 @@ describe('single failure toast guard', () => {
     expect(
       surfacesWithoutReason(readPlatformFile, sourceFiles('app')),
       'pass describeFailure (firstFailureDetail / failureDetail), so the one toast says why',
+    ).toEqual([]);
+  });
+
+  it('never toasts on a branch that hands the failure to the connect dialog', () => {
+    expect(
+      appScan().handoffsBesideToasts(),
+      'the connect dialog reports the failure it is handed: raise no toast on that branch',
     ).toEqual([]);
   });
 
@@ -1797,6 +2090,23 @@ describe('single failure toast guard', () => {
       }`,
     ],
     [
+      'a catch that hands the failure to the connect dialog',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const { mutateAsync } = useLoud();
+        const go = async () => {
+          try { await mutateAsync({}); } catch { onRequireConnect(); }
+        };
+      }`,
+    ],
+    [
+      'a .catch whose helper hands off to the connect dialog',
+      `function A({ onRequireConnect }: { onRequireConnect?: () => void }) {
+        const { mutateAsync } = useLoud();
+        const handOff = () => { onRequireConnect?.(); };
+        const go = () => mutateAsync({}).catch(handOff);
+      }`,
+    ],
+    [
       "a factory's errorToast spread after a forwarded opt-out",
       `import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
       function useFeedback() { return { errorToast: { title: 'Nope' } }; }
@@ -1948,6 +2258,15 @@ export function useSettings() {
       }`,
     ],
     [
+      'a quiet write whose catch hands off to the connect dialog',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const { mutateAsync } = useQuiet();
+        const go = async () => {
+          try { await mutateAsync({}); } catch { onRequireConnect(); }
+        };
+      }`,
+    ],
+    [
       'a surface that does not toast',
       `function A() {
         const { mutateAsync } = useLoud();
@@ -1956,5 +2275,132 @@ export function useSettings() {
     ],
   ])('allows %s', (_shape, body) => {
     expect(scanFiles(sample(body))).toEqual([]);
+  });
+
+  // The branch that hands off: a toast in it, or after it while it runs on,
+  // reports the failure a second time; a toast before it does not.
+  it.each([
+    [
+      'a toast beside the handoff',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = (lapsed: boolean) => {
+          if (lapsed) {
+            toast({ title: 'Access ended' });
+            onRequireConnect();
+            return;
+          }
+        };
+      }`,
+    ],
+    [
+      'a handoff that runs on into the failure toast',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const handOff = () => { onRequireConnect(); };
+        const go = (lapsed: boolean) => {
+          if (lapsed) {
+            handOff();
+          }
+          toast({ title: 'Import failed' });
+        };
+      }`,
+    ],
+    [
+      'a failure toast raised before the branch that hands off',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = async (run: () => Promise<void>, lapsed: (e: unknown) => boolean) => {
+          try { await run(); } catch (e) {
+            toast({ title: 'Import failed' });
+            if (lapsed(e)) { onRequireConnect(); return; }
+          }
+        };
+      }`,
+    ],
+    [
+      'a toast in the finally around a handoff',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = async (run: () => Promise<boolean>) => {
+          try {
+            if (await run()) { onRequireConnect(); return; }
+          } finally {
+            toast({ title: 'Import failed' });
+          }
+        };
+      }`,
+    ],
+    [
+      'an unbraced handoff before the failure toast',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = (lapsed: boolean) => {
+          if (lapsed) onRequireConnect();
+          toast({ title: 'Import failed' });
+        };
+      }`,
+    ],
+  ])('catches %s', (_shape, body) => {
+    expect(handoffsIn(sample(body))).not.toEqual([]);
+  });
+
+  it.each([
+    [
+      'a handoff branch that returns before the failure toast',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = (lapsed: boolean) => {
+          if (lapsed) {
+            onRequireConnect();
+            return;
+          }
+          toast({ title: 'Import failed' });
+        };
+      }`,
+    ],
+    [
+      'a progress toast before the branch that hands off',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = async (run: () => Promise<boolean>) => {
+          const started = toast({ title: 'Import started' });
+          if (await run()) {
+            started.dismiss();
+            onRequireConnect();
+            return;
+          }
+          toast({ title: 'Import completed' });
+        };
+      }`,
+    ],
+    [
+      'a failure toast in a branch before it that returns',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = (files: string[], lapsed: boolean) => {
+          if (files.length === 0) {
+            toast({ title: 'Nothing to import', variant: 'destructive' });
+            return;
+          }
+          if (lapsed) { onRequireConnect(); return; }
+        };
+      }`,
+    ],
+    [
+      'a call of a function that only sometimes hands off, beside a toast',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const handleImport = async (lapsed: boolean) => {
+          if (lapsed) { onRequireConnect(); return; }
+        };
+        const go = async () => {
+          await handleImport(false);
+          toast({ title: 'Import started' });
+        };
+      }`,
+    ],
+    [
+      'a handoff and a toast in branches of their own',
+      `function A({ onRequireConnect }: { onRequireConnect: () => void }) {
+        const go = (lapsed: boolean) => {
+          if (lapsed) onRequireConnect();
+          else toast({ title: 'Import failed' });
+        };
+      }`,
+    ],
+  ])('allows %s', (_shape, body) => {
+    expect(handoffsIn(sample(body))).toEqual([]);
   });
 });
