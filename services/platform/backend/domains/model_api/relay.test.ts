@@ -593,7 +593,7 @@ describe('relayToGateway — refusals', () => {
     expect((await relayToGateway(relay)).status).toBe(429);
   });
 
-  it('throws the 502 refusal when the gateway cannot be reached, a whole answer then ended early with no output', async () => {
+  it('throws the 502 refusal when the gateway call fails after it may have been sent, and floors the whole answer at its prompt', async () => {
     gateway(() => Promise.reject(new TypeError('fetch failed')));
     const { args: relay, outcomes } = args({});
     await expect(relayToGateway(relay)).rejects.toBeInstanceOf(ModelApiRefusal);

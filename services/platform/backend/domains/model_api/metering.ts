@@ -514,15 +514,22 @@ export function spendFactsOf(ending: ModelApiEnding): ModelApiSpendFacts {
   }
   if (outcome.countedOutputTokens === undefined) return NO_FACTS;
   const reported = outcome.usage;
-  const inputTokens =
-    reported !== undefined && reported.inputTokens > 0
-      ? reported.inputTokens
-      : ending.promptTokens;
+  // The vendor's own prompt count, with the share it served from its cache
+  // (priced at the cache rate); else the estimate, all at the input rate.
+  const vendorCounted = reported !== undefined && reported.inputTokens > 0;
+  const inputTokens = vendorCounted
+    ? reported.inputTokens
+    : ending.promptTokens;
   const outputTokens = Math.max(
     reported?.outputTokens ?? 0,
     outcome.countedOutputTokens,
   );
-  const cents = estimateCostCents(inputTokens, outputTokens, model.pricing);
+  const cents = estimateCostCents(
+    inputTokens,
+    outputTokens,
+    model.pricing,
+    vendorCounted ? (reported.cachedInputTokens ?? 0) : 0,
+  );
   return {
     ...NO_FACTS,
     floorCents: cents > 0 ? cents : null,

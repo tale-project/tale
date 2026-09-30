@@ -528,14 +528,14 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   word for word repeats the placeholder, not the word; a category that checks
   only model output leaves the answer untouched. Restore the guardrails.
 - [ ] `GOV-F47` · **A call you break off ends at the gateway and is still
-  booked** — Mode B. With a Developer's key, start
-  `POST /api/v1/openai/chat/completions` without `stream` on a model that takes
-  a while to answer (ask for a long essay, or use a local model) and stop the
-  client after a few seconds (Ctrl-C on `curl`); repeat with `"stream": true`
-  once the first chunks have arrived → Within about a second the gateway's log
-  (`docker logs` on the `sandbox-llm-gateway` container) records each call as
-  `499`, and a local model's own log shows the request cancelled, not
-  finished. Within a minute both calls sit on the Developer's **Direct API**
+  booked** — Mode B, on a model with a catalog price. With a Developer's key,
+  start `POST /api/v1/openai/chat/completions` without `stream` on a model that
+  takes a while to answer (ask for a long essay) and stop the client after a
+  few seconds (Ctrl-C on `curl`); repeat with `"stream": true` once the first
+  chunks have arrived → Within about a second the gateway's log (`docker logs`
+  on the `sandbox-llm-gateway` container) records each call as `499`; a
+  self-hosted upstream's own log shows the request cancelled, not finished.
+  Within a minute both calls sit on the Developer's **Direct API**
   row in `usage` (GOV-F45): the whole answer costs about its prompt, the stream
   its prompt plus the chunks received — never nothing, and never a full answer
   that was not delivered.

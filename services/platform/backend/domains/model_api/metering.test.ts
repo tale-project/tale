@@ -531,6 +531,27 @@ describe('spendFactsOf', () => {
         },
       }).floorCents,
     ).toBe(15);
+    // A prompt the vendor served from its cache floors at the cache rate:
+    // 500k at 3c/M plus 500k at 30c/M = 1.5c + 15c.
+    expect(
+      spendFactsOf({
+        ...ending,
+        model: {
+          ...MODEL,
+          pricing: { ...MODEL.pricing, cacheReadCentsPerMillion: 3 },
+        },
+        promptTokens: 1_000_000,
+        outcome: {
+          status: 'cancelled',
+          usage: {
+            inputTokens: 1_000_000,
+            outputTokens: 0,
+            cachedInputTokens: 500_000,
+          },
+          countedOutputTokens: 0,
+        },
+      }).floorCents,
+    ).toBe(16.5);
   });
 
   it('records nothing for a refusal the gateway answered', () => {
@@ -716,7 +737,7 @@ describe('settleModelApiOp', () => {
     );
   });
 
-  it('does not read the spend of a request closed as stale before its lifetime has passed', async () => {
+  it('does not read the spend before the moment the op row names (a stale close waits out a whole answer)', async () => {
     const { sql } = settlingSql({ settleAfter: Date.now() + 60_000 });
 
     await settleModelApiOp(sql, LEASE);

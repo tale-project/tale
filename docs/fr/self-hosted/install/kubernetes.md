@@ -40,7 +40,7 @@ Chaque Pod ci-dessous définit `enableServiceLinks: false`. Sinon, Kubernetes in
 | `proxy` | Deployment avec la stratégie `Recreate` ; `hostPort` 80 et 443 ; PVC pour `/data` | Le magasin de certificats survit aux redémarrages sur le PVC. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment ; Service sur 8003 | `SANDBOX_BACKEND=kubernetes` ; `config-data` en lecture seule sur `/app/platform-config`. Aucun socket Docker. |
 | `sandbox-egress` | Deployment ; Service sur 3128 | Le jeu de capabilities livré, sans sysctls. |
-| `sandbox-llm-gateway` | Deployment avec la stratégie `Recreate`, PVC sur `/app/data` ; Services `sandbox-llm-gateway` et `llm-gateway` sur 8080 | L’image s’exécute avec l’uid 1000 ; `fsGroup: 1000` lui permet d’écrire son état. Le gateway lit `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` dans `tale-env` : tant qu’il n’a pas de compte d’administration, il n’en crée un que pour un appelant qui présente ce secret. |
+| `sandbox-llm-gateway` | Deployment avec la stratégie `Recreate`, PVC sur `/app/data` ; Services `sandbox-llm-gateway` et `llm-gateway` sur 8080 | L’image s’exécute avec l’uid 1000 ; `fsGroup: 1000` lui permet d’écrire son état. La passerelle lit `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` dans `tale-env` : tant qu’elle n’a pas de compte d’administration, elle n’en crée un que pour un appelant qui présente ce secret. |
 | `bgutil-provider` | Deployment ; Service sur 4416 | Fournisseur de jetons vidéo, facultatif. |
 
 Les sondes transposent les contrôles de santé Compose :
