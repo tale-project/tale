@@ -147,9 +147,14 @@ Node with `ITEST_REQUIRE_ALL_LANES=1`. It calls the script directly, so its verd
 never a turbo replay; the job's summary lists the failed checks. A lane that starts
 importing a file outside that path list fails
 [`tests/guards/integration-scope.guard.test.ts`](../tests/guards/integration-scope.guard.test.ts)
-until the list names it. A few lanes still reach real vendors (the AI title lane,
-the model catalogs, the video-link DNS checks); a failure there on a vendor outage
-is re-run, not waived.
+until the list names it. The suite reaches nothing off the box but the database
+and the object store: [`integration-vendor-stub.ts`](integration-vendor-stub.ts)
+answers the shipped vendor origins the lanes call (the OpenRouter and Vercel AI
+Gateway catalogs, the AI title lane's Anthropic call), refuses any other request
+off the box the way a network without egress does, and answers every name the
+lanes resolve with a documentation-range address. A lane that needs a new vendor
+surface extends the stub; the run's `[itest] off the box:` line names what the
+stub answered and what was refused.
 
 The job requires both `pg_search` and `vector` to be loaded. Its
 `backend-integration-<run>-<attempt>` artifact retains the raw suite and service

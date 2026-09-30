@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { promises as dnsPromises } from 'node:dns';
 
-import { UrlSafetyError, assertSafeUrl } from './url_safety';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  UrlSafetyError,
+  assertSafeUrl,
+  setUrlSafetyResolverForTests,
+} from './url_safety';
 
 /** Convenience: a stub resolver that returns a fixed list of IPs. */
 function staticResolver(addresses: string[]) {
@@ -154,6 +160,49 @@ describe('assertSafeUrl', () => {
           ]),
         }),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('the test seam (the orchestrator passes no resolver)', () => {
+    afterEach(() => {
+      setUrlSafetyResolverForTests(null);
+      vi.restoreAllMocks();
+    });
+
+    it('answers a bare call, private answers still refused', async () => {
+      setUrlSafetyResolverForTests(staticResolver(['10.0.0.5']));
+      await expect(assertSafeUrl('https://youtu.be/abc')).rejects.toMatchObject(
+        { kind: 'privateIpResolved' },
+      );
+      setUrlSafetyResolverForTests(staticResolver(['203.0.113.10']));
+      await expect(
+        assertSafeUrl('https://youtu.be/abc'),
+      ).resolves.toBeUndefined();
+    });
+
+    it("never outranks a caller's own resolver", async () => {
+      setUrlSafetyResolverForTests(staticResolver(['10.0.0.5']));
+      await expect(
+        assertSafeUrl('https://youtu.be/abc', {
+          resolver: staticResolver(['203.0.113.10']),
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('cleared, a bare call queries resolve4 and resolve6 again', async () => {
+      const resolve4 = vi
+        .spyOn(dnsPromises, 'resolve4')
+        .mockResolvedValue(['10.0.0.5']);
+      const resolve6 = vi
+        .spyOn(dnsPromises, 'resolve6')
+        .mockRejectedValue(new Error('ENODATA'));
+      setUrlSafetyResolverForTests(staticResolver(['203.0.113.10']));
+      setUrlSafetyResolverForTests(null);
+      await expect(assertSafeUrl('https://youtu.be/abc')).rejects.toMatchObject(
+        { kind: 'privateIpResolved' },
+      );
+      expect(resolve4).toHaveBeenCalledWith('youtu.be');
+      expect(resolve6).toHaveBeenCalledWith('youtu.be');
     });
   });
 });
