@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import { THIRD_PARTY_IMAGES } from '../src/lib/compose/types';
 import { CANDIDATE_JOBS } from './release-candidate-gate';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
@@ -21,8 +22,13 @@ type Step = {
   uses?: string;
   if?: string;
   with?: Record<string, unknown>;
+  'continue-on-error'?: boolean;
 };
 type Job = {
+  env?: Record<string, string>;
+  permissions?: Record<string, string>;
+  'timeout-minutes'?: number;
+  'continue-on-error'?: boolean;
   name?: string;
   outputs?: Record<string, string>;
   needs?: string | string[];
@@ -205,7 +211,11 @@ test('the Build receipt contract covers its complete existing graph too', async 
   );
 });
 
-async function execute(script: string, environment: Record<string, string>) {
+async function execute(
+  script: string,
+  environment: Record<string, string>,
+  commands: Record<string, string> = {},
+) {
   const directory = await mkdtemp(join(tmpdir(), 'tale-candidate-workflow-'));
   temporary.push(directory);
   const output = join(directory, 'output');
@@ -222,12 +232,18 @@ async function execute(script: string, environment: Record<string, string>) {
     '#!/bin/sh\nprintf "args=%s\\n" "$*" >> "$GITHUB_OUTPUT"\nif [ "$*" = "commitlint --verbose" ]; then cat >> "$GITHUB_OUTPUT"; fi\n',
     { mode: 0o755 },
   );
+  for (const [name, body] of Object.entries(commands)) {
+    await writeFile(join(directory, name), body, { mode: 0o755 });
+  }
   const process = Bun.spawn(['/bin/bash', '-c', script], {
     cwd: directory,
     env: {
       ...globalThis.process.env,
       PATH: `${directory}:${globalThis.process.env.PATH}`,
       GITHUB_OUTPUT: output,
+      GITHUB_ENV: join(directory, 'environment'),
+      PROOF_DIR: directory,
+      RUNNER_TEMP: directory,
       GITHUB_STEP_SUMMARY: summary,
       ...environment,
     },
@@ -445,3 +461,156 @@ git checkout -q --detach "$publication_source"
     }
   },
 );
+
+describe('the real backend proof is a required uncached candidate job', () => {
+  test('all events run every lane with shipped services and retain the failure evidence', async () => {
+    const file = await workflow('checks');
+    const job = file.jobs['backend-integration'];
+    expect(job).toBeDefined();
+    expect(job.if).toBeUndefined();
+    expect(job['continue-on-error']).toBeUndefined();
+    expect(job.permissions).toEqual({ contents: 'read' });
+    expect(job['timeout-minutes']).toBeGreaterThan(0);
+    expect(job['timeout-minutes']).toBeLessThanOrEqual(60);
+    expect(job.env?.ITEST_REQUIRE_ALL_LANES).toBe('1');
+    expect(JSON.stringify(job)).not.toContain('ITEST_LANES');
+    expect(job.env?.ITEST_S3_ENDPOINT).toBe('http://127.0.0.1:19000');
+    expect(job.env?.VIDEO_INGEST_FFMPEG_LOCATION).toBe('/usr/bin/ffmpeg');
+    expect(
+      job.steps!.find((step) => step.name === 'Setup toolchain')?.with?.[
+        'start-turbo-cache'
+      ],
+    ).toBe('false');
+    const prepare = job.steps!.find(
+      (step) => step.name === 'Prepare isolated proof and shipped runtime pins',
+    )!;
+    expect(prepare.run).toContain('THIRD_PARTY_IMAGES["object-store"]');
+    for (const variable of [
+      'DATABASE_URL',
+      'KNOWLEDGE_DATABASE_URL',
+      'ITEST_S3_ACCESS_KEY',
+      'ITEST_S3_SECRET_KEY',
+      'TALE_CONFIG_DIR',
+      'TALE_CONFIG_BUILTIN_DIR',
+    ]) {
+      expect(prepare.run).toContain(`echo "${variable}=`);
+    }
+    const build = job.steps!.find(
+      (step) => step.name === 'Build candidate database image',
+    )!;
+    expect(build.run).toContain('docker build --file services/db/Dockerfile');
+    const services = job.steps!.find(
+      (step) =>
+        step.name === 'Start disposable database and shipped object store',
+    )!;
+    expect(services.run).toContain('--env TALE_DB_ROLE=knowledge');
+    expect(services.run).toContain('.State.Health.Status');
+    expect(services.run).toContain("extname IN ('pg_search', 'vector')");
+    const run = job.steps!.find(
+      (step) => step.name === 'Run every backend integration lane',
+    )!;
+    expect(run.if).toBeUndefined();
+    expect(run['continue-on-error']).toBeUndefined();
+    expect(run.run).toContain(
+      'bun run --filter @tale/platform backend:integration',
+    );
+    expect(run.run).not.toMatch(/bunx? (?:run )?turbo/);
+    const evidence = job.steps!.find(
+      (step) => step.name === 'Upload backend integration evidence',
+    )!;
+    expect(evidence.if).toBe('always()');
+    expect(evidence.with?.['if-no-files-found']).toBe('error');
+    expect(evidence.with?.path).not.toMatch(/config|builtin/);
+    for (const step of job.steps ?? []) {
+      if (step.uses && !step.uses.startsWith('./')) {
+        expect(step.uses).toMatch(/@[a-f0-9]{40}$/);
+      }
+    }
+  });
+
+  test.skipIf(process.platform === 'win32')(
+    'preparation resolves the shipped pins and isolates every writable input',
+    async () => {
+      const job = (await workflow('checks')).jobs['backend-integration'];
+      const step = job.steps!.find(
+        (entry) =>
+          entry.name === 'Prepare isolated proof and shipped runtime pins',
+      )!;
+      const result = await execute(`cd "$CHECKOUT"\n${step.run}`, {
+        CHECKOUT: root,
+        GITHUB_RUN_ID: '77',
+        GITHUB_RUN_ATTEMPT: '2',
+        GITHUB_EVENT_NAME: 'repository_dispatch',
+        GITHUB_SHA: H,
+      });
+      expect(result.code, result.stderr).toBe(0);
+      const dockerfile = await readFile(
+        join(root, 'services/platform/Dockerfile'),
+        'utf8',
+      );
+      const shippingNode = dockerfile.match(
+        /^FROM node:(\d+\.\d+\.\d+)-[^ ]+ AS node-bin$/m,
+      )?.[1];
+      expect(shippingNode).toBeDefined();
+      expect(result.output).toBe(`node-version=${shippingNode}\n`);
+      const environment = await readFile(
+        join(result.directory, 'environment'),
+        'utf8',
+      );
+      expect(environment).toContain(
+        `OBJECT_STORE_IMAGE=${THIRD_PARTY_IMAGES['object-store']}\n`,
+      );
+      const proof = join(result.directory, 'backend-integration-77-2');
+      for (const [name, suffix] of [
+        ['TALE_CONFIG_DIR', 'config'],
+        ['TALE_CONFIG_BUILTIN_DIR', 'builtin'],
+      ]) {
+        expect(environment).toContain(`${name}=${join(proof, suffix)}\n`);
+      }
+      expect(environment).toMatch(/ITEST_S3_SECRET_KEY=[a-f0-9]{48}\n/);
+      expect(environment).toMatch(
+        /DATABASE_URL=postgresql:\/\/tale:[a-f0-9]{48}@127\.0\.0\.1:15432\/tale_app\n/,
+      );
+      expect(await readFile(join(proof, 'source.txt'), 'utf8')).toContain(
+        `workflow-sha=${H}\n`,
+      );
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'a failing lane stays red through tee and leaves its raw output',
+    async () => {
+      const job = (await workflow('checks')).jobs['backend-integration'];
+      const step = job.steps!.find(
+        (entry) => entry.name === 'Run every backend integration lane',
+      )!;
+      for (const code of [0, 1, 2]) {
+        const result = await execute(
+          step.run!,
+          {
+            ITEST_REQUIRE_ALL_LANES: job.env!.ITEST_REQUIRE_ALL_LANES,
+            LANE_EXIT: String(code),
+          },
+          {
+            bun: `#!/bin/sh
+[ "$*" = "run --filter @tale/platform backend:integration" ] || exit 99
+[ "$ITEST_REQUIRE_ALL_LANES" = 1 ] || exit 98
+printf 'synthetic lane: exit %s\n' "$LANE_EXIT"
+exit "$LANE_EXIT"
+`,
+          },
+        );
+        expect(result.code, result.stderr).toBe(code);
+        expect(
+          await readFile(join(result.directory, 'exit-code.txt'), 'utf8'),
+        ).toBe(`${code}\n`);
+        expect(
+          await readFile(
+            join(result.directory, 'backend-integration.log'),
+            'utf8',
+          ),
+        ).toBe(`synthetic lane: exit ${code}\n`);
+      }
+    },
+  );
+});

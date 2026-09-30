@@ -115,6 +115,9 @@ To be `eligible`, the candidate must pass all of these:
   that run's current attempt. Each run records its attempt number, creation and current attempt
   start times, dispatch branch and workflow source SHA in the report.
 - **The other workflows.** Checks, SAST, Commitlint, E2E, CLI and Security must all have passed.
+  Checks includes **Backend integration (all lanes)**: the direct, uncached real-Postgres
+  and object-store proof at the candidate SHA. A failed, skipped or timed-out job cannot
+  satisfy the candidate receipt.
   Each workflow uses the newest attempt across its candidate receipts and normal exact-C runs.
   A later valid candidate success can recover an older cancelled push; a later failed normal
   run or rerun still blocks. Missing CLI or Security is blocked even if its normal path filter

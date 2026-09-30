@@ -126,7 +126,8 @@ The ID token's `email`/`profile` claims come from Tale's own
 `customIdTokenClaims` hook (`oidcScopeClaims` in [`auth/oidc.ts`](auth/oidc.ts)):
 from Better Auth 1.7 the library itself delivers them at userinfo only.
 [`auth/oidc.id-token.test.ts`](auth/oidc.id-token.test.ts) verifies the minted
-token in the CI `test` lane; `backend:integration` is not a CI job.
+token in the CI `test` lane; the real-session proof runs in CI’s
+**Backend integration (all lanes)** job.
 
 ## Verify a backend change
 
@@ -134,6 +135,23 @@ token in the CI `test` lane; `backend:integration` is not a CI job.
 bun run --filter @tale/platform test
 bun run --filter @tale/platform backend:integration
 ```
+
+The Checks workflow runs the second command directly, without Turbo caching, in
+**Backend integration (all lanes)** on every PR (drafts included), main push,
+merge-group event and release-candidate dispatch. It builds `services/db/Dockerfile`
+from the checked-out source, waits for its migration-aware readiness, verifies
+`pg_search` and `vector`, and starts the CLI’s `THIRD_PARTY_IMAGES` object-store
+pin with fresh test credentials. Node follows the platform Dockerfile’s pin;
+ffmpeg/ffprobe and isolated config roots are supplied. `ITEST_REQUIRE_ALL_LANES=1`
+requires every lane, all S3 credentials and zero skips. A failed check, omitted
+lane, missing service or timeout fails the job; vendor/network probes are included
+and an outside outage is a failure, not an exception.
+
+The job has a 60-minute ceiling and its harness step a 40-minute ceiling. Its
+`backend-integration-<run>-<attempt>` artifact retains source/image/toolchain
+identity and raw build, suite and service logs for 14 days, including failed runs;
+it excludes the test configuration tree. Release candidates check the resolved
+candidate SHA, and this job participates in the Checks candidate receipt.
 
 The second command requires a **fresh, disposable application database** and its
 own configuration directory. Never point it at a development or customer database

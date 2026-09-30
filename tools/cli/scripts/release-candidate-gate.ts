@@ -113,6 +113,7 @@ export const CANDIDATE_JOBS: Record<
       'test-ui',
       'knip',
       'test-browser',
+      'backend-integration',
     ],
     names: [
       SOURCE_JOB,
@@ -124,6 +125,7 @@ export const CANDIDATE_JOBS: Record<
       'UI',
       'Knip',
       'Browser',
+      'Backend integration (all lanes)',
       RECEIPT_JOB,
     ],
   },

@@ -13,10 +13,17 @@ import { parsePlatformConfiguration } from './platform-model';
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const CLI_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const LOCALES = ['en', 'de', 'fr'];
-/** The CI files `scripts/deployment-ci.test.ts` reads, from the repo root. */
+/** Outside CI inputs read by deployment and candidate-workflow contracts. */
 const CHECKED_CI_FILES = [
   '.github/workflows/build.yml',
   '.github/workflows/cleanup-pr-images.yml',
+  '.github/workflows/checks.yml',
+  '.github/workflows/sast.yml',
+  '.github/workflows/commitlint.yml',
+  '.github/workflows/e2e.yml',
+  '.github/workflows/security.yml',
+  '.github/workflows/release-candidate-source.yml',
+  '.github/workflows/release-candidate-receipt.yml',
   '.github/actions/setup-cli/action.yml',
 ];
 /**

@@ -290,9 +290,158 @@ jobs:
       - name: Run browser-mode component tests
         run: bunx turbo run test:browser
 
+  # A real, uncached Postgres + object-store proof. Run on every normal event,
+  # including draft PRs, and on the same pinned source as the candidate receipt.
+  backend-integration:
+    needs: candidate-source
+    name: Backend integration (all lanes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      ITEST_REQUIRE_ALL_LANES: '1'
+      ITEST_S3_ENDPOINT: http://127.0.0.1:19000
+      VIDEO_INGEST_FFMPEG_LOCATION: /usr/bin/ffmpeg
+      DB_CONTAINER: tale-itest-db-${{ github.run_id }}-${{ github.run_attempt }}
+      S3_CONTAINER: tale-itest-s3-${{ github.run_id }}-${{ github.run_attempt }}
+      DB_IMAGE: tale-itest-db:${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          start-turbo-cache: 'false'
+
+      - name: Prepare isolated proof and shipped runtime pins
+        id: runtime
+        run: |
+          set -euo pipefail
+          PROOF_DIR="$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          echo "PROOF_DIR=$PROOF_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$PROOF_DIR" "$PROOF_DIR/config" "$PROOF_DIR/builtin"
+          node_image="$(sed -n 's/^FROM \(node:[^ ]*\) AS node-bin$/\1/p' services/platform/Dockerfile)"
+          node_version="${node_image#node:}"
+          node_version="${node_version%%-*}"
+          [[ "$node_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "node-version=$node_version" >> "$GITHUB_OUTPUT"
+          object_image="$(bun -e 'import { THIRD_PARTY_IMAGES } from "./tools/cli/src/lib/compose/types.ts"; console.log(THIRD_PARTY_IMAGES["object-store"]);')"
+          test -n "$object_image"
+          db_password="$(openssl rand -hex 24)"
+          s3_secret="$(openssl rand -hex 24)"
+          echo "::add-mask::$db_password"
+          echo "::add-mask::$s3_secret"
+          {
+            echo "DB_PASSWORD=$db_password"
+            echo "DATABASE_URL=postgresql://tale:$db_password@127.0.0.1:15432/tale_app"
+            echo "KNOWLEDGE_DATABASE_URL=postgresql://tale:$db_password@127.0.0.1:15432/tale_knowledge"
+            echo "ITEST_S3_ACCESS_KEY=tale-itest"
+            echo "ITEST_S3_SECRET_KEY=$s3_secret"
+            echo "MINIO_ROOT_USER=tale-itest"
+            echo "MINIO_ROOT_PASSWORD=$s3_secret"
+            echo "TALE_CONFIG_DIR=$PROOF_DIR/config"
+            echo "TALE_CONFIG_BUILTIN_DIR=$PROOF_DIR/builtin"
+            echo "OBJECT_STORE_IMAGE=$object_image"
+          } >> "$GITHUB_ENV"
+          {
+            echo "source=$(git rev-parse HEAD)"
+            echo "workflow-event=$GITHUB_EVENT_NAME"
+            echo "workflow-sha=$GITHUB_SHA"
+            echo "run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT"
+            echo "node-image=$node_image"
+            echo "object-store=$object_image"
+            sha256sum services/db/Dockerfile services/platform/backend/integration-check.ts
+          } > "$PROOF_DIR/source.txt"
+
+      - name: Setup shipping Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ steps.runtime.outputs.node-version }}
+          package-manager-cache: false
+
+      - name: Install media tooling
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends ffmpeg
+          { node --version; bun --version; ffmpeg -version; ffprobe -version; } > "$PROOF_DIR/toolchain.txt"
+
+      - name: Build candidate database image
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          docker build --file services/db/Dockerfile --tag "$DB_IMAGE" . 2>&1 | tee "$PROOF_DIR/db-build.log"
+
+      - name: Start disposable database and shipped object store
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docker run --detach --name "$DB_CONTAINER" --shm-size=512m \
+            --publish 127.0.0.1:15432:5432 --env DB_PASSWORD \
+            --env TALE_DB_ROLE=knowledge "$DB_IMAGE"
+          docker run --detach --name "$S3_CONTAINER" \
+            --publish 127.0.0.1:19000:9000 --env MINIO_ROOT_USER --env MINIO_ROOT_PASSWORD \
+            "$OBJECT_STORE_IMAGE" server /data
+          for _attempt in $(seq 1 90); do
+            health="$(docker inspect --format '{{.State.Health.Status}}' "$DB_CONTAINER")"
+            if [ "$health" = healthy ]; then break; fi
+            if [ "$health" = unhealthy ]; then exit 1; fi
+            sleep 2
+          done
+          test "$health" = healthy
+          curl --fail --silent --show-error --retry 60 --retry-connrefused --retry-delay 2 --retry-max-time 120 --max-time 5 \
+            "$ITEST_S3_ENDPOINT/minio/health/ready"
+          # Readiness means migrations finished; also refuse a degraded corpus
+          # image instead of allowing pg_search's optional boot path to pass.
+          test "$(docker exec "$DB_CONTAINER" psql -U tale -d tale_knowledge -tAc "SELECT count(*) FROM pg_extension WHERE extname IN ('pg_search', 'vector')")" = 2
+          docker exec "$DB_CONTAINER" psql -U tale -d tale_app -v ON_ERROR_STOP=1 -c 'SELECT 1'
+          docker exec "$DB_CONTAINER" psql -U tale -d tale_knowledge -c "SELECT extname, extversion FROM pg_extension WHERE extname IN ('pg_search', 'vector')" > "$PROOF_DIR/extensions.txt"
+          docker image inspect --format '{{.Id}} {{json .RepoDigests}}' "$DB_IMAGE" "$OBJECT_STORE_IMAGE" > "$PROOF_DIR/images.txt"
+
+      - name: Run every backend integration lane
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          # Direct workspace command: no Turbo verdict can be replayed. The
+          # harness owns lane accounting, skip refusal and the failure exit.
+          trap 'echo "$?" > "$PROOF_DIR/exit-code.txt"' EXIT
+          bun run --filter @tale/platform backend:integration 2>&1 | tee "$PROOF_DIR/backend-integration.log"
+
+      - name: Retain service diagnostics and stop owned containers
+        if: always()
+        timeout-minutes: 2
+        run: |
+          PROOF_DIR="${PROOF_DIR:-$RUNNER_TEMP/backend-integration-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT}"
+          echo "PROOF_DIR=$PROOF_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$PROOF_DIR"
+          docker logs "$DB_CONTAINER" > "$PROOF_DIR/db.log" 2>&1 || true
+          docker logs "$S3_CONTAINER" > "$PROOF_DIR/object-store.log" 2>&1 || true
+          docker rm --force --volumes "$DB_CONTAINER" "$S3_CONTAINER" || true
+
+      - name: Upload backend integration evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: backend-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.PROOF_DIR }}/*.txt
+            ${{ env.PROOF_DIR }}/*.log
+          if-no-files-found: error
+          retention-days: 14
+
   candidate-gate:
     name: Candidate gate
-    needs: [candidate-source, format, lint, typecheck, build, test, test-ui, knip, test-browser]
+    needs: [candidate-source, format, lint, typecheck, build, test, test-ui, knip, test-browser, backend-integration]
     if: always() && github.event_name == 'repository_dispatch'
     uses: ./.github/workflows/release-candidate-receipt.yml
     permissions: {}

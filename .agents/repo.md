@@ -67,7 +67,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   itself and imports only pure rules (it runs against the schema at its number, with the newest
   image's code). The real-Postgres proof is
   `bun run --filter @tale/platform backend:integration` (there is no separate migrations gate or
-  generated registry — filename order is the registry).
+  generated registry — filename order is the registry). Checks runs it directly in **Backend
+  integration (all lanes)** against the candidate’s shipped DB and object store, with
+  `ITEST_REQUIRE_ALL_LANES=1`; no cached verdict or filtered run satisfies that job.
   Scaffold with `bun run gen:migration` and follow the
   [`create-migration`](skills/create-migration/SKILL.md) skill.
 - **Spend is booked under a person, never a door** — every `app.usage_ledger` write names its
@@ -141,7 +143,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-Every CI job is `setup-turbo` plus one root script, so most check results are **replays**:
+Most check jobs use `setup-turbo` plus one root script, so their results can be **replays**:
 `@tale/ui:test:browser`, for instance, actually executed four times in one recent stretch of
 forty `checks.yml` runs. Whichever run first executes a given input hash freezes its verdict for
 every later run that shares those inputs — so a task that is flaky but passed once reads green
@@ -168,8 +170,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
-  pages; the three CI files `scripts/deployment-ci.test.ts` checks: the `build.yml` and
-  `cleanup-pr-images.yml` workflows and the `setup-cli` action; the files the compose parity
+  pages; the workflows read by the deployment and candidate CI contracts, including
+  `checks.yml`, and the `setup-cli` action; the files the compose parity
   suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
