@@ -808,7 +808,7 @@ describe('provisionProviders — management-plane auth', () => {
     }
   });
 
-  it('sends the same password as the setup token on every management call, so a gateway without an admin yet still answers', async () => {
+  it('sends the password in no header but Basic auth: the setup token rides only the bootstrap body', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-1');
     const calls = stubGateway({ keyExists: false });
     const mod = await loadModule();
@@ -816,7 +816,10 @@ describe('provisionProviders — management-plane auth', () => {
     await mod.applyGatewayConfig();
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) {
-      expect(call.headers['x-bifrost-setup-token']).toBe('pw-1');
+      expect(Object.keys(call.headers).sort()).toEqual([
+        'authorization',
+        'content-type',
+      ]);
     }
   });
 

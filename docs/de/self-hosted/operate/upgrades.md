@@ -94,7 +94,7 @@ docker stop <id>-sandbox-llm-gateway
 docker run --rm -v <id>_llm-gateway-data:/from:ro -v "$PWD/llm-gateway-data-backup:/to" alpine:3.22 cp -a /from/. /to/
 ```
 
-Das Gateway eines Releases vor dem Wechsel startet auf dem migrierten Speicher und bedient Tale, protokolliert aber Fehler `no such column: oauth_configs.token_id`, und Bifrost unterstützt diesen Downgrade nicht. `tale rollback` innerhalb der Linie 0.5 startet genau dieses Gateway. Stoppe das Gateway deshalb vor dem Rollback und spiele die Kopie zurück:
+Das Gateway eines Releases vor dem Wechsel startet auf dem migrierten Speicher und bedient Tale, protokolliert aber Fehler `no such column: oauth_configs.token_id`, und Bifrost unterstützt dieses Downgrade nicht. `tale rollback` innerhalb der Linie 0.5 startet genau dieses Gateway. Stoppe das Gateway deshalb vor dem Rollback und spiele die Kopie zurück:
 
 ```bash
 docker stop <id>-sandbox-llm-gateway
@@ -103,7 +103,7 @@ docker run --rm -v "$PWD/llm-gateway-data-backup:/from:ro" -v <id>_llm-gateway-d
 
 Ein Gateway ohne Admin-Konto, bei einer neuen Installation oder nachdem sein Volume ersetzt wurde, legt das Konto jetzt nur für einen Aufrufer an, der sein Setup-Token vorweist; das Image übernimmt es aus `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`. `tale deploy`, die Compose-Datei im Repository und die Kubernetes-Manifeste dieser Dokumentation geben dem Gateway diese Variable bereits. Eine selbst geschriebene Compose-Datei oder ein Manifest, das sie nur dem Backend gibt, muss sie auch dem Gateway geben.
 
-Zwei Verhaltensweisen ändern sich. Legt ein Aufrufer auf, beendet das Gateway jetzt den Modellaufruf, ob er eine ganze Antwort oder einen Stream angefordert hat. Eine abgebrochene Anfrage hält ein selbst betriebenes Modell also nicht mehr beschäftigt; die Modell-Endpunkte verbuchen einen solchen Aufruf mit seinem Prompt und der Ausgabe, die den Aufrufer erreicht hatte. Und ein Upstream, der die Antwort-Header einer gestreamten Antwort zurückhält, etwa ein Router, der Anfragen bis zu einem freien Modell in eine Warteschlange stellt, muss seine Antwort innerhalb des Anfrage-Timeouts des Gateways beginnen: 600 Sekunden, oder länger, wenn `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` ihn anhebt.
+Zwei Verhaltensweisen ändern sich. Legt ein Aufrufer auf, beendet das Gateway jetzt den Modellaufruf, ob er eine ganze Antwort oder einen Stream angefordert hat. Eine abgebrochene Anfrage hält ein selbst betriebenes Modell also nicht mehr beschäftigt; die Modell-Endpunkte verbuchen einen solchen Aufruf mit seinem Prompt und der Ausgabe, die den Aufrufer erreicht hatte. Und ein Upstream, der die Antwort-Header einer gestreamten Antwort zurückhält, etwa ein Router, der Anfragen bis zu einem freien Modell in eine Warteschlange stellt, muss seine Antwort innerhalb des Anfrage-Timeouts des Gateways beginnen: 600 Sekunden, oder länger, wenn `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` es anhebt.
 
 ## 0.4 → 0.5: eine separate Installation
 
