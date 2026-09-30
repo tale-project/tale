@@ -35,18 +35,32 @@ afterEach(async () => {
 async function execute(
   script: string | undefined,
   environment: Record<string, string>,
+  commands: Record<string, string> = {},
 ) {
   if (!script) throw new Error('Deployment CI script is missing');
   const root = await mkdtemp(join(tmpdir(), 'tale-deployment-ci-'));
   roots.push(root);
   const output = join(root, 'output');
   await writeFile(output, '');
+  for (const [name, body] of Object.entries(commands)) {
+    await writeFile(join(root, name), body, { mode: 0o755 });
+  }
   // macOS still ships Bash 3.2. Its errexit behavior differs for a bare
   // failed [[ condition ]], so exercise that supported shell explicitly.
   const shell = process.platform === 'darwin' ? '/bin/bash' : 'bash';
   const child = Bun.spawn([shell, '-c', script], {
     cwd: root,
-    env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...environment },
+    env: {
+      PATH: process.env.PATH,
+      GITHUB_OUTPUT: output,
+      GITHUB_ENV: join(root, 'environment'),
+      PROOF_DIR: root,
+      RUNNER_TEMP: root,
+      ...environment,
+      ...(Object.keys(commands).length > 0
+        ? { PATH: `${root}:${environment.PATH ?? process.env.PATH}` }
+        : {}),
+    },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -55,7 +69,7 @@ async function execute(
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ]);
-  return { code, stdout, stderr, output: await readFile(output, 'utf8') };
+  return { root, code, stdout, stderr, output: await readFile(output, 'utf8') };
 }
 
 test.skipIf(process.platform === 'win32')(
@@ -1423,4 +1437,225 @@ describe('the Backend integration check', () => {
       ]),
     );
   });
+
+  test('retains raw integration evidence on success and failure', async () => {
+    const job = (await checks()).jobs['backend-integration'];
+    const steps = job?.steps ?? [];
+    const proof = steps.find(
+      (step) => step.name === 'Prepare integration evidence',
+    );
+    expect(proof?.run).toContain('checked_out_sha="$(git rev-parse HEAD)"');
+    expect(proof?.run).toContain('echo "source=$checked_out_sha"');
+    expect(proof?.run).toContain('workflow-sha=$GITHUB_SHA');
+    expect(proof?.run).toContain(
+      'services/platform/backend/integration-check.ts',
+    );
+    const tooling = steps.find((step) => step.name === 'Install ffmpeg');
+    expect(tooling?.run).toContain('"$PROOF_DIR/toolchain.txt"');
+    const retain = steps.find(
+      (step) => step.name === 'Retain integration service logs',
+    );
+    expect(retain?.if).toBe('always()');
+    expect(retain?.run).toContain('"$PROOF_DIR/db.log"');
+    expect(retain?.run).toContain('"$PROOF_DIR/object-store.log"');
+    const upload = steps.find(
+      (step) => step.name === 'Upload integration evidence',
+    );
+    expect(upload?.if).toBe('always()');
+    expect(upload?.uses).toMatch(/^actions\/upload-artifact@[a-f0-9]{40}$/);
+    expect(upload?.with).toMatchObject({
+      name: 'backend-integration-${{ github.run_id }}-${{ github.run_attempt }}',
+      'if-no-files-found': 'error',
+      'retention-days': 14,
+    });
+    expect(upload?.with?.path).toBe(
+      '${{ env.PROOF_DIR }}/*.txt\n${{ env.PROOF_DIR }}/*.log\n',
+    );
+    expect(upload?.with?.path).not.toMatch(/config|builtin/);
+  });
+
+  test.skipIf(process.platform === 'win32')(
+    'records the checked-out source separately from the workflow source',
+    async () => {
+      const script = (await checks()).jobs['backend-integration']?.steps.find(
+        (step) => step.name === 'Prepare integration evidence',
+      )?.run;
+      const workflowSource = 'f'.repeat(40);
+      const result = await execute(`cd "$REPOSITORY"\n${script ?? ''}`, {
+        REPOSITORY: repository,
+        GITHUB_RUN_ID: '77',
+        GITHUB_RUN_ATTEMPT: '2',
+        GITHUB_EVENT_NAME: 'repository_dispatch',
+        GITHUB_SHA: workflowSource,
+      });
+      expect(script).toBeDefined();
+      expect(result.code, result.stderr).toBe(0);
+      const proof = join(result.root, 'backend-integration-77-2');
+      const source = await readFile(join(proof, 'source.txt'), 'utf8');
+      const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
+        cwd: repository,
+      });
+      expect(head.exitCode, head.stderr.toString()).toBe(0);
+      expect(source).toStartWith(`source=${head.stdout.toString().trim()}\n`);
+      expect(source).not.toContain(`source=${workflowSource}\n`);
+      expect(source).toContain(`workflow-sha=${workflowSource}\n`);
+      expect(source).toContain('run=77 attempt=2\n');
+      expect(source).toMatch(/[a-f0-9]{64}  services\/db\/Dockerfile\n/);
+      expect(await readFile(join(result.root, 'environment'), 'utf8')).toBe(
+        `PROOF_DIR=${proof}\n`,
+      );
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'fails when the checked-out source cannot be read',
+    async () => {
+      const script = (await checks()).jobs['backend-integration']?.steps.find(
+        (step) => step.name === 'Prepare integration evidence',
+      )?.run;
+      const result = await execute(
+        `cd "$REPOSITORY"\n${script ?? ''}`,
+        {
+          REPOSITORY: repository,
+          GITHUB_RUN_ID: '77',
+          GITHUB_RUN_ATTEMPT: '2',
+          GITHUB_EVENT_NAME: 'repository_dispatch',
+          GITHUB_SHA: 'f'.repeat(40),
+        },
+        {
+          git: '#!/bin/sh\nprintf "synthetic git identity failure\\n" >&2\nexit 73\n',
+        },
+      );
+      expect(script).toBeDefined();
+      expect(result.code, result.stderr).toBe(73);
+      expect(result.stderr).toBe('synthetic git identity failure\n');
+      expect(
+        await Bun.file(
+          join(result.root, 'backend-integration-77-2', 'source.txt'),
+        ).exists(),
+      ).toBe(false);
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each([
+    ['2', '0', true],
+    ['1', '0', false],
+    ['0', '0', false],
+    ['2', '7', false],
+  ] as const)(
+    'requires both database extensions: count %s, query exit %s',
+    async (count, queryExit, accepted) => {
+      const script = (await checks()).jobs['backend-integration']?.steps.find(
+        (step) => step.name === 'Verify and record integration services',
+      )?.run;
+      const result = await execute(
+        script,
+        {
+          TEST_EXTENSION_COUNT: count,
+          TEST_QUERY_EXIT: queryExit,
+          OBJECT_STORE_IMAGE: THIRD_PARTY_IMAGES['object-store'],
+        },
+        {
+          docker: `#!/bin/sh
+printf '%s\n' "$*" >> "$PROOF_DIR/docker-calls.txt"
+case "$*" in
+  *"SELECT count(*) FROM pg_extension WHERE extname IN ('pg_search', 'vector')"*)
+    printf '%s\n' "$TEST_EXTENSION_COUNT"; exit "$TEST_QUERY_EXIT" ;;
+  *"SELECT extname, extversion FROM pg_extension WHERE extname IN ('pg_search', 'vector')"*)
+    if [ "$TEST_EXTENSION_COUNT" = 2 ]; then printf 'pg_search|0.22.6\n'; fi
+    if [ "$TEST_EXTENSION_COUNT" != 0 ]; then printf 'vector|0.8.1\n'; fi ;;
+  'image inspect --format '* )
+    printf 'sha256:db []\nsha256:store ["synthetic@sha256:store"]\n' ;;
+  *) echo 'unexpected docker arguments' >&2; exit 99 ;;
+esac
+`,
+        },
+      );
+      expect(result.code === 0, result.stderr).toBe(accepted);
+      const calls = await readFile(
+        join(result.root, 'docker-calls.txt'),
+        'utf8',
+      );
+      expect(await readFile(join(result.root, 'extensions.txt'), 'utf8')).toBe(
+        count === '2'
+          ? 'pg_search|0.22.6\nvector|0.8.1\n'
+          : count === '1'
+            ? 'vector|0.8.1\n'
+            : '',
+      );
+      if (accepted) {
+        expect(
+          await readFile(join(result.root, 'images.txt'), 'utf8'),
+        ).toContain('sha256:db');
+      } else {
+        expect(calls).not.toContain('image inspect');
+      }
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each([0, 1, 2])(
+    'keeps integration exit %i and its raw stdout/stderr through tee',
+    async (code) => {
+      const step = (await checks()).jobs['backend-integration']?.steps.find(
+        (candidate) => candidate.name === 'Run backend integration',
+      );
+      const result = await execute(
+        step?.run,
+        {
+          ITEST_REQUIRE_ALL_LANES: String(step?.env?.ITEST_REQUIRE_ALL_LANES),
+          TALE_CONFIG_DIR: 'config',
+          TALE_CONFIG_BUILTIN_DIR: 'builtin',
+          LANE_EXIT: String(code),
+        },
+        {
+          node: '#!/bin/sh\n[ "$*" = --version ] || exit 97\nprintf "v22.21.1\n"\n',
+          bun: `#!/bin/sh
+[ "$*" = 'run backend:integration' ] || exit 99
+[ "$ITEST_REQUIRE_ALL_LANES" = 1 ] || exit 98
+printf 'synthetic lane: exit %s\n' "$LANE_EXIT"
+printf 'synthetic diagnostic\n' >&2
+exit "$LANE_EXIT"
+`,
+        },
+      );
+      expect(result.code, result.stderr).toBe(code);
+      expect(await readFile(join(result.root, 'exit-code.txt'), 'utf8')).toBe(
+        `${code}\n`,
+      );
+      expect(
+        await readFile(join(result.root, 'backend-integration.log'), 'utf8'),
+      ).toBe(`synthetic lane: exit ${code}\nsynthetic diagnostic\n`);
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'retains raw service diagnostics when preparation never completed',
+    async () => {
+      const script = (await checks()).jobs['backend-integration']?.steps.find(
+        (step) => step.name === 'Retain integration service logs',
+      )?.run;
+      const result = await execute(
+        script,
+        {
+          PROOF_DIR: '',
+          GITHUB_RUN_ID: '77',
+          GITHUB_RUN_ATTEMPT: '2',
+        },
+        {
+          docker:
+            '#!/bin/sh\nprintf "synthetic container unavailable\n" >&2\nexit 1\n',
+        },
+      );
+      expect(result.code, result.stderr).toBe(0);
+      const proof = join(result.root, 'backend-integration-77-2');
+      for (const log of ['db.log', 'object-store.log']) {
+        expect(await readFile(join(proof, log), 'utf8')).toBe(
+          'synthetic container unavailable\n',
+        );
+      }
+      expect(await readFile(join(result.root, 'environment'), 'utf8')).toBe(
+        `PROOF_DIR=${proof}\n`,
+      );
+    },
+  );
 });
