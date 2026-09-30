@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { htmlToText } from '../../../../lib/knowledge/html-to-text';
+import {
+  htmlToText,
+  RENDERED_LAYOUT_ATTRIBUTE,
+} from '../../../../lib/knowledge/html-to-text';
 import { RENDERED_LAYOUT_SCRIPT } from './render_layout';
 
 /**
  * The render lane's layout pass in a real Chromium: the exact script text the
  * worker ships runs inside a page, and the host's text pass reads the markup
- * it returns. What is pinned is the pair — `htmlToText` lays inline tags out
- * without a space, so everything the page's CSS separates has to reach it in
- * the markup.
+ * it returns. What is pinned is the pair — in markup this script marked,
+ * `htmlToText` lays inline tags out without a space, so everything the
+ * page's CSS separates has to reach it in the markup.
  */
 async function renderedText(
   body: string,
-): Promise<{ text: string; liveUnchanged: boolean }> {
+): Promise<{ text: string; html: string; liveUnchanged: boolean }> {
   const iframe = document.createElement('iframe');
   const loaded = new Promise<void>((resolve) => {
     iframe.addEventListener('load', () => resolve(), { once: true });
@@ -40,6 +43,7 @@ async function renderedText(
     if (typeof html !== 'string') throw new Error('no markup came back');
     return {
       text: htmlToText(html),
+      html,
       liveUnchanged: frameDocument.documentElement.outerHTML === before,
     };
   } finally {
@@ -85,9 +89,26 @@ describe('renderedLayoutHtml in a real page', () => {
     expect(text).toContain('The answer behind a closed accordion.');
   });
 
-  it('writes the layout into a copy, never into the live page', async () => {
-    const { liveUnchanged } = await renderedText(
+  // Hidden text stays in the markup: two labels of one responsive button,
+  // the two prices of a billing toggle. Unseparated they read as one word.
+  it('keeps hidden inline text apart from what stands beside it', async () => {
+    const { text } = await renderedText(
+      '<p><span style="display:none">Documentation</span><span>Docs</span></p>' +
+        '<p><span>$10</span><span style="display:none">$100</span></p>' +
+        '<p><span style="display:-webkit-box">Clamped</span><span>next</span></p>',
+    );
+    const lines = text.split('\n').filter((line) => line !== '');
+    expect(lines).toContain('Documentation Docs');
+    expect(lines).toContain('$10 $100');
+    expect(text).not.toContain('Clampednext');
+  });
+
+  it('marks the markup it laid out, and writes into a copy, never into the live page', async () => {
+    const { html, liveUnchanged } = await renderedText(
       '<div style="display:flex"><span>a</span><span>b</span></div>',
+    );
+    expect(html).toMatch(
+      new RegExp(`^<!DOCTYPE html><html [^>]*${RENDERED_LAYOUT_ATTRIBUTE}="1"`),
     );
     expect(liveUnchanged).toBe(true);
   });

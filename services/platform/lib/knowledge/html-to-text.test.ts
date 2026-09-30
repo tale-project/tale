@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodeHtmlEntities, htmlTitle, htmlToText } from './html-to-text';
+import {
+  decodeHtmlEntities,
+  htmlTitle,
+  htmlToText,
+  RENDERED_LAYOUT_ATTRIBUTE,
+} from './html-to-text';
 
 describe('htmlToText', () => {
   it('drops scripts and styles wholesale and keeps the prose', () => {
@@ -47,37 +52,125 @@ describe('htmlToText', () => {
   // Regression: every inline tag became a space and a whitespace-only span
   // collapsed away, so example.com — whose script splits its text into one
   // <span> per character — was indexed as "T h i s d o m a i n i s …" and
-  // no search for any of its words could match.
-  it('reads text split into one span per letter as words', () => {
+  // no search for any of its words could match. The crawler's render lane
+  // now hands over markup with the page's layout written in, and marks it.
+  describe('markup the render lane laid out', () => {
+    const laidOut = (body: string): string =>
+      `<!DOCTYPE html><html lang="en" ${RENDERED_LAYOUT_ATTRIBUTE}="1"><body>${body}</body></html>`;
     const spell = (text: string): string =>
       text
         .split('')
         .map((char) => `<span>${char}</span>`)
         .join('');
-    const text = htmlToText(
-      `<body><p>${spell('This domain is for use in examples.')}</p></body>`,
-    );
-    expect(text).toBe('This domain is for use in examples.');
+
+    it('reads text split into one span per letter as words', () => {
+      expect(
+        htmlToText(
+          laidOut(`<p>${spell('This domain is for use in examples.')}</p>`),
+        ),
+      ).toBe('This domain is for use in examples.');
+    });
+
+    it('adds no space at inline formatting, inside links too', () => {
+      expect(
+        htmlToText(laidOut('<p><b>Im</b>portant <em>news</em>!</p>')),
+      ).toBe('Important news!');
+      expect(
+        htmlToText(
+          laidOut(
+            '<p><a href="https://example.com/"><span>Ex</span><span>ample</span></a></p>',
+          ),
+        ),
+      ).toBe('[Example](https://example.com/)');
+    });
+
+    it('keeps a word boundary at tags that are not inline formatting', () => {
+      expect(
+        htmlToText(
+          laidOut('<p><button>Save</button><button>Cancel</button></p>'),
+        ),
+      ).toBe('Save Cancel');
+      expect(
+        htmlToText(laidOut('<p>Before<img src="x.png" alt="">after</p>')),
+      ).toBe('Before after');
+    });
   });
 
-  it('adds no space at inline formatting, inside links too', () => {
-    expect(htmlToText('<p><b>Im</b>portant <em>news</em>!</p>')).toBe(
-      'Important news!',
-    );
+  // Without the page's CSS nothing tells a bold syllable from two spans a
+  // stylesheet sets apart, and the second is by far the commoner: a fetched
+  // page, a mail body and a searched message keep a space at every tag.
+  it('keeps a word boundary at every tag of markup that carries no layout', () => {
     expect(
       htmlToText(
-        '<p><a href="https://example.com/"><span>Ex</span><span>ample</span></a></p>',
+        '<div class="flex"><span>Total</span><span>CHF 120</span></div>',
       ),
-    ).toBe('[Example](https://example.com/)');
+    ).toBe('Total CHF 120');
+    expect(
+      htmlToText(
+        '<span style="display:block">Max Muster</span><span style="display:block">CEO</span>',
+      ),
+    ).toBe('Max Muster CEO');
+    // The attribute counts on the document element only.
+    expect(
+      htmlToText(
+        `<div ${RENDERED_LAYOUT_ATTRIBUTE}="1"><span>Total</span><span>CHF</span></div>`,
+      ),
+    ).toBe('Total CHF');
   });
 
-  it('keeps a word boundary at tags that are not inline formatting', () => {
-    expect(
-      htmlToText('<p><button>Save</button><button>Cancel</button></p>'),
-    ).toBe('Save Cancel');
-    expect(htmlToText('<p>Before<img src="x.png" alt="">after</p>')).toBe(
-      'Before after',
-    );
+  /**
+   * Markup whose tags are never closed. The patterns looked for each tag's
+   * end to the end of the input, from every opener: 29 KB of
+   * `<a href="…" ` took six seconds, 58 KB more than twenty — on the one
+   * thread that serves every request, for text a page, a sitemap or a mail
+   * sender chooses. Each case is a megabyte or so and has to finish far
+   * inside a second; before, none of them finished at all.
+   */
+  describe('markup that never closes its tags', () => {
+    const RUN = 50_000;
+    const cases: [string, string][] = [
+      ['links with no end', '<a href="https://x.example/" '.repeat(RUN)],
+      [
+        'links whose only end is the last one',
+        `${'<a href="x" '.repeat(RUN)}></a>`,
+      ],
+      [
+        'unquoted links in raw text',
+        `<xmp>${'<a href=x '.repeat(RUN)}</xmp></a>`,
+      ],
+      ['open quotes', `${'<a href="'.repeat(RUN)}</a>`],
+      [
+        'tags inside a link',
+        `<a href="https://x.example/">${'<b '.repeat(RUN)}</a>`,
+      ],
+      ['tags with no end', '<b '.repeat(RUN)],
+      ['comments with no end', '<!-- '.repeat(RUN)],
+      ['scripts with no end', '<script '.repeat(RUN)],
+      ['conditional markers', `${'<!['.repeat(RUN)}]x ]>`],
+      [
+        'list items then links',
+        `${'<li '.repeat(RUN)}>${'<a href="u" '.repeat(RUN)}></a>`,
+      ],
+    ];
+
+    it.each(cases)('converts %s in linear time', (_shape, html) => {
+      const startedAt = performance.now();
+      htmlToText(html);
+      expect(performance.now() - startedAt).toBeLessThan(2_000);
+    });
+
+    it('reads a title among unclosed title tags in linear time', () => {
+      const startedAt = performance.now();
+      expect(htmlTitle(`${'<title '.repeat(RUN)}</title>`)).toBeNull();
+      expect(htmlTitle('<title '.repeat(RUN))).toBeNull();
+      expect(performance.now() - startedAt).toBeLessThan(2_000);
+    });
+
+    it('still converts what comes before the run', () => {
+      expect(
+        htmlToText(`<p>Before <b>the</b> run</p>${'<b '.repeat(10)}`),
+      ).toBe(`Before the run\n${'<b '.repeat(10).trim()}`);
+    });
   });
 
   it('renders table cells with separators instead of gluing them', () => {

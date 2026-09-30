@@ -11,14 +11,31 @@
  * markers, and absolute links kept in a markdown-ish spelling — which is what
  * a model needs from a page it is READING, not rendering.
  *
- * Inline formatting tags are zero-width, as a browser lays them out: a page
- * that splits its words into one `<span>` per letter (a text effect) reads
- * as words, and `<b>Im</b>portant` as one. What only CSS separates — spans
- * laid out as flex items — is invisible at this level; the crawler's render
- * lane writes that layout into the markup first (`renderedLayoutHtml`).
+ * Without the page's CSS every tag separates words: nothing here can tell a
+ * bold syllable from two table-like spans. The crawler's render lane knows
+ * the layout and writes it into the markup it hands over
+ * (`renderedLayoutHtml`, marked with {@link RENDERED_LAYOUT_ATTRIBUTE}); in
+ * such markup inline formatting tags are zero-width, as the browser laid
+ * them out, so a page that splits its words into one `<span>` per letter (a
+ * text effect) reads as words and `<b>Im</b>portant` as one.
+ *
+ * Every pattern runs through `markup-scan.ts`, so markup with tags that are
+ * never closed costs what its length does.
  *
  * Layer A: pure string work, no `node:*`, no DOM.
  */
+
+import { replaceUpToLast, upToLast } from './markup-scan';
+
+/** The attribute the crawler's render lane sets on `<html>` when it has
+ * written the page's CSS layout into the markup: block boxes on their own
+ * lines, inline-level boxes and hidden elements apart. */
+export const RENDERED_LAYOUT_ATTRIBUTE = 'data-tale-layout';
+
+const RENDERED_LAYOUT_MARKER = new RegExp(
+  `^\\s*(?:<!DOCTYPE[^<>]*>)?\\s*<html\\b[^<>]*\\s${RENDERED_LAYOUT_ATTRIBUTE}=`,
+  'i',
+);
 
 /** Tags whose whole content is noise for a reader. */
 const DROP_CONTENT_TAGS = [
@@ -108,13 +125,22 @@ const INLINE_TAGS = new Set([
   'wbr',
 ]);
 
-/** What a stripped tag leaves behind: a line break for a block, nothing for
- * inline formatting, a word boundary for anything else. */
-function tagSeparator(tag: string): string {
+/** What a stripped tag leaves behind: a line break for a block, a word
+ * boundary for anything else — except, in markup that carries its layout
+ * (`laidOut`), nothing for inline formatting. */
+function tagSeparator(tag: string, laidOut: boolean): string {
   const name = tag.toLowerCase();
   if (BLOCK_TAGS.has(name)) return '\n';
-  return INLINE_TAGS.has(name) ? '' : ' ';
+  return laidOut && INLINE_TAGS.has(name) ? '' : ' ';
 }
+
+/** Any element tag, opening or closing. */
+const ELEMENT_TAG = /<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g;
+/** A link with a quoted target. The tag's attributes stop at the next `<`:
+ * looking for `href` across a run of unclosed tags is what made this
+ * pattern cubic. */
+const LINK =
+  /<a\b[^<>]*href\s*=\s*("([^"<>]*)"|'([^'<>]*)')[^<>]*>([\s\S]*?)<\/a>/gi;
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
@@ -156,7 +182,9 @@ export function decodeHtmlEntities(text: string): string {
 
 /** The page's `<title>`, when it has one. */
 export function htmlTitle(html: string): string | null {
-  const match = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+  const match = /<title[^<>]*>([\s\S]*?)<\/title>/i.exec(
+    upToLast(html, /<\/title>/gi),
+  );
   if (!match) return null;
   const title = decodeHtmlEntities(match[1] ?? '')
     .replace(/\s+/g, ' ')
@@ -174,19 +202,23 @@ function keepableHref(href: string): boolean {
  * `#` prefix, list items a `-` marker, and absolute links their target.
  */
 export function htmlToText(html: string): string {
+  const laidOut = RENDERED_LAYOUT_MARKER.test(html);
+  const separator = (_tag: string, name: string): string =>
+    tagSeparator(name, laidOut);
   let work = html;
   // Comments and whole-content noise first, so nothing inside them leaks.
-  work = work.replace(/<!--[\s\S]*?-->/g, ' ');
+  work = replaceUpToLast(work, '-->', /<!--[\s\S]*?-->/g, ' ');
   // Declarations, processing instructions and CDATA sections are not
   // elements: the generic tag strip below needs a letter after `<`, so
   // `<!DOCTYPE html>` survived it and led every indexed passage of a page.
-  work = work
-    .replace(/<!DOCTYPE[^>]*>/gi, ' ')
-    .replace(/<\?[\s\S]*?\?>/g, ' ')
-    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, ' ')
-    .replace(/<!\[[^\]]*\]>/g, ' ');
+  work = replaceUpToLast(work, '>', /<!DOCTYPE[^>]*>/gi, ' ');
+  work = replaceUpToLast(work, '?>', /<\?[\s\S]*?\?>/g, ' ');
+  work = replaceUpToLast(work, ']]>', /<!\[CDATA\[[\s\S]*?\]\]>/g, ' ');
+  work = work.replace(/<!\[[^\]<>]*\]>/g, ' ');
   for (const tag of DROP_CONTENT_TAGS) {
-    work = work.replace(
+    work = replaceUpToLast(
+      work,
+      new RegExp(`<\\/${tag}>`, 'gi'),
       new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}>`, 'gi'),
       ' ',
     );
@@ -194,15 +226,19 @@ export function htmlToText(html: string): string {
 
   // Structural markers BEFORE the generic tag strip.
   work = work.replace(/<br\s*\/?>/gi, '\n');
-  work = work.replace(
+  work = replaceUpToLast(
+    work,
+    '>',
     /<h([1-6])\b[^>]*>/gi,
     (_whole, level: string) => `\n\n${'#'.repeat(Number(level))} `,
   );
-  work = work.replace(/<li\b[^>]*>/gi, '\n- ');
-  work = work.replace(/<(td|th)\b[^>]*>/gi, ' | ');
+  work = replaceUpToLast(work, '>', /<li\b[^>]*>/gi, '\n- ');
+  work = replaceUpToLast(work, '>', /<(td|th)\b[^>]*>/gi, ' | ');
   // Links: keep the target next to the text for absolute http(s) URLs.
-  work = work.replace(
-    /<a\b[^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi,
+  work = replaceUpToLast(
+    work,
+    /<\/a>/gi,
+    LINK,
     (
       _whole,
       _quoted,
@@ -211,11 +247,8 @@ export function htmlToText(html: string): string {
       inner: string,
     ) => {
       const href = (hrefA ?? hrefB ?? '').trim();
-      const text = inner
-        .replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g, (_tag, name: string) =>
-          tagSeparator(name),
-        )
-        .replace(/<[^>]+>/g, ' ')
+      const stripped = replaceUpToLast(inner, '>', ELEMENT_TAG, separator);
+      const text = replaceUpToLast(stripped, '>', /<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
       if (text.length === 0) return ' ';
@@ -223,10 +256,7 @@ export function htmlToText(html: string): string {
     },
   );
   // Block boundaries become newlines; the rest of the markup disappears.
-  work = work.replace(
-    /<\/?([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g,
-    (_whole, tag: string) => tagSeparator(tag),
-  );
+  work = replaceUpToLast(work, '>', ELEMENT_TAG, separator);
 
   work = decodeHtmlEntities(work);
   // Whitespace discipline: spaces collapse within a line, blank runs to one

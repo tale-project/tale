@@ -10,6 +10,7 @@
 
 import { stripRuntimeLocations } from '../net/error-message-hygiene';
 import { decodeHtmlEntities } from './html-to-text';
+import { replaceUpToLast, upToLast } from './markup-scan';
 
 /**
  * The robots.txt rules that bind THIS crawler — the group that names its
@@ -238,9 +239,19 @@ export function isDisallowed(pathname: string, policy: RobotsPolicy): boolean {
  * CDATA content is literal by spec and passes through undecoded. */
 export function parseSitemapLocs(xml: string): string[] {
   const locs: string[] = [];
-  for (const match of xml.matchAll(/<loc[^>]*>([\s\S]*?)<\/loc>/gi)) {
+  // Up to the last closing tag only, as every scan of markup here
+  // (`markup-scan.ts`): a sitemap is megabytes the site chooses, and a run
+  // of `<loc>` with no `</loc>` behind it is otherwise read to its end from
+  // each one.
+  const entries = upToLast(xml, /<\/loc>/gi);
+  for (const match of entries.matchAll(/<loc[^<>]*>([\s\S]*?)<\/loc>/gi)) {
     const raw = (match[1] ?? '').trim();
-    const unwrapped = raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
+    const unwrapped = replaceUpToLast(
+      raw,
+      ']]>',
+      /<!\[CDATA\[([\s\S]*?)\]\]>/g,
+      '$1',
+    ).trim();
     const value = raw.includes('<![CDATA[')
       ? unwrapped
       : decodeHtmlEntities(unwrapped);
@@ -259,8 +270,11 @@ export function isSitemapIndex(xml: string): boolean {
  * `?a=1&b=2` to the browser and must mean the same to the crawler. */
 export function extractLinks(html: string): string[] {
   const links: string[] = [];
+  // The attributes before `href` stop at the next `<`: across a run of
+  // anchors that are never closed, `[^>]*` looked for `href` in the whole
+  // run from each of them (`markup-scan.ts`).
   for (const match of html.matchAll(
-    /<a\s[^>]*href\s*=\s*("([^"]*)"|'([^']*)')/gi,
+    /<a\s[^<>]*href\s*=\s*("([^"]*)"|'([^']*)')/gi,
   )) {
     const href = decodeHtmlEntities((match[2] ?? match[3] ?? '').trim());
     if (href.length > 0) links.push(href);
@@ -546,20 +560,42 @@ export function stripBoilerplate(
     .join('\n\n');
 }
 
+/** One attribute's value in a single tag, quoted or bare, or null. Looked
+ * for inside the tag it is given only, so the cost is that tag's length. */
+function tagAttribute(tag: string, name: string): string | null {
+  const match = new RegExp(
+    `\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`,
+    'i',
+  ).exec(tag);
+  if (match === null) return null;
+  return match[1] ?? match[2] ?? match[3] ?? '';
+}
+
+/** The page's `<meta>` tags, each read on its own. Up to the last `>` only,
+ * as every scan of markup here (`markup-scan.ts`); a value may hold a `<`. */
+function metaTags(html: string): IterableIterator<RegExpMatchArray> {
+  return upToLast(html, '>').matchAll(/<meta\s[^>]*>/gi);
+}
+
 /** The page's meta description — `name="description"` first, Open Graph as
- * the fallback — truncated to a summary-sized length. */
+ * the fallback — truncated to a summary-sized length. Each tag's attributes
+ * are read on their own, whatever their order: four patterns spanning the
+ * name and the content used to be run over the whole page, and a tag that
+ * repeated one attribute took them quadratic time (8,000 repeats, two
+ * seconds; a homepage may be two megabytes). */
 export function metaDescription(html: string): string | null {
-  const patterns = [
-    /<meta[^>]*name\s*=\s*["']description["'][^>]*content\s*=\s*["']([^"']*)["']/i,
-    /<meta[^>]*content\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']description["']/i,
-    /<meta[^>]*property\s*=\s*["']og:description["'][^>]*content\s*=\s*["']([^"']*)["']/i,
-    /<meta[^>]*content\s*=\s*["']([^"']*)["'][^>]*property\s*=\s*["']og:description["']/i,
-  ];
-  for (const pattern of patterns) {
-    const value = (pattern.exec(html)?.[1] ?? '').trim();
-    if (value.length > 0) return value.slice(0, 500);
+  let openGraph: string | null = null;
+  for (const [tag] of metaTags(html)) {
+    const content = (tagAttribute(tag, 'content') ?? '').trim();
+    if (content.length === 0) continue;
+    const name = (tagAttribute(tag, 'name') ?? '').trim().toLowerCase();
+    if (name === 'description') return content.slice(0, 500);
+    const property = (tagAttribute(tag, 'property') ?? '').trim().toLowerCase();
+    if (openGraph === null && property === 'og:description') {
+      openGraph = content.slice(0, 500);
+    }
   }
-  return null;
+  return openGraph;
 }
 
 /** Whether an `X-Robots-Tag` field forbids indexing: `noindex` or `none`
@@ -626,18 +662,11 @@ export function discoverableLinks(
  * header form (`X-Robots-Tag`) was honoured while
  * the tag, the form most sites use, was not (2026-09-14 evaluation, h5). */
 export function robotsMetaNoindexDirective(html: string): string | null {
-  for (const match of html.matchAll(/<meta\s[^>]*>/gi)) {
-    const tag = match[0];
-    const name = /\bname\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(tag);
-    const nameValue = (name?.[1] ?? name?.[2] ?? name?.[3] ?? '')
-      .trim()
-      .toLowerCase();
+  for (const [tag] of metaTags(html)) {
+    const nameValue = (tagAttribute(tag, 'name') ?? '').trim().toLowerCase();
     if (nameValue !== 'robots') continue;
-    const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(
-      tag,
-    );
     const directives = decodeHtmlEntities(
-      (content?.[1] ?? content?.[2] ?? content?.[3] ?? '').trim(),
+      (tagAttribute(tag, 'content') ?? '').trim(),
     );
     const forbids = directives
       .split(',')
