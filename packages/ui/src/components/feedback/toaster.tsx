@@ -5,7 +5,7 @@ import { cn } from '@tale/ui/cn';
 import type { ToastPosition, ToastVariant } from '@tale/ui/toast';
 import { useToast } from '@tale/ui/use-toast';
 import { cva } from 'class-variance-authority';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 const toastVariants = cva(
@@ -18,6 +18,7 @@ const toastVariants = cva(
       variant: {
         default: '',
         success: '',
+        warning: '',
         destructive: '',
       },
     },
@@ -33,6 +34,16 @@ function VariantIcon({ variant }: { variant?: ToastVariant }) {
       return (
         <CheckCircle2
           className="text-success size-5 shrink-0"
+          aria-hidden="true"
+        />
+      );
+    case 'warning':
+      // An operation that finished only in part. Alert's warning glyph and
+      // tones: amber-600 keeps 3:1 against the light surface, where the
+      // `--warning` token does not.
+      return (
+        <AlertTriangle
+          className="size-5 shrink-0 text-amber-600 dark:text-amber-500"
           aria-hidden="true"
         />
       );

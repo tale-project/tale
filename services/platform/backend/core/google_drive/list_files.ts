@@ -26,6 +26,9 @@ export interface ListFilesResult {
    * than were returned. A consumer must not treat the list as whole. */
   truncated?: boolean;
   error?: string;
+  /** The provider refused the token (401): the listing door refreshes the
+   *  grant once before it answers. */
+  unauthorized?: boolean;
 }
 
 /** The most items one browse/import listing collects before it stops and
@@ -109,6 +112,7 @@ export async function listFiles(
         return {
           success: false,
           error: `Google Drive API error: ${response.status} ${errorText}`,
+          ...(response.status === 401 && { unauthorized: true }),
         };
       }
 

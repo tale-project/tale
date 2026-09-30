@@ -83,4 +83,20 @@ describe('resolveGraphTokenForUser', () => {
       expect(result.error).not.toContain('Connect Microsoft 365');
     }
   });
+
+  it('passes a forced refresh through to the grant', async () => {
+    vi.mocked(resolveCloudAccessToken).mockResolvedValue({
+      success: true,
+      accessToken: 'graph-grant-token-2',
+    });
+    const { sql } = recordingSql();
+
+    await resolveGraphTokenForUser(sql, args, { forceRefresh: true });
+
+    expect(resolveCloudAccessToken).toHaveBeenCalledWith(
+      sql,
+      { ...args, provider: 'onedrive' },
+      { forceRefresh: true },
+    );
+  });
 });

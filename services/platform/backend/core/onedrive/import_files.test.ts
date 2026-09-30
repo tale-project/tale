@@ -698,3 +698,364 @@ describe('onedrive importFiles placement', () => {
     );
   });
 });
+
+/** The sentence `resolveGraphTokenForUser` answers a grant that needs
+ *  reconnecting with — the one every listing hands to the connect dialog. */
+const RECONNECT =
+  'OneDrive is not authorized for importing. Connect Microsoft 365 from Documents.';
+
+/** `count` files at the top of the selection, from OneDrive or from a
+ *  SharePoint library (the same pipeline serves both). */
+function files(count: number, source: 'OneDrive' | 'SharePoint'): ImportItem[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `file-${index + 1}`,
+    name: `f${index + 1}.docx`,
+    size: 10,
+    relativePath: `f${index + 1}.docx`,
+    ...(source === 'SharePoint' && {
+      siteId: 'site-1',
+      driveId: 'drive-1',
+      sourceType: 'sharepoint' as const,
+    }),
+  }));
+}
+
+/** A grant that reads live before the first `live` files, then answers
+ *  "reconnect" (revoked, or its refresh token dead). */
+function grantEndingAfter(live: number) {
+  let reads = 0;
+  return vi.fn(async () =>
+    ++reads <= live
+      ? { success: true as const, token: 'tok' }
+      : { success: false as const, error: RECONNECT, needsReauth: true },
+  );
+}
+
+/** Graph refusing the token for `refusedIds` while it is `refusedToken`. */
+function metadataRefusing(
+  refusedIds: ReadonlySet<string>,
+  refusedToken = 'tok',
+) {
+  return vi.fn(async (itemId: string, token: string) =>
+    refusedIds.has(itemId) && token === refusedToken
+      ? {
+          success: false,
+          error:
+            'Failed to get file metadata: 401 {"error":{"code":"InvalidAuthenticationToken"}}',
+          unauthorized: true,
+        }
+      : { success: true, data: { hash: `h-${itemId}` } },
+  );
+}
+
+/**
+ * A grant revoked or expired while an import runs. The route read the grant
+ * once, so every file after the lapse failed on a refused token and the
+ * import read as failed whole — the files already imported went unsaid.
+ * The grant is read again before each file now, and refreshed once when
+ * Graph refuses the token: a grant that answers "reconnect" stops the
+ * import at that file, keeps the files before it, and answers the grant's
+ * own sentence, which the dialog hands to the connect dialog.
+ */
+describe.each(['OneDrive', 'SharePoint'] as const)(
+  'onedrive importFiles when the grant ends part-way (%s)',
+  (source) => {
+    it('stops at the file the grant ended at, keeping the files before it', async () => {
+      const deps = makeDeps({ resolveToken: grantEndingAfter(2) });
+
+      const result = await importFiles(
+        { ...baseArgs, items: files(5, source), importType: 'one-time' },
+        deps,
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        totalFiles: 5,
+        successCount: 2,
+        failedCount: 0,
+        skippedCount: 0,
+        error: RECONNECT,
+      });
+      expect(result.results.map((row) => row.fileId)).toEqual([
+        'file-1',
+        'file-2',
+      ]);
+      // Nothing past the lapse reached Graph.
+      expect(deps.getFileMetadata).toHaveBeenCalledTimes(2);
+      expect(deps.downloadToStorage).toHaveBeenCalledTimes(2);
+      expect(deps.createDocument).toHaveBeenCalledTimes(2);
+    });
+
+    it('refreshes the grant when Graph refuses the token, and carries on', async () => {
+      const getFileMetadata = metadataRefusing(new Set(['file-1']));
+      const resolveToken = vi.fn(
+        async ({ forceRefresh }: { forceRefresh: boolean }) =>
+          forceRefresh
+            ? { success: true as const, token: 'tok-2' }
+            : { success: true as const, token: 'tok' },
+      );
+      const deps = makeDeps({ getFileMetadata, resolveToken });
+
+      const result = await importFiles(
+        { ...baseArgs, items: files(2, source), importType: 'one-time' },
+        deps,
+      );
+
+      expect(result).toMatchObject({ success: true, successCount: 2 });
+      expect(result.error).toBeUndefined();
+      expect(getFileMetadata.mock.calls.map(([, token]) => token)).toEqual([
+        'tok',
+        'tok-2',
+        'tok',
+      ]);
+      expect(resolveToken).toHaveBeenCalledWith({ forceRefresh: true });
+    });
+
+    it('stops when Graph refuses the token and the grant cannot be refreshed', async () => {
+      const deps = makeDeps({
+        getFileMetadata: metadataRefusing(new Set(['file-2'])),
+        resolveToken: vi.fn(
+          async ({ forceRefresh }: { forceRefresh: boolean }) =>
+            forceRefresh
+              ? { success: false as const, error: RECONNECT, needsReauth: true }
+              : { success: true as const, token: 'tok' },
+        ),
+      });
+
+      const result = await importFiles(
+        { ...baseArgs, items: files(4, source), importType: 'one-time' },
+        deps,
+      );
+
+      expect(result).toMatchObject({
+        success: false,
+        totalFiles: 4,
+        successCount: 1,
+        failedCount: 0,
+        error: RECONNECT,
+      });
+      expect(result.results.map((row) => row.fileId)).toEqual(['file-1']);
+      expect(deps.downloadToStorage).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a download refused for its token the same way', async () => {
+      const downloadToStorage = vi.fn(async ({ itemId }: { itemId: string }) =>
+        itemId === 'file-2'
+          ? {
+              success: false,
+              error:
+                'Failed to download file: 401 {"error":{"code":"InvalidAuthenticationToken"}}',
+              unauthorized: true,
+            }
+          : {
+              success: true,
+              storageId: 'storage-1' as Id<'_storage'>,
+              mimeType: 'text/plain',
+              size: 10,
+            },
+      );
+      const deps = makeDeps({
+        downloadToStorage,
+        resolveToken: vi.fn(
+          async ({ forceRefresh }: { forceRefresh: boolean }) =>
+            forceRefresh
+              ? { success: false as const, error: RECONNECT, needsReauth: true }
+              : { success: true as const, token: 'tok' },
+        ),
+      });
+
+      const result = await importFiles(
+        { ...baseArgs, items: files(3, source), importType: 'one-time' },
+        deps,
+      );
+
+      expect(result).toMatchObject({ successCount: 1, error: RECONNECT });
+      expect(result.results).toHaveLength(1);
+    });
+
+    // The same selection imported again after reconnecting: the provider
+    // file id each document records (`external_item_id`) finds the files
+    // the first run brought in, and an unchanged one is skipped — never
+    // downloaded or created twice.
+    it('skips the files already imported when the same selection runs again', async () => {
+      const stored = new Map<string, string>();
+      const findDocumentByExternalId = vi.fn(
+        async ({ externalItemId }: { externalItemId: string }) =>
+          stored.has(externalItemId)
+            ? {
+                _id: `doc-${externalItemId}` as Id<'documents'>,
+                contentHash: stored.get(externalItemId),
+                metadata: { sourceMode: 'manual' },
+              }
+            : null,
+      );
+      const createDocument = vi.fn(
+        async (args: { externalItemId: string; contentHash?: string }) => {
+          stored.set(args.externalItemId, args.contentHash ?? '');
+          return `doc-${args.externalItemId}` as Id<'documents'>;
+        },
+      );
+      const getFileMetadata = metadataRefusing(new Set());
+      const selection = files(4, source);
+
+      const first = await importFiles(
+        { ...baseArgs, items: selection, importType: 'one-time' },
+        makeDeps({
+          findDocumentByExternalId,
+          createDocument,
+          getFileMetadata,
+          resolveToken: grantEndingAfter(2),
+        }),
+      );
+      const downloadsAgain = vi.fn().mockResolvedValue({
+        success: true,
+        storageId: 'storage-2' as Id<'_storage'>,
+        mimeType: 'text/plain',
+        size: 10,
+      });
+      const again = await importFiles(
+        { ...baseArgs, items: selection, importType: 'one-time' },
+        makeDeps({
+          findDocumentByExternalId,
+          createDocument,
+          getFileMetadata,
+          downloadToStorage: downloadsAgain,
+          resolveToken: grantEndingAfter(4),
+        }),
+      );
+
+      expect(first).toMatchObject({ successCount: 2, error: RECONNECT });
+      expect(again).toMatchObject({
+        success: true,
+        successCount: 2,
+        skippedCount: 2,
+        failedCount: 0,
+      });
+      expect(again.results.map((row) => `${row.fileId}:${row.status}`)).toEqual(
+        [
+          'file-1:skipped',
+          'file-2:skipped',
+          'file-3:success',
+          'file-4:success',
+        ],
+      );
+      expect(downloadsAgain.mock.calls.map(([args]) => args.itemId)).toEqual([
+        'file-3',
+        'file-4',
+      ]);
+      expect(
+        createDocument.mock.calls.map(([args]) => args.externalItemId),
+      ).toEqual(['file-1', 'file-2', 'file-3', 'file-4']);
+    });
+  },
+);
+
+// A read of the grant that throws mid-import (a database blip, a token
+// endpoint that did not answer) used to reject the whole request after the
+// files it had done; it now leaves the import on the token it has.
+it('onedrive importFiles keeps importing when a grant read throws', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  let reads = 0;
+  const deps = makeDeps({
+    resolveToken: vi.fn(async () => {
+      reads += 1;
+      if (reads === 3) throw new Error('fetch failed');
+      return { success: true as const, token: 'tok' };
+    }),
+  });
+
+  const result = await importFiles(
+    { ...baseArgs, items: files(4, 'OneDrive'), importType: 'one-time' },
+    deps,
+  );
+
+  expect(result).toMatchObject({ success: true, successCount: 4 });
+  expect(result.error).toBeUndefined();
+  vi.mocked(console.warn).mockRestore();
+});
+
+// The sync engine passes no resolver: a refused token fails that file, as
+// it always did, and the run goes on.
+it('onedrive importFiles without a grant resolver fails a refused file and goes on', async () => {
+  const deps = makeDeps({
+    getFileMetadata: metadataRefusing(new Set(['file-1'])),
+  });
+
+  const result = await importFiles(
+    { ...baseArgs, items: files(2, 'OneDrive'), importType: 'sync' },
+    deps,
+  );
+
+  expect(result).toMatchObject({
+    success: false,
+    successCount: 1,
+    failedCount: 1,
+  });
+  expect(result.error).toBeUndefined();
+  expect(result.results[0]).toMatchObject({
+    fileId: 'file-1',
+    status: 'error',
+    error: expect.stringContaining('401'),
+  });
+  expect(result.results[0]?.reason).toBeUndefined();
+});
+
+/**
+ * Why a file was refused, for the import's one toast: a refusal Tale wrote
+ * for people — the size cap the upload door's 413 words — carries its words
+ * as `reason`; a provider's answer or a fault carries none, its text kept in
+ * `error` for the log.
+ */
+describe('onedrive importFiles says why a file was refused', () => {
+  it("carries the size cap's words, and only a refusal's", async () => {
+    const cap = 'The file exceeds the 512 MiB limit';
+    const downloadToStorage = vi.fn(async ({ itemId }: { itemId: string }) => {
+      if (itemId === 'file-1') {
+        return {
+          success: false,
+          error: cap,
+          refusal: { code: 'FILE_SIZE_INVALID', message: cap },
+        };
+      }
+      if (itemId === 'file-2') {
+        return {
+          success: false,
+          error:
+            'Failed to download file: 503 {"error":{"code":"serviceNotAvailable"}}',
+        };
+      }
+      return {
+        success: true,
+        storageId: 'storage-1' as Id<'_storage'>,
+        mimeType: 'text/plain',
+        size: 10,
+      };
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await importFiles(
+      { ...baseArgs, items: files(3, 'OneDrive'), importType: 'one-time' },
+      makeDeps({ downloadToStorage }),
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      totalFiles: 3,
+      successCount: 1,
+      failedCount: 2,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.results[0]).toMatchObject({
+      fileId: 'file-1',
+      status: 'error',
+      reason: { code: 'FILE_SIZE_INVALID', message: cap },
+    });
+    expect(result.results[1]).toMatchObject({
+      fileId: 'file-2',
+      status: 'error',
+      error: expect.stringContaining('503'),
+    });
+    expect(result.results[1]?.reason).toBeUndefined();
+    vi.mocked(console.error).mockRestore();
+  });
+});
