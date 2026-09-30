@@ -11,8 +11,9 @@
  * on it. The storageId is stable; the URL must be fresh, so it is read-time.
  *
  * Gmail/Outlook store attachments during `get_message` through the
- * connector's own `ctx.files` sink; IMAP returns `contentBase64` on each part
- * instead, and this helper is that sync path's sink.
+ * connector's own `ctx.files` sink, when the sync asks for them
+ * (`includeAttachments`, see `sync_mailbox.ts`); IMAP returns `contentBase64`
+ * on each part instead, and this helper is that sync path's sink.
  *
  * `'use node'` because the base64 decode goes through `Buffer` — every other
  * `Buffer` user under `convex/` declares the same, and only the `'use node'`

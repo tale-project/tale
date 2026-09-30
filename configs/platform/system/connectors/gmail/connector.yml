@@ -71,9 +71,9 @@ actions:
           description: 'Response format: full (default, includes parsed body), metadata (headers only), minimal (IDs only), or raw (RFC 2822).'
         includeAttachments:
           type: boolean
-          description: 'When true, downloads and stores all file attachments. Each attachment is returned with a fileId and URL.'
+          description: 'When true, downloads and stores all file attachments. Each attachment is returned with a fileId and URL; one too large to carry (over 3.5 MB) is listed with truncated: true and no fileId.'
       required: [messageId]
-    output: '{ message: { id: string, threadId: string, labelIds: Array<string>, snippet: string }, attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId: string, url?: string }> }'
+    output: '{ message: { id: string, threadId: string, labelIds: Array<string>, snippet: string }, attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId?: string, url?: string, truncated?: boolean }> }'
     mock: |
       return { message: { id: input.messageId, threadId: 'thread-' + input.messageId, labelIds: ['INBOX'], snippet: 'Mock message snippet.' }, attachments: [] };
     backend:
@@ -86,17 +86,23 @@ actions:
         const message = r.json();
         const attachments = [];
         if (input.includeAttachments && ctx.files && message.payload) {
+          // ctx.http carries at most 5 MiB of response, and Gmail sends the bytes
+          // base64url-encoded inside JSON, 4/3 their size: a larger part cannot
+          // arrive, so it is listed as truncated rather than failing the message.
+          const MAX_CARRIED_BYTES = 3.5 * 1024 * 1024;
           const parts = [];
           const walk = (p) => { if (!p) return; if (p.body && p.body.attachmentId) parts.push(p); if (p.parts) for (const c of p.parts) walk(c); };
           walk(message.payload);
           for (const p of parts) {
+            const entry = { id: p.body.attachmentId, filename: p.filename || 'attachment', contentType: p.mimeType || 'application/octet-stream', size: (p.body && p.body.size) || 0 };
+            if (entry.size > MAX_CARRIED_BYTES) { attachments.push({ ...entry, truncated: true }); continue; }
             const ar = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}/attachments/${encodeURIComponent(p.body.attachmentId)}`, { headers: h });
             if (!ar.status || ar.status >= 400) throw new Error(`Gmail get_message failed (${ar.status}): ${ar.text()}`);
             let b64 = String(ar.json().data || '').replace(/-/g, '+').replace(/_/g, '/');
             const pad = b64.length % 4;
             if (pad === 2) b64 += '=='; else if (pad === 3) b64 += '=';
-            const stored = await ctx.files.store(b64, { encoding: 'base64', contentType: p.mimeType || 'application/octet-stream', fileName: p.filename || 'attachment' });
-            attachments.push({ id: p.body.attachmentId, filename: p.filename || 'attachment', contentType: p.mimeType || 'application/octet-stream', size: (p.body && p.body.size) || 0, fileId: stored.id, url: stored.url });
+            const stored = await ctx.files.store(b64, { encoding: 'base64', contentType: entry.contentType, fileName: entry.filename });
+            attachments.push({ ...entry, fileId: stored.id, url: stored.url });
           }
         }
         return { message, attachments };
@@ -111,7 +117,7 @@ actions:
           type: string
           description: 'The message ID containing the attachments.'
       required: [messageId]
-    output: '{ attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId: string, url?: string }> }'
+    output: '{ attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId?: string, url?: string, truncated?: boolean }> }'
     mock: |
       return { attachments: [{ id: 'att-1', filename: 'document.pdf', contentType: 'application/pdf', size: 1024, fileId: 'file-att-1', url: 'https://files.example.com/file-att-1' }] };
     backend:
@@ -122,18 +128,23 @@ actions:
         const mr = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}?format=full`, { headers: h });
         if (!mr.status || mr.status >= 400) throw new Error(`Gmail get_attachments failed (${mr.status}): ${mr.text()}`);
         const message = mr.json();
+        // Same ceiling as get_message: a part whose base64url JSON cannot fit
+        // ctx.http's 5 MiB response is listed as truncated, not fetched.
+        const MAX_CARRIED_BYTES = 3.5 * 1024 * 1024;
         const parts = [];
         const walk = (p) => { if (!p) return; if (p.body && p.body.attachmentId) parts.push(p); if (p.parts) for (const c of p.parts) walk(c); };
         walk(message.payload);
         const attachments = [];
         for (const p of parts) {
+          const entry = { id: p.body.attachmentId, filename: p.filename || 'attachment', contentType: p.mimeType || 'application/octet-stream', size: (p.body && p.body.size) || 0 };
+          if (entry.size > MAX_CARRIED_BYTES) { attachments.push({ ...entry, truncated: true }); continue; }
           const ar = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}/attachments/${encodeURIComponent(p.body.attachmentId)}`, { headers: h });
           if (!ar.status || ar.status >= 400) throw new Error(`Gmail get_attachments failed (${ar.status}): ${ar.text()}`);
           let b64 = String(ar.json().data || '').replace(/-/g, '+').replace(/_/g, '/');
           const pad = b64.length % 4;
           if (pad === 2) b64 += '=='; else if (pad === 3) b64 += '=';
-          const stored = await ctx.files.store(b64, { encoding: 'base64', contentType: p.mimeType || 'application/octet-stream', fileName: p.filename || 'attachment' });
-          attachments.push({ id: p.body.attachmentId, filename: p.filename || 'attachment', contentType: p.mimeType || 'application/octet-stream', size: (p.body && p.body.size) || 0, fileId: stored.id, url: stored.url });
+          const stored = await ctx.files.store(b64, { encoding: 'base64', contentType: entry.contentType, fileName: entry.filename });
+          attachments.push({ ...entry, fileId: stored.id, url: stored.url });
         }
         return { attachments };
     exampleInput: { messageId: '18c1a2b3c4d5e6f7' }

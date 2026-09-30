@@ -29,6 +29,8 @@ Ces workflows importent les nouveaux messages dans des conversations toutes les 
 
 Connecte d’abord la boîte correspondante. Après la première exécution réelle, examine son [journal](/fr/platform/automations/execution-logs) et vérifie que les messages attendus apparaissent dans la vue **Réception** d’**Accueil**.
 
+Les pièces jointes sont enregistrées avec leur message : tu les ouvres et les télécharges depuis la conversation. Depuis Gmail, Tale ne récupère chaque pièce jointe que jusqu’à 3,5 Mo : une pièce plus lourde reste listée avec son nom et sa taille, mais tu l’ouvres dans Gmail.
+
 ## Lire un résumé des messages récents
 
 Ces workflows lisent toutes les six heures les messages récents de chaque boîte connectée de leur type. Ils produisent un résumé et repèrent les messages qui semblent demander une réponse aujourd’hui. Le résumé constitue la sortie de l’exécution : ouvre celle-ci pour le lire. Ils n’écrivent rien dans la boîte et ne changent pas le statut des conversations.

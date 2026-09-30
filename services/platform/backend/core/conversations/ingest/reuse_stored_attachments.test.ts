@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { reuseStoredAttachments } from './reuse_stored_attachments';
+import {
+  reuseStoredAttachments,
+  settledAttachmentsOfIngested,
+} from './reuse_stored_attachments';
 
 /**
  * One fetched email carrying wire bytes, as a mail connector returns it on
@@ -164,5 +167,101 @@ describe('reuseStoredAttachments', () => {
       emails: [null, 'nonsense'],
     });
     expect(out).toEqual([null, 'nonsense']);
+  });
+
+  it('does not look up an email whose attachments are already stored', async () => {
+    const { ctx, runQuery } = ctxReturning(null);
+    const email = {
+      messageId: '<q3@example.com>',
+      attachments: storedMetadata().attachments,
+    };
+
+    const [out] = await reuseStoredAttachments(ctx, {
+      organizationId: 'org_1',
+      emails: [email],
+    });
+
+    expect(out).toBe(email);
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+});
+
+describe('settledAttachmentsOfIngested', () => {
+  const truncated = {
+    id: '1.3',
+    filename: 'scan.pdf',
+    contentType: 'application/pdf',
+    size: 9_000_000,
+    truncated: true,
+  };
+
+  it('hands back every part of a message whose attachments are settled', async () => {
+    const stored = storedMetadata().attachments[0];
+    const { ctx } = ctxReturning({
+      _id: 'msg_1',
+      metadata: { attachments: [stored, truncated] },
+    });
+
+    // A truncated part counts as settled: the connector could not carry it,
+    // so asking again would store nothing either.
+    await expect(
+      settledAttachmentsOfIngested(ctx, 'org_1', '<q3@example.com>'),
+    ).resolves.toEqual([stored, truncated]);
+  });
+
+  it('answers null while any part still lacks its bytes', async () => {
+    const { ctx } = ctxReturning({
+      _id: 'msg_1',
+      metadata: {
+        attachments: [
+          storedMetadata().attachments[0],
+          {
+            id: '1.4',
+            filename: 'invoice.pdf',
+            contentType: 'application/pdf',
+            size: 64,
+          },
+        ],
+      },
+    });
+
+    await expect(
+      settledAttachmentsOfIngested(ctx, 'org_1', '<q3@example.com>'),
+    ).resolves.toBeNull();
+  });
+
+  it('answers null for a new message and for one with no attachments recorded', async () => {
+    await expect(
+      settledAttachmentsOfIngested(
+        ctxReturning(null).ctx,
+        'org_1',
+        '<new@example.com>',
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      settledAttachmentsOfIngested(
+        ctxReturning({ _id: 'msg_1', metadata: { attachments: [] } }).ctx,
+        'org_1',
+        '<q3@example.com>',
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it('answers null when the lookup throws, so the bytes are fetched', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const runQuery = vi.fn(async () => {
+      throw new Error('transient');
+    });
+
+    await expect(
+      settledAttachmentsOfIngested(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+        { runQuery } as never,
+        'org_1',
+        '<q3@example.com>',
+      ),
+    ).resolves.toBeNull();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 60 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -521,6 +521,23 @@ subject.
   door refuses is counted as failed in that same toast, beside the reason
   the door gave (`conversations.bulk.outcomeWithReason`), and its rows stay
   ticked for another try.
+- [ ] `CONV-F35` · **A synced Gmail attachment opens** — With **Sync Gmail
+  emails** deployed on a connected Gmail mailbox, mail that mailbox one email
+  carrying a PDF and an inline image referenced from its HTML body, plus a
+  second email with one PDF over 4 MB, and let the sync run → In the first
+  conversation the inline image renders inside the message body, and the PDF
+  sits under **1 attachment** (`conversations.attachment.attachments`) with a
+  **Download** (`conversations.attachment.download`) control that saves the
+  identical file. The large PDF is still listed with its name and size, with
+  no **Download**, and the rest of the message reads normally.
+- [ ] `CONV-F36` · **A newsletter's remote images load through the proxy** —
+  Open a synced marketing email whose body draws images from the sender's
+  servers (a LinkedIn or HubSpot mailing), with DevTools → Network open → Every
+  picture renders; each one is requested from the app's own origin as
+  `/api/image-proxy?url=…` and none from the sender's host, and the responses
+  carry `Content-Type: image/…` and `Content-Security-Policy: default-src
+  'none'; sandbox`. Open one of those proxy URLs in a signed-out private window
+  → 401, no image.
 
 ## Boundary & error tests
 
