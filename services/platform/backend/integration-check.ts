@@ -40266,16 +40266,81 @@ async function checkAskAnswer(
   );
 
   // The ask BELLS: creating an ask through the tool door's handler fans out
-  // agent_escalation rows to the project audience (org admins here — the
-  // run has no project), a FOLD rewrites the unread row in place, and the
-  // answer dismisses it transactionally.
+  // agent_escalation rows to the org's owners and admins (the run has no
+  // project) who have not turned escalations off, a FOLD writes each of them
+  // a row carrying the merged question, and the answer dismisses them all
+  // transactionally. It runs in an organization of its own, whose members
+  // this lane sets, so the recipients are known exactly, never read back
+  // from the bells or from the audience rule itself: the owner, an admin and
+  // an admin whose other preferences are off (an unset escalation is on) —
+  // and never a plain member, a disabled member or an admin who turned
+  // escalations off.
+  const bellOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${bellOrgId}, 'Ask bells', ${`itest-ask-bells-${bellOrgId}`}, now())
+  `;
+  const bellOwner = await signUpUser(base, 'ask-bell-owner');
+  const bellFixture = {
+    admin: `ask-bell-admin-${bellOrgId}`,
+    quietAdmin: `ask-bell-quiet-admin-${bellOrgId}`,
+    member: `ask-bell-member-${bellOrgId}`,
+    disabled: `ask-bell-disabled-${bellOrgId}`,
+    mutedAdmin: `ask-bell-muted-admin-${bellOrgId}`,
+  };
+  for (const id of Object.values(bellFixture)) {
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${id}, 'Ask bell fixture', ${`${id}@example.com`}, true, now(), now())
+    `;
+  }
+  for (const [id, role] of [
+    [bellOwner.userId, 'owner'],
+    [bellFixture.admin, 'admin'],
+    [bellFixture.quietAdmin, 'admin'],
+    [bellFixture.member, 'member'],
+    [bellFixture.disabled, 'disabled'],
+    [bellFixture.mutedAdmin, 'admin'],
+  ] as const) {
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${randomUUID()}, ${bellOrgId}, ${id}, ${role}, now())
+    `;
+  }
+  await sql`
+    INSERT INTO app.notification_preferences (
+      user_id, org_id, task_commented, escalation, updated_at_ms
+    ) VALUES
+      (${bellFixture.quietAdmin}, ${bellOrgId}, false, NULL, ${now}),
+      (${bellFixture.mutedAdmin}, ${bellOrgId}, NULL, false, ${now})
+  `;
+  const expectedBellRecipients = [
+    bellOwner.userId,
+    bellFixture.admin,
+    bellFixture.quietAdmin,
+  ].toSorted();
+  const bellWho = (id: string): string =>
+    id === bellOwner.userId
+      ? 'owner'
+      : (Object.entries(bellFixture).find(
+          ([, fixtureId]) => fixtureId === id,
+        )?.[0] ?? `stranger:${id}`);
+  const bellRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, checkpoints,
+      started_at_ms
+    ) VALUES (
+      ${bellOrgId}, 'itest/ask-bells', 1, 'waiting', 'live', 'itest:ask',
+      ${sql.json(toJson(checkpointsA))}, ${now}
+    ) RETURNING id
+  `;
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES (
-      ${orgId}, 'wf-ask-bell', 'active', 'workflow_run', ${runAId},
-      'itest:ask', ${now}, ${now + 3_600_000}
+      ${bellOrgId}, 'wf-ask-bell', 'active', 'workflow_run',
+      ${bellRun[0]?.id ?? ''}, 'itest:ask', ${now}, ${now + 3_600_000}
     )
   `;
   const createAsk = shim['automations/human_asks:createAskForExec'];
@@ -40284,58 +40349,46 @@ async function checkAskAnswer(
     .loose()
     .safeParse(
       await createAsk?.({
-        organizationId: orgId,
+        organizationId: bellOrgId,
         sessionId: 'wf-ask-bell',
         question: 'Which ledger account applies?',
       }),
     );
   const bellAskId = bellAsk.success ? bellAsk.data.askId : '';
-  const bellAfterCreate = await sql<
-    {
-      userId: string;
-      read: boolean;
-      params: Record<string, unknown> | null;
-    }[]
-  >`
-    SELECT user_id AS "userId", read, params FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
-  // An ask with no project rings the organization's owners and admins, less
-  // anyone who turned escalation bells off, and never a plain member. Other
-  // lanes add both admins and members to the shared organization, so the
-  // audience is read now, beside the bells it must equal.
-  const bellAudience = await sql<{ userId: string }[]>`
-    SELECT m."userId" FROM "member" m
-    WHERE m."organizationId" = ${orgId}
-      AND m."role" IN ('owner', 'admin')
-      AND COALESCE((
-        SELECT p.escalation FROM app.notification_preferences p
-        WHERE p.user_id = m."userId" AND p.org_id = ${orgId}
-        LIMIT 1
-      ), true)
-  `;
-  const ownerBells = bellAfterCreate.filter((row) => row.userId === userId);
-  const bellRecipients = new Set(bellAfterCreate.map((row) => row.userId));
-  const bellAudienceIds = new Set(bellAudience.map((row) => row.userId));
-  const bellsMissing = [...bellAudienceIds].filter(
-    (id) => !bellRecipients.has(id),
-  );
-  const bellsStray = [...bellRecipients].filter(
-    (id) => !bellAudienceIds.has(id),
-  );
+  const bellRows = () =>
+    sql<
+      {
+        userId: string;
+        read: boolean;
+        params: Record<string, unknown> | null;
+      }[]
+    >`
+      SELECT user_id AS "userId", read, params FROM app.user_notifications
+      WHERE org_id = ${bellOrgId} AND type = 'agent_escalation'
+        AND params ->> 'askId' = ${bellAskId}
+    `;
+  /** Exactly the expected people, one row each: a missing, a doubled or an
+   * unexpected recipient all fail it. */
+  const exactlyExpected = (rows: readonly { userId: string }[]): boolean =>
+    JSON.stringify(rows.map((row) => row.userId).toSorted()) ===
+    JSON.stringify(expectedBellRecipients);
+  const recipientsOf = (rows: readonly { userId: string }[]): string =>
+    rows
+      .map((row) => bellWho(row.userId))
+      .toSorted()
+      .join('+');
+  const bellAfterCreate = await bellRows();
   await createAsk?.({
-    organizationId: orgId,
+    organizationId: bellOrgId,
     sessionId: 'wf-ask-bell',
     question: 'And which VAT box?',
   });
-  const bellAfterFold = await sql<
-    { read: boolean; params: Record<string, unknown> | null }[]
-  >`
-    SELECT read, params FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellAfterFold = await bellRows();
+  // A no-task ask has no collapse subject (the 0.4 posture): the fold writes
+  // each recipient a row of its own carrying the MERGED question.
+  const foldRows = bellAfterFold.filter((row) =>
+    JSON.stringify(row.params?.question ?? '').includes('And which VAT box'),
+  );
   // Two ask_human calls RACING inside one turn (an at-least-once tool lane)
   // converge on ONE pending row carrying both questions — the partial unique
   // index (0082) plus the single INSERT … ON CONFLICT fold; the former
@@ -40480,12 +40533,19 @@ async function checkAskAnswer(
     );
   }
 
-  await answerRoute(bellAskId, 'Account 4400, box 81.');
-  const bellAfterAnswer = await sql<{ read: boolean }[]>`
-    SELECT read FROM app.user_notifications
-    WHERE org_id = ${orgId} AND type = 'agent_escalation'
-      AND params ->> 'askId' = ${bellAskId}
-  `;
+  const bellAnswer = await fetch(
+    `${base}/api/app/automations/asks/${bellAskId}/answer?orgId=${bellOrgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: bellOwner.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ answer: 'Account 4400, box 81.' }),
+    },
+  );
+  const bellAfterAnswer = await bellRows();
   // A TASK-BOUND run: the ask must hang off the card the person is being
   // asked about — otherwise the bell lands on the bare dashboard and the
   // task panel cannot say which question is waiting.
@@ -40603,24 +40663,22 @@ async function checkAskAnswer(
     UPDATE app.sandbox_sessions SET status = 'destroyed'
     WHERE session_id IN ('wf-ask-bell', 'wf-ask-task', 'wf-ask-race')
   `;
+  const wantRecipients = expectedBellRecipients
+    .map(bellWho)
+    .toSorted()
+    .join('+');
   record(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
     bellAsk.success &&
-      ownerBells.length === 1 &&
-      bellsMissing.length === 0 &&
-      bellsStray.length === 0 &&
-      bellRecipients.size === bellAfterCreate.length &&
+      exactlyExpected(bellAfterCreate) &&
       bellAfterCreate.every((row) => !row.read) &&
-      // A no-task ask has no collapse subject (the 0.4 posture): the fold
-      // writes its own row carrying the MERGED question.
-      bellAfterFold.some((row) =>
-        JSON.stringify(row.params?.question ?? '').includes(
-          'And which VAT box',
-        ),
-      ) &&
-      bellAfterAnswer.length >= 1 &&
+      exactlyExpected(foldRows) &&
+      bellAnswer.status === 200 &&
+      JSON.stringify(
+        [...new Set(bellAfterAnswer.map((row) => row.userId))].toSorted(),
+      ) === JSON.stringify(expectedBellRecipients) &&
       bellAfterAnswer.every((row) => row.read),
-    `created: owner=${ownerBells.length} (want 1), rows=${bellAfterCreate.length} for ${bellRecipients.size} recipient(s) (want one each of the ${bellAudienceIds.size} owners and admins), missing=[${bellsMissing.join(',')}] stray=[${bellsStray.join(',')}] (want none), unread=${bellAfterCreate.every((row) => !row.read)} (want true), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
+    `created=${recipientsOf(bellAfterCreate)} unread=${bellAfterCreate.every((row) => !row.read)}, folded=${recipientsOf(foldRows)} (want ${wantRecipients} each time: never the member, the disabled member or the admin who turned escalations off), answer=${bellAnswer.status} (want 200), answeredAllRead=${bellAfterAnswer.length}/${bellAfterAnswer.every((row) => row.read)}`,
   );
 }
 
