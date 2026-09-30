@@ -275,6 +275,40 @@ describe('WebsiteViewDialog', () => {
     expect(screen.queryByText('0 words')).not.toBeInTheDocument();
   });
 
+  // A rejected embedding key: the site said only that the last scan did not
+  // finish, over a bare "401 User not found." on hover.
+  it('names the embedding model when it could not embed the pages', () => {
+    render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{
+          ...WEBSITE,
+          status: 'error',
+          crawledPageCount: 0,
+          failedPageCount: 0,
+          metadata: {
+            lastSyncError:
+              'The embedding model could not embed the pages: 401 User not found.',
+          },
+        }}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Website details' });
+    expect(
+      within(dialog).getByRole('heading', {
+        name: "The embedding model couldn't process the pages.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        'Nothing was indexed. An admin can check the embedding model under Settings → Data residency.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/User not found/)).not.toBeInTheDocument();
+  });
+
   it('keeps the page list when a scan error follows indexed pages', () => {
     render(
       <WebsiteViewDialog

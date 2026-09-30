@@ -1,12 +1,15 @@
 // @vitest-environment node
 
 import { computeContentHash } from '@tale/shared/utils/hashing';
+import OpenAI from 'openai';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../lib/ctx';
+import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
 import { PageIndexer, type StoreOutcome, storePageText } from './crawl_action';
+import { EmbeddingDimensionMismatch, pinDimensions } from './dimensions';
 import { embedderForOrg, EmbeddingNotConfigured } from './embedding';
 
 vi.mock('./connection', async (importOriginal) => ({
@@ -17,7 +20,11 @@ vi.mock('./embedding', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./embedding')>()),
   embedderForOrg: vi.fn(),
 }));
-vi.mock('./dimensions', () => ({ pinDimensions: vi.fn() }));
+vi.mock('./dimensions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./dimensions')>()),
+  pinDimensions: vi.fn(),
+}));
+vi.mock('./index_health', () => ({ assertCorpusWritable: vi.fn() }));
 vi.mock('./pool', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./pool')>()),
   resolveOrgUrl: vi.fn(async () => 'postgresql://corpus.example/tale'),
@@ -147,5 +154,96 @@ describe('PageIndexer.settle', () => {
     await settle('unchanged');
     expect(indexPage).toHaveBeenCalledTimes(1);
     expect(embedderForOrg).not.toHaveBeenCalled();
+  });
+});
+
+describe('PageIndexer.indexPage — the embedding provider fails', () => {
+  const identity = {
+    domain: 'ruler.example',
+    orgSlug: 'ruler',
+    organizationId: 'org-1',
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the embedder is mocked; the ctx is never dispatched
+  const ctx = {} as ActionCtx;
+
+  /** A corpus double holding one stored page and nothing else. */
+  function storedPage(): Sql {
+    const unsafe = (text: string): Promise<unknown[]> =>
+      Promise.resolve(
+        text.includes('SELECT content, title')
+          ? [{ content: TEXT.repeat(20), title: 'About' }]
+          : [],
+      );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return { unsafe } as unknown as Sql;
+  }
+
+  const indexWith = (embedAll: () => Promise<number[][]>): Promise<void> => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only what indexPage calls
+      { dimensions: 8, embedAll } as unknown as Awaited<
+        ReturnType<typeof embedderForOrg>
+      >,
+    );
+    return new PageIndexer(ctx, storedPage(), identity).indexPage(
+      'https://ruler.example/about',
+    );
+  };
+
+  afterEach(() => {
+    vi.mocked(embedderForOrg).mockReset();
+    vi.mocked(pinDimensions).mockReset();
+  });
+
+  // Regression: a rejected embedding key left the provider's bare words on
+  // the site ("401 User not found.") and the page could only say that the
+  // last scan did not finish.
+  it('ends the scan under a reason that names the embedding model', async () => {
+    const refusal = OpenAI.APIError.generate(
+      401,
+      { error: { message: 'User not found.' } },
+      undefined,
+      new Headers(),
+    );
+    await expect(indexWith(() => Promise.reject(refusal))).rejects.toThrow(
+      new RegExp(`^${WEBSITE_EMBEDDING_FAILED_PREFIX}: .*User not found`),
+    );
+  });
+
+  it('names the model when the corpus cannot hold its vectors', async () => {
+    vi.mocked(pinDimensions).mockRejectedValue(
+      new EmbeddingDimensionMismatch(1536, 1024, 'organization "ruler"'),
+    );
+    await expect(indexWith(() => Promise.resolve([]))).rejects.toThrow(
+      new RegExp(`^${WEBSITE_EMBEDDING_FAILED_PREFIX}: .*1024-dimensional`),
+    );
+  });
+
+  // The refusal an admin has to lift, met before the first page is read:
+  // the reason carries its sentence, not the payload `AppError` serializes.
+  it('names the model when its credential cannot be resolved', async () => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockRejectedValue(
+      Object.assign(new Error('{"code":"CREDENTIAL_DISABLED"}'), {
+        data: {
+          code: 'CREDENTIAL_DISABLED',
+          message: 'The credential "OpenRouter" is disabled.',
+        },
+      }),
+    );
+    const indexer = new PageIndexer(ctx, storedPage(), identity);
+    await expect(
+      indexer.settle('https://ruler.example/about', 'vectorless'),
+    ).rejects.toThrow(
+      `${WEBSITE_EMBEDDING_FAILED_PREFIX}: The credential "OpenRouter" is disabled.`,
+    );
+  });
+
+  it('leaves an unrelated failure as it is', async () => {
+    const unrelated = new Error('relation "chunks" does not exist');
+    await expect(indexWith(() => Promise.reject(unrelated))).rejects.toBe(
+      unrelated,
+    );
   });
 });

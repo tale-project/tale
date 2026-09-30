@@ -98,8 +98,10 @@ import {
   RenderCapacityError,
   renderUrlsInSandbox,
 } from '../node_only/sandbox/render_fetch';
+import { runFailureMessage } from '../provider_credentials/resolve_credential';
 import {
   isDueForScan,
+  WEBSITE_EMBEDDING_FAILED_PREFIX,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../websites/scan_scheduling';
 import type { PageFailureKind } from '../websites/types';
@@ -109,8 +111,13 @@ import {
   CRAWLER_PRODUCT_TOKEN,
   crawlerRequestHeaders,
 } from './crawler_identity';
-import { pinDimensions } from './dimensions';
-import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
+import { EmbeddingDimensionMismatch, pinDimensions } from './dimensions';
+import {
+  classifyEmbeddingFailure,
+  Embedder,
+  embedderForOrg,
+  EmbeddingNotConfigured,
+} from './embedding';
 import { assertCorpusWritable } from './index_health';
 import {
   getKnowledgePoolForOrg,
@@ -1473,6 +1480,26 @@ async function recordPageFailure(
 }
 
 /**
+ * A failure of the organization's embedding model — a rejected credential,
+ * an exhausted balance, an outage, a model whose vectors the corpus cannot
+ * hold — ends the scan as any error does, but under a reason that says so:
+ * the row used to carry the provider's bare words ("401 User not found.")
+ * and the page could only answer that the last scan did not finish. Any
+ * other error is handed back as it is.
+ */
+function embeddingScanFailure(error: unknown): unknown {
+  const modelFailed =
+    error instanceof EmbeddingDimensionMismatch ||
+    classifyEmbeddingFailure(error) !== null;
+  if (!modelFailed) return error;
+  // A credential refusal's own sentence, not its serialized payload.
+  return new Error(
+    `${WEBSITE_EMBEDDING_FAILED_PREFIX}: ${runFailureMessage(error)}`,
+    { cause: error },
+  );
+}
+
+/**
  * Indexes changed pages one at a time, as the fetch loop hands them over —
  * fetch and index share the budget window, so no phase of a scan can outgrow
  * the action's hard kill.
@@ -1509,25 +1536,39 @@ export class PageIndexer {
         config,
       });
     } catch (error) {
-      if (error instanceof EmbeddingNotConfigured) {
-        console.warn(
-          `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — chunks are stored without vectors until one is`,
-        );
-      } else {
-        throw error;
+      if (!(error instanceof EmbeddingNotConfigured)) {
+        throw embeddingScanFailure(error);
       }
+      console.warn(
+        `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — chunks are stored without vectors until one is`,
+      );
     }
     if (this.embedder) {
       const dbUrl = await resolveOrgUrl(orgSlug);
-      await pinDimensions({
-        sql: this.sql,
-        dbUrl,
-        schema: PUBLIC_WEB_SCHEMA,
-        dimensions: this.embedder.dimensions,
-        context: `organization "${orgSlug}" (website crawl)`,
-      });
+      try {
+        await pinDimensions({
+          sql: this.sql,
+          dbUrl,
+          schema: PUBLIC_WEB_SCHEMA,
+          dimensions: this.embedder.dimensions,
+          context: `organization "${orgSlug}" (website crawl)`,
+        });
+      } catch (error) {
+        throw embeddingScanFailure(error);
+      }
     }
     return this.embedder;
+  }
+
+  /** The chunks' vectors, or null without an embedding model. */
+  private async embed(texts: string[]): Promise<number[][] | null> {
+    const embedder = await this.resolveEmbedder();
+    if (embedder === null) return null;
+    try {
+      return await embedder.embedAll(texts);
+    } catch (error) {
+      throw embeddingScanFailure(error);
+    }
   }
 
   /** Index a page if its store outcome calls for it: changed text always,
@@ -1574,10 +1615,7 @@ export class PageIndexer {
       );
       return;
     }
-    const embedder = await this.resolveEmbedder();
-    const vectors = embedder
-      ? await embedder.embedAll(chunks.map((chunk) => chunk.embedText))
-      : null;
+    const vectors = await this.embed(chunks.map((chunk) => chunk.embedText));
     const contentHash = computeContentHash(row.content);
 
     await this.sql.begin(async (tx) => {

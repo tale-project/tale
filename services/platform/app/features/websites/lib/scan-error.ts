@@ -7,12 +7,15 @@ export type ScanErrorKind =
   | 'runtime'
   | 'dns'
   | 'notInCorpus'
+  | 'embedding'
   | 'timeout'
   | 'generic';
 
 export function classifyScanError(message: string): ScanErrorKind {
   const m = message.toLowerCase();
   if (m.includes('website not found in crawler')) return 'notInCorpus';
+  // Before the timeout test: a provider's own words may name one.
+  if (m.includes('embedding model could not embed')) return 'embedding';
   if (
     m.includes('sandbox session') ||
     m.includes('tale-sandbox-runtime') ||
@@ -37,12 +40,15 @@ export function scanErrorMessageKey(
 ):
   | 'viewDialog.scanError.runtime'
   | 'viewDialog.scanError.notInCorpus'
+  | 'viewDialog.scanError.embedding'
   | 'viewDialog.scanError.generic'
   | 'pagesDialog.errorKind.dnsFailed'
   | 'pagesDialog.errorKind.timeout' {
   switch (kind) {
     case 'runtime':
       return 'viewDialog.scanError.runtime';
+    case 'embedding':
+      return 'viewDialog.scanError.embedding';
     case 'dns':
       return 'pagesDialog.errorKind.dnsFailed';
     case 'timeout':
@@ -60,10 +66,13 @@ export function scanEmptyMessageKey(
   | 'viewDialog.scanEmpty.runtime'
   | 'viewDialog.scanEmpty.dns'
   | 'viewDialog.scanEmpty.notInCorpus'
+  | 'viewDialog.scanEmpty.embedding'
   | 'viewDialog.scanEmpty.generic' {
   switch (kind) {
     case 'runtime':
       return 'viewDialog.scanEmpty.runtime';
+    case 'embedding':
+      return 'viewDialog.scanEmpty.embedding';
     case 'dns':
       return 'viewDialog.scanEmpty.dns';
     case 'notInCorpus':

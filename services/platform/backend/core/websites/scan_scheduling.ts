@@ -63,6 +63,13 @@ export const STUCK_SCANNING_RETRY_MS = 2 * 60 * 60 * 1000;
 export const WEBSITE_NOT_IN_CORPUS_MESSAGE =
   'Website not found in crawler. Please delete and re-add it.';
 
+/** How a scan's error opens when the organization's embedding model could
+ * not embed its pages (a rejected credential, an exhausted balance, a
+ * provider that is down). The Websites page reads it to say so, and whom to
+ * ask, instead of the provider's bare words. */
+export const WEBSITE_EMBEDDING_FAILED_PREFIX =
+  'The embedding model could not embed the pages';
+
 /** The scheduler's view of one `websites` row, as
  * `listWebsitesForScanScheduling` projects it. */
 export interface ScanSchedulingSite {

@@ -308,6 +308,9 @@ records and delete them after.
   `websites.viewDialog.scanEmpty.runtime` for a missing crawler runtime,
   `websites.pagesDialog.errorKind.dnsFailed` +
   `websites.viewDialog.scanEmpty.dns` for a host that does not resolve,
+  `websites.viewDialog.scanError.embedding` +
+  `websites.viewDialog.scanEmpty.embedding` for an embedding provider that
+  refused or failed the pages,
   `websites.viewDialog.scanError.generic` +
   `websites.viewDialog.scanEmpty.generic` otherwise) — never the raw sandbox
   JSON, `tale-sandbox-runtime`, or `getaddrinfo` dump, and never a hollow

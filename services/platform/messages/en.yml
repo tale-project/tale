@@ -8100,11 +8100,13 @@ websites:
     scanError:
       runtime: Scanning didn't run.
       notInCorpus: This site isn't in the crawler. Delete it and add it again.
+      embedding: The embedding model couldn't process the pages.
       generic: The last scan didn't finish.
     scanEmpty:
       runtime: Nothing was indexed. The URL isn't the problem.
       dns: Nothing was indexed. Change the URL if the host is wrong.
       notInCorpus: Nothing was indexed. Delete the site and add it again.
+      embedding: Nothing was indexed. An admin can check the embedding model under Settings → Data residency.
       generic: Nothing was indexed.
   scanPausedBadge: Paused
   resumeScanning: Resume scanning

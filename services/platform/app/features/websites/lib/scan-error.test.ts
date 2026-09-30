@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '@/backend/core/websites/scan_scheduling';
+
 import { classifyScanError, isHollowSiteScan } from './scan-error';
 
 describe('classifyScanError', () => {
@@ -25,6 +27,21 @@ describe('classifyScanError', () => {
         'Website not found in crawler. Please delete and re-add it.',
       ),
     ).toBe('notInCorpus');
+  });
+
+  // A rejected embedding key left "401 User not found." on the site and
+  // the page could only say the last scan did not finish.
+  it("maps the crawler's embedding failure, whatever the provider said", () => {
+    expect(
+      classifyScanError(
+        `${WEBSITE_EMBEDDING_FAILED_PREFIX}: 401 User not found.`,
+      ),
+    ).toBe('embedding');
+    expect(
+      classifyScanError(
+        `${WEBSITE_EMBEDDING_FAILED_PREFIX}: Request timeout after 30s`,
+      ),
+    ).toBe('embedding');
   });
 
   it('falls back for an unknown dump', () => {

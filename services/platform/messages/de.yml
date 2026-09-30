@@ -8003,12 +8003,14 @@ websites:
       runtime: Der Scan ist nicht gelaufen.
       notInCorpus: Diese Website ist nicht im Crawler. Lösche sie und füge sie
         erneut hinzu.
+      embedding: Das Embedding-Modell konnte die Seiten nicht verarbeiten.
       generic: Der letzte Scan ist nicht durchgelaufen.
     scanEmpty:
       runtime: Nichts wurde indexiert. Die URL ist nicht das Problem.
       dns: Nichts wurde indexiert. Ändere die URL, wenn der Host nicht stimmt.
       notInCorpus: Nichts wurde indexiert. Lösche die Website und füge sie
         erneut hinzu.
+      embedding: Nichts wurde indexiert. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       generic: Nichts wurde indexiert.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
