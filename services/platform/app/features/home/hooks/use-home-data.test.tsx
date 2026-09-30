@@ -10,9 +10,11 @@ const NOW = new Date(2026, 8, 23, 12, 0, 0).getTime();
 const reads = vi.hoisted(() => ({
   conversations: vi.fn(),
   tasks: vi.fn(),
+  archived: vi.fn(),
 }));
 
 vi.mock('@/app/features/chat/data/chat-backend', () => ({
+  useArchivedThreads: reads.archived,
   useChatThreads: () => ({
     status: 'ready',
     data: [
@@ -76,6 +78,10 @@ function task(overrides: Record<string, unknown>) {
 }
 
 beforeEach(() => {
+  reads.archived.mockReset().mockReturnValue({
+    status: 'ready',
+    data: { rows: [], nextCursor: null },
+  });
   reads.conversations.mockReset().mockReturnValue({
     results: [
       {
@@ -108,6 +114,59 @@ beforeEach(() => {
 });
 
 describe('useHomeData', () => {
+  it('reads archived rows only when requested and keeps live summaries on duplicate ids', () => {
+    const archived = {
+      id: 'archived-chat',
+      title: 'Old conversation',
+      kind: 'direct',
+      archived: true,
+      generating: false,
+      createdAt: NOW - 5000,
+      updatedAt: NOW - 4000,
+    };
+    reads.archived.mockReturnValue({
+      status: 'ready',
+      data: {
+        rows: [archived, { ...archived, id: 'chat-read' }],
+        nextCursor: null,
+      },
+    });
+    const { result, rerender } = renderHook(
+      ({ includeArchivedChats }) =>
+        useHomeData('org-1', { includeArchivedChats }),
+      { initialProps: { includeArchivedChats: false } },
+    );
+    expect(reads.archived).toHaveBeenLastCalledWith('org-1', {
+      enabled: false,
+    });
+    expect(result.current.threadsById.has('archived-chat')).toBe(false);
+    rerender({ includeArchivedChats: true });
+    expect(reads.archived).toHaveBeenLastCalledWith('org-1', { enabled: true });
+    expect(
+      result.current.items.filter((item) => item.kind === 'chat'),
+    ).toHaveLength(3);
+    expect(result.current.threadsById.get('archived-chat')).toEqual(archived);
+    expect(result.current.threadsById.get('chat-read')?.archived).toBe(false);
+  });
+
+  it('keeps chats loading while an enabled archive read is pending', () => {
+    reads.archived.mockReturnValue({ status: 'loading' });
+    const { result } = renderHook(() =>
+      useHomeData('org-1', { includeArchivedChats: true }),
+    );
+    expect(result.current.loading.chats).toBe(true);
+  });
+
+  it('reads every task status when the status facet has no selection', () => {
+    renderHook(() => useHomeData('org-1', { taskStatuses: [] }));
+    expect(reads.tasks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assigneeId: 'me',
+        statuses: undefined,
+      }),
+    );
+  });
+
   it('keeps literal text in the server-cleaned inbox preview', () => {
     const html =
       '<p>Your code is &lt;123456&gt;; type &amp;amp; literally.</p>';

@@ -6,6 +6,11 @@
  * target — drag a chat onto a project to file it there. Pinned projects lead,
  * the rest read alphabetically, and the section keeps at most half the panel
  * so the stream below always stays in reach.
+ *
+ * On a phone Home is a screen, not a panel beside the project, so a row there
+ * narrows the stream to that project instead (`scope`); the project's page is
+ * one labelled step away from the scope bar. That screen creates nothing, so
+ * it carries no New project or New chat.
  */
 
 import { useAccentColor } from '@tale/ui/accent-color';
@@ -21,6 +26,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ChevronRight,
+  FolderOpen,
   FolderPlus,
   LayoutList,
   MoreHorizontal,
@@ -45,14 +51,23 @@ import { useT } from '@/lib/i18n/client';
 
 import { moveRowFocus } from '../lib/row-navigation';
 
+/** How a row behaves on a phone: a toggle that narrows the stream. */
+export interface HomeProjectScope {
+  /** The project the stream is narrowed to, if any. */
+  readonly projectId: string | undefined;
+  readonly onChange: (projectId: string | undefined) => void;
+}
+
 function HomeProjectRow({
   organizationId,
   project,
   active,
+  scope,
 }: {
   organizationId: string;
   project: ChatProjectSummary;
   active: boolean;
+  scope?: HomeProjectScope;
 }) {
   const { t } = useT('home');
   const { t: tChat } = useT('chat');
@@ -64,17 +79,32 @@ function HomeProjectRow({
 
   const menuItems: DropdownMenuGroup[] = [
     [
-      {
-        type: 'item',
-        label: tChat('newChat'),
-        icon: SquarePen,
-        onClick: () =>
-          void navigate({
-            to: '/dashboard/$id/chat',
-            params: { id: organizationId },
-            search: { projectId: project.id },
-          }),
-      },
+      ...(scope === undefined
+        ? [
+            {
+              type: 'item' as const,
+              label: tChat('newChat'),
+              icon: SquarePen,
+              onClick: () =>
+                void navigate({
+                  to: '/dashboard/$id/chat',
+                  params: { id: organizationId },
+                  search: { projectId: project.id },
+                }),
+            },
+          ]
+        : [
+            {
+              type: 'item' as const,
+              label: t('scope.open'),
+              icon: FolderOpen,
+              onClick: () =>
+                void navigate({
+                  to: '/dashboard/$id/projects/$projectId',
+                  params: { id: organizationId, projectId: project.id },
+                }),
+            },
+          ]),
       {
         type: 'item',
         label: pinned ? tChat('unpinProject') : tChat('pinProject'),
@@ -89,39 +119,59 @@ function HomeProjectRow({
     ],
   ];
 
+  const rowClassName = cn(
+    'focus-visible:ring-ring relative z-10 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+    // The open project's fill is the list's gliding highlight.
+    active
+      ? 'text-foreground font-medium'
+      : 'text-foreground/90 hover:bg-muted/60 hover:text-foreground',
+  );
+  const rowContent = (
+    <>
+      <ProjectAvatar
+        name={project.name}
+        icon={project.icon}
+        color={project.color}
+        size={16}
+      />
+      <span className="min-w-0 flex-1 truncate">{project.name}</span>
+      {pinned && (
+        <Pin
+          aria-label={tChat('pinned')}
+          className="text-muted-foreground size-3 shrink-0 transition-opacity md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0 md:group-has-[[data-state=open]]:opacity-0"
+        />
+      )}
+    </>
+  );
+
   return (
     <li
       ref={setNodeRef}
       className={cn('group relative', dropZoneClassName(isOver))}
     >
-      <Link
-        to="/dashboard/$id/projects/$projectId"
-        params={{ id: organizationId, projectId: project.id }}
-        aria-current={active ? 'page' : undefined}
-        data-indicator-key={project.id}
-        className={cn(
-          'focus-visible:ring-ring relative z-10 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
-          // The open project's fill is the list's gliding highlight.
-          active
-            ? 'text-foreground font-medium'
-            : 'text-foreground/90 hover:bg-muted/60 hover:text-foreground',
-        )}
-        {...(active && accentColor ? { style: { color: accentColor } } : {})}
-      >
-        <ProjectAvatar
-          name={project.name}
-          icon={project.icon}
-          color={project.color}
-          size={16}
-        />
-        <span className="min-w-0 flex-1 truncate">{project.name}</span>
-        {pinned && (
-          <Pin
-            aria-label={tChat('pinned')}
-            className="text-muted-foreground size-3 shrink-0 transition-opacity md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0 md:group-has-[[data-state=open]]:opacity-0"
-          />
-        )}
-      </Link>
+      {scope === undefined ? (
+        <Link
+          to="/dashboard/$id/projects/$projectId"
+          params={{ id: organizationId, projectId: project.id }}
+          aria-current={active ? 'page' : undefined}
+          data-indicator-key={project.id}
+          className={rowClassName}
+          {...(active && accentColor ? { style: { color: accentColor } } : {})}
+        >
+          {rowContent}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          aria-pressed={active}
+          data-indicator-key={project.id}
+          onClick={() => scope.onChange(active ? undefined : project.id)}
+          className={cn(rowClassName, 'w-full text-left')}
+          {...(active && accentColor ? { style: { color: accentColor } } : {})}
+        >
+          {rowContent}
+        </button>
+      )}
       <div className="bg-background/85 absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-md opacity-100 backdrop-blur-sm transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
         <DropdownMenu
           align="end"
@@ -147,11 +197,14 @@ export function HomeProjects({
   projects,
   loading,
   activeProjectId,
+  scope,
 }: {
   organizationId: string;
   projects: readonly ChatProjectSummary[];
   loading: boolean;
   activeProjectId?: string;
+  /** Phone Home: rows narrow the stream instead of opening the project. */
+  scope?: HomeProjectScope;
 }) {
   const { t } = useT('home');
   const [open, setOpen] = usePersistedState(
@@ -177,10 +230,13 @@ export function HomeProjects({
       }),
     [projects],
   );
+  // The row the highlight rests on: the narrowed project on a phone, the
+  // open project's page beside the panel.
+  const highlightedId = scope !== undefined ? scope.projectId : activeProjectId;
   // One highlight glides between project rows as the open project changes;
   // the order moves it without changing its key.
   const indicator = useSlidingIndicator<HTMLDivElement>(
-    activeProjectId ?? null,
+    highlightedId ?? null,
     sorted.map((project) => project.id).join(','),
   );
 
@@ -210,31 +266,52 @@ export function HomeProjects({
             </span>
           )}
         </button>
-        <Tooltip content={t('projects.allProjects')} side="bottom">
+        {scope !== undefined ? (
+          // A labelled link: the phone has no tooltips, and an icon this
+          // small was the only way into the project list.
           <Button
             asChild
-            size="icon"
+            size="sm"
             variant="ghost"
-            aria-label={t('projects.allProjects')}
-            className="text-muted-foreground hover:text-foreground size-6 p-1"
+            icon={LayoutList}
+            className="text-muted-foreground hover:text-foreground -mr-1 h-7 px-2 text-xs"
           >
             <Link to="/dashboard/$id/projects" params={{ id: organizationId }}>
-              <LayoutList className="size-3.5" />
+              {t('projects.allProjects')}
             </Link>
           </Button>
-        </Tooltip>
-        {canCreate && (
-          <Tooltip content={t('projects.newProject')} side="bottom">
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setCreateOpen(true)}
-              aria-label={t('projects.newProject')}
-              className="text-muted-foreground hover:text-foreground size-6 p-1"
-            >
-              <FolderPlus className="size-3.5" />
-            </Button>
-          </Tooltip>
+        ) : (
+          <>
+            <Tooltip content={t('projects.allProjects')} side="bottom">
+              <Button
+                asChild
+                size="icon"
+                variant="ghost"
+                aria-label={t('projects.allProjects')}
+                className="text-muted-foreground hover:text-foreground size-6 p-1"
+              >
+                <Link
+                  to="/dashboard/$id/projects"
+                  params={{ id: organizationId }}
+                >
+                  <LayoutList className="size-3.5" />
+                </Link>
+              </Button>
+            </Tooltip>
+            {canCreate && (
+              <Tooltip content={t('projects.newProject')} side="bottom">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setCreateOpen(true)}
+                  aria-label={t('projects.newProject')}
+                  className="text-muted-foreground hover:text-foreground size-6 p-1"
+                >
+                  <FolderPlus className="size-3.5" />
+                </Button>
+              </Tooltip>
+            )}
+          </>
         )}
       </div>
       <SubPanelDisclosureBody open={open} className="min-h-0">
@@ -262,14 +339,15 @@ export function HomeProjects({
                   key={project.id}
                   organizationId={organizationId}
                   project={project}
-                  active={project.id === activeProjectId}
+                  active={project.id === highlightedId}
+                  {...(scope !== undefined ? { scope } : {})}
                 />
               ))}
             </ul>
           )}
         </div>
       </SubPanelDisclosureBody>
-      {canCreate && createOpen && (
+      {canCreate && scope === undefined && createOpen && (
         <ProjectCreateDialog
           open={createOpen}
           onOpenChange={setCreateOpen}

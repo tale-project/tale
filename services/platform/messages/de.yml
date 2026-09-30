@@ -4425,12 +4425,22 @@ home:
     yesterday: Gestern
     thisWeek: Letzte 7 Tage
     earlier: Früher
+    searchPlaceholderAll: Alle durchsuchen...
+    searchPlaceholderChats: Chats durchsuchen...
+    searchPlaceholderTasks: Aufgaben durchsuchen...
+    newChatInProject: 'Neuer Chat in {project}'
   projects:
     title: Projekte
     newProject: Neues Projekt
     allProjects: Alle Projekte
     actions: 'Aktionen für {project}'
     empty: Noch keine Projekte
+  scope:
+    open: Projekt öffnen
+    emptyChatsTitle: Keine Chats in diesem Projekt
+    emptyChatsHint: In diesem Projekt abgelegte Chats erscheinen hier.
+    emptyTasksTitle: Keine dir zugewiesenen offenen Aufgaben in diesem Projekt
+    emptyTasksHint: Dir zugewiesene Aufgaben in diesem Projekt erscheinen hier.
   inbox:
     statusLabel: '{status}, Konversationsstatus'
     compose: Neue E-Mail

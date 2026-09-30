@@ -4263,12 +4263,22 @@ home:
     yesterday: Yesterday
     thisWeek: Previous 7 days
     earlier: Earlier
+    searchPlaceholderAll: Search all...
+    searchPlaceholderChats: Search chats...
+    searchPlaceholderTasks: Search tasks...
+    newChatInProject: 'New chat in {project}'
   projects:
     title: Projects
     newProject: New project
     allProjects: All projects
     actions: 'Actions for {project}'
     empty: No projects yet
+  scope:
+    open: Open project
+    emptyChatsTitle: No chats in this project
+    emptyChatsHint: Chats filed in this project show up here.
+    emptyTasksTitle: No open tasks assigned to you in this project
+    emptyTasksHint: Tasks assigned to you in this project show up here.
   inbox:
     statusLabel: '{status}, conversation status'
     compose: New email

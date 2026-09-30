@@ -4493,12 +4493,22 @@ home:
     yesterday: Hier
     thisWeek: 7 derniers jours
     earlier: Plus ancien
+    searchPlaceholderAll: Tout rechercher...
+    searchPlaceholderChats: Rechercher des chats...
+    searchPlaceholderTasks: Rechercher des tâches...
+    newChatInProject: 'Nouveau chat dans {project}'
   projects:
     title: Projets
     newProject: Nouveau projet
     allProjects: Tous les projets
     actions: 'Actions pour {project}'
     empty: Aucun projet pour le moment
+  scope:
+    open: Ouvrir le projet
+    emptyChatsTitle: Aucun chat dans ce projet
+    emptyChatsHint: Les chats classés dans ce projet apparaissent ici.
+    emptyTasksTitle: Aucune tâche ouverte vous étant attribuée dans ce projet
+    emptyTasksHint: Les tâches qui vous sont attribuées dans ce projet apparaissent ici.
   inbox:
     statusLabel: '{status}, statut de la conversation'
     compose: Nouvel e-mail

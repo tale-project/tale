@@ -21,8 +21,8 @@ Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait au
 | Tu souhaites… | Marche à suivre |
 | --- | --- |
 | Ouvrir une autre section | Choisis cette section dans la barre de navigation ou, sur téléphone, dans la barre d’onglets. |
-| Démarrer un nouveau chat | Choisis **Nouveau chat** dans **Accueil**, ou choisis **Accueil** alors que tu y es déjà. |
-| Ouvrir un projet | Choisis le projet sous **Projets** dans **Accueil**. |
+| Démarrer un nouveau chat | Sur ordinateur, choisis **Nouveau chat** dans **Accueil**, ou choisis **Accueil** alors que tu y es déjà. Sur téléphone, ouvre **Accueil**, choisis **Chats**, puis **Nouveau chat**. |
+| Ouvrir un projet | Sur ordinateur, choisis le projet sous **Projets** dans **Accueil**. Sur téléphone, choisis le projet, puis **Ouvrir le projet**. |
 | Revenir à la liste des projets | Choisis **Tous les projets** dans **Accueil**, ou clique sur **Projets** dans le fil d’Ariane au-dessus du projet. |
 | Revenir à la liste des documents | Choisis **Connaissances**. |
 
@@ -44,7 +44,13 @@ Sous les projets, une seule liste regroupe ton travail sous **Épinglés**, **Au
 - Les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, dans tous les projets que tu peux consulter.
 - Dans **Tout**, les conversations ouvertes de la boîte de réception que tu peux voir.
 
-Une vue **Tout** ou **Chats** vide propose **Nouveau chat**, et une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des projets.
+Une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des projets. Sur ordinateur, une vue **Tout** ou **Chats** vide propose aussi **Nouveau chat**.
+
+Sur téléphone, la liste diffère sur trois points :
+
+- **Nouveau chat** se trouve en haut de la vue **Chats**, et non dans l’en-tête. **Nouveau projet** n’existe pas sur cet écran, et le menu d’un projet ne propose que **Épingler le projet**.
+- Quand tu choisis un projet sous **Projets**, **Tout**, **Chats** et **Tâches** n’affichent que les chats de ce projet et tes tâches ouvertes qui s’y trouvent. Une barre au-dessus de la liste nomme le projet. **Ouvrir le projet** mène à sa page, et **Tout afficher** lève la limite. **Réception** n’est jamais restreinte, car une conversation n’appartient à aucun projet.
+- **Tous les projets** est un lien avec libellé à côté du titre **Projets**, et non une icône.
 
 Chaque ligne commence par une bulle de chat, un cercle coloré selon le statut de la tâche ou les initiales du contact. Viennent ensuite le titre, le temps écoulé depuis la dernière modification et, en dessous, une ligne de contexte : pour un chat, son projet ; pour une tâche, son identifiant et son statut, par exemple `WEB-2` **En revue** ou **En attente de ta relecture** ; pour une conversation, le contact et son dernier message. Un point dans la couleur d’accentuation signale les chats et conversations non lus, ainsi que les tâches qui attendent ta relecture. Un crayon suivi de **Brouillon**, au début de la ligne de contexte, signale un chat, une tâche ou une conversation où tu as saisi un texte sans l’envoyer, sauf pour l’élément ouvert. Les brouillons restent dans le navigateur où tu les as saisis. Le menu d’un chat propose **Épingler le chat**, **Marquer comme lu** ou **Marquer comme non lu**, **Renommer**, **Déplacer vers un projet…**, **Partager**, **Arrêter le partage** pour un chat partagé, **Archiver** et **Supprimer**. Les chats archivés rejoignent **Archivés**, en bas de la liste.
 
