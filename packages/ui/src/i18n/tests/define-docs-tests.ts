@@ -33,7 +33,6 @@ export function defineDocsTests(config: DocsTestsConfig): void {
   const context: CheckContext = {
     locales: activeLocales,
     docsRoot: config.docsRoot,
-    navPath: config.navPath,
     glossary: () => {
       if (!glossaryHandle) glossaryHandle = loadGlossary(config.glossaryPath);
       return glossaryHandle;

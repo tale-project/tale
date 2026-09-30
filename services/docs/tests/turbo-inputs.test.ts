@@ -25,6 +25,27 @@ import { walkDocs } from './lib/walk';
 
 const DATA_FILES = ['docs/nav.json', 'docs/redirects.json'];
 
+/** The ledger of published addresses: the published suite reads it, the
+ *  build (`scripts/build-search-index.ts`) appends new pages to it. */
+const LEDGER = 'docs/published.json';
+
+/**
+ * The documentation frame's link, redirect and near-miss rules in `@tale/ui`:
+ * the link, published and near-miss suites run them, the build scripts
+ * (search index, prerender) expand redirects and record published slugs.
+ */
+const UI_DOCS_RULES = [
+  'packages/ui/src/components/docs/links.ts',
+  'packages/ui/src/components/docs/near-miss.ts',
+  'packages/ui/src/components/docs/published.ts',
+  'packages/ui/src/components/docs/redirects.ts',
+  'packages/ui/src/markdown/heading-id.ts',
+];
+const UI_DOCS_BUILD_RULES = [
+  'packages/ui/src/components/docs/published.ts',
+  'packages/ui/src/components/docs/redirects.ts',
+];
+
 /** `@tale/ui`'s i18n folder, repo-relative. */
 const UI_I18N = 'packages/ui/src/i18n';
 
@@ -58,6 +79,7 @@ function contentFiles(): string[] {
   return [
     ...walkDocs().map((page) => toPosix(path.join('docs', page))),
     ...DATA_FILES,
+    LEDGER,
   ];
 }
 
@@ -69,13 +91,23 @@ function rootReadmes(): string[] {
 const READERS: { task: string; why: string; reads: () => string[] }[] = [
   {
     task: 'test',
-    why: 'the structural suite, the i18n suites and the README parity check',
-    reads: () => [...contentFiles(), ...rootReadmes(), ...uiI18nFiles()],
+    why: 'the structural, link and published suites, the i18n suites and the README parity check',
+    reads: () => [
+      ...contentFiles(),
+      ...rootReadmes(),
+      ...uiI18nFiles(),
+      ...UI_DOCS_RULES,
+    ],
   },
   {
     task: 'build',
-    why: 'the bundled pages, search index and prerender (`test:prerender` depends on it)',
-    reads: contentFiles,
+    why: 'the bundled pages, search index, published ledger and prerender (`test:prerender` depends on it)',
+    reads: () => [...contentFiles(), ...UI_DOCS_BUILD_RULES],
+  },
+  {
+    task: 'test:prerender',
+    why: 'the built-site crawl (`@tale/e2e/crawl`)',
+    reads: () => ['packages/e2e/src/crawl.ts'],
   },
   {
     task: 'typecheck',

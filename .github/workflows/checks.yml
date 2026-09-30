@@ -52,6 +52,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          # lint:links compares a change with HEAD^1 (a pull request's merge
+          # commit has the base branch as its first parent), so a page it
+          # retires without a redirect, or a ledger line it drops, is caught.
+          fetch-depth: 2
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-turbo
@@ -69,6 +73,13 @@ jobs:
       # shell, so no other job would notice it.
       - name: Refuse merge-conflict markers
         run: bun run lint:conflicts
+
+      # Every link in the documentation sites, and every link into them from
+      # app code, READMEs and the marketing site, lands, and no page is retired
+      # without a redirect (tools/lint-links). Reads the whole tree and its
+      # history, so it runs outside turbo's cache.
+      - name: Refuse links that do not land
+        run: bun run lint:links
 
   lint:
     needs: candidate-source
@@ -141,6 +152,12 @@ jobs:
           # token — the same cure the E2E prerender step carries. turbo passes
           # it through (`globalPassThroughEnv`) without hashing it.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The built docs sites, served by their own servers and crawled through
+      # every address their pages, llms.txt, sitemap and Markdown exports
+      # carry — the links the docs frame builds, which no source check sees.
+      - name: Crawl the built docs sites
+        run: bunx turbo run test:prerender --filter=@tale/docs --filter=@tale/ui-docs
 
   test:
     needs: candidate-source

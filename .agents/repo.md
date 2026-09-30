@@ -25,7 +25,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   in the package.
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate), `lint-manual`
   (the manual-test gate; its `src/`, `cli.ts` and `tests/` are shared bytes with every
-  tale-project repo — fix a rule in `example-project` and roll it, never here).
+  tale-project repo — fix a rule in `example-project` and roll it, never here), `lint-links`
+  (the link gate for the two documentation sites, `bun run lint:links`).
 - `configs/platform/` — the builtin, org-independent config catalog (`system/` read-only,
   `custom/` seeded per org). Each client's private repository owns its `tale/` descriptor,
   packs, release catalogue and domain tests. Client content does not belong in this catalog.
@@ -138,6 +139,20 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   refuses a `<<<<<<<`, `|||||||` or `>>>>>>>` line in any tracked text file: the pre-commit hook
   runs it on the staged files, CI's Format job and `bun run check` on the whole tree. Markdown and
   shell still parse with a conflict left in them, and one was committed that way (2026-09).
+- **A published docs address never turns into a 404** — every page slug docs.tale.dev and
+  ui.tale.dev ever served is recorded in `docs/published.json` and
+  `services/ui-docs/content/published.json` (append-only; the content build records new pages), and
+  each must still answer as a page or through its site's `redirects.json`. Moving, merging or
+  deleting a page therefore needs a redirect for its old slug, or the published suites fail. Every
+  link in the two sites and every link into them from the rest of the repository (in-app help, the
+  marketing site, the CLI, READMEs) must land on a page directly: not a 404, not a redirect.
+  `bun run lint:links` (`tools/lint-links`, CI's Format job and `bun run check`) enforces this. It
+  compares a change with its base commit, and refuses a deleted or renamed page whose old address
+  now 404s or a line removed from a ledger. `test:prerender` crawls the built sites after `build`.
+  The retirement procedure is in [`docs/AGENTS.md`](../docs/AGENTS.md#retire-rename-or-merge-a-page). An address that names nothing (a guess, a
+  retired `/de-CH/…` tree) is answered by the near-miss resolver (`@tale/ui/docs/near-miss`)
+  before the 404 page: a 359-of-932 loss of published URLs and agents guessing translated slugs
+  showed why (2026-09).
 
 ## A green check is not always a run
 

@@ -5,6 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { recordPublishedSlugs } from '@tale/ui/docs/published';
 import {
   buildSearchIndex,
   stripMarkdown,
@@ -15,6 +16,14 @@ import { listAllContent } from './walk-content';
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = resolve(SCRIPT_DIR, '..', 'public');
 const CONTENT_DIR = resolve(SCRIPT_DIR, '..', 'app', 'content');
+const PUBLISHED_FILE = resolve(
+  SCRIPT_DIR,
+  '..',
+  '..',
+  '..',
+  'docs',
+  'published.json',
+);
 
 async function main() {
   const records = await listAllContent();
@@ -58,6 +67,17 @@ async function main() {
     JSON.stringify(manifest, null, 2) + '\n',
   );
   process.stdout.write(`built frontmatter manifest: ${records.length} pages\n`);
+
+  // The append-only ledger of docs addresses: a page this build publishes
+  // is recorded for good, so `tests/published.test.ts` fails if it later
+  // moves or goes away without a `docs/redirects.json` entry.
+  const added = await recordPublishedSlugs(
+    PUBLISHED_FILE,
+    records.map((record) => record.slug),
+  );
+  if (added.length > 0) {
+    process.stdout.write(`recorded new published slugs: ${added.join(', ')}\n`);
+  }
 }
 
 function toSearchDoc(record: {

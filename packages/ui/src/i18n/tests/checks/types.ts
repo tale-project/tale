@@ -49,8 +49,6 @@ export interface CheckContext {
   readonly messagesDir?: string;
   /** Docs root, when running under `defineDocsTests`. */
   readonly docsRoot?: string;
-  /** Nav path, when running under `defineDocsTests`. */
-  readonly navPath?: string;
   /** Scan roots for the usage check (source-walk). */
   readonly scanRoots?: ReadonlyArray<string>;
   /** Allowlist path for the usage check. */

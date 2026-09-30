@@ -3,6 +3,9 @@ import type { ReactNode } from 'react';
 import { Children, cloneElement, isValidElement, useState } from 'react';
 
 import { useT } from '../i18n/client';
+import { EXPLICIT_ID_PATTERN, slugifyHeadingText } from './heading-id';
+
+export { EXPLICIT_ID_PATTERN };
 
 interface ChildrenContainer {
   children?: ReactNode;
@@ -20,14 +23,6 @@ export function nodeText(node: ReactNode): string {
   });
   return out;
 }
-
-/**
- * Pandoc-style explicit-id syntax at the end of a heading. Matches the
- * trailing token `{#some-id}` (optionally with surrounding whitespace) so
- * authors can override the auto-generated slug — handy for stable anchor
- * URLs across renames or non-Latin headings.
- */
-export const EXPLICIT_ID_PATTERN = /\s*\{#([a-zA-Z0-9_-]+)\}\s*$/;
 
 export interface ExplicitIdResult {
   id: string | null;
@@ -74,26 +69,9 @@ export function extractExplicitId(children: ReactNode): ExplicitIdResult {
 
 /** GitHub-style heading slug: lower-case, alphanumerics + hyphens. */
 export function slugifyHeading(input: ReactNode | string): string {
-  const text = typeof input === 'string' ? input : nodeText(input);
-  const slug = text
-    .toLowerCase()
-    // German transliteration before NFKD strips diacritics, so "Größe"
-    // becomes "groesse" instead of colliding with "große" -> "groe".
-    .replace(/ß/g, 'ss')
-    .replace(/ä/g, 'ae')
-    .replace(/ö/g, 'oe')
-    .replace(/ü/g, 'ue')
-    .normalize('NFKD')
-    // Strip combining diacritical marks (U+0300..U+036F).
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
-  // Fallback for headings whose characters are entirely stripped (e.g.
-  // CJK-only). Without this, multiple such headings would all collide
-  // on the empty string and break in-page anchors.
-  return slug || 'section';
+  return slugifyHeadingText(
+    typeof input === 'string' ? input : nodeText(input),
+  );
 }
 
 interface AnchoredHeadingProps {

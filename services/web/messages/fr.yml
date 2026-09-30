@@ -1446,7 +1446,7 @@ platformChat:
     - label: Mode Arena
       path: /platform/chat/arena-mode
     - label: Agents dans Chat
-      path: /platform/chat/agents-in-chat
+      path: /platform/agents/concepts
     - label: Pièces jointes
       path: /platform/chat/attachments
   tour:

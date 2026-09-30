@@ -11,6 +11,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { isExternalTarget } from '@tale/ui/docs/redirects';
+
 import { expandRedirects } from '../lib/redirects';
 import { docsSiteUrl } from '../lib/seo/build';
 import { listAllContent } from './walk-content';
@@ -97,7 +99,12 @@ async function writeRedirectStubs(prerendered: Set<string>): Promise<void> {
     const outPath = resolve(DIST, redirect.from.slice(1), 'index.html');
     await Bun.write(
       outPath,
-      redirectStub(redirect.locale, `${siteUrl}${redirect.to}`),
+      redirectStub(
+        redirect.locale,
+        isExternalTarget(redirect.to)
+          ? redirect.to
+          : `${siteUrl}${redirect.to}`,
+      ),
     );
     written += 1;
   }

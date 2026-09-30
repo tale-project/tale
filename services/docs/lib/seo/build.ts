@@ -30,6 +30,17 @@ export const DOCS_SITE_TITLE = 'Tale';
 export const DOCS_SITE_DESCRIPTION =
   'The orchestration layer for AI agents — local AI models, agents, skills, and workflows on your own infrastructure.';
 
+/**
+ * How to read the index, for the agents that start here. The German and
+ * French pages keep the English path (`/de/cloud/billing`), and a model
+ * answering in German used to translate it (`/de/verwaltung/…`) — so say so,
+ * and point at the listed addresses instead of guesses.
+ */
+export const DOCS_LLMS_PREAMBLE = [
+  'Every page below is also published in German and French: put `/de` or `/fr` after the host, as in https://docs.tale.dev/de/cloud/billing.md. The path stays the same in every language — never translate it.',
+  'Open only the addresses this index lists; a guessed address may not exist.',
+].join('\n\n');
+
 /** Site-relative URL for a (locale, slug) pair. English has no prefix. */
 function pathFor(locale: string, slug: string): string {
   const cleaned = slug === 'index' ? '' : slug.replace(/\/index$/, '');
@@ -218,6 +229,7 @@ export async function buildDocsCompileParams(): Promise<
     siteUrl,
     siteTitle: DOCS_SITE_TITLE,
     siteDescription: DOCS_SITE_DESCRIPTION,
+    preamble: DOCS_LLMS_PREAMBLE,
     sections,
     optionalPages: docsOptionalPages(siteUrl),
     robots: {

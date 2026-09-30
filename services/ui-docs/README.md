@@ -122,12 +122,17 @@ service’s Docker build is covered by `bun run docker:test:ui-docs` from the ro
 bun run --filter @tale/ui-docs test
 bun run --filter @tale/ui-docs typecheck
 bun run --filter @tale/ui-docs lint
+bun run --filter @tale/ui-docs build && bun run --filter @tale/ui-docs test:prerender
 UI_DOCS_E2E_PORT=3007 bun run --filter @tale/ui-docs test:e2e
+bun run lint:links
 bun run lint:manual
 ```
 
 Unit tests cover navigation/file parity, frontmatter, demo registration, loader
-behavior, the pageview path a route reports, and the 404. The shared frame’s own tests live with it in `packages/ui`
+behavior, the pageview path a route reports, and the 404. They also cover every
+link a guide renders, the published-address ledger, and the server's redirects for
+`/docs`, section folders and guessed addresses. `test:prerender` serves the built
+site with its own server and crawls every address its pages and artifacts carry. The shared frame’s own tests live with it in `packages/ui`
 (`bun run --filter @tale/ui test` and `test:browser`). Browser tests cover the homepage,
 docs, the header strip’s line with the rail, Code panel, search, theme, redirects, and
 404. The [manual layer](tests/manual/readme.md) adds

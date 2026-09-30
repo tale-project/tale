@@ -23,7 +23,13 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/**/*.test.ts', 'lib/**/*.test.ts'],
           // `tests/e2e/**` belongs to Playwright (`*.spec.ts`).
-          exclude: ['node_modules', 'dist', 'tests/e2e/**'],
+          // `tests/prerender/**` needs a built `dist/` — run via `test:prerender`.
+          exclude: [
+            'node_modules',
+            'dist',
+            'tests/e2e/**',
+            'tests/prerender/**',
+          ],
         },
       },
       {

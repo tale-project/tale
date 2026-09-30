@@ -96,7 +96,7 @@ Les sections 5.1 et 5.2 ne peuvent être modifiées que par un **accord écrit s
 
 ### 6.1 Autorisation générale
 
-Le Client accorde à Tale une autorisation écrite générale d’engager des Sous-traitants ultérieurs pour traiter les données personnelles. La liste actuelle figure à l’**Annexe A** et est reprise sur [/fr/legal/subprocessors](/fr/legal/subprocessors).
+Le Client accorde à Tale une autorisation écrite générale d’engager des Sous-traitants ultérieurs pour traiter les données personnelles. La liste actuelle figure à l’**Annexe A** et est reprise sur [docs.tale.dev/fr/legal/subprocessors](https://docs.tale.dev/fr/legal/subprocessors).
 
 ### 6.2 Notification des changements
 
