@@ -276,6 +276,11 @@ export function sniffRasterMediaType(
   return null;
 }
 
+/** How much of an image the size read looks at. PNG, GIF and WebP keep
+ * their size in the first bytes and a JPEG after its metadata segments;
+ * image-size reads its own files through the same cap. */
+const PIXEL_SIZE_READ_MAX_BYTES = 512 * 1024;
+
 /** The pixel size stored in a raster image's header, or `undefined` when the
  * header cannot be read. Reported to the agent, never relied on: each model
  * draws "landscape" at its own size (1248×832 on one, 1536×1024 on
@@ -283,8 +288,17 @@ export function sniffRasterMediaType(
 export function rasterPixelSize(
   bytes: Uint8Array,
 ): { width: number; height: number } | undefined {
+  // A capped Buffer VIEW, never the reply itself: image-size walks a JPEG
+  // by slicing off each byte it skips, which copies a plain Uint8Array —
+  // quadratic, so a reply of junk after a JPEG start marker would stall the
+  // process for minutes — but only re-views a Buffer.
+  const head = Buffer.from(
+    bytes.buffer,
+    bytes.byteOffset,
+    Math.min(bytes.byteLength, PIXEL_SIZE_READ_MAX_BYTES),
+  );
   try {
-    const { width, height } = imageSize(bytes);
+    const { width, height } = imageSize(head);
     return Number.isInteger(width) &&
       Number.isInteger(height) &&
       width > 0 &&

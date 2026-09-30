@@ -99,6 +99,28 @@ function jpegHeader(width: number, height: number): Uint8Array {
   ]);
 }
 
+/** A JPEG whose frame header follows `segments` metadata segments of 64 KB
+ * each, the way large EXIF or ICC blocks push it back. */
+function jpegAfterMetadata(
+  width: number,
+  height: number,
+  segments: number,
+): Uint8Array {
+  const header = jpegHeader(width, height);
+  // APP1 with the largest length a segment can declare: 2 + 65535 bytes.
+  const segment = new Uint8Array(2 + 0xffff);
+  segment.set([0xff, 0xe1, 0xff, 0xff]);
+  const bytes = new Uint8Array(header.length + segments * segment.length);
+  // The start of image and the JFIF segment, the metadata, then the frame
+  // header onwards.
+  bytes.set(header.subarray(0, 20));
+  for (let index = 0; index < segments; index += 1) {
+    bytes.set(segment, 20 + index * segment.length);
+  }
+  bytes.set(header.subarray(20), 20 + segments * segment.length);
+  return bytes;
+}
+
 /** A JSON request's body, parsed — form data is the edit dialect's own. */
 function jsonBody(request: ImageWireRequest): unknown {
   if (typeof request.body !== 'string') {
@@ -393,6 +415,34 @@ describe('rasterPixelSize', () => {
       width: 1024,
       height: 1536,
     });
+  });
+
+  it('reads a header followed by megabytes of image data', () => {
+    const png = new Uint8Array(5 * 1024 * 1024);
+    png.set(pngHeader(1536, 1024));
+    expect(rasterPixelSize(png)).toEqual({ width: 1536, height: 1024 });
+  });
+
+  it('finds a JPEG frame header behind its metadata, within 512 KB', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Four segments put the frame header 256 KB in; nine put it past the cap.
+    expect(rasterPixelSize(jpegAfterMetadata(1024, 1536, 4))).toEqual({
+      width: 1024,
+      height: 1536,
+    });
+    expect(rasterPixelSize(jpegAfterMetadata(1024, 1536, 9))).toBeUndefined();
+    warn.mockRestore();
+  });
+
+  it('gives up at once on junk after a JPEG start marker', () => {
+    // Read whole, this reply stalled image-size for minutes: it copies the
+    // rest of a plain Uint8Array for every byte it skips. The test timeout
+    // is the guard.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const junk = new Uint8Array(8 * 1024 * 1024);
+    junk.set([0xff, 0xd8, 0xff, 0xe0]);
+    expect(rasterPixelSize(junk)).toBeUndefined();
+    warn.mockRestore();
   });
 
   it('answers nothing, and says so, for a header it cannot read', () => {
