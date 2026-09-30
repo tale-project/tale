@@ -71,6 +71,14 @@ services:
     env_file:
       - .env.test
 
+  # The gateway's setup token is always its admin password, whatever the
+  # container was given, and the smoke test checks the running gateway holds
+  # the .env.test password rather than the explicit BIFROST_SETUP_TOKEN beside
+  # it — so it reads the same file (compose.yml only reads the optional .env).
+  sandbox-llm-gateway:
+    env_file:
+      - .env.test
+
   # The foreground proxy must boot without creating a PID file in /tmp.
   # This reproduces restricted-host startup on ordinary CI Docker runners.
   sandbox-egress:

@@ -83,6 +83,28 @@ tale rollback
 
 `--yes` überspringt die Bestätigung für einen bereits genehmigten unbeaufsichtigten Lauf. Die Prüfung derselben Versionslinie ist eine Schranke, kein eigenständiger Nachweis der Kompatibilität aller externen Integrationen und lokalen Anpassungen. Eine ältere Migrationsliste als Präfix der neuen macht ein Downgrade allein nicht sicher.
 
+## Bifrost 1.6 → 2.2: Der Speicher des Modell-Gateways wird migriert
+
+Ein Release nach 0.5.64 stellt das Modell-Gateway (`sandbox-llm-gateway`) von Bifrost 1.6 auf Bifrost 2.2 um; seine Release Notes nennen den Wechsel. Beim ersten Start migriert das neue Gateway seinen Speicher in `llm-gateway-data` an Ort und Stelle und behält Anbieter, Schlüssel, Budgets und Admin-Konto; von Hand ist nichts zu tun. Die Migration indiziert auch das Anfrageprotokoll des Gateways, daher kann dieser Start bei einer Instanz mit langer Anfragehistorie länger dauern.
+
+Das [Backup-Inventar](/de/self-hosted/operate/backups-and-restore) lässt `llm-gateway-data` aus. Kopiere das Volume deshalb selbst, bevor du bereitstellst: Stoppe das Gateway, was laufende Agent-Turns und Modellaufrufe beendet, kopiere das Volume und stelle dann bereit. `<id>` ist die `id` in `tale.json`:
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v <id>_llm-gateway-data:/from:ro -v "$PWD/llm-gateway-data-backup:/to" alpine:3.22 cp -a /from/. /to/
+```
+
+Das Gateway eines Releases vor dem Wechsel startet auf dem migrierten Speicher und bedient Tale, protokolliert aber Fehler `no such column: oauth_configs.token_id`, und Bifrost unterstützt diesen Downgrade nicht. `tale rollback` innerhalb der Linie 0.5 startet genau dieses Gateway. Stoppe das Gateway deshalb vor dem Rollback und spiele die Kopie zurück:
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v "$PWD/llm-gateway-data-backup:/from:ro" -v <id>_llm-gateway-data:/to alpine:3.22 sh -c 'find /to -mindepth 1 -delete && cp -a /from/. /to/'
+```
+
+Ein Gateway ohne Admin-Konto, bei einer neuen Installation oder nachdem sein Volume ersetzt wurde, legt das Konto jetzt nur für einen Aufrufer an, der sein Setup-Token vorweist; das Image übernimmt es aus `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`. `tale deploy`, die Compose-Datei im Repository und die Kubernetes-Manifeste dieser Dokumentation geben dem Gateway diese Variable bereits. Eine selbst geschriebene Compose-Datei oder ein Manifest, das sie nur dem Backend gibt, muss sie auch dem Gateway geben.
+
+Zwei Verhaltensweisen ändern sich. Legt ein Aufrufer auf, beendet das Gateway jetzt den Modellaufruf, ob er eine ganze Antwort oder einen Stream angefordert hat. Eine abgebrochene Anfrage hält ein selbst betriebenes Modell also nicht mehr beschäftigt; die Modell-Endpunkte verbuchen einen solchen Aufruf mit seinem Prompt und der Ausgabe, die den Aufrufer erreicht hatte. Und ein Upstream, der die Antwort-Header einer gestreamten Antwort zurückhält, etwa ein Router, der Anfragen bis zu einem freien Modell in eine Warteschlange stellt, muss seine Antwort innerhalb des Anfrage-Timeouts des Gateways beginnen: 600 Sekunden, oder länger, wenn `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` ihn anhebt.
+
 ## 0.4 → 0.5: eine separate Installation
 
 Mit 0.5 ersetzte Postgres den früheren Convex-Anwendungsspeicher. Es gibt keinen Importer für einen direkten Wechsel dieser Datenbanken. Halte alte Instanz und Backups intakt, während du eine neue Bereitstellung mit separatem Workspace und Datenbestand vorbereitest.

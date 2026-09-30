@@ -40,7 +40,7 @@ Jeder Pod unten setzt `enableServiceLinks: false`. Andernfalls injiziert Kuberne
 | `proxy` | Deployment mit Strategie `Recreate`; `hostPort` 80 und 443; PVC für `/data` | Der Zertifikatspeicher überlebt Neustarts auf dem PVC. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment; Service auf 8003 | `SANDBOX_BACKEND=kubernetes`; `config-data` nur lesend unter `/app/platform-config`. Kein Docker-Socket. |
 | `sandbox-egress` | Deployment; Service auf 3128 | Der ausgelieferte Capability-Satz, keine Sysctls. |
-| `sandbox-llm-gateway` | Deployment mit Strategie `Recreate`, PVC unter `/app/data`; Services `sandbox-llm-gateway` und `llm-gateway` auf 8080 | Das Image läuft als uid 1000; `fsGroup: 1000` lässt es seinen Zustand schreiben. |
+| `sandbox-llm-gateway` | Deployment mit Strategie `Recreate`, PVC unter `/app/data`; Services `sandbox-llm-gateway` und `llm-gateway` auf 8080 | Das Image läuft als uid 1000; `fsGroup: 1000` lässt es seinen Zustand schreiben. Das Gateway liest `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` aus `tale-env`: Solange es kein Admin-Konto hat, legt es eines nur für einen Aufrufer an, der dieses Geheimnis vorweist. |
 | `bgutil-provider` | Deployment; Service auf 4416 | Optionaler Token-Anbieter für Videos. |
 
 Die Prüfungen übertragen die Compose-Healthchecks:
