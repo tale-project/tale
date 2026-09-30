@@ -8121,6 +8121,7 @@ websites:
     chunkIndex: Chunk {index}
     lastError: '{count, plural, one {{count} failed attempt} other {{count} failed attempts in a row}} — {message}'
     failed: Failed
+    skipped: Skipped
     failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
     errorKind:
       dnsFailed: Couldn't resolve the host.

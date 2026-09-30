@@ -12,6 +12,11 @@ import { promisify } from 'node:util';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  RENDER_CRASH_ERROR_PATTERN,
+  RENDER_PROXY_ERROR_PATTERN,
+  type RenderLaneHalt,
+} from '../../../../lib/knowledge/crawl-parse';
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../../lib/ctx';
 import { sessionIdForRender } from '../../sandbox/session_naming';
@@ -56,7 +61,7 @@ const URLS = ['https://a.ch/x', 'https://a.ch/y'] as const;
 
 describe('parseRenderResults', () => {
   it('maps rendered pages, failures, and untouched URLs', () => {
-    const results = parseRenderResults(
+    const { outcomes, halted } = parseRenderResults(
       {
         pages: [
           {
@@ -71,29 +76,31 @@ describe('parseRenderResults', () => {
       },
       URLS,
     );
-    expect(results.get('https://a.ch/x')).toEqual({
+    expect(outcomes.get('https://a.ch/x')).toEqual({
       kind: 'ok',
       status: 200,
       finalUrl: 'https://a.ch/x2',
       html: '<html>ok</html>',
     });
-    expect(results.get('https://a.ch/y')).toEqual({
+    expect(outcomes.get('https://a.ch/y')).toEqual({
       kind: 'failed',
       reason: 'nav timeout',
+      transient: false,
     });
+    expect(halted).toBeNull();
   });
 
   it('treats a URL the worker never reached as not attempted', () => {
-    const results = parseRenderResults(
+    const { outcomes } = parseRenderResults(
       { pages: [{ url: 'https://a.ch/x', attempted: false }] },
       URLS,
     );
-    expect(results.get('https://a.ch/x')).toEqual({ kind: 'not_attempted' });
-    expect(results.get('https://a.ch/y')).toEqual({ kind: 'not_attempted' });
+    expect(outcomes.get('https://a.ch/x')).toEqual({ kind: 'not_attempted' });
+    expect(outcomes.get('https://a.ch/y')).toEqual({ kind: 'not_attempted' });
   });
 
   it('never turns a malformed record into a success', () => {
-    const results = parseRenderResults(
+    const { outcomes } = parseRenderResults(
       {
         pages: [
           // Attempted but no html and no error: failed with a stock reason.
@@ -106,19 +113,67 @@ describe('parseRenderResults', () => {
       },
       URLS,
     );
-    expect(results.get('https://a.ch/x')).toEqual({
+    expect(outcomes.get('https://a.ch/x')).toEqual({
       kind: 'failed',
       reason: 'render produced no content',
+      transient: false,
     });
-    expect(results.get('https://a.ch/y')).toEqual({ kind: 'not_attempted' });
-    expect(results.size).toBe(2);
+    expect(outcomes.get('https://a.ch/y')).toEqual({ kind: 'not_attempted' });
+    expect(outcomes.size).toBe(2);
   });
 
   it('survives a payload that is not an object at all', () => {
     for (const payload of [null, 42, 'nope', { pages: 'nope' }]) {
-      const results = parseRenderResults(payload, URLS);
-      expect(results.get('https://a.ch/x')).toEqual({ kind: 'not_attempted' });
+      const { outcomes, halted } = parseRenderResults(payload, URLS);
+      expect(outcomes.get('https://a.ch/x')).toEqual({ kind: 'not_attempted' });
+      expect(halted).toBeNull();
     }
+  });
+
+  // A navigation the browser lost twice reads `transient`: the engine
+  // records the reason without a strike. The worker's halt marker rides
+  // beside the pages; a malformed one is no halt.
+  it('hands on the transient flag and the halt marker, and drops a malformed halt', () => {
+    const transient = parseRenderResults(
+      {
+        pages: [
+          {
+            url: 'https://a.ch/x',
+            attempted: true,
+            error: 'page.goto: net::ERR_ABORTED; maybe frame was detached?',
+            transient: true,
+          },
+          { url: 'https://a.ch/y', attempted: false },
+        ],
+        halted: {
+          reason: 'egress_proxy',
+          error:
+            'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://a.ch/y',
+        },
+      },
+      URLS,
+    );
+    expect(transient.outcomes.get('https://a.ch/x')).toEqual({
+      kind: 'failed',
+      reason: 'page.goto: net::ERR_ABORTED; maybe frame was detached?',
+      transient: true,
+    });
+    expect(transient.outcomes.get('https://a.ch/y')).toEqual({
+      kind: 'not_attempted',
+    });
+    expect(transient.halted).toEqual({
+      reason: 'egress_proxy',
+      error: 'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://a.ch/y',
+    });
+
+    const malformed = parseRenderResults(
+      { pages: [], halted: { reason: 'weather', error: 'rain' } },
+      URLS,
+    );
+    expect(malformed.halted).toBeNull();
+    expect(malformed.outcomes.get('https://a.ch/x')).toEqual({
+      kind: 'not_attempted',
+    });
   });
 });
 
@@ -211,10 +266,11 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
 
     const results = await run.render();
 
-    expect(results.get('https://a.ch/x')).toMatchObject({
+    expect(results.outcomes.get('https://a.ch/x')).toMatchObject({
       kind: 'ok',
       status: 200,
     });
+    expect(results.halted).toBeNull();
     expect(run.events).toEqual([
       'reserveSessionSlotAndInsert',
       'create',
@@ -395,7 +451,7 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
     await staging.promise;
     await expect(retry.render()).rejects.toBeInstanceOf(SessionDuplicateError);
     resume.resolve();
-    await expect(firstResult).resolves.toBeInstanceOf(Map);
+    await expect(firstResult).resolves.toMatchObject({ halted: null });
 
     const sessionId = sessionIdForRender(BATCH.batchKey);
     expect(spawner.sessionCreate).toHaveBeenNthCalledWith(
@@ -422,19 +478,43 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
 
 /**
  * The staged worker, run for real under node against a fake `playwright-core`
- * that answers every navigation with the same multibyte page. What is pinned:
- * the output file the host reads back is bounded in BYTES, decided before a
- * page is admitted — a page that does not fit is handed back for the next
- * batch instead of being written past the cap.
+ * that answers every navigation with the same multibyte page — or, per URL,
+ * with the failures `FAKE_SCRIPT` lines up (a thrown navigation error, a
+ * document whose download broke off, a non-2xx). What is pinned: the output
+ * file the host reads back is bounded in BYTES, decided before a page is
+ * admitted — a page that does not fit is handed back for the next batch
+ * instead of being written past the cap; and the lane's faults are the
+ * lane's — a proxy refusal halts the batch, a lost navigation earns one
+ * retry in a fresh context, a browser that opens no page halts too.
  */
 const FAKE_PLAYWRIGHT = `
+const fs = require('node:fs');
 const chars = Number(process.env.FAKE_HTML_CHARS || '100');
 // 'é' is one UTF-16 code unit but two UTF-8 bytes.
 const html = '<html><body>' + 'é'.repeat(chars) + '</body></html>';
+// Per URL, the outcome of each successive goto; a rendered page once the
+// script runs out.
+const script = JSON.parse(process.env.FAKE_SCRIPT || '{}');
+const newPageFailsAfter = Number(process.env.FAKE_NEWPAGE_FAILS_AFTER || '0');
+let pagesOpened = 0;
+function nextStep(url) {
+  const steps = script[url];
+  return Array.isArray(steps) && steps.length > 0 ? steps.shift() : {};
+}
 function makePage() {
   let current = '';
   return {
-    async goto(url) { current = url; return { status: () => 200 }; },
+    async goto(url) {
+      current = url;
+      const step = nextStep(url);
+      if (step.throw) throw new Error(step.throw);
+      const failure = step.bodyCut ? { errorText: step.bodyCut } : null;
+      return {
+        status: () => step.status || 200,
+        request: () => ({ failure: () => failure }),
+        async finished() { return null; },
+      };
+    },
     async waitForLoadState() {},
     async evaluate() { return 42; },
     url() { return current; },
@@ -448,8 +528,17 @@ module.exports = {
       return {
         async newContext(options) {
           const file = process.env.FAKE_CONTEXT_OPTIONS_FILE;
-          if (file) require('node:fs').writeFileSync(file, JSON.stringify(options || {}));
-          return { async newPage() { return makePage(); } };
+          if (file) fs.appendFileSync(file, JSON.stringify(options || {}) + '\\n');
+          return {
+            async newPage() {
+              pagesOpened += 1;
+              if (newPageFailsAfter > 0 && pagesOpened > newPageFailsAfter) {
+                throw new Error('Target page, context or browser has been closed');
+              }
+              return makePage();
+            },
+            async close() {},
+          };
         },
         async close() {},
       };
@@ -489,12 +578,25 @@ describe('render worker — output budget in bytes', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  /** The contexts the worker opened, one options object per line. */
+  function contextsOpened(): Record<string, unknown>[] {
+    return readFileSync(path.join(root, 'context-options.json'), 'utf8')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+  }
+
   async function runWorker(
     urls: readonly string[],
     caps: { maxHtmlBytes: number; maxTotalBytes: number },
     htmlChars: number,
     extraInput: Record<string, unknown> = {},
-  ): Promise<{ bytes: number; results: Map<string, unknown> }> {
+    fakeEnv: Record<string, string> = {},
+  ): Promise<{
+    bytes: number;
+    results: Map<string, unknown>;
+    halted: RenderLaneHalt | null;
+  }> {
     writeFileSync(
       path.join(agent, 'code', 'urls.json'),
       JSON.stringify({
@@ -502,24 +604,26 @@ describe('render worker — output budget in bytes', () => {
         perPageTimeoutMs: 10,
         idleTimeoutMs: 10,
         softBudgetMs: 60_000,
+        proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
+        crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
         ...caps,
         ...extraInput,
       }),
     );
+    rmSync(path.join(root, 'context-options.json'), { force: true });
     await execFileAsync(NODE_BIN, [path.join(agent, 'code', 'render.mjs')], {
       env: {
         ...process.env,
         FAKE_HTML_CHARS: String(htmlChars),
         FAKE_CONTEXT_OPTIONS_FILE: path.join(root, 'context-options.json'),
+        ...fakeEnv,
       },
       timeout: 25_000,
     });
     const raw = readFileSync(path.join(agent, 'output', 'pages.json'));
     const payload: unknown = JSON.parse(raw.toString('utf8'));
-    return {
-      bytes: raw.byteLength,
-      results: parseRenderResults(payload, urls),
-    };
+    const { outcomes, halted } = parseRenderResults(payload, urls);
+    return { bytes: raw.byteLength, results: outcomes, halted };
   }
 
   // Regression: the batch total was `html.length` summed AFTER storing each
@@ -554,15 +658,12 @@ describe('render worker — output budget in bytes', () => {
     // the crawler's own identity in with the batch (2026-09-15 evaluation,
     // i6) and the worker applies it to the context it opens.
     const caps = { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 };
-    const optionsFile = path.join(root, 'context-options.json');
     await runWorker(['https://site.example/a'], caps, 10);
-    expect(JSON.parse(readFileSync(optionsFile, 'utf8'))).toEqual({});
+    expect(contextsOpened()).toEqual([{}]);
     const userAgent =
       'TaleBot/1.2.3 (+https://docs.tale.dev/platform/knowledge/crawling)';
     await runWorker(['https://site.example/a'], caps, 10, { userAgent });
-    expect(JSON.parse(readFileSync(optionsFile, 'utf8'))).toEqual({
-      userAgent,
-    });
+    expect(contextsOpened()).toEqual([{ userAgent }]);
   });
 
   it('applies the per-page bound in bytes, not UTF-16 code units', async () => {
@@ -576,6 +677,136 @@ describe('render worker — output budget in bytes', () => {
     expect(results.get(urls[0] ?? '')).toEqual({
       kind: 'failed',
       reason: 'rendered HTML exceeds the per-page bound',
+      transient: false,
     });
+  }, 30_000);
+
+  /**
+   * The lane's faults, as the worker tells them apart. Regression: a proxy
+   * that refused every tunnel (`SANDBOX_EGRESS_ALLOWLIST` without the host)
+   * was charged to each page and benched a whole site in five scans; a
+   * navigation the browser lost (its network service killed under the host)
+   * was charged too, in runs to the end of the batch (2026-09-30).
+   */
+  const CAPS = { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 };
+  const A = 'https://site.example/a';
+  const B = 'https://site.example/b';
+  const C = 'https://site.example/c';
+  const ABORTED = 'page.goto: net::ERR_ABORTED; maybe frame was detached?';
+
+  it('a proxy refusal halts the batch: the page and the rest go back untouched, with the reason', async () => {
+    const { results, halted } = await runWorker(
+      [A, B],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [
+            { throw: `page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at ${A}` },
+          ],
+        }),
+      },
+    );
+    expect(halted).toEqual({
+      reason: 'egress_proxy',
+      error: `page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at ${A}`,
+    });
+    expect(results.get(A)).toEqual({ kind: 'not_attempted' });
+    expect(results.get(B)).toEqual({ kind: 'not_attempted' });
+    expect(contextsOpened()).toHaveLength(1);
+  }, 30_000);
+
+  it('a lost navigation is retried once in a fresh context, and the page renders', async () => {
+    const { results, halted } = await runWorker(
+      [A, B],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({ [A]: [{ throw: ABORTED }] }),
+      },
+    );
+    expect(halted).toBeNull();
+    expect(results.get(A)).toMatchObject({ kind: 'ok', status: 200 });
+    expect(results.get(B)).toMatchObject({ kind: 'ok', status: 200 });
+    // The crashed context was replaced before the retry; B rendered in the
+    // fresh one.
+    expect(contextsOpened()).toHaveLength(2);
+  }, 30_000);
+
+  it('a navigation lost twice is a transient failure — recorded, not charged — and the batch goes on', async () => {
+    const { results, halted } = await runWorker(
+      [A, B],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [{ throw: ABORTED }, { throw: 'page.goto: Page crashed' }],
+        }),
+      },
+    );
+    expect(halted).toBeNull();
+    expect(results.get(A)).toEqual({
+      kind: 'failed',
+      reason: 'page.goto: Page crashed',
+      transient: true,
+    });
+    expect(results.get(B)).toMatchObject({ kind: 'ok', status: 200 });
+  }, 30_000);
+
+  it("a page's own failure after a retry is charged as before", async () => {
+    const { results } = await runWorker(
+      [A],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [{ throw: ABORTED }, { status: 500 }],
+        }),
+      },
+    );
+    expect(results.get(A)).toEqual({
+      kind: 'failed',
+      reason: 'HTTP 500 at render time',
+      transient: false,
+    });
+  }, 30_000);
+
+  it('a document whose download broke off is never stored as the page: retried like a crash', async () => {
+    const { results } = await runWorker(
+      [A],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_SCRIPT: JSON.stringify({
+          [A]: [{ bodyCut: 'net::ERR_ABORTED' }],
+        }),
+      },
+    );
+    expect(results.get(A)).toMatchObject({ kind: 'ok', status: 200 });
+    expect(contextsOpened()).toHaveLength(2);
+  }, 30_000);
+
+  it('a browser that opens no page halts the batch after what rendered', async () => {
+    const { results, halted } = await runWorker(
+      [A, B, C],
+      CAPS,
+      10,
+      {},
+      {
+        FAKE_NEWPAGE_FAILS_AFTER: '1',
+      },
+    );
+    expect(results.get(A)).toMatchObject({ kind: 'ok', status: 200 });
+    expect(halted).toEqual({
+      reason: 'browser',
+      error: 'Target page, context or browser has been closed',
+    });
+    expect(results.get(B)).toEqual({ kind: 'not_attempted' });
+    expect(results.get(C)).toEqual({ kind: 'not_attempted' });
   }, 30_000);
 });

@@ -28,7 +28,7 @@ Wähle das **Scan-Intervall** und **Speichern**. Standard sind sechs Stunden; di
 
 Eine URL-Liste ruft nur die angegebenen Adressen ab und folgt keinen weiteren Links. Sie darf Seiten mehrerer Websites enthalten. Tale fasst sie zu einer Quelle pro Website zusammen. Eine gelistete `http://`-Adresse wird angenommen und als `https://` abgerufen — anders als eine `http://`-Domain im Modus für ganze Websites, die abgewiesen wird; eine Seite, die nur unverschlüsselt antwortet, bleibt in beiden Fällen unerreichbar. Eine weitere Liste für eine vorhandene URL-Listenquelle ergänzt Adressen, ohne bestehende zu entfernen, und aktualisiert ihr Scan-Intervall.
 
-Nutze vollständige öffentliche URLs. Verlinkte PDF- und moderne Office-Dateien lassen sich indexieren, wenn sie lesbaren Text enthalten. Bilder und Scans ohne extrahierbaren Text werden dadurch nicht durchsuchbar.
+Nutze vollständige öffentliche URLs. Verlinkte PDF- und moderne Office-Dateien lassen sich indexieren, wenn sie lesbaren Text enthalten. Einen Download, den der Server unter einem generischen oder veralteten Typ ausliefert (`application/octet-stream`, `application/vnd.ms-excel` bei einem `.xlsx`-Export), erkennt der Crawler an Dateiname und Inhalt. Bilder und Scans ohne extrahierbaren Text werden dadurch nicht durchsuchbar.
 
 ## Entdeckung und Aktualisierung verstehen
 
@@ -50,13 +50,13 @@ Verwende HTTPS am Standardport und registriere einen Hostnamen: Adressen mit ein
 | Drei Minuten für die Seitensuche, höchstens 50 Sitemap-Abrufe | Große oder langsame Sitemap-Sammlungen werden möglicherweise nicht vollständig erfasst. |
 | 25 MiB und 30 Sekunden je Inhaltsabruf | Zu große Downloads und langsame Antworten schlagen fehl (`timeout` für das Download- und das 20-Sekunden-Darstellungsbudget); ebenso eine Seite hinter mehr als fünf Weiterleitungen (`redirect_limit_exceeded`). |
 | Fünf Minuten Verarbeitungsbudget je Abschnitt, bis zu 200 Fortsetzungen | Lange Scans laufen abschnittsweise weiter. Ein bereits begonnener Abruf oder Darstellungsvorgang kann das Abschnittsbudget überschreiten; daraus ergibt sich keine garantierte Gesamtdauer. |
-| Fünf aufeinanderfolgende Fehler bei einer automatisch entdeckten URL | Der Crawler plant diese URL nicht mehr ein. Ausdrücklich gelistete URLs werden bei jedem Scan erneut berücksichtigt, und eine gelistete Seite, die die Website mit 404 beantwortet, bleibt mit dieser Antwort in der Liste. |
+| Fünf aufeinanderfolgende Fehler bei einer automatisch entdeckten URL | Der Crawler plant diese URL sieben Tage lang nicht mehr ein und probiert sie danach einmal erneut. Ein Fehler der Sandbox selbst, in der die Seiten dargestellt werden, zählt nicht: Lehnt ihr Egress-Proxy die Verbindung ab oder antwortet ihr Browser nicht mehr, endet der Scan mit dieser Ursache an der Quelle, und der nächste Scan versucht jede Seite erneut. Ausdrücklich gelistete URLs werden bei jedem Scan erneut berücksichtigt, und eine gelistete Seite, die die Website mit 404 beantwortet, bleibt mit dieser Antwort in der Liste. |
 
 Du kannst weder eine eigene Seitenobergrenze noch Pfadfilter festlegen oder einen laufenden Scan per Schaltfläche stoppen. Eine URL-Liste begrenzt die angefragte Auswahl; die genannten Grenzen gelten weiterhin.
 
 ## Die indexierten Inhalte prüfen
 
-Die Tabelle zeigt **Status**, die Seitenzahl unter **Indexiert**, **Gescannt** und **Intervall**. Öffne die Quellzeile, um die Seitenliste, Wort- und Chunk-Anzahl sowie den letzten Abruf zu prüfen. Klappe eine Seite auf, um die gespeicherten Textabschnitte zu lesen. Bei einem fehlgeschlagenen Abruf stehen dort Ursache und Anzahl aufeinanderfolgender Fehler.
+Die Tabelle zeigt **Status**, die Seitenzahl unter **Indexiert**, **Gescannt** und **Intervall**. Öffne die Quellzeile, um die Seitenliste, Wort- und Chunk-Anzahl sowie den letzten Abruf zu prüfen. Klappe eine Seite auf, um die gespeicherten Textabschnitte zu lesen. Bei einem fehlgeschlagenen Abruf stehen dort Ursache und Anzahl aufeinanderfolgender Fehler. Eine Seite, die der Crawler bewusst auslässt — die Quelle wünscht keine Indexierung, der Inhaltstyp liefert keinen lesbaren Text, oder eine Weiterleitung führt von der Website weg — steht als **Übersprungen** mit ihrer Ursache in der Liste und zählt nicht als fehlgeschlagen.
 
 | Status | Bedeutung |
 | --- | --- |

@@ -7723,7 +7723,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             failedPageCount: nullable({
               ...int,
               description:
-                'Pages whose LAST attempt failed — each carries its `lastError` in the pages list; `null` until the next corpus → row sync stamps the row',
+                'Pages whose LAST attempt failed — each carries its `lastError` in the pages list. A page the crawler skipped on purpose (`lastErrorKind` `robots_noindex`, `unsupported_content` or `host_not_allowed`) keeps its reason but is not counted here; `null` until the next corpus → row sync stamps the row',
             }),
             metadata: nullable(obj),
             createdAt: epochMs,
@@ -7842,7 +7842,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             failCount: {
               ...int,
               description:
-                'Failed attempts in a row since the last stored fetch (or since the operator re-listed the URL); 0 when the last attempt stored the page. A discovered page stops being fetched after 5; a listed one never does',
+                'Failed attempts in a row since the last stored fetch (or since the operator re-listed the URL); 0 when the last attempt stored the page. A discovered page stops being fetched after 5, and is probed once more after seven days; a listed one never stops. A failure of the render sandbox itself (its egress proxy refusing the connection, its browser stopping) counts nothing: the scan ends with that reason on the website',
             },
             lastError: nullable({
               ...str,

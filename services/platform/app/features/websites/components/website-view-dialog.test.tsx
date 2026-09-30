@@ -316,6 +316,51 @@ describe('WebsiteViewDialog', () => {
     expect(screen.queryByText('0 chunks')).not.toBeInTheDocument();
   });
 
+  // A page the crawler skipped on purpose — a JSON endpoint, a noindex page,
+  // an off-site redirect — is its choice, not a failure: it reads Skipped
+  // with the reason alone, and no attempts are counted up (2026-09-30).
+  it('reads a page the crawler skipped on purpose as skipped, with the reason alone', async () => {
+    pagesPayload.current = {
+      offset: 0,
+      hasMore: false,
+      pages: [
+        {
+          url: 'https://docs.example.com/data.json',
+          title: null,
+          word_count: 0,
+          status: 'discovered',
+          content_hash: null,
+          last_crawled_at: '2026-09-30T11:11:00.000Z',
+          discovered_at: '2026-09-30T11:11:00.000Z',
+          chunks_count: 0,
+          indexed: false,
+          fail_count: 3,
+          last_error:
+            'The page answered "application/json", which the crawler cannot turn into text',
+          last_error_kind: 'unsupported_content',
+          last_error_at: '2026-09-30T11:11:00.000Z',
+        },
+      ],
+    };
+
+    render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, crawledPageCount: 1, failedPageCount: 0 }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Skipped')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Failed')).not.toBeInTheDocument();
+    expect(
+      screen.getByText("This page isn't text the crawler can index."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/failed attempts/)).not.toBeInTheDocument();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(

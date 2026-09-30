@@ -310,15 +310,25 @@ export function normalizeCandidateUrl(
 }
 
 /** Where the fetch loop routes a response, decided by its `Content-Type`
- * alone — an explicit whitelist, never a heuristic. `document` carries the
- * canonical extension the extraction router keys on (the server's declared
- * type wins over whatever the URL path claims). Types the crawl lane cannot
- * turn into text — images (vision-dependent), feeds, binaries — are `skip`:
- * the scan remembers it looked and stores nothing, exactly as before. */
+ * first — an explicit whitelist, never a heuristic — and, for a download
+ * whose declared type says nothing (`application/octet-stream`) or the
+ * wrong thing (`application/vnd.ms-excel` on an `.xlsx`, what a TYPO3
+ * export answers), by what the response carries: `sniff` asks the caller to
+ * read the body and let its bytes decide. `document` carries the canonical
+ * extension the extraction router keys on (the server's declared type wins
+ * over whatever the URL path claims) and the filename `Content-Disposition`
+ * offered, when it did. Types the crawl lane cannot turn into text — images
+ * (vision-dependent), feeds, binaries — are `skip`: the scan remembers it
+ * looked and stores nothing, exactly as before. */
 export type CrawlDispatch =
   | { readonly kind: 'html' }
   | { readonly kind: 'text' }
-  | { readonly kind: 'document'; readonly extension: string }
+  | {
+      readonly kind: 'document';
+      readonly extension: string;
+      readonly filename: string | null;
+    }
+  | { readonly kind: 'sniff'; readonly filename: string | null }
   | { readonly kind: 'skip' };
 
 const DOCUMENT_MIME_EXTENSIONS: ReadonlyMap<string, string> = new Map([
@@ -338,7 +348,41 @@ const DOCUMENT_MIME_EXTENSIONS: ReadonlyMap<string, string> = new Map([
   ['application/vnd.oasis.opendocument.text', '.odt'],
 ]);
 
-export function classifyContentType(contentType: string): CrawlDispatch {
+/** The extensions the extraction router reads. */
+const DOCUMENT_EXTENSIONS: ReadonlySet<string> = new Set(
+  DOCUMENT_MIME_EXTENSIONS.values(),
+);
+
+/** Declared types that say nothing about the bytes (a generic download), or
+ * name a legacy format servers hand out as the catch-all for its modern
+ * successor (`application/vnd.ms-excel` on an `.xlsx`, `application/msword`
+ * on a `.docx`). The bytes decide; a true legacy `.xls` or `.doc` stays
+ * unsupported. */
+const SNIFFED_MIMES: ReadonlySet<string> = new Set([
+  'application/octet-stream',
+  'binary/octet-stream',
+  'application/x-octet-stream',
+  'application/download',
+  'application/x-download',
+  'application/force-download',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/vnd.ms-excel',
+  'application/msword',
+  'application/vnd.ms-powerpoint',
+  'application/x-pdf',
+  'application/acrobat',
+]);
+
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.slice(dot).toLowerCase();
+}
+
+export function classifyContentType(
+  contentType: string,
+  contentDisposition: string | null = null,
+): CrawlDispatch {
   const mime = (contentType.split(';')[0] ?? '').trim().toLowerCase();
   // No Content-Type header: treat as a text page, the pre-dispatch behavior.
   if (mime === '') return { kind: 'html' };
@@ -348,27 +392,88 @@ export function classifyContentType(contentType: string): CrawlDispatch {
   if (mime === 'text/plain' || mime === 'text/markdown') {
     return { kind: 'text' };
   }
+  const filename = dispositionFilename(contentDisposition);
   const extension = DOCUMENT_MIME_EXTENSIONS.get(mime);
-  if (extension) return { kind: 'document', extension };
+  if (extension) return { kind: 'document', extension, filename };
+  if (
+    SNIFFED_MIMES.has(mime) ||
+    (filename !== null && DOCUMENT_EXTENSIONS.has(extensionOf(filename)))
+  ) {
+    return { kind: 'sniff', filename };
+  }
   return { kind: 'skip' };
 }
 
-/** A display/router filename for a document URL: the decoded basename of its
- * path with the mime-derived extension forced on — the extraction router
- * routes by extension, so the declared type must win over the path's. */
-export function documentNameForUrl(url: string, extension: string): string {
-  let basename = '';
-  try {
-    const segments = new URL(url).pathname.split('/');
-    basename = segments.findLast((segment) => segment.length > 0) ?? '';
+/** The filename a `Content-Disposition` header offers (RFC 6266): the
+ * `filename*` form (RFC 8187, `UTF-8''…` percent-encoded) wins over the
+ * quoted or bare `filename`; only its basename is kept, and an empty or
+ * undecodable one reads as none. */
+export function dispositionFilename(header: string | null): string | null {
+  if (header === null || header.trim() === '') return null;
+  let name: string | null = null;
+  const extended = /filename\*\s*=\s*(?:utf-8|iso-8859-1)'[^']*'([^;]+)/i.exec(
+    header,
+  );
+  if (extended?.[1]) {
     try {
-      basename = decodeURIComponent(basename);
+      name = decodeURIComponent(extended[1].trim());
     } catch {
-      // Keep the raw segment; a bad escape sequence is display noise, not
-      // an error worth failing the page over.
+      // A bad escape sequence in the extended form: fall back to the plain
+      // one, or to none.
+      name = null;
     }
-  } catch {
-    basename = '';
+  }
+  if (name === null) {
+    const plain = /filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i.exec(
+      header,
+    );
+    name = (plain?.[1] ?? plain?.[2] ?? '').replace(/\\(.)/g, '$1').trim();
+  }
+  // A path is the server's business; the basename is the name.
+  const base = name.split(/[\\/]/).pop() ?? '';
+  return base === '' || base === '.' || base === '..' ? null : base;
+}
+
+/** file-type's short names → the extraction router's extensions; anything
+ * else (an image, an archive, a legacy `.xls`) is none. */
+const FILE_TYPE_EXTENSIONS: ReadonlyMap<string, string> = new Map([
+  ['pdf', '.pdf'],
+  ['docx', '.docx'],
+  ['xlsx', '.xlsx'],
+  ['pptx', '.pptx'],
+  ['odt', '.odt'],
+]);
+
+export function documentExtensionFromFileType(
+  ext: string | undefined,
+): string | null {
+  return ext === undefined ? null : (FILE_TYPE_EXTENSIONS.get(ext) ?? null);
+}
+
+/** A display/router filename for a document URL: the name the response
+ * offered (`Content-Disposition`), else the decoded basename of the URL's
+ * path — with the mime- or byte-derived extension forced on, since the
+ * extraction router routes by extension and the declared type must win over
+ * the path's. */
+export function documentNameForUrl(
+  url: string,
+  extension: string,
+  filename: string | null = null,
+): string {
+  let basename = filename ?? '';
+  if (basename === '') {
+    try {
+      const segments = new URL(url).pathname.split('/');
+      basename = segments.findLast((segment) => segment.length > 0) ?? '';
+      try {
+        basename = decodeURIComponent(basename);
+      } catch {
+        // Keep the raw segment; a bad escape sequence is display noise, not
+        // an error worth failing the page over.
+      }
+    } catch {
+      basename = '';
+    }
   }
   if (basename === '') basename = 'document';
   const lower = basename.toLowerCase();
@@ -568,4 +673,60 @@ export function classifyRenderReason(reason: string): {
     };
   }
   return { kind: 'render_failed', message: publicPageError(reason) };
+}
+
+/**
+ * Navigation failures that are the render LANE's, never the page's.
+ *
+ * `proxy`: Chromium got no tunnel through the sandbox egress proxy — the
+ * proxy answered the CONNECT with an error (a default-deny allowlist that
+ * omits the host, a client it does not admit, no route out) or was not
+ * reachable at all. The probe leg fetched this very page over the host's own
+ * network seconds earlier, so a refused CONNECT is the lane, not the site.
+ * Charging it benched every page of a site whose host an operator's
+ * `SANDBOX_EGRESS_ALLOWLIST` omitted (2026-09-30).
+ *
+ * `crash`: the browser lost the navigation — a helper process killed under
+ * it (`net::ERR_ABORTED` once its network service died), a renderer crash, a
+ * frame detached, the browser gone. The worker retries such a page once in a
+ * fresh context; a second failure is recorded on the row without a strike.
+ *
+ * The worker runs inside the sandbox with no import path to this module, so
+ * the host hands it the pattern SOURCES with the batch: one definition.
+ */
+export const RENDER_PROXY_ERROR_PATTERN =
+  /net::ERR_(?:TUNNEL_CONNECTION_FAILED|PROXY_[A-Z_]+|NO_SUPPORTED_PROXIES|MANDATORY_PROXY_CONFIGURATION_FAILED|SOCKS_[A-Z_]+)\b/i;
+export const RENDER_CRASH_ERROR_PATTERN =
+  /net::ERR_ABORTED\b|frame was detached|page crashed|target crashed|browser has been closed|document download broke off/i;
+
+export type RenderFailureClass = 'proxy' | 'crash' | 'page';
+
+/** Which of the three the worker's reason for a failed page names. */
+export function renderFailureClass(reason: string): RenderFailureClass {
+  if (RENDER_PROXY_ERROR_PATTERN.test(reason)) return 'proxy';
+  if (RENDER_CRASH_ERROR_PATTERN.test(reason)) return 'crash';
+  return 'page';
+}
+
+/** Why a render batch stopped early: what the scan's row says. */
+export interface RenderLaneHalt {
+  readonly reason: 'egress_proxy' | 'browser';
+  /** The worker's own words for the failure that stopped it. */
+  readonly error: string;
+}
+
+/**
+ * The sentence a halted render lane leaves on the website row. It names the
+ * lane (the operator's proxy, or the browser) and the browser's error, and
+ * says that no page was charged — the next scan retries every one of them.
+ */
+export function renderLaneHaltMessage(
+  halt: RenderLaneHalt,
+  domain: string,
+): string {
+  const cause = publicPageError(halt.error);
+  if (halt.reason === 'egress_proxy') {
+    return `The render sandbox could not reach ${domain} through the sandbox egress proxy (${cause}). The proxy refused or failed the connection — check the sandbox-egress service and SANDBOX_EGRESS_ALLOWLIST; no page was charged, and the next scan retries.`;
+  }
+  return `The render sandbox's browser stopped answering (${cause}); no page was charged, and the next scan retries.`;
 }
