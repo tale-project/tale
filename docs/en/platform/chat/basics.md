@@ -87,5 +87,6 @@ Very long conversations may exceed the model’s context window. Tale displays a
 | A file was not used | Check the chat’s project, the file’s indexing status, and the retrieval steps. Name the file explicitly. |
 | Search reports an unavailable source | Ask an admin to check the named service or embedding configuration; an empty result is not proof the information does not exist. |
 | A reply stops with an error | Read its error, check the selected model, and retry after the cause is resolved. Tale does not silently switch providers. |
+| A reply ends without an answer | The note in its place says why: the model returned nothing, used up its output token limit before writing, or the provider’s content filter withheld the reply. Select **Try again**, or first lower the reasoning effort, shorten the request, or choose another model. |
 
 For a guided example with source checking, follow [Chat effectively](/tutorials/member/chat-effectively).

@@ -299,19 +299,25 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
     return 'output_cap_too_high';
   }
 
+  // A rate limit — must precede token_limit, whose broad `token.*limit`
+  // match otherwise reads OpenAI's most common refusal ("Rate limit reached
+  // for … on tokens per min (TPM): Limit 30000 …") as an output cap the
+  // reader should shorten their request for. One 429 is not about waiting:
+  // a single request larger than the per-minute allowance ("Request too
+  // large … must be reduced") is the size problem token_limit names.
+  if (
+    !/request too large|must be reduced/i.test(message) &&
+    (status === 429 || /rate.?limit|too many requests|\b429\b/i.test(message))
+  ) {
+    return 'rate_limited';
+  }
+
   if (/fewer max_tokens|token.*limit|max_tokens/i.test(message)) {
     return 'token_limit';
   }
 
   if (/context.?length|context.?window|maximum context/i.test(message)) {
     return 'context_length';
-  }
-
-  if (
-    status === 429 ||
-    /rate.?limit|too many requests|\b429\b/i.test(message)
-  ) {
-    return 'rate_limited';
   }
 
   if (/content.?filter|content.?policy|moderation/i.test(message)) {

@@ -1168,7 +1168,9 @@ chat:
     voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
   notFound: This chat is not available.
   placeholder: Ask a question…
-  generationIncomplete: The response couldn't be completed. Try again.
+  generationIncomplete: The model returned no answer. Try again, or choose another model.
+  generationIncompleteFiltered: The model provider's content filter withheld this response. Try rephrasing your message.
+  generationIncompleteLength: The model used up its output token limit before it wrote an answer. Try a lower reasoning effort, a shorter request, or another model.
   generationIncompleteWithTools: The response couldn't be completed after running {tools}. Try again.
   stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
   send: Send message

@@ -1222,7 +1222,9 @@ chat:
     voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
   notFound: Ce chat n'est pas disponible.
   placeholder: Pose une question…
-  generationIncomplete: La réponse n'a pas pu être terminée. Réessaie.
+  generationIncomplete: Le modèle n'a renvoyé aucune réponse. Réessaie ou choisis un autre modèle.
+  generationIncompleteFiltered: Le filtre de contenu du fournisseur du modèle a retenu cette réponse. Essaie de reformuler ton message.
+  generationIncompleteLength: Le modèle a épuisé sa limite de tokens en sortie avant d'écrire une réponse. Essaie un effort de raisonnement plus faible, une demande plus courte ou un autre modèle.
   generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
   stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
   send: Envoyer le message

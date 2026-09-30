@@ -2,7 +2,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { readEvent, type StreamDecodeState } from './stream_decode';
+import { classifyChatErrorCode } from '../../../lib/shared/chat-errors';
+import {
+  readEvent,
+  readStreamFailure,
+  type StreamDecodeState,
+} from './stream_decode';
 import { createStallGuard, type StallGuard } from './stream_stall';
 import { chatToolContextForTurn, streamSse } from './turn_action';
 
@@ -259,6 +264,185 @@ describe('streamSse — usage and finish reason on the wire', () => {
       usage: { inputTokens: 900, outputTokens: 3, totalTokens: 903 },
       finishReason: 'stop',
     });
+  });
+});
+
+/**
+ * A stream's HTTP status is sent before the model writes a token, so an
+ * upstream rate limit, overload or disconnect after that arrives as an event
+ * on a `200` stream. Read as an ordinary event it carried no text, and the
+ * round settled as a completed reply with nothing in it: the chat kept
+ * "thinking" over a turn that had already failed, and the provider's words
+ * were lost.
+ */
+describe('readStreamFailure — a failure reported on the stream', () => {
+  it('reads the mid-stream error OpenRouter sends beside a choice that finished in error', () => {
+    expect(
+      readStreamFailure('openai', {
+        object: 'chat.completion.chunk',
+        provider: 'OpenAI',
+        error: {
+          code: 429,
+          message: 'Rate limit exceeded upstream',
+          metadata: { error_type: 'rate_limit' },
+        },
+        choices: [{ index: 0, delta: { content: '' }, finish_reason: 'error' }],
+      }),
+    ).toEqual({
+      message: 'Rate limit exceeded upstream',
+      code: '429',
+      status: 429,
+    });
+  });
+
+  it('reads the bare error object an OpenAI-compatible server sends', () => {
+    expect(
+      readStreamFailure('openai', {
+        error: {
+          message: 'The server had an error while processing your request.',
+          type: 'server_error',
+          code: null,
+        },
+      }),
+    ).toEqual({
+      message: 'The server had an error while processing your request.',
+      code: 'server_error',
+    });
+    expect(readStreamFailure('openai', { error: 'upstream closed' })).toEqual({
+      message: 'upstream closed',
+    });
+  });
+
+  it('reads a choice that finished in error with no body', () => {
+    expect(
+      readStreamFailure('openai', {
+        choices: [{ index: 0, delta: {}, finish_reason: 'error' }],
+      }),
+    ).toEqual({ message: '' });
+  });
+
+  it('reads the Anthropic error event', () => {
+    expect(
+      readStreamFailure('anthropic', {
+        type: 'error',
+        error: { type: 'overloaded_error', message: 'Overloaded' },
+      }),
+    ).toEqual({ message: 'Overloaded', code: 'overloaded_error' });
+  });
+
+  it('reads no failure from an ordinary event', () => {
+    // Some servers stamp `"error": null`, or an empty object, on every chunk.
+    for (const error of [null, {}]) {
+      expect(
+        readStreamFailure('openai', {
+          error,
+          choices: [{ index: 0, delta: { content: 'x' }, finish_reason: null }],
+        }),
+      ).toBeUndefined();
+    }
+    expect(
+      readStreamFailure('openai', {
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      }),
+    ).toBeUndefined();
+    expect(
+      readStreamFailure('anthropic', {
+        type: 'content_block_delta',
+        delta: { type: 'text_delta', text: 'error' },
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe('streamSse — a failure reported on the stream ends the round', () => {
+  it('throws the provider’s words and status instead of settling an empty reply', async () => {
+    const stream = chunksOf(
+      sseResponse([
+        {
+          error: { code: 429, message: 'Rate limit exceeded upstream' },
+          choices: [
+            { index: 0, delta: { content: '' }, finish_reason: 'error' },
+          ],
+        },
+      ]),
+      'openai',
+    );
+    const error: unknown = await stream.then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toMatchObject({
+      message:
+        'The model provider ended the reply with an error: Rate limit exceeded upstream (429)',
+      status: 429,
+    });
+    // The same bucket the failure gets when it arrives as an HTTP status.
+    expect(classifyChatErrorCode(error)).toBe('rate_limited');
+  });
+
+  it('yields what streamed before the failure, then throws', async () => {
+    const texts: string[] = [];
+    const read = async (): Promise<void> => {
+      for await (const chunk of streamSse(
+        sseResponse([
+          {
+            choices: [
+              {
+                index: 0,
+                delta: { content: 'The first half ' },
+                finish_reason: null,
+              },
+            ],
+          },
+          {
+            error: { code: 502, message: 'Provider disconnected unexpectedly' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          },
+        ]),
+        'openai',
+      )) {
+        texts.push(chunk.text);
+      }
+    };
+    await expect(read()).rejects.toThrow(/Provider disconnected unexpectedly/);
+    expect(texts).toEqual(['The first half ']);
+  });
+
+  it('ends an Anthropic stream on its error event, classified as provider trouble', async () => {
+    const error: unknown = await chunksOf(
+      sseResponse([
+        { type: 'message_start', message: { usage: { input_tokens: 900 } } },
+        {
+          type: 'error',
+          error: { type: 'overloaded_error', message: 'Overloaded' },
+        },
+      ]),
+      'anthropic',
+    ).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+    expect(error).toMatchObject({
+      message:
+        'The model provider ended the reply with an error: Overloaded (overloaded_error)',
+    });
+    expect(classifyChatErrorCode(error)).toBe('provider_error');
+  });
+
+  it('says so when the provider named no reason', async () => {
+    await expect(
+      chunksOf(
+        sseResponse([
+          { choices: [{ index: 0, delta: {}, finish_reason: 'error' }] },
+        ]),
+        'openai',
+      ),
+    ).rejects.toThrow(
+      'The model provider ended the reply with an error and gave no reason.',
+    );
   });
 });
 

@@ -209,10 +209,13 @@ The mock returns a fixed canned reply for any prompt. Keyword **scenario
 triggers** in a message exercise specific UI paths (a message with no trigger
 gets the plain canned reply, byte-for-byte):
 
-| Trigger in the message | Exercises                                         |
-| ---------------------- | ------------------------------------------------- |
-| `e2e:reasoning`        | reasoning / thinking-timeline disclosure          |
-| `e2e:error`            | an HTTP 500 on generation → the provider-error UI |
+| Trigger in the message | Exercises                                                          |
+| ---------------------- | ------------------------------------------------------------------ |
+| `e2e:reasoning`        | reasoning / thinking-timeline disclosure                           |
+| `e2e:error`            | an HTTP 500 on generation → the provider-error UI                  |
+| `e2e:empty`            | a stream that ends without a word → the answerless-reply notice    |
+| `e2e:length`           | reasoning, then the output limit before any answer → its notice    |
+| `e2e:stream-error`     | a `200` stream that then reports a `502` → the provider-error UI   |
 
 Connectors are deterministic too: connecting an API-key/token connector
 (Settings → Connectors) runs the connector's real `testConnection`, whose

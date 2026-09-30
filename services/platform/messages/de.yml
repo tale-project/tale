@@ -1210,7 +1210,9 @@ chat:
     voiceOutputThreadSaveFailed: Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden
   notFound: Dieser Chat ist nicht verfügbar.
   placeholder: Stell eine Frage…
-  generationIncomplete: Die Antwort konnte nicht abgeschlossen werden. Versuch es erneut.
+  generationIncomplete: Das Modell hat keine Antwort geliefert. Versuch es erneut oder wähle ein anderes Modell.
+  generationIncompleteFiltered: Der Inhaltsfilter des Modellanbieters hat diese Antwort zurückgehalten. Versuch, deine Nachricht umzuformulieren.
+  generationIncompleteLength: Das Modell hat sein Limit für Ausgabe-Tokens aufgebraucht, bevor es eine Antwort geschrieben hat. Versuch es mit weniger Denkaufwand, einer kürzeren Anfrage oder einem anderen Modell.
   generationIncompleteWithTools: Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Versuch es erneut.
   stepLimitReached: Hier gestoppt — das Schrittlimit dieses Durchgangs ist erreicht. Schreib eine Nachricht, um weiterzumachen.
   send: Nachricht senden
