@@ -39232,6 +39232,102 @@ async function checkSandboxSpawner(
         ),
       `status=${statusListing.success ? statusListing.data.tools.length : 'ERR'} tools, product_find=${productFind.success ? productFind.data.status : 'ERR'} (hit=${productRaw.includes('Widget')}), ungranted=${ungranted.success ? ungranted.data.status : 'ERR'}, badToken → ${badToken.status} (want 401), ledger=${ledger.map((r) => `${r.tool}:${r.outcome}`).join('/')}`,
     );
+
+    // The same status answer names the release this backend serves, from its
+    // own build stamp (`TALE_VERSION`) — never from the request, and never a
+    // build label that is not a release.
+    const vkNoGrants = 'itest-vk-tools-none';
+    const vkExpired = 'itest-vk-tools-expired';
+    for (const [token, ttlMs] of [
+      [vkNoGrants, 60_000],
+      [vkExpired, -1_000],
+    ] as const) {
+      await sessions.insertSessionToken(sql, {
+        organizationId: orgId,
+        sessionId: 'itest-spawn-tools',
+        tokenHash: hashFn('sha256').update(token).digest('hex'),
+        scope: {
+          agentKind: 'claude-code',
+          allowedModels: [],
+          connectorGrants: [],
+          budgetCents: 100,
+          toolGrants: [],
+        },
+        ttlMs,
+      });
+    }
+    const statusAnswer = z
+      .object({
+        tools: z.array(z.object({ name: z.string() })),
+        note: z.string().optional(),
+        platform: z.object({
+          version: z.string().nullable(),
+          note: z.string().optional(),
+        }),
+      })
+      .loose();
+    const readStatus = async (token: string, body = '{}') => {
+      const res = await fetch(`${base}/api/tools/status`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body,
+      });
+      const text = await res.text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(text);
+      } catch (err) {
+        console.warn('[itest] status answer is not JSON:', err);
+      }
+      return { code: res.status, text, answer: statusAnswer.safeParse(json) };
+    };
+    const restoreVersion = overrideEnv({ TALE_VERSION: '0.5.99' });
+    let released: Awaited<ReturnType<typeof readStatus>>;
+    let noGrants: Awaited<ReturnType<typeof readStatus>>;
+    let forged: Awaited<ReturnType<typeof readStatus>>;
+    let expired: Awaited<ReturnType<typeof readStatus>>;
+    let candidate: Awaited<ReturnType<typeof readStatus>>;
+    try {
+      released = await readStatus(vk);
+      noGrants = await readStatus(vkNoGrants);
+      forged = await readStatus(
+        vk,
+        JSON.stringify({
+          platform: { version: '9.9.9' },
+          version: '9.9.9',
+          toolGrants: ['contact_find'],
+        }),
+      );
+      expired = await readStatus(vkExpired);
+      process.env.TALE_VERSION = `candidate-sha-${'e'.repeat(40)}`;
+      candidate = await readStatus(vk);
+    } finally {
+      restoreVersion();
+    }
+    record(
+      'workspace status names the serving release (own build, token grants)',
+      released.code === 200 &&
+        released.answer.success &&
+        released.answer.data.tools.map((t) => t.name).join(',') ===
+          'product_find,document_find' &&
+        released.answer.data.platform.version === '0.5.99' &&
+        released.answer.data.platform.note === undefined &&
+        noGrants.answer.success &&
+        noGrants.answer.data.tools.length === 0 &&
+        noGrants.answer.data.note ===
+          'No workspace tools are granted to this agent.' &&
+        noGrants.answer.data.platform.version === '0.5.99' &&
+        forged.text === released.text &&
+        expired.code === 401 &&
+        expired.text === '{"status":"error","message":"Unauthorized."}' &&
+        candidate.answer.success &&
+        candidate.answer.data.platform.version === null &&
+        !candidate.text.includes('candidate-sha'),
+      `release=${released.answer.success ? released.answer.data.platform.version : 'ERR'} (${released.code}), noGrants=${noGrants.answer.success ? `${noGrants.answer.data.tools.length} tools/${noGrants.answer.data.platform.version}` : 'ERR'}, forged answer identical=${forged.text === released.text}, expired → ${expired.code} ${expired.text}, candidate=${candidate.answer.success ? String(candidate.answer.data.platform.version) : 'ERR'} (label echoed=${candidate.text.includes('candidate-sha')})`,
+    );
   } finally {
     restoreEnv();
     await new Promise<void>((resolve) => {
