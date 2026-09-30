@@ -211,6 +211,9 @@ const MAX_FETCH_FAILURES = 5;
  * still lets a page revived on the site come back on its own. */
 const BENCHED_PAGE_RETRY_INTERVAL = '7 days';
 
+/** Pages the vector backfill reads per query (`PageIndexer.embedVectorless`). */
+const EMBED_BATCH_PAGES = 20;
+
 /** A paragraph seen on at least this many pages of a domain is boilerplate
  * (navigation, footer, cookie banner) and is kept out of the chunks. */
 const BOILERPLATE_PAGE_THRESHOLD = 5;
@@ -531,9 +534,17 @@ export async function scanWebsiteImpl(
         // of at the link's end (2026-09-14 evaluation, h5).
         await fanOutRowSync(ctx, sql, args.domain);
       }
+      // What was stored without vectors — by this scan before an admin saved
+      // a model, or by an earlier one — is embedded from its stored text
+      // once a model can, in the time the link has left; what is left keeps
+      // the chain going.
+      const unembedded = renderDeferred
+        ? 0
+        : await indexer.embedVectorless(deadline);
       await indexer.finish();
 
-      const remaining = await countDuePages(sql, args.domain, scanStartedAt);
+      const remaining =
+        (await countDuePages(sql, args.domain, scanStartedAt)) + unembedded;
       if (remaining > 0 && continuation < MAX_CONTINUATIONS) {
         // Refresh the claim so a long chain is not mistaken for a crash.
         await sql.unsafe(
@@ -1659,6 +1670,7 @@ function embeddingScanFailure(error: unknown): unknown {
 export class PageIndexer {
   private embedder: Embedder | null = null;
   private embedderResolved = false;
+  private missingModelLogged = false;
   private indexedAny = false;
 
   constructor(
@@ -1682,9 +1694,12 @@ export class PageIndexer {
       if (!(error instanceof EmbeddingNotConfigured)) {
         throw embeddingScanFailure(error);
       }
-      console.warn(
-        `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — chunks are stored without vectors until one is`,
-      );
+      if (!this.missingModelLogged) {
+        this.missingModelLogged = true;
+        console.warn(
+          `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — chunks are stored without vectors until one is`,
+        );
+      }
     }
     if (this.embedder) {
       const dbUrl = await resolveOrgUrl(orgSlug);
@@ -1712,6 +1727,59 @@ export class PageIndexer {
     } catch (error) {
       throw embeddingScanFailure(error);
     }
+  }
+
+  /**
+   * Embed the site's pages whose chunks still lack vectors, from their
+   * stored text, until `deadline`: pages stored while the organization had
+   * no embedding model. A scan that was running when an admin saved one
+   * used to keep them so — each was done for that scan — until its next
+   * interval, up to thirty days. The model is looked for again when this
+   * link found none: it may have been saved since. Returns how many such
+   * pages are left for a later link; none when there is no model.
+   */
+  async embedVectorless(deadline: number): Promise<number> {
+    const { domain } = this.identity;
+    const vectorless = (limit: number) =>
+      this.sql.unsafe<{ url: string }[]>(
+        `SELECT DISTINCT c.url
+           FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+           JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
+             ON u.domain = c.domain AND u.url = c.url
+          WHERE c.domain = $1 AND c.embedding IS NULL
+            AND u.status = 'active' AND u.content IS NOT NULL
+          ORDER BY c.url
+          LIMIT $2`,
+        [domain, limit],
+      );
+    if ((await vectorless(1)).length === 0) return 0;
+    if (this.embedderResolved && this.embedder === null) {
+      this.embedderResolved = false;
+    }
+    if ((await this.resolveEmbedder()) === null) return 0;
+    // Once each: a page this pass indexed has vectors or no chunks left.
+    const done = new Set<string>();
+    while (Date.now() < deadline) {
+      const batch = (await vectorless(EMBED_BATCH_PAGES + done.size)).filter(
+        (row) => !done.has(row.url),
+      );
+      if (batch.length === 0) break;
+      for (const { url } of batch) {
+        if (Date.now() >= deadline) break;
+        done.add(url);
+        await this.indexPage(url);
+      }
+    }
+    const [left] = await this.sql.unsafe<{ n: string }[]>(
+      `SELECT count(DISTINCT c.url)::text AS n
+         FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+         JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
+           ON u.domain = c.domain AND u.url = c.url
+        WHERE c.domain = $1 AND c.embedding IS NULL
+          AND u.status = 'active' AND u.content IS NOT NULL`,
+      [domain],
+    );
+    return Number(left?.n ?? '0');
   }
 
   /** Index a page if its store outcome calls for it: changed text always,

@@ -275,3 +275,113 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
     );
   });
 });
+
+/**
+ * A scan that was running when an admin saved an embedding model kept the
+ * pages it had already stored without vectors — each was done for that
+ * scan — until the site's next interval, up to thirty days. The link now
+ * embeds them from their stored text before the scan ends.
+ */
+describe('PageIndexer.embedVectorless', () => {
+  const identity = {
+    domain: 'ruler.example',
+    orgSlug: 'ruler',
+    organizationId: 'org-1',
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the embedder is mocked; the ctx is never dispatched
+  const ctx = {} as ActionCtx;
+  let indexPage: ReturnType<typeof vi.spyOn>;
+
+  /** A corpus double whose pages without vectors are `vectorless`; an
+   * indexed page leaves the set. */
+  function withVectorless(vectorless: string[]): Sql {
+    const left = new Set(vectorless);
+    indexPage.mockImplementation(async (url: string) => {
+      left.delete(url);
+    });
+    const unsafe = (text: string, params: unknown[] = []) => {
+      if (text.includes('count(DISTINCT c.url)')) {
+        return Promise.resolve([{ n: String(left.size) }]);
+      }
+      if (text.includes('c.embedding IS NULL')) {
+        const limit = Number(params[1] ?? left.size);
+        return Promise.resolve(
+          [...left].slice(0, limit).map((url) => ({ url })),
+        );
+      }
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return { unsafe } as unknown as Sql;
+  }
+
+  const model = () =>
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `dimensions` is read before indexPage
+    ({ dimensions: 8 }) as Awaited<ReturnType<typeof embedderForOrg>>;
+
+  beforeEach(() => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    indexPage = vi
+      .spyOn(PageIndexer.prototype, 'indexPage')
+      .mockResolvedValue(undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.mocked(embedderForOrg).mockReset();
+  });
+
+  it('asks for no model when every page has its vectors', async () => {
+    const indexer = new PageIndexer(ctx, withVectorless([]), identity);
+
+    await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
+
+    expect(embedderForOrg).not.toHaveBeenCalled();
+  });
+
+  it('leaves them, and counts none left, while there is no model', async () => {
+    vi.mocked(embedderForOrg).mockRejectedValue(
+      new EmbeddingNotConfigured('ruler'),
+    );
+    const indexer = new PageIndexer(ctx, withVectorless(['a', 'b']), identity);
+
+    await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
+
+    expect(indexPage).not.toHaveBeenCalled();
+  });
+
+  it('embeds each of them once a model is saved, although the link found none before', async () => {
+    const indexer = new PageIndexer(
+      ctx,
+      withVectorless(['https://ruler.example/a', 'https://ruler.example/b']),
+      identity,
+    );
+    // The link's first pages met no model and were stored without vectors.
+    vi.mocked(embedderForOrg).mockRejectedValueOnce(
+      new EmbeddingNotConfigured('ruler'),
+    );
+    await indexer.settle('https://ruler.example/a', 'vectorless');
+    expect(indexPage).not.toHaveBeenCalled();
+
+    // An admin saves a model while the scan runs.
+    vi.mocked(embedderForOrg).mockResolvedValue(model());
+    await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
+
+    expect(indexPage.mock.calls.map(([url]) => url)).toEqual([
+      'https://ruler.example/a',
+      'https://ruler.example/b',
+    ]);
+    // Once per link, however often the indexer met no model.
+    expect(console.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands what the link had no time for to a later link', async () => {
+    vi.mocked(embedderForOrg).mockResolvedValue(model());
+    const indexer = new PageIndexer(ctx, withVectorless(['a', 'b']), identity);
+
+    await expect(indexer.embedVectorless(Date.now() - 1)).resolves.toBe(2);
+
+    expect(indexPage).not.toHaveBeenCalled();
+  });
+});
