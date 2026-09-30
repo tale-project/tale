@@ -149,6 +149,14 @@ async function failNewestRunAndRetry(
   }
 }
 
+/** The queues of an agent's turn and of its automatic retry — the arm and
+ * the later checks of a retry that waits for its busy agent. */
+const HELD_QUEUES = [
+  'task.agent_turn',
+  'task.agent_retry',
+  'task.agent_retry_recheck',
+];
+
 /**
  * Park every agent-turn and retry job the lane's projects enqueue a day
  * ahead, at the queue's own insert — the worker runs for the whole harness
@@ -167,14 +175,14 @@ export async function holdAgentJobs(
   }
   const tables = await sql<{ tableName: string }[]>`
     SELECT DISTINCT table_name AS "tableName" FROM pgboss.queue
-    WHERE name IN ('task.agent_turn', 'task.agent_retry')
+    WHERE name IN ${sql(HELD_QUEUES)}
   `;
   const fn = `app.itest_hold_agent_jobs_${suffix}`;
   const list = projectIds.map((id) => `'${id}'`).join(', ');
   await sql.unsafe(`
     CREATE OR REPLACE FUNCTION ${fn}() RETURNS trigger AS $$
     BEGIN
-      IF NEW.name IN ('task.agent_turn', 'task.agent_retry') AND (
+      IF NEW.name IN (${HELD_QUEUES.map((name) => `'${name}'`).join(', ')}) AND (
         NEW.data ->> 'runId' IN (
           SELECT id FROM app.project_agent_runs WHERE project_id IN (${list})
         ) OR NEW.data ->> 'taskId' IN (
@@ -205,7 +213,7 @@ export async function holdAgentJobs(
     await sql.unsafe(`DROP FUNCTION IF EXISTS ${fn}()`);
     await sql`
       DELETE FROM pgboss.job
-      WHERE name IN ('task.agent_turn', 'task.agent_retry')
+      WHERE name IN ${sql(HELD_QUEUES)}
         AND (data ->> 'runId' IN (SELECT id FROM app.project_agent_runs
                                   WHERE project_id = ANY(${[...projectIds]}))
              OR data ->> 'taskId' IN (SELECT id FROM app.tasks

@@ -35,7 +35,8 @@ import {
   AUTO_RETRY_MAX_ATTEMPTS,
 } from '../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from './enqueue.ts';
-import { createTaskList } from './task-list.ts';
+import { agentRetryRecheckKey, createTaskList } from './task-list.ts';
+import { TASK_QUEUE_OPTIONS } from './tasks.ts';
 
 const PAYLOAD = {
   organizationId: 'org-1',
@@ -73,7 +74,8 @@ interface World {
   busy?: { id: string; taskId: string };
   /** The agent row is gone (default: it is there). */
   agentGone?: boolean;
-  /** An `agent_busy` refusal already stands for this failure. */
+  /** An earlier delivery already retired this failed run's retry: the
+   * retirement's election updates nothing. */
   refusedAlready?: boolean;
 }
 
@@ -130,8 +132,10 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
     ) {
       return Promise.resolve([]);
     }
-    if (text.includes('FROM app.task_activity')) {
-      return Promise.resolve(world.refusedAlready === true ? [{ id: 1 }] : []);
+    if (text.includes('UPDATE app.project_agent_runs')) {
+      return Promise.resolve(
+        world.refusedAlready === true ? [] : [{ id: 'run-failed' }],
+      );
     }
     if (text.includes('UPDATE app.project_agents')) {
       return Promise.resolve(
@@ -676,7 +680,7 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     );
   });
 
-  it('waits while the agent works another task there: nothing started, refused or counted — the same retry looks again later', async () => {
+  it('waits while the agent works another task there: nothing started, refused or counted — a later check of the retry is queued', async () => {
     const before = Date.now();
     const lines = await deliver({ busy: elsewhere });
     const after = Date.now();
@@ -684,10 +688,12 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(addJobInTx).toHaveBeenCalledTimes(1);
     const [, name, next, options] = vi.mocked(addJobInTx).mock.calls[0] ?? [];
-    expect(name).toBe('task.agent_retry');
+    expect(name).toBe('task.agent_retry_recheck');
     expect(next).toEqual({ ...PAYLOAD, agentBusyWaits: 1 });
-    const startAfter = (options as { startAfter?: Date } | undefined)
-      ?.startAfter;
+    const { startAfter, singletonKey } =
+      (options as { startAfter?: Date; singletonKey?: string } | undefined) ??
+      {};
+    expect(singletonKey).toBe('agent-retry:org-1:task-1:run-failed');
     expect(startAfter?.getTime()).toBeGreaterThanOrEqual(
       before + AGENT_BUSY_RETRY_DELAY_MS,
     );
@@ -704,11 +710,61 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
       statements.some((text) => text.includes('started_via IS NOT NULL')),
     ).toBe(false);
     expect(lines).toEqual([
-      `[task-agent] auto-retry waiting: agent_busy (look 1 of ${AGENT_BUSY_RETRY_MAX_WAITS}: run run-other on task task-other)`,
+      `[task-agent] auto-retry waiting: agent_busy (check 1 of ${AGENT_BUSY_RETRY_MAX_WAITS} queued: run run-other on task task-other)`,
     ]);
   });
 
-  it('carries the broker cooldown and counts its looks', async () => {
+  it('keeps at most one check queued per failed run: every check, from the arm or from a check, carries its key on a short queue of its own', async () => {
+    await deliver({ busy: elsewhere });
+    await deliver(
+      { busy: elsewhere },
+      { payload: { ...PAYLOAD, agentBusyWaits: 5 } },
+    );
+
+    const keys = vi
+      .mocked(addJobInTx)
+      .mock.calls.map(
+        ([, name, , options]) =>
+          `${name}|${(options as { singletonKey?: string } | undefined)?.singletonKey}`,
+      );
+    expect(keys).toEqual([
+      'task.agent_retry_recheck|agent-retry:org-1:task-1:run-failed',
+      'task.agent_retry_recheck|agent-retry:org-1:task-1:run-failed',
+    ]);
+    expect(agentRetryRecheckKey(PAYLOAD)).toBe(
+      'agent-retry:org-1:task-1:run-failed',
+    );
+    // `short`: one QUEUED job per key, so a second send is dropped while the
+    // first waits (the documented queue contract, `TaskQueueOptions`). The
+    // arm's queue keeps its standard policy: the previous image's arms are
+    // keyless and would shut each other out there.
+    expect(TASK_QUEUE_OPTIONS['task.agent_retry_recheck']).toEqual({
+      policy: 'short',
+      retryLimit: 1,
+      expireInSeconds: 600,
+    });
+    expect(TASK_QUEUE_OPTIONS['task.agent_retry'].policy).toBeUndefined();
+  });
+
+  it('says so when the one check of its failed run is already queued', async () => {
+    vi.mocked(addJobInTx).mockResolvedValueOnce(null);
+
+    const lines = await deliver({ busy: elsewhere });
+
+    expect(lines).toEqual([
+      '[task-agent] auto-retry waiting: agent_busy (a check is already queued: run run-other on task task-other)',
+    ]);
+    expect(kickAgentRun).not.toHaveBeenCalled();
+  });
+
+  it('runs the arm and every check through one worker', () => {
+    const tasks = createTaskList({ sql: sqlWith([]) });
+
+    expect(tasks['task.agent_retry_recheck']).toBeDefined();
+    expect(tasks['task.agent_retry_recheck']).toBe(tasks['task.agent_retry']);
+  });
+
+  it('carries the broker cooldown and counts its checks', async () => {
     const startAfterMs = Date.now() + 42_000;
 
     await deliver(
@@ -747,7 +803,7 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 
-  it('gives up after its last look: refused once on the timeline, as the agent, with nothing sent or started', async () => {
+  it('gives up after its last check: retired on its failed run and refused once on the timeline, as the agent, with nothing sent or started', async () => {
     const lines = await deliver(
       { busy: elsewhere },
       { payload: { ...PAYLOAD, agentBusyWaits: AGENT_BUSY_RETRY_MAX_WAITS } },
@@ -755,10 +811,16 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
 
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
+    const retire = statements.findIndex((text) =>
+      text.includes('UPDATE app.project_agent_runs'),
+    );
     const refusal = statements.findIndex((text) =>
       text.includes('INSERT INTO app.task_activity'),
     );
-    expect(refusal).toBeGreaterThan(-1);
+    expect(retire).toBeGreaterThan(-1);
+    expect(statements[retire]).toContain('auto_retry_refused_at_ms IS NULL');
+    expect(statements[retire]).toContain("status = 'failed'");
+    expect(refusal).toBeGreaterThan(retire);
     expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
   });
 
@@ -785,21 +847,74 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 
-  it('records the refusal once, however often its job is delivered', async () => {
+  it('records the refusal once: only the delivery that retires the failed run writes the timeline row', async () => {
     const lines = await deliver(
       { busy: elsewhere, refusedAlready: true },
       { payload: { ...PAYLOAD, agentBusyWaits: AGENT_BUSY_RETRY_MAX_WAITS } },
     );
 
     expect(
+      statements.some((text) => text.includes('UPDATE app.project_agent_runs')),
+    ).toBe(true);
+    expect(
       statements.some((text) => text.includes('INSERT INTO app.task_activity')),
     ).toBe(false);
-    const probe = statements.find((text) =>
-      text.includes('FROM app.task_activity'),
-    );
-    expect(probe).toContain("'agent_run.refused'");
-    expect(probe).toContain("'agent_busy'");
     expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
+  });
+
+  it.each([
+    ['the arm, the agent still busy', { busy: elsewhere }, PAYLOAD],
+    ['the arm, the agent free by now', {}, PAYLOAD],
+    [
+      'a check queued before the refusal, the agent free',
+      {},
+      { ...PAYLOAD, agentBusyWaits: 7 },
+    ],
+    [
+      'the very check that refused, delivered again once the agent is free',
+      {},
+      { ...PAYLOAD, agentBusyWaits: AGENT_BUSY_RETRY_MAX_WAITS },
+    ],
+  ] satisfies [string, World, Record<string, unknown>][])(
+    'stands down on a retry refused for good — %s — and starts, queues and records nothing',
+    async (_label, world, payload) => {
+      const lines = await deliver(world, {
+        payload,
+        run: {
+          ...failedAgo(3 * 60 * 60 * 1000),
+          autoRetryRefusedAt: Date.now() - 60_000,
+        },
+      });
+
+      expect(lines).toEqual(['[task-agent] auto-retry skipped: retry_refused']);
+      expect(kickAgentRun).not.toHaveBeenCalled();
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(probes).toHaveLength(0);
+      expect(
+        statements.some(
+          (text) =>
+            text.includes('UPDATE app.project_agent_runs') ||
+            text.includes('INSERT INTO app.task_activity'),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it('lets a newer run retry: the mark of an older refused run never holds it', async () => {
+    const handler = createTaskList({
+      sql: sqlWith([
+        failedAgo(1_000),
+        {
+          ...failedRun('run-older', 'turn_crashed'),
+          autoRetryRefusedAt: Date.now() - 60_000,
+        },
+      ]),
+    })['task.agent_retry'];
+    startedViaOfRun.mockResolvedValueOnce(via);
+
+    await handler?.(PAYLOAD);
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
   });
 
   it.each([

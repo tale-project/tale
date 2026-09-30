@@ -24,6 +24,13 @@
  * - the wait is bounded: past its looks or its age the retry is refused once,
  *   on the task's timeline (`agent_run.refused`, `agent_busy`), and the
  *   manager's next start of that task runs;
+ * - the delivery lifecycle is pg-boss's own, replayed as pg-boss would: a
+ *   failed run has at most one future check queued, however its jobs are
+ *   delivered — twice in a row after a commit its ack never followed, twice
+ *   at once, again after a worker took the queued check, or a check that
+ *   expired unacknowledged — and the one chain still moves on; a refused
+ *   retry stays retired when the same jobs arrive after the agent is free,
+ *   while the manager's restart and a person's Start still start the task;
  * - another agent's run, the agent's run in a member's own workspace and a
  *   run of another organization hold nothing; a confined retry looks in the
  *   member's workspace it joins; a payload naming another organization locks
@@ -179,10 +186,19 @@ function outcomeOf(result: PromiseSettledResult<unknown>): string {
 }
 
 interface RetryJob {
+  id: string;
+  /** The queue it was sent to. */
+  name: string;
+  /** Its pg-boss state: `created` is queued, `active` taken by a worker. */
+  state: string;
   data: Record<string, unknown>;
   /** How long after its send the job was meant to start, in seconds. */
   waitSeconds: number;
 }
+
+/** The queues a failed run's retry is delivered on: the arm, and the later
+ * checks of a retry that waits for its busy agent. */
+const RETRY_QUEUES = ['task.agent_retry', 'task.agent_retry_recheck'];
 
 export async function checkAutomatedRetryAgentBusy(
   sql: Sql,
@@ -211,22 +227,24 @@ export async function checkAutomatedRetryAgentBusy(
     teamIds: [] as string[],
   };
 
-  const retryWorker = createTaskList({ sql })['task.agent_retry'];
-  if (retryWorker === undefined) {
-    throw new Error('itest: the retry worker is missing');
-  }
+  const tasks = createTaskList({ sql });
+  /** Every line the retry worker logged about its outcome, verbatim: the raw
+   * record a case's detail quotes. */
+  const raw: string[] = [];
 
-  /** Hand a retry job to the real retry worker, as pg-boss would; answers
-   * what it logged: `skipped:<reason>` or `waiting:<reason>`, nothing when
-   * it started the retry. */
+  /** Hand a retry job to the real worker of its queue, as pg-boss would;
+   * answers what it logged: `skipped:<reason>` or `waiting:<reason>`,
+   * nothing when it started the retry. */
   const deliver = async (
     payload: unknown,
     through: Sql = sql,
+    queue = 'task.agent_retry',
   ): Promise<string[]> => {
     const handler =
-      through === sql
-        ? retryWorker
-        : createTaskList({ sql: through })['task.agent_retry'];
+      through === sql ? tasks[queue] : createTaskList({ sql: through })[queue];
+    if (handler === undefined) {
+      throw new Error(`itest: no worker for ${queue}`);
+    }
     const lines: string[] = [];
     const log = console.log;
     console.log = (...args: unknown[]) => {
@@ -234,31 +252,70 @@ export async function checkAutomatedRetryAgentBusy(
       const match = /auto-retry (skipped|waiting): (\S+)/.exec(line);
       if (match?.[1] !== undefined && match[2] !== undefined) {
         lines.push(`${match[1]}:${match[2]}`);
+        raw.push(line);
       } else {
         log(...args);
       }
     };
     try {
-      await handler?.(payload);
+      await handler(payload);
     } finally {
       console.log = log;
     }
     return lines;
   };
+  /** The worker's lines since the last call, verbatim. */
+  const rawSince = (): string[] => raw.splice(0, raw.length);
   const retryJobsOf = (runId: string) =>
     sql<RetryJob[]>`
-      SELECT data,
+      SELECT id, name, state::text AS state, data,
              extract(epoch FROM start_after - created_on)::float8 - 86400
                AS "waitSeconds"
       FROM pgboss.job
-      WHERE name = 'task.agent_retry' AND data ->> 'expectedRunId' = ${runId}
+      WHERE name IN ${sql(RETRY_QUEUES)}
+        AND data ->> 'expectedRunId' = ${runId}
       ORDER BY created_on, id
     `;
-  /** The later looks a waiting retry sent itself. */
+  /** The later checks a waiting retry sent itself, on whichever queue. */
   const looksOf = async (runId: string): Promise<RetryJob[]> =>
     (await retryJobsOf(runId)).filter(
       (job) => job.data.agentBusyWaits !== undefined,
     );
+  /** Its future checks: the ones still queued. */
+  const queuedChecksOf = async (runId: string): Promise<RetryJob[]> =>
+    (await looksOf(runId)).filter((job) => job.state === 'created');
+  // The delivery lifecycle as pg-boss runs it (`pgboss.job` states). A
+  // worker's fetch takes a queued job (created → active); its completion
+  // acknowledges it; a job whose worker died after its handler committed is
+  // expired and queued again for its retry (active → retry) and taken anew.
+  const fetchJob = (id: string) => sql`
+    UPDATE pgboss.job SET state = 'active', started_on = now()
+    WHERE id = ${id} AND state IN ('created', 'retry')
+  `;
+  const completeJob = (id: string) => sql`
+    UPDATE pgboss.job SET state = 'completed', completed_on = now()
+    WHERE id = ${id} AND state = 'active'
+  `;
+  const expireJob = (id: string) => sql`
+    UPDATE pgboss.job SET state = 'retry', retry_count = retry_count + 1
+    WHERE id = ${id} AND state = 'active'
+  `;
+  /** A queued job taken, run and acknowledged, as a worker does. */
+  const runJob = async (job: RetryJob): Promise<string[]> => {
+    await fetchJob(job.id);
+    const lines = await deliver(job.data, sql, job.name);
+    await completeJob(job.id);
+    return lines;
+  };
+  /** When the failed run's automatic retry was retired, if it was — read
+   * off the whole row, so the lane also runs on a schema without it. */
+  const retiredAt = async (runId: string): Promise<string | null> => {
+    const rows = await sql<{ at: string | null }[]>`
+      SELECT to_jsonb(r) ->> 'auto_retry_refused_at_ms' AS at
+      FROM app.project_agent_runs r WHERE id = ${runId}
+    `;
+    return rows[0]?.at ?? null;
+  };
   const liveIn = (sessionId: string) =>
     sql<{ id: string; taskId: string; trigger: string | null }[]>`
       SELECT id, task_id AS "taskId", trigger FROM app.project_agent_runs
@@ -886,11 +943,13 @@ export async function checkAutomatedRetryAgentBusy(
       // Nothing is queued behind the refusal: the manager decides again.
       const reconsidered = await delegate(spent.taskId);
       record(
-        'busy retry: a retry past its looks, or past its age, is refused once on the task’s timeline as the agent (agent_run.refused, agent_busy), sends no further look and starts nothing; a repeated delivery adds no second refusal, and the manager’s next start of the task runs',
+        'busy retry: a retry past its looks, or past its age, is refused once on the task’s timeline as the agent (agent_run.refused, agent_busy) and retired on its failed run, sends no further look and starts nothing; a repeated delivery stands down on the retirement and adds no second refusal, and the manager’s next start of the task runs',
         busy.outcome === 'started' &&
           JSON.stringify(pastLooks) ===
             JSON.stringify(['skipped:agent_busy']) &&
-          JSON.stringify(again) === JSON.stringify(['skipped:agent_busy']) &&
+          JSON.stringify(again) === JSON.stringify(['skipped:retry_refused']) &&
+          (await retiredAt(spent.runId)) !== null &&
+          (await retiredAt(old.runId)) !== null &&
           spentRefusals.length === 1 &&
           spentRefusals[0]?.toValue === 'agent_busy' &&
           spentRefusals[0].actorId === worker &&
@@ -901,7 +960,170 @@ export async function checkAutomatedRetryAgentBusy(
           (await looksOf(old.runId)).length === 0 &&
           describeRuns(spentRuns) === 'failed/delegated' &&
           reconsidered.outcome === 'started',
-        `past looks=${JSON.stringify(pastLooks)} again=${JSON.stringify(again)} refusals=${JSON.stringify(spentRefusals)} past age=${JSON.stringify(pastAge)} refusals=${JSON.stringify(oldRefusals)} runs=${describeRuns(spentRuns)} manager restart=${reconsidered.outcome}`,
+        `past looks=${JSON.stringify(pastLooks)} again=${JSON.stringify(again)} (want retry_refused) retired=${await retiredAt(spent.runId)}/${await retiredAt(old.runId)} refusals=${JSON.stringify(spentRefusals)} past age=${JSON.stringify(pastAge)} refusals=${JSON.stringify(oldRefusals)} runs=${describeRuns(spentRuns)} manager restart=${reconsidered.outcome}`,
+      );
+      await free(worker);
+    }
+
+    // ---- one future check per failed run, however it is delivered ------
+    {
+      const replayed = await failedDelegation('Replayed while busy');
+      const doubled = await failedDelegation('Delivered twice at once');
+      const expired = await failedDelegation('Its check expires unacked');
+      const busy = await occupy('Work that outlasts the duplicates');
+      rawSince();
+      // The arm delivered again after its commit, before its ack (pg-boss
+      // redelivers what it never saw completed), its first check queued.
+      const firstArm = await deliver(replayed.payload);
+      const replayArm = await deliver(replayed.payload);
+      const afterReplay = await queuedChecksOf(replayed.runId);
+      // A worker takes that check, and the arm arrives once more meanwhile:
+      // the replay may queue the next check, and the taken one, run, finds
+      // it queued.
+      const taken = afterReplay[0];
+      if (taken !== undefined) await fetchJob(taken.id);
+      const lateArm = await deliver(replayed.payload);
+      const takenRun =
+        taken === undefined
+          ? ['no check']
+          : await deliver(taken.data, sql, taken.name);
+      if (taken !== undefined) await completeJob(taken.id);
+      const afterLate = await queuedChecksOf(replayed.runId);
+      // The same arm twice at once.
+      const doubledRuns = await Promise.all([
+        deliver(doubled.payload),
+        deliver(doubled.payload),
+      ]);
+      const afterDouble = await queuedChecksOf(doubled.runId);
+      // A check whose worker died after its handler committed: pg-boss
+      // expires it, queues it for its retry, and a worker takes it again.
+      await deliver(expired.payload);
+      const check = (await queuedChecksOf(expired.runId))[0];
+      const expiredRuns: string[] = [];
+      if (check !== undefined) {
+        await fetchJob(check.id);
+        expiredRuns.push(...(await deliver(check.data, sql, check.name)));
+        await expireJob(check.id);
+        await fetchJob(check.id);
+        expiredRuns.push(...(await deliver(check.data, sql, check.name)));
+        await completeJob(check.id);
+      }
+      const afterExpiry = await queuedChecksOf(expired.runId);
+      // The one chain still moves on: its queued check, run, queues the
+      // next, a delay later and one look further.
+      const next = afterExpiry[0];
+      const nextRun = next === undefined ? ['no check'] : await runJob(next);
+      const afterNext = await queuedChecksOf(expired.runId);
+      const lines = rawSince();
+      const runs = [
+        ...(await runsOf(sql, replayed.taskId)),
+        ...(await runsOf(sql, doubled.taskId)),
+        ...(await runsOf(sql, expired.taskId)),
+      ];
+      const live = await liveIn(standing);
+      const shape = (jobs: RetryJob[]) =>
+        jobs.map((job) => `${job.name}#${String(job.data.agentBusyWaits)}`);
+      record(
+        'busy retry, replayed: a failed run has at most one future check queued — its arm delivered again before the ack, again after a worker took the queued check, twice at once, and a check that expired unacknowledged and was taken again all collapse onto one — while the one chain still moves on, and nothing starts beside the busy agent',
+        busy.outcome === 'started' &&
+          JSON.stringify(firstArm) === JSON.stringify(['waiting:agent_busy']) &&
+          JSON.stringify(replayArm) ===
+            JSON.stringify(['waiting:agent_busy']) &&
+          afterReplay.length === 1 &&
+          JSON.stringify(lateArm) === JSON.stringify(['waiting:agent_busy']) &&
+          JSON.stringify(takenRun) === JSON.stringify(['waiting:agent_busy']) &&
+          afterLate.length === 1 &&
+          afterLate[0]?.id !== taken?.id &&
+          doubledRuns.every(
+            (run) =>
+              JSON.stringify(run) === JSON.stringify(['waiting:agent_busy']),
+          ) &&
+          afterDouble.length === 1 &&
+          check !== undefined &&
+          JSON.stringify(expiredRuns) ===
+            JSON.stringify(['waiting:agent_busy', 'waiting:agent_busy']) &&
+          afterExpiry.length === 1 &&
+          JSON.stringify(nextRun) === JSON.stringify(['waiting:agent_busy']) &&
+          afterNext.length === 1 &&
+          afterNext[0]?.id !== next?.id &&
+          afterNext[0]?.data.agentBusyWaits ===
+            Number(next?.data.agentBusyWaits) + 1 &&
+          afterNext[0].waitSeconds >= 60 &&
+          runs.every((run) => run.status === 'failed') &&
+          live.length === 1 &&
+          live[0]?.taskId === busy.taskId,
+        `queued after the replayed arm=${JSON.stringify(shape(afterReplay))} after the late arm and the taken check=${JSON.stringify(shape(afterLate))} after the double delivery=${JSON.stringify(shape(afterDouble))} after the expired check ran twice=${JSON.stringify(shape(afterExpiry))} after the chain moved on=${JSON.stringify(shape(afterNext))} (want one each time) runs=${runs.map((run) => `${run.status}/${run.trigger ?? 'manual'}`).join(',')} live=${JSON.stringify(live.map((run) => run.trigger))} worker said=${JSON.stringify(lines)}`,
+      );
+      await free(worker);
+    }
+
+    // ---- a refused retry stays refused, busy or free ---------------------
+    {
+      const refused = await failedDelegation('Refused, then replayed free');
+      const person = await failedDelegation(
+        'Refused, then started by a person',
+      );
+      const busy = await occupy('Work that outlasts every check');
+      rawSince();
+      // A check queued before the refusal, then the check that ends the wait.
+      await deliver(refused.payload);
+      const pending = (await queuedChecksOf(refused.runId))[0];
+      const lastCheck = { ...refused.payload, agentBusyWaits: 10_000 };
+      const refusal = await deliver(lastCheck);
+      const retired = await retiredAt(refused.runId);
+      await deliver({ ...person.payload, agentBusyWaits: 10_000 });
+      await free(worker);
+      // The agent is free; the same jobs arrive again.
+      const replayLast = await deliver(lastCheck);
+      const replayArm = await deliver(refused.payload);
+      const replayPending =
+        pending === undefined ? ['no check'] : await runJob(pending);
+      const lines = rawSince();
+      const refusedRuns = await runsOf(sql, refused.taskId);
+      const refusals = await refusalsOf(refused.taskId);
+      const queued = await queuedChecksOf(refused.runId);
+      record(
+        'busy retry, refused: once refused, the failed run’s automatic retry stays retired — the identical last check, the arm and a check queued before the refusal, delivered again after the agent is free, start nothing and queue nothing, and the refusal stays one row',
+        busy.outcome === 'started' &&
+          JSON.stringify(refusal) === JSON.stringify(['skipped:agent_busy']) &&
+          retired !== null &&
+          pending !== undefined &&
+          JSON.stringify(replayLast) ===
+            JSON.stringify(['skipped:retry_refused']) &&
+          JSON.stringify(replayArm) ===
+            JSON.stringify(['skipped:retry_refused']) &&
+          JSON.stringify(replayPending) ===
+            JSON.stringify(['skipped:retry_refused']) &&
+          describeRuns(refusedRuns) === 'failed/delegated' &&
+          refusals.length === 1 &&
+          queued.length === 0 &&
+          (await liveIn(standing)).length === 0,
+        `refusal=${JSON.stringify(refusal)} retired=${retired} replays last/arm/queued-before=${JSON.stringify([replayLast, replayArm, replayPending])} (want retry_refused each) runs=${describeRuns(refusedRuns)} refusals=${refusals.length} queued checks=${queued.length} worker said=${JSON.stringify(lines)}`,
+      );
+
+      // A newer decision still starts: the manager restarts the task, and
+      // the failure of that run retries on its own; a person's Start on the
+      // other refused task starts too.
+      const restart = await delegate(refused.taskId);
+      const newer = await failNewest(refused.taskId);
+      const newerRetry = await deliver(newer.payload);
+      const newerRuns = await runsOf(sql, refused.taskId);
+      await free(worker);
+      const personStart = await fetch(
+        `${base}/api/app/tasks/${person.taskId}/agent-runs/start?orgId=${orgId}`,
+        { method: 'POST', headers: { cookie: ctx.cookie, origin: base } },
+      );
+      const personRuns = await runsOf(sql, person.taskId);
+      record(
+        'busy retry, refused: a newer decision still starts — the manager’s restart of the refused task runs, that run’s own failure retries as usual, and a person’s Start of another refused task runs',
+        restart.outcome === 'started' &&
+          newerRetry.length === 0 &&
+          describeRuns(newerRuns) ===
+            'failed/delegated,failed/delegated,queued/auto_retry' &&
+          (await retiredAt(newer.runId)) === null &&
+          personStart.status === 200 &&
+          describeRuns(personRuns) === 'failed/delegated,queued/manual',
+        `restart=${restart.outcome} newer retry=${JSON.stringify(newerRetry)} runs=${describeRuns(newerRuns)} person start=${personStart.status} runs=${describeRuns(personRuns)}`,
       );
       await free(worker);
     }

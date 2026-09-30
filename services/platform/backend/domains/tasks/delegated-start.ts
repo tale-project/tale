@@ -70,8 +70,9 @@ import {
  *   piece of work per agent workspace. The automatic retry of such a run
  *   keeps the rule under the same lock and probe ({@link lockAgentForStart},
  *   {@link findAgentBusyRun}): it waits for the workspace instead
- *   (`task.agent_retry`, bounded by `planAgentBusyWait`) and, past that
- *   wait, is refused on the task's timeline ({@link recordAgentBusyRefusal});
+ *   (`task.agent_retry_recheck`, bounded by `planAgentBusyWait`) and, past
+ *   that wait, is refused on the task's timeline and retired for good
+ *   ({@link retireBusyRetry});
  * - `blocked` — a task this one depends on is still open;
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
@@ -223,30 +224,34 @@ export async function findAgentBusyRun(
 }
 
 /**
- * The automatic retry that waited for its busy agent as long as it may
- * (`planAgentBusyWait`) is refused on the task's timeline as the refused
- * agent (`agent_run.refused`, `agent_busy`: "<agent> could not start: agent
- * is working on another task"), the circuit breaker's convention — once per
- * failure, however often its job is delivered (`failedAt`, the failed run's
- * settle stamp). Nothing is queued behind it: whoever manages the task
- * decides again.
+ * Retire the automatic retry of one failed run for good — it waited for its
+ * busy agent as long as it may (`planAgentBusyWait`) — and say so on the
+ * task's timeline as the refused agent (`agent_run.refused`, `agent_busy`:
+ * "<agent> could not start: agent is working on another task"), the circuit
+ * breaker's convention. The mark sits on the failed run
+ * (`auto_retry_refused_at_ms`, migration 0141): every later delivery of
+ * that retry — the arm, a check queued before this one, this very job
+ * again, whether the agent is busy or free by then — stands down on it
+ * under the same locks, so the refusal is final. Only the call that sets
+ * it writes the timeline row. Nothing is queued behind it: whoever manages
+ * the task decides again, and a newer run is theirs to start.
  */
-export async function recordAgentBusyRefusal(
+export async function retireBusyRetry(
   tx: TransactionSql,
   args: {
     task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
     agentId: string;
-    failedAt: number | undefined;
+    failedRunId: string;
   },
-): Promise<void> {
-  const recorded = await tx<{ id: string }[]>`
-    SELECT id FROM app.task_activity
-    WHERE org_id = ${args.task.organizationId} AND task_id = ${args.task.id}
-      AND action = 'agent_run.refused' AND to_value = 'agent_busy'
-      AND created_at_ms >= ${args.failedAt ?? 0}
-    LIMIT 1
+): Promise<boolean> {
+  const retired = await tx<{ id: string }[]>`
+    UPDATE app.project_agent_runs SET auto_retry_refused_at_ms = ${Date.now()}
+    WHERE id = ${args.failedRunId} AND org_id = ${args.task.organizationId}
+      AND task_id = ${args.task.id} AND status = 'failed'
+      AND auto_retry_refused_at_ms IS NULL
+    RETURNING id
   `;
-  if (recorded.length > 0) return;
+  if (retired.length === 0) return false;
   await recordActivity(tx, {
     task: args.task,
     actorType: 'agent',
@@ -254,6 +259,7 @@ export async function recordAgentBusyRefusal(
     action: 'agent_run.refused',
     toValue: 'agent_busy',
   });
+  return true;
 }
 
 /** The actor an automation's writes are recorded as on the task timeline —
