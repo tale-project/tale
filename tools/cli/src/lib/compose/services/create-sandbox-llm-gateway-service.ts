@@ -15,8 +15,10 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
  *     can reach the gateway from the sandbox bridge.
  *
  * The data volume keeps its pre-rename name (`llm-gateway-data`) so the service
- * rename needs no data migration — the SQLite store is a derived cache the
- * platform re-provisions per session. The transitional `llm-gateway` network
+ * rename needs no data migration of its SQLite store, which holds what the
+ * platform cannot re-derive (the admin account, minted keys with their spend,
+ * the request log) and which snapshots capture (GATEWAY_VOLUME in
+ * ../../backup/constants.ts). The transitional `llm-gateway` network
  * alias keeps the old hostname resolving for one release so in-flight sessions
  * survive the deploy that lands the rename.
  *

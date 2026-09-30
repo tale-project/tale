@@ -151,6 +151,14 @@ until the list names it. A few lanes still reach real vendors (the AI title lane
 the model catalogs, the video-link DNS checks); a failure there on a vendor outage
 is re-run, not waived.
 
+The job requires both `pg_search` and `vector` to be loaded. Its
+`backend-integration-<run>-<attempt>` artifact retains the raw suite and service
+logs, checked-out source and workflow identity, runtime versions, image identity,
+extensions and suite-step exit code for 14 days, including failed runs. Configuration
+trees are excluded. A setup failure can leave a partial bundle; the artifact's
+presence alone is not a passing proof. The database build output remains in the
+existing Buildx step's Actions log.
+
 The second command requires a **fresh, disposable application database** and its
 own configuration directory. Never point it at a development or customer database
 you need to retain. It creates users and fixtures; some probes deliberately
