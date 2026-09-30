@@ -114,6 +114,14 @@ export const RATE_LIMITS = {
     capacity: 120,
   },
   'security:login-ip': { kind: 'fixed window', rate: 30, period: MINUTE },
+  // Per user: one newsletter can carry dozens of remote images, and the
+  // browser asks for all of them at once when the message opens.
+  'security:image-proxy': {
+    kind: 'token bucket',
+    rate: 300,
+    period: MINUTE,
+    capacity: 600,
+  },
   'webdav:auth-fail-ip': {
     kind: 'token bucket',
     rate: 20,

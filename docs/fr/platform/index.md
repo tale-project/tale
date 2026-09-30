@@ -66,6 +66,8 @@ La case au début de la barre sélectionne toute la liste. Tant que seules certa
 
 Un chat, une tâche ou une conversation s’ouvre sous un en-tête qui affiche son icône, son titre, une ligne de contexte et ses actions. **Masquer le panneau latéral**, au début de cet en-tête, replie le panneau d’**Accueil** pour laisser plus de place ; **Afficher le panneau latéral** le fait revenir. L’infobulle du bouton indique le raccourci clavier. Dans une conversation, la première action, **Copier le lien**, copie un lien qui ouvre la même conversation pour un collègue. Les Propriétaires et Admins attribuent la conversation depuis son en-tête, à une personne, à une équipe ou aux deux. Choisir à nouveau la personne ou l’équipe déjà attribuée retire cette attribution, tout comme **Retirer l'attribution** et **Retirer l'équipe** en bas de la liste ; l’autre attribution reste inchangée.
 
+Les images d’un e-mail s’affichent dans le message. Tale récupère pour toi les images hébergées sur les serveurs de l’expéditeur : celui-ci ne voit ni ton adresse IP, ni le moment où tu lis le message. Une image de plus de 10 Mo ou au format SVG ne s’affiche pas.
+
 ### Raccourcis clavier {#shortcuts}
 
 Sur ordinateur, tu peux aussi parcourir **Accueil** et ouvrir la recherche au clavier :

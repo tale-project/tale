@@ -7,7 +7,8 @@
  * Content-Length and post-read while streaming. Refuses plaintext
  * `http://` to public hosts so bearer-bearing requests cannot cross
  * the open internet unencrypted; local self-hosted providers (private
- * IP or explicit `allowedHosts` entry) may still use `http://`.
+ * IP or explicit `allowedHosts` entry) may still use `http://`, and so
+ * may a `credentialless` request, which has no credential to leak.
  *
  * DNS rebinding is closed at the dial: before every hop the hostname is
  * resolved here, every address it answers is checked (loopback, private,
@@ -170,7 +171,21 @@ export interface SafeFetchOptions {
    * needs cleartext (the crawler): a redirect onto port 80 is otherwise the
    * hop that reaches a metadata service. */
   httpsOnly?: boolean;
+  /** The request carries no credential at all — the email image proxy
+   * fetching whatever public URL a message names. With nothing to leak, a
+   * plaintext `http:` public host and a redirect onto another host are
+   * admitted; every hop is still resolved, checked and pinned, and private
+   * and metadata addresses stay refused. A credential header on such a
+   * request is a caller bug and throws. */
+  credentialless?: boolean;
 }
+
+/** Headers a credentialless request must never carry. */
+const CREDENTIAL_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+]);
 
 /** One address a hostname resolved to. */
 export interface ResolvedAddress {
@@ -359,6 +374,7 @@ function validateUrl(
   effectiveAllowedHosts: string[] | undefined,
   callerAllowedHosts: string[] | undefined,
   httpsOnly = false,
+  credentialless = false,
 ): URL {
   let parsed: URL;
   try {
@@ -406,8 +422,14 @@ function validateUrl(
   // (a) the host is in a private/loopback range, or (b) the operator has
   // explicitly named it in `allowedHosts` (NOT just typed it as a baseUrl;
   // the auto-derived initial-host entry doesn't count). Public-internet
-  // `http://` with a bearer header is never a legitimate provider call.
-  if (parsed.protocol === 'http:' && !isPrivate && !callerExplicitlyAllowed) {
+  // `http://` with a bearer header is never a legitimate provider call. A
+  // credentialless request carries no bearer to leak.
+  if (
+    parsed.protocol === 'http:' &&
+    !isPrivate &&
+    !callerExplicitlyAllowed &&
+    !credentialless
+  ) {
     throw new SafeFetchError(
       'insecure_public_http',
       `Plaintext http:// to public host refused (would leak bearer credentials): ${hostname}`,
@@ -624,7 +646,17 @@ async function fetchFollowingRedirects(
   // list. Callers that truly want to allow cross-host redirects (rare)
   // pass a non-empty `allowedHosts` explicitly.
   let allowedHosts = callerAllowedHosts;
-  if (allowedHosts === undefined) {
+  // A credentialless request may follow a redirect onto any public host —
+  // an image CDN behind a mailer's tracking link — so nothing is derived.
+  if (options.credentialless === true) {
+    for (const name of Object.keys(headers)) {
+      if (CREDENTIAL_HEADERS.has(name.toLowerCase())) {
+        throw new Error(
+          `safeFetch: a credentialless request must not send ${name}`,
+        );
+      }
+    }
+  } else if (allowedHosts === undefined) {
     try {
       const ownHost = new URL(rawUrl).hostname.toLowerCase();
       if (ownHost) allowedHosts = [ownHost];
@@ -645,6 +677,7 @@ async function fetchFollowingRedirects(
     allowedHosts,
     callerAllowedHosts,
     options.httpsOnly,
+    options.credentialless,
   );
   // Resolve, check and pin BEFORE the dial — the address the socket gets is
   // the one that passed, on this hop and on every redirect hop below.
@@ -716,6 +749,7 @@ async function fetchFollowingRedirects(
       allowedHosts,
       callerAllowedHosts,
       options.httpsOnly,
+      options.credentialless,
     );
     await pinHost(nextUrl);
     // Drop credential-carrying headers on cross-host hops so an

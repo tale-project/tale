@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 59 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 60 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -530,6 +530,14 @@ subject.
   **Download** (`conversations.attachment.download`) control that saves the
   identical file. The large PDF is still listed with its name and size, with
   no **Download**, and the rest of the message reads normally.
+- [ ] `CONV-F36` · **A newsletter's remote images load through the proxy** —
+  Open a synced marketing email whose body draws images from the sender's
+  servers (a LinkedIn or HubSpot mailing), with DevTools → Network open → Every
+  picture renders; each one is requested from the app's own origin as
+  `/api/image-proxy?url=…` and none from the sender's host, and the responses
+  carry `Content-Type: image/…` and `Content-Security-Policy: default-src
+  'none'; sandbox`. Open one of those proxy URLs in a signed-out private window
+  → 401, no image.
 
 ## Boundary & error tests
 
