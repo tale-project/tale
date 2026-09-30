@@ -48,6 +48,42 @@ Pour une tâche pilotée par une automatisation, mentionne celle qui en est resp
 
 Une tâche ne peut avoir qu’une seule exécution en file d’attente, en cours ou en attente à la fois, quelle que soit l’automatisation qui l’a démarrée. Répéter une demande de démarrage tant qu’elle est active renvoie à l’exécution existante, même si elle nomme une autre automatisation. Une fois celle-ci terminée, un nouveau démarrage peut créer une autre exécution et répéter le travail. Vérifie donc l’exécution actuelle et ses effets avant une nouvelle tentative.
 
+## Confier la file de travail à un agent coordinateur
+
+Un agent coordinateur est un agent de projet dont les instructions consistent à lire tout le tableau, à distribuer le travail prêt et à répondre aux questions de routine que laissent les autres agents, pour que les personnes ne voient que ce qui demande leur intervention. Il lit avec **Trouver des tâches** et **Lire une tâche** ; aucun de ces deux outils ne modifie quoi que ce soit.
+
+### Lire toute la file de travail par passages
+
+**Trouver des tâches** renvoie au plus 50 tâches à la fois. Tant qu’une page indique `isDone: false`, son `continueCursor`, renvoyé comme `cursor` avec les mêmes arguments, donne la page suivante ; la dernière page indique `isDone: true`. Un curseur qui revient avec d’autres filtres, un autre ordre ou depuis l’exécution d’un autre projet est refusé, tout comme un curseur abîmé : il n’est jamais lu comme la première page. Un total n’apparaît que lorsqu’une seule page contient toutes les tâches correspondantes.
+
+Pour parcourir toute une file de travail, utilise `order: "created"`. Les tâches arrivent alors dans l’ordre de leur création, de la plus ancienne à la plus récente, et gardent leur place : un passage cite donc chaque tâche au plus une fois, dans l’état où elle se trouve quand sa page est lue. L’ordre par défaut regroupe les tâches par statut et garde, pour chacun, l’ordre de sa colonne : une tâche qui bouge pendant que le coordinateur tourne les pages peut alors manquer ou apparaître deux fois.
+
+Un passage peut durer plus longtemps qu’une exécution. Avant la fin de son exécution, le coordinateur note un point de reprise dans un commentaire sur sa propre tâche : le passage, son ordre et ses filtres, le `continueCursor` suivant et la dernière tâche examinée. Son exécution suivante retrouve ce commentaire avec **Lire une tâche** et reprend à partir de là. Quand un passage se termine, ou que son curseur est refusé, le passage suivant commence à la première page. Une lecture qui échoue n’est pas une file vide : le coordinateur la signale et s’arrête.
+
+### Distinguer le travail en cours, terminé ou en attente
+
+**Lire une tâche** désigne les sous-tâches, les tâches bloquantes et les commentaires par leurs identifiants, et remonte vers les commentaires plus anciens avec `commentCursor`. Il liste aussi les exécutions des agents de projet sur la tâche, de la plus récente à la plus ancienne, chacune avec les 500 premiers caractères du message transmis à son démarrage, ainsi que l’exécution d’automatisation de la tâche et une éventuelle demande de revue en cours :
+
+- Une exécution avec `live: true` est en file d’attente ou en cours, et rien d’autre ne démarre sur la tâche avant qu’elle se termine.
+- Une exécution achevée, en échec ou annulée est terminée ; `settledAt` en indique le moment.
+- Un `workflowRun` qui attend une question (`ask`) ou une approbation (`approval`), ainsi qu’une `pendingReview`, attendent une personne.
+
+La réponse ne contient ni transcriptions, ni textes d’erreur, ni résultats, et rien qui vienne d’un autre projet.
+
+### Répondre à une question de routine
+
+Une question de routine est une question à laquelle le coordinateur peut répondre à partir de ce que le projet consigne déjà. Écris le même protocole dans les instructions des agents qui travaillent et dans celles du coordinateur :
+
+1. L’agent qui travaille pose la question dans un commentaire de la tâche, avec une clé de question stable, ses éléments de preuve et la question. Il indique dans son résultat l’identifiant du commentaire et celui de son exécution (**Lire une tâche** montre cette exécution comme l’exécution active de sa tâche), puis termine son exécution au lieu d’attendre à l’intérieur. Mentionner le coordinateur dans ce commentaire ne démarre rien : le commentaire d’un agent ne démarre jamais un agent.
+2. Lors de son passage suivant, le coordinateur ne répond que tant que la tâche attend encore cette question : l’exécution qui l’a posée est la plus récente de la tâche et elle est terminée, aucune exécution n’est active sur la tâche, et la tâche attend la revue de cette exécution-là (`pendingReview.runId`). De cette lecture, il retient l’identifiant de l’exécution et `pendingReview.approvalId`. Si une personne a entre-temps fait avancer la tâche, en acceptant le résultat, en annulant la tâche ou en demandant des modifications, la question n’est plus au coordinateur : il la signale au lieu d’y répondre.
+3. Il publie sa réponse dans un commentaire qui cite l’identifiant du commentaire de la question ; la réponse reste sur la tâche quoi qu’il arrive ensuite. Il relance ensuite l’agent avec **Lancer d'autres agents sur des tâches**, en passant `resumeFrom: {runId, approvalId}` avec les deux identifiants qu’il a retenus, et un message qui commence par la clé de la question, l’identifiant de l’exécution et l’identifiant du commentaire de réponse : une lecture ultérieure avec **Lire une tâche** ne montre que les 500 premiers caractères du message d’un démarrage. Au moment où il a lieu, le démarrage vérifie que c’est encore la question ouverte de la tâche. Ce n’est qu’alors qu’il retire la demande de revue en cours, sans valider le résultat, et relance l’agent.
+4. Si le démarrage répond `stale_question`, la question a été dépassée entre la lecture du coordinateur et le démarrage : une personne a décidé, il existe une exécution ou une revue plus récente, ou l’assignation a changé. Rien n’a été modifié. Le coordinateur relit la tâche et abandonne la question devenue caduque. Il ne relance pas, et jamais sans `resumeFrom`.
+5. Si la réponse au démarrage se perd, le coordinateur relit la tâche avant de tenter quoi que ce soit d’autre : une exécution plus récente dont le message commence par cette clé de question, cet identifiant d’exécution et cet identifiant de commentaire de réponse signifie que le démarrage a abouti. Si le même démarrage est renvoyé, il répond `stale_question` et ne change rien.
+
+Une question venant d’une tâche permanente, qu’une planification démarre avec `moveToInProgress: false`, n’attend aucune revue. Le coordinateur y publie seulement sa réponse, et l’exécution de l’occurrence suivante de la planification la lit. Ni le coordinateur ni personne d’autre ne démarre la tâche plus tôt pour transmettre la réponse.
+
+Accepter un résultat, répondre à la question d’une automatisation et trancher une approbation restent l’affaire des personnes. Le coordinateur les voit dans **Lire une tâche** pour pouvoir les laisser à la personne concernée et les signaler.
+
 ## Traiter une attente ou un échec
 
 | État ou symptôme | Action |

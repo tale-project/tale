@@ -166,13 +166,36 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "List the organization's connected websites (domain, title, page count). " +
     'Args: {} — no parameters.',
   task_find:
-    "List tasks on the organization's boards. Args: {projectId?: string, " +
-    'status?: "backlog"|"todo"|"in_progress"|"in_review"|"done"|"cancelled", ' +
-    'assigneeId?: string, includeArchived?: boolean, limit?: number}. On a ' +
-    "project-bound run the listing is fixed to the run's own project.",
+    "List tasks on the organization's boards, one page at a time. Args: " +
+    '{projectId?: string, status?: "backlog"|"todo"|"in_progress"|' +
+    '"in_review"|"done"|"cancelled", assigneeId?: string, includeArchived?: ' +
+    'boolean, order?: "board"|"created", limit?: number (≤ 50, default 20), ' +
+    'cursor?: string}. Answers {tasks, isDone, continueCursor?}: while ' +
+    'isDone is false, pass continueCursor as cursor, with the same other ' +
+    'arguments, for the next page — a cursor from another listing is ' +
+    'refused, never read as the first page. totalFound appears only when ' +
+    'one page holds every matching task. order "board" (the default) groups ' +
+    "tasks by status name and keeps each column's order within it, so a task " +
+    'that moves while you page can be skipped or listed twice; "created" ' +
+    'reads the oldest first and ' +
+    'a task keeps its place, so a walk lists each task at most once, as it ' +
+    'stands when its page is read. On a project-bound run the listing is ' +
+    "fixed to the run's own project.",
   task_get:
-    'Read one task in full — description, project, subtasks, blockers, and ' +
-    'recent comments. Args: {taskId: string, commentLimit?: number}.',
+    'Read one task in full — description, project, subtasks and blockers ' +
+    '(each with its taskId), comments, its project-agent runs, its ' +
+    'automation run and a pending review. Args: {taskId: string, ' +
+    'commentLimit?: number (≤ 50, default 20), commentCursor?: string, ' +
+    'runLimit?: number (≤ 20, default 5), runCursor?: string}. comments are ' +
+    'the newest page, oldest first, each with its commentId (the messageId ' +
+    'task_comment answered); while commentsPage.isDone is false, pass ' +
+    'commentsPage.continueCursor as commentCursor for older ones. agentRuns ' +
+    'are newest first — runId, agentId, status, live, trigger, dates, and ' +
+    "feedback: the first 500 characters of the start's message; " +
+    'agentRunsPage pages them with runCursor. A run with live true is still ' +
+    'working, and the task starts no other run until it ends. ' +
+    'workflowRun.waitingFor "ask" or "approval", and pendingReview, wait on ' +
+    'a person.',
   task_create:
     `Create a task. Args: {title: string (${atMost(TASK_TITLE_MAX)}), ` +
     `description?: string (${atMost(TASK_DESCRIPTION_MAX)}), projectId?: ` +

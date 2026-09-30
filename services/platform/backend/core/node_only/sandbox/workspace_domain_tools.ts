@@ -31,6 +31,7 @@ import {
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import type { Doc, Id } from '../../lib/rows';
+import { mintCursorFor, verifyCursorFor } from '../../lib/signed_cursor';
 import {
   importedTaskTitleRefusal,
   TASK_COMMENT_MAX,
@@ -221,6 +222,157 @@ function compactTask(
   };
 }
 
+/**
+ * The run half of a `task_get`, as the shim's `getTaskWorkStateForAgent`
+ * answers it (`domains/tasks/agent-work-state.ts`): epoch-ms dates and nulls,
+ * which the views below turn into what the model reads.
+ */
+interface TaskWorkStateAnswer {
+  /** Newest first; the first is the live run when the task has one. */
+  agentRuns: AgentRunAnswer[];
+  agentRunsHasMore: boolean;
+  workflowRun: WorkflowRunAnswer | null;
+  pendingReview: PendingReviewAnswer | null;
+}
+
+interface AgentRunAnswer {
+  id: string;
+  /** The run's creation order — where an older page starts. */
+  seq: number;
+  agentId: string;
+  status: string;
+  trigger: string | null;
+  startedAt: number;
+  launchedAt: number | null;
+  settledAt: number | null;
+  waitingForCapacity: boolean;
+  failureCode: string | null;
+  feedback: string | null;
+  feedbackTruncated: boolean;
+}
+
+interface WorkflowRunAnswer {
+  runId: string;
+  automation: string;
+  status: string;
+  live: boolean;
+  waitingFor?: string;
+  ask?: { askId: string; createdAt: number; expiresAt: number };
+  approvalId?: string;
+}
+
+interface PendingReviewAnswer {
+  approvalId: string;
+  round: number;
+  runId: string | null;
+  requestedFor: string | null;
+  createdAt: number;
+}
+
+/** A page's end as the model reads it: `isDone`, and the cursor for the next
+ * page only while one follows — never an empty cursor that, passed back,
+ * would read as a request for the first page. */
+function pageOf(continueCursor: string | undefined): {
+  isDone: boolean;
+  continueCursor?: string;
+} {
+  return continueCursor === undefined
+    ? { isDone: true }
+    : { isDone: false, continueCursor };
+}
+
+/** One comment as `task_get` answers it: the `commentId` a later read or an
+ * answer can name (the `messageId` `task_comment` answered), and ISO dates
+ * like every other date the tool answers. */
+function agentComment(comment: {
+  commentId: string;
+  authorType: string;
+  authorId: string;
+  body: string;
+  createdAt: number;
+  editedAt?: number;
+}): Record<string, unknown> {
+  const createdAt = modelTimestamp(comment.createdAt);
+  const editedAt = modelTimestamp(comment.editedAt);
+  return {
+    commentId: comment.commentId,
+    authorType: comment.authorType,
+    authorId: comment.authorId,
+    body: comment.body,
+    ...(createdAt !== undefined ? { createdAt } : {}),
+    ...(editedAt !== undefined ? { editedAt } : {}),
+  };
+}
+
+/** One project-agent run of the task: `live` while it is queued or running —
+ * the platform starts no other run on the task until it is not. Terminal
+ * runs carry `settledAt`; a failed one its `failureCode` when classified. */
+function agentRunView(run: AgentRunAnswer): Record<string, unknown> {
+  const startedAt = modelTimestamp(run.startedAt);
+  const launchedAt = modelTimestamp(run.launchedAt ?? undefined);
+  const settledAt = modelTimestamp(run.settledAt ?? undefined);
+  return {
+    runId: run.id,
+    agentId: run.agentId,
+    status: run.status,
+    live: run.status === 'queued' || run.status === 'running',
+    ...(run.trigger !== null ? { trigger: run.trigger } : {}),
+    ...(startedAt !== undefined ? { startedAt } : {}),
+    ...(launchedAt !== undefined ? { launchedAt } : {}),
+    ...(settledAt !== undefined ? { settledAt } : {}),
+    ...(run.waitingForCapacity ? { waitingForCapacity: true } : {}),
+    ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
+    // What the start asked the run to address first — a person's comment,
+    // or the message of the agent that restarted it.
+    ...(run.feedback !== null ? { feedback: run.feedback } : {}),
+    ...(run.feedbackTruncated ? { feedbackTruncated: true } : {}),
+  };
+}
+
+/** The task's automation run — the live one, else the latest — with what a
+ * waiting run waits on: `ask` and `approval` wait on a person. */
+function workflowRunView(
+  run: WorkflowRunAnswer | null,
+): Record<string, unknown> | null {
+  if (run === null) return null;
+  const askedAt = modelTimestamp(run.ask?.createdAt);
+  const askExpiresAt = modelTimestamp(run.ask?.expiresAt);
+  return {
+    runId: run.runId,
+    automation: run.automation,
+    status: run.status,
+    live: run.live,
+    ...(run.waitingFor !== undefined ? { waitingFor: run.waitingFor } : {}),
+    ...(run.ask !== undefined
+      ? {
+          ask: {
+            askId: run.ask.askId,
+            ...(askedAt !== undefined ? { askedAt } : {}),
+            ...(askExpiresAt !== undefined ? { expiresAt: askExpiresAt } : {}),
+          },
+        }
+      : {}),
+    ...(run.approvalId !== undefined ? { approvalId: run.approvalId } : {}),
+  };
+}
+
+/** The review a person decides: the task moves to done only by their hand. */
+function pendingReviewView(
+  review: PendingReviewAnswer | null,
+): Record<string, unknown> | null {
+  if (review === null) return null;
+  const since = modelTimestamp(review.createdAt);
+  return {
+    approvalId: review.approvalId,
+    round: review.round,
+    ...(review.runId !== null ? { runId: review.runId } : {}),
+    ...(review.requestedFor !== null
+      ? { requestedFor: review.requestedFor }
+      : {}),
+    ...(since !== undefined ? { since } : {}),
+  };
+}
+
 async function projectLabelsById(
   ctx: ActionCtx,
   organizationId: string,
@@ -240,6 +392,166 @@ async function projectLabelsById(
         : { name: row.name },
     ]),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Continuation cursors
+// ---------------------------------------------------------------------------
+
+/** The most tasks one `task_find` page answers. */
+const TASK_FIND_PAGE_MAX = 50;
+/** The most comments one `task_get` page answers (the context read's cap). */
+const TASK_GET_COMMENTS_MAX = 50;
+/** The most project-agent runs one `task_get` page answers, and how many it
+ * answers when the caller names no size. */
+const TASK_GET_RUNS_MAX = 20;
+const TASK_GET_RUNS_DEFAULT = 5;
+
+/** The orders `task_find` walks in (`AgentTaskListOrder` in the domain). */
+const TASK_FIND_ORDERS = ['board', 'created'] as const;
+type TaskFindOrder = (typeof TASK_FIND_ORDERS)[number];
+
+function pickTaskFindOrder(raw: unknown): TaskFindOrder | undefined {
+  return TASK_FIND_ORDERS.find((order) => order === raw);
+}
+
+/**
+ * Where a `task_find` walk may continue: the listing's own name, which the
+ * signed cursor redeems in alone (`core/lib/signed_cursor.ts`). It holds the
+ * order, the effective scope — the run's project, its automation's bound
+ * set, or the organization — and every filter, so a cursor passed with
+ * another filter, order or scope is refused instead of silently continuing a
+ * different listing: its position would skip or repeat tasks of that one.
+ * The page size is not part of it; a walk may change it between pages.
+ */
+export function taskFindListing(args: {
+  order: TaskFindOrder;
+  target: { projectId?: string; allowedProjectIds?: string[] };
+  status?: string;
+  assigneeId?: string;
+  includeArchived: boolean;
+}): string {
+  const scope =
+    args.target.projectId !== undefined
+      ? { project: args.target.projectId }
+      : args.target.allowedProjectIds !== undefined
+        ? { projects: [...args.target.allowedProjectIds].sort() }
+        : 'org';
+  return `agent:task_find:${JSON.stringify({
+    v: 1,
+    order: args.order,
+    scope,
+    status: args.status ?? null,
+    assigneeId: args.assigneeId ?? null,
+    includeArchived: args.includeArchived,
+  })}`;
+}
+
+/** The comment feed and the run history of one task — a cursor from one task
+ * never pages another's. */
+const taskCommentsListing = (taskId: string): string =>
+  `agent:task_get:comments:${taskId}`;
+const taskAgentRunsListing = (taskId: string): string =>
+  `agent:task_get:agent_runs:${taskId}`;
+
+/** The last row's sort key, as the next `task_find` page's position. */
+type TaskFindPosition =
+  | { order: 'board'; status: string; rank: string; id: string }
+  | { order: 'created'; createdAt: number; id: string };
+
+function encodeTaskFindPosition(position: TaskFindPosition): string {
+  const parts =
+    position.order === 'board'
+      ? ['board', position.status, position.rank, position.id]
+      : ['created', position.createdAt, position.id];
+  return Buffer.from(JSON.stringify(parts), 'utf8').toString('base64url');
+}
+
+function decodeTaskFindPosition(raw: string): TaskFindPosition | null {
+  let parts: unknown;
+  try {
+    parts = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+  } catch {
+    // Only a position this tool signed reaches here, so this is an older
+    // format — refused like any other cursor the listing cannot read.
+    return null;
+  }
+  if (!Array.isArray(parts)) return null;
+  const [order, first, second, third] = parts;
+  const status = pickTaskStatus(first);
+  if (
+    order === 'board' &&
+    parts.length === 4 &&
+    status !== undefined &&
+    typeof second === 'string' &&
+    typeof third === 'string'
+  ) {
+    return { order, status, rank: second, id: third };
+  }
+  if (
+    order === 'created' &&
+    parts.length === 3 &&
+    typeof first === 'number' &&
+    Number.isSafeInteger(first) &&
+    typeof second === 'string'
+  ) {
+    return { order, createdAt: first, id: second };
+  }
+  return null;
+}
+
+/** The row a `task_find` page ended on, as the domain's keyset position. */
+function taskFindPositionOf(
+  task: Doc<'tasks'>,
+  order: TaskFindOrder,
+): TaskFindPosition {
+  return order === 'created'
+    ? {
+        order,
+        createdAt: Number(task.createdAt),
+        id: String(task._id),
+      }
+    : {
+        order,
+        status: String(task.status),
+        rank: String(task.rank),
+        id: String(task._id),
+      };
+}
+
+/**
+ * A caller's continuation cursor: `none` for the first page (absent, null or
+ * empty), the verified position, or `refused` for anything this listing did
+ * not answer — malformed, cut short, edited, or another listing's, scope's
+ * or organization's. A refused cursor is an error the caller sees, never a
+ * silent restart at the first page: a walk that lost its place would read
+ * the same tasks again and take the repeat for the whole.
+ */
+function readContinuation(
+  organizationId: string,
+  listing: string,
+  raw: unknown,
+): { kind: 'none' } | { kind: 'position'; position: string } | 'refused' {
+  if (raw === undefined || raw === null || raw === '') return { kind: 'none' };
+  if (typeof raw !== 'string') return 'refused';
+  const position = verifyCursorFor(organizationId, listing, raw.trim());
+  return position === null ? 'refused' : { kind: 'position', position };
+}
+
+/** A whole-number position (a message order, a run's `seq`) inside a
+ * verified cursor. */
+function wholeNumberPosition(position: string): number | undefined {
+  return /^\d{1,15}$/.test(position) ? Number(position) : undefined;
+}
+
+function cursorRefusal(arg: string, from: string, restart: string): ToolResult {
+  return {
+    status: 'invalid_args',
+    message:
+      `"${arg}" is not a cursor this listing answered. Pass ${from} ` +
+      `unchanged, with the same arguments it came with, or leave "${arg}" ` +
+      `out to ${restart}.`,
+  };
 }
 
 const asTaskId = (raw: string): Id<'tasks'> => raw;
@@ -579,8 +891,42 @@ export async function runTaskTool(
           message: `"status" must be one of ${TASK_STATUSES.join(', ')}.`,
         };
       }
+      const order = pickTaskFindOrder(callArgs.order ?? 'board');
+      if (order === undefined) {
+        return {
+          status: 'invalid_args',
+          message: `"order" must be one of ${TASK_FIND_ORDERS.join(', ')}.`,
+        };
+      }
       const assigneeId = readString(callArgs.assigneeId);
-      const limit = readLimit(callArgs.limit, 50);
+      const includeArchived = readBoolean(callArgs.includeArchived) === true;
+      const limit = readLimit(callArgs.limit, TASK_FIND_PAGE_MAX);
+      const listing = taskFindListing({
+        order,
+        target,
+        ...(status !== undefined ? { status } : {}),
+        ...(assigneeId !== undefined ? { assigneeId } : {}),
+        includeArchived,
+      });
+      const cursor = readContinuation(organizationId, listing, callArgs.cursor);
+      const after =
+        cursor !== 'refused' && cursor.kind === 'position'
+          ? decodeTaskFindPosition(cursor.position)
+          : undefined;
+      if (
+        cursor === 'refused' ||
+        after === null ||
+        (after !== undefined && after.order !== order)
+      ) {
+        return cursorRefusal(
+          'cursor',
+          "the previous page's continueCursor",
+          'start again from the first page',
+        );
+      }
+      // One row past the page says whether another page follows: the answer
+      // never counts what it did not read, so it never names a total it
+      // cannot know.
       const rows = await ctx.runQuery(
         internal.tasks.internal_queries.listTasksForAgent,
         {
@@ -596,27 +942,43 @@ export async function runTaskTool(
             : {}),
           ...(status !== undefined ? { status } : {}),
           ...(assigneeId !== undefined ? { assigneeId } : {}),
-          ...(readBoolean(callArgs.includeArchived) === true
-            ? { includeArchived: true }
-            : {}),
+          ...(includeArchived ? { includeArchived: true } : {}),
+          order,
+          ...(after !== undefined ? { after } : {}),
+          limit: limit + 1,
         },
       );
-      const sliced = rows.slice(0, limit);
+      const page = rows.slice(0, limit);
+      const last = page.at(-1);
+      const more = rows.length > limit && last !== undefined;
       const projectsById = await projectLabelsById(
         ctx,
         organizationId,
-        sliced.map((task: Doc<'tasks'>) => String(task.projectId)),
+        page.map((task: Doc<'tasks'>) => String(task.projectId)),
       );
       return {
         status: 'ok',
         output: {
-          tasks: sliced.map((task: Doc<'tasks'>) =>
+          tasks: page.map((task: Doc<'tasks'>) =>
             compactTask(task, projectsById.get(String(task.projectId)) ?? null),
           ),
-          totalFound: rows.length,
-          ...(rows.length > limit
-            ? { note: `Showing the first ${limit} of ${rows.length}.` }
-            : {}),
+          isDone: !more,
+          ...(more
+            ? {
+                continueCursor: mintCursorFor(
+                  organizationId,
+                  listing,
+                  encodeTaskFindPosition(taskFindPositionOf(last, order)),
+                ),
+                note:
+                  'More tasks match. Pass continueCursor as cursor, with ' +
+                  'the same arguments, for the next page.',
+              }
+            : // The whole listing fits this one page, so its count is the
+              // total; a later page's count is only that page's.
+              after === undefined
+              ? { totalFound: page.length }
+              : {}),
         },
       };
     }
@@ -638,12 +1000,54 @@ export async function runTaskTool(
         authority,
       );
       if ('refusal' in scoped) return scoped.refusal;
+      // Both continuations are bound to this task and judged before the
+      // task is read: a cursor it did not answer is refused, never taken
+      // for its newest page.
+      const commentCursor = readContinuation(
+        organizationId,
+        taskCommentsListing(taskId),
+        callArgs.commentCursor,
+      );
+      const commentsBefore =
+        commentCursor !== 'refused' && commentCursor.kind === 'position'
+          ? wholeNumberPosition(commentCursor.position)
+          : undefined;
+      if (
+        commentCursor === 'refused' ||
+        (commentCursor.kind === 'position' && commentsBefore === undefined)
+      ) {
+        return cursorRefusal(
+          'commentCursor',
+          'commentsPage.continueCursor',
+          'read the newest comments',
+        );
+      }
+      const runCursor = readContinuation(
+        organizationId,
+        taskAgentRunsListing(taskId),
+        callArgs.runCursor,
+      );
+      const runsBeforeSeq =
+        runCursor !== 'refused' && runCursor.kind === 'position'
+          ? wholeNumberPosition(runCursor.position)
+          : undefined;
+      if (
+        runCursor === 'refused' ||
+        (runCursor.kind === 'position' && runsBeforeSeq === undefined)
+      ) {
+        return cursorRefusal(
+          'runCursor',
+          'agentRunsPage.continueCursor',
+          'read the newest runs',
+        );
+      }
       const context = await ctx.runQuery(
         internal.tasks.internal_queries.getTaskContextForAgent,
         {
           organizationId,
           taskId: asTaskId(taskId),
-          commentLimit: readLimit(callArgs.commentLimit, 50),
+          commentLimit: readLimit(callArgs.commentLimit, TASK_GET_COMMENTS_MAX),
+          ...(commentsBefore !== undefined ? { commentsBefore } : {}),
         },
       );
       if (context === null) {
@@ -652,6 +1056,30 @@ export async function runTaskTool(
           message: 'No task with that id in this organization.',
         };
       }
+      // What works on the task and what waits on a person. A read that fails
+      // fails the call — never a task that reads as idle for want of runs.
+      const work: TaskWorkStateAnswer | null = await ctx.runQuery(
+        internal.tasks.internal_queries.getTaskWorkStateForAgent,
+        {
+          organizationId,
+          projectId: String(scoped.task.projectId),
+          taskId,
+          runLimit:
+            typeof callArgs.runLimit === 'number' && callArgs.runLimit > 0
+              ? readLimit(callArgs.runLimit, TASK_GET_RUNS_MAX)
+              : TASK_GET_RUNS_DEFAULT,
+          ...(runsBeforeSeq !== undefined ? { runsBeforeSeq } : {}),
+        },
+      );
+      if (work === null || !Array.isArray(work.agentRuns)) {
+        return {
+          status: 'error',
+          message:
+            "The task's runs could not be read, so whether work is still " +
+            'running on it is unknown. Try again; do not treat it as idle.',
+        };
+      }
+      const oldestRun = work.agentRuns.at(-1);
       return {
         status: 'ok',
         output: {
@@ -663,8 +1091,36 @@ export async function runTaskTool(
           },
           project: context.project,
           subtasks: context.subtasks,
+          ...(context.subtasksTruncated === true
+            ? { subtasksTruncated: true }
+            : {}),
           blockedBy: context.blockedBy,
-          comments: context.comments,
+          ...(context.blockedByTruncated === true
+            ? { blockedByTruncated: true }
+            : {}),
+          comments: context.comments.map(agentComment),
+          commentsPage: pageOf(
+            context.commentsHasMore === true &&
+              typeof context.commentsNextBefore === 'number'
+              ? mintCursorFor(
+                  organizationId,
+                  taskCommentsListing(taskId),
+                  String(context.commentsNextBefore),
+                )
+              : undefined,
+          ),
+          agentRuns: work.agentRuns.map(agentRunView),
+          agentRunsPage: pageOf(
+            work.agentRunsHasMore && oldestRun !== undefined
+              ? mintCursorFor(
+                  organizationId,
+                  taskAgentRunsListing(taskId),
+                  String(oldestRun.seq),
+                )
+              : undefined,
+          ),
+          workflowRun: workflowRunView(work.workflowRun),
+          pendingReview: pendingReviewView(work.pendingReview),
         },
       };
     }

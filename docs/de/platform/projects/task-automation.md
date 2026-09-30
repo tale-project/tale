@@ -48,6 +48,42 @@ Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisi
 
 Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich haben, egal welche Automatisierung ihn gestartet hat. Ein erneuter Start während dieser Zeit verweist auf den vorhandenen Lauf, auch wenn er eine andere Automatisierung nennt. Nach dessen Ende kann ein weiterer Start einen neuen Lauf erzeugen und die Arbeit wiederholen. Prüfe deshalb den aktuellen Lauf und seine Auswirkungen vor einem weiteren Versuch.
 
+## Einen Manager-Agenten die Warteschlange betreuen lassen
+
+Ein Manager-Agent ist ein Projektagent, der laut seinen Anweisungen das ganze Board liest, startbereite Arbeit verteilt und die Routinefragen anderer Agenten beantwortet, damit Personen nur noch sehen, was ihr Eingreifen braucht. Er liest mit **Aufgaben finden** und **Aufgabe lesen**; keines der beiden Tools ändert etwas.
+
+### Die ganze Warteschlange in Durchgängen lesen
+
+**Aufgaben finden** liefert höchstens 50 Aufgaben auf einmal. Solange eine Seite `isDone: false` meldet, bringt ihr `continueCursor`, als `cursor` mit denselben Argumenten zurückgegeben, die nächste Seite; die letzte Seite meldet `isDone: true`. Ein Cursor, der mit anderen Filtern, einer anderen Reihenfolge oder aus dem Lauf eines anderen Projekts zurückkommt, wird abgelehnt, ebenso ein beschädigter: Er wird nie als erste Seite gelesen. Eine Gesamtzahl erscheint nur, wenn eine einzige Seite alle passenden Aufgaben enthält.
+
+Um eine ganze Warteschlange durchzugehen, verwende `order: "created"`. Die Aufgaben kommen dann nach ihrer Erstellung geordnet, die älteste zuerst, und behalten ihren Platz. So nennt ein Durchgang jede Aufgabe höchstens einmal, in dem Zustand, den sie beim Lesen ihrer Seite hat. Die Standardreihenfolge gruppiert die Aufgaben nach Status und behält darin die Reihenfolge der Spalte bei. Eine Aufgabe, die sich bewegt, während der Manager blättert, kann dabei fehlen oder doppelt erscheinen.
+
+Ein Durchgang kann länger dauern als ein Lauf. Bevor sein Lauf endet, hält der Manager den Zwischenstand in einem Kommentar auf seiner eigenen Aufgabe fest: den Durchgang, dessen Reihenfolge und Filter, den nächsten `continueCursor` und die zuletzt geprüfte Aufgabe. Sein nächster Lauf findet diesen Kommentar mit **Aufgabe lesen** und macht dort weiter. Ist ein Durchgang zu Ende oder wird sein Cursor abgelehnt, beginnt der nächste auf der ersten Seite. Ein fehlgeschlagener Lesevorgang ist keine leere Warteschlange: Der Manager meldet ihn und hört auf.
+
+### Laufende, beendete und wartende Arbeit unterscheiden
+
+**Aufgabe lesen** nennt Unteraufgaben, Blocker und Kommentare mit ihren IDs und blättert mit `commentCursor` zu älteren Kommentaren zurück. Außerdem listet es die Läufe der Projektagenten auf der Aufgabe, den neuesten zuerst, jeweils mit den ersten 500 Zeichen der Nachricht, die ihr Start mitgab, dazu den Automatisierungslauf der Aufgabe und eine offene Prüfanfrage:
+
+- Ein Lauf mit `live: true` ist eingereiht oder läuft, und bis er endet, startet auf der Aufgabe nichts anderes.
+- Ein Lauf, der abgeschlossen, fehlgeschlagen oder abgebrochen ist, ist beendet; `settledAt` nennt den Zeitpunkt.
+- Ein `workflowRun`, der auf eine Frage (`ask`) oder eine Genehmigung (`approval`) wartet, und eine `pendingReview` warten auf eine Person.
+
+Transkripte, Fehlertexte und Ergebnisse gehören nicht zur Antwort, ebenso wenig etwas aus einem anderen Projekt.
+
+### Eine Routinefrage beantworten
+
+Eine Routinefrage ist eine Frage, die der Manager aus dem beantworten kann, was das Projekt bereits festhält. Schreib dasselbe Vorgehen in die Anweisungen der arbeitenden Agenten und des Managers:
+
+1. Der arbeitende Agent stellt die Frage als Aufgabenkommentar mit einem festen Fragenschlüssel, seinen Belegen und der Frage. Er nennt in seinem Ergebnis die ID des Kommentars und die ID seines Laufs (**Aufgabe lesen** zeigt diesen Lauf auf seiner Aufgabe als den aktiven) und beendet den Lauf, statt darin zu warten. Erwähnt er den Manager in diesem Kommentar, startet das nichts: Ein Kommentar eines Agenten startet nie einen Agenten.
+2. Bei seinem nächsten Durchgang antwortet der Manager nur, solange die Aufgabe noch auf diese Frage wartet: Der fragende Lauf ist der neueste Lauf der Aufgabe und beendet, auf der Aufgabe ist kein Lauf aktiv, und die Aufgabe wartet auf die Prüfung genau dieses Laufs (`pendingReview.runId`). Aus diesem Lesevorgang behält er die ID des Laufs und `pendingReview.approvalId`. Hat eine Person die Aufgabe inzwischen weitergebracht, indem sie das Ergebnis angenommen, die Aufgabe abgebrochen oder Änderungen verlangt hat, beantwortet der Manager die Frage nicht mehr, sondern meldet sie.
+3. Er schreibt seine Antwort als Kommentar, der die Kommentar-ID der Frage nennt; die Antwort bleibt auf der Aufgabe, was auch immer danach geschieht. Dann setzt er den Agenten mit **Andere Agenten auf Aufgaben starten** fort. Er übergibt `resumeFrom: {runId, approvalId}` mit den beiden IDs, die er behalten hat, dazu eine Nachricht, die mit dem Fragenschlüssel, der ID des Laufs und der Kommentar-ID der Antwort beginnt: **Aufgabe lesen** zeigt später nur die ersten 500 Zeichen der Nachricht eines Starts. Der Start prüft in dem Moment, in dem er geschieht, ob das noch die offene Frage der Aufgabe ist. Nur dann zieht er die offene Prüfanfrage zurück, ohne das Ergebnis anzunehmen, und setzt den Agenten fort.
+4. Antwortet der Start mit `stale_question`, wurde die Frage zwischen dem Lesen des Managers und dem Start überholt: Eine Person hat entschieden, es gibt einen neueren Lauf oder eine neuere Prüfanfrage, oder die Zuständigkeit hat sich geändert. Geändert wurde nichts. Der Manager liest die Aufgabe erneut und lässt die überholte Frage fallen. Er startet nicht noch einmal und nie ohne `resumeFrom`.
+5. Geht die Rückmeldung des Starts verloren, liest der Manager die Aufgabe erneut, bevor er etwas anderes versucht: Ein neuerer Lauf, dessen Nachricht mit diesem Fragenschlüssel, dieser Lauf-ID und dieser Kommentar-ID der Antwort beginnt, zeigt, dass der Start durchgegangen ist. Wird derselbe Start noch einmal gesendet, antwortet er mit `stale_question` und ändert nichts.
+
+Eine Frage aus einer Daueraufgabe, die ein Zeitplan mit `moveToInProgress: false` startet, wartet auf keine Prüfung. Der Manager schreibt dort nur seine Antwort, und der Lauf beim nächsten Termin des Zeitplans liest sie. Weder der Manager noch sonst jemand startet die Aufgabe vorzeitig, um die Antwort zuzustellen.
+
+Ein Ergebnis annehmen, die Frage einer Automatisierung beantworten und über eine Genehmigung entscheiden bleiben Sache von Personen. Der Manager sieht diese Punkte in **Aufgabe lesen**, damit er sie der zuständigen Person überlässt und meldet.
+
 ## Wartende und fehlgeschlagene Läufe behandeln
 
 | Zustand oder Problem | Maßnahme |

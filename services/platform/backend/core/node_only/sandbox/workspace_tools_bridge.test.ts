@@ -1750,6 +1750,13 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
             return Promise.resolve({ _id: 'task_1', projectId: 'proj_1' });
           if (fnName(ref).includes('getTaskContextForAgent'))
             return Promise.resolve(context(task));
+          if (fnName(ref).includes('getTaskWorkStateForAgent'))
+            return Promise.resolve({
+              agentRuns: [],
+              agentRunsHasMore: false,
+              workflowRun: null,
+              pendingReview: null,
+            });
           return Promise.resolve(null);
         }),
       });
