@@ -1074,12 +1074,20 @@ async function runAskHuman(
   };
 }
 
+/** The tool half of the `workspace_status` answer. */
+export interface WorkspaceToolStatus {
+  tools: { name: string; description: string; readOnly: boolean }[];
+  note?: string;
+}
+
 /**
  * List the workspace tools this agent is granted, with descriptions the model
  * relays. Grants come from the session token row (never the request), so the
  * listing is exactly what the turn was provisioned with.
  */
-export function workspaceToolStatusImpl(grants: readonly string[]): unknown {
+export function workspaceToolStatusImpl(
+  grants: readonly string[],
+): WorkspaceToolStatus {
   if (grants.length === 0) {
     return {
       tools: [],

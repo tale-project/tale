@@ -13,6 +13,7 @@ import {
 } from '../../core/sandbox/tool_names.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { sandboxDoorBodyLimit, toolResultTooLarge } from './door-body-limit.ts';
+import { servingPlatform } from './serving-platform.ts';
 import { getSessionTokenByHash } from './sessions.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
 
@@ -29,7 +30,9 @@ import { sandboxToolShimHandlers } from './shim.ts';
  * body — a container cannot spoof another org, widen its grants, or claim
  * another thread, user or run. The body itself is capped before it is read (the 413 is the
  * one other non-2xx; see door-body-limit.ts). The dispatch itself is the
- * REUSED bridge running on the ctx shim.
+ * REUSED bridge running on the ctx shim. `/status` lists the token's grants
+ * and the release version this backend's build is labelled with (`platform`,
+ * see serving-platform.ts).
  */
 
 const BEARER_PREFIX = 'Bearer ';
@@ -144,7 +147,13 @@ export function createToolDispatchRoutes(deps: { sql: Sql }): Hono {
     if (auth === null) {
       return c.json({ status: 'error', message: 'Unauthorized.' }, 401);
     }
-    return c.json(workspaceToolStatusImpl(auth.toolGrants));
+    // Both halves are the server's own — the grants from the token row, the
+    // version from this process's build stamp. Nothing but the bearer token
+    // is read from the request.
+    return c.json({
+      ...workspaceToolStatusImpl(auth.toolGrants),
+      platform: servingPlatform(),
+    });
   });
 
   return app;

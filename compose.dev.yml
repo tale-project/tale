@@ -203,3 +203,12 @@ services:
     # no-.env dev stack bootable (and in lockstep with the host backend).
     environment:
       <<: *dev-secrets
+
+  # A fresh gateway creates its first admin account only for the setup token
+  # its image derives from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD, and compose.yml
+  # gives it that password only from the optional .env — the anchor's dev
+  # default lets the backend claim the no-.env dev stack's gateway with the
+  # same literal it signs in with.
+  sandbox-llm-gateway:
+    environment:
+      <<: *dev-secrets

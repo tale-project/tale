@@ -34,13 +34,14 @@ import {
  *    and drops it again when the caller did not ask for it;
  *  - a refusal the gateway or the vendor answers is said in the wire's error
  *    shape, with the routing names replaced and internal addresses kept out;
- *  - the caller hanging up aborts the request to the gateway. What that
- *    stops depends on the gateway: on a stream it cancels the vendor call
- *    (and the gateway keeps none of its partial usage), but on a whole
- *    answer the gateway does not notice and the vendor generates — and
- *    bills — to the end. So the ending reports what the settlement needs
- *    to book it anyway: the output the relay counted on a stream, and
- *    whether a whole answer may still be generating (`metering.ts`);
+ *  - the caller hanging up aborts the request to the gateway, and the
+ *    gateway cancels its call to the vendor, whole answer or stream — but
+ *    books only the usage the vendor had reported by then (on an OpenAI
+ *    stream, none). So an answer that ends early reports what the
+ *    settlement books it at anyway (`metering.ts`): the output the relay
+ *    counted, which on a whole answer is none. A caller that hung up
+ *    before the request was sent — while it was being governed — is not
+ *    sent at all, and reports nothing to book;
  *  - a request never outlives its lifetime: a whole answer the gateway's
  *    request timeout plus a margin, a stream its idle budget between two
  *    chunks and an overall ceiling — past either, the relay aborts the
@@ -56,13 +57,11 @@ export interface RelayOutcome {
   status: 'completed' | 'failed' | 'cancelled';
   /** The counts the answer reported (the vendor's). */
   usage?: ModelApiUsage;
-  /** Tokens the relay counted in the stream's text, reasoning and tool
-   * arguments — what a stream that ended early had produced by then. */
+  /** Set on an answer that ended early: the tokens the relay counted in the
+   * stream's text, reasoning and tool arguments by then — 0 on a whole
+   * answer, which relays nothing before it is complete. Never set on a
+   * request that did not leave this process. */
   countedOutputTokens?: number;
-  /** A whole answer the gateway may still be generating: the call to it
-   * failed or was abandoned after it was sent. The gateway books its cost
-   * only once the vendor answers. */
-  mayStillGenerate?: boolean;
 }
 
 export interface RelayArgs {
@@ -144,6 +143,30 @@ function gatewayDispatcher(): Agent {
     });
   }
   return dispatcher;
+}
+
+/** The system codes of a gateway connection that was never made: the
+ * gateway refused or could not be found (a container being replaced by a
+ * deploy refuses), or the connect timed out. */
+const NOT_CONNECTED_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/** Whether a failed gateway call never had a connection, so no request left
+ * this process. undici's `fetch failed` carries the reason on its `cause`. */
+function neverConnected(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && isRecord(current); depth++) {
+    const code = current.code;
+    if (typeof code === 'string' && NOT_CONNECTED_CODES.has(code)) return true;
+    current = current.cause;
+  }
+  return false;
 }
 
 /** The gateway call, a seam for the unit layer. */
@@ -650,7 +673,6 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     idleTimer = setTimeout(expire, lifetime.streamIdleMs);
     idleTimer.unref?.();
   };
-  if (signal.aborted) abortUpstream();
   signal.addEventListener('abort', abortUpstream, { once: true });
   let settled = false;
   const done = (outcome: RelayOutcome) => {
@@ -670,7 +692,15 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
   const payload = JSON.stringify(args.body);
   if (stream) armIdle();
   let upstream: Response;
+  // Whether the request may have left this process: set as the gateway call
+  // is made, never before.
+  let dispatched = false;
   try {
+    // A caller that hung up while the request was being governed — its
+    // guardrails judging it, its hold being taken, its key being minted — is
+    // not sent at all.
+    signal.throwIfAborted();
+    dispatched = true;
     upstream = await gatewayFetch(gatewayInferenceUrl(GATEWAY_ROUTES[wire]), {
       method: 'POST',
       headers,
@@ -679,11 +709,15 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     });
   } catch (error) {
     const cancelled = signal.aborted && !lapsed;
-    // The request may have reached the gateway before the call failed; on a
-    // whole answer the vendor then generates to the end regardless.
+    // A request that never left this process — the caller hung up before it
+    // was sent, or it never got a connection — costs nothing. Any other may
+    // have reached the gateway, and the vendor its prompt, before the call
+    // failed.
     done({
       status: cancelled ? 'cancelled' : 'failed',
-      ...(stream ? { countedOutputTokens: 0 } : { mayStillGenerate: true }),
+      ...(dispatched && !neverConnected(error)
+        ? { countedOutputTokens: 0 }
+        : {}),
     });
     if (lapsed) {
       console.warn(
@@ -773,7 +807,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     const cancelled = signal.aborted && !lapsed;
     done({
       status: cancelled ? 'cancelled' : 'failed',
-      mayStillGenerate: true,
+      countedOutputTokens: 0,
     });
     console.warn('[model-api] reading the gateway answer failed:', error);
     throw new ModelApiRefusal(
@@ -788,7 +822,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
   try {
     answer = JSON.parse(text);
   } catch (error) {
-    done({ status: 'failed', mayStillGenerate: true });
+    done({ status: 'failed', countedOutputTokens: 0 });
     console.warn('[model-api] the gateway answer was not JSON:', error);
     throw new ModelApiRefusal(
       502,
@@ -797,7 +831,7 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     );
   }
   if (!isRecord(answer)) {
-    done({ status: 'failed', mayStillGenerate: true });
+    done({ status: 'failed', countedOutputTokens: 0 });
     throw new ModelApiRefusal(
       502,
       'MODEL_API_UPSTREAM_ERROR',

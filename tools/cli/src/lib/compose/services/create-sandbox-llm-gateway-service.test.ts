@@ -26,6 +26,10 @@ describe('createSandboxLlmGatewayService', () => {
     );
   });
 
+  test('reads the deployment .env, where its setup token (the gateway admin password) comes from', () => {
+    expect(createSandboxLlmGatewayService(config).env_file).toContain('.env');
+  });
+
   test('keeps the pre-rename llm-gateway-data volume at /app/data', () => {
     expect(createSandboxLlmGatewayService(config).volumes).toContain(
       'llm-gateway-data:/app/data',

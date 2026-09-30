@@ -83,6 +83,28 @@ tale rollback
 
 `--yes` skips its confirmation for an already approved unattended operation. The CLI's same-line check is a version guard, not an independent proof that every external integration or locally customized configuration is compatible. Never assume that downgrading is safe merely because an old migration list is a prefix of the new one.
 
+## Bifrost 1.6 → 2.2: the model gateway's store is migrated
+
+A release after 0.5.64 moves the model gateway (`sandbox-llm-gateway`) from Bifrost 1.6 to Bifrost 2.2; its release notes list the move. On its first start, the new gateway migrates its store in `llm-gateway-data` in place and keeps its providers, keys, budgets and admin account; nothing needs to be done by hand. The migration also indexes the gateway's request log, so that start can take longer on an instance with a long request history.
+
+The [backup inventory](/self-hosted/operate/backups-and-restore) leaves `llm-gateway-data` out, so copy it yourself before you deploy: stop the gateway, which ends running agent turns and model calls, copy the volume, then deploy. `<id>` is the `id` in `tale.json`:
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v <id>_llm-gateway-data:/from:ro -v "$PWD/llm-gateway-data-backup:/to" alpine:3.22 cp -a /from/. /to/
+```
+
+The gateway of a release before the move starts on the migrated store and serves Tale, but it logs `no such column: oauth_configs.token_id` errors, and Bifrost does not support that downgrade. `tale rollback` within the 0.5 line starts exactly that gateway, so before you roll back, stop the gateway and put the copy back:
+
+```bash
+docker stop <id>-sandbox-llm-gateway
+docker run --rm -v "$PWD/llm-gateway-data-backup:/from:ro" -v <id>_llm-gateway-data:/to alpine:3.22 sh -c 'find /to -mindepth 1 -delete && cp -a /from/. /to/'
+```
+
+A gateway without an admin account, on a new installation or after its volume was replaced, now creates the account only for a caller that presents its setup token, which the image takes from `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`. `tale deploy`, the Compose file in the repository and the Kubernetes manifests in these docs already give the gateway that variable. A hand-written Compose file or manifest that passes it only to the backend must pass it to the gateway as well.
+
+Two behaviours change. A caller that hangs up now ends the model call, whether it asked for a whole answer or a stream, so an abandoned request no longer keeps a self-hosted model busy; the model endpoints book such a call at its prompt and the output that had reached the caller. And an upstream that holds back a streamed answer's response headers, such as a router that queues requests until a model is free, must begin its answer within the gateway's request timeout: 600 seconds, or longer when `SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS` raises it.
+
 ## 0.4 → 0.5: a separate installation
 
 The 0.5 application store replaced the earlier Convex database with Postgres. There is no in-place importer between those stores. Keep the old instance and its backups intact while preparing a fresh deployment in a separate workspace and data set.
