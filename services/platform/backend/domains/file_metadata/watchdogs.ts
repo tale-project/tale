@@ -279,7 +279,7 @@ export async function recoverStuckRagIndexing(
           AND (rag_error_code IS NULL
             OR rag_error_code <> ALL(${[...INDEX_PARKED_RAG_ERROR_CODES]})))
       )
-    ORDER BY (rag_status = 'failed'),
+    ORDER BY (rag_status <> 'failed'),
              CASE WHEN rag_status = 'failed'
                THEN coalesce(rag_reconciled_at_ms, rag_queued_at_ms,
                              created_at_ms)
