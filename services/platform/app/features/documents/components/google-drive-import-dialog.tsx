@@ -26,6 +26,7 @@ import {
   useCloudImportAuthorizationStatus,
   useGoogleDriveFiles,
 } from '../hooks/queries';
+import { useCloudImportInteraction } from '../hooks/use-cloud-import-interaction';
 import { useListingFailureToast } from '../hooks/use-listing-failure-toast';
 import {
   readCloudImportAnswer,
@@ -87,6 +88,11 @@ export function GoogleDriveImportDialog({
 }: GoogleDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
+  const captureInteraction = useCloudImportInteraction(
+    open,
+    organizationId,
+    destinationFolderId,
+  );
 
   const { mutateAsync: importFilesAction, isPending: isImporting } =
     useImportGoogleDriveFiles();
@@ -191,11 +197,25 @@ export function GoogleDriveImportDialog({
     onRequireConnect?.();
   }, [t, onOpenChange, onRequireConnect]);
 
-  // Access ended while the import ran: the connect dialog is its one
-  // report — it says so, and how many files came in before it.
-  const handOffInterruptedImport = (interruption: CloudImportInterruption) => {
-    (onOpenChange ?? noop)(false);
-    onRequireConnect?.(interruption);
+  // A dismissed import reports without replacing a newer picker.
+  const handOffInterruptedImport = (
+    interruption: CloudImportInterruption,
+    isCurrentInteraction: boolean,
+  ) => {
+    if (isCurrentInteraction && onRequireConnect) {
+      (onOpenChange ?? noop)(false);
+      onRequireConnect(interruption);
+      return;
+    }
+    toast({
+      variant: interruption.imported > 0 ? 'warning' : 'destructive',
+      title: t('googledrive.reconnect'),
+      description: t('cloudImport.importInterrupted', {
+        provider: 'Google Drive',
+        imported: interruption.imported,
+        total: interruption.total,
+      }),
+    });
   };
 
   const buildItemPath = (item: OneDriveApiItem): string => {
@@ -339,6 +359,7 @@ export function GoogleDriveImportDialog({
   };
 
   const handleImport = async () => {
+    const isCurrentInteraction = captureInteraction();
     setIsSubmitting(true);
     let started: { dismiss: () => void } | undefined;
     try {
@@ -391,7 +412,7 @@ export function GoogleDriveImportDialog({
       const outcome = readCloudImportAnswer(result, isCloudImportAuthError);
       if (outcome.kind === 'interrupted') {
         started.dismiss();
-        handOffInterruptedImport(outcome.interruption);
+        handOffInterruptedImport(outcome.interruption, isCurrentInteraction());
         return;
       }
       if (outcome.kind === 'completed') {
@@ -412,8 +433,10 @@ export function GoogleDriveImportDialog({
                   total: outcome.total,
                 }),
         });
-        setSelectedItems(new Map());
-        onSuccess?.();
+        if (isCurrentInteraction()) {
+          setSelectedItems(new Map());
+          onSuccess?.();
+        }
         return;
       }
       // What each file failed on is the backend's own English — often the
@@ -469,11 +492,11 @@ export function GoogleDriveImportDialog({
       });
     } catch (error) {
       // Access that ended while the selected folders were listed: nothing
-      // was imported yet, and the connect dialog says so — no toast.
+      // was imported yet. Only the current picker hands off to Reconnect.
       if (isCloudImportAuthError(error)) {
         console.warn('Google Drive import stopped: access ended.');
         started?.dismiss();
-        handOffInterruptedImport({ imported: 0 });
+        handOffInterruptedImport({ imported: 0 }, isCurrentInteraction());
         return;
       }
       // A folder the provider would not list carries its raw answer, in
