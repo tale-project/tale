@@ -19,7 +19,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { resolveCloudAccessToken } from '../cloud_import/service.ts';
 import { MAX_UPLOAD_BYTES, readBodyBounded } from '../files/bounded-body.ts';
-import { putOrgBlobBytes } from '../files/service.ts';
+import { FileError, putOrgBlobBytes } from '../files/service.ts';
 import {
   buildHubFolderPath,
   findHubFolderByPath,
@@ -147,6 +147,8 @@ export interface SyncProviderAdapter {
       modifiedAt?: number;
     };
     notFound?: boolean;
+    /** The vendor refused the token (401). */
+    unauthorized?: boolean;
     error?: string;
   }>;
   /** Vendor download URL for one item (the import deps' fetch target). */
@@ -445,12 +447,17 @@ export class SyncAuthError extends Error {
 export async function resolveGraphTokenForUser(
   sql: Sql,
   args: { organizationId: string; userId: string },
+  options: { forceRefresh?: boolean } = {},
 ): Promise<GraphTokenResult> {
-  const cloud = await resolveCloudAccessToken(sql, {
-    organizationId: args.organizationId,
-    userId: args.userId,
-    provider: 'onedrive',
-  });
+  const cloud = await resolveCloudAccessToken(
+    sql,
+    {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      provider: 'onedrive',
+    },
+    options,
+  );
   if (cloud.success) return { success: true, token: cloud.accessToken };
   if (cloud.needsReauth !== true) return { success: false, error: cloud.error };
   return {
@@ -501,6 +508,10 @@ async function fetchVendorContentToStorage(
   mimeType?: string;
   size?: number;
   error?: string;
+  /** The vendor refused the token (401): the import refreshes the grant. */
+  unauthorized?: boolean;
+  /** A refusal a person can read — the file is past the size cap. */
+  refusal?: { code: string; message: string };
 }> {
   const url = adapter.buildDownloadUrl(args);
   try {
@@ -514,6 +525,7 @@ async function fetchVendorContentToStorage(
       return {
         success: false,
         error: `Failed to download file: ${download.status} ${errorText}`,
+        ...(download.status === 401 && { unauthorized: true }),
       };
     }
     const mimeType =
@@ -534,9 +546,17 @@ async function fetchVendorContentToStorage(
       size: bytes.byteLength,
     };
   } catch (error) {
+    // A file past the size cap is refused in the words the upload door's
+    // 413 uses, which a person can read; any other failure is a fault whose
+    // text is for the log alone.
+    const refusal =
+      error instanceof FileError && error.status === 413
+        ? { code: error.code, message: error.message }
+        : undefined;
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      ...(refusal !== undefined && { refusal }),
     };
   }
 }
@@ -630,6 +650,7 @@ export interface PgSyncImportDeps {
       modifiedAt?: number;
     };
     error?: string;
+    unauthorized?: boolean;
   }>;
   downloadToStorage: (args: {
     itemId: string;
@@ -642,6 +663,8 @@ export interface PgSyncImportDeps {
     mimeType?: string;
     size?: number;
     error?: string;
+    unauthorized?: boolean;
+    refusal?: { code: string; message: string };
   }>;
   findDocumentByExternalId: (args: {
     organizationId: string;

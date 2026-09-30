@@ -2351,6 +2351,17 @@ documents:
       Importing from this provider needs an OAuth app first. Configure one
       under Settings > Connectors > OAuth apps, then come back to connect.
     openConnectorSettings: Open connector settings
+    importedPartial: 'Imported {imported} of {total} files'
+    syncedPartial: 'Synced {imported} of {total} files'
+    failedFileDetail: '{name}: {reason}'
+    importInterrupted: >-
+      Access to your {provider} account ended during the import. {imported,
+      plural, =0 {No files were imported.} one {# of {total} files was
+      imported and is kept.} other {# of {total} files were imported and are
+      kept.}}
+    reconnectToImportRest: >-
+      Reconnect your account, then import the same files or folders again to
+      bring in the rest. The files already imported aren't imported twice.
   onedrive:
     importSettings: Import settings
     settingsDescription:
@@ -2369,6 +2380,7 @@ documents:
     redirecting: Redirecting...
     folderEmpty: This folder is empty.
     loadFailed: Couldn't load items
+    noFilesSelected: No importable files in the selection
     listingTruncated: >-
       Showing the first {count} items — this folder holds more. Open a
       subfolder or search to reach the rest.

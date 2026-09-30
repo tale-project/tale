@@ -25,6 +25,9 @@ export interface ListSharePointFilesResult {
    * returned. A consumer must not treat the list as whole. */
   truncated?: boolean;
   error?: string;
+  /** The provider refused the token (401): the listing door refreshes the
+   *  grant once before it answers. */
+  unauthorized?: boolean;
 }
 
 interface GraphDriveItem {
@@ -88,6 +91,7 @@ export async function listSharePointFiles(
       return {
         success: false,
         error: `Failed to list files: ${listed.status}`,
+        ...(listed.status === 401 && { unauthorized: true }),
       };
     }
 

@@ -17,6 +17,9 @@ export interface ListSharePointSitesResult {
   success: boolean;
   sites?: SharePointSite[];
   error?: string;
+  /** The provider refused the token (401): the listing door refreshes the
+   *  grant once before it answers. */
+  unauthorized?: boolean;
 }
 
 export async function listSharePointSites(
@@ -155,6 +158,7 @@ export async function listSharePointSites(
           return {
             success: false,
             error: 'Authentication failed. Please re-authenticate.',
+            unauthorized: true,
           };
         }
       }

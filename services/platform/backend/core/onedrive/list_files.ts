@@ -18,6 +18,9 @@ export interface ListFilesResult {
    * than were returned. A consumer must not treat the list as whole. */
   truncated?: boolean;
   error?: string;
+  /** The provider refused the token (401): the listing door refreshes the
+   *  grant once before it answers. */
+  unauthorized?: boolean;
 }
 
 /** A search answers a picker, not an import — a smaller bound is plenty. */
@@ -67,6 +70,7 @@ export async function listFiles(
       return {
         success: false,
         error: `OneDrive API error: ${listed.status} ${listed.errorText}`,
+        ...(listed.status === 401 && { unauthorized: true }),
       };
     }
 

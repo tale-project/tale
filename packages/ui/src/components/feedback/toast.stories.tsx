@@ -81,6 +81,31 @@ export const Success: Story = {
   ),
 };
 
+export const Warning: Story = {
+  render: () => (
+    <button
+      type="button"
+      className="rounded-md border px-4 py-2 text-sm"
+      onClick={() =>
+        toast({
+          title: 'Imported 3 of 4 files',
+          description: 'report.mov: The file exceeds the 512 MiB limit',
+          variant: 'warning',
+        })
+      }
+    >
+      Show warning toast
+    </button>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: 'An operation that finished only in part.',
+      },
+    },
+  },
+};
+
 export const Destructive: Story = {
   render: () => (
     <button
@@ -146,6 +171,19 @@ export const AllVariants: Story = {
         }
       >
         Success
+      </button>
+      <button
+        type="button"
+        className="rounded-md border px-4 py-2 text-sm"
+        onClick={() =>
+          toast({
+            title: 'Warning',
+            description: 'Finished in part.',
+            variant: 'warning',
+          })
+        }
+      >
+        Warning
       </button>
       <button
         type="button"

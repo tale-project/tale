@@ -17,6 +17,7 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { MAX_UPLOAD_BYTES } from '../files/bounded-body.ts';
 import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import { createSyncImportDeps, ONEDRIVE_SYNC_ADAPTER } from './service.ts';
 
@@ -174,5 +175,73 @@ describe('createSyncImportDeps.createDocument', () => {
       'knowledge.release_refs',
       { organizationId: 'org-1', refs: ['blob-old'] },
     );
+  });
+});
+
+/**
+ * What a failed vendor download tells the import: a refused token (401) is
+ * the cue to refresh the grant, and a file past the size cap is refused in
+ * the upload door's own words, which the import's toast may show. Any other
+ * failure — the provider's answer, an outage — is a fault, its text for the
+ * log alone.
+ */
+describe('createSyncImportDeps.downloadToStorage', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const download = (response: Response) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response),
+    );
+    const deps = createSyncImportDeps(
+      fakeSql().sql,
+      ONEDRIVE_SYNC_ADAPTER,
+      'org-1',
+    );
+    return deps.downloadToStorage({ itemId: 'item-1', token: 'tok' });
+  };
+
+  it('flags a download Graph refused the token for', async () => {
+    const stored = await download(
+      new Response('{"error":{"code":"InvalidAuthenticationToken"}}', {
+        status: 401,
+      }),
+    );
+
+    expect(stored).toMatchObject({ success: false, unauthorized: true });
+    expect(stored.refusal).toBeUndefined();
+  });
+
+  it('refuses a file past the size cap in words a person can read', async () => {
+    const stored = await download(
+      new Response('bytes', {
+        status: 200,
+        headers: { 'content-length': String(MAX_UPLOAD_BYTES + 1) },
+      }),
+    );
+
+    expect(stored.success).toBe(false);
+    expect(stored.refusal).toEqual({
+      code: 'FILE_SIZE_INVALID',
+      message: expect.stringMatching(/^The file is \d+ bytes; the limit is /),
+    });
+    expect(stored.unauthorized).toBeUndefined();
+  });
+
+  it("keeps a provider's answer a fault", async () => {
+    const stored = await download(
+      new Response('{"error":{"code":"serviceNotAvailable"}}', {
+        status: 503,
+      }),
+    );
+
+    expect(stored).toMatchObject({
+      success: false,
+      error: expect.stringContaining('503'),
+    });
+    expect(stored.unauthorized).toBeUndefined();
+    expect(stored.refusal).toBeUndefined();
   });
 });

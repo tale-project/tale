@@ -130,4 +130,27 @@ describe('listFiles', () => {
     expect(out).toEqual({ success: true, items: [], truncated: true });
     expect(fetchSpy).toHaveBeenCalledTimes(500);
   });
+
+  // A refused token (access removed at Google ends it at once): the listing
+  // door refreshes the grant once on it. An outage is not flagged.
+  it('flags a refused token, and only a refused token', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('denied', { status: 401 })),
+    );
+    expect(await listFiles('tok', 'folder-1')).toEqual({
+      success: false,
+      error: 'Google Drive API error: 401 denied',
+      unauthorized: true,
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('busy', { status: 503 })),
+    );
+    expect(await listFiles('tok', 'folder-1')).toEqual({
+      success: false,
+      error: 'Google Drive API error: 503 busy',
+    });
+  });
 });

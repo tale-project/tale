@@ -29,8 +29,11 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
+// A toast hands back its handle, as the real one does: the dialog dismisses
+// its "Import started" notice when the import ends in the connect dialog.
+const toastHandle = vi.hoisted(() => ({ dismiss: () => {} }));
 vi.mock('@tale/ui/use-toast', () => ({
-  toast: vi.fn(),
+  toast: vi.fn(() => ({ id: 'toast-1', update: () => {}, ...toastHandle })),
 }));
 
 vi.mock('@tale/ui/use-format-date', () => ({
@@ -200,21 +203,68 @@ describe('GoogleDriveImportDialog', () => {
     });
   });
 
-  // The import's own `error` is the backend's English — the grant check's
-  // sentence when the token could not be had.
-  it("keeps an unsuccessful import answer's own words out of the toast", async () => {
+  // The grant check's sentence on the answer: access ended part-way. The
+  // connect dialog says so, with the count — no toast, and the "Import
+  // started" notice is taken down.
+  it('hands an import the grant stopped to the connect dialog, with no toast', async () => {
+    const dismiss = vi.spyOn(toastHandle, 'dismiss');
     mockImportFiles.mockResolvedValueOnce({
       success: false,
-      results: [],
-      totalFiles: 0,
-      successCount: 0,
+      results: [
+        { fileId: 'file-1', fileName: 'notes.docx', status: 'success' },
+      ],
+      totalFiles: 2,
+      successCount: 1,
       failedCount: 0,
       skippedCount: 0,
       error:
         'Google Drive is not authorized for importing. Connect Google Drive from Documents.',
     });
+    const onRequireConnect = vi.fn();
+    const onOpenChange = vi.fn();
     const user = userEvent.setup();
-    render(<GoogleDriveImportDialog {...defaultProps} />);
+    render(
+      <GoogleDriveImportDialog
+        {...defaultProps}
+        onOpenChange={onOpenChange}
+        onRequireConnect={onRequireConnect}
+      />,
+    );
+
+    await selectMeetingsAndImport(user);
+
+    await waitFor(() =>
+      expect(onRequireConnect).toHaveBeenCalledWith({ imported: 1, total: 2 }),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(vi.mocked(toast).mock.calls.map(([shown]) => shown.title)).toEqual([
+      'documents.googledrive.importStarted',
+    ]);
+    expect(dismiss).toHaveBeenCalled();
+    dismiss.mockRestore();
+  });
+
+  // Any other `error` on the answer is the backend's own English (a token
+  // refresh the provider could not answer): the toast keeps the counts.
+  it("keeps an unsuccessful import answer's own words out of the toast", async () => {
+    mockImportFiles.mockResolvedValueOnce({
+      success: false,
+      results: [],
+      totalFiles: 2,
+      successCount: 0,
+      failedCount: 0,
+      skippedCount: 0,
+      error:
+        'Cloud authorization could not be refreshed right now (HTTP 503) — the next sync retries',
+    });
+    const onRequireConnect = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <GoogleDriveImportDialog
+        {...defaultProps}
+        onRequireConnect={onRequireConnect}
+      />,
+    );
 
     await selectMeetingsAndImport(user);
 
@@ -222,8 +272,12 @@ describe('GoogleDriveImportDialog', () => {
       expect(toast).toHaveBeenCalledWith({
         variant: 'destructive',
         title: 'documents.googledrive.importFailed',
-        description: 'common.errors.generic',
+        description: 'documents.googledrive.filesImportedCount',
       }),
+    );
+    expect(onRequireConnect).not.toHaveBeenCalled();
+    expect(JSON.stringify(vi.mocked(toast).mock.calls)).not.toContain(
+      'HTTP 503',
     );
   });
 
