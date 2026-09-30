@@ -22,11 +22,13 @@ const {
   updateCredential,
   credentialDependents,
   requeueEmbeddingBlockedDocuments,
+  websitesAfterEmbeddingChange,
 } = vi.hoisted(() => ({
   createCredential: vi.fn(),
   updateCredential: vi.fn(),
   credentialDependents: vi.fn(),
   requeueEmbeddingBlockedDocuments: vi.fn(),
+  websitesAfterEmbeddingChange: vi.fn(),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({
@@ -44,6 +46,7 @@ vi.mock('./service', async (original) => ({
 vi.mock('../knowledge/service.ts', () => ({
   requeueEmbeddingBlockedDocuments,
 }));
+vi.mock('../websites/service.ts', () => ({ websitesAfterEmbeddingChange }));
 vi.mock('../../auth/session', () => ({
   requireSession:
     () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
@@ -91,6 +94,7 @@ beforeEach(() => {
   updateCredential.mockResolvedValue(undefined);
   credentialDependents.mockResolvedValue({ usedBy: ['embedding'] });
   requeueEmbeddingBlockedDocuments.mockResolvedValue({ requeued: 2 });
+  websitesAfterEmbeddingChange.mockResolvedValue({ queued: 1 });
 });
 
 describe('the credential door re-queues what the embedding model failed on', () => {
@@ -111,12 +115,27 @@ describe('the credential door re-queues what the embedding model failed on', () 
     );
   });
 
-  it('leaves the documents alone for a credential the embedding model does not use', async () => {
+  // A website scan that ended on "the embedding model couldn't process the
+  // pages" names this credential too; repairing it used to leave the site
+  // in Error until someone chose Scan now.
+  it('lets the websites follow as they follow a saved model', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    await post('/cred-1', { secret: 'synthetic-rotated-secret' });
+
+    expect(websitesAfterEmbeddingChange).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-a',
+      'saved',
+    );
+  });
+
+  it('leaves the documents and the websites alone for a credential the embedding model does not use', async () => {
     credentialDependents.mockResolvedValue({ usedBy: [] });
     const response = await post('/', NEW_KEY);
 
     expect(response.status).toBe(200);
     expect(requeueEmbeddingBlockedDocuments).not.toHaveBeenCalled();
+    expect(websitesAfterEmbeddingChange).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -176,6 +195,21 @@ describe('the credential door re-queues what the embedding model failed on', () 
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('could not re-queue'),
       'connection reset',
+    );
+    // The documents' trouble is not the websites'.
+    expect(websitesAfterEmbeddingChange).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the saved credential when the websites cannot follow', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    websitesAfterEmbeddingChange.mockRejectedValue(new Error('pool closed'));
+    const response = await post('/', NEW_KEY);
+
+    expect(response.status).toBe(200);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('websites could not follow'),
+      'pool closed',
     );
   });
 });
