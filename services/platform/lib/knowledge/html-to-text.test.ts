@@ -173,6 +173,50 @@ describe('htmlToText', () => {
     });
   });
 
+  /**
+   * Text that opens on a run of whitespace. The test for the render lane's
+   * mark allowed whitespace on both sides of an optional doctype, so on a
+   * run that no `<html` follows it tried every split of the run between the
+   * two: 120 KB of spaces took four seconds, and `web_fetch` reads four
+   * megabytes. The mark is looked for before anything else, so this ran on
+   * every page, mail body and searched message, not on rendered ones alone.
+   */
+  describe('text that opens on a run of whitespace', () => {
+    const RUN = 500_000;
+    const cases: [string, string, string][] = [
+      ['spaces before markup', `${' '.repeat(RUN)}<p>word</p>`, 'word'],
+      ['line breaks before text', `${'\n'.repeat(RUN)}word`, 'word'],
+      [
+        'whitespace on both sides of a doctype',
+        `${' '.repeat(RUN)}<!DOCTYPE html>${'\t'.repeat(RUN)}<p>word</p>`,
+        'word',
+      ],
+    ];
+
+    it.each(cases)('converts %s in linear time', (_shape, html, text) => {
+      const startedAt = performance.now();
+      expect(htmlToText(html)).toBe(text);
+      expect(performance.now() - startedAt).toBeLessThan(2_000);
+    });
+
+    it('still finds the mark behind whitespace and a doctype', () => {
+      const letters = '<p><span>O</span><span>K</span></p>';
+      expect(
+        htmlToText(
+          `\n <!DOCTYPE html>\n<html ${RENDERED_LAYOUT_ATTRIBUTE}="1">${letters}</html>`,
+        ),
+      ).toBe('OK');
+      expect(
+        htmlToText(
+          `  <html ${RENDERED_LAYOUT_ATTRIBUTE}="1">${letters}</html>`,
+        ),
+      ).toBe('OK');
+      expect(htmlToText(`<!DOCTYPE html>\n<html>${letters}</html>`)).toBe(
+        'O K',
+      );
+    });
+  });
+
   it('renders table cells with separators instead of gluing them', () => {
     const text = htmlToText(
       '<table><tr><th>Name</th><th>Price</th></tr><tr><td>Widget</td><td>9</td></tr></table>',

@@ -32,8 +32,13 @@ import { replaceUpToLast, upToLast } from './markup-scan';
  * lines, inline-level boxes and hidden elements apart. */
 export const RENDERED_LAYOUT_ATTRIBUTE = 'data-tale-layout';
 
+/** The mark on the document element, behind whitespace and a doctype at
+ * most. The whitespace after the doctype belongs to the doctype's group:
+ * allowed on both sides of an optional group, a run of whitespace that no
+ * `<html` follows was split between the two in every possible way, which is
+ * quadratic on input any page, mail body or message may open with. */
 const RENDERED_LAYOUT_MARKER = new RegExp(
-  `^\\s*(?:<!DOCTYPE[^<>]*>)?\\s*<html\\b[^<>]*\\s${RENDERED_LAYOUT_ATTRIBUTE}=`,
+  `^\\s*(?:<!DOCTYPE[^<>]*>\\s*)?<html\\b[^<>]*\\s${RENDERED_LAYOUT_ATTRIBUTE}=`,
   'i',
 );
 
