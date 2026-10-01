@@ -424,6 +424,12 @@ describe('ensureStandardAgent — the door a Member hands a project work through
         instructions: STANDARD_AGENT_DEFAULT_INSTRUCTIONS,
       },
     );
+    // Which slugs are equippable is all it asks: no creator attribution.
+    expect(listProjectCapabilities).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'org-1', userId: auth.userId, projectId: 'project-1' },
+      { attribution: false },
+    );
   });
 
   it('answers the standing standard agent, and leaves a project with its own agents to them', async () => {

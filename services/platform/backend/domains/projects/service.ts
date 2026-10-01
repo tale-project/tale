@@ -1805,6 +1805,12 @@ export async function insertManagedProjectAgent(
  * run card, the next run's resume plan — says what actually runs. Writes
  * only on a difference, and no audit row: this is the organization's own
  * setting applied, not a person's edit (the policy save audits that).
+ *
+ * Never waits for the row. The kick calling this already holds the task's
+ * lock, while a delegated start takes the agent's before the task's
+ * (`delegated-start.ts`): waiting here could close that circle. A row
+ * another start holds is skipped; the run itself carries what resolved, and
+ * the next start writes the row.
  */
 export async function alignManagedProjectAgent(
   tx: TransactionSql,
@@ -1823,11 +1829,15 @@ export async function alignManagedProjectAgent(
       harness = ${fields.harness}, model = ${fields.model},
       model_provider = ${fields.modelProvider},
       instructions = ${fields.instructions}, updated_at_ms = ${Date.now()}
-    WHERE id = ${agent.id} AND managed
-      AND (harness IS DISTINCT FROM ${fields.harness}
-        OR model IS DISTINCT FROM ${fields.model}
-        OR model_provider IS DISTINCT FROM ${fields.modelProvider}
-        OR instructions IS DISTINCT FROM ${fields.instructions})
+    WHERE id = (
+      SELECT id FROM app.project_agents
+      WHERE id = ${agent.id} AND managed
+        AND (harness IS DISTINCT FROM ${fields.harness}
+          OR model IS DISTINCT FROM ${fields.model}
+          OR model_provider IS DISTINCT FROM ${fields.modelProvider}
+          OR instructions IS DISTINCT FROM ${fields.instructions})
+      FOR UPDATE SKIP LOCKED
+    )
     RETURNING id
   `;
   if (changed.length === 0) return false;
@@ -1866,15 +1876,6 @@ export async function updateProjectAgent(
   if (!agent) {
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
   }
-  if (agent.managed) {
-    // Its settings are the organization's: a hand edit would be undone at
-    // the next start (`standard-agent.ts`), so it is refused instead.
-    throw new ProjectError(
-      'PROJECT_AGENT_MANAGED',
-      "This is the organization's standard agent: its runtime, model and instructions follow the organization's settings, which an Owner or Admin changes under Governance",
-      409,
-    );
-  }
   if (
     args.expectedUpdatedAt !== undefined &&
     args.expectedUpdatedAt !== agent.updatedAt
@@ -1888,6 +1889,16 @@ export async function updateProjectAgent(
   }
   const project = await loadProjectOrThrow(tx, agent.projectId);
   assertAgentWritable(project, auth);
+  if (agent.managed) {
+    // Its settings are the organization's: a hand edit would be undone at
+    // the next start (`standard-agent.ts`), so it is refused instead — to
+    // whoever may edit the project's agents; anyone else hears the gate.
+    throw new ProjectError(
+      'PROJECT_AGENT_MANAGED',
+      "This is the organization's standard agent: its runtime, model and instructions follow the organization's settings, which an Owner or Admin changes under Governance",
+      409,
+    );
+  }
   const fields = validateProjectAgentFields(args);
   await assertAgentEquipment(tx, auth, agent.projectId, fields, {
     skills: agent.skills,

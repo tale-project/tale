@@ -8,6 +8,8 @@
  *   count it once, and both answer it;
  * - nobody edits the standard agent: a save answers `PROJECT_AGENT_MANAGED`
  *   and writes nothing;
+ * - a start brings its row in line with what resolved, and never waits for
+ *   a row another start holds (`FOR UPDATE SKIP LOCKED`);
  * - a project with agents of its own is left to them
  *   (`STANDARD_AGENT_NOT_NEEDED`);
  * - switched off, the standard agent is created nowhere and starts nothing
@@ -26,6 +28,7 @@ import type { Sql } from 'postgres';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { kickAgentRun } from '../tasks/agent-runs.ts';
 import {
+  alignManagedProjectAgent,
   getProjectAuthContext,
   insertManagedProjectAgent,
   updateProjectAgent,
@@ -191,6 +194,47 @@ export async function checkStandardAgent(
         afterEdit[0]?.name === 'Standard agent' &&
         afterEdit[0].harness === 'claude-code',
       `refusal=${editRefusal} row=${JSON.stringify(afterEdit[0])}`,
+    );
+
+    // ---- a start aligns the row, and never waits for it ---------------------
+    const target = { id: first.agentId, organizationId: orgId, projectId };
+    const resolved = {
+      harness: 'claude-code',
+      model: 'healed-model',
+      modelProvider: 'lane-provider',
+      instructions: 'Do the task.',
+    };
+    // Another start holds the row: the alignment skips it at once.
+    let whileHeld: boolean | undefined;
+    let whileHeldMs = 0;
+    await sql.begin(async (holder) => {
+      await holder`
+        SELECT id FROM app.project_agents WHERE id = ${first.agentId}
+        FOR UPDATE
+      `;
+      const started = Date.now();
+      whileHeld = await sql.begin((tx) =>
+        alignManagedProjectAgent(tx, target, resolved),
+      );
+      whileHeldMs = Date.now() - started;
+    });
+    const healed = await sql.begin((tx) =>
+      alignManagedProjectAgent(tx, target, resolved),
+    );
+    const again = await sql.begin((tx) =>
+      alignManagedProjectAgent(tx, target, resolved),
+    );
+    const aligned = await sql<{ model: string }[]>`
+      SELECT model FROM app.project_agents WHERE id = ${first.agentId}
+    `;
+    record(
+      'standard agent: a start aligns its row once, and skips a row another start holds',
+      whileHeld === false &&
+        whileHeldMs < 2_000 &&
+        healed &&
+        !again &&
+        aligned[0]?.model === 'healed-model',
+      `whileHeld=${String(whileHeld)} in ${whileHeldMs}ms healed=${String(healed)} again=${String(again)} model=${aligned[0]?.model}`,
     );
 
     // ---- a project with agents of its own ----------------------------------

@@ -387,11 +387,17 @@ export async function ensureStandardAgent(
   });
   if (!serving.ok) throw refusalError(serving.refusal);
 
-  const { skills } = await listProjectCapabilities(tx, {
-    organizationId: auth.organizationId,
-    userId: auth.userId,
-    projectId,
-  });
+  // Only which slugs are equippable: no creator names, so no audit-trail
+  // read inside a transaction that then writes an audit row.
+  const { skills } = await listProjectCapabilities(
+    tx,
+    {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+      projectId,
+    },
+    { attribution: false },
+  );
   const visible = new Set(skills.map((skill) => skill.slug));
   return insertManagedProjectAgent(tx, auth, project, {
     name: await standardAgentName(tx, auth.organizationId),

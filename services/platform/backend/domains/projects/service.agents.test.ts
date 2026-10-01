@@ -334,17 +334,31 @@ function answeringTx(answer: (text: string) => unknown[]): {
 }
 
 describe('the standard agent follows the organization, not an edit', () => {
+  const managedTx = () =>
+    answeringTx((text) => {
+      if (text.includes('FROM app.project_agents WHERE id = ?')) {
+        return [{ ...AGENT, managed: true }];
+      }
+      if (text.includes('FROM app.projects WHERE id = ?')) return [PROJECT];
+      return [];
+    });
+
   it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing', async () => {
-    const { tx, statements } = answeringTx((text) =>
-      text.includes('FROM app.project_agents WHERE id = ?')
-        ? [{ ...AGENT, managed: true }]
-        : [],
-    );
+    const { tx, statements } = managedTx();
 
     await expect(updateProjectAgent(tx, auth, config)).rejects.toMatchObject({
       code: 'PROJECT_AGENT_MANAGED',
       status: 409,
     });
+    expect(updates(statements)).toEqual([]);
+  });
+
+  it('answers someone who may not edit the project’s agents with the gate, not with what the agent is', async () => {
+    const { tx, statements } = managedTx();
+
+    await expect(
+      updateProjectAgent(tx, { ...auth, role: 'member' }, config),
+    ).rejects.toMatchObject({ status: 403 });
     expect(updates(statements)).toEqual([]);
   });
 
