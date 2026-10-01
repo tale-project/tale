@@ -27789,7 +27789,12 @@ async function checkNotificationEmailSink(
         user_id, org_id, actionable_email, updated_at_ms
       ) VALUES (${prefUserId}, ${orgId}, false, ${Date.now()})
     `;
-    await bell('email-task-d', 'Pref is off', undefined, prefUserId);
+    const prefWrite = await bell(
+      'email-task-d',
+      'Pref is off',
+      undefined,
+      prefUserId,
+    );
 
     const drained = await drainNotificationEmails(sql);
     const delivered = smtpSends[0];
@@ -27807,6 +27812,7 @@ async function checkNotificationEmailSink(
       first === 'inserted' &&
         rewritten === 'rewritten' &&
         undone === 'cancelled' &&
+        prefWrite === 'inserted' &&
         drained &&
         smtpSends.length === 1 &&
         delivered?.subject === 'Task assigned to you' &&
@@ -27817,7 +27823,7 @@ async function checkNotificationEmailSink(
         ) &&
         (delivered?.from ?? '').startsWith('notification@') &&
         !rowsLeft.some((row) => row.resourceId === 'email-task-c'),
-      `write=${first}/${rewritten}/undo=${undone}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
+      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
         .map((r) => r.resourceId)
         .sort()
         .join('|')}`,

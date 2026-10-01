@@ -197,7 +197,8 @@ async function emitBellHints(
  *
  * Scoped to the row's own organization — a task id that does not resolve
  * inside it is left alone, so a link is never invented from another tenant's
- * data. Only queries on the miss path, and uses the caller's handle, so it
+ * data (from the writer such a row never gets here: nobody in the
+ * organization can open its task, so it is withheld first). Only queries on the miss path, and uses the caller's handle, so it
  * joins the open transaction rather than reading around it.
  *
  * `coalesceKeyFor` reads `conversationId` and `documentId`, never
@@ -223,8 +224,8 @@ async function withTaskProjectContext(
 
 // ------------------------------------------------------- who may be told
 
-/** Which project a reader check is about: one by its id, or the one a task
- * is filed in NOW (a task moved to another project answers for where it is). */
+/** Which project a reader check is about: one by its id, or the one the task
+ * row names when the check runs. */
 type ReaderScope = { projectId: string } | { taskId: string };
 
 /**
@@ -236,7 +237,9 @@ type ReaderScope = { projectId: string } | { taskId: string };
  * outlives its subscriber's membership and team access, an assignee or a
  * reviewer stays on the task row after both are gone, and a run keeps its
  * starter's id — none of them is permission to read about the task, least
- * of all by email.
+ * of all by email. The role is the stored `member` role, which every
+ * background delivery reads (a trusted-headers session's role is written
+ * back to it at each sign-in).
  */
 async function readersAmong(
   db: Db,
@@ -1458,7 +1461,7 @@ export async function notifyAgentQuestionAsked(
     ) {
       continue;
     }
-    await writeCoalescedNotification(db, {
+    const outcome = await writeCoalescedNotification(db, {
       ...row,
       userId,
       organizationId: args.organizationId,
@@ -1467,7 +1470,7 @@ export async function notifyAgentQuestionAsked(
       actorType: 'agent',
       actorId: args.automationLabel,
     });
-    notified += 1;
+    if (outcome !== 'withheld') notified += 1;
   }
   return notified;
 }
