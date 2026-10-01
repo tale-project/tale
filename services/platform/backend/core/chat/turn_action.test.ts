@@ -553,7 +553,10 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
       .join('');
   }
 
-  async function turnOver(model: ModelCall) {
+  async function turnOver(
+    model: ModelCall,
+    options: { cancelOnProgress?: boolean } = {},
+  ) {
     const booked: UsageLedgerEntry[] = [];
     const settled: Array<Record<string, unknown>> = [];
     const deps: TurnDeps = {
@@ -563,7 +566,10 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
         beginTurn: () =>
           Promise.resolve({ assistantMessage: { id: 'msg_2', sequence: 2 } }),
         appendMessage: () => Promise.resolve({ id: 'msg_x', sequence: 9 }),
-        streamProgress: () => Promise.resolve({}),
+        streamProgress: () =>
+          Promise.resolve({
+            cancelRequested: options.cancelOnProgress === true,
+          }),
         updateAssistantParts: () => Promise.resolve(),
         finalizeAssistantMessage(message) {
           settled.push(message);
@@ -608,6 +614,14 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
   const USAGE = {
     choices: [],
     usage: { prompt_tokens: 100, completion_tokens: 5 },
+  };
+  const ZERO_USAGE = {
+    choices: [],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  };
+  const RATE_LIMITED = {
+    error: { code: 429, message: 'Rate limit exceeded upstream' },
+    choices: [{ index: 0, delta: { content: '' }, finish_reason: 'error' }],
   };
   const OPENROUTER_ERROR = {
     error: { code: 502, message: 'Provider disconnected unexpectedly' },
@@ -729,6 +743,77 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
       inputTokens: 100,
       outputTokens: 5,
       totalTokens: 105,
+    });
+  });
+
+  it('books nothing when zero-count metadata precedes a pre-answer rate limit', async () => {
+    const { outcome, booked, settled } = await turnOver(
+      providerModel(() => rawSse(frames(ZERO_USAGE, RATE_LIMITED)), 'openai'),
+    );
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(booked).toEqual([]);
+    expect(settled).not.toHaveProperty('usage');
+  });
+
+  it('keeps a healthy empty stream’s reported zero counts', async () => {
+    const { outcome, booked, settled } = await turnOver(
+      providerModel(() => rawSse(frames(ZERO_USAGE)), 'openai'),
+    );
+    expect(outcome.status).toBe('completed');
+    expect(booked).toMatchObject([
+      { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    ]);
+    expect(settled?.usage).not.toHaveProperty('estimated');
+  });
+
+  it('keeps reported consumption billable through a later rate limit', async () => {
+    const { outcome, booked } = await turnOver(
+      providerModel(
+        () => rawSse(frames(ZERO_USAGE, USAGE, RATE_LIMITED)),
+        'openai',
+      ),
+    );
+    expect(outcome.status).toBe('refused');
+    expect(booked).toMatchObject([
+      { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+    ]);
+  });
+
+  it.each(['content', 'reasoning'])(
+    'keeps consumed %s billable when zero-count metadata follows it',
+    async (field) => {
+      const answer = {
+        choices: [{ index: 0, delta: { [field]: 'x'.repeat(40) } }],
+      };
+      const { outcome, booked, settled } = await turnOver(
+        providerModel(
+          () => rawSse(frames(answer, ZERO_USAGE, RATE_LIMITED)),
+          'openai',
+        ),
+      );
+      expect(outcome.status).toBe('refused');
+      expect(booked).toHaveLength(1);
+      expect(booked[0]?.inputTokens).toBeGreaterThan(0);
+      expect(booked[0]?.outputTokens).toBe(10);
+      expect(settled?.usage).toMatchObject({ estimated: true });
+    },
+  );
+
+  it('keeps cancellation accounting after a zero-count frame', async () => {
+    const { outcome, booked, settled } = await turnOver(
+      providerModel(
+        () => rawSse(frames(ZERO_USAGE, TEXT, RATE_LIMITED)),
+        'openai',
+      ),
+      { cancelOnProgress: true },
+    );
+    expect(outcome).toMatchObject({ status: 'completed', cancelled: true });
+    expect(booked).toHaveLength(1);
+    expect(booked[0]?.inputTokens).toBeGreaterThan(0);
+    expect(booked[0]?.outputTokens).toBeGreaterThan(0);
+    expect(settled?.usage).toMatchObject({
+      finishReason: 'cancelled',
+      estimated: true,
     });
   });
 

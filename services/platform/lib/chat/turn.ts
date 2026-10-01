@@ -661,7 +661,7 @@ interface StreamRoundOptions {
 interface RoundObservation {
   /** The provider accepted the request (`onAccepted`), or a chunk arrived. */
   accepted: boolean;
-  /** Some of the answer, or its usage, arrived. */
+  /** Nonempty answer data or positive reported usage arrived. */
   answered: boolean;
   /** The model's text as it arrived, before the output guardrails. */
   text: string;
@@ -851,10 +851,20 @@ async function streamWithOutputGuardrails(
       }
       if (winner.done === true) break;
       const chunk = winner.value;
-      // A chunk is proof the provider answered with a stream; what it
-      // carries is what the round has consumed so far.
+      // A chunk proves the stream opened. Empty metadata (including a
+      // zero-count usage frame) does not prove the request consumed tokens:
+      // a provider can still refuse it before any answer. Once some answer
+      // or positive usage arrived, later metadata cannot undo that evidence.
       observed.accepted = true;
-      observed.answered = true;
+      if (
+        chunk.text.length > 0 ||
+        (chunk.reasoning?.length ?? 0) > 0 ||
+        (chunk.toolCalls?.length ?? 0) > 0 ||
+        (chunk.usage?.inputTokens ?? 0) > 0 ||
+        (chunk.usage?.outputTokens ?? 0) > 0
+      ) {
+        observed.answered = true;
+      }
       observed.text += chunk.text;
       if (chunk.reasoning !== undefined) observed.reasoning += chunk.reasoning;
       if (chunk.usage) observed.reportedUsage = chunk.usage;
