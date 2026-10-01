@@ -10823,6 +10823,11 @@ async function checkChat(
   // a single tick and the stream only ever sees the settled state — the
   // probe would pass or fail on scheduling luck, not on behaviour.
   const TRACE_MARKER = 'TRACE THE TOOLS';
+  // A provider that accepts the request (200), streams words and its usage,
+  // then reports a failure ON the stream; and one that refuses the request
+  // with an HTTP status before any stream.
+  const STREAM_FAILS_MARKER = 'FAIL INSIDE THE STREAM';
+  const REFUSED_MARKER = 'REFUSE BY STATUS';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
   /** Every chat-completion request body the model saw, in order — the
@@ -10910,7 +10915,50 @@ async function checkChat(
         );
         return;
       }
+      if (transcript.includes(REFUSED_MARKER)) {
+        res.statusCode = 429;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({ error: { message: 'Rate limit exceeded (itest)' } }),
+        );
+        return;
+      }
       res.setHeader('content-type', 'text/event-stream');
+      if (transcript.includes(STREAM_FAILS_MARKER)) {
+        res.write(
+          sse({
+            choices: [
+              {
+                index: 0,
+                delta: { content: 'The first half ' },
+                finish_reason: null,
+              },
+            ],
+          }),
+        );
+        res.write(
+          sse({
+            choices: [],
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 5,
+              total_tokens: 105,
+            },
+          }),
+        );
+        // OpenRouter's mid-stream failure: an `error` beside a choice that
+        // finished in error, on a stream that already answered 200.
+        res.write(
+          sse({
+            error: { code: 502, message: 'Provider disconnected unexpectedly' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
       const finish = (finishReason: string): void => {
         res.write(
           sse({
@@ -11177,6 +11225,97 @@ async function checkChat(
         Number(usageRows[0]?.count ?? '0') >= 1 &&
         settledGen[0]?.count === '0',
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
+    );
+
+    // A turn the provider fails INSIDE its opened stream still consumed the
+    // prompt and the words it wrote: the turn settles failed, books what
+    // the stream reported, and stamps the same figures on the failed reply.
+    // A request the provider refuses with an HTTP status consumed nothing
+    // and books nothing. Each runs on a titled thread of its own, so no
+    // title call books beside it and the ledger delta is the turn's alone.
+    const chatLedger = async () => {
+      const rows = await sql<
+        { input: number; output: number; requests: number }[]
+      >`
+        SELECT coalesce(sum(input_tokens), 0)::float8 AS input,
+               coalesce(sum(output_tokens), 0)::float8 AS output,
+               coalesce(sum(request_count), 0)::float8 AS requests
+        FROM app.usage_ledger
+        WHERE org_id = ${orgId} AND model = 'itest-chat'
+          AND granularity = 'daily'
+          AND agent_slug IS DISTINCT FROM 'thread-title'
+      `;
+      return rows[0] ?? { input: 0, output: 0, requests: 0 };
+    };
+    const failedTurn = async (marker: string) => {
+      const thread = z.object({ id: z.string() }).safeParse(
+        await (
+          await send(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: `Itest ${marker.toLowerCase()}`,
+          })
+        ).json(),
+      );
+      const failThreadId = thread.success ? thread.data.id : '';
+      const before = await chatLedger();
+      const res = await send(
+        `/api/app/chat/threads/${failThreadId}/messages?orgId=${orgId}`,
+        {
+          text: `${marker}, please`,
+          modelId: 'itest-chat',
+          providerSlug: 'itestchat',
+        },
+      );
+      const after = await chatLedger();
+      const rows = await sql<
+        { status: string; usage: unknown; error: string | null }[]
+      >`
+        SELECT status, usage, error FROM app.messages
+        WHERE thread_id = ${failThreadId} AND role = 'assistant'
+        ORDER BY "order" DESC LIMIT 1
+      `;
+      return {
+        status: res.status,
+        row: rows[0],
+        delta: {
+          input: after.input - before.input,
+          output: after.output - before.output,
+          requests: after.requests - before.requests,
+        },
+      };
+    };
+    const inStream = await failedTurn(STREAM_FAILS_MARKER);
+    const inStreamUsage = z
+      .object({
+        inputTokens: z.number(),
+        outputTokens: z.number(),
+        totalTokens: z.number(),
+        costEstimateCents: z.number(),
+      })
+      .loose()
+      .safeParse(inStream.row?.usage);
+    const refusedByStatus = await failedTurn(REFUSED_MARKER);
+    record(
+      'chat turn that fails inside its stream books what it consumed; a refusal by HTTP status books nothing',
+      inStream.row?.status === 'failed' &&
+        (inStream.row.error ?? '').includes(
+          'Provider disconnected unexpectedly',
+        ) &&
+        inStream.delta.input === 100 &&
+        inStream.delta.output === 5 &&
+        inStream.delta.requests === 1 &&
+        inStreamUsage.success &&
+        inStreamUsage.data.inputTokens === 100 &&
+        inStreamUsage.data.outputTokens === 5 &&
+        inStreamUsage.data.totalTokens === 105 &&
+        // 100 prompt tokens at 100 ¢/M + 5 at 200 ¢/M.
+        Math.abs(inStreamUsage.data.costEstimateCents - 0.011) < 1e-9 &&
+        refusedByStatus.row?.status === 'failed' &&
+        (refusedByStatus.row.error ?? '').includes('429') &&
+        refusedByStatus.row.usage === null &&
+        refusedByStatus.delta.input === 0 &&
+        refusedByStatus.delta.output === 0 &&
+        refusedByStatus.delta.requests === 0,
+      `in-stream: send → ${inStream.status}, row=${inStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(inStream.delta)} (want 100/5/1), stamped=${JSON.stringify(inStream.row?.usage ?? null)}; refused: send → ${refusedByStatus.status}, row=${refusedByStatus.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedByStatus.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedByStatus.row?.usage ?? null)}`,
     );
 
     // A provider that ships NO catalog (Azure deployment names, Nous Portal):
