@@ -170,6 +170,9 @@
     }
   },
   "packageManager": "bun@1.4.2",
+  "patchedDependencies": {
+    "postgres@3.4.7": "patches/postgres@3.4.7.patch"
+  },
   "scarfSettings": {
     "enabled": false
   },
