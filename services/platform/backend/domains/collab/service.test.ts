@@ -14,10 +14,12 @@ import {
   markAllNotificationsRead,
   notifyAgentQuestionAsked,
   notifyAgentRunFailed,
+  notifyTaskAssigned,
   notifyTaskComment,
   notifyTaskMentions,
   notifyTaskReviewerAssigned,
   notifyTaskReviewRequested,
+  notifyTaskStatusChanged,
   notifyTriggerPaused,
   writeCoalescedNotification,
 } from './service.ts';
@@ -27,12 +29,29 @@ vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
 type Row = Record<string, unknown>;
 
+/** The writer's "who can open this task now" read (`taskReadersAmong`). */
+const isReaderCheck = (text: string): boolean =>
+  text.startsWith('WITH audience AS');
+
+/** The reader check's answer: of the ids it was asked about (the `db(list)`
+ * value), those in `readers` — everyone asked when the test names nobody. */
+function readersAsked(values: unknown[], readers?: readonly string[]): Row[] {
+  const asked = values.find((v): v is string[] => Array.isArray(v)) ?? [];
+  return asked
+    .filter((id) => readers === undefined || readers.includes(id))
+    .map((userId) => ({ userId }));
+}
+
 /**
  * A postgres.js tagged-template stand-in: the test answers each statement
  * from its (whitespace-collapsed) text. Only the shapes the collab writer
  * touches are modelled — the hint side effect is what these tests pin.
  */
-function fakeDb(answer: (text: string) => Row[]): {
+function fakeDb(
+  answer: (text: string) => Row[],
+  /** Who can open the task now; everyone asked when left out. */
+  readers?: readonly string[],
+): {
   db: Sql;
   statements: string[];
   calls: { text: string; values: unknown[] }[];
@@ -40,16 +59,24 @@ function fakeDb(answer: (text: string) => Row[]): {
   const statements: string[] = [];
   const calls: { text: string; values: unknown[] }[] = [];
   const tag = (
-    strings: TemplateStringsArray,
+    strings: TemplateStringsArray | readonly string[],
     ...values: unknown[]
-  ): Promise<Row[]> => {
+  ): unknown => {
+    // `db(list)` — an IN list — hands the list back as the value.
+    if (!('raw' in strings)) return strings;
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
     statements.push(text);
     calls.push({ text, values });
+    if (isReaderCheck(text)) {
+      return Promise.resolve(readersAsked(values, readers));
+    }
     return Promise.resolve(answer(text));
   };
-  const db = Object.assign(tag, { json: (value: unknown) => value });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+  const db = Object.assign(tag, {
+    json: (value: unknown) => value,
+    unsafe: (value: string) => value,
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a three-member stand-in for the postgres.js template function
   return { db: db as unknown as Sql, statements, calls };
 }
 
@@ -140,24 +167,166 @@ describe('a task-bound row always carries its project', () => {
     );
   });
 
-  it("invents nothing when the task is not in the row's organization", async () => {
-    // The lookup is org-scoped, so a task id belonging to another tenant
-    // answers no row. Leave the bag as it came rather than linking to
-    // something the recipient cannot see.
-    const { db, calls, statements } = fakeDb((text) => {
-      if (text.startsWith('SELECT id, coalesce_key')) return [];
-      if (text.startsWith('INSERT INTO app.user_notifications')) {
-        return [{ id: 'n-new' }];
-      }
-      return [];
-    });
+  it("writes nothing when the task is not in the row's organization", async () => {
+    // The reader check finds the task's project by BOTH the task and the
+    // row's organization, so another tenant's task has no project here and
+    // nobody here can open it: no row, and no link invented from its data.
+    const { db, calls, statements } = fakeDb(() => [], []);
 
-    await writeCoalescedNotification(db, projectlessBell);
-    const lookup = statements.find((s) => s.startsWith('SELECT project_id'));
-    // Tenant isolation is the point: the lookup is keyed by BOTH the task
-    // and the row's organization, so another tenant's task answers no row.
-    expect(lookup).toContain('org_id = ?');
-    expect(insertedParams(calls)).toEqual({ to: 'in_progress' });
+    await expect(writeCoalescedNotification(db, projectlessBell)).resolves.toBe(
+      'withheld',
+    );
+    const check = calls.find((call) => isReaderCheck(call.text));
+    expect(check?.text).toContain(
+      'SELECT project_id FROM app.tasks WHERE id = ?::text AND org_id = ?',
+    );
+    expect(check?.values).toEqual(
+      expect.arrayContaining(['org-1', 'task-1', ['u-recipient']]),
+    );
+    expect(statements).toHaveLength(1);
+    expect(insertedParams(calls)).toBeUndefined();
+  });
+});
+
+describe('a task-bound row is written only for someone who can open the task now (#3631)', () => {
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  it('withholds the row from a recipient outside the task’s project: no row, no email, no hint', async () => {
+    const { db, statements } = fakeDb(() => [], ['someone-else']);
+
+    await expect(
+      writeCoalescedNotification(db, {
+        ...statusBell,
+        type: 'task_assigned',
+        titleKey: 'taskAssigned',
+        bodyKey: 'taskAssignedBody',
+      }),
+    ).resolves.toBe('withheld');
+    expect(statements).toHaveLength(1);
+    expect(isReaderCheck(statements[0] ?? '')).toBe(true);
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+  });
+
+  it('withholds an undo too: a former reader’s history is left as it was', async () => {
+    const { db, statements } = fakeDb(
+      (text) =>
+        text.startsWith('SELECT id, coalesce_key')
+          ? [{ id: 'n-twin', coalesceKey: twinKey }]
+          : [],
+      [],
+    );
+
+    await expect(
+      writeCoalescedNotification(db, { ...statusBell, undoes: true }),
+    ).resolves.toBe('withheld');
+    expect(
+      statements.some((s) =>
+        s.startsWith('DELETE FROM app.user_notifications'),
+      ),
+    ).toBe(false);
+  });
+
+  it('judges the recipient by the task’s current project and this organization’s teams', async () => {
+    const { db, calls } = fakeDb((text) =>
+      text.startsWith('INSERT INTO app.user_notifications')
+        ? [{ id: 'n-new' }]
+        : [],
+    );
+
+    await expect(writeCoalescedNotification(db, statusBell)).resolves.toBe(
+      'inserted',
+    );
+    const check = calls.find((call) => isReaderCheck(call.text));
+    // The project is the task's own, looked up now — not the params' copy.
+    expect(check?.text).toContain(
+      'AND id = COALESCE(?::text, ( SELECT project_id FROM app.tasks',
+    );
+    // (After the audience column, which the stand-in passes as a value.)
+    expect(check?.values.slice(1, 4)).toEqual(['org-1', null, 'task-1']);
+    // A team counts only when it is this organization's.
+    expect(check?.text).toContain(
+      'JOIN "team" t ON t."id" = tm."teamId" WHERE tm."userId" = m."userId" AND t."organizationId" = ?',
+    );
+    expect(check?.text).toContain(`lower(m."role") <> 'disabled'`);
+    expect(check?.text).toContain(`lower(m."role") IN ('owner', 'admin')`);
+    expect(check?.text).toContain('cardinality(audience."teamIds") = 0');
+  });
+
+  it('a row about no task asks nobody about access', async () => {
+    const { db, statements } = fakeDb(
+      (text) =>
+        text.startsWith('INSERT INTO app.user_notifications')
+          ? [{ id: 'n-new' }]
+          : [],
+      [],
+    );
+
+    await expect(
+      writeCoalescedNotification(db, {
+        ...RECIPIENT,
+        type: 'conversation_assigned',
+        titleKey: 'conversationAssigned',
+        bodyKey: 'conversationAssignedBody',
+        params: { subject: 'Invoice', conversationId: 'conv-1' },
+        resourceType: 'conversation',
+        resourceId: 'conv-1',
+        actorType: 'system',
+      }),
+    ).resolves.toBe('inserted');
+    expect(statements.some(isReaderCheck)).toBe(false);
+  });
+
+  const TASK = {
+    id: 'task-1',
+    organizationId: 'org-1',
+    projectId: 'proj-1',
+    title: 'Acquisition of Contoso',
+  };
+  const written = (calls: { text: string; values: unknown[] }[]) =>
+    calls
+      .filter((call) =>
+        call.text.startsWith('INSERT INTO app.user_notifications'),
+      )
+      .map((call) => [call.values[0], call.values[2]]);
+  const answer = (text: string): Row[] => {
+    if (text.includes('FROM app.task_subscriptions')) {
+      return [{ subscriberId: 'u-watcher' }, { subscriberId: 'u-departed' }];
+    }
+    if (text.startsWith('INSERT INTO app.user_notifications')) {
+      return [{ id: 'n-new' }];
+    }
+    return [];
+  };
+
+  it('tells the watchers who can open the task of a status change, not one taken off its team', async () => {
+    const { db, calls } = fakeDb(answer, ['u-watcher', 'u-actor']);
+
+    await notifyTaskStatusChanged(db, {
+      task: TASK,
+      fromStatus: 'todo',
+      toStatus: 'in_progress',
+      actorType: 'user',
+      actorId: 'u-actor',
+    });
+    expect(written(calls)).toEqual([['u-watcher', 'task_status_changed']]);
+  });
+
+  it('tells a former assignee who lost access nothing; the new assignee is told', async () => {
+    const { db, calls } = fakeDb(answer, ['u-watcher', 'u-actor']);
+
+    await notifyTaskAssigned(db, {
+      task: TASK,
+      assigneeType: 'user',
+      assigneeId: 'u-watcher',
+      previousAssigneeType: 'user',
+      previousAssigneeId: 'u-departed',
+      actorType: 'user',
+      actorId: 'u-actor',
+    });
+    expect(written(calls)).toEqual([['u-watcher', 'task_assigned']]);
   });
 });
 
@@ -290,15 +459,20 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
   } {
     const calls: { text: string; values: unknown[] }[] = [];
     const tag = (
-      strings: TemplateStringsArray,
+      strings: TemplateStringsArray | readonly string[],
       ...values: unknown[]
-    ): Promise<Row[]> => {
+    ): unknown => {
+      if (!('raw' in strings)) return strings;
       const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
       calls.push({ text, values });
+      if (isReaderCheck(text)) return Promise.resolve(readersAsked(values));
       return Promise.resolve(answer(text));
     };
-    const db = Object.assign(tag, { json: (value: unknown) => value });
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+    const db = Object.assign(tag, {
+      json: (value: unknown) => value,
+      unsafe: (value: string) => value,
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a three-member stand-in for the postgres.js template function
     return { db: db as unknown as Sql, calls };
   }
 
@@ -687,11 +861,13 @@ describe('the agent-question bell (agent_escalation)', () => {
   } {
     const calls: { text: string; values: unknown[] }[] = [];
     const tag = (
-      strings: TemplateStringsArray,
+      strings: TemplateStringsArray | readonly string[],
       ...values: unknown[]
-    ): Promise<Row[]> => {
+    ): unknown => {
+      if (!('raw' in strings)) return strings;
       const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
       calls.push({ text, values });
+      if (isReaderCheck(text)) return Promise.resolve(readersAsked(values));
       if (text.includes('FROM app.projects')) {
         return Promise.resolve([{ teamIds }]);
       }
@@ -720,7 +896,9 @@ describe('the agent-question bell (agent_escalation)', () => {
   };
 
   const audience = (calls: { text: string; values: unknown[] }[]) =>
-    calls.find((c) => c.text.includes('FROM "member"'));
+    calls.find(
+      (c) => c.text.includes('FROM "member"') && !isReaderCheck(c.text),
+    );
 
   // Only the run page answers a question with no task, and only Owners,
   // Admins and Developers may open it: asking anyone else is a dead end.
@@ -768,8 +946,6 @@ describe('the failed-run notice (agent_run_failed)', () => {
     subscribers: string[];
     /** Who is still a member able to open the project. */
     readers: string[];
-    /** The project's audience; empty = organization-wide. */
-    teamIds?: string[];
     /** Recipients who switched agent escalations off. */
     muted?: string[];
   }
@@ -794,16 +970,8 @@ describe('the failed-run notice (agent_run_failed)', () => {
           world.subscribers.map((subscriberId) => ({ subscriberId })),
         );
       }
-      if (text.includes('FROM app.projects')) {
-        return Promise.resolve([{ teamIds: world.teamIds ?? [] }]);
-      }
-      if (text.includes('FROM "member"')) {
-        const asked = values.find((v): v is string[] => Array.isArray(v));
-        return Promise.resolve(
-          (asked ?? [])
-            .filter((id) => world.readers.includes(id))
-            .map((userId) => ({ userId })),
-        );
+      if (isReaderCheck(text)) {
+        return Promise.resolve(readersAsked(values, world.readers));
       }
       if (text.includes('FROM app.notification_preferences')) {
         return Promise.resolve(
@@ -861,12 +1029,17 @@ describe('the failed-run notice (agent_run_failed)', () => {
       }),
     ).resolves.toBe(2);
 
-    const members = fake.calls.find((c) => c.text.includes('FROM "member"'));
-    expect(members?.text).toContain(`lower("role") <> 'disabled'`);
-    expect(members?.values).toEqual([
-      'org-1',
-      expect.arrayContaining(['watcher-1', 'left-org', 'member-starter']),
-    ]);
+    // One reader check over the whole candidate list for the project, then
+    // the writer's own check per row.
+    const members = fake.calls.find((c) => isReaderCheck(c.text));
+    expect(members?.text).toContain(`lower(m."role") <> 'disabled'`);
+    expect(members?.values).toEqual(
+      expect.arrayContaining([
+        'org-1',
+        'proj-1',
+        expect.arrayContaining(['watcher-1', 'left-org', 'member-starter']),
+      ]),
+    );
     const rows = inserts(fake.calls);
     expect(rows.map((row) => row.values[0])).toEqual([
       'watcher-1',
@@ -894,7 +1067,6 @@ describe('the failed-run notice (agent_run_failed)', () => {
     const fake = fakeRunDb({
       subscribers: ['watcher-1'],
       readers: ['watcher-1'],
-      teamIds: ['team-a'],
     });
 
     await notifyAgentRunFailed(fake.db, {
@@ -904,10 +1076,10 @@ describe('the failed-run notice (agent_run_failed)', () => {
       failureCode: null,
     });
 
-    const members = fake.calls.find((c) => c.text.includes('FROM "member"'));
+    const members = fake.calls.find((c) => isReaderCheck(c.text));
     expect(members?.text).toContain(`lower(m."role") IN ('owner', 'admin')`);
     expect(members?.text).toContain('FROM "teamMember" tm');
-    expect(members?.values).toContainEqual(['team-a']);
+    expect(members?.text).toContain('tm."teamId" = ANY (audience."teamIds")');
   });
 
   it.each([
@@ -967,9 +1139,7 @@ describe('the failed-run notice (agent_run_failed)', () => {
       }),
     ).resolves.toBe(0);
 
-    expect(fake.calls.some((c) => c.text.includes('FROM "member"'))).toBe(
-      false,
-    );
+    expect(fake.calls.some((c) => isReaderCheck(c.text))).toBe(false);
     expect(inserts(fake.calls)).toHaveLength(0);
   });
 

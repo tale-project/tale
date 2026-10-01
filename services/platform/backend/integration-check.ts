@@ -68,6 +68,7 @@ import { checkAutomationProjectVisibility } from './domains/automations/project-
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
@@ -57304,6 +57305,10 @@ async function main(): Promise<void> {
       [
         'checkAgentRunFailureNotice',
         () => checkAgentRunFailureNotice(sql, authCtx, record),
+      ],
+      [
+        'checkTaskNotificationAccess',
+        () => checkTaskNotificationAccess(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskSourceThread',

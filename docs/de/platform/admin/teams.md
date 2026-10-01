@@ -27,6 +27,8 @@ Ein Team behält mindestens ein Mitglied. Um das letzte zu entfernen, lösche st
 
 Eine Person kann mehreren Teams angehören. Ihr Zugriff kann über weitere Teams oder eine direkte Zuweisung bestehen bleiben. Das Entfernen aus einem Team entzieht daher nicht zwangsläufig jeden Zugriff auf eine Ressource. Prüfe die übrigen Zugangswege, wenn du Rechte entziehen möchtest.
 
+Benachrichtigungen folgen derselben Regel. Wer ein Projekt nicht mehr öffnen kann, erhält zu dessen Aufgaben keine neuen Benachrichtigungen oder E-Mails mehr, auch nicht zu Aufgaben, denen die Person folgt. Was sie bereits erfahren hat, bleibt in ihren Benachrichtigungen. Erhält sie wieder Zugriff, wird sie zu den Aufgaben, denen sie folgt, wieder benachrichtigt.
+
 Ein Team, das dein Identity Provider bereitstellt, trägt in der Liste die Markierung **Synchronisiert**. Name und Mitglieder gehören dem Anbieter: Der Bearbeitungsdialog zeigt sie nur an, weil der nächste Abgleich eine lokale Änderung zurücksetzen würde. Löschen kannst du ein solches Team trotzdem; der Anbieter kann es erneut anlegen.
 
 <Tip>
