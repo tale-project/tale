@@ -74,8 +74,9 @@ The browser leaves out errors that do not indicate a defect in Tale:
 - requests the page cancelled itself, for example because you left the page before it finished loading
 - requests the backend refused with a status below 500, such as a missing permission or a name that is already taken
 - requests that got no response at all, for example while the device was offline
+- requests that fail while the platform or its database restarts: the proxy's `UPSTREAM_UNAVAILABLE` during a deployment or restart, and the platform's `503 DATABASE_UNAVAILABLE`
 
-Server errors, with a status of 500 or above, are still reported.
+Other server errors, with a status of 500 or above, are still reported.
 
 ## Aggregate analytics with Umami
 

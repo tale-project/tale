@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 18 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 19 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -193,6 +193,18 @@ single warm sample.
   fail quietly until one succeeds: …` warning per container, and no
   `pg-boss error:` dump at all; the second restart adds its own line.
   Afterwards jobs run again: a new chat gets its generated title.
+- [ ] `PERF-B8` · **A write and a list while the app tier is away** — With
+  `SENTRY_DSN` pointing at a project you can read, open a project's task
+  board, open **Create task** and type a title, then run `docker compose stop
+  backend-api`. Click **Create task**, open **All projects** from the Home
+  panel, and after about ten seconds run `docker compose start backend-api`.
+  → The create fails with one toast, the dialog stays open with the title as
+  typed, and no task appears; **Create task** again, once the backend
+  answers, creates it once. The projects list shows its error state with
+  **Try again** — never an empty list — and fills in on its own within a
+  minute of the start, or at once on **Try again**. Neither failure sends an
+  event to `SENTRY_DSN`: the edge's `UPSTREAM_UNAVAILABLE` is an operational
+  answer, like `DATABASE_UNAVAILABLE` in `PERF-B5`.
 
 ## Accessibility (WCAG 2.1 AA)
 
