@@ -1540,6 +1540,11 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
           queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),
         });
       }
+      // The workspace list dates each unused workspace's deletion by this
+      // policy's window.
+      if (args.policyType === 'sandbox_workspaces') {
+        invalidateSandboxSessions(client, args, ctx);
+      }
       if (args.policyType === 'password_policy') {
         invalidateMyPasswordPolicy(client);
       }

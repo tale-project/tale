@@ -12,6 +12,7 @@ import {
 import { runDocker } from './spawn-util.ts';
 import type { RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
+import { ORG_ID_ALPHABET_RE } from './wire.ts';
 
 const EGRESS_ALIAS = 'tale-buildkit-egress';
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
@@ -114,6 +115,113 @@ export async function ensureBuildkitVolume(
     organizationId,
     name,
   );
+}
+
+/** Remove one of an organization's cache volumes; a missing one is already
+ * gone (false). A same-name volume the organization does not own is
+ * refused, never removed. */
+export async function removeBuildkitVolume(
+  name: string,
+  organizationId: string,
+): Promise<boolean> {
+  const labels = await inspect([
+    'volume',
+    'inspect',
+    '--format',
+    '{{json .Labels}}',
+    name,
+  ]);
+  if (labels === null) return false;
+  assertOwner(JSON.parse(labels), organizationId, name);
+  const removed = await runDocker(['volume', 'rm', name], {
+    timeoutMs: 30_000,
+  });
+  if (removed.exitCode === 0) return true;
+  if (/no such volume/i.test(removed.stderr)) return false;
+  throw new Error(
+    `buildkitd: cannot remove volume ${name}: ${removed.stderr.trim()}`,
+  );
+}
+
+/** Remove an organization's private network after detaching what is still
+ * attached — the egress proxy joins every organization network, and nothing
+ * else of another organization ever does. Ownership is checked first and the
+ * network is removed by its inspected id. False when it was already gone. */
+export async function removeBuildkitNetwork(
+  name: string,
+  organizationId: string,
+): Promise<boolean> {
+  const raw = await inspect([
+    'network',
+    'inspect',
+    '--format',
+    '{"id":{{json .Id}},"labels":{{json .Labels}},"containers":{{json .Containers}}}',
+    name,
+  ]);
+  if (raw === null) return false;
+  const data = parsedObject(raw);
+  assertOwner(data.labels, organizationId, name);
+  if (typeof data.id !== 'string' || !DOCKER_ID_RE.test(data.id)) {
+    throw new Error(`buildkitd: invalid network identity for ${name}`);
+  }
+  const attached = data.containers === null ? {} : object(data.containers);
+  for (const containerId of Object.keys(attached)) {
+    if (!DOCKER_ID_RE.test(containerId)) {
+      throw new Error(`buildkitd: invalid endpoint on network ${name}`);
+    }
+    const detached = await runDocker(
+      ['network', 'disconnect', '--force', data.id, containerId],
+      { timeoutMs: 30_000 },
+    );
+    if (
+      detached.exitCode !== 0 &&
+      !/is not connected|no such container|not found/i.test(detached.stderr)
+    ) {
+      throw new Error(
+        `buildkitd: cannot detach ${containerId} from ${name}: ${detached.stderr.trim()}`,
+      );
+    }
+  }
+  const removed = await runDocker(['network', 'rm', data.id], {
+    timeoutMs: 30_000,
+  });
+  if (removed.exitCode === 0) return true;
+  if (/no such network|not found/i.test(removed.stderr)) return false;
+  throw new Error(
+    `buildkitd: cannot remove network ${name}: ${removed.stderr.trim()}`,
+  );
+}
+
+/** The organizations owning any build helper, cache volume or private
+ * network on this daemon. Legacy global resources carry no organization and
+ * are not reported. THROWS when an inventory cannot be read. */
+export async function listBuildkitOrganizations(): Promise<string[]> {
+  const organizations = new Set<string>();
+  for (const listing of [
+    ['ps', '--all'],
+    ['volume', 'ls'],
+    ['network', 'ls'],
+  ]) {
+    const result = await readDockerMetadata([
+      ...listing,
+      '--filter',
+      'label=tale.buildkitd=1',
+      '--format',
+      '{{.Label "tale.org"}}',
+    ]);
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `buildkitd: cannot inventory organization resources: ${result.stderr.trim()}`,
+      );
+    }
+    for (const line of result.stdout.split('\n')) {
+      const organizationId = line.trim();
+      if (ORG_ID_ALPHABET_RE.test(organizationId)) {
+        organizations.add(organizationId);
+      }
+    }
+  }
+  return [...organizations];
 }
 
 /** A daemon/mirror may listen only on its own organization network, without

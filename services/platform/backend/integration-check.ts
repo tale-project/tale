@@ -84,6 +84,7 @@ import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexin
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
+import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
@@ -93,6 +94,7 @@ import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integrat
 import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
+import { checkWorkspaceCleanup } from './domains/sandbox/workspace-cleanup.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
@@ -57116,6 +57118,7 @@ async function main(): Promise<void> {
         'checkTaskSourceThread',
         () => checkTaskSourceThread(sql, authCtx, record),
       ],
+      ['checkStandardAgent', () => checkStandardAgent(sql, authCtx, record)],
       [
         'checkScheduledAgentStarts',
         () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
@@ -57413,6 +57416,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),
+      ],
+      [
+        'checkWorkspaceCleanup',
+        () => checkWorkspaceCleanup(sql, authCtx, record),
       ],
       [
         'checkImageGenerationAdmission',

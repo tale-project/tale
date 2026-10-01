@@ -80,6 +80,27 @@ Die Antwort eines eigenen OpenAI-kompatiblen Endpunkts auf `/models` muss ein Bi
 
 Ein Zug eines Agenten erstellt höchstens 16 Bilder und führt jeweils nur eine Generierung aus. Vor jedem Aufruf hält Tale 0,25 USD pro Bild gegen den Rahmen des Zugs und die Budgetgrenzen fest und bucht nach dem Aufruf die gemeldeten Kosten an ihrer Stelle. Der Gateway-Schlüssel des Zugs gibt denselben Betrag von seiner Grenze ab, sodass Modell und Bilder zusammen in einem Rahmen bleiben; kann das Gateway diese Grenze nicht senken, wird das Bild abgelehnt. Ein Zug über ein Anbieter-Abonnement hat keinen Gateway-Rahmen; seine Bilder werden an dem Rahmen gemessen, den die Installation einem Zug standardmäßig gibt.
 
+## Den Standard-Agenten konfigurieren {#configure-the-standard-agent}
+
+Die Richtlinie der Organisation liegt unter `TALE_CONFIG_DIR/<org>/governance/standard-agent.yml`, mit dem Richtlinientyp `standard_agent`. Die [Seite Modelle](/de/platform/admin/governance/content-models#standard-agent) bearbeitet dieselben Einstellungen. Eine neue Organisation erhält den Standard-Agenten eingeschaltet, und eine fehlende Datei bedeutet ebenfalls eingeschaltet:
+
+```yaml
+enabled: true
+```
+
+Lege die Laufzeit, das Modell oder beides fest und ersetze die eingebauten Anweisungen:
+
+```yaml
+enabled: true
+harness: claude-code
+providerSlug: anthropic
+modelId: claude-sonnet-5
+instructions: |
+  Schreibe im Stil unseres Hauses. Liefere jedes Dokument als Word-Datei.
+```
+
+`harness` nimmt den Slug einer Laufzeit, die ein Projektagent nutzen kann, etwa `claude-code` oder `codex`; eine andere lehnt die Seite Modelle ab. Ein festgelegtes Modell braucht `providerSlug` und `modelId`. Ungültig sind eine halbe Festlegung, ein unbekanntes Feld und Anweisungen mit mehr als 20.000 Zeichen. Eine ungültige oder unlesbare Datei hält jeden Standard-Agenten vom Start ab, und die Seite Modelle nennt das Problem; als eingeschaltet gilt sie nie. Ein nicht verfügbares Modell weicht nie auf ein anderes aus, ebenso wenig eines, das der Modellzugriff einer Person nicht erlaubt. Tale liest die Richtlinie bei jedem Start eines Laufs, eine Änderung gilt also ab dem nächsten Lauf. Mit `enabled: false` bleiben die schon eingerichteten Standard-Agenten in ihren Projekten, aber keiner von ihnen startet.
+
 ## Modellzugriff aus der Sandbox prüfen
 
 Chats rufen einen Anbieter aus dem Backend auf. Coding-Agenten verwenden `sandbox-llm-gateway`; ein erfolgreicher Chat belegt daher nicht den Agentenpfad. Der Endpunkt muss aus Backend und Gateway auflösbar und erreichbar sein. Beide HTTPS-Clients müssen seinem Zertifikat vertrauen. Auch ein Name wie `https://models.internal/v1` braucht die Freigabe privater Anbieter, wenn DNS ihn zu einer privaten Adresse auflöst. HTTP bleibt auf die vom Anbieterschema akzeptierten Hostformen begrenzt, etwa private IP-Adressen, `localhost` und `.local`.

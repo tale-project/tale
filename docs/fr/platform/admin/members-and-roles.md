@@ -37,7 +37,7 @@ Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne don
 
 | Rôle | Travail habituel | Administration de l’organisation |
 | --- | --- | --- |
-| **Propriétaire** | Toutes les tâches du produit et de son administration | Peut aussi transférer la propriété et supprimer l’organisation ; la suppression demande de taper le nom de l’organisation avant d’activer le bouton. |
+| **Propriétaire** | Toutes les tâches du produit et de son administration | Peut aussi transférer la propriété et supprimer l’organisation, ce qui efface également ses sandboxes et leurs fichiers ; la suppression demande de taper le nom de l’organisation avant d’activer le bouton. |
 | **Admin** | Gérer les personnes, les services, les politiques et le travail de l’équipe | Tous les paramètres de l’organisation, sans transfert de propriété. |
 | **Développeur** | Créer des agents, des automatisations et des intégrations | Paramètres techniques des fournisseurs, connecteurs et API ; pas de gestion des membres. |
 | **Éditeur** | Entretenir les contenus et traiter le travail quotidien | Modification du contenu ; pas d’accès à **Automatisations** ; lecture seule des ressources de connecteurs. |
@@ -68,6 +68,6 @@ Un propriétaire peut sélectionner **Transférer la propriété** dans le menu 
 
 ## Retirer ou rétablir l’accès
 
-Choisis **Désactivé** pour arrêter l’accès tout en conservant l’adhésion. L’action **Supprimer** de la ligne retire l’adhésion à cette organisation. Vérifie d’abord les travaux partagés et les responsabilités dans les équipes. Retirer une adhésion n’est pas une [demande d’effacement des données](/fr/platform/admin/governance/data-subject-requests).
+Choisis **Désactivé** pour arrêter l’accès tout en conservant l’adhésion. L’action **Supprimer** de la ligne retire l’adhésion à cette organisation. Elle supprime aussi, avec leurs fichiers, les espaces de travail de sandbox propres aux [exécutions d’agent que la personne a démarrées](/fr/platform/projects/tasks#executions-demarrees-par-un-membre) ; **Désactivé** les conserve. Vérifie d’abord les travaux partagés et les responsabilités dans les équipes. Retirer une adhésion n’est pas une [demande d’effacement des données](/fr/platform/admin/governance/data-subject-requests).
 
 Si un membre perd son authentificateur ou sa passkey, ouvre **Modifier** et utilise les contrôles de sécurité correspondants. [L’authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) explique la récupération, la réinitialisation et leurs effets sur les sessions.

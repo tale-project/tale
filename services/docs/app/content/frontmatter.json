@@ -290,7 +290,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Modelle",
-      "description": "Lege Standardmodelle fest, begrenze den Zugriff und wähle getrennte Modelle für Bilder und Audiotranskription."
+      "description": "Lege Standardmodelle fest, begrenze den Zugriff, wähle getrennte Modelle für Bilder und Audiotranskription und richte den Standard-Agenten für Projekte ohne Agenten ein."
     }
   },
   "de:platform/admin/governance/data-subject-requests": {
@@ -1451,7 +1451,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Models",
-      "description": "Set default models, restrict access, and choose separate models for images and audio transcription."
+      "description": "Set default models, restrict access, choose separate models for images and audio transcription, and set up the standard agent for projects without agents."
     }
   },
   "en:platform/admin/governance/data-subject-requests": {
@@ -2612,7 +2612,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Modèles",
-      "description": "Définis les modèles par défaut, limite leur accès et choisis des modèles distincts pour les images et la transcription audio."
+      "description": "Définis les modèles par défaut, limite leur accès, choisis des modèles distincts pour les images et la transcription audio, et mets en place l’agent standard des projets sans agents."
     }
   },
   "fr:platform/admin/governance/data-subject-requests": {

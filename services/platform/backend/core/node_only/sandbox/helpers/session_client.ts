@@ -565,12 +565,14 @@ export async function sessionIsAlive(sessionId: string): Promise<boolean> {
  * nothing under that id (both mean "backend is gone"). THROWS on any non-2xx
  * so callers can't mistake a failed teardown for a clean one — flipping the
  * platform row while the backend survives leaves the deterministic sessionId
- * 409ing on every future create. */
+ * 409ing on every future create. A session on a device that is not connected
+ * throws {@link SandboxDeviceOfflineError}: its workspace is still there. */
 export async function sessionDestroy(sessionId: string): Promise<boolean> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(30_000),
   });
+  await throwIfDeviceOffline(res);
   if (!res.ok) {
     throw new Error(`sandbox session destroy failed (${res.status})`);
   }
@@ -591,12 +593,100 @@ export async function sessionDestroyIfIdle(
   const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(30_000),
   });
+  await throwIfDeviceOffline(res);
   if (!res.ok) {
     throw new Error(`sandbox session destroy failed (${res.status})`);
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as { destroyed?: boolean; busy?: boolean };
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
+}
+
+/** The workspace cleanup's destroy: only the preserved workspace of a
+ * STOPPED session goes — the spawner answers `{busy:true}` while any compute
+ * runs under the id (a turn that just resumed it, before its first exec) or a
+ * create is in flight. `if_idle=1` rides along so a spawner or device that
+ * predates `if_stopped` still refuses a session with a live exec. Same
+ * non-2xx THROW contract as sessionDestroy; a device that is not connected
+ * throws {@link SandboxDeviceOfflineError}. */
+export async function sessionDestroyStopped(
+  sessionId: string,
+): Promise<{ destroyed: boolean; busy: boolean }> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1&if_stopped=1`;
+  const res = await spawnerFetch('DELETE', path, {
+    signal: AbortSignal.timeout(60_000),
+  });
+  await throwIfDeviceOffline(res);
+  if (!res.ok) {
+    throw new Error(`sandbox session destroy failed (${res.status})`);
+  }
+  return z
+    .object({ destroyed: z.boolean(), busy: z.boolean() })
+    .parse(await res.json());
+}
+
+const workspaceInventorySchema = z.object({
+  backend: z.enum(['docker', 'kubernetes']),
+  workspaces: z.array(
+    z.object({
+      sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+      touchedAtMs: z.number(),
+      active: z.boolean(),
+      pinned: z.boolean(),
+      organizationId: z.string().optional(),
+    }),
+  ),
+  organizations: z.array(z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)),
+});
+
+export type SandboxWorkspaceInventory = z.infer<
+  typeof workspaceInventorySchema
+>;
+
+/** GET /v1/workspaces — every workspace the spawner holds (stopped sessions'
+ * preserved data included) and the organizations holding resources beyond
+ * them. `null` from a spawner that predates the route; THROWS when the
+ * spawner could not read its inventory. */
+export async function sandboxWorkspaceInventory(): Promise<SandboxWorkspaceInventory | null> {
+  const res = await spawnerFetch('GET', '/v1/workspaces', {
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox workspace inventory unavailable (${res.status})`);
+  }
+  return workspaceInventorySchema.parse(await res.json());
+}
+
+/** DELETE /v1/organizations/:id — a deleted organization's remaining
+ * sessions and its resources beyond them (build helpers, networks, caches).
+ * `null` from a spawner that predates the route; THROWS on any other
+ * failure, including 409 while a create of the organization is in flight. */
+export async function sandboxOrganizationTeardown(
+  organizationId: string,
+): Promise<{
+  sessions: number;
+  containers: number;
+  volumes: number;
+  networks: number;
+} | null> {
+  const res = await spawnerFetch(
+    'DELETE',
+    `/v1/organizations/${encodeURIComponent(organizationId)}`,
+    { signal: AbortSignal.timeout(300_000) },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`sandbox organization teardown failed (${res.status})`);
+  }
+  return z
+    .object({
+      sessions: z.number().int().nonnegative(),
+      containers: z.number().int().nonnegative(),
+      volumes: z.number().int().nonnegative(),
+      networks: z.number().int().nonnegative(),
+    })
+    .parse(await res.json());
 }
 
 /** PATCH /v1/sessions/:id/pin — toggle the spawner-side "always-on" reaper

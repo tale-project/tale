@@ -18,7 +18,7 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Perso
 3. Saisis exactement `ERASE`, puis choisis **Déposer la demande**.
 4. Ouvre le reçu et vérifie le statut, l’échéance et la prochaine action requise.
 
-L’effacement supprime définitivement les données couvertes ; il ne les déplace pas vers la corbeille. Le reçu indique les catégories et les nombres concernés : chats, documents et imports, préférences, retours, notifications, usage et nettoyage des identifiants personnels dans l’audit.
+L’effacement supprime définitivement les données couvertes ; il ne les déplace pas vers la corbeille. Le reçu indique les catégories et les nombres concernés : chats, documents et imports, préférences, retours, notifications, usage et nettoyage des identifiants personnels dans l’audit. L’effacement supprime aussi les espaces de travail de sandbox propres aux [exécutions d’agent que la personne a démarrées](/fr/platform/projects/tasks#executions-demarrees-par-un-membre), même si du travail s’y exécute encore ; le reçu les compte sous **Espaces de travail de sandbox**.
 
 Les tâches qui désignent la personne comme **Relecteur** perdent cette désignation. Une demande de revue qui l’attend encore passe, comme avec **Retirer le relecteur**, à la personne qui a créé la tâche ou le projet, et celle-ci en est notifiée. Pour une tâche archivée, la demande passe sans notification. Les décisions de revue que la personne a déjà prises restent enregistrées sans son nom.
 

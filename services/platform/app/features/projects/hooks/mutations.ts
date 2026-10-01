@@ -50,6 +50,14 @@ export function useDeleteProjectAgent() {
   });
 }
 
+/** The project's standard agent, created when the project has no agents of
+ * its own — what picking it, or handing a chat to such a project, calls. */
+export function useEnsureStandardAgent() {
+  return useBackendMutation('projects/mutations:ensureStandardAgent', {
+    errorToast: false,
+  });
+}
+
 /** Org agent secrets: the value is encrypted server-side in a Node action
  * (`lib/secret_box`), so the write path is an action, not a mutation. */
 export function useUpsertAgentSecret() {

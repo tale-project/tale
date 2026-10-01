@@ -17,6 +17,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import {
   DEFAULT_SANDBOX_QUOTA,
+  DEFAULT_SANDBOX_WORKSPACES,
   sandboxQuotaTotal,
 } from '@tale/shared/schemas/governance';
 
@@ -150,6 +151,13 @@ const modelEndpointsSection = (page: Page): Locator =>
     exact: true,
   });
 
+/** The Standard agent section on Governance > Models. */
+const standardAgentSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.standardAgent.title'),
+    exact: true,
+  });
+
 /** A capture-rig value and what a customer's page shows in its place. */
 type RigSwap = readonly [rig: string, real: string];
 
@@ -276,6 +284,8 @@ async function setDataNotice(page: Page, on: boolean): Promise<void> {
   await expect(toggle).toBeChecked({ checked: on });
 }
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
+/** The seeded project without agents of its own. */
+const ONBOARDING_PROJECT = DEMO_PROJECTS[1].name;
 
 /** The tasks a conversation handed over, above its message box. */
 const chatTaskTray = (page: Page): Locator =>
@@ -337,15 +347,22 @@ async function openChatHandover(
  */
 const FRESH_CHAT_ROUTE = '/dashboard/:orgId/chat?new=true';
 
-const projectRoute = (ctx: ShotContext, sub = ''): string => {
-  const projectId = ctx.projects.get(RELAUNCH_PROJECT);
+const seededProjectId = (ctx: ShotContext, project: string): string => {
+  const projectId = ctx.projects.get(project);
   if (!projectId) {
     throw new Error(
-      `No seeded project "${RELAUNCH_PROJECT}" — run without --skip-seed.`,
+      `No seeded project "${project}" — run without --skip-seed.`,
     );
   }
-  return `/dashboard/${ctx.orgId}/projects/${projectId}${sub}`;
+  return projectId;
 };
+
+const projectRoute = (
+  ctx: ShotContext,
+  sub = '',
+  project = RELAUNCH_PROJECT,
+): string =>
+  `/dashboard/${ctx.orgId}/projects/${seededProjectId(ctx, project)}${sub}`;
 
 /** Keep catalog examples reproducible when the local organization also has
  * manual-test automations. Filter through the real search control; never
@@ -649,6 +666,117 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByRole('menuitemcheckbox', { name: /^docx/, checked: true }),
+  },
+  {
+    // A project without agents of its own: Assignee offers the
+    // organization's standard agent, and the footer says it takes the
+    // project's tasks until the project has agents. The Agents section sits
+    // below the people, so the list scrolls to its end; nothing is picked,
+    // and the project stays without agents.
+    name: 'project-task-standard-agent',
+    section: 'platform',
+    route: '/dashboard/:orgId/projects',
+    prepare: async (page, ctx) => {
+      const title = DEMO_PROJECTS[1].tasks[0].title;
+      await page.goto(projectRoute(ctx, '/tasks/board', ONBOARDING_PROJECT), {
+        waitUntil: 'domcontentloaded',
+      });
+      await page.getByText(title, { exact: true }).click();
+      await page
+        .getByRole('dialog', { name: title })
+        .getByRole('button', { name: t('tasks.actions.assign'), exact: true })
+        .click();
+      const list = page.getByRole('listbox', {
+        name: t('tasks.fields.assignee'),
+      });
+      await list
+        .getByRole('option', {
+          name: new RegExp(
+            `^${escapeRegExp(t('tasks.assignee.standardAgent'))}`,
+          ),
+        })
+        .waitFor({ timeout: TIMEOUT.VISIBLE });
+      await list.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+    },
+    readyWhen: (page) =>
+      page.getByText(t('tasks.assignee.standardAgentFooter'), { exact: true }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('tasks.fields.assignee'),
+        exact: true,
+      }),
+  },
+  {
+    // The standard agent on the Agents tab of the project that had none:
+    // the Standard badge, the note that the organization's settings run it,
+    // and Delete as its only action. Set up through the door the Assignee
+    // option uses; `restore` deletes it again, so the project is back
+    // without agents for the shot above.
+    name: 'project-agents-standard',
+    section: 'platform',
+    route: '/dashboard/:orgId/projects',
+    prepare: async (page, ctx) => {
+      await page.evaluate(
+        async ({ orgId, projectId }) => {
+          const ensured = await fetch(
+            `/api/app/projects/${projectId}/standard-agent?orgId=${orgId}`,
+            {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json' },
+              body: '{}',
+            },
+          );
+          if (!ensured.ok) {
+            throw new Error(`Standard agent answered ${ensured.status}`);
+          }
+        },
+        {
+          orgId: ctx.orgId,
+          projectId: seededProjectId(ctx, ONBOARDING_PROJECT),
+        },
+      );
+      await page.goto(projectRoute(ctx, '/agents', ONBOARDING_PROJECT), {
+        waitUntil: 'domcontentloaded',
+      });
+    },
+    readyWhen: (page) =>
+      page.getByText(t('projects.agents.standard.managedNote'), {
+        exact: true,
+      }),
+    // The row names the provider serving its model.
+    sanitize: replaceRigNames,
+    restore: async (page, ctx) => {
+      await page.evaluate(
+        async ({ orgId, projectId }) => {
+          const list = await fetch(
+            `/api/app/projects/${projectId}/agents?orgId=${orgId}`,
+            { credentials: 'include' },
+          );
+          if (!list.ok) throw new Error(`Agents answered ${list.status}`);
+          const body: unknown = await list.json();
+          const rows =
+            typeof body === 'object' && body !== null && 'agents' in body
+              ? (body as { agents: { id: string; managed?: boolean }[] }).agents
+              : [];
+          for (const row of rows.filter((agent) => agent.managed === true)) {
+            const removed = await fetch(
+              `/api/app/projects/agents/${row.id}?orgId=${orgId}`,
+              { method: 'DELETE', credentials: 'include' },
+            );
+            if (!removed.ok) {
+              throw new Error(`Delete answered ${removed.status}`);
+            }
+          }
+        },
+        {
+          orgId: ctx.orgId,
+          projectId: seededProjectId(ctx, ONBOARDING_PROJECT),
+        },
+      );
+    },
   },
   {
     // Settings > Skills — the built-in document skills beside the house
@@ -1509,6 +1637,19 @@ export const SHOTS: readonly Shot[] = [
     capture: (page) => imageGenerationSection(page),
   },
   {
+    // Governance > Models — the organization's standard agent as a new
+    // organization has it: on, its agent type and model automatic. The line
+    // naming what it runs on for the viewer lands last, once the policy and
+    // the viewer's model choice have both answered.
+    name: 'governance-standard-agent',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/content-models',
+    readyWhen: (page) =>
+      standardAgentSection(page).getByText(/^For you, it runs on/),
+    sanitize: replaceRigNames,
+    capture: (page) => standardAgentSection(page),
+  },
+  {
     // Governance > Models — the model endpoints for API keys, switched on in
     // the demo organization's model access policy. The switch reads on only
     // once the policy has loaded.
@@ -1691,6 +1832,67 @@ export const SHOTS: readonly Shot[] = [
     capture: (page) =>
       page.getByRole('region', {
         name: t('sandboxes.limits.title'),
+        exact: true,
+      }),
+  },
+  {
+    name: 'sandbox-workspace-cleanup',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/sandboxes',
+    prepare: async (page) => {
+      // The shot shows the rule every organization starts with: unused
+      // workspaces deleted after the default number of days. An earlier run
+      // may have saved another value; put the default back through the real
+      // editor, so the capture shows the persisted rule.
+      const toggle = page.getByRole('switch', {
+        name: t('sandboxes.cleanup.deleteUnused'),
+        exact: true,
+      });
+      const days = page.getByRole('spinbutton', {
+        name: t('sandboxes.cleanup.unusedDays'),
+        exact: true,
+      });
+      await expect(days).not.toHaveValue('');
+      let changed = false;
+      if ((await toggle.getAttribute('aria-checked')) !== 'true') {
+        await toggle.click();
+        changed = true;
+      }
+      const unusedDays = String(DEFAULT_SANDBOX_WORKSPACES.unusedDays);
+      if ((await days.inputValue()) !== unusedDays) {
+        await days.fill(unusedDays);
+        changed = true;
+      }
+      if (changed) {
+        const save = page.getByRole('button', {
+          name: t('common.actions.save'),
+          exact: true,
+        });
+        await expect(save).toBeEnabled();
+        await save.click();
+        await expect(
+          page.getByRole('button', {
+            name: t('common.actions.saved'),
+            exact: true,
+          }),
+        ).toBeVisible();
+        await page.reload();
+        await expect(
+          page.getByRole('spinbutton', {
+            name: t('sandboxes.cleanup.unusedDays'),
+            exact: true,
+          }),
+        ).toHaveValue(unusedDays);
+      }
+    },
+    readyWhen: (page) =>
+      page.getByRole('spinbutton', {
+        name: t('sandboxes.cleanup.unusedDays'),
+        exact: true,
+      }),
+    capture: (page) =>
+      page.getByRole('region', {
+        name: t('sandboxes.cleanup.title'),
         exact: true,
       }),
   },

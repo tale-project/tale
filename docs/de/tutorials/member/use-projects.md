@@ -7,7 +7,7 @@ Ein Projekt hält Dateien, Anweisungen, Gespräche und Aufgaben zu einer Arbeit 
 
 ## Bevor du beginnst
 
-Als **Mitglied** arbeitest du in den Projekten, die mit dir geteilt sind: Du stellst Fragen in ihren Chats, teilst Gespräche und legst Aufgaben für die Agenten des Projekts an. Nimm ein Projekt, das du öffnen kannst, mit einer indexierten Referenzdatei und mindestens einem Agenten, und beginne bei [Eine Frage stellen und die Quelle prüfen](#eine-frage-stellen-und-die-quelle-pruefen). Um ein Projekt zu erstellen, Dateien hochzuladen, Anweisungen zu speichern und Agenten anzulegen, brauchst du die Rolle **Redakteur** oder höher; richtest du das Projekt ein, beginne bei [Das Projekt einrichten](#das-projekt-einrichten). Du brauchst ein kurzes Textdokument, eine PDF mit auswählbarem Text oder eine Datei in einem modernen Office-Format. Wähle eine Quelle, deren Angaben du nachprüfen kannst, etwa ein Projektbriefing mit einer verantwortlichen Person und einem Prüftermin. Ein Admin muss den Dateispeicher und ein Embedding-Modell für durchsuchbare Uploads eingerichtet haben.
+Als **Mitglied** arbeitest du in den Projekten, die mit dir geteilt sind: Du stellst Fragen in ihren Chats, teilst Gespräche und legst Aufgaben für die Agenten des Projekts an. Nimm ein Projekt, das du öffnen kannst, mit einer indexierten Referenzdatei, und beginne bei [Eine Frage stellen und die Quelle prüfen](#eine-frage-stellen-und-die-quelle-pruefen). Ein Projekt ohne eigene Agenten übergibt seine Aufgaben dem [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation, sofern ein Admin ihn nicht ausgeschaltet hat. Um ein Projekt zu erstellen, Dateien hochzuladen, Anweisungen zu speichern und Agenten anzulegen, brauchst du die Rolle **Redakteur** oder höher; richtest du das Projekt ein, beginne bei [Das Projekt einrichten](#das-projekt-einrichten). Du brauchst ein kurzes Textdokument, eine PDF mit auswählbarem Text oder eine Datei in einem modernen Office-Format. Wähle eine Quelle, deren Angaben du nachprüfen kannst, etwa ein Projektbriefing mit einer verantwortlichen Person und einem Prüftermin. Ein Admin muss den Dateispeicher und ein Embedding-Modell für durchsuchbare Uploads eingerichtet haben.
 
 Neue Projekte sind **Organisationsweit** sichtbar. Verwende für diese Anleitung keine vertraulichen Unterlagen. Soll das spätere Projekt nur bestimmten Teams zugänglich sein, lege das zuständige Team unter **Allgemein > Freigabe** fest, bevor du Dateien hochlädst. Projektchats bleiben persönlich, bis du sie teilst.
 
@@ -50,7 +50,7 @@ Klicke oben auf **Speichern**. Die Anweisungen gehören zum Kontext der Projektc
 
 </Frame>
 
-Für den letzten Teil dieser Anleitung braucht das Projekt außerdem einen Agenten. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt, wie du einen anlegst.
+Im letzten Teil dieser Anleitung geht eine Aufgabe an einen Agenten: an einen eigenen des Projekts oder, solange es keinen hat, an den [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt, wie du einen anlegst.
 
 ## Eine Frage stellen und die Quelle prüfen
 
@@ -78,7 +78,7 @@ Der Chat beantwortet Fragen, erstellt aber keine Dateien. Soll aus der Antwort e
 
 1. Wähle im Kopf des Gesprächs **Aufgabe erstellen**. Weil der Chat zu diesem Projekt gehört, öffnet sich **Aufgabe erstellen** dort, mit deiner letzten Frage als Beschreibung, einem Link zurück zum Chat und den Dateien, die du angehängt hast.
 2. Formuliere die Beschreibung als gewünschtes Ergebnis, zum Beispiel: `Erstelle aus dem Briefing eine einseitige Launch-Zusammenfassung als Word-Dokument. Nenne für jeden Termin das Briefing als Quelle.`
-3. Wähle unter **Zuständig** einen Agenten des Projekts, falls noch keiner eingetragen ist, und klicke auf **Erstellen und Agent starten**.
+3. Wähle unter **Zuständig** einen Agenten des Projekts, falls noch keiner eingetragen ist; in einem Projekt ohne eigene Agenten ist der Standard-Agent schon eingetragen. Klicke dann auf **Erstellen und Agent starten**.
 4. Verfolge den Lauf über dem Nachrichtenfeld des Chats; **Öffnen** führt dich dort zur Aufgabe.
 
 Wenn der Lauf endet, steht der Bericht des Agenten in den Kommentaren der Aufgabe, die Datei unter **Ergebnisdateien**, und die Aufgabe wartet auf **In Prüfung**. Erwähne den Agenten mit `@` in einem Kommentar, um Änderungen zu erbitten, und setze die Aufgabe auf **Erledigt**, wenn das Ergebnis der Beschreibung entspricht.

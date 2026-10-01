@@ -3,7 +3,7 @@ title: Manage sandbox capacity
 description: Adjust concurrent workload limits, interpret infrastructure measurements and investigate work waiting for a sandbox.
 ---
 
-Open **Settings > Sandboxes** when agent work or crawling cannot obtain an execution environment. The page separates your organization’s workload limits from the deployment’s actual infrastructure. Owners and Admins can change limits; Developers can read limits and aggregate capacity, without the private workspace list.
+Open **Settings > Sandboxes** when agent work or crawling cannot obtain an execution environment. The page separates your organization’s workload limits from the deployment’s actual infrastructure. Owners and Admins can change limits and decide when unused workspaces are deleted; Developers can read limits and aggregate capacity, without the private workspace list.
 
 ## Identify the limit that matters
 
@@ -51,7 +51,7 @@ Measurements refresh every 15 seconds; **Refresh** requests a new observation. C
 
 ## Explain an allocated or idle workspace
 
-Owners and Admins can inspect **Workspaces**. A row identifies its agent or workflow run, runtime state, allocation state and running tasks. These states answer different questions: a container may remain running for reuse after it has released its organization slot. A project agent’s workspace stays listed while the agent is idle, as **Stopped** with **Quota released**, and leaves the list only when you destroy it; once the agent itself is deleted, the row reads **Deleted agent** until you destroy it. A workflow run’s workspace is reclaimed shortly after the run ends.
+Owners and Admins can inspect **Workspaces**. A row identifies its agent or workflow run, runtime state, allocation state and running tasks. These states answer different questions: a container may remain running for reuse after it has released its organization slot. A project agent’s workspace stays listed while the agent is idle, as **Stopped** with **Quota released**, until you destroy it or Tale deletes it: when nobody has used it for [the number of days your organization sets](#delete-unused-workspaces-automatically), or when [its agent, project or member is removed](#explain-why-a-workspace-disappeared). Once the agent itself is deleted, the row reads **Deleted agent** until Tale has deleted the workspace. A workflow run’s workspace is reclaimed shortly after the run ends.
 
 **Spend** adds the metered cost of finished turns. A turn still running is included when it ends. Temporary crawler environments appear in capacity counts even without a standing workspace row.
 
@@ -64,10 +64,41 @@ Owners and Admins can use a workspace’s row menu:
 | Action | Effect |
 | --- | --- |
 | **Stop task** | Cancels all currently running operations in that workspace. Check the listed tasks first; one agent may have several. |
-| **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup, or restores normal cleanup. A pinned allocation can continue holding capacity. If a pinned workspace’s environment disappears, for example after a host restart, Tale starts it again with its workspace files, and the workspace stays pinned. |
+| **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup and from deletion for being unused, or restores normal cleanup. A pinned allocation can continue holding capacity. If a pinned workspace’s environment disappears, for example after a host restart, Tale starts it again with its workspace files, and the workspace stays pinned. |
 | **Destroy** | Asks for confirmation, cancels running work and removes the sandbox and its workspace files. It unpins the workspace first. If destruction fails, the workspace remains listed, unpinned, and you can retry **Destroy** to finish removing it. The next agent start creates a fresh environment. |
 
-Use stop when the current work should end but its files should remain. Before destruction, preserve outputs you still need and read the confirmation. Idle capacity reclamation preserves workspace files; explicit destruction does not.
+Use stop when the current work should end but its files should remain. Before destruction, preserve outputs you still need and read the confirmation. Idle capacity reclamation preserves workspace files; explicit destruction and automatic deletion do not.
+
+## Delete unused workspaces automatically
+
+A project agent keeps its files between runs in workspaces: the one it reuses across tasks, and a separate one for each Member who [starts its runs](/platform/projects/tasks#agent-runs-a-member-starts). Tale deletes a workspace that nobody has used for the number of days your organization sets; **Destroy** still deletes one at once. Owners and Admins set this rule under **Workspace cleanup**, above **Workspaces**. Developers don't see that section.
+
+<Frame caption="With Delete unused workspaces on, a workspace nobody has used for the set number of days is deleted. Pinned workspaces are kept.">
+
+![The Workspace cleanup section shows the Delete unused workspaces switch turned on and Days without use set to 30, each with an explanation of what it does.](/images/platform/sandbox-workspace-cleanup.webp)
+
+</Frame>
+
+1. Keep **Delete unused workspaces** switched on, as it is by default. While it is off, Tale deletes no workspace for being unused.
+2. Enter **Days without use**, a whole number from 1 to 3650; the default is 30. The days count from the last time the agent worked in the workspace, or from when it was unpinned.
+3. Select **Save** in the header. **Discard** restores the saved values.
+
+A change never makes a workspace go early. After you switch deletion on or shorten the period, no workspace is deleted for being unused until the full number of days has passed since the change. The same wait follows the update that introduced the setting. Lengthening the period doesn't restart the wait; switching deletion off and on again does.
+
+In **Workspaces**, a stopped agent workspace shows the day it will be deleted under its status: **Deleted on … unless used again**. A new run in the workspace starts the count again. A pinned workspace, or one a [legal hold](/platform/admin/governance/legal-hold) keeps, shows no date and is never deleted for being unused.
+
+## Explain why a workspace disappeared
+
+Besides deleting unused workspaces, Tale deletes a workspace when what it belongs to is removed, whatever the cleanup setting says:
+
+- Deleting a project agent deletes all its workspaces, including each Member's. Deleting a project does the same for every agent in it.
+- [Removing a member](/platform/admin/members-and-roles#remove-or-recover-access) from the organization deletes their own workspaces with every agent. Setting the member to **Disabled** instead keeps them.
+- [Erasing a person's data](/platform/admin/governance/data-subject-requests) deletes their own workspaces without waiting for work running in them.
+- Deleting the organization deletes all its sandboxes and their files, revokes the gateway keys issued to them, disconnects its [devices](/platform/admin/sandbox-devices) and removes the build and package caches kept for it.
+
+This happens within about a minute, or after the task ends if one is still running in the workspace. A pinned workspace goes too, but a [legal hold](/platform/admin/governance/legal-hold) keeps every workspace it covers: a hold on the organization keeps all of them, and a hold on a person keeps that person's own workspaces. An hourly cleanup also deletes leftovers that nothing owns any more, such as a workflow run's workspace that was never reclaimed.
+
+Every workspace Tale deletes on its own, for one of these reasons or for being unused, appears in the [audit log](/platform/admin/governance/audit-logs) under **Settings > Governance > Logs** as **Sandbox workspace deleted**. It is a system event in the **Data** category, and its metadata names the reason: `agent_deleted`, `member_removed`, `member_erased`, `unused` or `orphaned`.
 
 ## Resolve a blocked start
 

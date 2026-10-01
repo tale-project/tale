@@ -48,10 +48,17 @@ import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import { recreatePinnedSession } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
+import {
+  pendingOrganizationSlices,
+  retireOrganizationSandboxes,
+  retireOwnerWorkspaces,
+  runWorkspaceCleanup,
+} from '../domains/sandbox/workspace-cleanup.ts';
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
 import {
   failAgentRun,
   inPlaceOfRun,
+  isStandardAgentRefusal,
   kickAgentRun,
   startedViaOfRun,
 } from '../domains/tasks/agent-runs.ts';
@@ -135,6 +142,27 @@ const recreatePinnedSchema = z.object({
 
 const orgCleanupSchema = z.object({
   orgSlug: z.string().min(1),
+});
+
+const retireWorkspacesSchema = z.discriminatedUnion('reason', [
+  z.object({
+    organizationId: z.string().min(1),
+    reason: z.literal('agent_deleted'),
+    agentIds: z.array(z.string().min(1)),
+  }),
+  z.object({
+    organizationId: z.string().min(1),
+    reason: z.literal('member_removed'),
+    userId: z.string().min(1),
+  }),
+]);
+
+const retireOrganizationSchema = z.object({
+  organizationId: z.string().min(1),
+  sessionIds: z.array(z.string().min(1)),
+  gatewayKeyIds: z.array(z.string().min(1)),
+  deviceIds: z.array(z.string().min(1)),
+  teardown: z.boolean(),
 });
 
 const startWorkflowSchema = z.object({
@@ -428,29 +456,41 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           return 'task_circuit_breaker';
         }
       }
-      await kickAgentRun(tx, {
-        organizationId: input.organizationId,
-        projectId: task.projectId,
-        taskId: input.taskId,
-        agentId: input.agentId,
-        harness: agent.harness,
-        model: agent.model,
-        ...(agent.modelProvider !== null
-          ? { modelProvider: agent.modelProvider }
-          : {}),
-        startedBy: newest.startedBy,
-        trigger: 'auto_retry',
-        ...(startedVia !== undefined
-          ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
-          : {}),
-        autoRetryAttempt: budget.attempt,
-        // Queued now, so the card shows the retry; started once the
-        // broker's cooldown has an account back.
-        ...(input.startAfterMs !== undefined
-          ? { startAfterMs: input.startAfterMs }
-          : {}),
-        ...(sessionId !== undefined ? { sessionId } : {}),
-      });
+      try {
+        await kickAgentRun(tx, {
+          organizationId: input.organizationId,
+          projectId: task.projectId,
+          taskId: input.taskId,
+          agentId: input.agentId,
+          harness: agent.harness,
+          model: agent.model,
+          ...(agent.modelProvider !== null
+            ? { modelProvider: agent.modelProvider }
+            : {}),
+          startedBy: newest.startedBy,
+          trigger: 'auto_retry',
+          ...(startedVia !== undefined
+            ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
+            : {}),
+          autoRetryAttempt: budget.attempt,
+          // Queued now, so the card shows the retry; started once the
+          // broker's cooldown has an account back.
+          ...(input.startAfterMs !== undefined
+            ? { startAfterMs: input.startAfterMs }
+            : {}),
+          ...(sessionId !== undefined ? { sessionId } : {}),
+        });
+      } catch (error) {
+        // The organization's standard agent was switched off, or no longer
+        // runs for the starter: no retry changes that, so the failed run
+        // ends here and its watchers are told. The refusal is a check, not
+        // a failed statement, so the transaction is still good to write.
+        if (isStandardAgentRefusal(error)) {
+          await retire(true);
+          return 'standard_agent_unavailable';
+        }
+        throw error;
+      }
       return 'kicked';
     });
     if (typeof outcome === 'object') {
@@ -842,6 +882,39 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (asks.requeued > 0) {
         console.log(
           `[watchdog] automation agents: re-enqueued ${asks.requeued} lost answered-ask resume(s)`,
+        );
+      }
+    },
+    'sandbox.retire_workspaces': async (payload) => {
+      const input = retireWorkspacesSchema.parse(payload);
+      const { retired, kept } = await retireOwnerWorkspaces(deps.sql, input);
+      if (retired > 0 || kept > 0) {
+        console.log(
+          `[sandbox.cleanup] ${input.reason}: deleted ${retired} workspace(s) of ${input.organizationId}, kept ${kept} that are wanted again or on legal hold`,
+        );
+      }
+    },
+    'sandbox.retire_organization': async (payload) => {
+      const input = retireOrganizationSchema.parse(payload);
+      await retireOrganizationSandboxes(input, {
+        otherSlicesPending: () =>
+          pendingOrganizationSlices(deps.sql, input.organizationId),
+      });
+    },
+    'sandbox.workspace_gc': async (_payload, context) => {
+      const result = await runWorkspaceCleanup(
+        deps.sql,
+        context !== undefined ? { signal: context.signal } : {},
+      );
+      const retired = Object.entries(result.retired);
+      if (
+        retired.length > 0 ||
+        result.deferred > 0 ||
+        result.unattributed > 0 ||
+        result.organizations > 0
+      ) {
+        console.log(
+          `[sandbox.cleanup] sweep deleted ${retired.map(([reason, count]) => `${count} ${reason}`).join(', ') || 'no'} workspace(s), deferred ${result.deferred}, left alone ${result.unattributed} it cannot attribute to this deployment, tore down ${result.organizations} deleted organization(s); inventory ${result.inventory}`,
         );
       }
     },

@@ -19,7 +19,7 @@ Un chat de projet utilise toujours l’assistant de chat intégré. Choisir un p
 
 Commence par une responsabilité dont tu peux évaluer le résultat, par exemple : « Examine les modifications, recherche les régressions et appuie tes constats sur des preuves. » Place-la dans les instructions permanentes. Le dépôt concerné, les fichiers, les critères d’acceptation et l’échéance appartiennent à chaque tâche.
 
-Un agent appartient à un seul projet. Les personnes qui peuvent lire le projet voient ses agents ; celles qui peuvent le modifier les gèrent tant qu’il est actif. Les noms doivent être uniques dans le projet, qui peut contenir jusqu’à 50 agents. Un autre projet demande une configuration distincte, même si le nom et les instructions sont identiques.
+Un agent appartient à un seul projet. Les personnes qui peuvent lire le projet voient ses agents ; celles qui peuvent le modifier les gèrent tant qu’il est actif. Les noms doivent être uniques dans le projet, qui peut contenir jusqu’à 50 agents. Un autre projet demande une configuration distincte, même si le nom et les instructions sont identiques. Un projet sans agents propres n’en est pas pour autant dépourvu : sauf si un admin l’a désactivé, l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation prend en charge ses tâches, avec des réglages qu’un admin choisit pour toute l’organisation.
 
 ## Comprendre la configuration
 

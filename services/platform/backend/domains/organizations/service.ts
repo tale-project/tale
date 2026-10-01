@@ -13,6 +13,7 @@ import {
   type ActiveHolds,
 } from '../legal_holds/service.ts';
 import { MEMBER_ROLES } from '../members/service.ts';
+import { scheduleOrganizationSandboxRetirement } from '../sandbox/retirement-schedule.ts';
 
 /**
  * Organizations domain — reads, the org-switch record, and the deletion
@@ -562,6 +563,11 @@ export async function deleteOrganization(
     metadata: { slug },
   });
 
+  // The organization's sandboxes live outside this database — workspaces on
+  // the spawner's host, gateway keys, devices held by the hub — and the rows
+  // naming them go with the cascade below, so what their teardown needs is
+  // read (and its jobs queued) first. The jobs become visible on commit.
+  await scheduleOrganizationSandboxRetirement(tx, organizationId);
   // The app-side cascade: every app-schema table keyed by org_id (projects,
   // tasks, documents, conversations, automations, credentials, usage, the
   // per-user preference and memory rows, SSO provenance, …), read from the

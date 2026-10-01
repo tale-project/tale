@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 73 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 79 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -21,7 +21,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
-| Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Image generation, Audio transcription model |
+| Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Image generation, Standard agent, Audio transcription model |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
@@ -55,6 +55,13 @@ type **API key** or **Environment variable** serves — in mode A, connect the
 is answered before the model gateway is reached, so they run in mode A; a
 successful answer needs mode B with the sandbox model gateway running (mode A
 ends such a call in 503 `MODEL_API_UNAVAILABLE`).
+
+**GOV-F50–GOV-F52 and GOV-B18–GOV-B19 (the standard agent)** need a project
+without agents of its own (the docs demo seed's **Customer onboarding
+portal**) and, for GOV-B19, a Member; their runs need a runnable harness
+(mode B, or the mock gateway with a sandbox) and are env-gated otherwise.
+[tasks.md](tasks.md) `TASK-F61` hands such a project's task to the standard
+agent.
 
 > **Agent note**: save → reload → assert the **persisted control state**,
 > never the toast. Voice output autosaves on toggle (no Save button); the
@@ -562,6 +569,49 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `governance.imageGeneration.currentModel.pinned` names it. Switch image
   generation off and on again → the same pin is still selected. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
+- [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
+  Member whose own run of a project agent is listed on Sandboxes
+  (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the
+  receipt lists **Sandbox workspaces**
+  (`governance.dataSubjectRequests.categories.sandboxWorkspaces`) with `1`,
+  and the member's workspace is gone from Sandboxes.
+- [ ] `GOV-F50` · **The standard agent is on, and automatic** — On
+  `content-models` in a fresh organization, find **Standard agent**
+  (`governance.standardAgent.title`) → its switch
+  (`governance.standardAgent.enabledLabel`) is on; **Agent type**
+  (`governance.standardAgent.harnessLabel`) and **Model**
+  (`governance.standardAgent.modelLabel`) read **Automatic**
+  (`governance.standardAgent.automaticLabel`); **Instructions**
+  (`governance.standardAgent.instructionsLabel`) is empty, showing
+  `governance.standardAgent.instructionsPlaceholder`; and the section's last
+  line (`governance.standardAgent.current`) names the agent type and model it
+  runs on for you. **Model** lists only models the chosen agent type can run.
+  With no credential serving a model you may use, the alert
+  `governance.standardAgent.refusal.noModel` shows instead of that line, with
+  a link to **AI providers** (`governance.standardAgent.providersLink`).
+- [ ] `GOV-F51` · **Pin the standard agent's model and instructions** — Pick
+  a model under **Model** and type `Answer in one sentence.` under
+  **Instructions** → `governance.standardAgent.draftHint` shows and nothing
+  is saved yet; **Save** (`common.actions.save`) and reload → the pin and the
+  text survive, and the last line names the pinned model. Start a task given
+  to a standard agent ([tasks.md](tasks.md) `TASK-F61`) → once the run has
+  started, the standard agent's row on the project's **Agents** tab names the
+  pinned model, and the agent's closing comment is one sentence. Restore:
+  **Automatic**, empty **Instructions**, **Save** — env-gated: mark the run
+  **ENVIRONMENT** without a runnable harness.
+- [ ] `GOV-F52` · **Switching it off stops it at once and keeps the
+  choices** — With a model pinned (`GOV-F51`), turn the switch off → it
+  saves at once and still reads off after a reload; the note
+  `governance.standardAgent.offNote` shows, and **Agent type**, **Model** and
+  **Instructions** are hidden. In a project without agents, **Assignee**
+  (`tasks.fields.assignee`) offers no **Standard agent**
+  (`tasks.assignee.standardAgent`), and **Start agent**
+  (`tasks.agentRun.start`) on a task already given to a standard agent
+  answers the toast `tasks.agentRun.standardAgent.switchedOff` and queues
+  nothing. A comment there that @mentions the standard agent shows
+  `tasks.mentionPreview.standardAgentUnavailable` under the comment box and
+  saves as a plain mention: no run, the assignee and status unchanged. Turn
+  it back on → the pin is still selected, and the same task starts.
 
 ## Boundary & error tests
 
@@ -671,6 +721,24 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `governance.imageGeneration.unavailable`; the run's report lists no
   `generate_image`, and no other model stands in. Restore the credential —
   env-gated: mark the run **ENVIRONMENT** without a runnable harness.
+- [ ] `GOV-B18` · **A malformed standard agent policy is never read as on** —
+  Write `enabled: perhaps` into the organization's
+  `governance/standard-agent.yml` under `TALE_CONFIG_DIR` and reload
+  `content-models` → **Standard agent** shows the alert
+  `governance.standardAgent.invalidPolicy` with its controls enabled, and
+  **Start agent** (`tasks.agentRun.start`) on a task given to a standard
+  agent answers the toast `tasks.agentRun.standardAgent.unreadable` and
+  queues nothing. Turn the switch off and on again (each saves at once) →
+  the file parses again, the alert is gone, and the task starts.
+- [ ] `GOV-B19` · **A pinned model follows the person who starts the run** —
+  Pin a model (`GOV-F51`), then add a **Model access** rule that blocks it for
+  the Member role. As a Member, open a task given to a standard agent and
+  **Start agent** (`tasks.agentRun.start`) → the toast
+  `tasks.agentRun.standardAgent.pinUnavailable` says to ask an Admin, nothing
+  is queued, and no other model stands in; as the owner, the same task starts
+  on the pinned model. In a project without agents, the Member's
+  **Assignee** offers no **Standard agent**, its footer reading
+  `tasks.assignee.noAgentsReader`. Restore the rule and **Automatic**.
 
 ## Accessibility (WCAG 2.1 AA)
 

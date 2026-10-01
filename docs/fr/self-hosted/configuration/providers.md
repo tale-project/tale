@@ -80,6 +80,27 @@ La réponse `/models` d’un endpoint personnalisé compatible OpenAI doit décl
 
 Un tour d’agent crée au plus 16 images et n’exécute qu’une génération à la fois. Avant chaque appel, Tale réserve 0,25 USD par image sur l’enveloppe du tour et les plafonds de budget, puis enregistre le coût indiqué à la place de cette réserve à la fin de l’appel. La clé de passerelle du tour cède le même montant sur son plafond, de sorte que le modèle et les images restent ensemble dans une seule enveloppe ; si la passerelle ne peut pas abaisser ce plafond, l’image est refusée. Un tour qui passe par un abonnement fournisseur n’a pas d’enveloppe de passerelle : ses images sont mesurées par rapport à l’enveloppe que l’installation accorde par défaut à un tour.
 
+## Configurer l’agent standard {#configure-the-standard-agent}
+
+La politique de l’organisation se trouve dans `TALE_CONFIG_DIR/<org>/governance/standard-agent.yml`, avec le type de politique `standard_agent`. La [page Modèles](/fr/platform/admin/governance/content-models#standard-agent) modifie les mêmes réglages. Une nouvelle organisation reçoit l’agent standard activé, et un fichier absent signifie aussi qu’il est activé :
+
+```yaml
+enabled: true
+```
+
+Fixe le harness, le modèle ou les deux, et remplace les instructions intégrées :
+
+```yaml
+enabled: true
+harness: claude-code
+providerSlug: anthropic
+modelId: claude-sonnet-5
+instructions: |
+  Écris dans le style de la maison. Livre chaque document au format Word.
+```
+
+`harness` prend le slug d’un environnement qu’un agent de projet peut utiliser, par exemple `claude-code` ou `codex` ; la page Modèles refuse les autres. Un modèle fixé demande à la fois `providerSlug` et `modelId`. Une fixation partielle, un champ inconnu ou des instructions de plus de 20 000 caractères sont invalides. Un fichier invalide ou illisible empêche tout agent standard de démarrer, et la page Modèles nomme le problème ; il n’est jamais lu comme activé. Un modèle fixé indisponible ne bascule jamais vers un autre modèle, pas plus qu’un modèle que l’accès aux modèles d’une personne lui refuse. La politique est lue à chaque démarrage d’une exécution : une modification s’applique donc à l’exécution suivante. Avec `enabled: false`, les agents standard déjà mis en place restent dans leurs projets, mais aucun ne démarre.
+
 ## Vérifier l’accès aux modèles depuis la sandbox
 
 Le chat appelle un fournisseur depuis le backend. Les agents de programmation passent par `sandbox-llm-gateway` : un chat réussi ne valide donc pas leur connexion. L’endpoint doit être résolvable et joignable depuis le backend et la passerelle. Chaque client HTTPS doit faire confiance à son certificat. Un nom comme `https://models.internal/v1` exige lui aussi l’autorisation des fournisseurs privés lorsque le DNS renvoie une adresse privée. HTTP reste limité aux formes d’hôtes acceptées par le schéma, comme une IP privée, `localhost` ou `.local`.

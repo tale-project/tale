@@ -3,7 +3,7 @@ title: Create and manage project agents
 description: Configure a reusable worker, grant its equipment and start a task whose result you can review.
 ---
 
-Create a project agent when you want a reusable worker for that project’s tasks. It combines a coding runtime, a model, instructions and allowed equipment. You need project edit access; the project must be active. Members see the project's agents on its **Agents** tab, which tells them to ask an Editor or Admin for a new one. Only Owners and Admins can change secret grants.
+Create a project agent when you want a reusable worker for that project’s tasks. It combines a coding runtime, a model, instructions and allowed equipment. You need project edit access; the project must be active. Members see the project's agents on its **Agents** tab, which tells them to ask an Editor or Admin for a new one. Until a project has agents of its own, its tasks can go to the organization's [standard agent](#standard-agent). Only Owners and Admins can change secret grants.
 
 ## Prepare the first task
 
@@ -75,8 +75,22 @@ The agent’s report appears in task comments and collected files appear as deli
 
 [Task automation](/platform/projects/task-automation) explains progress, stopping and review. The ordinary Chat assistant remains separate, even when a chat has project context.
 
+## The standard agent {#standard-agent}
+
+A project without agents of its own can still take on agent work. Unless an admin has turned it off under [Governance > Models](/platform/admin/governance/content-models#standard-agent), **Assignee** offers **Standard agent** there, to everyone who can assign the task, Members included. The first time someone chooses it, Tale sets the agent up in the project and assigns it the task. You then start it like any other agent, or mention it in a comment. When it can't start for you, the comment box says so, and your comment is saved as a plain mention.
+
+<Frame caption="The Agents tab of a project whose tasks go to the standard agent.">
+
+![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, reading Claude Code · OpenRouter · anthropic/claude-haiku-4.5 · 4 equipped and Set up by Tale for this project. Its agent type, model and instructions follow the organization's settings under Governance. The row has a delete button and no edit button.](/images/platform/project-agents-standard.webp)
+
+</Frame>
+
+The **Agents** tab lists it with the **Standard** badge. Nobody edits it: its agent type, model and instructions follow the organization's settings, read again whenever a run starts, and its equipment is the project's document skills `docx`, `pptx`, `xlsx` and `pdf`. On **Automatic**, each run uses a model that the person who starts it may use, so it can run on different models for different people.
+
+To give the project an agent of its own, select **New agent**. From then on, the project isn't offered the standard agent any more; the one already set up stays assignable until you delete it. Deleting it keeps the history of its tasks, and while the project has no agents, the next task given to the standard agent sets it up again.
+
 ## Update or remove an agent
 
-Use the agent’s row actions to edit or delete it. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. Review current work before removing the worker it belongs to.
+Use the agent’s row actions to edit or delete it. The standard agent has only **Delete agent**. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. It also deletes the agent's [sandbox workspaces](/platform/admin/sandboxes#explain-why-a-workspace-disappeared) and their files, including each Member's. Review current work and preserve outputs you still need before removing the worker it belongs to.
 
 If creation fails, use the displayed reason to distinguish a duplicate name, missing project access, an unavailable provider/model or a skill visibility issue. A run that fails for good says at the top of its task what went wrong and who can fix it; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) lists the cases. Changing instructions does not fix those dependencies.

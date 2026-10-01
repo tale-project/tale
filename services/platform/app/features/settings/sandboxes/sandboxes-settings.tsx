@@ -4,6 +4,7 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { Row, Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
@@ -23,6 +24,7 @@ import { SandboxCapacitySection } from './sandbox-capacity';
 import { SandboxDevicesSection } from './sandbox-devices';
 import { SandboxQuotaEditor } from './sandbox-quota-editor';
 import { sandboxRuntimeState } from './sandbox-runtime-state';
+import { WorkspaceCleanupEditor } from './workspace-cleanup-editor';
 
 type SandboxList = NonNullable<
   ReturnsOf<'sandbox/session_queries_public:listSandboxesForOrg'>
@@ -147,9 +149,10 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
           const s = row.original;
-          // A project agent's workspace outlives the agent (it stays until
-          // destroyed): once the owner join answers nothing, say whose it
-          // was rather than print the id nobody can look up any more.
+          // A deleted agent's workspace stays listed until the cleanup has
+          // deleted it (work still running in it, or a legal hold, keeps it
+          // longer): once the owner join answers nothing, say whose it was
+          // rather than print the id nobody can look up any more.
           const ownerLabel =
             s.ownerType === 'project_agent' && s.ownerLabel == null
               ? t('deletedAgent')
@@ -222,6 +225,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                 }
                 devices={devicesView?.devices}
               />
+              <DeletesOn deletesAt={s.deletesAt} />
             </Stack>
           );
         },
@@ -383,6 +387,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           onRefresh={refreshDevices}
         />
       )}
+      {canManage && <WorkspaceCleanupEditor organizationId={organizationId} />}
       {canManage && (
         <SettingsSection
           title={t('sessionsTitle')}
@@ -459,6 +464,22 @@ function RunsOn({
           name,
         },
       )}
+    </span>
+  );
+}
+
+/** The day the cleanup deletes a hibernated agent workspace on if nobody
+ * uses it before then — dated like the Created column. Nothing for a
+ * workspace no cleanup is due to delete. */
+function DeletesOn({ deletesAt }: { deletesAt: number | null | undefined }) {
+  const { t } = useT('sandboxes');
+  const { formatDate } = useFormatDate();
+  if (typeof deletesAt !== 'number') return null;
+  return (
+    <span className="text-muted-foreground text-xs">
+      {t('status.deletesOn', {
+        date: formatDate(new Date(deletesAt), 'short'),
+      })}
     </span>
   );
 }

@@ -279,16 +279,41 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     expect(await backend.stopSession('rm-gone')).toBe(false);
   });
 
+  test("destroySession answers true for a stopped session's workspace alone", async () => {
+    // What the workspace cleanup deletes: the reaper removed the container
+    // long ago and kept the data, so the workspace IS the session — its
+    // deletion must not read as "nothing existed".
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const workspace = join(hostSessionRoot, 'ses-destroy-stopped');
+    await mkdir(workspace, { recursive: true });
+    await writeFile(join(workspace, 'left.txt'), 'what the last run left');
+    const owner = join(hostSessionRoot, '.owners', 'destroy-stopped.org');
+    await mkdir(join(hostSessionRoot, '.owners'), { recursive: true });
+    await writeFile(owner, 'org_stopped\n');
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(await backend.destroySession('destroy-stopped')).toBe(true);
+    expect(await exists(workspace)).toBe(false);
+    // The record of whose it was goes with it.
+    expect(await exists(owner)).toBe(false);
+    // Nothing left under the id: idempotent, and now truly nothing existed.
+    expect(await backend.destroySession('destroy-stopped')).toBe(false);
+  });
+
   test('destroySession THROWS on a failed rm and leaves the workspace intact', async () => {
     await fakeDocker({ present: true, rm: 'busy' });
     const workspace = join(hostSessionRoot, 'ses-destroy-busy');
     await mkdir(workspace, { recursive: true });
     await writeFile(join(workspace, 'keep.txt'), 'user data');
+    const owner = join(hostSessionRoot, '.owners', 'destroy-busy.org');
+    await mkdir(join(hostSessionRoot, '.owners'), { recursive: true });
+    await writeFile(owner, 'org_busy\n');
     const backend = new DockerSessionBackend(backendConfig());
     const err = await rejection(backend.destroySession('destroy-busy'));
     expect(err?.message).toMatch(/docker rm tale-sbx-ses-destroy-busy failed/);
-    // A container that may still be running keeps its bind-mounted data.
+    // A container that may still be running keeps its bind-mounted data, and
+    // the workspace still names its organization.
     expect(await exists(join(workspace, 'keep.txt'))).toBe(true);
+    expect(await exists(owner)).toBe(true);
   });
 
   test('destroySession THROWS when the workspace cannot be deleted (never a laundered destroyed:true)', async () => {
