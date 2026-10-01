@@ -105,6 +105,35 @@ export interface BackendSession {
    * exemption a re-adopting spawner must carry over, or a restart (deploy,
    * crash) TTL/idle-reaps the user's pinned session on its first sweep. */
   pinned?: boolean;
+  /** The object's process has ended for good (a Docker container exited or
+   * dead, a Pod Succeeded or Failed) — nothing runs or will run in it. Unlike
+   * `degraded`, which also covers one still starting. */
+  ended?: boolean;
+}
+
+/** One workspace a backend holds (host dir / PVC), whatever its compute
+ * state — the physical half of the platform's workspace cleanup, which
+ * decides from its own ownership records which of these may go. */
+export interface BackendWorkspace {
+  sessionId: string;
+  /** When the backend last saw the workspace change: a Docker workspace
+   * dir's newest mtime/ctime (a resume re-chowns it), a PVC's creation.
+   * The platform leaves a recently touched workspace alone whatever its
+   * records say, so a create racing its own row is never taken. */
+  touchedAtMs: number;
+  /** A container/Pod exists for the session (running or not). */
+  active: boolean;
+  /** The durable "always-on" record (see {@link SessionBackend.setPinned}). */
+  pinned: boolean;
+  /** The owning organization, where the backend object records it. */
+  organizationId?: string;
+}
+
+/** What {@link SessionBackend.teardownOrganization} removed. */
+export interface OrganizationTeardownResult {
+  containers: number;
+  volumes: number;
+  networks: number;
 }
 
 /** What `createSession()` reports back once the session is `ready`. */
@@ -144,8 +173,10 @@ export interface SessionBackend {
    */
   sessionExists(sessionId: string): Promise<boolean>;
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
-   * (host dir / PVC). The ONLY data-deleting verb — reached only via the
-   * explicit Destroy path. Idempotent; returns false when nothing existed. */
+   * (host dir / PVC). The ONLY data-deleting verb — reached through the
+   * DELETE route (the explicit Destroy, and the platform's workspace cleanup)
+   * and a deleted organization's teardown. Idempotent; returns false when
+   * nothing existed. */
   destroySession(sessionId: string): Promise<boolean>;
   /**
    * Stop the container/Pod (+ Secret on K8s) to release compute, but PRESERVE
@@ -200,6 +231,29 @@ export interface SessionBackend {
    * Absent on backends the hub never runs beside (Kubernetes).
    */
   hasWorkspace?(sessionId: string): Promise<boolean>;
+  /**
+   * Every workspace this backend holds — stopped sessions' preserved data
+   * included, which `listSessions` never shows. The platform destroys only
+   * a workspace this list NAMES and its records disown, so leaving one out
+   * is safe; a wrong `active` is not. THROWS when the workspaces or the
+   * containers/Pods beside them cannot be listed at all.
+   */
+  listWorkspaces(): Promise<BackendWorkspace[]>;
+  /**
+   * The organizations holding resources beyond their sessions' workspaces
+   * (Docker: the organization's build helpers, their network and cache
+   * volumes, and its package caches). THROWS when it cannot be read.
+   */
+  listOrganizationResources(): Promise<string[]>;
+  /**
+   * Remove an organization's resources beyond its sessions' workspaces —
+   * called for an organization that no longer exists, once its sessions are
+   * destroyed. Idempotent: a second call finds nothing and reports zeros.
+   * THROWS when a resource could not be removed, so the caller retries.
+   */
+  teardownOrganization(
+    organizationId: string,
+  ): Promise<OrganizationTeardownResult>;
 }
 
 export type { SpawnerConfig };

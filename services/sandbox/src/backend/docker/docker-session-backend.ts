@@ -6,12 +6,24 @@
 // container DNS name on tale-sandbox-net. Cleanup.ts's one-shot sweep ignores
 // these (distinct `tale.sandbox-session=1` label).
 
-import { chown, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  chown,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { retireLegacyBuildkitd } from '../../buildkit-resources.ts';
+import {
+  listBuildkitOrganizations,
+  retireLegacyBuildkitd,
+} from '../../buildkit-resources.ts';
 import {
   ensureBuildkitd,
+  removeOrganizationBuildkit,
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from '../../buildkitd.ts';
@@ -36,6 +48,7 @@ import {
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
 import { sessionDindEnabled } from '../../session/session-profile.ts';
+import { listWorkspaceDirs } from '../../session/workspace-inventory.ts';
 import {
   dockerRm,
   dockerRmSucceeded,
@@ -46,13 +59,18 @@ import type { SpawnerConfig } from '../../types.ts';
 import {
   bunCacheVolumeName,
   ensureCacheVolume,
+  listCacheVolumeOrganizations,
   npmCacheVolumeName,
   pipCacheVolumeName,
+  removeCacheVolumes,
 } from '../../volume.ts';
+import { ORG_ID_ALPHABET_RE } from '../../wire.ts';
 import {
   SessionIncarnationChangedError,
   type BackendSession,
+  type BackendWorkspace,
   type CreateSessionResult,
+  type OrganizationTeardownResult,
   type SessionBackend,
   type SessionSpec,
 } from '../types.ts';
@@ -230,6 +248,7 @@ export class DockerSessionBackend implements SessionBackend {
     // the unprivileged session process can write it. Defensive backstop: never
     // chown to root/non-integer even if the validated config were bypassed.
     await mkdir(workspaceHostDir, { recursive: true });
+    await this.writeOwnerMarker(spec.sessionId, spec.organizationId);
     if (
       !(Number.isInteger(uid) && Number.isInteger(gid) && uid >= 1 && gid >= 1)
     ) {
@@ -364,6 +383,7 @@ export class DockerSessionBackend implements SessionBackend {
                 err,
               ),
           );
+          await this.clearOwnerMarker(spec.sessionId);
         }
       }
       throw new Error(
@@ -648,6 +668,9 @@ export class DockerSessionBackend implements SessionBackend {
     // colour-rooted session's dir lives under an old subdir and `docker inspect`
     // (used by resolveWorkspaceDir) only works while the container still exists.
     const workspaceHostDir = await this.resolveWorkspaceDir(sessionId);
+    // A stopped session has no container, only its workspace: deleting that
+    // is the destroy too, and the answer says so.
+    const hadWorkspace = await this.workspaceDirExists(workspaceHostDir);
     const existed = await this.removeContainer(sessionId);
     // CONFIRM the container is gone before deleting the workspace. A wedged
     // dockerd that ignored the rm would otherwise leave a gutted-but-running
@@ -678,7 +701,8 @@ export class DockerSessionBackend implements SessionBackend {
         { cause: err },
       );
     }
-    return existed;
+    await this.clearOwnerMarker(sessionId);
+    return existed || hadWorkspace;
   }
 
   async stopSession(
@@ -740,6 +764,65 @@ export class DockerSessionBackend implements SessionBackend {
     }
   }
 
+  // --- the workspace's organization ----------------------------------------
+  //
+  // A session container names its organization in a label; the workspace it
+  // leaves behind once stopped names it here, beside the pin markers and
+  // outside the workspace for the same reason. The platform's workspace
+  // cleanup reads it to tell this deployment's leftovers from another's, and
+  // an organization's teardown finds the workspaces no container names any
+  // more. Attribution only: a workspace without its marker (one created
+  // before markers existed) is never taken for anyone's leftover.
+
+  private ownerMarkerPath(sessionId: string): string {
+    return join(this.cfg.hostSessionRoot, '.owners', `${sessionId}.org`);
+  }
+
+  private async writeOwnerMarker(
+    sessionId: string,
+    organizationId: string,
+  ): Promise<void> {
+    try {
+      await mkdir(join(this.cfg.hostSessionRoot, '.owners'), {
+        recursive: true,
+      });
+      await writeFile(this.ownerMarkerPath(sessionId), `${organizationId}\n`);
+    } catch (err) {
+      console.warn(
+        `[sandbox.session] recording the organization of ${sessionId} failed:`,
+        err,
+      );
+    }
+  }
+
+  private async readOwnerMarker(
+    sessionId: string,
+  ): Promise<string | undefined> {
+    let recorded: string;
+    try {
+      recorded = await readFile(this.ownerMarkerPath(sessionId), 'utf8');
+    } catch (err) {
+      if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) {
+        console.warn(
+          `[sandbox.session] reading the organization of ${sessionId} failed:`,
+          err,
+        );
+      }
+      return undefined;
+    }
+    const organizationId = recorded.trim();
+    return ORG_ID_ALPHABET_RE.test(organizationId) ? organizationId : undefined;
+  }
+
+  private async clearOwnerMarker(sessionId: string): Promise<void> {
+    await rm(this.ownerMarkerPath(sessionId), { force: true }).catch((err) => {
+      console.warn(
+        `[sandbox.session] clearing the organization of ${sessionId} failed:`,
+        err,
+      );
+    });
+  }
+
   async listSessions(organizationId?: string): Promise<BackendSession[]> {
     // No colour filter: the sandbox tier is a single container that rolls
     // in-place, so this spawner adopts ALL existing session containers —
@@ -791,9 +874,64 @@ export class DockerSessionBackend implements SessionBackend {
         idleTimeoutMs: this.cfg.session.maxIdleMs,
         state: state === 'running' ? 'ready' : 'degraded',
         pinned: await this.isPinned(sessionId),
+        ended: state !== undefined && isReapableContainerStatus(state),
       });
     }
     return out;
+  }
+
+  /** Every workspace dir under the host session root, joined with the
+   * session containers beside them; the organization is the container's
+   * label, or else the workspace's own marker. `listSessions` THROWS on a
+   * failed `docker ps`, so a container that merely could not be listed never
+   * reads as inactive. */
+  async listWorkspaces(): Promise<BackendWorkspace[]> {
+    const dirs = await listWorkspaceDirs(this.cfg.hostSessionRoot);
+    const containers = new Map(
+      (await this.listSessions()).map((session) => [
+        session.sessionId,
+        session,
+      ]),
+    );
+    const workspaces: BackendWorkspace[] = [];
+    for (const dir of dirs) {
+      const container = containers.get(dir.sessionId);
+      const organizationId =
+        container !== undefined && container.organizationId !== ''
+          ? container.organizationId
+          : await this.readOwnerMarker(dir.sessionId);
+      workspaces.push({
+        sessionId: dir.sessionId,
+        touchedAtMs: dir.touchedAtMs,
+        active: container !== undefined && container.ended !== true,
+        pinned: container?.pinned ?? (await this.isPinned(dir.sessionId)),
+        ...(organizationId !== undefined ? { organizationId } : {}),
+      });
+    }
+    return workspaces;
+  }
+
+  async listOrganizationResources(): Promise<string[]> {
+    const organizations = new Set([
+      ...(await listCacheVolumeOrganizations(this.cfg)),
+      ...(await listBuildkitOrganizations()),
+    ]);
+    return [...organizations].sort();
+  }
+
+  /** The organization's build helpers, their volumes and network, then its
+   * package caches. Whether the build cache is enabled right now does not
+   * matter: what an earlier configuration left is the organization's too. */
+  async teardownOrganization(
+    organizationId: string,
+  ): Promise<OrganizationTeardownResult> {
+    const build = await removeOrganizationBuildkit(organizationId);
+    const caches = await removeCacheVolumes(this.cfg, organizationId);
+    return {
+      containers: build.containers,
+      volumes: build.volumes + caches,
+      networks: build.networks,
+    };
   }
 
   /**

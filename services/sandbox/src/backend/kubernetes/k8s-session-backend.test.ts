@@ -7,7 +7,12 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import type { CoreV1Api, NetworkingV1Api } from '@kubernetes/client-node';
+import type {
+  CoreV1Api,
+  NetworkingV1Api,
+  V1PersistentVolumeClaim,
+  V1Pod,
+} from '@kubernetes/client-node';
 
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
@@ -17,6 +22,7 @@ import { KubernetesSessionBackend } from './k8s-session-backend.ts';
 import {
   sessionPodNameFor,
   sessionSecretNameFor,
+  sessionWorkspacePvcNameFor,
 } from './k8s-session-pod-spec.ts';
 
 const cfg: SpawnerConfig = {
@@ -272,6 +278,33 @@ interface Calls {
 
 /** Stub CoreV1Api for a FRESH create (no pre-existing PVC): the PVC reads 404,
  * its create succeeds, and the Secret/Pod creates are supplied by the test. */
+
+describe('Kubernetes destroy of a stopped session', () => {
+  test("answers true for a stopped session's workspace claim alone", async () => {
+    // No Pod any more (the reaper stopped it), only the workspace PVC: its
+    // deletion is the destroy, not "nothing existed".
+    const base = stub(async () => ({}));
+    Object.assign(base.client.core, {
+      deleteNamespacedPod: () => notFound(),
+      deleteNamespacedSecret: () => notFound(),
+    });
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    expect(await backend.destroySession('stopped-k8s')).toBe(true);
+    expect(base.calls.pvcDeleted).toBe(true);
+  });
+
+  test('answers false when neither a Pod nor a claim is left', async () => {
+    const base = stub(async () => ({}));
+    Object.assign(base.client.core, {
+      deleteNamespacedPod: () => notFound(),
+      deleteNamespacedSecret: () => notFound(),
+      deleteNamespacedPersistentVolumeClaim: () => notFound(),
+    });
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    expect(await backend.destroySession('gone-k8s')).toBe(false);
+  });
+});
+
 function stub(
   createSecret: () => Promise<unknown>,
   createPod: () => Promise<unknown> = () => Promise.resolve({}),
@@ -588,5 +621,274 @@ describe('KubernetesSessionBackend.listSessions', () => {
       threw = err instanceof Error ? err : new Error(String(err));
     }
     expect(threw?.message).toBe('forbidden');
+  });
+});
+
+/** A backend over a CoreV1Api stub that answers only the calls it names. */
+function backendOver(
+  core: Partial<Record<keyof CoreV1Api, unknown>>,
+): KubernetesSessionBackend {
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+  const api = core as unknown as CoreV1Api;
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
+  const networking = {} as unknown as NetworkingV1Api;
+  return new KubernetesSessionBackend(cfg, {
+    core: api,
+    networking,
+    namespace: 'tale-sandbox',
+  });
+}
+
+function workspaceClaim(
+  annotations: Record<string, string>,
+  createdAt: string,
+): V1PersistentVolumeClaim {
+  return {
+    metadata: {
+      labels: { 'tale.sandbox-session-ws': '1' },
+      annotations,
+      creationTimestamp: new Date(createdAt),
+    },
+  };
+}
+
+function sessionPod(
+  sessionId: string,
+  phase: string,
+  annotations: Record<string, string> = {},
+): V1Pod {
+  return {
+    metadata: {
+      annotations: {
+        'tale.dev/session-id': sessionId,
+        'tale.dev/profile': 'agent',
+        'tale.dev/created-at': '1700000000000',
+        ...annotations,
+      },
+    },
+    status: { phase },
+  };
+}
+
+// The Kubernetes half of the platform's workspace cleanup. The platform
+// destroys only a workspace this list names and its records disown, so a PVC
+// that cannot be read as a session's is left out, and `active` must never read
+// false for a Pod that still runs or is still starting.
+describe('KubernetesSessionBackend.listWorkspaces', () => {
+  test('joins every workspace PVC with the session Pod beside it', async () => {
+    const pvcQueries: unknown[] = [];
+    const backend = backendOver({
+      listNamespacedPersistentVolumeClaim: (param: unknown) => {
+        pvcQueries.push(param);
+        return Promise.resolve({
+          items: [
+            // Made before PVCs recorded their organization: the Pod names it.
+            workspaceClaim(
+              { 'tale.dev/session-id': 'ws-running' },
+              '2026-09-01T08:00:00.000Z',
+            ),
+            workspaceClaim(
+              {
+                'tale.dev/session-id': 'ws-stopped',
+                'tale.dev/organization-id': 'org_pvc',
+              },
+              '2026-09-02T08:00:00.000Z',
+            ),
+            // Its Pod records no organization: the PVC's annotation names it.
+            workspaceClaim(
+              {
+                'tale.dev/session-id': 'ws-starting',
+                'tale.dev/organization-id': 'org_pvc',
+              },
+              '2026-09-03T08:00:00.000Z',
+            ),
+            workspaceClaim(
+              {
+                'tale.dev/session-id': 'ws-failed',
+                'tale.dev/organization-id': 'org_pvc',
+              },
+              '2026-09-04T08:00:00.000Z',
+            ),
+            workspaceClaim(
+              {
+                'tale.dev/session-id': 'ws-succeeded',
+                'tale.dev/organization-id': 'org_pvc',
+              },
+              '2026-09-05T08:00:00.000Z',
+            ),
+            // Neither the PVC nor a Pod records an organization.
+            workspaceClaim(
+              { 'tale.dev/session-id': 'ws-orphan' },
+              '2026-09-06T08:00:00.000Z',
+            ),
+            // Not workspaces this spawner made.
+            workspaceClaim({}, '2026-09-07T08:00:00.000Z'),
+            workspaceClaim(
+              { 'tale.dev/session-id': 'not a session id' },
+              '2026-09-08T08:00:00.000Z',
+            ),
+          ],
+        });
+      },
+      listNamespacedPod: () =>
+        Promise.resolve({
+          items: [
+            sessionPod('ws-running', 'Running', {
+              'tale.dev/organization-id': 'org_pod',
+              'tale.dev/pinned': 'true',
+            }),
+            sessionPod('ws-starting', 'Pending'),
+            sessionPod('ws-failed', 'Failed', {
+              'tale.dev/organization-id': 'org_pvc',
+            }),
+            sessionPod('ws-succeeded', 'Succeeded', {
+              'tale.dev/organization-id': 'org_pvc',
+            }),
+            // A Pod without a workspace PVC is not a workspace.
+            sessionPod('no-claim', 'Running', {
+              'tale.dev/organization-id': 'org_pod',
+            }),
+          ],
+        }),
+    });
+
+    expect(await backend.listWorkspaces()).toStrictEqual([
+      {
+        sessionId: 'ws-running',
+        touchedAtMs: Date.parse('2026-09-01T08:00:00.000Z'),
+        active: true,
+        pinned: true,
+        organizationId: 'org_pod',
+      },
+      {
+        sessionId: 'ws-stopped',
+        touchedAtMs: Date.parse('2026-09-02T08:00:00.000Z'),
+        active: false,
+        pinned: false,
+        organizationId: 'org_pvc',
+      },
+      {
+        sessionId: 'ws-starting',
+        touchedAtMs: Date.parse('2026-09-03T08:00:00.000Z'),
+        active: true,
+        pinned: false,
+        organizationId: 'org_pvc',
+      },
+      {
+        sessionId: 'ws-failed',
+        touchedAtMs: Date.parse('2026-09-04T08:00:00.000Z'),
+        active: false,
+        pinned: false,
+        organizationId: 'org_pvc',
+      },
+      {
+        sessionId: 'ws-succeeded',
+        touchedAtMs: Date.parse('2026-09-05T08:00:00.000Z'),
+        active: false,
+        pinned: false,
+        organizationId: 'org_pvc',
+      },
+      {
+        sessionId: 'ws-orphan',
+        touchedAtMs: Date.parse('2026-09-06T08:00:00.000Z'),
+        active: false,
+        pinned: false,
+      },
+    ]);
+    expect(pvcQueries).toEqual([
+      { namespace: 'tale-sandbox', labelSelector: 'tale.sandbox-session-ws=1' },
+    ]);
+  });
+
+  test('THROWS when the workspace PVCs cannot be listed, once the client retries are spent', async () => {
+    let attempts = 0;
+    let podLists = 0;
+    const backend = backendOver({
+      // Retryable: withRetry makes all three attempts before giving up.
+      listNamespacedPersistentVolumeClaim: () => {
+        attempts += 1;
+        return Promise.reject(
+          Object.assign(new Error('apiserver unavailable'), { code: 503 }),
+        );
+      },
+      listNamespacedPod: () => {
+        podLists += 1;
+        return Promise.resolve({ items: [] });
+      },
+    });
+    expect((await rejection(backend.listWorkspaces()))?.message).toBe(
+      'apiserver unavailable',
+    );
+    expect(attempts).toBe(3);
+    expect(podLists).toBe(0);
+  });
+
+  test('THROWS when the session Pods cannot be listed, instead of reading every workspace as inactive', async () => {
+    const backend = backendOver({
+      listNamespacedPersistentVolumeClaim: () =>
+        Promise.resolve({
+          items: [
+            workspaceClaim(
+              {
+                'tale.dev/session-id': 'ws-live',
+                'tale.dev/organization-id': 'org_live',
+              },
+              '2026-09-01T08:00:00.000Z',
+            ),
+          ],
+        }),
+      // 403 is non-retryable, so the failure surfaces at once.
+      listNamespacedPod: () =>
+        Promise.reject(Object.assign(new Error('forbidden'), { code: 403 })),
+    });
+    expect((await rejection(backend.listWorkspaces()))?.message).toBe(
+      'forbidden',
+    );
+  });
+});
+
+describe('KubernetesSessionBackend.createSession — the workspace PVC names its owner', () => {
+  test('a fresh PVC records its session and organization, which the inventory reads back while no Pod runs', async () => {
+    const created: V1PersistentVolumeClaim[] = [];
+    // A definitive Secret failure halts the create right after the PVC.
+    const base = stub(badRequest);
+    base.client.core.createNamespacedPersistentVolumeClaim = async (param: {
+      body: V1PersistentVolumeClaim;
+    }) => {
+      created.push(param.body);
+      return param.body;
+    };
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    expect(await rejection(backend.createSession(spec))).not.toBeNull();
+
+    expect(created.map((claim) => claim.metadata)).toEqual([
+      {
+        name: sessionWorkspacePvcNameFor(spec.sessionId),
+        labels: { 'tale.sandbox-session-ws': '1' },
+        annotations: {
+          'tale.dev/session-id': spec.sessionId,
+          'tale.dev/organization-id': spec.organizationId,
+        },
+      },
+    ]);
+
+    // The apiserver stamps what it stores with its creation time.
+    const createdAt = new Date('2026-09-30T12:00:00.000Z');
+    for (const claim of created) {
+      if (claim.metadata) claim.metadata.creationTimestamp = createdAt;
+    }
+    base.client.core.listNamespacedPersistentVolumeClaim = async () => ({
+      items: created,
+    });
+    base.client.core.listNamespacedPod = async () => ({ items: [] });
+    expect(await backend.listWorkspaces()).toStrictEqual([
+      {
+        sessionId: spec.sessionId,
+        touchedAtMs: createdAt.getTime(),
+        active: false,
+        pinned: false,
+        organizationId: spec.organizationId,
+      },
+    ]);
   });
 });
