@@ -393,6 +393,24 @@ actions:
         subject: 'Hello from Tale',
         body: 'This is a test message.',
       }
+  - name: get_profile
+    description: The address of the connected mailbox (the signed-in account's mail address, else its principal name), as the mail sync reads it to tell the mailbox's own mail from a customer's.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ emailAddress: string }'
+    mock: |
+      return { emailAddress: 'mailbox@example.com' };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName', { headers: { Accept: 'application/json' } });
+        if (r.status === 401) throw new Error('Outlook get_profile failed: authentication expired — re-authorize the connection.');
+        if (!r.status || r.status >= 400) throw new Error(`Outlook get_profile failed (${r.status}): ${r.text()}`);
+        const j = r.json();
+        return { emailAddress: String(j.mail || j.userPrincipalName || '') };
+    exampleInput: {}
   - name: list_events
     description: List calendar events, earliest start first, optionally within a date range.
     effects: read

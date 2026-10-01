@@ -27,6 +27,8 @@ Diese Workflows übernehmen alle fünf Minuten neue Nachrichten in Konversatione
 | Outlook-E-Mails synchronisieren | Outlook | Alle 5 Minuten |
 | E-Mails über SMTP/IMAP synchronisieren | IMAP/SMTP | Alle 5 Minuten |
 
+Ein Durchlauf liest nur den Posteingangsordner des Postfachs. Die eigenen Antworten des Postfachs unterscheidet er von denen der Kundin oder des Kunden an der Postfachadresse, die der erste Durchlauf vom verbundenen Konto erfährt und als Absenderadresse an der Verbindung behält; bei IMAP stammt sie aus dem Login.
+
 Verbinde zuerst das passende Postfach. Prüfe nach dem ersten Live-Lauf das [Ausführungsprotokoll](/de/platform/automations/execution-logs) und ob die erwarteten Nachrichten im Bereich **Start** in der Ansicht **Inbox** erscheinen.
 
 Anhänge werden mit ihrer Nachricht gespeichert, du öffnest und lädst sie also direkt in der Konversation herunter. Aus Gmail übernimmt Tale jeden Anhang nur bis 3,5 MB: Ein größerer erscheint weiterhin mit Name und Größe, öffnen kannst du ihn aber nur in Gmail.

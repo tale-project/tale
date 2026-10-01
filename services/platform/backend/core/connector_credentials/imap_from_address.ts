@@ -23,6 +23,20 @@ export function storedImapFromAddress(row: {
 }
 
 /**
+ * Merge a mailbox address into credential config as `fromAddress` — the
+ * public mirror every mail connector's Inbox header, composer and sync read.
+ * Returns `config` unchanged when the address is not an email address.
+ */
+export function withFromAddress(
+  config: Record<string, string | number | boolean> | undefined,
+  address: string | undefined,
+): Record<string, string | number | boolean> | undefined {
+  const from = address?.trim();
+  if (!from || !looksLikeEmailAddress(from)) return config;
+  return { ...config, fromAddress: from };
+}
+
+/**
  * Merge `fromAddress` from the IMAP login username into credential config.
  * Returns `config` unchanged when the connector is not imap-smtp or the
  * username is not an email address.
@@ -33,7 +47,5 @@ export function withImapFromAddress(
   username: string | undefined,
 ): Record<string, string | number | boolean> | undefined {
   if (connectorSlug !== 'imap-smtp') return config;
-  const from = username?.trim();
-  if (!from || !looksLikeEmailAddress(from)) return config;
-  return { ...config, fromAddress: from };
+  return withFromAddress(config, username);
 }

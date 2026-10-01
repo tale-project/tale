@@ -27,6 +27,8 @@ These workflows pull new messages into conversations every five minutes. Each de
 | Sync Outlook emails | Outlook | Every 5 minutes |
 | Sync emails via SMTP/IMAP | IMAP/SMTP | Every 5 minutes |
 
+A pass reads the mailbox's Inbox folder only. It tells the mailbox's own replies from a customer's by the mailbox address, which the first pass learns from the connected account and keeps on the connection as its From address; IMAP takes it from the login.
+
 Connect the matching mailbox first. After the first live run, inspect its [execution log](/platform/automations/execution-logs) and check that the expected messages appear in the **Inbox** view in Home.
 
 Attachments are stored with their message, so you open and download them from the conversation. Gmail hands over each attachment only up to 3.5 MB: a larger one is still listed with its name and size, but you open it in Gmail.

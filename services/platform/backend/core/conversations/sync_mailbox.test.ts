@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { isRecord } from '../../../lib/utils/type-utils';
 import type { ActionCtx } from '../lib/ctx';
 
@@ -83,6 +84,9 @@ interface HarnessOptions {
   failCredentials?: Record<string, string>;
   /** Message ids whose `get_message` fails — one message gone since the list. */
   failMessages?: Record<string, string>;
+  /** The credential row `resolveCredentialRefInternal` serves the OAuth
+   * from-address heal (default: none, so the heal finds nothing to patch). */
+  credentialRow?: Record<string, unknown>;
   /**
    * Already-ingested messages, by normalized external id — what
    * `getMessageByExternalId` finds. Lets a test re-fetch a message the org
@@ -151,12 +155,16 @@ function harness(
     return { status: 'ok', output: reply(call) };
   };
   const runQuery = async (
-    _ref: unknown,
+    ref: unknown,
     args?: Record<string, unknown>,
   ): Promise<unknown> => {
     // `getMessageByExternalId` shares this seam with the credential list.
     if (args !== undefined && typeof args.externalMessageId === 'string') {
       return existingMessages[args.externalMessageId] ?? null;
+    }
+    // The OAuth from-address heal reads one credential row by ref.
+    if (functionRefName(ref).endsWith('resolveCredentialRefInternal')) {
+      return options.credentialRow ?? null;
     }
     return credentials;
   };
@@ -325,7 +333,7 @@ describe('syncMailbox over IMAP', () => {
 });
 
 describe('syncMailbox over Gmail', () => {
-  it('turns the cursor into an epoch-second search and reads Sent by label', async () => {
+  it('turns the cursor into an epoch-second search and reads each folder by label', async () => {
     const { ctx, calls } = harness(
       mailbox([{ id: 'g1', threadId: 't1' }], [{ id: 'g2', threadId: 't1' }]),
     );
@@ -338,8 +346,11 @@ describe('syncMailbox over Gmail', () => {
       mode: 'live',
     });
 
+    // INBOX is named, never implied: an unlabelled `users.messages.list`
+    // answers Sent too, and the mailbox's own mail opened conversations with
+    // the mailbox as the customer.
     expect(inputsFor(calls, 'list_messages')).toEqual([
-      { maxResults: 50, q: 'after:5' },
+      { maxResults: 50, q: 'after:5', labelIds: 'INBOX' },
       { maxResults: 50, q: 'after:7', labelIds: 'SENT' },
     ]);
     expect(inputsFor(calls, 'get_message')).toEqual([
@@ -357,7 +368,7 @@ describe('syncMailbox over Gmail', () => {
 });
 
 describe('syncMailbox over Outlook', () => {
-  it('addresses Sent Items as a folder and filters it by sentDateTime', async () => {
+  it('addresses each folder by name and filters Sent Items by sentDateTime', async () => {
     const { ctx, calls } = harness(mailbox([{ id: 'o1' }], [{ id: 'o2' }]));
 
     await syncMailbox(ctx, {
@@ -372,9 +383,12 @@ describe('syncMailbox over Outlook', () => {
     // on one date field ordered by another — so the folder rides `folder` while
     // the cursor and the sort both switch to sentDateTime. Both folders sort
     // ASC so a backlog drains forward from the watermark.
+    // The Inbox is a folder too: `/me/messages` spans every folder, Sent
+    // Items included — the same hole as Gmail's unlabelled listing.
     expect(inputsFor(calls, 'list_messages')).toEqual([
       {
         top: 25,
+        folder: 'inbox',
         orderby: 'receivedDateTime asc',
         filter: 'receivedDateTime ge 1970-01-01T00:00:05.000Z',
       },
@@ -1462,6 +1476,126 @@ describe('listMailboxMessages', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe("syncMailbox learns an OAuth mailbox's own address", () => {
+  /**
+   * Gmail and Outlook credentials carry no login to mirror, so the ingest
+   * had no account address: every root message counted as the customer's,
+   * and a thread the mailbox itself started opened with the mailbox as the
+   * contact and every direction inverted. The first pass now asks the
+   * provider (`get_profile`), keeps the answer on `config.fromAddress`, and
+   * hands it to the ingest as `accountEmail`.
+   */
+  it('asks Gmail who the mailbox is once, keeps it on the credential and hands it to the ingest', async () => {
+    resolveConnectorAccountEmail.mockResolvedValue(undefined);
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      const inbox = mailbox([{ id: 'g1', threadId: 't1' }]);
+      const { ctx, calls, cursorPatches } = harness(
+        (call) =>
+          call.action === 'get_profile'
+            ? { emailAddress: 'Desk@Example.com' }
+            : inbox(call),
+        {
+          credentials: [{ id: 'cred_g', name: 'Gmail', isDefault: true }],
+          credentialRow: { _id: 'cred_g', config: { label: 'Support' } },
+        },
+      );
+
+      await syncMailbox(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'gmail',
+        limit: 25,
+        includeSent: false,
+        mode: 'live',
+      });
+
+      // The profile is read with the credential that lists, before the list.
+      expect(calls.map((call) => [call.action, call.credentialRef])).toEqual([
+        ['get_profile', 'cred_g'],
+        ['list_messages', 'cred_g'],
+        ['get_message', 'cred_g'],
+      ]);
+      expect(cursorPatches).toContainEqual({
+        organizationId: 'org',
+        credentialId: 'cred_g',
+        config: { label: 'Support', fromAddress: 'Desk@Example.com' },
+      });
+      expect(createConversationFromEmail).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          connectorName: 'gmail',
+          accountEmail: 'Desk@Example.com',
+        }),
+      );
+      expect(info).toHaveBeenCalledWith(
+        expect.stringContaining('learned the gmail mailbox address'),
+      );
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it('runs the pass as before when Outlook cannot say who the mailbox is', async () => {
+    resolveConnectorAccountEmail.mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const inbox = mailbox([{ id: 'o1' }]);
+      const { ctx, calls, cursorPatches } = harness(
+        (call) => {
+          if (call.action === 'get_profile') {
+            throw new Error('Outlook get_profile failed (403)');
+          }
+          return inbox(call);
+        },
+        {
+          credentials: [{ id: 'cred_o', name: 'Outlook', isDefault: true }],
+          credentialRow: { _id: 'cred_o', config: {} },
+        },
+      );
+
+      await syncMailbox(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'outlook',
+        limit: 25,
+        includeSent: false,
+        mode: 'live',
+      });
+
+      expect(calls.map((call) => call.action)).toEqual([
+        'get_profile',
+        'list_messages',
+        'get_message',
+      ]);
+      expect(cursorPatches.some((patch) => 'config' in patch)).toBe(false);
+      expect(createConversationFromEmail).toHaveBeenCalledWith(
+        ctx,
+        expect.not.objectContaining({ accountEmail: expect.anything() }),
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('outlook mailbox address heal failed'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does not ask again once the public config resolves the address', async () => {
+    const { ctx, calls } = harness(mailbox([{ id: 'g1', threadId: 't1' }]), {
+      credentials: [{ id: 'cred_g', name: 'Gmail', isDefault: true }],
+    });
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'gmail',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    expect(calls.map((call) => call.action)).not.toContain('get_profile');
   });
 });
 
