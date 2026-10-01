@@ -77,7 +77,7 @@ L’[automatisation des tâches](/fr/platform/projects/task-automation) explique
 
 ## L’agent standard {#standard-agent}
 
-Un projet sans agents propres peut quand même confier du travail à un agent. Sauf si un Admin l’a désactivé dans [Gouvernance > Modèles](/fr/platform/admin/governance/content-models#standard-agent), **Assigné à** y propose l’option **Agent standard**, à toutes les personnes qui peuvent assigner la tâche, Membres compris. La première fois que quelqu’un la choisit, Tale met l’agent en place dans le projet et lui assigne la tâche. Tu le démarres ensuite comme n’importe quel autre agent.
+Un projet sans agents propres peut quand même confier du travail à un agent. Sauf si un Admin l’a désactivé dans [Gouvernance > Modèles](/fr/platform/admin/governance/content-models#standard-agent), **Assigné à** y propose l’option **Agent standard**, à toutes les personnes qui peuvent assigner la tâche, Membres compris. La première fois que quelqu’un la choisit, Tale met l’agent en place dans le projet et lui assigne la tâche. Tu le démarres ensuite comme n’importe quel autre agent, ou tu le mentionnes dans un commentaire. S’il ne peut pas démarrer pour toi, le champ de commentaire te le signale, et ton commentaire est enregistré comme une simple mention.
 
 <Frame caption="L’onglet Agents d’un projet dont les tâches vont à l’agent standard.">
 

@@ -77,7 +77,7 @@ Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt F
 
 ## Der Standard-Agent {#standard-agent}
 
-Auch ein Projekt ohne eigene Agenten kann Arbeit an einen Agenten übergeben. Sofern ein Admin ihn unter [Richtlinien > Modelle](/de/platform/admin/governance/content-models#standard-agent) nicht ausgeschaltet hat, bietet **Zuständig** dort die Option **Standard-Agent** an, und zwar allen, die die Aufgabe zuweisen können, auch Mitgliedern. Wählt jemand sie zum ersten Mal, richtet Tale den Agenten im Projekt ein und weist ihm die Aufgabe zu. Danach startest du ihn wie jeden anderen Agenten.
+Auch ein Projekt ohne eigene Agenten kann Arbeit an einen Agenten übergeben. Sofern ein Admin ihn unter [Richtlinien > Modelle](/de/platform/admin/governance/content-models#standard-agent) nicht ausgeschaltet hat, bietet **Zuständig** dort die Option **Standard-Agent** an, und zwar allen, die die Aufgabe zuweisen können, auch Mitgliedern. Wählt jemand sie zum ersten Mal, richtet Tale den Agenten im Projekt ein und weist ihm die Aufgabe zu. Danach startest du ihn wie jeden anderen Agenten oder erwähnst ihn in einem Kommentar. Kann er für dich nicht starten, sagt das Kommentarfeld es dir, und dein Kommentar wird als einfache Erwähnung gespeichert.
 
 <Frame caption="Der Tab Agenten eines Projekts, dessen Aufgaben an den Standard-Agenten gehen.">
 

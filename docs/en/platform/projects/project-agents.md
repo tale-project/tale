@@ -77,7 +77,7 @@ The agent’s report appears in task comments and collected files appear as deli
 
 ## The standard agent {#standard-agent}
 
-A project without agents of its own can still take on agent work. Unless an admin has turned it off under [Governance > Models](/platform/admin/governance/content-models#standard-agent), **Assignee** offers **Standard agent** there, to everyone who can assign the task, Members included. The first time someone chooses it, Tale sets the agent up in the project and assigns it the task. You then start it like any other agent.
+A project without agents of its own can still take on agent work. Unless an admin has turned it off under [Governance > Models](/platform/admin/governance/content-models#standard-agent), **Assignee** offers **Standard agent** there, to everyone who can assign the task, Members included. The first time someone chooses it, Tale sets the agent up in the project and assigns it the task. You then start it like any other agent, or mention it in a comment. When it can't start for you, the comment box says so, and your comment is saved as a plain mention.
 
 <Frame caption="The Agents tab of a project whose tasks go to the standard agent.">
 
