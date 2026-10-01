@@ -6,8 +6,14 @@
  * The scheduler reads that here to tell a scan that is merely long from one
  * whose process went away under it (`core/websites/scan_scheduling.ts`).
  *
- * pg-boss keeps its jobs in this database (`pgboss.job`); the payload is the
- * `websites.scan` payload of `jobs/tasks.ts`.
+ * A site that was just added reads `scanning` before its first scan job
+ * exists: its `websites.register` job registers the domain, reads the
+ * homepage and only then queues the scan. That job stands for the scan
+ * until it does.
+ *
+ * pg-boss keeps its jobs in this database (`pgboss.job`); the payloads are
+ * the `websites.scan` and `websites.register` payloads of `jobs/tasks.ts`,
+ * which both name the `domain`.
  */
 
 import type { Sql } from 'postgres';
@@ -26,6 +32,12 @@ export interface ScanningRowWithoutJob {
  * registered one domain share its scan, and a job for either counts. The
  * live jobs are read once, not once per row: the queue keeps its finished
  * jobs for days beside them.
+ *
+ * A queued or running `websites.register` job counts as the scan it is
+ * about to queue. Without it a scheduler tick that fell between the row and
+ * its first scan job took the new site for an interrupted scan, found no
+ * claim and synced the row from the corpus: it read idle, or "not found in
+ * crawler" when the registration had not landed yet, until the scan began.
  */
 export async function listScanningRowsWithoutJob(
   sql: Sql,
@@ -35,7 +47,7 @@ export async function listScanningRowsWithoutJob(
     WITH live AS (
       SELECT DISTINCT data->>'domain' AS domain
       FROM pgboss.job
-      WHERE name = 'websites.scan'
+      WHERE name IN ('websites.scan', 'websites.register')
         AND state IN ('created', 'retry', 'active')
     )
     SELECT w.id, w.domain, w.org_id AS "organizationId",

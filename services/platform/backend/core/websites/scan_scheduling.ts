@@ -46,7 +46,9 @@
  * ## A scan that stops without ending
  *
  * A scan is a chain of jobs: each link queues the next before its own job
- * ends, so a running scan always has a job queued or active. A link cut off
+ * ends, so a running scan always has a job queued or active (for a site
+ * that was just added, the register job that queues its first link stands
+ * in until it does: `domains/websites/scan-queue.ts`). A link cut off
  * mid-flight — the process was restarted, deployed over, or killed — leaves
  * none, and nothing records an end: the corpus claim stays held and the row
  * reads `scanning`. Before this was told apart, such a site sat there for

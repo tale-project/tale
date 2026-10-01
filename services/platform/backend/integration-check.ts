@@ -33609,6 +33609,62 @@ async function checkWebsitesCrawl(
       `claim=${heldClaim[0]?.heartbeat ?? 'NONE'} afterPlainScan=${heartbeatAfterPlain === heldClaim[0]?.heartbeat ? 'unchanged' : `CHANGED(${heartbeatAfterPlain ?? 'released'})`} candidate=${candidates.some((row) => row.id === websiteId)} ranOut=${String(ranOut?.ranOutItsExpiry)}/true resumedInGrace=${resumedInGrace}/0 claimAge=${Math.round((freshClaim?.ageMs ?? -1) / 1000)}s→${Math.round((agedRead?.ageMs ?? -1) / 1000)}s cutShort=${String(cutShort?.ranOutItsExpiry)}/false jobEnded=${jobEnded}/true unknownJobEnded=${unknownJobEnded}/false resumedScans=${resumedScans}/1 payload=${resumePayload.success ? `takeover ${resumePayload.data.takeover === agedClaim[0]?.heartbeat ? 'matches' : 'DIFFERS'}, epoch drift ${epochDrift}ms` : 'BAD SHAPE'} corpus=${resumedCorpus[0]?.status ?? 'MISSING'}/completed a=${aResumed.length} allV3=${aResumed.every((text) => text.includes('v3'))} b=${bResumed.length} noneV9=${bResumed.every((text) => !text.includes('v9'))} row=${rowAfterResume?.status ?? 'MISSING'}/active resumes=${String(rowAfterResume?.metadata?.scanResumes)} heartbeat=${String(rowAfterResume?.metadata?.scanHeartbeatAt)}`,
     );
 
+    // 3e. A site that was just added reads `scanning` before its first scan
+    //     job exists: the register job registers the domain, reads the
+    //     homepage and only then queues the scan. A scheduler tick in that
+    //     window took the row for an interrupted scan, found no claim and
+    //     queued a row sync — the new site read idle, or "not found in
+    //     crawler" when the registration had not landed yet, until its scan
+    //     began. The register job stands for the scan it is about to queue;
+    //     once it is gone with no scan behind it, the row is a candidate.
+    const REGISTERING_DOMAIN = 'itest-registering.example';
+    const registeringId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: REGISTERING_DOMAIN,
+      scanInterval: '6h',
+      status: 'scanning',
+    });
+    // Deferred, so the worker leaves it queued for the length of this step.
+    const registerJobId = await addJobInTx(
+      sql,
+      'websites.register',
+      {
+        websiteId: registeringId,
+        domain: REGISTERING_DOMAIN,
+        scanInterval: '6h',
+        organizationId: orgId,
+      },
+      { startAfter: new Date(Date.now() + 3_600_000) },
+    );
+    const whileRegistering = await scanQueue.listScanningRowsWithoutJob(
+      sql,
+      50,
+    );
+    await websites.resumeInterruptedScans(sql);
+    const syncsWhileRegistering = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'websites.row_sync'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const rowWhileRegistering = await websites.getWebsite(sql, registeringId);
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'websites.register'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const afterRegister = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    await sql`DELETE FROM app.websites WHERE id = ${registeringId}`;
+    record(
+      'websites resume: a new site whose register job is still queued is not taken for an interrupted scan',
+      registerJobId !== null &&
+        !whileRegistering.some((row) => row.id === registeringId) &&
+        syncsWhileRegistering[0]?.count === '0' &&
+        rowWhileRegistering?.status === 'scanning' &&
+        rowWhileRegistering.metadata?.lastSyncError == null &&
+        afterRegister.some((row) => row.id === registeringId),
+      `registerJob=${registerJobId === null ? 'NOT QUEUED' : 'queued'} candidateWhileRegistering=${whileRegistering.some((row) => row.id === registeringId)}/false rowSyncs=${syncsWhileRegistering[0]?.count ?? '?'}/0 row=${rowWhileRegistering?.status ?? 'MISSING'}/scanning error=${String(rowWhileRegistering?.metadata?.lastSyncError)} candidateAfterRegister=${afterRegister.some((row) => row.id === registeringId)}/true`,
+    );
+
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
     //    registration merging on re-post, and delete deregistering the
     //    corpus rows (last member takes the domain with it).

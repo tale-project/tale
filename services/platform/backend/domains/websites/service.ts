@@ -1459,7 +1459,8 @@ const RESUME_BATCH_SIZE = 50;
  * restart, a deploy or a crash (see `core/websites/scan_scheduling.ts`).
  *
  * A domain is resumed when its rows read `scanning`, no scan job for it is
- * queued or running, and the corpus claim is still held and free to take
+ * queued or running (nor the register job that queues a new site's first
+ * one), and the corpus claim is still held and free to take
  * ({@link mayResumeScan}). The resumed scan is a first link that takes
  * exactly that claim over, by its heartbeat, and counts its pages from
  * where the interrupted scan began, so the pages already crawled stay done.
