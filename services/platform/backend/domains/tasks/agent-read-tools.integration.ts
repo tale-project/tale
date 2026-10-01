@@ -511,7 +511,7 @@ export async function checkAgentTaskReadTools(
       'read tools: a mismatched live run project is refused; its coherent identity restores only its own project reads',
       mismatchedProject.status === 'unavailable' &&
         listAt(mismatchedProject, 'blockers').some(
-          (blocker) => blocker.code === 'run_ended',
+          (runBlocker) => runBlocker.code === 'run_ended',
         ) &&
         restoredProject.status === 'ok' &&
         sameList([...idsOf(restoredProject)].sort(), [...foreignTasks].sort()),
