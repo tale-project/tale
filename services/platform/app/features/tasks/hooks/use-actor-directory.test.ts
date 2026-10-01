@@ -45,6 +45,8 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   }),
 }));
 
+let standardAgent: { enabled: boolean; available: boolean } | undefined;
+
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   // Arg-sensitive like the real hook: no project id → the query skips and the
   // list is empty.
@@ -52,6 +54,9 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     agents: projectId ? PROJECT_AGENTS : [],
     isLoading: false,
   }),
+  // Skipped (undefined) without an organization, like the real read.
+  useStandardAgent: (organizationId?: string) =>
+    organizationId === undefined ? undefined : standardAgent,
 }));
 
 /** What `listAccessibleUserIds` answers — undefined while it loads. */
@@ -186,6 +191,25 @@ describe('useAssignableActors — the project audience', () => {
 describe('useAssignableActors — who may add an agent', () => {
   beforeEach(() => {
     projectRead = undefined;
+    standardAgent = undefined;
+  });
+
+  it('knows whether the organization’s standard agent would take work here', () => {
+    standardAgent = { enabled: true, available: true };
+    const on = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(on.result.current.standardAgentAvailable).toBe(true);
+
+    standardAgent = { enabled: false, available: false };
+    const off = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(off.result.current.standardAgentAvailable).toBe(false);
+
+    // Unknown while it loads, and without a project to hand work in.
+    standardAgent = undefined;
+    const loading = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(loading.result.current.standardAgentAvailable).toBe(false);
+    standardAgent = { enabled: true, available: true };
+    const none = renderHook(() => useAssignableActors('org-1'));
+    expect(none.result.current.standardAgentAvailable).toBe(false);
   });
 
   it('lets the project’s editors add one', () => {

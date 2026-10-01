@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MentionTriggerChips } from './mention-trigger-chips';
 
-const { useActorDirectory, requestedSlugs } = vi.hoisted(() => ({
+const { useActorDirectory, requestedSlugs, preview } = vi.hoisted(() => ({
   useActorDirectory: vi.fn(),
   requestedSlugs: [] as string[][],
+  preview: {
+    willTrigger: true,
+    reason: 'ok' as 'ok' | 'standard_agent_unavailable',
+  },
 }));
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -21,11 +25,7 @@ vi.mock('../hooks/queries', () => ({
   useMentionTriggerPreview: (_target: unknown, slugs: string[]) => {
     if (slugs.length > 0) requestedSlugs.push(slugs);
     return {
-      previews: slugs.map((slug) => ({
-        slug,
-        willTrigger: true,
-        reason: 'ok' as const,
-      })),
+      previews: slugs.map((slug) => ({ slug, ...preview })),
     };
   },
 }));
@@ -34,6 +34,8 @@ const REVIEWER = { id: 'agent-7f3a', name: 'PR Reviewer' };
 
 beforeEach(() => {
   requestedSlugs.length = 0;
+  preview.willTrigger = true;
+  preview.reason = 'ok';
   useActorDirectory.mockReset();
   useActorDirectory.mockReturnValue({ agents: [REVIEWER] });
 });
@@ -94,5 +96,19 @@ describe('MentionTriggerChips', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 600));
     expect(requestedSlugs).toEqual([]);
+  });
+
+  it('says the standard agent will not answer someone it cannot start for', async () => {
+    preview.willTrigger = false;
+    preview.reason = 'standard_agent_unavailable';
+    renderChips('@pr.reviewer please look');
+
+    expect(
+      await screen.findByText(
+        'mentionPreview.standardAgentUnavailable:PR Reviewer',
+        {},
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
   });
 });

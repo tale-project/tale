@@ -11,6 +11,7 @@ import {
 } from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
+import { toast } from '@tale/ui/use-toast';
 import { useTriggerTooltipGuard } from '@tale/ui/use-trigger-tooltip-guard';
 import { CircleHelp, Plus, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -28,6 +29,7 @@ import {
   useTaskContractAutomations,
 } from '../hooks/use-task-subject-contract';
 import type { TaskActorType } from '../lib/display';
+import { taskRunErrorMessage } from '../lib/task-run-error';
 import { AssigneeAvatar } from './assignee-avatar';
 
 /** The change a confirmed handoff performs. */
@@ -40,6 +42,12 @@ type PendingAssign =
  * editors, who alone may add agents. */
 const CREATE_AGENT_ACTION = '__action:create-agent';
 
+/** Sentinel option value: the organization's standard agent, offered in a
+ * project with no agents of its own to everyone who can open it. Selecting
+ * it creates the project's standard agent (`ensureStandardAgent`) and
+ * assigns it. */
+const STANDARD_AGENT_ACTION = '__action:standard-agent';
+
 /**
  * Assignee control built on the same {@link SearchableSelect} as the chat model
  * and agent selectors: the assignee avatar is the (icon-button) trigger, and a
@@ -48,12 +56,14 @@ const CREATE_AGENT_ACTION = '__action:create-agent';
  * (so a task handed away from its automation can be handed BACK — reassignment
  * is a two-way door), with an Unassign action in the footer.
  *
- * A project with no agent says so by who is looking: an editor gets an
- * Agents section holding "Create an agent…", which opens the New agent
- * dialog over the picker and assigns the agent it creates — nothing
- * navigates away, so a task being drafted keeps its draft; anyone else is
- * told in the footer that an Editor or Admin can add one, because the row
- * they used to get sent them to a tab they cannot change.
+ * A project with no agent of its own offers the organization's standard
+ * agent to everyone who can open it, while the organization provides one:
+ * picking it creates the project's standard agent and assigns it. An editor
+ * also gets "Create an agent…", which opens the New agent dialog over the
+ * picker and assigns the agent it creates — nothing navigates away, so a
+ * task being drafted keeps its draft. Without a standard agent, anyone else
+ * is told in the footer that an Editor or Admin can add one, because the
+ * row they used to get sent them to a tab they cannot change.
  *
  * Taking a task away from an automation is an ownership TRANSFER, not a field
  * edit: when `taskId` is provided, moving off an `app` assignee asks first,
@@ -102,6 +112,7 @@ export function AssigneePicker({
     // Agents are the project editors' to add; everyone else reads them.
     canAddAgents,
     projectResolved,
+    standardAgentAvailable,
   } = useAssignableActors(organizationId, projectId);
   // Settled on "this project has no agent", so neither the create row nor
   // the reader's note flashes over a list or a role that is still loading.
@@ -113,6 +124,7 @@ export function AssigneePicker({
     projectResolved &&
     assignableAgents.length === 0;
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
+  const offerStandardAgent = projectHasNoAgents && standardAgentAvailable;
   const automations = useTaskContractAutomations(organizationId, projectId);
   const { locale } = useLocale();
   const subjectEntries = useMemo(
@@ -205,23 +217,33 @@ export function AssigneePicker({
         labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
       });
       agentSections.push(...assignableAgents.map(agentOption));
-    } else if (projectHasNoAgents && canAddAgents) {
-      // A project with no agents yet still shows the section to whoever may
-      // add one — otherwise the ability to hand tasks to an agent is
+    } else if (offerStandardAgent || (projectHasNoAgents && canAddAgents)) {
+      // A project with no agents yet still shows the section: the
+      // organization's standard agent to everyone, and the way to add one
+      // to whoever may — otherwise the ability to hand tasks to an agent is
       // invisible exactly when the user has never met it. Everyone else
-      // reads the same fact in the footer, as text rather than as a row
-      // nothing can select.
+      // reads the facts in the footer, as text rather than as a row nothing
+      // can select.
       agentSections.push({
         value: '__section:agents',
         label: t('assignee.agents'),
         isSectionHeader: true,
         labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
       });
-      agentSections.push({
-        value: CREATE_AGENT_ACTION,
-        label: t('assignee.createAgent'),
-        description: t('assignee.createAgentHint'),
-      });
+      if (offerStandardAgent) {
+        agentSections.push({
+          value: STANDARD_AGENT_ACTION,
+          label: t('assignee.standardAgent'),
+          description: t('assignee.standardAgentHint'),
+        });
+      }
+      if (canAddAgents) {
+        agentSections.push({
+          value: CREATE_AGENT_ACTION,
+          label: t('assignee.createAgent'),
+          description: t('assignee.createAgentHint'),
+        });
+      }
     }
 
     // The subject-contract automations visible from this board — the way an
@@ -246,6 +268,7 @@ export function AssigneePicker({
   }, [
     assignableMembers,
     assignableAgents,
+    offerStandardAgent,
     projectHasNoAgents,
     canAddAgents,
     currentUserId,
@@ -361,11 +384,35 @@ export function AssigneePicker({
     }
   };
 
+  /** Create the project's standard agent (or find the one a colleague
+   * just created) and hand it the task. */
+  const assignStandardAgent = async () => {
+    if (projectId === undefined) return;
+    try {
+      const { agentId } = await client.mutation(
+        'projects/mutations:ensureStandardAgent',
+        { projectId },
+      );
+      requestChange({ kind: 'assign', type: 'agent', id: agentId });
+    } catch (error) {
+      console.error('[tasks] the standard agent could not be added', error);
+      toast({
+        title: taskRunErrorMessage(error, t) ?? tCommon('errors.generic'),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleSelect = (val: string) => {
     if (val.startsWith('__section:')) return;
     if (val === CREATE_AGENT_ACTION) {
       setOpen(false);
       setCreateAgentOpen(true);
+      return;
+    }
+    if (val === STANDARD_AGENT_ACTION) {
+      setOpen(false);
+      void assignStandardAgent();
       return;
     }
     const { type, id } = parseOptionValue(val);
@@ -407,6 +454,16 @@ export function AssigneePicker({
         if (opt.value === CREATE_AGENT_ACTION) {
           return <Plus className="text-muted-foreground size-4" aria-hidden />;
         }
+        if (opt.value === STANDARD_AGENT_ACTION) {
+          // Drawn as the agent it becomes; the id only fills the slot.
+          return (
+            <AssigneeAvatar
+              assigneeType="agent"
+              assigneeId={STANDARD_AGENT_ACTION}
+              name={opt.label}
+            />
+          );
+        }
         const parsed = parseOptionValue(opt.value);
         return (
           <AssigneeAvatar
@@ -430,11 +487,13 @@ export function AssigneePicker({
               can't I find it" case still gets an answer. */}
           <Text variant="muted" className="px-2 py-1 text-[11px] text-wrap">
             {t(
-              canAddAgents
-                ? 'assignee.liveAgentsOnly'
-                : projectHasNoAgents
-                  ? 'assignee.noAgentsReader'
-                  : 'assignee.liveAgentsOnlyReader',
+              offerStandardAgent
+                ? 'assignee.standardAgentFooter'
+                : canAddAgents
+                  ? 'assignee.liveAgentsOnly'
+                  : projectHasNoAgents
+                    ? 'assignee.noAgentsReader'
+                    : 'assignee.liveAgentsOnlyReader',
             )}
           </Text>
           {assigneeId && (

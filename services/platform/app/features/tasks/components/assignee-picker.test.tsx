@@ -24,6 +24,13 @@ let mockAgentsLoading = false;
 // directory reads the project the picker is bound to.
 let mockCanAddAgents = true;
 let mockProjectResolved = true;
+// Whether the organization's standard agent would take work for this viewer.
+let mockStandardAgentAvailable = false;
+
+const { mockMutation, mockToast } = vi.hoisted(() => ({
+  mockMutation: vi.fn(),
+  mockToast: vi.fn(),
+}));
 
 vi.mock('../hooks/use-actor-directory', () => ({
   useAssignableActors: (_organizationId: string, projectId?: string) => ({
@@ -41,6 +48,8 @@ vi.mock('../hooks/use-actor-directory', () => ({
     }),
     canAddAgents: projectId !== undefined && mockCanAddAgents,
     projectResolved: projectId !== undefined && mockProjectResolved,
+    standardAgentAvailable:
+      projectId !== undefined && mockStandardAgentAvailable,
   }),
 }));
 
@@ -80,7 +89,14 @@ vi.mock('../hooks/mutations', () => ({
   useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@/app/hooks/use-backend-client', () => ({
-  useBackendClient: () => ({ query: vi.fn(async () => null) }),
+  useBackendClient: () => ({
+    query: vi.fn(async () => null),
+    mutation: mockMutation,
+  }),
+}));
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
+  toast: mockToast,
 }));
 vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn() }),
@@ -113,6 +129,91 @@ describe('AssigneePicker', () => {
     mockAgentsLoading = false;
     mockCanAddAgents = true;
     mockProjectResolved = true;
+    mockStandardAgentAvailable = false;
+  });
+
+  it('offers a reader the organization’s standard agent in a project without agents, and assigns it once added', async () => {
+    mockDirectoryAgents = [];
+    mockCanAddAgents = false;
+    mockStandardAgentAvailable = true;
+    mockMutation.mockResolvedValue({
+      agentId: 'agent-standard',
+      created: true,
+    });
+    const { user, open, onAssign } = renderPicker();
+    await open();
+
+    expect(
+      screen.getByText('tasks.assignee.standardAgentHint'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.standardAgentFooter'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('tasks.assignee.noAgentsReader'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('tasks.assignee.createAgent'),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('tasks.assignee.standardAgent'));
+
+    expect(mockMutation).toHaveBeenCalledWith(
+      'projects/mutations:ensureStandardAgent',
+      { projectId: 'project-1' },
+    );
+    await vi.waitFor(() =>
+      expect(onAssign).toHaveBeenCalledWith('agent', 'agent-standard'),
+    );
+  });
+
+  it('offers an editor the standard agent beside the way to add one', async () => {
+    mockDirectoryAgents = [];
+    mockStandardAgentAvailable = true;
+    const { open } = renderPicker();
+    await open();
+
+    expect(
+      screen.getByText('tasks.assignee.standardAgent'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('tasks.assignee.createAgent')).toBeInTheDocument();
+  });
+
+  it('says why, and assigns nothing, when the standard agent cannot be added', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    mockDirectoryAgents = [];
+    mockCanAddAgents = false;
+    mockStandardAgentAvailable = true;
+    mockMutation.mockRejectedValue(
+      Object.assign(new Error('refused'), {
+        data: { code: 'STANDARD_AGENT_UNAVAILABLE', reason: 'no-model' },
+      }),
+    );
+    const { user, open, onAssign } = renderPicker();
+    await open();
+
+    await user.click(screen.getByText('tasks.assignee.standardAgent'));
+
+    await vi.waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith({
+        title: 'tasks.agentRun.standardAgent.noModel',
+        variant: 'destructive',
+      }),
+    );
+    expect(onAssign).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('offers no standard agent where the project has agents of its own', async () => {
+    mockStandardAgentAvailable = true;
+    const { open } = renderPicker();
+    await open();
+
+    expect(
+      screen.queryByText('tasks.assignee.standardAgent'),
+    ).not.toBeInTheDocument();
   });
 
   it('lists every assignable agent under one plain Agents section', async () => {

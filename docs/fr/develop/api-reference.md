@@ -588,6 +588,8 @@ curl -fsS "$AGENT_URL/$AGENT_ID" \
 
 Pour éviter d’écraser une modification concurrente, fournis le dernier `updatedAt` lu dans `expectedUpdatedAt`. Si l’agent a changé, la réponse est **409**, `PROJECT_AGENT_STALE`, avec son `updatedAt` courant dans `data`. Rien n’est écrit : recharge la configuration et fusionne les changements avant de réessayer.
 
+Un agent dont `managed` vaut `true` est l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation : Tale l’a mis en place dans un projet sans agents propres et aligne son environnement, son modèle et ses instructions sur les réglages de l’organisation. Un `PUT` sur cet agent renvoie **409**, `PROJECT_AGENT_MANAGED`, et n’écrit rien ; `DELETE` le supprime comme tout autre agent (contrat 3.9.0).
+
 ### Valider modèles, autorisations et limites
 
 Un projet peut contenir au maximum 50 agents. Les noms sont limités à 120 caractères et doivent être uniques dans le projet, sans distinction de casse. Chaque liste de ressources attribuées accepte 25 entrées ; les instructions sont limitées à 20 000 caractères.

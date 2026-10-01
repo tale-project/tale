@@ -76,7 +76,13 @@ L’exécution peut toujours lire les tâches et les connaissances du projet, et
 
 Assigner un agent et lancer son exécution sont deux choix distincts. Après l’assignation, clique sur **Démarrer l'agent** ou passe la tâche à **En cours**. Lis [Automatiser les tâches](/fr/platform/projects/task-automation) avant de lancer un travail qui utilise des services connectés ou produit des fichiers.
 
-Si le projet n’a pas encore d’agent, **Assigné à** l’indique. Les Éditeurs et les rôles supérieurs choisissent **Créer un agent…** : **Nouvel agent** s’ouvre par-dessus la tâche, et l’agent que tu crées lui est assigné. Les Membres sont invités à demander à un Éditeur ou à un Admin d’en ajouter un dans l’onglet **Agents** du projet.
+Si le projet n’a pas d’agent propre, **Assigné à** propose l’option **Agent standard**, l’agent de l’organisation pour ces projets. La choisir met l’agent en place dans le projet et lui assigne la tâche ; [L’agent standard](/fr/platform/projects/project-agents#standard-agent) explique son fonctionnement. Les Éditeurs et les rôles supérieurs peuvent plutôt choisir **Créer un agent…** : **Nouvel agent** s’ouvre par-dessus la tâche, et l’agent que tu crées lui est assigné. Quand l’agent standard ne peut pas fonctionner pour eux, par exemple parce qu’un Admin l’a désactivé, les Membres sont invités à demander à un Éditeur ou à un Admin d’ajouter un agent dans l’onglet **Agents** du projet.
+
+<Frame caption="Dans un projet sans agents propres, Assigné à propose l’agent standard de l’organisation.">
+
+![La liste Assigné à, défilée jusqu’à sa section Agents : l’agent standard, décrit comme l’agent de l’organisation pour les projets sans agent propre, puis l’entrée pour créer un agent, au-dessus du pied de liste qui indique que l’agent standard prend en charge les tâches tant que le projet n’a pas d’agents propres.](/images/platform/project-task-standard-agent.webp)
+
+</Frame>
 
 Le relecteur reçoit la demande de revue, sans être le seul autorisé à décider. Toute autre personne qui peut modifier la tâche peut aussi accepter le résultat : un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient. Si ton organisation exige une relecture indépendante, la personne qui a démarré l’exécution d’agent examinée ne peut toutefois pas en accepter le résultat ; quand aucune exécution d’agent n’a produit le résultat, c’est la personne qui a créé la tâche qui ne le peut pas. Une exécution qu’un Membre a démarrée sur sa propre tâche attend alors un Éditeur ou un rôle supérieur, tandis que le Membre peut toujours accepter une exécution qu’un Éditeur y a démarrée.
 

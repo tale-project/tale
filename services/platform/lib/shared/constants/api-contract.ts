@@ -305,5 +305,13 @@
  * project to work on a task (assign, start, and a message the run addresses
  * first), answering to whoever that run answers to. Additive: agents saved
  * without it keep their grants.
+ *
+ * 3.9.0 — 2026-10-01: project agents answer `managed` — true for the
+ * organization's standard agent, which Tale sets up in a project without
+ * agents of its own under the new `standard_agent` governance policy and
+ * keeps in line with it. Saving one answers 409 `PROJECT_AGENT_MANAGED`;
+ * deleting it works as for any agent. A review relay that moves a task the
+ * standard agent holds to `in_progress` can answer `STANDARD_AGENT_OFF`
+ * (403) or `STANDARD_AGENT_UNAVAILABLE` (409). Additive.
  */
-export const API_CONTRACT_VERSION = '3.8.0';
+export const API_CONTRACT_VERSION = '3.9.0';

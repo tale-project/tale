@@ -84,14 +84,31 @@ export const PREFERRED_CHAT_MODELS: Readonly<
  * refusals, never as a silent fallback to some other model. */
 export type ChatAutoRefusal = 'no-chat-model' | 'no-vision-model';
 
-export interface ChatModelChoice {
-  entry: ModelCatalogEntry;
+/** What the choice reads of a model — enough to screen and rank it, so a
+ * listing that is not a raw catalog (the composer's servable options, as the
+ * standard agent's automatic model chooses from) is chosen by the same
+ * rules. */
+export type ChatChoiceEntry = Pick<
+  ModelCatalogEntry,
+  | 'id'
+  | 'provider'
+  | 'tags'
+  | 'supportsTools'
+  | 'supportsVision'
+  | 'outputsMedia'
+  | 'pricing'
+>;
+
+export interface ChatModelChoice<
+  T extends ChatChoiceEntry = ModelCatalogEntry,
+> {
+  entry: T;
   source: 'preferred' | 'cheapest';
 }
 
 /** A single entry's hazard screen — the tag says "chat", these say "and a
  * real chat call will actually be served". */
-function isServableChatEntry(entry: ModelCatalogEntry): boolean {
+function isServableChatEntry(entry: ChatChoiceEntry): boolean {
   if (!entry.tags.includes('chat')) return false;
   // A media GENERATOR may take text in, but a chat call to it is a provider
   // 400, and its 0 token price is a per-artifact-billing artifact.
@@ -114,10 +131,10 @@ function isServableChatEntry(entry: ModelCatalogEntry): boolean {
  * there is none. `entries` must already be credential- and
  * governance-filtered — this screen is about the models themselves.
  */
-export function eligibleChatCandidates(
-  entries: readonly ModelCatalogEntry[],
+export function eligibleChatCandidates<T extends ChatChoiceEntry>(
+  entries: readonly T[],
   opts: { requiresVision: boolean },
-): { pool: readonly ModelCatalogEntry[] } | { refusal: ChatAutoRefusal } {
+): { pool: readonly T[] } | { refusal: ChatAutoRefusal } {
   const servable = entries.filter(isServableChatEntry);
   if (servable.length === 0) return { refusal: 'no-chat-model' };
 
@@ -146,10 +163,10 @@ function bandsToTry(target: ModelBand): readonly ModelBand[] {
  * price fallback always yields an entry, so `null` only ever means "empty
  * pool" (which {@link eligibleChatCandidates} already refuses earlier).
  */
-export function chooseChatModel(
-  pool: readonly ModelCatalogEntry[],
+export function chooseChatModel<T extends ChatChoiceEntry>(
+  pool: readonly T[],
   band: ModelBand,
-): ChatModelChoice | null {
+): ChatModelChoice<T> | null {
   for (const tryBand of bandsToTry(band)) {
     for (const preferred of PREFERRED_CHAT_MODELS[tryBand]) {
       const entry = pool.find((candidate) =>
@@ -159,7 +176,7 @@ export function chooseChatModel(
     }
   }
 
-  let cheapest: { entry: ModelCatalogEntry; price: number } | null = null;
+  let cheapest: { entry: T; price: number } | null = null;
   for (const entry of pool) {
     const price =
       entry.pricing?.outputCentsPerMillion ?? Number.POSITIVE_INFINITY;

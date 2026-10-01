@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 113 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 115 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -670,8 +670,10 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   by** (`tasks.timeline.startedByAgent`) the manager; the manager's own report
   keeps the run id. An automation agent node's picker does not offer the tool.
 
-- [ ] `TASK-F55` · **A project with no agent, in Assignee** — As the member,
-  on a task of theirs in a project with no agent, open **Assignee**
+- [ ] `TASK-F55` · **A project with no agent, in Assignee** — With the
+  organization's standard agent switched off ([governance.md](governance.md)
+  `GOV-F52`), as the member, on a task of theirs in a project with no agent,
+  open **Assignee**
   (`tasks.fields.assignee`) → there is no **Agents** section
   (`tasks.assignee.agents`), the footer reads `tasks.assignee.noAgentsReader`,
   and nothing navigates away. As an editor of the same project, open **Create
@@ -734,6 +736,20 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   With task automation switched off for the organization, **Create and start
   agent** creates nothing: the dialog stays open with a toast saying why the
   agent cannot start, and **Create task** still creates the task.
+- [ ] `TASK-F61` · **A Member hands a task to the standard agent** — As the
+  member, in a project without agents of its own (the docs demo seed's
+  **Customer onboarding portal**), open **Assignee** (`tasks.fields.assignee`)
+  on a task of theirs → under **Agents** (`tasks.assignee.agents`) it offers
+  **Standard agent** (`tasks.assignee.standardAgent`) with
+  `tasks.assignee.standardAgentHint`, the footer reads
+  `tasks.assignee.standardAgentFooter`, and there is no **Create an agent…**
+  (`tasks.assignee.createAgent`), which an editor sees beside it. Choose it →
+  the assignee reads **Standard agent** at once and after a reload, and the
+  project's **Agents** tab lists it ([projects.md](projects.md) `PROJ-F37`);
+  **Start agent** (`tasks.agentRun.start`) runs it to **In review**
+  (`tasks.status.in_review`), with a requested Word, PowerPoint, Excel or PDF
+  file under the task's deliverables — env-gated: mark the run
+  **ENVIRONMENT** without a runnable harness.
 
 ## Boundary & error tests
 
@@ -1097,6 +1113,16 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the member's run fail for good (`TASK-F57`) → the member's bell gets
   **Agent run failed** (`inbox.agentRunFailed`); the removed member gets no
   row and no email.
+- [ ] `TASK-B37` · **A standard agent that can't run for you says why** —
+  Under **Model access**, block every model for the Member role, with the
+  standard agent's **Model** on **Automatic**. As the member, open
+  **Assignee** (`tasks.fields.assignee`) on a task of theirs in a project
+  without agents → it offers no **Standard agent**
+  (`tasks.assignee.standardAgent`), and its footer reads
+  `tasks.assignee.noAgentsReader`. As the owner, give that task to
+  **Standard agent**; as the member, **Start agent** (`tasks.agentRun.start`)
+  → the toast `tasks.agentRun.standardAgent.noModel` says to ask an Admin,
+  and no run appears under **Activity**. Restore the rule.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -1231,9 +1257,12 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   With a screen reader on, open the task from `TASK-F57` → the notice's title
   and sentence are read as one warning; **Tab** reaches **Retry**
   (`tasks.agentRun.retry`) with a visible focus ring, and **Enter** starts the
-  agent. In a project with no agent, the member's **Assignee** list is
-  followed by its footer, `tasks.assignee.noAgentsReader`, read as text rather
-  than skipped as a disabled option.
+  agent. In a project with no agent and the standard agent switched off, the
+  member's **Assignee** list is followed by its footer,
+  `tasks.assignee.noAgentsReader`, read as text rather than skipped as a
+  disabled option; with the standard agent on, **Standard agent**
+  (`tasks.assignee.standardAgent`) is read as an option with its description,
+  and the footer `tasks.assignee.standardAgentFooter` as text.
 
 ## Performance
 

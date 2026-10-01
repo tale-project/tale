@@ -50,11 +50,13 @@ const HANDOVER: TaskHandover = {
   projectsWithoutAgents: 1,
   canAddAgents: false,
   automationOff: false,
+  standardAgent: false,
   labels: {
     createTask: 'Aufgabe erstellen',
     createAndStart: 'Erstellen und Agent starten',
     assignee: 'Zuständig',
     createAgent: 'Agent erstellen …',
+    standardAgent: 'Standard-Agent',
   },
 };
 

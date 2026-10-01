@@ -15,6 +15,7 @@ import { Route } from './agents';
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProject: () => ({ project: { canEdit: true }, isLoading: false }),
   useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
+  useStandardAgent: () => undefined,
   useProjectCapabilityCatalog: (organizationId: string, projectId: string) => ({
     data: {
       skills: [
