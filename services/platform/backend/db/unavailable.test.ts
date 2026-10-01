@@ -97,6 +97,8 @@ describe('isDatabaseUnavailable', () => {
     'EAI_AGAIN',
     'ENOTFOUND',
     'ETIMEDOUT',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
   ])('counts %s from a database client only', (code) => {
     const socket = coded(code);
     // A bare socket error could be the object store's or a model

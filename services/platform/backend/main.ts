@@ -63,7 +63,9 @@ async function main(): Promise<void> {
   // App migrations (numbered .sql files and .ts data migrations) run in every
   // role (workers write app tables too); auth-table migrations run wherever
   // auth is configured. The migrator's advisory lock serializes concurrently
-  // booting containers.
+  // booting containers. A database that is restarting as this process boots
+  // is waited out for up to a minute from its first refusal, not reported
+  // (db/migrate.ts); only an outage past that fails the boot below.
   await runBootMigrations({
     databaseUrl: env.DATABASE_URL,
     ...(auth ? { authOptions: auth.options } : {}),

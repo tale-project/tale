@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 19 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 20 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -193,6 +193,19 @@ single warm sample.
   fail quietly until one succeeds: …` warning per container, and no
   `pg-boss error:` dump at all; the second restart adds its own line.
   Afterwards jobs run again: a new chat gets its generated title.
+- [ ] `PERF-B7` · **Backend start during a database restart** — Follow
+  `docker compose logs -f backend-api`, run `docker compose stop db`, restart
+  the api while the database is down (`docker restart $(docker compose ps -q
+  backend-api)`) and note its `docker inspect --format '{{.RestartCount}}'`,
+  then `docker compose start db` within half a minute. → The api does not
+  exit: while the database is away its log shows `[db] transient error on
+  attempt …, retrying in …ms: …` lines, and once `db` answers, the boot
+  carries on to `api listening on :3005`. The restart count has not moved
+  since you noted it, and with `SENTRY_DSN` set no event arrives. Leave `db`
+  stopped for more than a minute instead → about a minute after the first
+  refusal the api logs one `fatal startup error`, sends one error-level event
+  tagged `tale.lane: boot` and exits; Docker starts it again, and that start
+  waits another minute.
 - [ ] `PERF-B8` · **A write and a list while the app tier is away** — With
   `SENTRY_DSN` pointing at a project you can read, open a project's task
   board, open **Create task** and type a title, then run `docker compose stop
