@@ -48,6 +48,12 @@ export interface BootMigrationOptions {
   databaseWaitMs?: number;
   /** The pause between two attempts (injectable for deterministic tests). */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * The outage's clock, in milliseconds: monotonic `performance.now()` by
+   * default, so a wall-clock step as the host syncs its time at boot neither
+   * cuts the wait short nor stretches it (injectable for deterministic tests).
+   */
+  now?: () => number;
 }
 
 /** The first pause after an attempt the database was unavailable for; it
@@ -197,23 +203,25 @@ async function applyMigrationFile(
  * A database that is unavailable meanwhile — restarting, still starting, a
  * container restarted while `db` restarts, a host boot racing it — is waited
  * out like a restart anywhere else (`db/unavailable.ts`): the whole step runs
- * again with backoff while it fails that way, until the outage has lasted
- * `databaseWaitMs`. The outage is timed from its first refusal, so time spent
- * queued behind another process's lock, or applying migrations, does not
- * count against it; a second outage in the same boot shares the first one's
- * clock. Running the step again is what a restarted process did anyway: the
- * advisory lock belongs to the session, each app migration commits together
- * with its tracking row or not at all, and Better Auth's migrator adds the
- * tables and columns still missing. Any other failure (rejected credentials,
- * a missing database, a migration that does not apply) and an outage that
- * outlasts the wait reject as before, and the boot reports the error and
- * exits.
+ * again with backoff while it fails that way, until `databaseWaitMs` has
+ * passed since the first refusal. Time spent queued behind another process's
+ * lock, or applying migrations, before that refusal does not count. The
+ * clock is one per boot, deliberately: a second outage in the same boot
+ * shares it, the time between the two included, so a database that keeps
+ * going away cannot hold the boot without it ever being reported. Running
+ * the step again is what a restarted process did anyway: the advisory lock
+ * belongs to the session, each app migration commits together with its
+ * tracking row or not at all, and Better Auth's migrator adds the tables and
+ * columns still missing. Any other failure (rejected credentials, a missing
+ * database, a migration that does not apply) and an outage that outlasts the
+ * wait reject as before, and the boot reports the error and exits.
  */
 export async function runBootMigrations(
   options: BootMigrationOptions,
 ): Promise<void> {
   const log = options.log ?? ((message: string) => console.log(message));
   const waitMs = options.databaseWaitMs ?? ROUTINE_RESTART_MS;
+  const clock = options.now ?? (() => performance.now());
   let outageSince: number | null = null;
   await withRetry(() => migrateOnce(options, log), {
     // The outage's clock below, not a count or a budget, ends the retries.
@@ -225,7 +233,7 @@ export async function runBootMigrations(
       // Every client this step opens is a database client, so a bare socket
       // error from Better Auth's node-postgres migrator is the database's too.
       if (!isDatabaseUnavailable(error, { fromDatabase: true })) return false;
-      const now = Date.now();
+      const now = clock();
       outageSince ??= now;
       return now - outageSince < waitMs;
     },

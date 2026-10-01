@@ -100,7 +100,6 @@ describe('runBootMigrations, while the database is unavailable', () => {
   it('still fails the boot once the outage outlasts the wait', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     let now = 0;
-    vi.spyOn(Date, 'now').mockImplementation(() => now);
     const server = await refusingServer(() => SHUTTING_DOWN);
     closers.push(server.close);
     const sleep = vi.fn(async (ms: number) => {
@@ -112,6 +111,7 @@ describe('runBootMigrations, while the database is unavailable', () => {
       log: () => undefined,
       databaseWaitMs: 20_000,
       sleep,
+      now: () => now,
     }).then(
       () => new Error('the step was expected to fail'),
       (error: unknown) => error,
@@ -138,7 +138,6 @@ describe('runBootMigrations, while the database is unavailable', () => {
   it('times the outage from its first refusal, not from the start of the step', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     let now = 0;
-    vi.spyOn(Date, 'now').mockImplementation(() => now);
     // The first refusal arrives 55 s into the step — the time a process can
     // spend queued behind another's migration lock before the database goes
     // away under both.
@@ -158,6 +157,7 @@ describe('runBootMigrations, while the database is unavailable', () => {
       log: () => undefined,
       databaseWaitMs: 20_000,
       sleep,
+      now: () => now,
     }).then(
       () => new Error('the step was expected to fail'),
       (error: unknown) => error,
@@ -174,6 +174,35 @@ describe('runBootMigrations, while the database is unavailable', () => {
       [5000],
     ]);
     expect(server.connections()).toBe(7);
+  });
+
+  it('keeps its clock off the wall clock, so a time step at boot cannot cut the wait short', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // The wall clock leaps an hour on every read — what a host syncing its
+    // time at boot can do. The wait must not notice.
+    let wall = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => (wall += 3_600_000));
+    let refusals = 0;
+    const server = await refusingServer(() => {
+      refusals += 1;
+      return refusals <= 3 ? SHUTTING_DOWN : BAD_PASSWORD;
+    });
+    closers.push(server.close);
+    const sleep = vi.fn(async (_ms: number) => undefined);
+
+    const failure = await runBootMigrations({
+      databaseUrl: server.url,
+      log: () => undefined,
+      databaseWaitMs: 20_000,
+      sleep,
+    }).then(
+      () => new Error('the step was expected to fail'),
+      (error: unknown) => error,
+    );
+
+    // All three refusals waited out, then the real failure.
+    expect(failure).toMatchObject({ code: '28P01' });
+    expect(sleep.mock.calls).toEqual([[1000], [2000], [4000]]);
   });
 
   it('fails at once, over a single connection, on an error a wait cannot fix', async () => {
