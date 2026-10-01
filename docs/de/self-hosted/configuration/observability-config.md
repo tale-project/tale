@@ -74,8 +74,9 @@ Fehler, die auf keinen Defekt in Tale hinweisen, meldet der Browser nicht:
 - Anfragen, die die Seite selbst abgebrochen hat, etwa weil du sie vor dem vollständigen Laden verlassen hast
 - Anfragen, die das Backend mit einem Status unter 500 ablehnt, etwa bei fehlender Berechtigung oder einem bereits vergebenen Namen
 - Anfragen, die gar keine Antwort erhalten, zum Beispiel weil das Gerät offline ist
+- Anfragen, die fehlschlagen, während die Plattform oder ihre Datenbank neu startet: `UPSTREAM_UNAVAILABLE` vom Proxy während eines Deployments oder Neustarts und `503 DATABASE_UNAVAILABLE` von der Plattform
 
-Serverfehler ab Status 500 meldet er weiterhin.
+Andere Serverfehler ab Status 500 meldet er weiterhin.
 
 ## Aggregierte Nutzungsstatistik mit Umami
 

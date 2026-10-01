@@ -74,8 +74,9 @@ Le navigateur ne signale pas les erreurs qui ne révèlent aucun défaut de Tale
 - les requêtes que la page annule elle-même, par exemple quand tu la quittes avant la fin de son chargement
 - les requêtes que le backend refuse avec un statut inférieur à 500, par exemple faute d’autorisation ou parce qu’un nom est déjà pris
 - les requêtes restées sans aucune réponse, par exemple quand l’appareil est hors ligne
+- les requêtes qui échouent pendant que la plateforme ou sa base de données redémarre : `UPSTREAM_UNAVAILABLE` du proxy pendant un déploiement ou un redémarrage, et `503 DATABASE_UNAVAILABLE` de la plateforme
 
-Les erreurs serveur, de statut 500 ou plus, restent signalées.
+Les autres erreurs serveur, de statut 500 ou plus, restent signalées.
 
 ## Statistiques agrégées avec Umami
 
