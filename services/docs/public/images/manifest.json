@@ -409,6 +409,18 @@
       "height": 356
     },
     {
+      "file": "images/platform/governance-standard-agent.webp",
+      "shot": "governance-standard-agent",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 954
+    },
+    {
       "file": "images/platform/home-inbox.webp",
       "shot": "home-inbox",
       "route": "/dashboard/:orgId/conversations/open",
@@ -493,6 +505,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/project-agents-standard.webp",
+      "shot": "project-agents-standard",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
       "file": "images/platform/project-general-tab.webp",
       "shot": "project-general-tab",
       "route": "/dashboard/:orgId/projects",
@@ -539,6 +563,18 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800
+    },
+    {
+      "file": "images/platform/project-task-standard-agent.webp",
+      "shot": "project-task-standard-agent",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1056,
+      "height": 798
     },
     {
       "file": "images/platform/projects-task-board.webp",

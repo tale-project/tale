@@ -3,7 +3,7 @@ title: Projektagenten erstellen und verwalten
 description: Konfiguriere einen wiederverwendbaren Agenten, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis.
 ---
 
-Erstelle einen Projektagenten, wenn ein wiederverwendbarer Agent die Aufgaben dieses Projekts bearbeiten soll. Er verbindet Coding-Laufzeit, Modell, Anweisungen und erlaubte Ausstattung. Du brauchst Bearbeitungszugriff auf das aktive Projekt. Mitglieder sehen die Agenten des Projekts im Tab **Agenten**, der ihnen sagt, dass sie einen Redakteur oder Admin um einen neuen bitten können. Secret-Zuordnungen dürfen nur Inhaber und Admins ändern.
+Erstelle einen Projektagenten, wenn ein wiederverwendbarer Agent die Aufgaben dieses Projekts bearbeiten soll. Er verbindet Coding-Laufzeit, Modell, Anweisungen und erlaubte Ausstattung. Du brauchst Bearbeitungszugriff auf das aktive Projekt. Mitglieder sehen die Agenten des Projekts im Tab **Agenten**, der ihnen sagt, dass sie einen Redakteur oder Admin um einen neuen bitten können. Bis ein Projekt eigene Agenten hat, können seine Aufgaben an den [Standard-Agenten](#standard-agent) der Organisation gehen. Secret-Zuordnungen dürfen nur Inhaber und Admins ändern.
 
 ## Die erste Aufgabe vorbereiten
 
@@ -75,8 +75,22 @@ Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergeb
 
 Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Fortschritt, Stoppen und Prüfung. Der gewöhnliche Chat-Assistent bleibt davon getrennt, auch mit Projektkontext.
 
+## Der Standard-Agent {#standard-agent}
+
+Auch ein Projekt ohne eigene Agenten kann Arbeit an einen Agenten übergeben. Sofern ein Admin ihn unter [Richtlinien > Modelle](/de/platform/admin/governance/content-models#standard-agent) nicht ausgeschaltet hat, bietet **Zuständig** dort die Option **Standard-Agent** an, und zwar allen, die die Aufgabe zuweisen können, auch Mitgliedern. Wählt jemand sie zum ersten Mal, richtet Tale den Agenten im Projekt ein und weist ihm die Aufgabe zu. Danach startest du ihn wie jeden anderen Agenten.
+
+<Frame caption="Der Tab Agenten eines Projekts, dessen Aufgaben an den Standard-Agenten gehen.">
+
+![Der Tab Agenten des Projekts Customer onboarding portal mit einer Zeile: der Standard-Agent mit dem Abzeichen Standard, Claude Code, OpenRouter, dem Modell anthropic/claude-haiku-4.5 und vier Ausstattungen. Ein Hinweis sagt, dass Tale ihn für dieses Projekt eingerichtet hat und Agent-Laufzeit, Modell und Anweisungen den Einstellungen der Organisation folgen. Die Zeile hat eine Schaltfläche zum Löschen, aber keine zum Bearbeiten.](/images/platform/project-agents-standard.webp)
+
+</Frame>
+
+Der Tab **Agenten** führt ihn mit dem Abzeichen **Standard**. Niemand bearbeitet ihn: Agent-Laufzeit, Modell und Anweisungen folgen den Einstellungen der Organisation, die Tale bei jedem Start eines Laufs neu liest, und seine Ausstattung sind die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf` des Projekts. Auf **Automatisch** nutzt jeder Lauf ein Modell, das die Person, die ihn startet, nutzen darf. Er kann also für verschiedene Personen mit verschiedenen Modellen laufen.
+
+Um dem Projekt einen eigenen Agenten zu geben, wähle **Neuer Agent**. Ab dann bietet das Projekt den Standard-Agenten nicht mehr an; der bereits eingerichtete bleibt zuweisbar, bis du ihn löschst. Beim Löschen bleibt der Verlauf seiner Aufgaben erhalten, und solange das Projekt keine Agenten hat, richtet die nächste Aufgabe für den Standard-Agenten ihn wieder ein.
+
 ## Einen Agenten ändern oder entfernen
 
-Bearbeite oder lösche den Agenten über sein Zeilenmenü. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Sie löscht außerdem die [Sandbox-Arbeitsbereiche](/de/platform/admin/sandboxes#explain-why-a-workspace-disappeared) des Agenten samt Dateien, auch die der Mitglieder. Prüfe laufende Arbeit und sichere benötigte Ergebnisse, bevor du den zugehörigen Agenten entfernst.
+Bearbeite oder lösche den Agenten über sein Zeilenmenü. Der Standard-Agent hat nur **Agent löschen**. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Sie löscht außerdem die [Sandbox-Arbeitsbereiche](/de/platform/admin/sandboxes#explain-why-a-workspace-disappeared) des Agenten samt Dateien, auch die der Mitglieder. Prüfe laufende Arbeit und sichere benötigte Ergebnisse, bevor du den zugehörigen Agenten entfernst.
 
 Scheitert das Erstellen, lies die Begründung: Ein doppelter Name, fehlender Projektzugriff, ein nicht verfügbares Modell und unsichtbare Skills sind unterschiedliche Ursachen. Ein Lauf, der endgültig scheitert, sagt oben in seiner Aufgabe, was schiefging und wer es beheben kann; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) zählt die Fälle auf. Neue Anweisungen beheben diese Voraussetzungen nicht.
