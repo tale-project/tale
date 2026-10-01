@@ -751,6 +751,8 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   file under the task's deliverables — env-gated: mark the run
   **ENVIRONMENT** without a runnable harness.
 
+- [ ] `TASK-F62` · **Let a manager triage without starting work** — As an editor, enable **Change task priority and agent assignment** (`projects.agents.tool.task_update_metadata`) on a project agent, using the keyboard in **Skills, connectors & tools**; save and reopen it → the named option remains checked with its **Writes data** badge and visible focus, fits at desktop and phone widths in EN/DE/FR, and an automation agent node never offers it. Let that manager change an idle task’s priority and agent assignment, then watch the task from a second browser session → both values refresh, the activity names the manager, status and run history stay unchanged, and a reload keeps the values.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,

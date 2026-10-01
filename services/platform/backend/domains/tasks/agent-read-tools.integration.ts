@@ -97,6 +97,7 @@ export async function checkAgentTaskReadTools(
    * for its turn. */
   const agentRun = async (args: {
     agentId: string;
+    projectId?: string;
     taskId: string;
     status: string;
     startedBy?: string;
@@ -117,7 +118,7 @@ export async function checkAgentTaskReadTools(
         started_by, started_at_ms, launched_at_ms, deadline_at_ms,
         settled_at_ms, updated_at_ms
       ) VALUES (
-        ${orgId}, ${projectA}, ${args.taskId}, ${args.agentId}, ${execId},
+        ${orgId}, ${args.projectId ?? projectA}, ${args.taskId}, ${args.agentId}, ${execId},
         ${sessionId}, ${args.status}, 'claude-code', 'itest-model', 'manual',
         ${args.feedback ?? null}, ${args.failureCode ?? null},
         ${args.status === 'failed' ? 'itest: harness exploded with a secret-looking trace' : null},
@@ -486,9 +487,36 @@ export async function checkAgentTaskReadTools(
     const cursor = textAt(bucketPages[0], 'continueCursor');
     const outsiderRun = await agentRun({
       agentId: outsider,
+      projectId: projectB,
       taskId: foreignTask,
       status: 'running',
     });
+    // A valid neighbour run must carry its own project. A stale/malformed
+    // run identity is refused before the read tool sees any cursor or task.
+    let mismatchedProject: Body;
+    await sql`UPDATE app.project_agent_runs SET project_id = ${projectA}
+      WHERE id = ${outsiderRun.runId}`;
+    try {
+      mismatchedProject = await dispatch(outsiderRun.token, 'task_find', {
+        limit: PAGE,
+      });
+    } finally {
+      await sql`UPDATE app.project_agent_runs SET project_id = ${projectB}
+        WHERE id = ${outsiderRun.runId}`;
+    }
+    const restoredProject = await dispatch(outsiderRun.token, 'task_find', {
+      limit: PAGE,
+    });
+    record(
+      'read tools: a mismatched live run project is refused; its coherent identity restores only its own project reads',
+      mismatchedProject.status === 'unavailable' &&
+        listAt(mismatchedProject, 'blockers').some(
+          (blocker) => blocker.code === 'run_ended',
+        ) &&
+        restoredProject.status === 'ok' &&
+        sameList([...idsOf(restoredProject)].sort(), [...foreignTasks].sort()),
+      `mismatch=${String(mismatchedProject.status)} restored=${String(restoredProject.status)}/${idsOf(restoredProject).length}`,
+    );
     const mismatches = await Promise.all([
       dispatch(m1, 'task_find', { status: 'todo', cursor }),
       dispatch(m1, 'task_find', {
