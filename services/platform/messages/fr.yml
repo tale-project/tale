@@ -1972,6 +1972,13 @@ conversations:
     undoSendFailed: Impossible d'annuler l'envoi — le message est peut-être déjà parti.
     retrySendFailed: Impossible de relancer l'envoi.
     discardMessageFailed: Impossible de supprimer le message.
+  suggestedReply:
+    title: Réponse suggérée
+    description: Rédigée par une automatisation et en attente de ta décision — rien n’a été envoyé.
+    use: Mettre dans l’éditeur
+    discard: Ignorer
+    used: La suggestion est dans l’éditeur. Modifie-la à ta guise ; l’envoi la clôt.
+    discardFailed: Impossible d’ignorer la suggestion.
   message:
     sendingIn: Envoi dans {seconds}s
     undoSend: Annuler

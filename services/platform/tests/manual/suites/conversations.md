@@ -292,15 +292,24 @@ subject.
 - [ ] `CONV-F13` · **A drafted reply waits for a person** — With a populated
   thread, have an automation call the conversation `draft_reply` operation on
   it (or seed one pending `conversations` approval whose metadata carries
-  `emailBody`), then open the
-  thread → The draft renders in the reading pane as a **pending message** below
-  the thread; nothing has been sent and the customer's mailbox is untouched.
-  Send from the composer → the pending message resolves into the sent reply and
-  the draft does not reappear on reload — on an email conversation AND on a
-  native API-source conversation (whose reply is queued for its source rather
-  than handed to a mail connector). Draft twice on one conversation → the
-  pane still shows exactly one pending message (migration 0108's partial unique
-  index), and the second call reports the first card rather than minting a twin.
+  `emailBody`), then open the thread → The draft renders above the composer
+  as a **Suggested reply** card (`conversations.suggestedReply.title`, a
+  labelled region: "Drafted by an automation and waiting for you — nothing
+  has been sent"), and the composer itself is **empty** — nothing typed on the
+  person's behalf; the customer's mailbox is untouched. **Put in editor**
+  (`.suggestedReply.use`) → the text lands in the composer, the card gives way
+  to one status line (`.suggestedReply.used`), and the person edits freely.
+  Send from the composer → the sent reply appears and the suggestion does not
+  reappear on reload — on an email conversation AND on a native API-source
+  conversation (whose reply is queued for its source rather than handed to a
+  mail connector). **Discard** (`.suggestedReply.discard`) on a fresh
+  suggestion → the card disappears (the approval is rejected); the triage
+  pack does not propose on that thread again until the customer writes again.
+  Draft twice on one conversation → the pane still shows exactly one card
+  (migration 0108's partial unique index), and the second call reports the
+  first card rather than minting a twin. Keyboard: Tab reaches both buttons
+  in the card before the composer; the card's text scrolls (`max-h-48`) with
+  a labelled scroll region when long.
 
 - [ ] `CONV-F14` · **Add an unknown recipient without leaving compose** — With
   an email automation deployed, open the composer — **New email**
@@ -538,6 +547,20 @@ subject.
   carry `Content-Type: image/…` and `Content-Security-Policy: default-src
   'none'; sandbox`. Open one of those proxy URLs in a signed-out private window
   → 401, no image.
+- [ ] `CONV-F37` · **A triage pass prioritizes, stamps and drafts** — With a
+  sync automation deployed and a few open threads whose newest message is the
+  customer's (one of them already holding a priority a person set), run the
+  matching **Triage the … inbox** automation live (**Run** on its Runs tab;
+  `limit` 5) → The run succeeds; its output names what was read, a
+  summary, the threads that need a reply with their Inbox links, and one draft
+  per such thread. In the Inbox, each judged thread without a priority now
+  shows the model's (**Priority** facet filters on it) while the person-set
+  one is unchanged; a thread that needs a reply shows the draft as a
+  **Suggested reply** card above the composer (CONV-F13), nothing was sent. Run the
+  automation again without new mail → it reads **0** and calls no model;
+  reply as the customer (or re-sync a new inbound mail) → the thread is
+  listed again, and a thread still holding its earlier pending draft keeps
+  that one (`created: false` in the output's `drafted`).
 
 ## Boundary & error tests
 

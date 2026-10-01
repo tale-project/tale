@@ -39,6 +39,10 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
 import { draftReplyToConversation } from '../conversations/draft.ts';
 import { conversationShimHandlers } from '../conversations/shim.ts';
+import {
+  listUntriagedConversations,
+  recordConversationTriage,
+} from '../conversations/triage.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
 import { connectorBlobSink } from './blob-sink.ts';
@@ -125,6 +129,10 @@ function pgConversationStore(sql: Sql): WorkflowConversationStore {
     querySyncCursor: (args) => querySyncCursor(shim(), args),
     syncMailbox: (args) => syncMailbox(shim(), args),
     listMailboxMessages: (args) => listMailboxMessages(shim(), args),
+    // Straight to the domain, like the draft: Inbox reads and stamps, none of
+    // the reused 0.4 mail modules.
+    listUntriagedConversations: (args) => listUntriagedConversations(sql, args),
+    recordTriage: (args) => recordConversationTriage(sql, args),
     // Goes straight to the domain rather than through the shim: a draft is one
     // insert on app.approvals and touches none of the reused 0.4 mail modules.
     draftReply: (args) =>

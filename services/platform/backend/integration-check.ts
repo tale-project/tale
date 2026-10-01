@@ -26620,6 +26620,197 @@ async function checkUndatedMailIngest(
 }
 
 /**
+ * The triage packs' Inbox lane (domains/conversations/triage.ts) on the real
+ * schema: a thread is listed when its newest message is the customer's and
+ * newer — by message `seq`, not by date — than the thread's triage stamp; the
+ * stamp sets the priority only where no person set one; and a message that
+ * lands after the stamp surfaces the thread again however old its own Date
+ * header is (a sync pass ingests mail minutes after it was sent).
+ */
+async function checkInboxTriageLane(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { createConversation, addMessageToConversation } =
+    await import('./domains/conversations/service.ts');
+  const { listUntriagedConversations, recordConversationTriage } =
+    await import('./domains/conversations/triage.ts');
+  // A connector name of this lane's own, so the mailbox lanes' threads in the
+  // shared org never land in its listing whatever the lane order.
+  const connector = 'itest-triage-mail';
+  const now = Date.now();
+  const contactRows = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Triage Contact', 'triage@ext.test', 'api_import',
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const contactId = contactRows[0]?.id ?? '';
+  const seed = async (
+    subject: string,
+    opts: {
+      priority?: string;
+      status?: 'open' | 'closed';
+      content: string;
+      teamRepliedLast?: boolean;
+    },
+  ): Promise<string> => {
+    const conversationId = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject,
+        channel: 'email',
+        direction: 'inbound',
+        connectorName: connector,
+        ...(opts.priority !== undefined ? { priority: opts.priority } : {}),
+        ...(opts.status !== undefined ? { status: opts.status } : {}),
+      }),
+    );
+    await sql.begin((tx) =>
+      addMessageToConversation(tx, {
+        conversationId,
+        organizationId: orgId,
+        sender: 'triage@ext.test',
+        content: opts.content,
+        isCustomer: true,
+        sentAt: now - 300_000,
+        connectorName: connector,
+      }),
+    );
+    if (opts.teamRepliedLast) {
+      await sql.begin((tx) =>
+        addMessageToConversation(tx, {
+          conversationId,
+          organizationId: orgId,
+          sender: 'team@door.test',
+          content: 'We are on it.',
+          isCustomer: false,
+          sentAt: now - 240_000,
+          connectorName: connector,
+        }),
+      );
+    }
+    return conversationId;
+  };
+  const waiting = await seed('When does it ship?', {
+    content: '<p>Hello <b>team</b>,<br>when does order 42 ship?</p>',
+  });
+  const answered = await seed('Already answered', {
+    content: 'Thanks for the quote.',
+    teamRepliedLast: true,
+  });
+  const prioritized = await seed('Site is down', {
+    priority: 'urgent',
+    content: 'Our site is down since 9:00.',
+  });
+  const closed = await seed('Closed thread', {
+    status: 'closed',
+    content: 'Closing this.',
+  });
+
+  const first = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  const firstIds = first.conversations.map((row) => row.conversationId);
+  const waitingRow = first.conversations.find(
+    (row) => row.conversationId === waiting,
+  );
+  record(
+    "inbox triage: the listing is the open threads whose newest message is the customer's, none judged yet",
+    firstIds.length === 2 &&
+      firstIds.includes(waiting) &&
+      firstIds.includes(prioritized) &&
+      !firstIds.includes(answered) &&
+      !firstIds.includes(closed) &&
+      // The stripper's exact spacing is its own contract; the lane holds the
+      // text to "readable, no markup".
+      waitingRow !== undefined &&
+      waitingRow.lastInboundText.includes('when does order 42 ship?') &&
+      !waitingRow.lastInboundText.includes('<') &&
+      waitingRow.contact.email === 'triage@ext.test' &&
+      !waitingRow.assigned &&
+      waitingRow.url ===
+        `/dashboard/${orgId}/conversations/open?conversation=${waiting}`,
+    `listed=${firstIds.length} (want 2: waiting+prioritized; not answered/closed) text=${JSON.stringify(waitingRow?.lastInboundText)} url=${waitingRow?.url}`,
+  );
+
+  const recorded = await recordConversationTriage(sql, {
+    organizationId: orgId,
+    runId: 'run_itest_triage',
+    verdicts: [
+      {
+        conversationId: waiting,
+        action: 'reply',
+        priority: 'high',
+        reason: 'Asks for a ship date.',
+      },
+      { conversationId: prioritized, action: 'no_reply', priority: 'low' },
+      { conversationId: 'conv_never_existed', action: 'reply' },
+    ],
+  });
+  const stamped = await sql<
+    { id: string; priority: string | null; triage: Record<string, unknown> }[]
+  >`
+    SELECT id, priority, metadata->'triage' AS triage FROM app.conversations
+    WHERE id IN (${waiting}, ${prioritized})
+  `;
+  const waitingStamp = stamped.find((row) => row.id === waiting);
+  const prioritizedStamp = stamped.find((row) => row.id === prioritized);
+  record(
+    'inbox triage: the stamp carries the verdict and sets the priority only where none was set',
+    recorded.recorded === 2 &&
+      recorded.prioritized === 1 &&
+      recorded.unknown.length === 1 &&
+      recorded.unknown[0] === 'conv_never_existed' &&
+      waitingStamp?.priority === 'high' &&
+      waitingStamp.triage.action === 'reply' &&
+      waitingStamp.triage.reason === 'Asks for a ship date.' &&
+      waitingStamp.triage.runId === 'run_itest_triage' &&
+      typeof waitingStamp.triage.seq === 'number' &&
+      waitingStamp.triage.seq > 0 &&
+      prioritizedStamp?.priority === 'urgent' &&
+      prioritizedStamp.triage.action === 'no_reply',
+    `recorded=${recorded.recorded} prioritized=${recorded.prioritized} unknown=${recorded.unknown.join(',')} waiting.priority=${waitingStamp?.priority} (want high) prioritized.priority=${prioritizedStamp?.priority} (want urgent, kept) stamp=${JSON.stringify(waitingStamp?.triage)}`,
+  );
+
+  const second = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  // A customer message that lands AFTER the stamp but was SENT before it — the
+  // sync's own lag — must surface the thread again: the cursor is seq, not date.
+  await sql.begin((tx) =>
+    addMessageToConversation(tx, {
+      conversationId: waiting,
+      organizationId: orgId,
+      sender: 'triage@ext.test',
+      content: 'Any news?',
+      isCustomer: true,
+      sentAt: now - 3_600_000,
+      connectorName: connector,
+    }),
+  );
+  const third = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  record(
+    'inbox triage: a judged thread is not listed again until a customer message lands after the stamp, however old its date',
+    second.conversations.length === 0 &&
+      third.conversations.length === 1 &&
+      third.conversations[0]?.conversationId === waiting,
+    `afterStamp=${second.conversations.length} (want 0) afterLateMail=${third.conversations.map((row) => row.conversationId).join(',')} (want ${waiting})`,
+  );
+}
+
+/**
  * Ingest idempotency is the DATABASE's rule now, not the lookup's. Two passes
  * of one mailbox can overlap (the schedule claims the occurrence, not the run)
  * and both miss `checkMessageExists`; migration 0077's partial unique index
@@ -57260,6 +57451,7 @@ async function main(): Promise<void> {
         'checkOutboundSendLane',
         () => checkOutboundSendLane(sql, baseUrl, authCtx),
       ],
+      ['checkInboxTriageLane', () => checkInboxTriageLane(sql, authCtx)],
       [
         'checkNotificationEmailSink',
         () => checkNotificationEmailSink(sql, authCtx),

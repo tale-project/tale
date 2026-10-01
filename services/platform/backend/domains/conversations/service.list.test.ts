@@ -204,7 +204,23 @@ describe('listConversationsPage', () => {
         ];
       }
       if (text.includes('FROM app.approvals')) {
-        return [{ conversationId: 'c2', id: 'ap-1', metadata: { k: 'v' } }];
+        return [
+          {
+            conversationId: 'c2',
+            id: 'ap-1',
+            organizationId: ORG,
+            status: 'pending',
+            resourceType: 'conversations',
+            resourceId: 'c2',
+            priority: 'medium',
+            wfExecutionId: null,
+            stepSlug: null,
+            approvedBy: null,
+            reviewedAt: null,
+            metadata: { k: 'v' },
+            createdAt: 5,
+          },
+        ];
       }
       throw new Error(`unexpected statement: ${text}`);
     });
@@ -254,11 +270,25 @@ describe('listConversationsPage', () => {
       contact: expect.objectContaining({ email: 'carla@ext.test' }),
       message_count: 1,
     });
+    // The pending approval rides in the wire shape the panel keys its
+    // pending draft on (`_id`), not as the raw row: handed over as
+    // `{id, metadata}`, a drafted reply never rendered.
     expect(result.items[1]).toMatchObject({
       _id: 'c2',
-      pendingApproval: { id: 'ap-1', metadata: { k: 'v' } },
+      pendingApproval: {
+        _id: 'ap-1',
+        _creationTime: 5,
+        organizationId: ORG,
+        status: 'pending',
+        resourceType: 'conversations',
+        resourceId: 'c2',
+        priority: 'medium',
+        metadata: { k: 'v' },
+      },
       lastMessagePreview: 'Question from Bob.',
     });
+    expect(result.items[1]?.pendingApproval).not.toHaveProperty('id');
+    expect(result.items[1]?.pendingApproval).not.toHaveProperty('approvedBy');
     expect(result.items[0]).not.toHaveProperty('pendingApproval');
     expect(result.items[2]).toMatchObject({ _id: 'c3', message_count: 0 });
 
