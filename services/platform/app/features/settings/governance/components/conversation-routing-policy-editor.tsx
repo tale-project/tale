@@ -529,7 +529,7 @@ export function ConversationRoutingPolicyEditor({
   // The section's toggle. Rules survive it being switched off, so turning
   // routing back on restores them; ingest short-circuits on an explicit
   // `enabled: false` server-side either way.
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'conversation_routing',
     savedEnabled,
@@ -762,7 +762,7 @@ export function ConversationRoutingPolicyEditor({
             aria-label={t('conversationRouting.title')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={cannotManage || isToggling}
+            disabled={cannotManage || isSettling}
           />
         }
       >

@@ -439,7 +439,7 @@ export function DefaultModelEditor({
   // The section's toggle. Rules are kept when it goes off, so turning the
   // feature back on restores them; enforcement short-circuits on
   // `!enabled || rules.length === 0` server-side either way.
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'default_models',
     savedEnabled: savedConfig.enabled,
@@ -588,7 +588,7 @@ export function DefaultModelEditor({
             aria-label={t('defaultModels.title')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={cannotManage || isToggling}
+            disabled={cannotManage || isSettling}
           />
         }
       >
