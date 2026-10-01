@@ -1961,6 +1961,13 @@ conversations:
     undoSendFailed: Das Senden lässt sich nicht mehr abbrechen — die Nachricht ist vermutlich schon unterwegs.
     retrySendFailed: Das erneute Senden konnte nicht gestartet werden.
     discardMessageFailed: Die Nachricht konnte nicht gelöscht werden.
+  suggestedReply:
+    title: Antwortvorschlag
+    description: Von einer Automatisierung entworfen und wartet auf dich — gesendet wurde nichts.
+    use: In den Editor übernehmen
+    discard: Verwerfen
+    used: Der Vorschlag steht im Editor. Passe ihn nach Belieben an; mit dem Senden ist er erledigt.
+    discardFailed: Der Vorschlag konnte nicht verworfen werden.
   message:
     sendingIn: Sendet in {seconds}s
     undoSend: Rückgängig

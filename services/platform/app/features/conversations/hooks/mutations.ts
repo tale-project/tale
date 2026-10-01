@@ -1,5 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query';
+
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { useT } from '@/lib/i18n/client';
 
 /** A caller that reports the outcome itself — the editor's sends, the bulk
@@ -10,6 +13,31 @@ interface ErrorFeedbackOptions {
 
 export function useGenerateUploadUrl(options?: ErrorFeedbackOptions) {
   return useBackendMutation('files/mutations:generateUploadUrl', options);
+}
+
+/**
+ * Discards an automation's suggested reply: the pending approval is rejected
+ * through the approvals door, and the organization's conversation queries
+ * refresh so the card leaves the thread. The hook's own toast reports a
+ * failure; the caller must not toast again.
+ */
+export function useDiscardSuggestedReply(organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+  const { t } = useT('conversations');
+  return useBackendMutation('approvals/mutations:updateApprovalStatus', {
+    errorToast: {
+      title: t('suggestedReply.discardFailed'),
+      description: (error) => failureDetail(error),
+    },
+    onSuccess: () => {
+      // The thread is loaded by the time a person can discard, so the id is
+      // set; the guard only keeps a never-loaded panel from a bad key.
+      if (organizationId === undefined) return;
+      void queryClient.invalidateQueries({
+        queryKey: backendEntityPrefix(organizationId, 'conversation'),
+      });
+    },
+  });
 }
 
 export function useBulkArchiveConversations(options?: ErrorFeedbackOptions) {

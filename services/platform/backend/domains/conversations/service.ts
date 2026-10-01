@@ -9,6 +9,7 @@ import {
   findOrganizationMember,
   getUserTeamIds,
 } from '../../auth/membership.ts';
+import type { ApprovalItem } from '../../core/approvals/types.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -501,21 +502,60 @@ async function loadContactsById(
   return new Map(rows.map((row) => [row.id, row]));
 }
 
+interface PendingApprovalRow {
+  conversationId: string;
+  id: string;
+  organizationId: string;
+  status: ApprovalItem['status'];
+  resourceType: ApprovalItem['resourceType'];
+  resourceId: string;
+  priority: ApprovalItem['priority'];
+  wfExecutionId: string | null;
+  stepSlug: string | null;
+  approvedBy: string | null;
+  reviewedAt: number | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: number;
+}
+
+/** The approval row in the wire shape the Inbox reads (`ApprovalItem`,
+ *  `_id` / `_creationTime`): the panel keys the pending draft on `_id`, so a
+ *  row handed over as `{id, metadata}` rendered no draft at all. */
+function pendingApprovalItem(row: PendingApprovalRow): ApprovalItem {
+  return {
+    _id: row.id,
+    _creationTime: row.createdAt,
+    organizationId: row.organizationId,
+    status: row.status,
+    resourceType: row.resourceType,
+    resourceId: row.resourceId,
+    priority: row.priority,
+    ...(row.wfExecutionId !== null && { wfExecutionId: row.wfExecutionId }),
+    ...(row.stepSlug !== null && { stepSlug: row.stepSlug }),
+    ...(row.approvedBy !== null && { approvedBy: row.approvedBy }),
+    ...(row.reviewedAt !== null && { reviewedAt: row.reviewedAt }),
+    ...(row.metadata !== null && { metadata: row.metadata }),
+  };
+}
+
 /**
  * The newest pending approval per conversation, in ONE read — the review
- * chip the Inbox row and the detail header both show.
+ * chip the Inbox row and the detail header both show, and the drafted reply
+ * the reading pane renders as a pending message.
  */
 async function loadPendingApprovals(
   sql: Sql,
   organizationId: string,
   conversationIds: readonly string[],
-): Promise<Map<string, { id: string; metadata: unknown }>> {
+): Promise<Map<string, ApprovalItem>> {
   if (conversationIds.length === 0) return new Map();
-  const rows = await sql<
-    { conversationId: string; id: string; metadata: unknown }[]
-  >`
+  const rows = await sql<PendingApprovalRow[]>`
     SELECT DISTINCT ON (resource_id)
-      resource_id AS "conversationId", id, metadata
+      resource_id AS "conversationId", id, org_id AS "organizationId", status,
+      resource_type AS "resourceType", resource_id AS "resourceId", priority,
+      wf_execution_id AS "wfExecutionId", step_slug AS "stepSlug",
+      approved_by AS "approvedBy", reviewed_at_ms::float8 AS "reviewedAt",
+      metadata, created_at_ms::float8 AS "createdAt"
     FROM app.approvals
     WHERE org_id = ${organizationId}
       AND resource_type = 'conversations'
@@ -523,10 +563,7 @@ async function loadPendingApprovals(
     ORDER BY resource_id, created_at_ms DESC
   `;
   return new Map(
-    rows.map((row) => [
-      row.conversationId,
-      { id: row.id, metadata: row.metadata },
-    ]),
+    rows.map((row) => [row.conversationId, pendingApprovalItem(row)]),
   );
 }
 

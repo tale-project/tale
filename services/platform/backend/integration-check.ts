@@ -11033,6 +11033,23 @@ async function checkChat(
   const aiPort =
     aiAddress !== null && typeof aiAddress === 'object' ? aiAddress.port : 0;
   const aiBase = `http://127.0.0.1:${aiPort}/v1`;
+  // A provider whose model listing never answers — the Vercel AI Gateway
+  // without egress, but on loopback, so no check here depends on a vendor.
+  // It counts the listing requests it refuses.
+  let coldListingRequests = 0;
+  const coldServer = createServer((req, res) => {
+    if ((req.url ?? '').endsWith('/models')) coldListingRequests += 1;
+    res.statusCode = 503;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    coldServer.listen(0, '127.0.0.1', resolve);
+  });
+  const coldAddress = coldServer.address();
+  const coldPort =
+    coldAddress !== null && typeof coldAddress === 'object'
+      ? coldAddress.port
+      : 0;
 
   try {
     // The org's chat provider: a custom provider file + an api-key
@@ -11251,6 +11268,86 @@ async function checkChat(
       `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
     );
 
+    // One provider's catalog that cannot be read must not decide a model
+    // another provider serves. `itest-cold`'s listing fails cold — nothing
+    // cached, no shipped defaults — and then stays failed through the
+    // remembered back-off; custom providers are walked in file-name order,
+    // so it is read before `itestdeploy`. Every lookup that walked past it
+    // used to throw its error out of the send: a bare 500 instead of the
+    // reply, or of the refusal naming the model. It stays configured through
+    // the stale send below and is removed after it.
+    await writeFile(
+      path.join(providersDir, 'itest-cold.yml'),
+      [
+        'name: itest-cold',
+        'displayName: Itest Cold Catalog',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${coldPort}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    /** One send on the deployment thread, read as text first: a failed
+     * resolution used to answer a non-JSON 500. */
+    const deploySend = async (body: {
+      text: string;
+      modelId: string;
+      providerSlug?: string;
+    }): Promise<{ status: string; reason: string }> => {
+      const raw = await (
+        await send(
+          `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+          body,
+        )
+      ).text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        json = { status: `non-JSON: ${raw.slice(0, 80)}` };
+      }
+      const answer = z
+        .object({ status: z.string(), reason: z.string().optional() })
+        .safeParse(json);
+      return answer.success
+        ? { status: answer.data.status, reason: answer.data.reason ?? '' }
+        : { status: 'ERR', reason: '' };
+    };
+    const coldUnhinted = await deploySend({
+      text: 'Which ledger is this?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldRequests = coldListingRequests;
+    const rememberedUnhinted = await deploySend({
+      text: 'Which pigment does it name?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldHint = await deploySend({
+      text: 'Once more, please.',
+      modelId: 'itest-deploy-prod',
+      providerSlug: 'itest-cold',
+    });
+    const unknownModel = await deploySend({
+      text: 'Anyone there?',
+      modelId: 'itest-retired-model',
+    });
+    const rememberedRequests = coldListingRequests;
+    record(
+      'an unreadable catalog leaves the other providers resolving',
+      coldUnhinted.status === 'completed' &&
+        rememberedUnhinted.status === 'completed' &&
+        coldHint.status === 'completed' &&
+        coldRequests > 0 &&
+        rememberedRequests === coldRequests &&
+        unknownModel.status === 'refused' &&
+        unknownModel.reason.includes('"itest-retired-model"') &&
+        unknownModel.reason.includes('"itest-cold"') &&
+        !unknownModel.reason.includes('HTTP 503'),
+      `no hint: cold=${coldUnhinted.status} remembered=${rememberedUnhinted.status}, hint on the cold provider=${coldHint.status} (want completed ×3); cold listing requests ${coldRequests} → ${rememberedRequests} (want >0, then none while remembered); unknown model=${unknownModel.status} (${unknownModel.reason}) (want refused, naming the model and the unreachable catalog, not its error)`,
+    );
+
     // The picker and serving must read ONE world. Serving resolves a
     // provider's ACTIVE DEFAULT credential; the picker used to walk every
     // active credential — so after the routine key rotation (add B, disable
@@ -11359,6 +11456,7 @@ async function checkChat(
         offeredAgain,
       `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? `${sendWhileDefaultDisabled.data.status} (${sendWhileDefaultDisabled.data.reason ?? ''})` : 'ERR'} (want refused, naming the model); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
     );
+    await rm(path.join(providersDir, 'itest-cold.yml'), { force: true });
 
     // First-token UX metric. Covered because it was NOT: the statement that
     // stamps it built a `jsonb_build_object` around an uncast parameter, so
@@ -11882,6 +11980,9 @@ async function checkChat(
   } finally {
     await new Promise<void>((resolve) => {
       aiServer.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      coldServer.close(() => resolve());
     });
   }
 }
@@ -26515,6 +26616,197 @@ async function checkUndatedMailIngest(
       nothing.deliveryState === 'delivered' &&
       outcome.ingestedTip === internalDate,
     `processed=${outcome.processedCount} (want 3) rows=${rows.length} internalDateStamped=${noDate?.sentAt === internalDate} undatedStamp=${nothing?.sentAt ?? 'null'} (want null) state=${nothing?.deliveryState} tip=${outcome.ingestedTip === internalDate}`,
+  );
+}
+
+/**
+ * The triage packs' Inbox lane (domains/conversations/triage.ts) on the real
+ * schema: a thread is listed when its newest message is the customer's and
+ * newer — by message `seq`, not by date — than the thread's triage stamp; the
+ * stamp sets the priority only where no person set one; and a message that
+ * lands after the stamp surfaces the thread again however old its own Date
+ * header is (a sync pass ingests mail minutes after it was sent).
+ */
+async function checkInboxTriageLane(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { createConversation, addMessageToConversation } =
+    await import('./domains/conversations/service.ts');
+  const { listUntriagedConversations, recordConversationTriage } =
+    await import('./domains/conversations/triage.ts');
+  // A connector name of this lane's own, so the mailbox lanes' threads in the
+  // shared org never land in its listing whatever the lane order.
+  const connector = 'itest-triage-mail';
+  const now = Date.now();
+  const contactRows = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Triage Contact', 'triage@ext.test', 'api_import',
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const contactId = contactRows[0]?.id ?? '';
+  const seed = async (
+    subject: string,
+    opts: {
+      priority?: string;
+      status?: 'open' | 'closed';
+      content: string;
+      teamRepliedLast?: boolean;
+    },
+  ): Promise<string> => {
+    const conversationId = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject,
+        channel: 'email',
+        direction: 'inbound',
+        connectorName: connector,
+        ...(opts.priority !== undefined ? { priority: opts.priority } : {}),
+        ...(opts.status !== undefined ? { status: opts.status } : {}),
+      }),
+    );
+    await sql.begin((tx) =>
+      addMessageToConversation(tx, {
+        conversationId,
+        organizationId: orgId,
+        sender: 'triage@ext.test',
+        content: opts.content,
+        isCustomer: true,
+        sentAt: now - 300_000,
+        connectorName: connector,
+      }),
+    );
+    if (opts.teamRepliedLast) {
+      await sql.begin((tx) =>
+        addMessageToConversation(tx, {
+          conversationId,
+          organizationId: orgId,
+          sender: 'team@door.test',
+          content: 'We are on it.',
+          isCustomer: false,
+          sentAt: now - 240_000,
+          connectorName: connector,
+        }),
+      );
+    }
+    return conversationId;
+  };
+  const waiting = await seed('When does it ship?', {
+    content: '<p>Hello <b>team</b>,<br>when does order 42 ship?</p>',
+  });
+  const answered = await seed('Already answered', {
+    content: 'Thanks for the quote.',
+    teamRepliedLast: true,
+  });
+  const prioritized = await seed('Site is down', {
+    priority: 'urgent',
+    content: 'Our site is down since 9:00.',
+  });
+  const closed = await seed('Closed thread', {
+    status: 'closed',
+    content: 'Closing this.',
+  });
+
+  const first = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  const firstIds = first.conversations.map((row) => row.conversationId);
+  const waitingRow = first.conversations.find(
+    (row) => row.conversationId === waiting,
+  );
+  record(
+    "inbox triage: the listing is the open threads whose newest message is the customer's, none judged yet",
+    firstIds.length === 2 &&
+      firstIds.includes(waiting) &&
+      firstIds.includes(prioritized) &&
+      !firstIds.includes(answered) &&
+      !firstIds.includes(closed) &&
+      // The stripper's exact spacing is its own contract; the lane holds the
+      // text to "readable, no markup".
+      waitingRow !== undefined &&
+      waitingRow.lastInboundText.includes('when does order 42 ship?') &&
+      !waitingRow.lastInboundText.includes('<') &&
+      waitingRow.contact.email === 'triage@ext.test' &&
+      !waitingRow.assigned &&
+      waitingRow.url ===
+        `/dashboard/${orgId}/conversations/open?conversation=${waiting}`,
+    `listed=${firstIds.length} (want 2: waiting+prioritized; not answered/closed) text=${JSON.stringify(waitingRow?.lastInboundText)} url=${waitingRow?.url}`,
+  );
+
+  const recorded = await recordConversationTriage(sql, {
+    organizationId: orgId,
+    runId: 'run_itest_triage',
+    verdicts: [
+      {
+        conversationId: waiting,
+        action: 'reply',
+        priority: 'high',
+        reason: 'Asks for a ship date.',
+      },
+      { conversationId: prioritized, action: 'no_reply', priority: 'low' },
+      { conversationId: 'conv_never_existed', action: 'reply' },
+    ],
+  });
+  const stamped = await sql<
+    { id: string; priority: string | null; triage: Record<string, unknown> }[]
+  >`
+    SELECT id, priority, metadata->'triage' AS triage FROM app.conversations
+    WHERE id IN (${waiting}, ${prioritized})
+  `;
+  const waitingStamp = stamped.find((row) => row.id === waiting);
+  const prioritizedStamp = stamped.find((row) => row.id === prioritized);
+  record(
+    'inbox triage: the stamp carries the verdict and sets the priority only where none was set',
+    recorded.recorded === 2 &&
+      recorded.prioritized === 1 &&
+      recorded.unknown.length === 1 &&
+      recorded.unknown[0] === 'conv_never_existed' &&
+      waitingStamp?.priority === 'high' &&
+      waitingStamp.triage.action === 'reply' &&
+      waitingStamp.triage.reason === 'Asks for a ship date.' &&
+      waitingStamp.triage.runId === 'run_itest_triage' &&
+      typeof waitingStamp.triage.seq === 'number' &&
+      waitingStamp.triage.seq > 0 &&
+      prioritizedStamp?.priority === 'urgent' &&
+      prioritizedStamp.triage.action === 'no_reply',
+    `recorded=${recorded.recorded} prioritized=${recorded.prioritized} unknown=${recorded.unknown.join(',')} waiting.priority=${waitingStamp?.priority} (want high) prioritized.priority=${prioritizedStamp?.priority} (want urgent, kept) stamp=${JSON.stringify(waitingStamp?.triage)}`,
+  );
+
+  const second = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  // A customer message that lands AFTER the stamp but was SENT before it — the
+  // sync's own lag — must surface the thread again: the cursor is seq, not date.
+  await sql.begin((tx) =>
+    addMessageToConversation(tx, {
+      conversationId: waiting,
+      organizationId: orgId,
+      sender: 'triage@ext.test',
+      content: 'Any news?',
+      isCustomer: true,
+      sentAt: now - 3_600_000,
+      connectorName: connector,
+    }),
+  );
+  const third = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  record(
+    'inbox triage: a judged thread is not listed again until a customer message lands after the stamp, however old its date',
+    second.conversations.length === 0 &&
+      third.conversations.length === 1 &&
+      third.conversations[0]?.conversationId === waiting,
+    `afterStamp=${second.conversations.length} (want 0) afterLateMail=${third.conversations.map((row) => row.conversationId).join(',')} (want ${waiting})`,
   );
 }
 
@@ -57159,6 +57451,7 @@ async function main(): Promise<void> {
         'checkOutboundSendLane',
         () => checkOutboundSendLane(sql, baseUrl, authCtx),
       ],
+      ['checkInboxTriageLane', () => checkInboxTriageLane(sql, authCtx)],
       [
         'checkNotificationEmailSink',
         () => checkNotificationEmailSink(sql, authCtx),

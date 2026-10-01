@@ -33,9 +33,17 @@ Verbinde zuerst das passende Postfach. Prüfe nach dem ersten Live-Lauf das [Aus
 
 Anhänge werden mit ihrer Nachricht gespeichert, du öffnest und lädst sie also direkt in der Konversation herunter. Aus Gmail übernimmt Tale jeden Anhang nur bis 3,5 MB: Ein größerer erscheint weiterhin mit Name und Größe, öffnen kannst du ihn aber nur in Gmail.
 
-## Aktuelle E-Mails zusammenfassen lassen
+## Die Inbox sichten
 
-Diese Workflows lesen alle sechs Stunden die neuesten Nachrichten aller verbundenen Postfächer ihrer Art. Sie liefern eine Zusammenfassung und benennen Nachrichten, die offenbar heute eine Antwort brauchen. Die Zusammenfassung ist die Ausgabe des Laufs; öffne ihn zum Lesen. Ins Postfach wird nichts zurückgeschrieben, und der Status von Konversationen bleibt unverändert.
+Diese Workflows arbeiten alle sechs Stunden auf der **Inbox**, die die Synchronisierungs-Automatisierungen füllen. Jeder liest die offenen Konversationen seines Mail-Connectors, deren neueste Nachricht von der Kundin oder dem Kunden stammt und die seit dem Eintreffen dieser Nachricht noch kein Durchlauf beurteilt hat – höchstens 25 pro Lauf, sofern du `limit` nicht erhöhst, und nie mehr als 100. Das Modell entscheidet für jeden Thread, ob eine Person antworten muss und wie dringend es ist.
+
+Was ein Lauf verändert:
+
+- Das Urteil wird samt Begründung am Thread festgehalten, sodass der nächste Lauf den Thread erst wieder ansieht, wenn sich die Kundin oder der Kunde erneut meldet.
+- Die **Priorität** des Threads wird auf das Urteil des Modells gesetzt – aber nur, wenn noch niemand eine gesetzt hat. Eine von einer Person gewählte Priorität bleibt bestehen.
+- Wo eine Antwort fällig ist, entwirft ein zweiter Modellaufruf eine und legt sie als **Antwortvorschlag** an den Thread: eine Karte über dem Editor, getrennt von allem, was eine Person selbst getippt hat. **In den Editor übernehmen** gibt den Text zum Anpassen und Senden in den Editor; **Verwerfen** lässt ihn fallen, und der Thread bekommt erst wieder einen Vorschlag, wenn sich die Kundin oder der Kunde erneut meldet. Die Automatisierung sendet nichts. Ein Thread, der bereits einen Vorschlag trägt, behält ihn.
+
+Die Ausgabe des Laufs zeigt, was gelesen wurde, die Zusammenfassung des Modells, die Threads, die eine Antwort brauchen, mit ihren Inbox-Links, und die abgelegten Entwürfe. Ein Lauf, bei dem nichts wartet, ruft kein Modell auf. Stelle zuerst die passende Synchronisierungs-Automatisierung bereit; ohne synchronisierte Konversationen gibt es nichts zu sichten.
 
 | Automatisierung | Benötigter Connector | Zeitplan |
 | --- | --- | --- |

@@ -34,6 +34,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   useDeleteConversation,
   useDiscardOutboundMessage,
+  useDiscardSuggestedReply,
   useGenerateUploadUrl,
   useMarkAsRead,
   useReopenConversation,
@@ -60,6 +61,7 @@ import {
   type StoredAttachment,
   storedAttachedFile,
 } from './message-editor/types';
+import { SuggestedReplyCard } from './suggested-reply-card';
 
 const MessageEditor = lazyComponent(
   () =>
@@ -184,19 +186,22 @@ export function ConversationPanel({
   const { mutate: undoSendMessage } = useUndoSendMessage();
   const { mutate: retrySendMessage } = useRetrySendMessage();
   const { mutate: discardOutboundMessage } = useDiscardOutboundMessage();
+  const discardSuggestedReply = useDiscardSuggestedReply(
+    conversation?.organizationId,
+  );
 
-  // An undo is a one-time seed. Once applied, the editor persists its body
-  // and this panel keeps its live files per conversation, including removals.
-  // Remember which approval the undo replaced, so its cached seed cannot
-  // overwrite edits; a later approval with another ID is still available.
+  // A one-time seed for the composer: a send the person undid, or a suggested
+  // reply they chose to put in the editor. Once applied, the editor persists
+  // its body and this panel keeps its live files per conversation, including
+  // removals.
   const [restoredDrafts, setRestoredDrafts] = useState<
-    Record<
-      string,
-      {
-        seed: MessageEditorProps['pendingMessage'];
-        replacedApprovalId: string | undefined;
-      }
-    >
+    Record<string, { seed: MessageEditorProps['pendingMessage'] }>
+  >({});
+  // The suggested reply (by approval id) a person put into the editor, per
+  // conversation: from then on the composer's text is theirs, and the card
+  // only says so.
+  const [usedSuggestions, setUsedSuggestions] = useState<
+    Record<string, string>
   >({});
   const [draftAttachments, setDraftAttachments] = useState<
     Record<string, AttachedFile[]>
@@ -344,7 +349,6 @@ export function ConversationPanel({
   const handleUndoSend = (messageId: string) => {
     const conversationId = conversation?.id;
     if (conversationId === undefined) return;
-    const replacedApprovalId = conversation?.pendingApproval?._id;
     undoSendMessage(
       { messageId: messageId },
       {
@@ -356,7 +360,6 @@ export function ConversationPanel({
             setRestoredDrafts((drafts) => ({
               ...drafts,
               [conversationId]: {
-                replacedApprovalId,
                 seed: {
                   id: messageId,
                   content: sourceMarkdown ?? '',
@@ -427,15 +430,20 @@ export function ConversationPanel({
   // All messages from the database have valid delivery states, no filtering needed
   const displayMessages = messages;
 
-  // Create pending message from approval if it exists (emailBody only)
-  const pendingMessage =
+  // An automation's drafted reply (the pending `conversations` approval whose
+  // metadata carries `emailBody`) is a suggestion beside the composer, never
+  // the composer's own text: the person puts it in the editor or discards it.
+  const suggestedReply =
     conversation?.pendingApproval?.metadata &&
     typeof conversation.pendingApproval.metadata === 'object' &&
-    'emailBody' in conversation.pendingApproval.metadata
+    'emailBody' in conversation.pendingApproval.metadata &&
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata shape verified by 'emailBody' in check above
+    typeof (conversation.pendingApproval.metadata as { emailBody: unknown })
+      .emailBody === 'string'
       ? {
-          id: conversation.pendingApproval._id,
-          content:
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata shape verified by 'emailBody' in check above
+          approvalId: conversation.pendingApproval._id,
+          body:
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to a string just above
             (conversation.pendingApproval.metadata as { emailBody: string })
               .emailBody,
         }
@@ -444,10 +452,29 @@ export function ConversationPanel({
   const restoredDraft = conversation
     ? restoredDrafts[conversation.id]
     : undefined;
-  const approvalSeed =
-    pendingMessage?.id === restoredDraft?.replacedApprovalId
-      ? undefined
-      : pendingMessage;
+
+  const handleUseSuggestedReply = () => {
+    if (!conversation || suggestedReply === undefined) return;
+    const conversationId = conversation.id;
+    setRestoredDrafts((drafts) => ({
+      ...drafts,
+      [conversationId]: {
+        seed: { id: suggestedReply.approvalId, content: suggestedReply.body },
+      },
+    }));
+    setUsedSuggestions((used) => ({
+      ...used,
+      [conversationId]: suggestedReply.approvalId,
+    }));
+  };
+
+  const handleDiscardSuggestedReply = () => {
+    if (suggestedReply === undefined) return;
+    discardSuggestedReply.mutate({
+      approvalId: suggestedReply.approvalId,
+      status: 'rejected',
+    });
+  };
 
   const messageGroups = groupMessagesByDate(displayMessages);
 
@@ -636,8 +663,20 @@ export function ConversationPanel({
             {conversation.status === 'open' ? (
               <div
                 ref={messageComposerRef}
-                className="mx-auto w-full max-w-3xl"
+                className="mx-auto flex w-full max-w-3xl flex-col gap-3"
               >
+                {suggestedReply !== undefined && (
+                  <SuggestedReplyCard
+                    body={suggestedReply.body}
+                    used={
+                      usedSuggestions[conversation.id] ===
+                      suggestedReply.approvalId
+                    }
+                    discarding={discardSuggestedReply.isPending}
+                    onUse={handleUseSuggestedReply}
+                    onDiscard={handleDiscardSuggestedReply}
+                  />
+                )}
                 <MessageEditor
                   key={conversation.id}
                   onSave={handleSaveMessage}
@@ -648,7 +687,7 @@ export function ConversationPanel({
                   onConversationResolved={() => {
                     onSelectedConversationChange(null);
                   }}
-                  pendingMessage={restoredDraft?.seed ?? approvalSeed}
+                  pendingMessage={restoredDraft?.seed}
                   attachments={draftAttachments[conversation.id] ?? []}
                   onAttachmentsChange={(next: SetStateAction<AttachedFile[]>) =>
                     setDraftAttachments((current) => ({

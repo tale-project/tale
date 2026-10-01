@@ -37,6 +37,7 @@ const undoSendMessage = vi.fn(
   ) => options.onSuccess(undone),
 );
 const sendMessageViaConnector = vi.fn(async () => 'm2');
+const discardSuggestedReply = vi.fn();
 const generateUploadUrl = vi.fn(async () => 'https://upload.test/put');
 
 vi.mock('../hooks/queries', () => ({
@@ -53,6 +54,10 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('../hooks/mutations', () => ({
   useDeleteConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useDiscardOutboundMessage: () => ({ mutate: vi.fn() }),
+  useDiscardSuggestedReply: () => ({
+    mutate: discardSuggestedReply,
+    isPending: false,
+  }),
   useGenerateUploadUrl: () => ({ mutateAsync: generateUploadUrl }),
   useMarkAsRead: () => ({ mutate: vi.fn() }),
   useReopenConversation: () => ({ mutate: vi.fn(), isPending: false }),
@@ -319,7 +324,13 @@ describe('ConversationPanel — undoing a reply', () => {
     });
   });
 
-  it('suppresses the replaced approval seed but accepts a later approval', async () => {
+  /**
+   * An automation's drafted reply is a suggestion beside the composer, never
+   * the composer's text: a person could not tell what they had typed from
+   * what a model proposed when the proposal was simply written into the
+   * editor. Taking it in is their act; so is discarding it.
+   */
+  it("keeps an automation's proposal beside the composer until the person decides", async () => {
     conversation.pendingApproval = {
       _id: 'approval1',
       _creationTime: 1,
@@ -330,17 +341,35 @@ describe('ConversationPanel — undoing a reply', () => {
       priority: 'medium',
       metadata: { emailBody: 'Prior proposal' },
     };
-    undone = { sourceMarkdown: 'Undone reply', attachments: [INVOICE] };
-    const { rerender } = await renderAndUndo();
+    const { rerender } = render(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    const card = await screen.findByRole('region', { name: 'Suggested reply' });
+    expect(card).toHaveTextContent('Prior proposal');
+    expect(editor?.pendingMessage).toBeUndefined();
+
+    // Put in editor: the proposal becomes the composer's one-time seed and the
+    // card gives way to a status line — the text is the person's from here.
+    await act(async () => {
+      screen.getByRole('button', { name: 'Put in editor' }).click();
+    });
     await waitFor(() =>
-      expect(editor?.pendingMessage?.content).toBe('Undone reply'),
+      expect(editor?.pendingMessage?.content).toBe('Prior proposal'),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'The suggestion is in the editor.',
     );
     await act(async () => {
       const seed = editor?.pendingMessage;
-      if (!seed) throw new Error('Undo did not seed the editor');
+      if (!seed) throw new Error('Taking the proposal did not seed the editor');
       editor?.onPendingMessageApplied?.(seed);
     });
     await waitFor(() => expect(editor?.pendingMessage).toBeUndefined());
+
+    // A later proposal (another approval) is a new card, not a new seed.
     conversation = {
       ...conversation,
       pendingApproval: {
@@ -355,8 +384,37 @@ describe('ConversationPanel — undoing a reply', () => {
         onSelectedConversationChange={vi.fn()}
       />,
     );
-    await waitFor(() =>
-      expect(editor?.pendingMessage?.content).toBe('Next proposal'),
+    expect(
+      await screen.findByRole('region', { name: 'Suggested reply' }),
+    ).toHaveTextContent('Next proposal');
+    expect(editor?.pendingMessage).toBeUndefined();
+  });
+
+  it('discards a proposal by rejecting its approval', async () => {
+    conversation.pendingApproval = {
+      _id: 'approval1',
+      _creationTime: 1,
+      organizationId: 'org1',
+      status: 'pending',
+      resourceType: 'conversations',
+      resourceId: 'c1',
+      priority: 'medium',
+      metadata: { emailBody: 'Prior proposal' },
+    };
+    render(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
     );
+    const discard = await screen.findByRole('button', { name: 'Discard' });
+    await act(async () => {
+      discard.click();
+    });
+    expect(discardSuggestedReply).toHaveBeenCalledWith({
+      approvalId: 'approval1',
+      status: 'rejected',
+    });
+    expect(editor?.pendingMessage).toBeUndefined();
   });
 });

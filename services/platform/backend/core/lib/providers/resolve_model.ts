@@ -36,7 +36,15 @@ interface ResolvedModel {
  * its catalog between the 202 and the run — refuses the turn instead of
  * sending the conversation to a provider the caller never named. A
  * catalog-less connector (Azure deployment names) serves its DEFAULT
- * credential's allowlist — the same credential the direct wire resolves. */
+ * credential's allowlist — the same credential the direct wire resolves.
+ *
+ * A connector whose catalog cannot be read — nothing cached and no shipped
+ * defaults to serve, as for a live listing that fails cold, or while that
+ * failure is remembered — is skipped and named in the refusal, never
+ * thrown: one connector's outage must not decide a lookup another can
+ * answer, and its raw error (hosts, addresses) is not a sentence for the
+ * caller. A hint whose catalog cannot be read is an unmatched hint; a
+ * strict choice consults its connector alone, so it refuses. */
 export async function resolveModel(
   ctx: ActionCtx,
   organizationId: string,
@@ -58,6 +66,7 @@ export async function resolveModel(
               (connector) => connector.name !== providerSlug,
             ),
           ];
+  const unreachable: string[] = [];
   for (const connector of ordered) {
     let allowlist: readonly string[] | undefined;
     if (connector.catalog.source === 'none') {
@@ -69,7 +78,17 @@ export async function resolveModel(
       if (credential === null) continue;
       allowlist = credential.modelAllowlist;
     }
-    const catalog = await getServableCatalog(connector, allowlist);
+    let catalog: readonly ModelCatalogEntry[];
+    try {
+      catalog = await getServableCatalog(connector, allowlist);
+    } catch {
+      // Catalog errors can contain response bytes or URL query values.
+      console.warn(
+        `[resolve-model] could not resolve catalog for "${connector.name}"`,
+      );
+      unreachable.push(connector.name);
+      continue;
+    }
     // Explicit references cross the same conversational capability boundary
     // as the picker: an STT/embedding entry is not a chat token budget.
     const entry = catalog.find(
@@ -78,14 +97,24 @@ export async function resolveModel(
     );
     if (entry) return { entry, connector };
   }
+  const unreachableDetail =
+    unreachable.length > 0
+      ? ` (the catalog for ${unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
+      : '';
   if (strict && providerSlug !== undefined) {
     throw new AppError({
       code: 'CHAT_PROVIDER_UNAVAILABLE',
-      message: `Provider "${providerSlug}" no longer serves model "${modelId}" in this organization. Pick a pair GET /api/v1/models lists.`,
+      message:
+        unreachable.length > 0
+          ? `Provider "${providerSlug}" cannot serve model "${modelId}" right now${unreachableDetail}. Try again shortly, or pick a pair GET /api/v1/models lists.`
+          : `Provider "${providerSlug}" no longer serves model "${modelId}" in this organization. Pick a pair GET /api/v1/models lists.`,
     });
   }
   throw new AppError({
     code: 'CHAT_MODEL_UNKNOWN',
-    message: `No model "${modelId}" is available in this organization. Pick a model the organization has configured.`,
+    message:
+      unreachable.length > 0
+        ? `No model "${modelId}" is available in this organization${unreachableDetail}. Try again shortly, or pick a model the organization has configured.`
+        : `No model "${modelId}" is available in this organization. Pick a model the organization has configured.`,
   });
 }
