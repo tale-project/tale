@@ -4226,6 +4226,7 @@ governance:
       notifications: Sicherheitsbenachrichtigungen
       wfExecutions: Automatisierungsläufe
       promptTemplates: Persönliche Prompts
+      sandboxWorkspaces: Sandbox-Arbeitsbereiche
     legalHoldBlock:
       title: Löschung durch Legal Hold blockiert
       orgHeld: Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem
@@ -6717,6 +6718,7 @@ settings:
         notification.retention_deleted: Benachrichtigung per Aufbewahrung gelöscht
         file_metadata.retention_deleted: Datei per Aufbewahrung gelöscht
         sandbox_ledger.retention_deleted: Sandbox-Protokoll per Aufbewahrung gelöscht
+        sandbox_workspace.deleted: Sandbox-Arbeitsbereich gelöscht
         chat_filter_event.retention_deleted: Chat-Filter-Ereignis per Aufbewahrung gelöscht
         policy_acknowledged: Richtlinie bestätigt
         login_attempt: Anmeldeversuch
@@ -6887,6 +6889,7 @@ settings:
         openai_compat_request: OpenAI-kompatible Anfrage
         provider: Anbieter
         video_link_job: Video-Link-Job
+        sandbox_workspace: Sandbox-Arbeitsbereich
   branding:
     logo: Logo
     logoDescription: Lade dein Organisationslogo hoch (am besten SVG; Rastergrafiken mit mindestens 64×64 Pixeln)
@@ -8578,7 +8581,10 @@ sandboxes:
   sessionsTitle: Arbeitsbereiche
   description:
     Projekt-Agenten nutzen ihren Arbeitsbereich für mehrere Aufgaben. Die Schritte
-    eines Workflow-Laufs teilen sich einen Arbeitsbereich. Laufzeitstatus und
+    eines Workflow-Laufs teilen sich einen Arbeitsbereich. Der Arbeitsbereich eines
+    Projekt-Agenten wird gelöscht, sobald er länger ungenutzt ist, als die
+    Bereinigung der Arbeitsbereiche zulässt, oder sobald sein Agent, sein Projekt
+    oder das zugehörige Mitglied entfernt wird. Laufzeitstatus und
     Kontingentbelegung stehen getrennt, denn ein Container kann nach der Freigabe
     des Kontingents weiterlaufen.
   limits:
@@ -8609,6 +8615,20 @@ sandboxes:
       project: Projekt-Agenten nutzen dieselbe Sandbox für mehrere Aufgaben.
       workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
       render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
+  cleanup:
+    title: Bereinigung der Arbeitsbereiche
+    description:
+      Projekt-Agenten bewahren ihre Dateien zwischen den Läufen in Arbeitsbereichen
+      auf. Ein Arbeitsbereich wird sofort gelöscht, wenn sein Agent, sein Projekt
+      oder das zugehörige Mitglied entfernt wird. Arbeitsbereiche unter einem
+      Legal Hold bleiben erhalten.
+    deleteUnused: Ungenutzte Arbeitsbereiche löschen
+    deleteUnusedHint: Löscht einen Arbeitsbereich nach der unten angegebenen Anzahl Tage ohne Nutzung. Angepinnte Arbeitsbereiche bleiben erhalten.
+    unusedDays: Tage ohne Nutzung
+    unusedDaysHint: Die Tage zählen ab dem Zeitpunkt, an dem der Agent zuletzt im Arbeitsbereich gearbeitet hat. Wenn du das Löschen einschaltest oder den Zeitraum verkürzt, wird kein Arbeitsbereich gelöscht, bevor die volle Anzahl Tage vergangen ist.
+    invalidDays: Gib eine ganze Zahl zwischen 1 und 3650 ein.
+    loadFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht geladen werden. Lade die Seite neu, um es erneut zu versuchen.
+    saveFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht gespeichert werden
   capacity:
     title: Infrastrukturkapazität
     description:
@@ -8657,6 +8677,7 @@ sandboxes:
     quotaReleased: Kontingent freigegeben
     pausedBudget: Pausiert (Budget)
     pinned: Angepinnt
+    deletesOn: Wird am {date} gelöscht, falls weiterhin ungenutzt
   task:
     none: Keine aktive Aufgabe
     project: '{count, plural, one {Projektaufgabe} other {# Projektaufgaben}}'
@@ -8680,8 +8701,10 @@ sandboxes:
   empty:
     title: Noch keine Arbeitsbereiche
     description:
-      Der Arbeitsbereich eines Projekt-Agenten erscheint nach seiner ersten Aufgabe
-      und bleibt auch im Leerlauf aufgeführt. Der Arbeitsbereich eines Workflow-Laufs
+      Der Arbeitsbereich eines Projekt-Agenten erscheint nach seiner ersten Aufgabe.
+      Er wird gelöscht, sobald er länger ungenutzt ist, als die Bereinigung der
+      Arbeitsbereiche zulässt, oder sobald sein Agent, sein Projekt oder das
+      zugehörige Mitglied entfernt wird. Der Arbeitsbereich eines Workflow-Laufs
       wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
       enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.

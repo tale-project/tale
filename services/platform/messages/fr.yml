@@ -4300,6 +4300,7 @@ governance:
       notifications: Notifications de sécurité
       wfExecutions: Exécutions d'automatisation
       promptTemplates: Prompts personnels
+      sandboxWorkspaces: Espaces de travail de sandbox
     legalHoldBlock:
       title: Effacement bloqué par une rétention légale
       orgHeld: Une rétention organisationnelle préserve toutes les entités de ce
@@ -6823,6 +6824,7 @@ settings:
         notification.retention_deleted: Notification supprimée (rétention)
         file_metadata.retention_deleted: Fichier supprimé (rétention)
         sandbox_ledger.retention_deleted: Journal du sandbox supprimé (rétention)
+        sandbox_workspace.deleted: Espace de travail de sandbox supprimé
         chat_filter_event.retention_deleted: Événement de filtre de chat supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
@@ -6993,6 +6995,7 @@ settings:
         openai_compat_request: Requête compatible OpenAI
         provider: Fournisseur
         video_link_job: Tâche de lien vidéo
+        sandbox_workspace: Espace de travail de sandbox
   branding:
     logo: Logo
     logoDescription: Téléverse le logo de ton organisation (SVG de préférence ; images matricielles d'au moins 64×64 pixels)
@@ -8677,7 +8680,10 @@ sandboxes:
   sessionsTitle: Espaces de travail
   description: >-
     Les agents de projet réutilisent leur espace entre les tâches. Les étapes
-    d'un workflow partagent le même espace. L'état d'exécution et l'allocation
+    d'un workflow partagent le même espace. L'espace d'un agent de projet est
+    conservé jusqu'au retrait de son agent, de son projet ou du membre concerné,
+    ou jusqu'à ce que le nettoyage des espaces de travail le supprime faute
+    d'utilisation. L'état d'exécution et l'allocation
     du quota sont distincts : un conteneur peut rester actif après la libération
     de son allocation.
   limits:
@@ -8708,6 +8714,20 @@ sandboxes:
       project: Les agents de projet réutilisent une sandbox entre leurs tâches.
       workflow: Les étapes agent et script partagent une sandbox par exécution de workflow.
       render: Des sandboxes temporaires rendent les pages pendant l'exploration des sites.
+  cleanup:
+    title: Nettoyage des espaces de travail
+    description:
+      Les agents de projet gardent leurs fichiers dans des espaces de travail
+      entre deux exécutions. Un espace de travail est supprimé immédiatement quand
+      son agent, son projet ou le membre concerné est retiré. Les espaces de
+      travail sous conservation légale ne sont pas supprimés.
+    deleteUnused: Supprimer les espaces de travail inutilisés
+    deleteUnusedHint: Supprime un espace de travail après le nombre de jours sans utilisation indiqué ci-dessous. Les espaces de travail épinglés sont conservés.
+    unusedDays: Jours sans utilisation
+    unusedDaysHint: Les jours se comptent à partir de la dernière fois que l'agent a travaillé dans l'espace de travail. Quand tu actives la suppression ou que tu raccourcis la période, aucun espace de travail n'est supprimé avant que ce nombre de jours ne se soit entièrement écoulé.
+    invalidDays: Saisis un nombre entier entre 1 et 3650.
+    loadFailed: Impossible de charger les paramètres de nettoyage des espaces de travail. Recharge la page pour réessayer.
+    saveFailed: Impossible d'enregistrer les paramètres de nettoyage des espaces de travail
   capacity:
     title: Capacité de l'infrastructure
     description: >-
@@ -8755,6 +8775,7 @@ sandboxes:
     quotaReleased: Quota libéré
     pausedBudget: En pause (budget)
     pinned: Épinglée
+    deletesOn: Suppression prévue le {date}, sauf nouvelle utilisation
   task:
     none: Aucune tâche active
     project: '{count, plural, one {Tâche de projet} other {# tâches de projet}}'
@@ -8778,10 +8799,12 @@ sandboxes:
   empty:
     title: Aucun espace de travail pour le moment
     description:
-      L'espace de travail d'un agent de projet apparaît après sa première tâche et
-      reste affiché tant que l'agent est inactif. L'espace d'une exécution de
-      workflow est récupéré à la fin de l'exécution. Les chiffres de capacité
-      ci-dessus incluent les sessions temporaires d'exploration.
+      L'espace de travail d'un agent de projet apparaît après sa première tâche. Il
+      est conservé jusqu'au retrait de son agent, de son projet ou du membre
+      concerné, ou jusqu'à ce que le nettoyage des espaces de travail le supprime
+      faute d'utilisation. L'espace d'une exécution de workflow est récupéré à la
+      fin de l'exécution. Les chiffres de capacité ci-dessus incluent les sessions
+      temporaires d'exploration.
   accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
   deletedAgent: Agent supprimé
   devices:

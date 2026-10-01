@@ -104,7 +104,9 @@ describe('sandbox quota cache refresh', () => {
   it('leaves sandbox usage alone when saving a different policy', () => {
     const client = new QueryClient();
     const quota = backendKey('org-a', 'sandbox_session', 'quota-usage');
+    const list = backendKey('org-a', 'sandbox_session', 'list');
     client.setQueryData(quota, [{ used: 1, cap: 2 }]);
+    client.setQueryData(list, []);
     settingsWriteAdapters[
       'governance/file_actions:saveGovernancePolicy'
     ]?.invalidate?.(
@@ -113,6 +115,29 @@ describe('sandbox quota cache refresh', () => {
       {},
     );
     expect(client.getQueryState(quota)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(list)?.isInvalidated).toBe(false);
+    client.clear();
+  });
+
+  it("re-dates this organization's workspaces after a workspace cleanup save", () => {
+    // Each unused workspace in the list carries the day the policy's window
+    // deletes it on, so a new window must reach the list at once.
+    const client = new QueryClient();
+    const listA = backendKey('org-a', 'sandbox_session', 'list');
+    const listB = backendKey('org-b', 'sandbox_session', 'list');
+    client.setQueryData(listA, [{ sessionId: 'a', deletesAt: 1 }]);
+    client.setQueryData(listB, [{ sessionId: 'b', deletesAt: 1 }]);
+
+    settingsWriteAdapters[
+      'governance/file_actions:saveGovernancePolicy'
+    ]?.invalidate?.(
+      client,
+      { organizationId: 'org-a', policyType: 'sandbox_workspaces' },
+      {},
+    );
+
+    expect(client.getQueryState(listA)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(listB)?.isInvalidated).toBe(false);
     client.clear();
   });
 });
