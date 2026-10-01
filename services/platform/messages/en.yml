@@ -4649,7 +4649,7 @@ notificationPreferences:
       lockedHint: Always on — it's a safety signal.
     escalation:
       label: Agent escalations
-      description: When an agent asks you a question or escalates a task to a human.
+      description: When an agent asks you a question, escalates a task to a human, or can't finish a task.
     automationAlerts:
       label: Automation alerts
       description: When an automation's schedule pauses itself because its runs keep failing.
@@ -5386,6 +5386,9 @@ projects:
     newAgent: New agent
     emptyTitle: Add an agent to this project
     emptyBody: Agents run tasks on your behalf — give one a model, skills, and instructions to get started.
+    sectionDescriptionReader: The agents that work this project's tasks, each with their own model, skills, and instructions. Editors and Admins add and change them.
+    emptyReaderTitle: No agents in this project yet
+    emptyReaderBody: Agents work tasks on your behalf. Ask an Editor or Admin to add one to this project.
     equippedCount: '{count} equipped'
     rowEdit: Edit agent
     rowDelete: Delete agent
@@ -7329,6 +7332,10 @@ inbox:
   usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
   automationTriggerPaused: Schedule paused
   automationTriggerPausedBody: '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.'
+  agentRunFailed: Agent run failed
+  agentRunFailedBody: 'The agent couldn''t finish "{title}". Open the task to see why and start it again.'
+  agentRunFailedBudgetBody: 'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.'
+  agentRunFailedSetupBody: 'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project''s Agents tab.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.
@@ -7434,6 +7441,18 @@ tasks:
     resumedAfterTokenRefresh: Resumed after a token refresh
     retry: Retry
     cancel: Cancel run
+    notStartedYet: The agent waits until you start it.
+    failureTitle: The agent couldn't finish this task
+    reported: What the run reported
+    failure:
+      budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
+      setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
+      time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
+      capacity: The run waited too long for a free sandbox. Start the agent again when fewer agents are busy.
+      model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
+      start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
+      interrupted: The run was interrupted before the agent finished. Start the agent again.
+      unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported under Details.
   automation:
     hint: 'Operated by {name} — it drives this task through its steps.'
     chipReady: Ready to start
@@ -7659,9 +7678,8 @@ tasks:
     search: Search people
     liveAgentsOnly: Only this project's agents appear here — create them on
       the project's Agents tab.
-    nonCodeWarning:
-      This agent runs on a coding harness optimized for repo work. For
-      research, writing, or personal deliverables, assign a person instead.
+    noAgentsReader: This project has no agents yet — ask an Editor or Admin to add one on the project's Agents tab.
+    liveAgentsOnlyReader: Only this project's agents appear here — Editors and Admins add them on the project's Agents tab.
   activity:
     created: Created
     updated: Updated

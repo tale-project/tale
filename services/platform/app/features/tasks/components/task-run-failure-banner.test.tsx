@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import { TaskRunFailureBanner } from './task-run-failure-banner';
+import {
+  TaskRunFailureBanner,
+  useLatestRunRefusal,
+} from './task-run-failure-banner';
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -148,5 +152,67 @@ describe('TaskRunFailureBanner (#2609)', () => {
     );
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('useLatestRunRefusal', () => {
+  it('names a refused retry that came after its failed run', () => {
+    // A retired automatic retry: the run failed, then its retry was refused
+    // — the refusal is the newer account, so the failed-run notice steps
+    // aside for the banner.
+    mockRuns = [
+      {
+        runId: 'run-1',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'failed',
+        startedAt: 100,
+        costCents: 0,
+      },
+    ];
+    mockActivity = [
+      {
+        _id: 'a1',
+        actorType: 'agent',
+        actorId: 'agent-1',
+        action: 'agent_run.refused',
+        toValue: 'agent_busy',
+        createdAt: 500,
+      },
+    ];
+
+    const { result } = renderHook(() => useLatestRunRefusal('task_1'));
+
+    expect(result.current).toMatchObject({
+      action: 'agent_run.refused',
+      toValue: 'agent_busy',
+    });
+  });
+
+  it('names nothing once a newer run follows the refusal', () => {
+    mockActivity = [
+      {
+        _id: 'a1',
+        actorType: 'agent',
+        actorId: 'agent-1',
+        action: 'agent_run.refused',
+        toValue: 'task_circuit_breaker',
+        createdAt: 100,
+      },
+    ];
+    mockRuns = [
+      {
+        runId: 'run-2',
+        agentSlug: 'agent-1',
+        trigger: 'manual',
+        status: 'failed',
+        startedAt: 500,
+        costCents: 0,
+      },
+    ];
+
+    const { result } = renderHook(() => useLatestRunRefusal('task_1'));
+
+    expect(result.current).toBeNull();
   });
 });

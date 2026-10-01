@@ -56,6 +56,11 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   // follow-up question rewrites the unread ask row instead of stacking a
   // second card next to it.
   agent_escalation: 'question',
+  // Whether the agent's work on the task is stuck on a failed run: failing
+  // again (a Retry that met the same fault) while the row is unread is the
+  // same stuck task, and its own dimension keeps it from rewriting — or
+  // being rewritten by — an open question on that task.
+  agent_run_failed: 'agent_run',
   // Whether the member's cloud sync works: an escalation from "failing" to
   // "reconnect needed" rewrites the unread row — the fix changed, the sync
   // is still the one thing that is broken.

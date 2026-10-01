@@ -4887,8 +4887,7 @@ notificationPreferences:
       lockedHint: Toujours actif — c'est un signal de sécurité.
     escalation:
       label: Escalades d'agent
-      description: Quand un agent te pose une question ou escalade une tâche
-        vers un humain.
+      description: Quand un agent te pose une question, escalade une tâche vers un humain ou ne parvient pas à terminer une tâche.
     automationAlerts:
       label: Alertes d'automatisation
       description: Quand la planification d'une automatisation se met en pause parce que ses exécutions échouent sans cesse.
@@ -7316,6 +7315,10 @@ inbox:
   usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
   automationTriggerPaused: Planification en pause
   automationTriggerPausedBody: '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.'
+  agentRunFailed: Échec de l’exécution de l’agent
+  agentRunFailedBody: 'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.'
+  agentRunFailedBudgetBody: 'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.'
+  agentRunFailedSetupBody: 'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
@@ -7424,6 +7427,18 @@ tasks:
     resumedAfterTokenRefresh: Reprise après l'actualisation du jeton
     retry: Relancer
     cancel: Annuler l'exécution
+    notStartedYet: L’agent attend que tu le démarres.
+    failureTitle: L’agent n’a pas pu terminer cette tâche
+    reported: Ce que l’exécution a signalé
+    failure:
+      budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
+      setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
+      time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
+      capacity: L’exécution a attendu trop longtemps une sandbox libre. Relance l’agent quand moins d’agents seront occupés.
+      model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
+      start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+      interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.
+      unknown: L’exécution a échoué. Relance l’agent — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
   automation:
     hint: '{name} opère cette tâche et la fait avancer dans ses étapes.'
     chipReady: Prête à démarrer
@@ -7652,10 +7667,8 @@ tasks:
     liveAgentsOnly:
       Seuls les agents de ce projet apparaissent ici — crée-les dans
       l'onglet Agents du projet.
-    nonCodeWarning:
-      Cet agent tourne sur un harness de code optimisé pour le travail sur
-      dépôt. Pour la recherche, la rédaction ou des livrables personnels,
-      assigne plutôt une personne.
+    noAgentsReader: Ce projet n’a pas encore d’agent — demande à un éditeur ou à un admin d’en ajouter un dans l’onglet Agents du projet.
+    liveAgentsOnlyReader: Seuls les agents de ce projet apparaissent ici — les éditeurs et les admins les ajoutent dans l’onglet Agents du projet.
   activity:
     created: Créé
     updated: Mis à jour
@@ -8384,6 +8397,9 @@ projects:
     newAgent: Nouvel agent
     emptyTitle: Ajouter un agent à ce projet
     emptyBody: Les agents exécutent des tâches en ton nom — donne-en un avec un modèle, des skills et des instructions pour commencer.
+    sectionDescriptionReader: Les agents qui travaillent sur les tâches de ce projet, chacun avec son propre modèle, ses skills et ses instructions. Les éditeurs et les admins les ajoutent et les modifient.
+    emptyReaderTitle: Aucun agent dans ce projet pour l’instant
+    emptyReaderBody: Les agents exécutent des tâches en ton nom. Demande à un éditeur ou à un admin d’en ajouter un à ce projet.
     equippedCount: '{count, plural, one {# équipé} other {# équipés}}'
     rowEdit: Modifier l'agent
     rowDelete: Supprimer l'agent

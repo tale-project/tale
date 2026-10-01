@@ -445,6 +445,7 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
             agentId: string;
             status: string;
             error: string | null;
+            failureCode: string | null;
             trigger: string | null;
             startedAt: number;
             launchedAt: number | null;
@@ -462,6 +463,9 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               trigger: run.trigger ?? 'manual',
               status: run.status,
               ...(run.error !== null ? { error: run.error } : {}),
+              ...(run.failureCode !== null
+                ? { failureCode: run.failureCode }
+                : {}),
               // A run an automation step started links to that automation
               // run; one another agent started names that agent.
               ...(run.startedVia === 'automation' &&
@@ -547,11 +551,9 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           `/tasks/${encodeURIComponent(taskId)}/agent-runs/latest`,
           { orgId },
         ).then((body) => body.run),
-      // The run card follows a LIVE run through queued → running → settled,
-      // and the run-lifecycle writes emit no task hint — poll while the
-      // task modal holds the card open (the WS lane pushed; the HTTP lane
-      // asks).
-      refetchInterval: 2000,
+      // No poll: every write that changes a run — queued, launched, parked,
+      // settled, failed, cancelled — hints the task, and this read keys
+      // under it.
     };
   },
   'tasks/queries:getTaskAgentRunSandboxOp': (args, ctx) => {

@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 104 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 111 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -670,6 +670,44 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   by** (`tasks.timeline.startedByAgent`) the manager; the manager's own report
   keeps the run id. An automation agent node's picker does not offer the tool.
 
+- [ ] `TASK-F55` · **A project with no agent, in Assignee** — As the member,
+  on a task of theirs in a project with no agent, open **Assignee**
+  (`tasks.fields.assignee`) → there is no **Agents** section
+  (`tasks.assignee.agents`), the footer reads `tasks.assignee.noAgentsReader`,
+  and nothing navigates away. As an editor of the same project, open **Create
+  task** (`tasks.actions.create`), type a title and a description, then open
+  **Assignee** → **Create an agent…** (`tasks.assignee.createAgent`) with
+  `tasks.assignee.createAgentHint`; choose it → **New agent**
+  (`projects.agents.dialogCreateTitle`) opens over the form; fill it and press
+  **Create agent** (`projects.agents.createSubmit`) → the form still holds its
+  title and description and **Assignee** names the new agent; after **Create
+  task** and a reload, the task is assigned to that agent.
+- [ ] `TASK-F56` · **Assigning an agent does not start it, and says so** — As
+  the member, assign a project agent to a task of theirs in **To do**
+  (`tasks.status.todo`) → the Run field offers **Start agent**
+  (`tasks.agentRun.start`) above **The agent waits until you start it.**
+  (`tasks.agentRun.notStartedYet`), no run starts, and the task is still in
+  **To do** after a reload. A second member who opens the task sees neither.
+- [ ] `TASK-F57` · **A run that fails for good says so, in the task and the
+  bell** — As an admin, add a monthly cost rule on
+  `/dashboard/{org}/settings/governance/policies-limits` (**Budget rules**,
+  `governance.budgets.title`) that caps the member below what they have spent;
+  as the member, press **Start agent** on a task of theirs → the task shows
+  **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`) with
+  `tasks.agentRun.failure.budget` and **Retry** (`tasks.agentRun.retry`); the
+  Run field's **Details** (`tasks.run.details`) opens the same sentence above
+  **What the run reported** (`tasks.agentRun.reported`) and the cap's own
+  reason; the member's bell holds **Agent run failed**
+  (`inbox.agentRunFailed`) with `inbox.agentRunFailedBudgetBody`, which opens
+  the task (and an email arrives when actionable email is on). Delete the rule
+  and press **Retry** → the notice leaves the task and the bell row turns read
+  without a click or a reload.
+- [ ] `TASK-F58` · **An open task follows its run** — Keep a task open while
+  its agent starts and works → the Run field moves from **Queued**
+  (`tasks.agentRun.status.queued`) to **Working…**
+  (`tasks.agentRun.status.running`) to its end, and the run's row under
+  **Activity** changes with it, without a reload.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -703,9 +741,10 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
 - [ ] `TASK-B5` · **Spend cap refuses a run** — Under **Settings > Governance
   > Policies & Limits**, add an org-scoped monthly budget rule whose max cost
   is below the org's spend so far this month; then **Start agent** on a task
-  of a managed-credential agent → The Run row flips to **Failed** with the
-  banner **Agent couldn't start this task** (`tasks.runFailure.title`) naming
-  the cap (`Cost limit reached for this monthly period …`); **Retry** is
+  of a managed-credential agent → The Run row flips to **Failed** and the task
+  shows **The agent couldn't finish this task** (`tasks.agentRun.failureTitle`)
+  with `tasks.agentRun.failure.budget`; **Details** (`tasks.run.details`)
+  names the cap (`Cost limit reached for this monthly period …`); **Retry** is
   offered but no automatic retry follows (the run stays failed); raising the
   rule and retrying starts the run, and the run's cost then appears under
   **Governance > Usage** for the person who started it.
@@ -1018,6 +1057,19 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (`tasks.agentRuns.refused.task_circuit_breaker`); **Start agent**
   (`tasks.agentRun.start`) pressed by a person still starts it.
 
+- [ ] `TASK-B35` · **A retry is not a failure** — Make a run fail on a
+  recoverable fault, such as stopping its sandbox mid-run → while the caption
+  reads `tasks.agentRun.autoRetrying`, the task shows no
+  `tasks.agentRun.failureTitle` notice and no bell row arrives; only once the
+  automatic retries are used up does the notice appear, with **Agent run
+  failed** (`inbox.agentRunFailed`) in the starter's bell.
+- [ ] `TASK-B36` · **Only people who can still open the project are told** —
+  Have a second member watch the member's task (**Watch**,
+  `tasks.watch.watch`), remove that member from the organization, then let
+  the member's run fail for good (`TASK-F57`) → the member's bell gets
+  **Agent run failed** (`inbox.agentRunFailed`); the removed member gets no
+  row and no email.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `TASK-A1` · **Keyboard status path** → Every DnD outcome is reachable
@@ -1146,6 +1198,14 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   announced as **Board** (`tasks.views.board`), with a visible ring, and
   **Tab** moves on into the first card; 390 px wide the alert and its button
   fit without horizontal scrolling.
+
+- [ ] `TASK-A14` · **The failure notice by keyboard and screen reader** —
+  With a screen reader on, open the task from `TASK-F57` → the notice's title
+  and sentence are read as one warning; **Tab** reaches **Retry**
+  (`tasks.agentRun.retry`) with a visible focus ring, and **Enter** starts the
+  agent. In a project with no agent, the member's **Assignee** list is
+  followed by its footer, `tasks.assignee.noAgentsReader`, read as text rather
+  than skipped as a disabled option.
 
 ## Performance
 

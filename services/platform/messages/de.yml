@@ -4817,8 +4817,7 @@ notificationPreferences:
       lockedHint: Immer an — das ist ein Sicherheitssignal.
     escalation:
       label: Agenten-Eskalationen
-      description: Wenn ein Agent dir eine Frage stellt oder eine Aufgabe an
-        einen Menschen eskaliert.
+      description: Wenn ein Agent dir eine Frage stellt, eine Aufgabe an einen Menschen eskaliert oder eine Aufgabe nicht fertigstellen kann.
     automationAlerts:
       label: Automatisierungs-Warnungen
       description: Wenn der Zeitplan einer Automatisierung pausiert, weil ihre Läufe immer wieder fehlschlagen.
@@ -7204,6 +7203,10 @@ inbox:
   usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
   automationTriggerPaused: Zeitplan pausiert
   automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
+  agentRunFailed: Agenten-Lauf fehlgeschlagen
+  agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
+  agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
+  agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
   email:
     cta: In Tale öffnen
     footer:
@@ -7313,6 +7316,18 @@ tasks:
     resumedAfterTokenRefresh: Nach einer Token-Erneuerung fortgesetzt
     retry: Erneut ausführen
     cancel: Lauf abbrechen
+    notStartedYet: Der Agent wartet, bis du ihn startest.
+    failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
+    reported: Was der Lauf gemeldet hat
+    failure:
+      budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
+      setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+      time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
+      capacity: Der Lauf hat zu lange auf eine freie Sandbox gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
+      model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
+      start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+      interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
+      unknown: 'Der Lauf ist fehlgeschlagen. Starte den Agenten erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
   automation:
     hint: '{name} betreibt diese Aufgabe und führt sie durch ihre Schritte.'
     chipReady: Bereit zum Start
@@ -7544,10 +7559,8 @@ tasks:
     liveAgentsOnly:
       Hier erscheinen nur die Agenten dieses Projekts — erstelle sie im
       Tab "Agenten" des Projekts.
-    nonCodeWarning:
-      Dieser Agent läuft auf einem Coding-Harness und ist für Repo-Arbeit
-      optimiert. Für Recherche, Texte oder persönliche Deliverables weise
-      besser eine Person zu.
+    noAgentsReader: 'Dieses Projekt hat noch keine Agenten — bitte einen Redakteur oder Admin, im Tab "Agenten" des Projekts einen hinzuzufügen.'
+    liveAgentsOnlyReader: 'Hier erscheinen nur die Agenten dieses Projekts — Redakteure und Admins fügen sie im Tab "Agenten" des Projekts hinzu.'
   activity:
     created: Erstellt
     updated: Aktualisiert
@@ -8280,6 +8293,9 @@ projects:
     newAgent: Neuer Agent
     emptyTitle: Agenten zu diesem Projekt hinzufügen
     emptyBody: Agenten erledigen Aufgaben in deinem Namen — gib einem ein Modell, Skills und Anweisungen, um loszulegen.
+    sectionDescriptionReader: Die Agenten, die die Aufgaben dieses Projekts bearbeiten, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen. Redakteure und Admins fügen sie hinzu und ändern sie.
+    emptyReaderTitle: Noch keine Agenten in diesem Projekt
+    emptyReaderBody: Agenten erledigen Aufgaben in deinem Namen. Bitte einen Redakteur oder Admin, diesem Projekt einen hinzuzufügen.
     equippedCount: '{count} ausgerüstet'
     rowEdit: Agent bearbeiten
     rowDelete: Agent löschen

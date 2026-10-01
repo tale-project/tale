@@ -76,6 +76,8 @@ Der Lauf kann weiterhin die Aufgaben und das Wissen des Projekts lesen und behä
 
 Einen Agenten zuweisen und seinen Lauf starten sind zwei Entscheidungen. Klicke nach der Zuweisung auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Lies [Aufgaben automatisieren](/de/platform/projects/task-automation), bevor du Arbeit mit verbundenen Diensten oder Dateiergebnissen startest.
 
+Hat das Projekt noch keinen Agenten, sagt **Zuständig** das. Redakteure und höhere Rollen wählen **Agent erstellen …**: **Neuer Agent** öffnet sich über der Aufgabe, und der Agent, den du erstellst, wird ihr zugewiesen. Mitglieder erfahren, dass sie einen Redakteur oder Admin bitten können, im Tab **Agenten** des Projekts einen hinzuzufügen.
+
 Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, kann allerdings die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt das Ergebnis nicht aus einem Agentenlauf, gilt das für die Person, die die Aufgabe erstellt hat. Einen Lauf, den ein Mitglied auf seiner eigenen Aufgabe gestartet hat, muss dann ein Redakteur oder eine höhere Rolle annehmen, während das Mitglied einen Lauf, den ein Redakteur dort gestartet hat, weiterhin selbst annehmen kann.
 
 ## Fortschritt mit dem Status zeigen

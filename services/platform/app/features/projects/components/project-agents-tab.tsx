@@ -130,14 +130,21 @@ export function ProjectAgentsTab({
   );
 
   return (
-    <ProjectAgentsFrame action={canEdit ? newAgentButton : undefined}>
+    <ProjectAgentsFrame
+      action={canEdit ? newAgentButton : undefined}
+      reader={!canEdit}
+    >
       {agentsLoading && agents.length === 0 ? (
         <ProjectAgentRowsSkeleton canEdit={canEdit} />
       ) : agents.length === 0 ? (
+        // Adding an agent is the editors'. A reader is told who can, not to
+        // "give one a model" on a page that offers them no way to.
         <EmptyState
           icon={Bot}
-          title={t('agents.emptyTitle')}
-          description={t('agents.emptyBody')}
+          title={t(canEdit ? 'agents.emptyTitle' : 'agents.emptyReaderTitle')}
+          description={t(
+            canEdit ? 'agents.emptyBody' : 'agents.emptyReaderBody',
+          )}
         />
       ) : (
         <Stack as="ul" gap={2}>

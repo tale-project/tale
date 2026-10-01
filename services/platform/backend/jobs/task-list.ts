@@ -74,6 +74,10 @@ import {
   runStarterMayEditProject,
   sessionIdForAgentRun,
 } from '../domains/tasks/run-authority.ts';
+import {
+  announceAgentRunFailed,
+  retireAutoRetry,
+} from '../domains/tasks/run-failure-notice.ts';
 import { deferredAgentKickRefusal } from '../domains/tasks/service.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
@@ -289,8 +293,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // stands down, the agent busy or free by now. A newer run is a new
       // decision and carries no mark.
       if (newest.autoRetryRefusedAt !== undefined) return 'retry_refused';
+      // From here on, a refusal is this failed run's last word: nothing
+      // starts the task again by itself, so the run is retired and the
+      // people it answers to are told, in the transaction that decides it.
+      const retire = (announce: boolean) =>
+        retireAutoRetry(tx, {
+          organizationId: input.organizationId,
+          taskId: input.taskId,
+          runId: newest.id,
+          announce,
+        });
       const budget = resolveAutoRetryBudget(runs);
-      if (!budget.retry) return 'budget_exhausted';
+      if (!budget.retry) {
+        await retire(true);
+        return 'budget_exhausted';
+      }
       const agent =
         lockedAgent !== undefined
           ? lockedAgent
@@ -309,14 +326,24 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
                 LIMIT 1
               `
             )[0] ?? null);
-      if (!agent) return 'agent_gone';
+      if (!agent) {
+        await retire(true);
+        return 'agent_gone';
+      }
       const refusal = await deferredAgentKickRefusal(tx, {
         organizationId: input.organizationId,
         projectId: task.projectId,
         task,
         startedBy: newest.startedBy,
       });
-      if (refusal !== null) return refusal;
+      if (refusal !== null) {
+        // A starter who may no longer work the task ends its retry for good,
+        // and its watchers are told. A project archived or gone is someone
+        // else's decision about all of its work, and a restored project
+        // takes the retry on the job's next delivery: nothing is retired.
+        if (refusal === 'not_permitted') await retire(true);
+        return refusal;
+      }
       // A run an automation step or another agent started stays one when
       // retried: it still counts as automated and may not delegate, and
       // the retry is an automated start the per-task budget admits like
@@ -353,11 +380,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             now: Date.now(),
           });
           if (!wait.wait) {
-            await retireBusyRetry(tx, {
+            const retired = await retireBusyRetry(tx, {
               task: taskKeys,
               agentId: input.agentId,
               failedRunId: newest.id,
             });
+            if (retired) {
+              await announceAgentRunFailed(tx, {
+                organizationId: input.organizationId,
+                runId: newest.id,
+              });
+            }
             return 'agent_busy';
           }
           // In the same transaction as the check that found the agent
@@ -390,7 +423,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           task: taskKeys,
           agentId: input.agentId,
         });
-        if (!admitted.admitted) return 'task_circuit_breaker';
+        if (!admitted.admitted) {
+          await retire(true);
+          return 'task_circuit_breaker';
+        }
       }
       await kickAgentRun(tx, {
         organizationId: input.organizationId,

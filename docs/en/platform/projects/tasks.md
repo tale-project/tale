@@ -76,6 +76,8 @@ The run can still read the project's tasks and knowledge, and it keeps these lim
 
 Assigning an agent and starting its run are separate choices. After assigning it, click **Start agent**, or move the task to **In progress**. Read [Task automation](/platform/projects/task-automation) before starting work that can use connected services or produce files.
 
+If the project has no agent yet, **Assignee** says so. Editors and higher roles choose **Create an agent…**: **New agent** opens over the task, and the agent you create is assigned to it. Members are told to ask an Editor or Admin to add one on the project's **Agents** tab.
+
 The reviewer receives the review request, but the designation does not reserve the decision exclusively to that person. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to. When your organization requires an independent reviewer, though, the person who started the agent run under review can't accept its result, and when no agent run produced the result, the task's creator can't. A run a Member started on their own task then waits for an Editor or higher, while the Member can still accept a run an Editor started there.
 
 ## Use statuses to communicate progress
