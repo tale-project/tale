@@ -38,6 +38,7 @@ capabilities:
   planMode: false
   steering: false
   mcp: false
+  resume: true
 parser: pi-jsonl
 exec:
   bin: tale-pi-run

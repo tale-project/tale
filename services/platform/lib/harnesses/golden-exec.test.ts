@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
 import { composeHarnessGlue } from './registry';
 import {
+  batteryFor,
   goldenBattery,
   readExecFixture,
   serializeExecFixture,
@@ -44,13 +45,10 @@ describe('golden exec fixtures (shipped YAML tree)', () => {
       .map((fact) => [fact.slug, fact] as const),
   )('%s rebuilds its golden execs byte for byte', (slug, fact) => {
     const glue = composeHarnessGlue(fact);
-    const cases = goldenBattery()
-      .filter(({ mode }) =>
-        mode === 'managed'
-          ? fact.credentialPolicy.managed
-          : fact.credentialPolicy.byo,
-      )
-      .map(({ name, spec }) => ({ name, exec: glue.buildExec(spec) }));
+    const cases = batteryFor(fact).map(({ name, spec }) => ({
+      name,
+      exec: glue.buildExec(spec),
+    }));
     // Structural equality over the parsed fixture: every semantic byte
     // lives in the leaves (argv tokens, env values, the stdin payload
     // string with its pinned key order), which compare exactly — while

@@ -36,6 +36,7 @@ capabilities:
   planMode: true
   steering: true
   mcp: true
+  resume: true
 parser: claude-stream-json
 exec:
   bin: claude

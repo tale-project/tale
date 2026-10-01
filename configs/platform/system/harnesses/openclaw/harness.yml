@@ -36,6 +36,7 @@ capabilities:
   planMode: false
   steering: false
   mcp: true
+  resume: true
 parser: openclaw-jsonl
 exec:
   bin: tale-openclaw-run

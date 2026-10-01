@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { collectEvents, readFixture } from '../test-helpers';
-import { createParser } from './gemini-stream';
+import { createParser, describeTurnFailure } from './gemini-stream';
 
 const SESSION = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
 
@@ -103,6 +103,79 @@ describe('gemini-stream parser', () => {
       status: 'error',
       isError: true,
     });
+  });
+
+  it('reads the provider status and sentence out of a relayed 400 body', () => {
+    const events = collectEvents(
+      createParser('gemini'),
+      readFixture('gemini', 'api-error-400'),
+    );
+    // The run's reason is the provider's sentence with the status, never
+    // the gateway's JSON dump; the status lets the kick start fresh.
+    expect(events.at(-2)).toMatchObject({
+      type: 'error',
+      message: 'forced upstream failure 400 (API status 400)',
+    });
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'error',
+      sessionId: '0a2ef4a3-5fa0-4a11-9f8c-2e6f6a5a1b11',
+      durationMs: 0,
+      isError: true,
+      apiErrorStatus: 400,
+    });
+  });
+
+  it('recognises a 429 by the rate-limit sentence the CLI adds', () => {
+    const events = collectEvents(
+      createParser('gemini'),
+      readFixture('gemini', 'api-error-429'),
+    );
+    // No body survives the SDK's retries, so the message passes through
+    // whole; the prose is the tell.
+    expect(events.at(-2)).toMatchObject({
+      type: 'error',
+      message: expect.stringContaining(
+        '[API Error: forced upstream failure 429]',
+      ),
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn-ended',
+      status: 'error',
+      isError: true,
+      apiErrorStatus: 429,
+    });
+  });
+
+  it('leaves a message without a body or a tell unstamped', () => {
+    for (const message of [
+      '[API Error: An unknown error occurred.]',
+      'Reached max session turns for this session.',
+      '[API Error: not json {oops]',
+    ]) {
+      const line = { type: 'result', status: 'error', error: { message } };
+      const ended = collectEvents(
+        createParser('gemini'),
+        `${JSON.stringify(line)}\n`,
+      ).at(-1);
+      expect(ended).not.toHaveProperty('apiErrorStatus');
+    }
+    expect(
+      describeTurnFailure('[API Error: An unknown error occurred.]'),
+    ).toEqual({ message: '[API Error: An unknown error occurred.]' });
+    // A 5xx body carries its code the same way a 4xx does.
+    expect(
+      describeTurnFailure(
+        '[API Error: {"error":{"code":500,"message":"forced upstream failure 500","status":"invalid_request_error","details":null}}]',
+      ),
+    ).toEqual({
+      message: 'forced upstream failure 500 (API status 500)',
+      apiErrorStatus: 500,
+    });
+    // A body without an HTTP code: the sentence is kept, nothing stamped.
+    expect(
+      describeTurnFailure('[API Error: {"error":{"message":"odd"}}]'),
+    ).toEqual({ message: 'odd' });
   });
 
   it('classifies the turn-cap error as max-turns', () => {

@@ -41,6 +41,7 @@ import {
   type HarnessTimelinePart,
   connectorsBridgeUrlForSessions,
   harnessMountsMcp,
+  harnessResumesConversations,
   isManagedHarness,
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
@@ -2044,9 +2045,14 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       // an answer-only message would arrive without the assignment it
       // answers, so the fallback rebuilds the full node prompt with every
       // answered round folded in (this ask included — it is `answered`
-      // already). With a handle, the answer alone is the next message.
+      // already). With a handle, the answer alone is the next message. A
+      // harness the platform never resumes (Gemini CLI) takes the fresh
+      // path even when the asking turn announced one.
+      const resumeHandle = harnessResumesConversations(agent.harness)
+        ? ask.agentSessionId
+        : undefined;
       const answeredAsks =
-        ask.agentSessionId === undefined
+        resumeHandle === undefined
           ? await ctx.runQuery(
               internal.automations.human_asks.listAnsweredAsksForNode,
               {
@@ -2060,7 +2066,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       const prompt = answerResumePrompt({
         nodePrompt: request.prompt,
         answer: ask.answer,
-        hasConversation: ask.agentSessionId !== undefined,
+        hasConversation: resumeHandle !== undefined,
         answeredAsks,
       });
       const extraEnv = await resolveTurnEquipmentEnv(ctx, {
@@ -2089,9 +2095,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         execId,
         bridgeUrl: connectorsBridgeUrlForSessions(),
         ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
-        ...(ask.agentSessionId !== undefined
-          ? { resume: ask.agentSessionId }
-          : {}),
+        ...(resumeHandle !== undefined ? { resume: resumeHandle } : {}),
         ...(visionModelRef !== undefined
           ? {
               vision: {
@@ -2101,11 +2105,12 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
             }
           : {}),
       });
-      if (ask.agentSessionId === undefined) {
+      if (resumeHandle === undefined) {
         // The asking turn ended without a resume handle (a harness that never
-        // reported one, or a ring that dropped the announcement). The agent
-        // starts fresh over the preserved workspace, carrying the node prompt
-        // and every answered round — warn for the trace, don't fail.
+        // reported one, a ring that dropped the announcement, or a harness
+        // the platform never resumes). The agent starts fresh over the
+        // preserved workspace, carrying the node prompt and every answered
+        // round — warn for the trace, don't fail.
         console.warn(
           '[agent-host] answered-ask resume without a harness session handle — starting fresh over the preserved workspace with the node prompt and answered asks carried in',
         );

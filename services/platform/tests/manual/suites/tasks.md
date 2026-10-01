@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 111 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 112 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -707,6 +707,20 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (`tasks.agentRun.status.queued`) to **Working…**
   (`tasks.agentRun.status.running`) to its end, and the run's row under
   **Activity** changes with it, without a reload.
+- [ ] `TASK-F59` · **A Gemini CLI task continues after a tool turn** — Set a
+  project agent's **Agent type** (`projects.agents.harnessLabel`) to Gemini
+  CLI and **Start agent** (`tasks.agentRun.start`) on a task that asks it to
+  run `echo hello` with its shell tool and report; once it settles
+  **Completed** (`tasks.agentRuns.status.completed`), comment on the task
+  mentioning the agent with a follow-up question, then **Retry**
+  (`tasks.agentRun.retry`) a later run you cancelled mid-work → Both later
+  runs settle, each as a fresh conversation over the preserved workspace
+  (the run re-reads the task brief and the earlier rounds; no
+  `--resume` launch, the backend logs no resume), and neither fails with a
+  provider refusal about a `tool` message or function response parts; the
+  gateway log shows one `tool` message per tool call on every request —
+  env-gated: mark **ENVIRONMENT** without a credential that serves Gemini
+  CLI.
 
 ## Boundary & error tests
 
@@ -722,7 +736,8 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   alive; confirming (or Cancel run) toasts `tasks.agentRun.cancelled`, the Run
   row shows **Cancelled**, and **Retry** (`tasks.agentRun.retry`) appears
   (also on **Failed**); Retry of a run whose turn had started **resumes the
-  same harness conversation** — the agent picks up mid-work without redoing
+  same harness conversation** (every harness but Gemini CLI, which starts
+  fresh — `TASK-F59`) — the agent picks up mid-work without redoing
   environment setup or finished steps (prompts never render in the transcript;
   judge by behavior) — and keeps the unpublished delivery box; a
   failed-at-launch or foreign-incarnation predecessor falls back to the full

@@ -158,6 +158,25 @@ describe('schema coherence (the retired behavior-probing validator)', () => {
     );
   });
 
+  it('rejects a resume declaration without a resume slot', () => {
+    const facts = clonedFacts();
+    const gemini = factOf(facts, 'gemini');
+    expect(gemini.capabilities.resume).toBe(false);
+    gemini.capabilities.resume = true;
+    expect(schemaProblems(gemini)).toMatch(
+      /capabilities\.resume must match the presence of an argv resume slot/,
+    );
+  });
+
+  it('rejects hiding an implemented resume slot', () => {
+    const facts = clonedFacts();
+    const codex = factOf(facts, 'codex');
+    codex.capabilities.resume = false;
+    expect(schemaProblems(codex)).toMatch(
+      /capabilities\.resume must match the presence of an argv resume slot/,
+    );
+  });
+
   it('rejects an MCP declaration without a mounting channel (silent mount drop)', () => {
     const facts = clonedFacts();
     const cursor = factOf(facts, 'cursor');
