@@ -48,14 +48,18 @@ const connect = (max) =>
   });
 // The pool must still serve a statement after the loss: it reconnects.
 const after = (sql) => settle(sql`select 'after'`);
-// The platform always ends a pool with a timeout (migrate.ts, knowledge/pool.ts).
-const end = (sql) => settle(sql.end({ timeout: 1 }));
+// Ends with a timeout, timed: a pool that closes by itself is done well before it.
+const end = async (sql) => {
+  const started = performance.now();
+  const outcome = await settle(sql.end({ timeout: 1 }));
+  return { ...outcome, tookMs: Math.round(performance.now() - started) };
+};
 
 const scenarios = {
   // The server process running a transaction's statement dies: the statement and the
   // transaction reject, and begin()'s ROLLBACK is then written to the closed socket.
   async 'transaction-cut'() {
-    const sql = connect(2);
+    const sql = connect(1);
     emit(
       'transaction',
       await settle(
@@ -135,9 +139,55 @@ const scenarios = {
     emit('after', await after(sql));
     emit('end', await end(sql));
   },
+  // The connection is reset instead of closed: the error event comes first, and
+  // begin()'s ROLLBACK is written before the close. One connection: whatever the
+  // reset left pending would answer for the reconnected connection's statements.
+  async 'transaction-reset'() {
+    const sql = connect(1);
+    emit(
+      'transaction',
+      await settle(
+        sql.begin(async (tx) => {
+          await tx`select 'reset_now'`;
+          return 'FALSE SUCCESS';
+        }),
+      ),
+    );
+    await sleep(100);
+    emit('after', await after(sql));
+    emit('after-2', await settle(sql`select 'after-2'`));
+    emit('end', await end(sql));
+  },
+  // A statement in flight (parameterised, so written describe-first: the connection
+  // counts as busy) with a second one queued behind it, when the server process is
+  // terminated: the queued one must settle too, for a reservation and a transaction.
+  async 'queued-terminated'() {
+    const sql = connect(1);
+    const reserved = await sql.reserve();
+    const [first, queued] = await Promise.all([
+      settle(reserved`select ${1}::int as fatal_now`),
+      settle(reserved`select 'queued'`),
+    ]);
+    emit('reserved-first', first);
+    emit('reserved-queued', queued);
+    reserved.release();
+    await settle(
+      sql.begin(async (tx) => {
+        const [one, two] = await Promise.all([
+          settle(tx`select ${1}::int as fatal_now`),
+          settle(tx`select 'queued'`),
+        ]);
+        emit('transaction-first', one);
+        emit('transaction-queued', two);
+      }),
+    );
+    await sleep(100);
+    emit('after', await after(sql));
+    emit('end', await end(sql));
+  },
   // Control: an administrator's termination (FATAL 57P01, then the close).
   async 'transaction-terminated'() {
-    const sql = connect(2);
+    const sql = connect(1);
     emit(
       'transaction',
       await settle(

@@ -41,9 +41,10 @@ const message = (type: string, ...body: Buffer[]) => {
  * Just enough of the PostgreSQL v3 wire protocol for postgres.js: trust auth,
  * simple and extended queries answered with no rows, transaction status tracked
  * for ReadyForQuery. A statement whose text holds `cut_now` closes the socket on
- * arrival (the server process killed mid-statement), `cut_after` closes it just
- * after answering (killed while the transaction idles), and `fatal_now` sends
- * FATAL 57P01 first (an administrator's termination). Every statement is logged.
+ * arrival (the server process killed mid-statement), `reset_now` resets it,
+ * `cut_after` closes it just after answering (killed while the transaction
+ * idles), and `fatal_now` sends FATAL 57P01, then reads nothing more and closes
+ * (an administrator's termination). Every statement is logged.
  */
 class FakePostgres {
   readonly statements: string[] = [];
@@ -68,6 +69,8 @@ class FakePostgres {
     socket.on('error', () => socket.destroy());
     let pending = Buffer.alloc(0);
     let started = false;
+    // After FATAL a real server process reads nothing more before it exits.
+    let dead = false;
     let status = 'I';
     // Prepared statements by name, and the statement the current portal binds.
     const prepared = new Map<string, { text: string; params: number }>();
@@ -86,7 +89,14 @@ class FakePostgres {
         socket.destroy();
         return true;
       }
+      // A reset instead of an orderly close (unread data, a proxy): the client
+      // sees ECONNRESET first, and the close only later.
+      if (text.includes('reset_now')) {
+        socket.resetAndDestroy();
+        return true;
+      }
       if (text.includes('fatal_now')) {
+        dead = true;
         socket.write(
           message(
             'E',
@@ -106,6 +116,7 @@ class FakePostgres {
       return false;
     };
     socket.on('data', (chunk: Buffer) => {
+      if (dead) return;
       pending = Buffer.concat([pending, chunk]);
       for (;;) {
         if (!started) {
@@ -129,7 +140,7 @@ class FakePostgres {
         const type = String.fromCharCode(pending[0] ?? 0);
         const body = pending.subarray(5, 1 + pending.readInt32BE(1));
         pending = pending.subarray(1 + pending.readInt32BE(1));
-        if (socket.destroyed) return;
+        if (socket.destroyed || dead) return;
         if (type === 'Q') {
           const text = body.toString('utf8', 0, body.length - 1);
           if (cut(text)) return;
@@ -265,6 +276,10 @@ describe.each(['esm', 'cjs'] as const)(
           ? /[\\/]node_modules[\\/]postgres[\\/]src[\\/]index\.js$/
           : /[\\/]node_modules[\\/]postgres[\\/]cjs[\\/]src[\\/]index\.js$/,
       );
+      // The ended pool closed by itself, not by its 1 s timeout: no connection
+      // was left holding a settled statement.
+      expect(result.events.get('end')).toMatchObject({ ok: true });
+      expect(result.events.get('end')?.tookMs).toBeLessThan(900);
       return result.events;
     }
 
@@ -305,6 +320,23 @@ describe.each(['esm', 'cjs'] as const)(
       // One connection: the next pool statement reconnects instead of failing on it.
       expect(events.get('after')).toMatchObject({ ok: true });
       expect(events.get('end')).toMatchObject({ ok: true });
+    });
+
+    it('settles a transaction whose connection was reset, and the next connection answers its own statements', async () => {
+      const events = await run('transaction-reset');
+      expect(events.get('transaction')).toMatchObject({ ok: false });
+      // A ROLLBACK left pending on the reset connection would take this answer.
+      expect(events.get('after')).toMatchObject({ ok: true });
+      expect(events.get('after-2')).toMatchObject({ ok: true });
+    });
+
+    it('rejects the statements queued behind a busy connection when it closes', async () => {
+      const events = await run('queued-terminated');
+      expect(events.get('reserved-first')).toMatchObject({ ok: false });
+      expect(events.get('reserved-queued')).toMatchObject(CLOSED);
+      expect(events.get('transaction-first')).toMatchObject({ ok: false });
+      expect(events.get('transaction-queued')).toMatchObject(CLOSED);
+      expect(events.get('after')).toMatchObject({ ok: true });
     });
 
     it('settles a transaction an administrator terminated (FATAL 57P01)', async () => {

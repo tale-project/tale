@@ -27,24 +27,40 @@ statement, is written to it from an Immediate: an uncaught
 
 - `connection.js`, `nextWrite`: #1209's guard, verbatim. A write to a closed connection rejects
   the pending statements with `CONNECTION_CLOSED` instead of throwing.
-- `index.js`, beyond #1209 (the hunks marked `Tale:`). The guard alone still let the pool keep
-  a closed connection. In the regression suite that left a one-connection pool hung or failing
-  every statement. These hunks make a transaction's or a reservation's statement run only while it
-  still holds its connection (`c.reserved` is still its own); otherwise it rejects with
-  `CONNECTION_CLOSED`. `release()` also stops handing back a reservation whose connection closed.
-  This closes a hazard that predates the crash: without the rule, a transaction that loses its
-  connection while idle runs its next statement on the session the pool reconnected, outside the
-  transaction, where it commits on its own.
+- `connection.js`, `closed()`, beyond #1209:
+  - It settles what is still pending even after a socket error. On a reset, the error event
+    rejects what was pending then, but begin()'s `ROLLBACK` is written before the close. Unsettled,
+    that `ROLLBACK` would take the reconnected connection's first answer.
+  - It drops a cancelled write together with its timer, which would otherwise keep the next
+    StartupMessage from ever being sent.
+  - It no longer leaves the settled statement in `query`, where it kept `sql.end()` from resolving.
+- `index.js`, beyond #1209 (the hunks marked `Tale:`):
+  - A transaction's or a reservation's statement runs only while it still holds its connection
+    (`c.reserved` is still its own); otherwise it rejects with `CONNECTION_CLOSED`.
+  - Statements queued behind a busy connection reject when it closes.
+  - `release()` changes nothing once the reservation no longer holds its connection.
+
+  Without these, the regression suite caught several failures. A one-connection pool hung or kept
+  failing on the dead connection. An idle transaction whose connection the pool had reconnected for
+  another caller ran its next statement there, outside the transaction, where it committed on its own
+  (as unpatched 3.4.7 does).
 
 **Proof.** `services/platform/backend/db/connection-loss.test.ts` runs postgres.js in a child process
-through both its ESM and its CommonJS build. The child talks to a fake server that drops the
-connection the way a killed server process does. Without the patch, the cut cases crash the child or
-commit the stray statement. Without the `index.js` hunks, they hang or fail on the dead connection.
+through both its ESM and its CommonJS build. The child talks to a fake server that closes or resets the
+connection the way a killed server process or a proxy does. Without the patch, the cut cases crash the
+child, hang it, or commit the stray statement. With #1209's guard alone, they hang or fail on the dead
+connection.
 
-**Not changed.** After such a loss, `sql.end()` with no timeout never resolves. The closed connection
-keeps its last statement, with or without this patch. The platform always ends a pool with a timeout.
+**Behaviour change.** A statement issued on a transaction handle after its `COMMIT`, or on a
+released reservation, now rejects with `CONNECTION_CLOSED` instead of running on the pool's
+connection outside the transaction. No platform code does this (checked by grep).
 
-**Remove it when** a postgres.js release fixes both the write to a closed connection and the pool's
-hand-back. Then bump the pin in `services/platform` and `packages/shared`, delete this file's entry and
-its `patchedDependencies` line, and keep the regression suite: it must pass on that release
-unpatched. If a release fixes only the write, regenerate the `index.js` part against it.
+**Not changed.** A `sql.reserve()` that waits for a connection can still be dropped if another
+connection closes and the pool reconnects that one for it: upstream's `onclose` hands the request to
+the reconnect, whose type fetch discards it.
+
+**Remove it when** a postgres.js release fixes all of this. That means the write to a closed
+connection, what `closed()` leaves pending, and the pool's hand-back of a closed connection. Then bump
+the pin in `services/platform` and `packages/shared`, delete this file's entry and its
+`patchedDependencies` line, and keep the regression suite: it must pass on that release unpatched. If a
+release fixes only part of it, regenerate the rest against that release with `bun patch`.
