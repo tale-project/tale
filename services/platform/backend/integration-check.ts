@@ -39895,7 +39895,15 @@ async function checkLoginThrottleAndAuditChain(
   );
 
   // The chain: failure rows + a lockout row + a success row, hash-linked.
-  const rows = await sql<AuditLogRow[]>`
+  // Rows and head come from ONE snapshot: an audit write commits its row
+  // and the head together, but a job of another lane (or this lane's own
+  // lockout bell) appending a row between two autocommit reads leaves the
+  // head one row ahead of the tail just read — seen as `chain=true,
+  // head=false` on an otherwise intact chain.
+  const { rows, headRows } = await sql.begin(
+    'isolation level repeatable read read only',
+    async (tx) => {
+      const chain = await tx<AuditLogRow[]>`
     SELECT id, org_id AS "organizationId", actor_id AS "actorId",
            actor_email AS "actorEmail", actor_email_hash AS "actorEmailHash",
            actor_role AS "actorRole", actor_type AS "actorType",
@@ -39913,6 +39921,13 @@ async function checkLoginThrottleAndAuditChain(
     WHERE org_id = ${orgId}
     ORDER BY ts ASC
   `;
+      const heads = await tx<{ lastHash: string }[]>`
+    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
+    WHERE org_id = ${orgId}
+  `;
+      return { rows: chain, headRows: heads };
+    },
+  );
   // Anchor on the first REMAINING row's stored previous_hash: retention
   // deletes the chain's oldest PREFIX, so genesis ('') only holds until the
   // first sweep — each surviving row still links to its predecessor's hash.
@@ -39940,10 +39955,6 @@ async function checkLoginThrottleAndAuditChain(
     }
     previousHash = row.integrityHash;
   }
-  const headRows = await sql<{ lastHash: string }[]>`
-    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
-    WHERE org_id = ${orgId}
-  `;
   const headOk = headRows[0]?.lastHash === rows[rows.length - 1]?.integrityHash;
   record(
     'audit chain verifies',
