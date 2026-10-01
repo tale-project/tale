@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 73 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 74 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -562,6 +562,12 @@ ends such a call in 503 `MODEL_API_UNAVAILABLE`).
   `governance.imageGeneration.currentModel.pinned` names it. Switch image
   generation off and on again → the same pin is still selected. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
+- [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
+  Member whose own run of a project agent is listed on Sandboxes
+  (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the
+  receipt lists **Sandbox workspaces**
+  (`governance.dataSubjectRequests.categories.sandboxWorkspaces`) with `1`,
+  and the member's workspace is gone from Sandboxes.
 
 ## Boundary & error tests
 
