@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 79 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 80 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -739,6 +739,16 @@ agent.
   on the pinned model. In a project without agents, the Member's
   **Assignee** offers no **Standard agent**, its footer reading
   `tasks.assignee.noAgentsReader`. Restore the rule and **Automatic**.
+- [ ] `GOV-B20` · **A slow switch write never undoes a Save beside it** — On
+  `security-monitoring`, throttle the network (DevTools **Network**, **Slow
+  4G**). Turn on the **Session idle timeout** switch
+  (`governance.sessionIdleTimeout.enabled`) and, while it saves, set **Idle
+  timeout (minutes)** (`governance.sessionIdleTimeout.minutes`) to `15` and
+  select **Save** (`common.actions.save`) → **Save** stays busy until the
+  switch's write has landed, then saves; a reload shows the switch on and
+  `15`. Set `20` and **Save** again → the switch stays disabled until the
+  page has read the policy back, and turning it off after that keeps `20`.
+  Restore: throttling off, the switch off.
 
 ## Accessibility (WCAG 2.1 AA)
 
