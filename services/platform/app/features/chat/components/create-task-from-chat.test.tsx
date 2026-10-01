@@ -21,6 +21,12 @@ const state = vi.hoisted(() => ({
   messages: [] as ChatMessageView[],
   navigate: vi.fn(),
   toast: vi.fn(),
+  standardAgent: { enabled: true, available: false } as {
+    enabled: boolean;
+    available: boolean;
+  },
+  standardAgentLoading: false,
+  ensure: vi.fn(),
 }));
 
 vi.mock('../data/chat-backend', () => ({
@@ -41,6 +47,15 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
       projectId === undefined ? [] : (state.agentsByProject[projectId] ?? []),
     isLoading: false,
   }),
+  useStandardAgentQuery: () => ({
+    data: state.standardAgentLoading ? undefined : state.standardAgent,
+    isLoading: state.standardAgentLoading,
+    failureCount: 0,
+  }),
+}));
+
+vi.mock('@/app/features/projects/hooks/mutations', () => ({
+  useEnsureStandardAgent: () => ({ mutateAsync: state.ensure }),
 }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -140,6 +155,9 @@ function open(props: { projectId?: string; viewerIsOwner?: boolean } = {}) {
 beforeEach(() => {
   state.projects = [WEBSITE, HANDBOOK];
   state.agentsByProject = {};
+  state.standardAgent = { enabled: true, available: false };
+  state.standardAgentLoading = false;
+  state.ensure.mockReset();
   state.projectsFailed = false;
   state.messages = conversation();
   state.navigate.mockReset();
@@ -256,6 +274,79 @@ describe('CreateTaskFromChat', () => {
         name: /Operations.*You can add one in the task/,
       }),
     ).toBeInTheDocument();
+  });
+
+  it('lists a project without agents as one the standard agent takes, while the organization provides it', async () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.projects = [
+      { ...WEBSITE, agentCount: 2, canEdit: false },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(screen.getByText('With an agent')).toBeInTheDocument();
+    expect(screen.queryByText('No agent yet')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /Employee handbook.*Standard agent/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('adds the standard agent to the chosen project and hands it the task', async () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.ensure.mockResolvedValue({
+      agentId: 'agent-standard',
+      created: true,
+    });
+    state.projects = [
+      { ...WEBSITE, agentCount: 2 },
+      { ...HANDBOOK, agentCount: 0 },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+    await user.click(screen.getByRole('option', { name: /Employee handbook/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByTestId('assignee')).toHaveTextContent(
+      'agent-standard',
+    );
+    expect(state.ensure).toHaveBeenCalledWith({ projectId: HANDBOOK.id });
+    expect(screen.getByTestId('start')).toHaveTextContent('true');
+  });
+
+  it('opens nothing until it knows whether the standard agent takes the work', () => {
+    state.standardAgentLoading = true;
+    state.projects = [{ ...HANDBOOK, agentCount: 0 }];
+    open({ projectId: HANDBOOK.id });
+
+    // Neither an unassigned form that would open again assigned, nor a
+    // standard agent set up before the answer.
+    expect(screen.queryByTestId('project')).not.toBeInTheDocument();
+    expect(state.ensure).not.toHaveBeenCalled();
+  });
+
+  it('opens the task unassigned, saying why, when the standard agent cannot be added', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    state.standardAgent = { enabled: true, available: true };
+    state.ensure.mockRejectedValue(
+      Object.assign(new Error('off'), {
+        data: { code: 'STANDARD_AGENT_OFF' },
+      }),
+    );
+    state.projects = [{ ...HANDBOOK, agentCount: 0 }];
+    open();
+
+    expect(await screen.findByTestId('project')).toHaveTextContent(HANDBOOK.id);
+    expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
+    expect(state.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('standard agent is switched off'),
+        variant: 'destructive',
+      }),
+    );
+    warn.mockRestore();
   });
 
   it('picks the one project with an agent in advance', async () => {

@@ -28,6 +28,9 @@ export interface TaskHandover {
   readonly canAddAgents: boolean;
   /** The organization switched task automation off: agents cannot start. */
   readonly automationOff: boolean;
+  /** The organization's standard agent takes work, for this person, in a
+   * project with no agent of its own. */
+  readonly standardAgent: boolean;
   /** The interface's own words for the controls, in the person's language. */
   readonly labels: {
     /** The chat header's hand-over verb. */
@@ -38,6 +41,8 @@ export interface TaskHandover {
     readonly assignee: string;
     /** The assignee list's way to add an agent in place. */
     readonly createAgent: string;
+    /** The assignee list's entry for the organization's standard agent. */
+    readonly standardAgent: string;
   };
 }
 
@@ -65,7 +70,16 @@ export function renderTaskHandover(handover: TaskHandover): string {
     HEADING,
     `1. In this chat's header, choose ${quote(labels.createTask)}. The task takes their request, the files they shared, and a link back to this chat.`,
   ];
-  if (named.length > 0) {
+  if (handover.standardAgent && handover.projectsWithoutAgents > 0) {
+    // Every project can take the work: those without an agent of their own
+    // get the organization's standard agent.
+    const others = unnamed > 0 ? ` (and ${unnamed} more)` : '';
+    lines.push(
+      named.length > 0
+        ? `2. Pick the project the work belongs to. ${named.join(', ')}${others} already have agents; in any other project the organization's standard agent (${quote(labels.standardAgent)}) is assigned to the task.`
+        : `2. Pick the project the work belongs to. No project they can open has an agent yet, so the organization's standard agent (${quote(labels.standardAgent)}) is assigned to the task.`,
+    );
+  } else if (named.length > 0) {
     const others = unnamed > 0 ? ` (and ${unnamed} more)` : '';
     lines.push(
       `2. Pick a project with an agent: ${named.join(', ')}${others}. Its agent is assigned when it is the only one.`,

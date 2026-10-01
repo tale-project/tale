@@ -53,6 +53,10 @@ import {
   updateProjectSharing,
   type ProjectAuthContext,
 } from './service.ts';
+import {
+  ensureStandardAgent,
+  readStandardAgentAvailability,
+} from './standard-agent.ts';
 
 // The project bodies parse with the SHARED schemas (`lib/shared/schemas/
 // projects.ts`) — the one copy the editor, this door and the service read,
@@ -158,6 +162,17 @@ export function createProjectRoutes(deps: {
     } catch (error) {
       return handleError(c, error);
     }
+  });
+
+  // The organization's standard agent, as the caller could hand it work:
+  // on, runnable for them, and what it would run on. Before `/:id`.
+  app.get('/standard-agent', async (c) => {
+    return c.json(
+      await readStandardAgentAvailability(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+      }),
+    );
   });
 
   app.get('/:id', async (c) => {
@@ -362,6 +377,22 @@ export function createProjectRoutes(deps: {
         }),
       );
       return c.json({ agentId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The project's standard agent, created if the project has no agents of
+  // its own — anyone who can open the project may hand it work
+  // (`standard-agent.ts`).
+  app.post('/:id/standard-agent', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await transactSerializable(deps.sql, (tx) =>
+          ensureStandardAgent(tx, auth, c.req.param('id')),
+        ),
+      );
     } catch (error) {
       return handleError(c, error);
     }

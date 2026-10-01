@@ -1010,7 +1010,8 @@ export interface TasksContract {
         | 'pack_disabled'
         | 'breaker_paused'
         | 'budget_paused'
-        | 'not_permitted';
+        | 'not_permitted'
+        | 'standard_agent_unavailable';
     }>;
   };
   'tasks/review_mutations:setTaskReviewer': {

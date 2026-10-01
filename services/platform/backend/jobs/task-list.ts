@@ -58,6 +58,7 @@ import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
 import {
   failAgentRun,
   inPlaceOfRun,
+  isStandardAgentRefusal,
   kickAgentRun,
   startedViaOfRun,
 } from '../domains/tasks/agent-runs.ts';
@@ -455,29 +456,41 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           return 'task_circuit_breaker';
         }
       }
-      await kickAgentRun(tx, {
-        organizationId: input.organizationId,
-        projectId: task.projectId,
-        taskId: input.taskId,
-        agentId: input.agentId,
-        harness: agent.harness,
-        model: agent.model,
-        ...(agent.modelProvider !== null
-          ? { modelProvider: agent.modelProvider }
-          : {}),
-        startedBy: newest.startedBy,
-        trigger: 'auto_retry',
-        ...(startedVia !== undefined
-          ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
-          : {}),
-        autoRetryAttempt: budget.attempt,
-        // Queued now, so the card shows the retry; started once the
-        // broker's cooldown has an account back.
-        ...(input.startAfterMs !== undefined
-          ? { startAfterMs: input.startAfterMs }
-          : {}),
-        ...(sessionId !== undefined ? { sessionId } : {}),
-      });
+      try {
+        await kickAgentRun(tx, {
+          organizationId: input.organizationId,
+          projectId: task.projectId,
+          taskId: input.taskId,
+          agentId: input.agentId,
+          harness: agent.harness,
+          model: agent.model,
+          ...(agent.modelProvider !== null
+            ? { modelProvider: agent.modelProvider }
+            : {}),
+          startedBy: newest.startedBy,
+          trigger: 'auto_retry',
+          ...(startedVia !== undefined
+            ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
+            : {}),
+          autoRetryAttempt: budget.attempt,
+          // Queued now, so the card shows the retry; started once the
+          // broker's cooldown has an account back.
+          ...(input.startAfterMs !== undefined
+            ? { startAfterMs: input.startAfterMs }
+            : {}),
+          ...(sessionId !== undefined ? { sessionId } : {}),
+        });
+      } catch (error) {
+        // The organization's standard agent was switched off, or no longer
+        // runs for the starter: no retry changes that, so the failed run
+        // ends here and its watchers are told. The refusal is a check, not
+        // a failed statement, so the transaction is still good to write.
+        if (isStandardAgentRefusal(error)) {
+          await retire(true);
+          return 'standard_agent_unavailable';
+        }
+        throw error;
+      }
       return 'kicked';
     });
     if (typeof outcome === 'object') {

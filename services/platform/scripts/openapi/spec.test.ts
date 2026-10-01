@@ -851,6 +851,7 @@ describe('handler statuses and bodies match the documented operation', () => {
         connectors: [],
         tools: [],
         secrets: [],
+        managed: false,
         createdBy: 'user-1',
         createdAt: 1,
         updatedAt: 2,

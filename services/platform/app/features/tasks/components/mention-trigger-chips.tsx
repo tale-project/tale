@@ -103,6 +103,8 @@ export function MentionTriggerChips({
         return t('mentionPreview.agentNotLive', { slug: name });
       case 'not_permitted':
         return t('mentionPreview.notPermitted', { slug: name });
+      case 'standard_agent_unavailable':
+        return t('mentionPreview.standardAgentUnavailable', { slug: name });
       default:
         return name;
     }

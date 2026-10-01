@@ -7,6 +7,7 @@ const LABELS: TaskHandover['labels'] = {
   createAndStart: 'Create and start agent',
   assignee: 'Assignee',
   createAgent: 'Create an agent…',
+  standardAgent: 'Standard agent',
 };
 
 function handover(overrides: Partial<TaskHandover> = {}): TaskHandover {
@@ -15,6 +16,7 @@ function handover(overrides: Partial<TaskHandover> = {}): TaskHandover {
     projectsWithoutAgents: 1,
     canAddAgents: false,
     automationOff: false,
+    standardAgent: false,
     labels: LABELS,
     ...overrides,
   };
@@ -55,6 +57,28 @@ describe('renderTaskHandover', () => {
     const note = renderTaskHandover(handover({ projectsWithAgents: [] }));
 
     expect(note).toContain('an Editor or Admin adds agents');
+    expect(note).not.toContain('Create an agent…');
+  });
+
+  it('sends work in a project without agents to the standard agent, by its label', () => {
+    const note = renderTaskHandover(
+      handover({ standardAgent: true, projectsWithoutAgents: 2 }),
+    );
+
+    expect(note).toContain(
+      'Website relaunch already have agents; in any other project the organization\'s standard agent ("Standard agent") is assigned to the task.',
+    );
+    expect(note).not.toContain('an Editor or Admin adds agents');
+  });
+
+  it('names the standard agent when no project has an agent of its own', () => {
+    const note = renderTaskHandover(
+      handover({ standardAgent: true, projectsWithAgents: [] }),
+    );
+
+    expect(note).toContain(
+      'No project they can open has an agent yet, so the organization\'s standard agent ("Standard agent") is assigned to the task.',
+    );
     expect(note).not.toContain('Create an agent…');
   });
 

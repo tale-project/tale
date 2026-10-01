@@ -1,6 +1,6 @@
 ---
 title: Modelle
-description: Lege Standardmodelle fest, begrenze den Zugriff und wähle getrennte Modelle für Bilder und Audiotranskription.
+description: Lege Standardmodelle fest, begrenze den Zugriff, wähle getrennte Modelle für Bilder und Audiotranskription und richte den Standard-Agenten für Projekte ohne Agenten ein.
 ---
 
 Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** fest, mit welchen Modellen Mitglieder starten und welche sie verwenden dürfen. Standardwerte lenken die Auswahl; Zugriffsregeln setzen Grenzen. Richte zuerst die [Anbieter-Zugangsdaten](/de/platform/admin/providers) ein, damit die gewünschten Modelle verfügbar sind.
@@ -77,6 +77,25 @@ Solange die Bildgenerierung eingeschaltet und ein Modell verfügbar ist, bekommt
 Bilder gibt es in drei Formen: quadratisch, im Querformat 3:2 und im Hochformat 2:3. Fragt ein Agent nach einer anderen Form, etwa einem Banner in 16:9, bekommt er die Form mit derselben Ausrichtung. Die genaue Größe in Pixeln bestimmt das Bildmodell, und das Tool für Bilder nennt dem Agenten die Größe jedes Bilds, das es gespeichert hat.
 
 Jedes Bild wird deiner Organisation berechnet und zählt wie der übrige Lauf für die Person, die ihn gestartet hat. Ein Zug eines Agenten erstellt höchstens 16 Bilder, eine Anfrage nach der anderen, und seine Bilder zehren vom selben Rahmen wie die Modellnutzung des Zugs: Die Kosten jedes Bilds gehen von dem ab, was das Modell noch ausgeben darf, und ist der Rahmen aufgebraucht, lehnt Tale das nächste Bild ab. Ein Budgetlimit, das für diese Person gilt, lehnt das Bild ab, bevor das Bildmodell aufgerufen wird. Lege Kosten- oder Anfragelimits für Bilder unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) fest; [So wird Nutzung gezählt](/de/platform/admin/governance/usage-attribution) erklärt, für wen ein Bild zählt. Die Richtliniendatei und eigene Bild-Endpunkte beschreibt die [Anbieter-Referenz für Self-Hosting](/de/self-hosted/configuration/providers#configure-image-generation).
+
+## Einen Standard-Agenten bereitstellen {#standard-agent}
+
+Agenten zu einem Projekt hinzufügen können nur Redakteure und höhere Rollen. Damit auch ein Projekt ohne Agenten Arbeit an einen Agenten übergeben kann, bietet Tale dort den **Standard-Agenten** der Organisation an: Jeder, der das Projekt öffnen kann, kann ihm eine Aufgabe geben, auch Mitglieder. Er ist von Anfang an eingeschaltet.
+
+<Frame caption="Richtlinien > Modelle — der Standard-Agent, eingeschaltet, mit automatisch gewählter Agent-Laufzeit und automatisch gewähltem Modell.">
+
+![Der Abschnitt zum Standard-Agenten: Der Schalter ist eingeschaltet, Agent-Laufzeit und Modell stehen auf automatisch, das Feld für Anweisungen ist leer und verweist auf die eingebauten Anweisungen. Die letzte Zeile sagt, dass er für dich mit Claude Code und Claude Haiku 4.5 läuft.](/images/platform/governance-standard-agent.webp)
+
+</Frame>
+
+- **Wo er erscheint.** In einem Projekt ohne Agenten bietet **Zuständig** die Option **Standard-Agent** an, und [Aufgabe aus Chat erstellen](/de/platform/chat/basics#create-task-from-chat) trägt ihn für dich ein. Tale richtet ihn in einem Projekt ein, sobald jemand ihn dort wählt oder die Aufgabe eines Chats an dieses Projekt übergibt. Danach führt ihn der Tab **Agenten** des Projekts mit dem Abzeichen **Standard**; [Der Standard-Agent](/de/platform/projects/project-agents#standard-agent) erklärt, wie er sich dort verhält.
+- **Womit er läuft.** Stehen **Agent-Laufzeit** und **Modell** auf **Automatisch**, wählt Tale ein empfohlenes Modell, das die Person, die die Aufgabe startet, nach deinen Regeln für den [Modellzugriff](#den-modellzugriff-begrenzen) nutzen darf. Es läuft mit Claude Code oder mit der Agent-Laufzeit, an die ein Abo-Modell gebunden ist. Die Zeile am Ende des Abschnitts nennt, womit er für dich läuft. Wähle eine Agent-Laufzeit oder ein Modell, um sie für alle festzulegen, und speichere dann die offenen Änderungen der Seite in der Kopfzeile.
+- **Was er weiß.** Seine eingebauten Anweisungen sagen ihm: Er tut, was die Aufgabe verlangt, mit ihren Dateien und Kommentaren. Ein verlangtes Dokument, eine Präsentation, eine Tabelle oder ein PDF liefert er als Ergebnis der Aufgabe. Er schreibt in der Sprache der Aufgabe und fragt in einem Kommentar nach, wenn die Aufgabe unklar ist. Text unter **Anweisungen** ersetzt diese Anweisungen.
+- **Was er nutzen darf.** Die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf`, die dem Projekt zur Verfügung stehen, aber keine Connectors, Plattformoperationen oder Secrets, wie ein Redakteur sie anderen Agenten zuteilen kann.
+
+Jeder Lauf startet mit den Einstellungen, die in diesem Moment gelten; ein laufender Agent behält die, mit denen er gestartet ist. Ein gewähltes Modell bleibt in Kraft, auch wenn es nicht mehr verfügbar ist, und ebenso eines, das der Modellzugriff einer Person nicht erlaubt: Der Standard-Agent startet dann für sie nicht und sagt, warum, und Tale wechselt nicht zu einem anderen Modell. Wähle ein anderes Modell oder **Automatisch** und speichere. Kann kein Modell, das eine Person nutzen darf, ihn ausführen, startet er für sie ebenfalls nicht: Füge unter [KI-Anbieter](/de/platform/admin/providers) einen Zugang hinzu oder prüfe ihren Modellzugriff.
+
+Schalte **Standard-Agenten bereitstellen** aus, damit Tale ihn nicht mehr anbietet. Die Änderung speichert sofort und behält deine Auswahl. Projekte ohne Agenten bieten dann keinen Agenten an, und Aufgaben, die schon einem Standard-Agenten gehören, starten erst wieder, wenn du ihn einschaltest. Die Richtliniendatei beschreibt die [Anbieter-Referenz für Self-Hosting](/de/self-hosted/configuration/providers#configure-the-standard-agent).
 
 ## Das Modell für Audiotranskription auswählen
 

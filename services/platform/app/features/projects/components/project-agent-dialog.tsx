@@ -24,6 +24,7 @@ import {
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
+import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
@@ -33,7 +34,6 @@ import {
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
-import { DOCUMENT_SKILL_SLUGS } from '../lib/document-skills';
 import { findSelectedModel, type ModelOption } from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 

@@ -1,6 +1,6 @@
 ---
 title: Modèles
-description: Définis les modèles par défaut, limite leur accès et choisis des modèles distincts pour les images et la transcription audio.
+description: Définis les modèles par défaut, limite leur accès, choisis des modèles distincts pour les images et la transcription audio, et mets en place l’agent standard des projets sans agents.
 ---
 
 En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modèles** pour choisir les modèles proposés au départ et ceux que les membres peuvent utiliser. Les valeurs par défaut orientent le choix ; les règles d’accès imposent une restriction. Configure d’abord les [identifiants fournisseur](/fr/platform/admin/providers) pour rendre les modèles souhaités disponibles.
@@ -77,6 +77,25 @@ Tant que la génération d’images est activée et qu’un modèle est disponib
 Les images existent en trois formats : carré, paysage en 3:2 et portrait en 2:3. Un agent qui demande un autre format, par exemple une bannière en 16:9, reçoit celui qui a la même orientation. Le modèle d’images fixe la taille exacte en pixels, et l’outil pour les images indique à l’agent la taille de chaque image qu’il a enregistrée.
 
 Chaque image est facturée à ton organisation et compte, comme le reste de l’exécution, pour la personne qui l’a lancée. Un tour d’agent crée au plus 16 images, une requête à la fois, et ses images puisent dans la même enveloppe que l’usage du modèle pendant ce tour : le coût de chaque image est retiré de ce que le modèle peut encore dépenser, et une fois l’enveloppe épuisée, Tale refuse l’image suivante. Une limite de budget qui s’applique à cette personne refuse l’image avant l’appel au modèle d’images. Fixe des limites de coût ou de requêtes pour les images dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; [Comment l’usage est compté](/fr/platform/admin/governance/usage-attribution) explique pour qui chaque image compte. Le fichier de politique et les endpoints d’images personnalisés sont décrits dans la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configure-image-generation).
+
+## Fournir un agent standard {#standard-agent}
+
+Seuls les éditeurs et les rôles supérieurs peuvent ajouter des agents à un projet. Pour qu’un projet sans agents puisse quand même confier du travail à un agent, Tale y propose l’**agent standard** de l’organisation : toute personne qui peut ouvrir le projet peut lui confier une tâche, membres compris. Il est activé par défaut.
+
+<Frame caption="Gouvernance > Modèles — l’agent standard, activé, avec son harness et son modèle choisis automatiquement.">
+
+![La section de l’agent standard : l’interrupteur est activé, le harness et le modèle sont réglés sur automatique, et le champ des instructions est vide et renvoie aux instructions intégrées. La dernière ligne indique qu’il fonctionne pour toi avec Claude Code et Claude Haiku 4.5.](/images/platform/governance-standard-agent.webp)
+
+</Frame>
+
+- **Où il apparaît.** Dans un projet sans agents, **Assigné à** propose l’option **Agent standard**, et [Créer une tâche depuis le chat](/fr/platform/chat/basics#create-task-from-chat) l’assigne pour toi. Tale le met en place dans un projet dès que quelqu’un l’y choisit ou y confie la tâche d’un chat. L’onglet **Agents** du projet l’affiche ensuite avec le badge **Standard** ; [L’agent standard](/fr/platform/projects/project-agents#standard-agent) explique son fonctionnement.
+- **Avec quoi il fonctionne.** Quand **Harness** et **Modèle** sont sur **Automatique**, Tale choisit un modèle recommandé que la personne qui lance la tâche peut utiliser selon tes règles d’[accès aux modèles](#limiter-lacces-aux-modeles), et le fait tourner avec Claude Code, ou avec le harness auquel un modèle d’abonnement est lié. La ligne en bas de la section indique avec quoi il fonctionne pour toi. Choisis un harness ou un modèle pour l’imposer à tout le monde, puis enregistre les modifications en attente dans l’en-tête de la page.
+- **Ce qu’il sait.** Ses instructions intégrées lui demandent de faire ce que la tâche demande avec ses fichiers et ses commentaires, de livrer comme résultat de la tâche le document, la présentation, le tableur ou le PDF demandé, d’écrire dans la langue de la tâche et de poser sa question dans un commentaire quand la tâche n’est pas claire. Le texte saisi sous **Instructions** les remplace.
+- **Ce qu’il peut utiliser.** Les skills de documents `docx`, `pptx`, `xlsx` et `pdf` accessibles au projet, mais aucun des connecteurs, opérations de la plateforme ou secrets qu’un éditeur peut accorder à d’autres agents.
+
+Chaque exécution démarre avec les réglages en vigueur à ce moment-là ; un agent en cours garde ceux avec lesquels il a démarré. Un modèle choisi reste en vigueur même s’il devient indisponible, tout comme un modèle que l’accès aux modèles d’une personne lui refuse : l’agent standard ne démarre alors pas pour elle et indique pourquoi, et Tale ne passe pas à un autre modèle. Choisis un autre modèle ou **Automatique** et enregistre. Si aucun modèle qu’une personne peut utiliser ne peut le faire fonctionner, il ne démarre pas non plus pour elle : ajoute un accès dans [Fournisseurs IA](/fr/platform/admin/providers), ou vérifie son accès aux modèles.
+
+Désactive **Fournir un agent standard** pour ne plus le proposer ; la modification s’enregistre aussitôt et conserve tes choix. Les projets sans agents ne proposent alors aucun agent, et les tâches déjà confiées à un agent standard ne peuvent démarrer qu’une fois que tu le réactives. Le fichier de politique est décrit dans la [référence des fournisseurs auto-hébergés](/fr/self-hosted/configuration/providers#configure-the-standard-agent).
 
 ## Choisir le modèle de transcription audio
 

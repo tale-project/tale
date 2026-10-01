@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
@@ -19,6 +20,7 @@ import {
   useProjectAgents,
   useProjectCapabilityCatalog,
   useProjectHarnesses,
+  useStandardAgent,
 } from '../hooks/queries';
 import { toModelOptions, type ModelOption } from '../lib/model-options';
 import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
@@ -40,6 +42,12 @@ interface ProjectAgentsTabProps {
  * come from the same org-scoped composer actions, so the surfaces can never
  * drift. (The fixed per-harness equipment list this tab used to be is
  * retired — equipment now travels with the agent instance.)
+ *
+ * The organization's standard agent shows here too once someone handed the
+ * project work: marked, and without Edit — its runtime, model and
+ * instructions follow the organization's settings. Editors may remove it.
+ * A project without agents says the standard agent takes its tasks, while
+ * the organization provides one.
  */
 export function ProjectAgentsTab({
   organizationId,
@@ -50,6 +58,8 @@ export function ProjectAgentsTab({
   const rosterQuery = useProjectHarnesses(organizationId);
   const catalogQuery = useProjectCapabilityCatalog(organizationId, projectId);
   const { agents, isLoading: agentsLoading } = useProjectAgents(projectId);
+  const standardAgentAvailable =
+    useStandardAgent(organizationId)?.available === true;
   const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -138,12 +148,26 @@ export function ProjectAgentsTab({
         <ProjectAgentRowsSkeleton canEdit={canEdit} />
       ) : agents.length === 0 ? (
         // Adding an agent is the editors'. A reader is told who can, not to
-        // "give one a model" on a page that offers them no way to.
+        // "give one a model" on a page that offers them no way to — and,
+        // while the organization provides one, that its standard agent
+        // takes the project's tasks meanwhile.
         <EmptyState
           icon={Bot}
-          title={t(canEdit ? 'agents.emptyTitle' : 'agents.emptyReaderTitle')}
+          title={t(
+            standardAgentAvailable
+              ? 'agents.standard.emptyTitle'
+              : canEdit
+                ? 'agents.emptyTitle'
+                : 'agents.emptyReaderTitle',
+          )}
           description={t(
-            canEdit ? 'agents.emptyBody' : 'agents.emptyReaderBody',
+            standardAgentAvailable
+              ? canEdit
+                ? 'agents.standard.emptyBody'
+                : 'agents.standard.emptyReaderBody'
+              : canEdit
+                ? 'agents.emptyBody'
+                : 'agents.emptyReaderBody',
           )}
         />
       ) : (
@@ -173,7 +197,16 @@ export function ProjectAgentsTab({
                       />
                     )}
                     <Stack gap={1} className="min-w-0">
-                      <Text className="truncate font-medium">{agent.name}</Text>
+                      <Row align="center" gap={2} className="min-w-0">
+                        <Text className="truncate font-medium">
+                          {agent.name}
+                        </Text>
+                        {agent.managed && (
+                          <Badge variant="outline" className="shrink-0">
+                            {t('agents.standard.badge')}
+                          </Badge>
+                        )}
+                      </Row>
                       <Text
                         variant="caption"
                         className="text-muted-foreground truncate"
@@ -187,18 +220,30 @@ export function ProjectAgentsTab({
                           ? ` · ${t('agents.equippedCount', { count: equipped })}`
                           : ''}
                       </Text>
+                      {agent.managed && (
+                        <Text
+                          variant="caption"
+                          className="text-muted-foreground"
+                        >
+                          {t('agents.standard.managedNote')}
+                        </Text>
+                      )}
                     </Stack>
                   </Row>
                   {canEdit ? (
                     <Row gap={1} className="shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('agents.rowEdit')}
-                        onClick={() => openEdit(agent)}
-                      >
-                        <Pencil aria-hidden className="size-4" />
-                      </Button>
+                      {/* The standard agent's settings are the
+                          organization's: removable here, not editable. */}
+                      {!agent.managed && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('agents.rowEdit')}
+                          onClick={() => openEdit(agent)}
+                        >
+                          <Pencil aria-hidden className="size-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
