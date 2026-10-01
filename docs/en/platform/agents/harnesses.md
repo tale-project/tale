@@ -31,6 +31,8 @@ A runtime needs both compatible credentials and [sandbox capacity](/platform/adm
 
 To guide project work, comment on the task and mention its agent. Claude Code receives that guidance at a tool boundary. For the other runtimes, Tale stops the current process and continues the conversation in a new process with the comment. This is why a running task may restart its process after you give it direction.
 
+Gemini CLI is the exception: Tale never continues one of its conversations. A later comment, an automatic retry, or an answer to a question it asked starts a fresh conversation over the same workspace, with the task brief and the earlier rounds restated, because the runtime cannot resume a conversation in which it ran a tool. Its files and output are preserved; only the conversation starts over.
+
 ## Understand credential exposure and cost
 
 With a stored API key or deployment-environment credential, Tale supplies a session-scoped gateway key. The original model-provider key stays at the platform. Calls through this gateway are metered and subject to the applicable spending rules, including allowance already assigned to other running turns.

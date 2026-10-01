@@ -101,6 +101,8 @@ export const PERSONAL_LINK_CASES: Record<
     row: { params: { name: 'billing/dunning-reminder', runId: 'run_1' } },
     path: `/dashboard/${ORG}/automations/billing__dunning-reminder/runs/run_1`,
   },
+  // The task whose run failed: its run strip says why and offers Retry.
+  agent_run_failed: { row: TASK_ROW, path: TASK_PATH },
   conversation_assigned: {
     row: { params: { conversationId: 'conv_1', conversationStatus: 'open' } },
     path: `/dashboard/${ORG}/conversations/open?conversation=conv_1`,

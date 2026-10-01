@@ -38,6 +38,8 @@ type LocaleStrings = Record<string, string>;
  *   - `taskSlaEscalated*` / `taskDueSoon*` / `taskStartReached*` —
  *     `tasks/enforce_date_notifications` cron
  *   - `conversationTeamAssigned*` — `collab/notify.ts` team hand-off
+ *   - `agentRunFailed*` — `collab/service.ts` `notifyAgentRunFailed` (the body
+ *     key is picked by the run's failure class)
  */
 export const ACTIONABLE_INBOX_KEYS = [
   'taskAssigned',
@@ -87,6 +89,10 @@ export const ACTIONABLE_INBOX_KEYS = [
   'usageCreditsRequestedBody',
   'automationTriggerPaused',
   'automationTriggerPausedBody',
+  'agentRunFailed',
+  'agentRunFailedBody',
+  'agentRunFailedBudgetBody',
+  'agentRunFailedSetupBody',
   'email.cta',
   'email.footer',
 ] as const;
@@ -160,6 +166,13 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     automationTriggerPaused: 'Schedule paused',
     automationTriggerPausedBody:
       '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.',
+    agentRunFailed: 'Agent run failed',
+    agentRunFailedBody:
+      'The agent couldn\'t finish "{title}". Open the task to see why and start it again.',
+    agentRunFailedBudgetBody:
+      'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.',
+    agentRunFailedSetupBody:
+      'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project\'s Agents tab.',
     'email.cta': 'Open in Tale',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
@@ -233,6 +246,13 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     automationTriggerPaused: 'Zeitplan pausiert',
     automationTriggerPausedBody:
       '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.',
+    agentRunFailed: 'Agenten-Lauf fehlgeschlagen',
+    agentRunFailedBody:
+      'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.',
+    agentRunFailedBudgetBody:
+      'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.',
+    agentRunFailedSetupBody:
+      'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.',
     'email.cta': 'In Tale öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
@@ -305,6 +325,13 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     automationTriggerPaused: 'Planification en pause',
     automationTriggerPausedBody:
       '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.',
+    agentRunFailed: 'Échec de l’exécution de l’agent',
+    agentRunFailedBody:
+      'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.',
+    agentRunFailedBudgetBody:
+      'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.',
+    agentRunFailedSetupBody:
+      'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.',
     'email.cta': 'Ouvrir dans Tale',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',

@@ -24,6 +24,7 @@ import {
   isCredentialSelectionResolvable,
   listCredentials,
 } from '../provider_credentials/service.ts';
+import { websitesAfterEmbeddingChange } from '../websites/service.ts';
 import {
   KnowledgeAdminError,
   deleteKnowledgeConnection,
@@ -268,6 +269,34 @@ export function createKnowledgeRoutes(deps: {
     }
   });
 
+  // The websites follow the model too: their page says whether search can
+  // reach them, and a saved model is what embeds the pages crawled without
+  // one. Best-effort — the setting is saved either way; a site a failure
+  // here skipped is embedded by its next scheduled scan.
+  const websitesFollowEmbedding = async (
+    organizationId: string,
+    orgSlug: string,
+    change: 'saved' | 'removed',
+  ): Promise<void> => {
+    try {
+      const { queued } = await websitesAfterEmbeddingChange(
+        deps.sql,
+        organizationId,
+        change,
+      );
+      if (queued > 0) {
+        console.info(
+          `[knowledge] embedding configured for ${orgSlug}: queued a scan of ${queued} website(s) to embed their pages`,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[knowledge] embedding ${change} for ${orgSlug}: the websites could not follow:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  };
+
   app.get('/embedding', async (c) => {
     const denied = requireKnowledgeAdmin(c);
     if (denied) return denied;
@@ -336,6 +365,7 @@ export function createKnowledgeRoutes(deps: {
           `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} document(s) that had failed on the embedding model`,
         );
       }
+      await websitesFollowEmbedding(c.get('orgId'), orgSlug, 'saved');
       return c.json({ ok: true, requeued });
     } catch (error) {
       return handleAdminError(c, error);
@@ -348,6 +378,7 @@ export function createKnowledgeRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     await deleteKnowledgeEmbedding(deps.sql, orgSlug);
+    await websitesFollowEmbedding(c.get('orgId'), orgSlug, 'removed');
     return c.json({ ok: true });
   });
 

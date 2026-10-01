@@ -7,11 +7,13 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { CollabNotificationInput } from './service.ts';
 import {
+  dismissAgentRunFailedNotifications,
   dismissReviewerAssignedNotifications,
   dismissReviewRequestNotifications,
   dismissTriggerPausedNotifications,
   markAllNotificationsRead,
   notifyAgentQuestionAsked,
+  notifyAgentRunFailed,
   notifyTaskComment,
   notifyTaskMentions,
   notifyTaskReviewerAssigned,
@@ -757,5 +759,244 @@ describe('the agent-question bell (agent_escalation)', () => {
     });
 
     expect(audience(fake.calls)?.values).toContain(true);
+  });
+});
+
+describe('the failed-run notice (agent_run_failed)', () => {
+  interface World {
+    /** Unmuted watchers of the task. */
+    subscribers: string[];
+    /** Who is still a member able to open the project. */
+    readers: string[];
+    /** The project's audience; empty = organization-wide. */
+    teamIds?: string[];
+    /** Recipients who switched agent escalations off. */
+    muted?: string[];
+  }
+
+  /** Serves the reads the notice makes; `db(list)` returns the list, so the
+   * member filter can be answered from the ids it was asked about. */
+  function fakeRunDb(world: World): {
+    db: Sql;
+    calls: { text: string; values: unknown[] }[];
+  } {
+    const calls: { text: string; values: unknown[] }[] = [];
+    let nextId = 0;
+    const tag = (
+      strings: TemplateStringsArray | readonly string[],
+      ...values: unknown[]
+    ): unknown => {
+      if (!('raw' in strings)) return strings;
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      calls.push({ text, values });
+      if (text.includes('FROM app.task_subscriptions')) {
+        return Promise.resolve(
+          world.subscribers.map((subscriberId) => ({ subscriberId })),
+        );
+      }
+      if (text.includes('FROM app.projects')) {
+        return Promise.resolve([{ teamIds: world.teamIds ?? [] }]);
+      }
+      if (text.includes('FROM "member"')) {
+        const asked = values.find((v): v is string[] => Array.isArray(v));
+        return Promise.resolve(
+          (asked ?? [])
+            .filter((id) => world.readers.includes(id))
+            .map((userId) => ({ userId })),
+        );
+      }
+      if (text.includes('FROM app.notification_preferences')) {
+        return Promise.resolve(
+          world.muted?.includes(String(values[0])) === true
+            ? [{ escalation: false }]
+            : [],
+        );
+      }
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        nextId += 1;
+        return Promise.resolve([{ id: `n-${nextId}` }]);
+      }
+      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
+        return Promise.resolve([{ emailEpoch: 1 }]);
+      }
+      return Promise.resolve([]);
+    };
+    const db = Object.assign(tag, {
+      json: (value: unknown) => value,
+      unsafe: (value: string) => value,
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a three-member stand-in for the postgres.js template function
+    return { db: db as unknown as Sql, calls };
+  }
+
+  const TASK = {
+    id: 'task-1',
+    organizationId: 'org-1',
+    projectId: 'proj-1',
+    title: 'Compare the two offers',
+  };
+
+  const inserts = (calls: { text: string; values: unknown[] }[]) =>
+    calls.filter((c) =>
+      c.text.startsWith('INSERT INTO app.user_notifications'),
+    );
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+    vi.mocked(emitHintInTx).mockReset();
+  });
+
+  it('tells the starter and the watchers who can still open the project, by email too', async () => {
+    const fake = fakeRunDb({
+      subscribers: ['watcher-1', 'left-org'],
+      readers: ['member-starter', 'watcher-1'],
+    });
+
+    await expect(
+      notifyAgentRunFailed(fake.db, {
+        task: TASK,
+        agentId: 'agent-1',
+        starterUserId: 'member-starter',
+        failureCode: 'harness_error',
+      }),
+    ).resolves.toBe(2);
+
+    const members = fake.calls.find((c) => c.text.includes('FROM "member"'));
+    expect(members?.text).toContain(`lower("role") <> 'disabled'`);
+    expect(members?.values).toEqual([
+      'org-1',
+      expect.arrayContaining(['watcher-1', 'left-org', 'member-starter']),
+    ]);
+    const rows = inserts(fake.calls);
+    expect(rows.map((row) => row.values[0])).toEqual([
+      'watcher-1',
+      'member-starter',
+    ]);
+    expect(rows[0]?.values).toEqual(
+      expect.arrayContaining([
+        'org-1',
+        'agent_run_failed',
+        'agentRunFailed',
+        'agentRunFailedBody',
+        { title: 'Compare the two offers', projectId: 'proj-1' },
+        'task',
+        'task-1',
+        'agent',
+        'agent-1',
+      ]),
+    );
+    // Actionable: each row leaves the app as an email.
+    expect(addJobInTx).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('notification.email');
+  });
+
+  it('reads a team project’s audience through its teams, admins always', async () => {
+    const fake = fakeRunDb({
+      subscribers: ['watcher-1'],
+      readers: ['watcher-1'],
+      teamIds: ['team-a'],
+    });
+
+    await notifyAgentRunFailed(fake.db, {
+      task: TASK,
+      agentId: 'agent-1',
+      starterUserId: null,
+      failureCode: null,
+    });
+
+    const members = fake.calls.find((c) => c.text.includes('FROM "member"'));
+    expect(members?.text).toContain(`lower(m."role") IN ('owner', 'admin')`);
+    expect(members?.text).toContain('FROM "teamMember" tm');
+    expect(members?.values).toContainEqual(['team-a']);
+  });
+
+  it.each([
+    ['budget_exceeded', 'agentRunFailedBudgetBody'],
+    ['agent_model_missing', 'agentRunFailedSetupBody'],
+    ['equipment_missing', 'agentRunFailedSetupBody'],
+    ['deadline', 'agentRunFailedBody'],
+    ['start_failed', 'agentRunFailedBody'],
+    [null, 'agentRunFailedBody'],
+    ['a-code-from-a-newer-build', 'agentRunFailedBody'],
+  ])('words a %s failure with %s', async (failureCode, bodyKey) => {
+    const fake = fakeRunDb({ subscribers: [], readers: ['member-starter'] });
+
+    await notifyAgentRunFailed(fake.db, {
+      task: TASK,
+      agentId: 'agent-1',
+      starterUserId: 'member-starter',
+      failureCode,
+    });
+
+    expect(inserts(fake.calls)[0]?.values).toContain(bodyKey);
+  });
+
+  it('leaves out whoever switched agent escalations off', async () => {
+    const fake = fakeRunDb({
+      subscribers: ['watcher-1'],
+      readers: ['member-starter', 'watcher-1'],
+      muted: ['watcher-1'],
+    });
+
+    await notifyAgentRunFailed(fake.db, {
+      task: TASK,
+      agentId: 'agent-1',
+      starterUserId: 'member-starter',
+      failureCode: 'turn_crashed',
+    });
+
+    expect(
+      fake.calls.find((c) =>
+        c.text.includes('FROM app.notification_preferences'),
+      )?.text,
+    ).toContain('escalation');
+    expect(inserts(fake.calls).map((row) => row.values[0])).toEqual([
+      'member-starter',
+    ]);
+  });
+
+  it('asks nobody about membership when nobody is left to tell', async () => {
+    const fake = fakeRunDb({ subscribers: [], readers: [] });
+
+    await expect(
+      notifyAgentRunFailed(fake.db, {
+        task: TASK,
+        agentId: 'agent-1',
+        starterUserId: null,
+        failureCode: 'deadline',
+      }),
+    ).resolves.toBe(0);
+
+    expect(fake.calls.some((c) => c.text.includes('FROM "member"'))).toBe(
+      false,
+    );
+    expect(inserts(fake.calls)).toHaveLength(0);
+  });
+
+  it('a new run marks the task’s unread notices read and hints each recipient', async () => {
+    const dismiss = fakeDb((text) =>
+      text.startsWith('UPDATE app.user_notifications SET read = true')
+        ? [{ userId: 'member-starter' }]
+        : [],
+    );
+
+    await expect(
+      dismissAgentRunFailedNotifications(dismiss.db, {
+        organizationId: 'org-1',
+        taskId: 'task-1',
+      }),
+    ).resolves.toBe(1);
+
+    expect(dismiss.statements[0]).toContain(
+      "type = 'agent_run_failed' AND read = false AND task_id = ?",
+    );
+    expect(vi.mocked(emitHintInTx).mock.calls.map((call) => call[1])).toEqual([
+      {
+        orgId: 'org-1',
+        userId: 'member-starter',
+        entity: NOTIFICATION_HINT_ENTITY,
+        entityId: null,
+      },
+    ]);
   });
 });

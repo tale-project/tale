@@ -36,6 +36,7 @@ import {
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
   harnessMountsMcp,
+  harnessResumesConversations,
   resolveHarnessTurnContextWindow,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
@@ -2325,9 +2326,13 @@ export async function steerTaskAgentTurnImpl(
     const outputDir = taskOutputDir(args.taskId);
     // Same handle hygiene as the kick lane: the id is parsed CLI stdout, so
     // a forged value must never reach an argv — an invalid one downgrades
-    // to the fresh-restart branch below.
+    // to the fresh-restart branch below. So does a harness the platform
+    // never resumes (Gemini CLI): the comment reaches it on a fresh
+    // conversation over the rebuilt brief.
     const resume =
-      op.agentSessionId !== undefined && isValidResumeHandle(op.agentSessionId)
+      harnessResumesConversations(args.harness) &&
+      op.agentSessionId !== undefined &&
+      isValidResumeHandle(op.agentSessionId)
         ? op.agentSessionId
         : undefined;
     let prompt: string;

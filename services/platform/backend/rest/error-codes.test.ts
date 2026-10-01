@@ -225,7 +225,8 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // and deletes (REST posts and lists), and the label catalog's own verbs
   // (the intake creates a missing label for an editor and refuses it to
   // anyone else with `TASK_LABEL_UNKNOWN`, which the registry lists; the
-  // catalog's rename and delete refusals never fire).
+  // catalog's rename and delete refusals never fire), and the chat a task
+  // was handed over from (`sourceThreadId`, the app's hand-over only).
   'AGENT_NOT_ALLOWED_IN_PROJECT',
   'ASSIGNEE_NO_PROJECT_ACCESS',
   'TASK_ASSIGNEE_INVALID',
@@ -246,6 +247,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_REVIEWER_INVALID',
   'TASK_REVIEWER_NO_EDIT_ACCESS',
   'TASK_SCHEDULE_INVALID',
+  'TASK_SOURCE_THREAD_NOT_FOUND',
   // Tasks: the door's schemas trim and cap the title, description, labels
   // and comment body at the domain's own constants and canonicalize the
   // external reference (`externalKeySchema`) before the intake runs, so

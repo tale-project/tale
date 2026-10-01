@@ -34,6 +34,7 @@ capabilities:
   planMode: false
   steering: false
   mcp: true
+  resume: true
 parser: claude-stream-json
 exec:
   bin: tale-qwen-run

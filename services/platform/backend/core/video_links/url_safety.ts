@@ -51,9 +51,27 @@ export class UrlSafetyError extends Error {
   }
 }
 
+/** Every A/AAAA answer for a hostname. */
+type UrlSafetyResolver = (
+  hostname: string,
+) => Promise<readonly { address: string }[]>;
+
 interface AssertSafeUrlOptions {
   /** Override resolver — only for testing. Production uses Node's default. */
-  resolver?: (hostname: string) => Promise<{ address: string }[]>;
+  resolver?: UrlSafetyResolver;
+}
+
+let resolverForTests: UrlSafetyResolver | null = null;
+
+/** Test seam: answer the pre-resolution from a script for every caller that
+ * passes no `resolver` of its own (null restores the network resolver) —
+ * the orchestrator calls `assertSafeUrl(url)` bare, and the integration
+ * check names public video hosts that a run without DNS cannot resolve. The
+ * guard itself is proven by its unit suite. */
+export function setUrlSafetyResolverForTests(
+  override: UrlSafetyResolver | null,
+): void {
+  resolverForTests = override;
 }
 
 async function defaultResolver(
@@ -135,8 +153,8 @@ export async function assertSafeUrl(
   // predicate. This is the load-bearing defense — it closes the
   // string-only-check rebind gap.
   const { hostname } = new URL(url);
-  const resolver = opts.resolver ?? defaultResolver;
-  let resolved: { address: string }[];
+  const resolver = opts.resolver ?? resolverForTests ?? defaultResolver;
+  let resolved: readonly { address: string }[];
   try {
     resolved = await resolver(hostname);
   } catch {

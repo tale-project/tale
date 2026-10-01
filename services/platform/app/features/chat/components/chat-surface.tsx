@@ -141,6 +141,7 @@ import type { ArenaRound } from './arena/arena-column';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { BudgetBanner } from './budget-banner';
 import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
+import { ChatTaskTray } from './chat-task-tray';
 import { ChatTranscript } from './chat-transcript';
 import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
@@ -521,9 +522,16 @@ function ChatSurfaceInner({
   });
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  // The hand-over to a project agent: chat answers, a task produces the
+  // file. A pair settles first, as for Share.
+  const canCreateTask = pair === null && threadId !== undefined;
   /** One item list for BOTH conversation menus (desktop top bar and the
-   * mobile header) — built here so the two can never drift. */
-  const headerMenuItems: DropdownMenuGroup[] = [
+   * mobile header) — built here so the two can never drift. The desktop
+   * header carries "Create task" as its own verb instead, so its menu
+   * leaves that one entry out. */
+  const conversationMenuItems = (
+    withCreateTask: boolean,
+  ): DropdownMenuGroup[] => [
     // Explains the disabled destructive items while a hold covers the
     // conversation (server-enforced either way).
     ...(threadHeld
@@ -556,9 +564,7 @@ function ChatSurfaceInner({
         icon: Download,
         onClick: () => setExportOpen(true),
       },
-      // The hand-over to a project agent: chat answers, a task produces the
-      // file. A pair settles first, as for Share.
-      ...(pair === null && threadId !== undefined
+      ...(withCreateTask && canCreateTask
         ? [
             {
               type: 'item' as const,
@@ -612,6 +618,8 @@ function ChatSurfaceInner({
         ]
       : []),
   ];
+  const headerMenuItems = conversationMenuItems(true);
+  const desktopMenuItems = conversationMenuItems(false);
 
   // Arena Mode. The pair is SERVER state: the split view mounts while the
   // uncached pair watch answers non-null and collapses the moment settle
@@ -1329,6 +1337,7 @@ function ChatSurfaceInner({
           ...(threadId === undefined && projectId !== undefined
             ? { projectId }
             : {}),
+          locale,
         });
         if (target === undefined) {
           setPendingSend((previous) =>
@@ -1551,6 +1560,7 @@ function ChatSurfaceInner({
           ...(selection.reasoningEffort !== undefined
             ? { reasoningEffort: selection.reasoningEffort }
             : {}),
+          locale,
         });
         if (!outcome.refused) return;
         // A refusal that wrote nothing leaves the sibling without its
@@ -1834,22 +1844,42 @@ function ChatSurfaceInner({
                   ) : undefined
                 }
                 actions={
-                  <DropdownMenu
-                    align="end"
-                    trigger={
+                  <>
+                    {canCreateTask && (
+                      // The conversation's one verb: the hand-over to a
+                      // project agent, where people look for it instead of
+                      // inside the menu. Icon-only where the header is tight.
                       <Button
-                        size="icon"
                         variant="ghost"
-                        // Distinct from the sidebar rows' per-thread "More
-                        // actions": a screen reader (and a test locator) must
-                        // be able to tell the conversation-level menu apart.
-                        aria-label={t('aria.threadActions')}
+                        size="sm"
+                        icon={ListChecks}
+                        onClick={() => setCreateTaskOpen(true)}
+                        aria-label={t('createTask.headerButton')}
+                        className="text-muted-foreground hover:text-foreground"
                       >
-                        <Ellipsis className="text-muted-foreground size-5 p-0.25" />
+                        <span className="hidden @xl/thread-header:inline">
+                          {t('createTask.headerButton')}
+                        </span>
                       </Button>
-                    }
-                    items={headerMenuItems}
-                  />
+                    )}
+                    <DropdownMenu
+                      align="end"
+                      trigger={
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          // Distinct from the sidebar rows' per-thread "More
+                          // actions": a screen reader (and a test locator)
+                          // must be able to tell the conversation-level menu
+                          // apart.
+                          aria-label={t('aria.threadActions')}
+                        >
+                          <Ellipsis className="text-muted-foreground size-5 p-0.25" />
+                        </Button>
+                      }
+                      items={desktopMenuItems}
+                    />
+                  </>
                 }
               />
             ) : (
@@ -2034,6 +2064,13 @@ function ChatSurfaceInner({
             ) : (
               <div className="shrink-0 px-4 pb-4">
                 <BudgetBanner organizationId={organizationId} />
+                {/* The tasks this conversation handed over, live. */}
+                {threadId !== undefined && pair === null && (
+                  <ChatTaskTray
+                    organizationId={organizationId}
+                    threadId={threadId}
+                  />
+                )}
                 {/* Sends parked while their attachments still process —
                     the watcher fires each one when it is ready. */}
                 {viewThreadId !== undefined && (

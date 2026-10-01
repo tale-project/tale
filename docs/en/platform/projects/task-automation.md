@@ -16,9 +16,9 @@ A project agent works on a task and returns a result for a person to review. Cho
 1. Create a [task](/platform/projects/tasks) with the desired result, completion criteria, and input files.
 2. Choose a [project agent](/platform/projects/project-agents) under **Assignee**.
 3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator. Reviewers need project edit access, so a Member who created the task is not sent the review request; they follow the task and hear when it reaches **In review**, and they can accept the result themselves unless your organization requires an independent reviewer and they started the run.
-4. Click **Start agent**, or move the task to **In progress**.
+4. Click **Start agent**, or move the task to **In progress**. When you assign the agent while creating the task, **Create and start agent** in **Create task** does this in the same step.
 
-Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed. When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working. A run a Member starts keeps to its task and goes without the agent's secrets; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
+Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed; until someone starts it, whoever can start the agent sees **Start agent** on the task with the note **The agent waits until you start it.** When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working. A run a Member starts keeps to its task and goes without the agent's secrets; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
 
 Agents are instructed to keep task updates, reports, related tasks and questions in the language of the task's title and description. If those do not establish a language, they use the organization's default agent language. An identifier, quarter or generated title template does not choose a language. Changing your interface language does not change the task's language; an explicit request to the agent can.
 
@@ -90,7 +90,7 @@ Accepting a result, answering an automation's question and deciding an approval 
 | --- | --- |
 | Waiting for a sandbox slot | Available capacity may be exhausted for the organization or shared infrastructure. Wait for a slot, or ask an admin to inspect [Sandboxes](/platform/admin/sandboxes). |
 | Automatic retry is shown | Tale is retrying a recoverable failure. Read the attempt count and avoid starting another run. |
-| The run remains failed | Read the error and resolve its cause, then use **Retry** to continue the conversation. Deleted agents and time-limit failures need intervention. |
+| **The agent couldn't finish this task** | No automatic retry follows. The notice says what went wrong and who can fix it, and **Details** beside the run shows what the run itself reported; [When the agent can't finish](#when-the-agent-cant-finish) lists the cases. Resolve the cause, then use **Retry** to continue the conversation. |
 | Reassignment is refused | Cancel the live run before choosing another assignee. |
 | Agents or automations keep restarting one task | A task takes at most three starts of its agent by automations and other agents in any hour, their automatic retries included; the next start is refused, a retry past the limit is not started, and the timeline says **Run refused: agent runs are paused on this task**. Starts by people, and their retries, are never counted. Automation runs have no such cap: between two automations that keep mentioning each other, the one-engine rule is what stops a loop. Cancel the live run, then read the timeline before letting either start again. |
 | **Run refused: agent is working on another task** | An automatic retry waited two hours for its agent, which is still working on another task. Nothing waits behind the refusal: start the task again once the agent is free, or leave it to the manager agent or automation that hands out the work. |
@@ -103,6 +103,20 @@ An automatic retry continues the work of the person who started the run, so it s
 An agent served by a subscription broker can lose its token while it works, when the broker refreshes the account. The retry then continues the conversation on a fresh token, and the attempt count does not advance: the retry shows the same count as the run it replaces, or **Resumed after a token refresh** when that run showed none or had worked for at least fifteen minutes, which earned it a fresh retry allowance. After two such interruptions in a row, a further one counts like any other failure.
 
 A run can also fail to start because every account of its subscription broker is cooling down after a rate limit. Its retry is queued at once but starts only when the first account is available again, at most a minute later. The wait uses no attempt when the refused run was itself retrying a rate-limit failure; otherwise the refused start counts as one.
+
+### When the agent can't finish
+
+When a run fails and nothing retries it, because its automatic retries are used up or a retry can't change the cause, the task says so at the top: **The agent couldn't finish this task**, with what went wrong and who can fix it. **Retry** there starts the agent again for whoever can change the task.
+
+| The notice says | Who acts |
+| --- | --- |
+| A usage limit stopped the run | An Admin raises the limit; then start the agent again. |
+| Something the agent needs is missing: its model, one of its skills, or the agent itself | An Editor or Admin fixes the agent on the project's **Agents** tab. |
+| The run reached its time limit | Start the agent again, or split the task into smaller ones. |
+| The run waited too long for a free sandbox | Start the agent again when fewer agents are busy. |
+| The AI model failed, or the run couldn't start or was interrupted | Start the agent again. If it fails again, show an Admin what the run reported under **Details**. |
+
+Tale also tells the person who started the run and everyone watching the task: with the notification **Agent run failed** and, when the organization has a connected mailbox, by email. Only people who can still open the project are told. Starting a new run on the task marks the unread notification as read. Switch these notices off with **Agent escalations** under **Settings > Notifications**.
 
 ## Work an automation or another agent starts
 

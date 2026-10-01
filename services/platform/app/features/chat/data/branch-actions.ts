@@ -102,6 +102,8 @@ export interface BranchActions {
       readonly modelSelection?: 'auto';
       readonly providerSlug?: string;
       readonly reasoningEffort?: ReasoningEffort;
+      /** The UI's language, as a send carries it. */
+      readonly locale?: string;
     },
   ) => Promise<RegenerateOutcome>;
   /** Drop a sibling no turn ever landed in — the fork of an edit or
@@ -203,6 +205,7 @@ export function useBranchActions(organizationId: string): BranchActions {
         readonly modelSelection?: 'auto';
         readonly providerSlug?: string;
         readonly reasoningEffort?: ReasoningEffort;
+        readonly locale?: string;
       },
     ): Promise<RegenerateOutcome> => {
       try {
@@ -217,6 +220,7 @@ export function useBranchActions(organizationId: string): BranchActions {
           ...(pick.reasoningEffort !== undefined
             ? { reasoningEffort: pick.reasoningEffort }
             : {}),
+          ...(pick.locale !== undefined ? { locale: pick.locale } : {}),
         });
         invalidateChatThreads(queryClient, organizationId);
         if (outcome.status !== 'refused') return { refused: false };

@@ -28,7 +28,12 @@ function harness(
     credentialEnvKeys: ['TALE_GATEWAY_TOKEN'],
     modelIdDialect: 'vendor-native',
     promptTransport: 'stdin-ndjson',
-    capabilities: { planMode: false, steering: false, mcp: false },
+    capabilities: {
+      planMode: false,
+      steering: false,
+      mcp: false,
+      resume: false,
+    },
     // Minimal exec facts satisfying the schema's coherence refinements —
     // the case split under test reads only the policy/capability fields.
     parser: 'hermes-jsonl',

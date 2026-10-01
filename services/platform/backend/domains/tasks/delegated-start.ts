@@ -5,6 +5,7 @@ import { standingSessionIdForProjectAgent } from '../../core/sandbox/session_nam
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { kickAgentRun, type StartedVia } from './agent-runs.ts';
 import { TaskError } from './errors.ts';
+import { markAutoRetryRetired } from './kick-plan.ts';
 import {
   isTaskRunConfined,
   runStarterMayEditProject,
@@ -244,14 +245,12 @@ export async function retireBusyRetry(
     failedRunId: string;
   },
 ): Promise<boolean> {
-  const retired = await tx<{ id: string }[]>`
-    UPDATE app.project_agent_runs SET auto_retry_refused_at_ms = ${Date.now()}
-    WHERE id = ${args.failedRunId} AND org_id = ${args.task.organizationId}
-      AND task_id = ${args.task.id} AND status = 'failed'
-      AND auto_retry_refused_at_ms IS NULL
-    RETURNING id
-  `;
-  if (retired.length === 0) return false;
+  const retired = await markAutoRetryRetired(tx, {
+    organizationId: args.task.organizationId,
+    taskId: args.task.id,
+    failedRunId: args.failedRunId,
+  });
+  if (!retired) return false;
   await recordActivity(tx, {
     task: args.task,
     actorType: 'agent',

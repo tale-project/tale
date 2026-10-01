@@ -34,6 +34,13 @@ ARG CLAUDE_CODE_VERSION=2.1.283
 ARG OPENCODE_VERSION=1.17.3
 ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG HERMES_AGENT_VERSION=0.18.0
+# 0.59.0 is the last release tale-gemini-run can drive unchanged: from
+# 0.60.0 the CLI refuses a system settings file (and every ancestor
+# directory) that is not root-owned and free of group/other write, while
+# the wrapper stages that file per exec as `agent` under a temp dir. A bump
+# needs root-owned staging first. The harness YAML also keeps
+# `capabilities.resume: false` until a release carries the resume fix
+# (google-gemini/gemini-cli#29365).
 ARG GEMINI_CLI_VERSION=0.59.0
 ARG CODEX_VERSION=0.142.5
 ARG PI_CODING_AGENT_VERSION=0.80.3

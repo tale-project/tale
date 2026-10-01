@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 56 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 57 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -379,6 +379,14 @@ projects-list row ⋯ menu.
   counts three skills, and reopening it shows `pdf` unticked. Editing an
   existing agent leaves its equipment exactly as saved. (The catalog
   lifecycle cases are automated: see `reference/automation.md`.)
+
+- [ ] `PROJ-F36` · **A member reads the Agents tab** — As a member of a
+  project with no agent, open **Agents** (`projects.navigation.agents`) → the
+  header reads `projects.agents.sectionDescriptionReader`, there is no **New
+  agent** (`projects.agents.newAgent`), and the empty state reads
+  `projects.agents.emptyReaderTitle` above `projects.agents.emptyReaderBody`;
+  an editor of the same project sees `projects.agents.emptyTitle` and **New
+  agent**.
 
 ## Boundary & error tests
 

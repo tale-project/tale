@@ -16,9 +16,9 @@ Ein Projektagent bearbeitet eine Aufgabe und legt das Ergebnis einer Person zur 
 1. Erstelle eine [Aufgabe](/de/platform/projects/tasks) mit gewünschtem Ergebnis, Abschlusskriterien und Eingabedateien.
 2. Wähle unter **Zuständig** einen [Projektagenten](/de/platform/projects/project-agents).
 3. Lege unter **Reviewer** fest, wer das Ergebnis prüfen soll. Ohne benannten Reviewer geht die Anfrage an den Ersteller der Aufgabe oder des Projekts. Reviewer brauchen Bearbeitungszugriff auf das Projekt. Hat ein Mitglied die Aufgabe erstellt, erhält es deshalb keine Prüfanfrage; es verfolgt die Aufgabe, erfährt, wenn sie **In Prüfung** erreicht, und kann das Ergebnis selbst annehmen, es sei denn, deine Organisation verlangt ein unabhängiges Review und es hat den Lauf selbst gestartet.
-4. Klicke auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**.
+4. Klicke auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Weist du den Agenten schon beim Erstellen der Aufgabe zu, erledigt **Erstellen und Agent starten** in **Aufgabe erstellen** das im selben Schritt.
 
-Die Zuweisung allein startet keinen Lauf. Eine bereits zugewiesene Aufgabe kann im **Backlog** bleiben, bis das Team ihren Start beschließt. Nach dem Start verwendet der Agent Beschreibung, Kommentare und Eingabedateien in seiner Sandbox. Die Laufanzeige zeigt, ob er wartet oder arbeitet. Ein Lauf, den ein Mitglied startet, bleibt bei seiner Aufgabe und kommt ohne die Secrets des Agenten aus; [Agentenläufe, die ein Mitglied startet](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet) zählt auf, was sich ändert.
+Die Zuweisung allein startet keinen Lauf. Eine bereits zugewiesene Aufgabe kann im **Backlog** bleiben, bis das Team ihren Start beschließt. Bis jemand den Agenten startet, zeigt die Aufgabe allen, die ihn starten dürfen, **Agent starten** mit dem Hinweis **Der Agent wartet, bis du ihn startest.** Nach dem Start verwendet der Agent Beschreibung, Kommentare und Eingabedateien in seiner Sandbox. Die Laufanzeige zeigt, ob er wartet oder arbeitet. Ein Lauf, den ein Mitglied startet, bleibt bei seiner Aufgabe und kommt ohne die Secrets des Agenten aus; [Agentenläufe, die ein Mitglied startet](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet) zählt auf, was sich ändert.
 
 Agenten erhalten die Anweisung, Aktualisierungen, Berichte, zugehörige Aufgaben und Rückfragen in der Sprache von Titel und Beschreibung der Aufgabe zu verfassen. Ist daraus keine Sprache erkennbar, verwenden sie die Standardsprache der Organisation für Agenten. Eine Kennung, ein Quartal oder eine automatisch ausgefüllte Titelvorlage legt keine Sprache fest. Ein Wechsel deiner Oberflächensprache ändert die Sprache der Aufgabe nicht; du kannst den Agenten ausdrücklich um einen Sprachwechsel bitten.
 
@@ -90,7 +90,7 @@ Ein Ergebnis annehmen, die Frage einer Automatisierung beantworten und über ein
 | --- | --- |
 | Warten auf einen Sandbox-Platz | Die Kapazität der Organisation oder der gemeinsam genutzten Infrastruktur kann ausgeschöpft sein. Warte auf einen Platz oder bitte einen Admin, [Sandboxes](/de/platform/admin/sandboxes) zu prüfen. |
 | Automatischer Wiederholungsversuch | Tale wiederholt einen behebbaren Fehler. Beobachte die Versuchszahl und starte keinen zusätzlichen Lauf. |
-| Der Lauf bleibt fehlgeschlagen | Lies den Fehler und behebe die Ursache. Nutze dann **Erneut ausführen**, um das Gespräch fortzusetzen. Gelöschte Agenten und Zeitlimits erfordern einen Eingriff. |
+| **Der Agent konnte diese Aufgabe nicht fertigstellen** | Es folgt keine automatische Wiederholung. Der Hinweis sagt, was schiefging und wer es beheben kann, und **Details** neben dem Lauf zeigt, was der Lauf selbst gemeldet hat; [Wenn der Agent nicht fertig wird](#wenn-der-agent-nicht-fertig-wird) zählt die Fälle auf. Behebe die Ursache und nutze dann **Erneut ausführen**, um das Gespräch fortzusetzen. |
 | Neuzuweisung wird verweigert | Brich den aktiven Lauf ab, bevor du neu zuweist. |
 | Agenten oder Automatisierungen starten eine Aufgabe immer wieder neu | Eine Aufgabe nimmt innerhalb einer Stunde höchstens drei Starts ihres Agenten durch Automatisierungen und andere Agenten an, deren automatische Wiederholungen eingerechnet; der nächste Start wird abgelehnt, eine Wiederholung über die Grenze hinaus startet nicht, und die Zeitleiste zeigt **Ausführung abgelehnt: Agenten-Läufe sind auf dieser Aufgabe pausiert**. Starts durch Personen und deren Wiederholungen zählen nie mit. Für Automatisierungsläufe gibt es keine solche Obergrenze: Erwähnen zwei Automatisierungen einander immer wieder, stoppt allein die Ein-Engine-Regel die Schleife. Brich den aktiven Lauf ab und lies die Zeitleiste, bevor eine von beiden wieder starten darf. |
 | **Ausführung abgelehnt: Agent arbeitet an einer anderen Aufgabe** | Eine automatische Wiederholung hat zwei Stunden auf ihren Agenten gewartet, der noch an einer anderen Aufgabe arbeitet. Hinter der Ablehnung wartet nichts: Starte die Aufgabe erneut, sobald der Agent frei ist, oder überlass das dem Manager-Agenten oder der Automatisierung, die die Arbeit verteilt. |
@@ -103,6 +103,20 @@ Eine automatische Wiederholung setzt die Arbeit der Person fort, die den Lauf ge
 Ein Agent, der über einen Abo-Broker arbeitet, kann sein Token mitten in der Arbeit verlieren, wenn der Broker das Konto erneuert. Die Wiederholung setzt die Konversation dann mit einem neuen Token fort, ohne den Versuchszähler zu erhöhen: Sie zeigt denselben Stand wie der Lauf, den sie ersetzt. Zeigte dieser keinen oder hatte er mindestens fünfzehn Minuten gearbeitet und damit ein neues Versuchskontingent erhalten, steht dort **Nach einer Token-Erneuerung fortgesetzt**. Nach zwei solchen Unterbrechungen in Folge zählt eine weitere wie jeder andere Fehler.
 
 Ein Lauf kann auch gar nicht erst starten, weil alle Konten seines Abo-Brokers nach Erreichen eines Rate-Limits pausieren. Seine Wiederholung wird dann sofort eingereiht, startet aber erst, sobald das erste Konto wieder verfügbar ist, spätestens eine Minute später. Die Wartezeit verbraucht keinen Versuch, wenn der abgelehnte Lauf selbst einen Fehler durch ein Rate-Limit wiederholte; sonst zählt der abgelehnte Start als Versuch.
+
+### Wenn der Agent nicht fertig wird
+
+Scheitert ein Lauf und wiederholt ihn nichts mehr, weil die automatischen Wiederholungen aufgebraucht sind oder eine Wiederholung an der Ursache nichts ändern würde, sagt die Aufgabe das ganz oben: **Der Agent konnte diese Aufgabe nicht fertigstellen**, dazu, was schiefging und wer es beheben kann. **Erneut ausführen** startet den Agenten dort erneut, wenn du die Aufgabe ändern darfst.
+
+| Der Hinweis sagt | Wer handelt |
+| --- | --- |
+| Ein Nutzungslimit hat den Lauf gestoppt | Ein Admin hebt das Limit an; starte den Agenten danach erneut. |
+| Dem Agenten fehlt etwas, das er braucht: sein Modell, einer seiner Skills oder der Agent selbst | Ein Redakteur oder Admin behebt das im Tab **Agenten** des Projekts. |
+| Der Lauf hat sein Zeitlimit erreicht | Starte den Agenten erneut oder teile die Aufgabe in kleinere auf. |
+| Der Lauf hat zu lange auf eine freie Sandbox gewartet | Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind. |
+| Das KI-Modell ist ausgefallen, oder der Lauf konnte nicht starten oder wurde unterbrochen | Starte den Agenten erneut. Scheitert er wieder, zeig einem Admin, was der Lauf unter **Details** gemeldet hat. |
+
+Tale benachrichtigt außerdem die Person, die den Lauf gestartet hat, und alle, die die Aufgabe verfolgen: mit der Benachrichtigung **Agenten-Lauf fehlgeschlagen** und, wenn die Organisation ein verbundenes Postfach hat, per E-Mail. Benachrichtigt wird nur, wer das Projekt noch öffnen kann. Startet ein neuer Lauf auf der Aufgabe, gilt die ungelesene Benachrichtigung als gelesen. Unter **Einstellungen > Benachrichtigungen** schaltest du diese Hinweise mit **Agenten-Eskalationen** ab.
 
 ## Arbeit, die eine Automatisierung oder ein anderer Agent startet
 

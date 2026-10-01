@@ -26,6 +26,30 @@ vi.mock('../domains/tasks/agent-runs.ts', () => ({
 }));
 vi.mock('./enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
+// What a final refusal means to people is the notice module's; these tests
+// pin WHEN the job ends a failed run's retry for good, and whether it tells.
+const { announceAgentRunFailed, retireAutoRetry } = vi.hoisted(() => ({
+  announceAgentRunFailed: vi.fn(async () => {}),
+  retireAutoRetry: vi.fn(async () => {}),
+}));
+vi.mock('../domains/tasks/run-failure-notice.ts', () => ({
+  announceAgentRunFailed,
+  retireAutoRetry,
+}));
+
+/** The retirement of the failed run's retry, as the job asks for it. */
+function retiredWith(announce: boolean) {
+  return [
+    expect.anything(),
+    {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      runId: 'run-failed',
+      announce,
+    },
+  ];
+}
+
 import { memberSessionIdForProjectAgent } from '../core/sandbox/session_naming.ts';
 import {
   AGENT_BUSY_RETRY_DELAY_MS,
@@ -359,6 +383,8 @@ describe('task.agent_retry', () => {
     await handler?.(PAYLOAD);
 
     expect(kickAgentRun).not.toHaveBeenCalled();
+    // The budget is spent: nothing starts the task again, so it is said.
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
   });
 });
 
@@ -426,6 +452,14 @@ describe('task.agent_retry admission', () => {
 
       expect(kickAgentRun).not.toHaveBeenCalled();
       expect(lines).toEqual([`[task-agent] auto-retry skipped: ${reason}`]);
+      // A lost starter ends the retry for good, and it is told. A project
+      // archived or gone may come back, and the job's next delivery then
+      // starts the retry: nothing is retired.
+      if (reason === 'not_permitted') {
+        expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
+      } else {
+        expect(retireAutoRetry).not.toHaveBeenCalled();
+      }
     },
   );
 
@@ -433,6 +467,8 @@ describe('task.agent_retry admission', () => {
     await deliver({ member: { role: 'member' }, createdBy: 'user-starter' });
 
     expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(retireAutoRetry).not.toHaveBeenCalled();
+    expect(announceAgentRunFailed).not.toHaveBeenCalled();
   });
 
   it('retries a team member of a team project', async () => {
@@ -525,6 +561,7 @@ describe('task.agent_retry admission', () => {
     expect(lines).toEqual([
       '[task-agent] auto-retry skipped: task_circuit_breaker',
     ]);
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
     const refusal = statements.find((text) =>
       text.includes('INSERT INTO app.task_activity'),
     );
@@ -822,6 +859,10 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     expect(statements[retire]).toContain("status = 'failed'");
     expect(refusal).toBeGreaterThan(retire);
     expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
+    expect(announceAgentRunFailed).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      runId: 'run-failed',
+    });
   });
 
   it('gives up once a look would fall past the longest wait after the failure', async () => {
@@ -860,6 +901,8 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
       statements.some((text) => text.includes('INSERT INTO app.task_activity')),
     ).toBe(false);
     expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
+    // Told once, by the delivery that retired it.
+    expect(announceAgentRunFailed).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -963,5 +1006,6 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     expect(probes).toHaveLength(0);
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
   });
 });

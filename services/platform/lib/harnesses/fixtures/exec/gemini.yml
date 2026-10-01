@@ -97,21 +97,6 @@ managed-act:
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
-managed-resume:
-  argv:
-    - tale-gemini-run
-    - --workdir
-    - /agent/workspace
-    - --resume
-    - golden-resume-handle
-  env:
-    GEMINI_API_KEY: golden-session-virtual-key
-    GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
-    TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"experimental":{"dynamicModelConfiguration":true},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
-  stdinMode: close
 managed-instructions:
   argv:
     - tale-gemini-run
@@ -213,8 +198,6 @@ managed-kitchen-sink:
     - tale-gemini-run
     - --workdir
     - /agent/workspace
-    - --resume
-    - golden-resume-handle
     - --model
     - claude-opus-4-6
     - --include-directories
@@ -272,8 +255,6 @@ byo-kitchen-sink:
     - tale-gemini-run
     - --workdir
     - /agent/workspace
-    - --resume
-    - golden-resume-handle
     - --model
     - claude-opus-4-6
     - --include-directories

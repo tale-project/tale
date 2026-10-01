@@ -27,6 +27,7 @@ capabilities:
   planMode: false
   steering: false
   mcp: true
+  resume: true
 parser: opencode-jsonl
 exec:
   bin: opencode

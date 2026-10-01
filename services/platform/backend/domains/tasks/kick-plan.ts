@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { harnessResumesConversations } from '../../core/chat/external_turn_shared.ts';
 import {
   AUTO_RETRY_HISTORY_LIMIT,
   freeCredentialRotations,
@@ -183,6 +184,7 @@ export async function resolveTaskKickStartArgs(
       harness: args.harness,
       sessionId: args.sessionId,
       ...(liveSessionCreatedAt !== undefined ? { liveSessionCreatedAt } : {}),
+      resumable: harnessResumesConversations(args.harness),
     },
   });
   const previousStartedAt = previous?.startedAt ?? 0;
@@ -213,8 +215,12 @@ export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
   readonly id: string;
   readonly startedBy: string;
   /** When this failed run's automatic retry was refused for good
-   * (`retireBusyRetry`); absent while it may still start. */
+   * (`markAutoRetryRetired`); absent while it may still start. */
   readonly autoRetryRefusedAt?: number | undefined;
+  /** When this failed run's automatic retry was armed (migration 0142);
+   * absent when none was — the run failed through a door that arms none, or
+   * with a failure no retry changes. */
+  readonly autoRetryArmedAt?: number | undefined;
 }
 
 /**
@@ -240,6 +246,7 @@ export async function loadTaskRetryHistory(
       apiErrorStatus: number | null;
       autoRetryAttempt: number | null;
       autoRetryRefusedAt: number | null;
+      autoRetryArmedAt: number | null;
     }[]
   >`
     SELECT id, status, agent_id AS "agentId",
@@ -249,7 +256,8 @@ export async function loadTaskRetryHistory(
            failure_code AS "failureCode",
            api_error_status AS "apiErrorStatus",
            auto_retry_attempt AS "autoRetryAttempt",
-           auto_retry_refused_at_ms::float8 AS "autoRetryRefusedAt"
+           auto_retry_refused_at_ms::float8 AS "autoRetryRefusedAt",
+           auto_retry_armed_at_ms::float8 AS "autoRetryArmedAt"
     FROM app.project_agent_runs
     WHERE task_id = ${taskId}
     ORDER BY seq DESC
@@ -267,5 +275,27 @@ export async function loadTaskRetryHistory(
     apiErrorStatus: row.apiErrorStatus ?? undefined,
     autoRetryAttempt: row.autoRetryAttempt ?? undefined,
     autoRetryRefusedAt: row.autoRetryRefusedAt ?? undefined,
+    autoRetryArmedAt: row.autoRetryArmedAt ?? undefined,
   }));
+}
+
+/**
+ * Mark one failed run's automatic retry retired for good
+ * (`auto_retry_refused_at_ms`, migration 0141): every later delivery of that
+ * retry stands down on it, and the task's run card stops reading the failure
+ * as one about to be retried. Returns whether THIS call set the mark, so the
+ * caller says what the refusal means exactly once.
+ */
+export async function markAutoRetryRetired(
+  tx: TransactionSql,
+  args: { organizationId: string; taskId: string; failedRunId: string },
+): Promise<boolean> {
+  const retired = await tx<{ id: string }[]>`
+    UPDATE app.project_agent_runs SET auto_retry_refused_at_ms = ${Date.now()}
+    WHERE id = ${args.failedRunId} AND org_id = ${args.organizationId}
+      AND task_id = ${args.taskId} AND status = 'failed'
+      AND auto_retry_refused_at_ms IS NULL
+    RETURNING id
+  `;
+  return retired.length > 0;
 }

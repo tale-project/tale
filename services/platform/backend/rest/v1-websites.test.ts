@@ -80,6 +80,8 @@ function fakeSql(
   const queries: Captured[] = [];
   const txs: unknown[] = [];
   const unsafe = (text: string) => ({ unsafe: text });
+  // A patch that writes metadata serializes it through the driver.
+  const json = (value: unknown) => value;
   const handle = (via: 'pool' | 'tx') => {
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('$?').replace(/\s+/g, ' ').trim();
@@ -105,7 +107,7 @@ function fakeSql(
       }
       return Promise.resolve([]);
     };
-    return Object.assign(tag, { unsafe });
+    return Object.assign(tag, { unsafe, json });
   };
   const pool = Object.assign(handle('pool'), {
     begin: async (callback: (tx: unknown) => Promise<unknown>) => {

@@ -14,7 +14,7 @@ import {
   CACHE_AFFINITY_GATEWAY_HEADER,
   isClaudeModelRef,
 } from './exec-builder';
-import { GOLDEN_BYO_ENV, GOLDEN_GATEWAY, goldenBattery } from './test-helpers';
+import { batteryFor, GOLDEN_BYO_ENV, GOLDEN_GATEWAY } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
 
 const BYO_SECRET = GOLDEN_BYO_ENV.GOLDEN_BYO_KEY;
@@ -64,9 +64,7 @@ describe('secret hygiene over every shipped YAML', () => {
   it.each(facts.map((f) => [f.slug, f] as const))(
     '%s keeps credentials in env, never argv/stdin/staged payloads',
     (slug, harness) => {
-      for (const { mode, spec } of goldenBattery()) {
-        if (mode === 'managed' && !harness.credentialPolicy.managed) continue;
-        if (mode === 'byo' && !harness.credentialPolicy.byo) continue;
+      for (const { mode, spec } of batteryFor(harness)) {
         const exec = buildHarnessExec(harness, spec);
 
         if (mode === 'managed') {
@@ -149,6 +147,19 @@ describe('secret hygiene over every shipped YAML', () => {
         workdir: '/agent/workspace',
       }),
     ).toThrow(/managed gateway/);
+  });
+
+  it('refuses a resume handle on a harness that never resumes (gemini)', () => {
+    // The planners start such a harness fresh; a handle here is a planner
+    // that bypassed `capabilities.resume`, never a process that quietly
+    // believes it is mid-conversation.
+    expect(fact('gemini').capabilities.resume).toBe(false);
+    expect(() =>
+      buildHarnessExec(fact('gemini'), managedSpec({ resume: 'ses_golden' })),
+    ).toThrow(/does not resume conversations/);
+    expect(buildHarnessExec(fact('gemini'), managedSpec()).argv).not.toContain(
+      '--resume',
+    );
   });
 });
 
@@ -764,7 +775,7 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the budget',
     (_slug, harness) => {
-      for (const { spec } of goldenBattery()) {
+      for (const { spec } of batteryFor(harness)) {
         if (spec.credential.mode !== 'managed') continue;
         const { gateway } = spec.credential;
         const withBudget = (budgetMs: number): HarnessRunSpec => ({
@@ -848,8 +859,7 @@ describe('a managed Claude Code exec compacts inside the model window', () => {
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the window',
     (_slug, harness) => {
-      for (const { mode, spec } of goldenBattery()) {
-        if (!harness.credentialPolicy[mode]) continue;
+      for (const { spec } of batteryFor(harness)) {
         const withWindow = (window: number | undefined): HarnessRunSpec => {
           const { contextWindow: _ignored, ...rest } = spec;
           return window === undefined

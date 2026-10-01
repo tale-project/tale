@@ -436,8 +436,14 @@ describe('shipped harnesses', () => {
       planMode: true,
       steering: true,
       mcp: true,
+      resume: true,
     });
     expect(table.get('pi')?.capabilities.mcp).toBe(false);
+    // The one harness the platform never resumes (its `--resume` replays
+    // every tool result twice); every other shipped harness continues.
+    for (const harness of table.values()) {
+      expect(harness.capabilities.resume).toBe(harness.slug !== 'gemini');
+    }
   });
 
   it('carries the exec facts and parser families the registry composes', () => {

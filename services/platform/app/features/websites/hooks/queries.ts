@@ -22,3 +22,11 @@ export function useListWebsitesPaginated(args: ListWebsitesPaginatedArgs) {
     { initialNumItems },
   );
 }
+
+/** Whether the assistant can search what the crawl stores (an embedding
+ * model is configured) — the Websites page says so when it cannot. */
+export function useWebsiteSearchReadiness(organizationId: string) {
+  return useBackendQuery('websites/queries:searchReadiness', {
+    organizationId,
+  });
+}

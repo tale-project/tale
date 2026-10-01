@@ -1082,7 +1082,7 @@ chat:
   createTask:
     button: Aufgabe aus Chat erstellen
     projectTitle: Aufgabe aus diesem Chat erstellen
-    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. Ein Projekt-Agent dort kann sie bearbeiten und die Dateien liefern.
+    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. In einem Projekt mit Agent kann der Agent sofort loslegen und die Dateien liefern.
     projectLabel: Projekt
     projectPlaceholder: Projekt wählen
     projectEmpty: Kein passendes Projekt
@@ -1094,6 +1094,24 @@ chat:
     openTask: Aufgabe öffnen
     openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
     readFailed: Tale konnte dieses Gespräch nicht lesen, deshalb kann die Aufgabe deine Anfrage und Dateien noch nicht übernehmen. Versuche es erneut oder lege die Aufgabe auf dem Board des Projekts an.
+    headerButton: Aufgabe erstellen
+    withAgents: Mit Agent
+    withoutAgents: Noch ohne Agent
+    agentCount: '{count, plural, one {# Agent} other {# Agenten}}'
+    noAgentEditor: Du kannst in der Aufgabe einen hinzufügen
+    noAgentReader: Ein Redakteur oder Admin kann einen hinzufügen
+  taskTray:
+    label: Aufgaben aus diesem Chat
+    working: Der Agent arbeitet
+    waitingForSlot: Wartet auf einen Sandbox-Platz
+    retrying: Wird erneut versucht…
+    failed: Der Agent konnte sie nicht fertigstellen
+    ready: Bereit zur Prüfung
+    readyWithFiles: '{count, plural, one {Bereit zur Prüfung · # Datei} other {Bereit zur Prüfung · # Dateien}}'
+    notStarted: Wartet auf den Start
+    open: Öffnen
+    openAria: 'Aufgabe {title} öffnen'
+    more: '{count, plural, one {und # weitere Aufgabe} other {und # weitere Aufgaben}}'
   export:
     button: Exportieren
     title: Chat exportieren
@@ -4817,8 +4835,7 @@ notificationPreferences:
       lockedHint: Immer an — das ist ein Sicherheitssignal.
     escalation:
       label: Agenten-Eskalationen
-      description: Wenn ein Agent dir eine Frage stellt oder eine Aufgabe an
-        einen Menschen eskaliert.
+      description: Wenn ein Agent dir eine Frage stellt, eine Aufgabe an einen Menschen eskaliert oder eine Aufgabe nicht fertigstellen kann.
     automationAlerts:
       label: Automatisierungs-Warnungen
       description: Wenn der Zeitplan einer Automatisierung pausiert, weil ihre Läufe immer wieder fehlschlagen.
@@ -6977,8 +6994,8 @@ settings:
       banner:
         title: Wissenssuche ist aus
         body: Diese Organisation hat einen KI-Anbieter, aber kein
-          Embedding-Modell — Dokumente lassen sich weder indexieren noch
-          durchsuchen.
+          Embedding-Modell — Dokumente lassen sich nicht indexieren, und
+          weder Dokumente noch Websites lassen sich durchsuchen.
         link: Embedding-Modell wählen
       recommendationBody:
         Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
@@ -7204,6 +7221,10 @@ inbox:
   usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
   automationTriggerPaused: Zeitplan pausiert
   automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
+  agentRunFailed: Agenten-Lauf fehlgeschlagen
+  agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
+  agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
+  agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
   email:
     cta: In Tale öffnen
     footer:
@@ -7313,6 +7334,18 @@ tasks:
     resumedAfterTokenRefresh: Nach einer Token-Erneuerung fortgesetzt
     retry: Erneut ausführen
     cancel: Lauf abbrechen
+    notStartedYet: Der Agent wartet, bis du ihn startest.
+    failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
+    reported: Was der Lauf gemeldet hat
+    failure:
+      budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
+      setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+      time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
+      capacity: Der Lauf hat zu lange auf eine freie Sandbox gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
+      model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
+      start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+      interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
+      unknown: 'Der Lauf ist fehlgeschlagen. Starte den Agenten erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
   automation:
     hint: '{name} betreibt diese Aufgabe und führt sie durch ihre Schritte.'
     chipReady: Bereit zum Start
@@ -7412,6 +7445,8 @@ tasks:
       deleteFailed: Label konnte nicht gelöscht werden.
   actions:
     create: Aufgabe erstellen
+    createAndStart: Erstellen und Agent starten
+    createOnly: Nur erstellen
     created: Aufgabe erstellt
     comment: Kommentieren
     commentPlaceholder: Schreib einen Kommentar – mit @ erwähnst du eine Person oder einen Agenten
@@ -7544,10 +7579,8 @@ tasks:
     liveAgentsOnly:
       Hier erscheinen nur die Agenten dieses Projekts — erstelle sie im
       Tab "Agenten" des Projekts.
-    nonCodeWarning:
-      Dieser Agent läuft auf einem Coding-Harness und ist für Repo-Arbeit
-      optimiert. Für Recherche, Texte oder persönliche Deliverables weise
-      besser eine Person zu.
+    noAgentsReader: 'Dieses Projekt hat noch keine Agenten — bitte einen Redakteur oder Admin, im Tab "Agenten" des Projekts einen hinzuzufügen.'
+    liveAgentsOnlyReader: 'Hier erscheinen nur die Agenten dieses Projekts — Redakteure und Admins fügen sie im Tab "Agenten" des Projekts hinzu.'
   activity:
     created: Erstellt
     updated: Aktualisiert
@@ -7983,6 +8016,8 @@ websites:
     fetchPagesError: Seiten konnten nicht geladen werden
     searchError: Suche fehlgeschlagen
     deleteError: Website konnte nicht gelöscht werden
+    scanStarted: Scan gestartet
+    scanAlreadyRunning: Es läuft bereits ein Scan
   adding: Füge hinzu...
   viewDialog:
     title: Website-Details
@@ -8000,18 +8035,30 @@ websites:
       Datenresidenz und setze die Scans danach fort.
     scanError:
       runtime: Der Scan ist nicht gelaufen.
-      notInCorpus: Diese Website ist nicht im Crawler. Lösche sie und füge sie
+      notInCorpus: Diese URL-Liste ist nicht im Crawler. Lösche sie und füge sie
         erneut hinzu.
+      notInCorpusSite: Diese Website ist nicht im Crawler. Der nächste Scan fügt
+        sie wieder hinzu.
+      embedding: Das Embedding-Modell konnte die Seiten nicht verarbeiten.
       generic: Der letzte Scan ist nicht durchgelaufen.
     scanEmpty:
       runtime: Nichts wurde indexiert. Die URL ist nicht das Problem.
       dns: Nichts wurde indexiert. Ändere die URL, wenn der Host nicht stimmt.
-      notInCorpus: Nichts wurde indexiert. Lösche die Website und füge sie
+      notInCorpus: Nichts wurde indexiert. Lösche die URL-Liste und füge sie
         erneut hinzu.
+      notInCorpusSite: Nichts wurde indexiert. Der nächste Scan fügt die Website
+        wieder hinzu.
+      embedding: Nichts wurde indexiert. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       generic: Nichts wurde indexiert.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
+  scanNow: Jetzt scannen
   indexed: Indexiert
+  searchNotice:
+    title: Der Chat kann diese Websites noch nicht durchsuchen
+    description: Die Seiten werden gecrawlt und gespeichert. Die Wissenssuche braucht aber ein funktionierendes Embedding-Modell, und diese Organisation hat noch keines.
+    configureCta: Embedding-Modell konfigurieren
+    askAdmin: Ein Admin deiner Organisation kann eines unter Einstellungen → Datenresidenz einrichten.
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt
@@ -8270,6 +8317,9 @@ projects:
     newAgent: Neuer Agent
     emptyTitle: Agenten zu diesem Projekt hinzufügen
     emptyBody: Agenten erledigen Aufgaben in deinem Namen — gib einem ein Modell, Skills und Anweisungen, um loszulegen.
+    sectionDescriptionReader: Die Agenten, die die Aufgaben dieses Projekts bearbeiten, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen. Redakteure und Admins fügen sie hinzu und ändern sie.
+    emptyReaderTitle: Noch keine Agenten in diesem Projekt
+    emptyReaderBody: Agenten erledigen Aufgaben in deinem Namen. Bitte einen Redakteur oder Admin, diesem Projekt einen hinzuzufügen.
     equippedCount: '{count} ausgerüstet'
     rowEdit: Agent bearbeiten
     rowDelete: Agent löschen

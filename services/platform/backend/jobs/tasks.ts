@@ -283,13 +283,16 @@ export interface TaskPayloads {
   /** 5-min website crawl scheduler tick (the 0.4 cron). */
   'websites.scan_due': Record<string, never>;
   /** One continuation link of a domain scan — the reused engine body
-   * self-chains through this queue; the corpus-side claim is the fence. */
+   * self-chains through this queue; the corpus-side claim is the fence.
+   * `takeover` is set by the scheduler alone, on the first link of a scan
+   * it resumes: the heartbeat of the claim whose scan stopped. */
   'websites.scan': {
     domain: string;
     orgSlug: string;
     organizationId: string;
     continuation?: number;
     scanStartedAt?: string;
+    takeover?: string;
   };
   /** Register a website (or URL list) in the corpus + kick its first scan
    * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */
@@ -347,6 +350,15 @@ export interface TaskQueueOptions {
   retryBackoff?: boolean;
   /** Seconds a job may stay active before it is retried as expired. */
   expireInSeconds?: number;
+  /**
+   * Seconds a running job may go without its worker refreshing it before
+   * the supervisor fails it (`job heartbeat timeout`) — how a job whose
+   * process was killed is told from one that is still running, well before
+   * its expiry. The worker refreshes it every half of this while the
+   * handler runs. Also set on every job at send time (`enqueue.ts`):
+   * `createQueue` never changes a queue that already exists.
+   */
+  heartbeatSeconds?: number;
   /**
    * pg-boss queue policy. The default (`standard`) treats `singletonKey` as a
    * throttling label only — dedup by key needs `short` (at most ONE QUEUED
@@ -567,9 +579,16 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'video.watchdog': { retryLimit: 1, expireInSeconds: 240 },
   'browser.sweep': { retryLimit: 1, expireInSeconds: 120 },
   // At-most-once per link: the engine records its own failures on the row
-  // and the 5-min scheduler is the retry; the corpus claim fences overlap.
-  // A link's budget is ~9 minutes (the 0.4 action hard wall).
-  'websites.scan': { retryLimit: 0, expireInSeconds: 900 },
+  // and the 5-min scheduler is the retry — it also resumes a scan whose
+  // link was cut off by a restart; the corpus claim fences overlap.
+  // A link's budget is ~9 minutes (the 0.4 action hard wall); the expiry is
+  // the claim lifetime the resume waits out (`LINK_LIFETIME_MS`), and the
+  // heartbeat tells a killed worker's link apart within two minutes.
+  'websites.scan': {
+    retryLimit: 0,
+    expireInSeconds: 900,
+    heartbeatSeconds: 60,
+  },
   'websites.register': { retryLimit: 1, expireInSeconds: 300 },
   'websites.row_sync': { retryLimit: 0, expireInSeconds: 120 },
 };
@@ -586,3 +605,15 @@ export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
   TaskIdentifier,
   number
 >([['sandbox.recreate_pinned', 1]]);
+
+/**
+ * Queues one worker process works through independent slots instead of
+ * batches. A batch is fetched whole and awaited whole before the next fetch,
+ * so one long job holds every job queued after it: a website scan link runs
+ * five to nine minutes, and a site added while another site's link ran
+ * waited that long for its first page. With a slot per job, up to
+ * `WORKER_CONCURRENCY` of them still run at once, and each slot fetches its
+ * next job the moment its own ends.
+ */
+export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
+  new Set<TaskIdentifier>(['websites.scan']);

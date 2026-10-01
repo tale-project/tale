@@ -31,6 +31,8 @@ Il faut des identifiants compatibles et de la [capacité de sandbox](/fr/platfor
 
 Pour guider le travail, commente la tâche et mentionne son agent. Claude Code reçoit le message entre deux appels d’outils. Pour les autres environnements, Tale arrête le processus et poursuit la même conversation dans un nouveau processus avec ton commentaire. Cela explique un redémarrage du processus après une nouvelle consigne.
 
+Gemini CLI fait exception : Tale ne poursuit jamais une de ses conversations. Un commentaire ultérieur, une nouvelle tentative automatique ou la réponse à une question posée par l’agent démarre une nouvelle conversation dans le même espace de travail, en rappelant la consigne de la tâche et les échanges précédents, parce que l’environnement ne peut pas reprendre une conversation dans laquelle il a appelé un outil. Les fichiers et les résultats sont conservés ; seule la conversation repart de zéro.
+
 ## Comprendre les identifiants et les coûts
 
 Avec une clé API stockée ou fournie par l’environnement du déploiement, Tale remet une clé de passerelle limitée à la session. La clé d’origine du fournisseur de modèle reste dans la plateforme. Les appels de passerelle sont mesurés et soumis aux règles de dépense applicables, en tenant compte des montants déjà attribués aux autres échanges en cours.

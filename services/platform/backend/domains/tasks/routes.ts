@@ -102,6 +102,7 @@ import {
   loadTaskOrThrow,
   mayWorkTask,
 } from './service.ts';
+import { listTasksFromThread } from './source-thread.ts';
 
 const statusSchema = z.enum([
   'backlog',
@@ -231,6 +232,8 @@ const createTaskSchema = z.object({
   startDate: taskDateSchema.optional(),
   dueDate: taskDateSchema.optional(),
   repeat: taskRepeatSchema.optional(),
+  /** The conversation the task is handed over from (its root thread). */
+  sourceThreadId: z.string().min(1).max(128).optional(),
 });
 
 const updateTaskSchema = z.object({
@@ -892,6 +895,22 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         createTask(tx, auth, body.data),
       );
       return c.json({ taskId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The tasks made from one conversation, for the chat's own row of them.
+  // Registered before the `/:taskId` wildcard.
+  app.get('/by-thread/:threadId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const tasks = await listTasksFromThread(
+        deps.sql,
+        auth,
+        c.req.param('threadId'),
+      );
+      return c.json({ tasks });
     } catch (error) {
       return handleError(c, error);
     }

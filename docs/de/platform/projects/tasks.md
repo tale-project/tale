@@ -17,13 +17,13 @@ Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkei
 2. Benenne unter **Titel** das gewünschte Ergebnis, etwa „Launch-Briefing prüfen“.
 3. Erkläre in der **Beschreibung**, was benötigt wird und wie das Ergebnis geprüft werden soll. Füge benötigte Dateien als Anhänge hinzu.
 4. Wähle bei Bedarf **Status**, **Priorität** und **Zuständig**. Neue Aufgaben starten mit **Zu erledigen**. Für noch nicht beschlossene Vorschläge nutze **Backlog**.
-5. Klicke auf **Aufgabe erstellen**. Öffne die neue Karte, um weitere Angaben zu ergänzen.
+5. Klicke auf **Aufgabe erstellen**. Öffne die neue Karte, um weitere Angaben zu ergänzen. Ist unter **Zuständig** ein Agent eingetragen, legt **Erstellen und Agent starten** die Aufgabe an und startet den Agenten in einem Schritt.
 
 Ein Titel darf bis zu 200 Zeichen lang sein, eine Beschreibung bis zu 20.000; die meisten Emojis zählen doppelt. Eine längere Beschreibung, ob eingefügt oder von einem früheren Import in der Aufgabe hinterlassen, wird nicht gekürzt: Das Feld nennt die Grenze und zählt die Länge, und **Aufgabe erstellen** oder **Speichern** bleibt nicht verfügbar, bis du sie kürzt.
 
 Tale vergibt eine Kennung aus dem Projektkürzel, etwa `WEB-1`. Verwende sie in Verweisen auf die Arbeit, damit ähnlich benannte Aufgaben unterscheidbar bleiben.
 
-Auch ein Gespräch kann eine Aufgabe anstoßen: **Aufgabe aus Chat erstellen** im Menü **⋯** des Chats öffnet **Aufgabe erstellen** mit deiner Anfrage, den Dateien des Chats und einem Link zurück. Siehe [Aus einem Chat eine Aufgabe machen](/de/platform/chat/basics#create-task-from-chat).
+Auch ein Gespräch kann eine Aufgabe anstoßen: **Aufgabe erstellen** im Kopf des Chats öffnet denselben Dialog mit deiner Anfrage, den Dateien des Chats und einem Link zurück, und der Chat verfolgt die Aufgabe danach über seinem Nachrichtenfeld. Siehe [Aus einem Chat eine Aufgabe machen](/de/platform/chat/basics#create-task-from-chat).
 
 Eine Automatisierung, die für Aufgaben gebaut ist, kann in **Aufgabe erstellen** auch eine Vorlage anbieten: Ihr Name steht dann über dem Formular neben **Leere Aufgabe**. Wähle sie, gib den Namen ein, den die Automatisierung verlangt, etwa ein Quartal, und klicke auf **Aufgabe erstellen**; zuständig ist dann die Automatisierung. Gibt es für diesen Namen schon eine Aufgabe, öffnet Tale diese, statt eine zweite anzulegen, und meldet **Für dieses Subjekt existiert bereits eine Aufgabe.** Mitglieder können sie dort lesen und kommentieren, ändern sie aber nur, wenn es ihre eigene ist. Vorlagen, die im Projekt Ordner oder Einstellungsdateien anlegen, stehen nur Redakteuren und höheren Rollen zur Verfügung.
 
@@ -75,6 +75,8 @@ Der Lauf kann weiterhin die Aufgaben und das Wissen des Projekts lesen und behä
 **Zuständig** bestimmt, wer die Arbeit übernimmt: eine Person, ein Projektagent oder eine im Projekt verfügbare Automation. **Reviewer** benennt die Person, die bei einem prüfbereiten Agentenergebnis benachrichtigt wird. Reviewer können nur Mitglieder mit Bearbeitungszugriff auf das Projekt sein.
 
 Einen Agenten zuweisen und seinen Lauf starten sind zwei Entscheidungen. Klicke nach der Zuweisung auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Lies [Aufgaben automatisieren](/de/platform/projects/task-automation), bevor du Arbeit mit verbundenen Diensten oder Dateiergebnissen startest.
+
+Hat das Projekt noch keinen Agenten, sagt **Zuständig** das. Redakteure und höhere Rollen wählen **Agent erstellen …**: **Neuer Agent** öffnet sich über der Aufgabe, und der Agent, den du erstellst, wird ihr zugewiesen. Mitglieder erfahren, dass sie einen Redakteur oder Admin bitten können, im Tab **Agenten** des Projekts einen hinzuzufügen.
 
 Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, kann allerdings die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt das Ergebnis nicht aus einem Agentenlauf, gilt das für die Person, die die Aufgabe erstellt hat. Einen Lauf, den ein Mitglied auf seiner eigenen Aufgabe gestartet hat, muss dann ein Redakteur oder eine höhere Rolle annehmen, während das Mitglied einen Lauf, den ein Redakteur dort gestartet hat, weiterhin selbst annehmen kann.
 
