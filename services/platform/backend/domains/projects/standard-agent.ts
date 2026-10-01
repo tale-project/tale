@@ -97,7 +97,7 @@ export type StandardAgentServing =
  * availability read and the ensure door must agree, and a broken file must
  * never read as "on with defaults".
  */
-export async function readStandardAgentPolicy(
+async function readStandardAgentPolicy(
   sql: Sql | TransactionSql,
   organizationId: string,
 ): Promise<StandardAgentConfig | 'unreadable'> {
@@ -230,7 +230,7 @@ export function chooseStandardAgentServing(
 }
 
 /** What runs the standard agent for this person, under this policy. */
-export async function resolveStandardAgentServing(
+async function resolveStandardAgentServing(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;
