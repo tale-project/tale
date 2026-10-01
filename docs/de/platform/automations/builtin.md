@@ -39,7 +39,7 @@ Was ein Lauf verändert:
 
 - Das Urteil wird samt Begründung am Thread festgehalten, sodass der nächste Lauf den Thread erst wieder ansieht, wenn sich die Kundin oder der Kunde erneut meldet.
 - Die **Priorität** des Threads wird auf das Urteil des Modells gesetzt – aber nur, wenn noch niemand eine gesetzt hat. Eine von einer Person gewählte Priorität bleibt bestehen.
-- Wo eine Antwort fällig ist, entwirft ein zweiter Modellaufruf eine und legt sie als ausstehende Nachricht im Thread ab. Gesendet wird nichts: Eine Person öffnet den Thread, passt den Entwurf bei Bedarf an und schickt ihn ab. Ein Thread, der bereits einen ausstehenden Entwurf trägt, behält ihn.
+- Wo eine Antwort fällig ist, entwirft ein zweiter Modellaufruf eine und legt sie als **Antwortvorschlag** an den Thread: eine Karte über dem Editor, getrennt von allem, was eine Person selbst getippt hat. **In den Editor übernehmen** gibt den Text zum Anpassen und Senden in den Editor; **Verwerfen** lässt ihn fallen, und der Thread bekommt erst wieder einen Vorschlag, wenn sich die Kundin oder der Kunde erneut meldet. Die Automatisierung sendet nichts. Ein Thread, der bereits einen Vorschlag trägt, behält ihn.
 
 Die Ausgabe des Laufs zeigt, was gelesen wurde, die Zusammenfassung des Modells, die Threads, die eine Antwort brauchen, mit ihren Inbox-Links, und die abgelegten Entwürfe. Ein Lauf, bei dem nichts wartet, ruft kein Modell auf. Stelle zuerst die passende Synchronisierungs-Automatisierung bereit; ohne synchronisierte Konversationen gibt es nichts zu sichten.
 

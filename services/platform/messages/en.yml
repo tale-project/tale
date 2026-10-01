@@ -1895,6 +1895,13 @@ conversations:
     undoSendFailed: Couldn't undo the send — the message may already be on its way.
     retrySendFailed: Couldn't retry the send.
     discardMessageFailed: Couldn't delete the message.
+  suggestedReply:
+    title: Suggested reply
+    description: Drafted by an automation and waiting for you — nothing has been sent.
+    use: Put in editor
+    discard: Discard
+    used: The suggestion is in the editor. Edit it as you like; sending it completes the suggestion.
+    discardFailed: Couldn't discard the suggestion.
   message:
     sendingIn: Sending in {seconds}s
     undoSend: Undo

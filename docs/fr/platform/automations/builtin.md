@@ -39,7 +39,7 @@ Ce qu’une exécution change :
 
 - Le verdict est noté sur chaque fil, avec sa raison, de sorte que l’exécution suivante ne réexamine le fil que lorsque le client écrit de nouveau.
 - La **priorité** du fil prend la valeur du verdict du modèle – mais seulement si personne n’en a fixé une. Une priorité choisie par une personne reste telle quelle.
-- Là où une réponse est due, un second appel au modèle en rédige une et la dépose dans le fil comme message en attente. Rien n’est envoyé : une personne ouvre le fil, retouche le brouillon si besoin et l’envoie. Un fil qui porte déjà un brouillon en attente le conserve.
+- Là où une réponse est due, un second appel au modèle en rédige une et la dépose sur le fil comme **Réponse suggérée** : une carte au-dessus de l’éditeur, à l’écart de ce qu’une personne a tapé. **Mettre dans l’éditeur** confie le texte à l’éditeur pour le retoucher et l’envoyer ; **Ignorer** l’abandonne, et le fil ne reçoit plus de suggestion tant que le client n’écrit pas de nouveau. L’automatisation n’envoie rien. Un fil qui porte déjà une suggestion la conserve.
 
 La sortie de l’exécution liste ce qui a été lu, le résumé du modèle, les fils qui demandent une réponse avec leurs liens vers la Boîte de réception, et les brouillons déposés. Une exécution sans rien en attente n’appelle pas le modèle. Déploie d’abord l’automatisation de synchronisation correspondante ; sans conversations synchronisées, il n’y a rien à trier.
 

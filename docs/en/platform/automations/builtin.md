@@ -39,7 +39,7 @@ What a run changes:
 
 - The verdict is recorded on each thread, with its reason, so the next run looks at the thread again only when the customer writes again.
 - The thread's **priority** is set to the model's verdict — but only when nobody has set one. A priority a person chose stays as it is.
-- Where a reply is due, a second model call drafts one and leaves it in the thread as a pending message. Nothing is sent: a person opens the thread, edits the draft if needed, and sends it. A thread that already carries a pending draft keeps it.
+- Where a reply is due, a second model call drafts one and leaves it on the thread as a **Suggested reply**: a card above the composer, apart from anything a person typed. **Put in editor** hands the text to the composer to edit and send; **Discard** drops it, and the thread is not proposed on again until the customer writes again. Nothing is sent by the automation. A thread that already carries a suggestion keeps it.
 
 The run's output lists what was read, the model's summary, the threads that need a reply with their Inbox links, and the drafts it left. A run with nothing waiting makes no model call. Deploy the matching sync automation first; without synchronized conversations there is nothing to triage.
 
