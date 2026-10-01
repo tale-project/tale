@@ -117,18 +117,66 @@ describe('runBootMigrations, while the database is unavailable', () => {
       (error: unknown) => error,
     );
 
-    // Attempts at 0, 1, 3, 7, 12 and 17 s — the pause stops doubling at 5 s —
-    // and the next one would end past the 20 s wait, so the last refusal is
-    // what the boot reports.
+    // Refusals at 0, 1, 3, 7, 12, 17 and 22 s — the pause stops doubling at
+    // 5 s — and the last one comes after the 20 s wait, so it is what the
+    // boot reports.
     expect(failure).toMatchObject({
       code: '57P03',
       message: 'the database system is shutting down',
     });
-    expect(sleep.mock.calls).toEqual([[1000], [2000], [4000], [5000], [5000]]);
-    expect(server.connections()).toBe(6);
+    expect(sleep.mock.calls).toEqual([
+      [1000],
+      [2000],
+      [4000],
+      [5000],
+      [5000],
+      [5000],
+    ]);
+    expect(server.connections()).toBe(7);
   });
 
-  it('fails at once on an error a wait cannot fix', async () => {
+  it('times the outage from its first refusal, not from the start of the step', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let now = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    // The first refusal arrives 55 s into the step — the time a process can
+    // spend queued behind another's migration lock before the database goes
+    // away under both.
+    let refusals = 0;
+    const server = await refusingServer(() => {
+      refusals += 1;
+      if (refusals === 1) now += 55_000;
+      return SHUTTING_DOWN;
+    });
+    closers.push(server.close);
+    const sleep = vi.fn(async (ms: number) => {
+      now += ms;
+    });
+
+    const failure = await runBootMigrations({
+      databaseUrl: server.url,
+      log: () => undefined,
+      databaseWaitMs: 20_000,
+      sleep,
+    }).then(
+      () => new Error('the step was expected to fail'),
+      (error: unknown) => error,
+    );
+
+    // The whole 20 s wait, counted from the refusal at 55 s.
+    expect(failure).toMatchObject({ code: '57P03' });
+    expect(sleep.mock.calls).toEqual([
+      [1000],
+      [2000],
+      [4000],
+      [5000],
+      [5000],
+      [5000],
+    ]);
+    expect(server.connections()).toBe(7);
+  });
+
+  it('fails at once, over a single connection, on an error a wait cannot fix', async () => {
     const server = await refusingServer(() => BAD_PASSWORD);
     closers.push(server.close);
     const sleep = vi.fn(async () => undefined);

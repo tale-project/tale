@@ -194,17 +194,18 @@ single warm sample.
   `pg-boss error:` dump at all; the second restart adds its own line.
   Afterwards jobs run again: a new chat gets its generated title.
 - [ ] `PERF-B7` · **Backend start during a database restart** — Follow
-  `docker compose logs -f backend-api`, run `docker stop tale-db`, restart the
-  api while the database is down (`docker restart $(docker compose ps -q
-  backend-api)`), then `docker start tale-db` within half a minute. → The api
-  does not exit: while the database is away its log shows `[db] transient
-  error on attempt …, retrying in …ms: …` lines, and once `db` answers, the
-  boot carries on to `api listening on :3005`. `docker inspect --format
-  '{{.RestartCount}}'` on the api container is unchanged, and with
-  `SENTRY_DSN` set no event arrives. Leave `db` stopped for more than a
-  minute instead → after about a minute the api logs one `fatal startup
-  error`, sends one error-level event tagged `tale.lane: boot` and exits, and
-  Docker starts it again.
+  `docker compose logs -f backend-api`, run `docker compose stop db`, restart
+  the api while the database is down (`docker restart $(docker compose ps -q
+  backend-api)`) and note its `docker inspect --format '{{.RestartCount}}'`,
+  then `docker compose start db` within half a minute. → The api does not
+  exit: while the database is away its log shows `[db] transient error on
+  attempt …, retrying in …ms: …` lines, and once `db` answers, the boot
+  carries on to `api listening on :3005`. The restart count has not moved
+  since you noted it, and with `SENTRY_DSN` set no event arrives. Leave `db`
+  stopped for more than a minute instead → about a minute after the first
+  refusal the api logs one `fatal startup error`, sends one error-level event
+  tagged `tale.lane: boot` and exits; Docker starts it again, and that start
+  waits another minute.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -42,8 +42,8 @@ export interface BootMigrationOptions {
   authOptions?: BetterAuthOptions;
   log?: (message: string) => void;
   /**
-   * How long to wait out an unavailable database before giving up;
-   * {@link ROUTINE_RESTART_MS} by default.
+   * How long an unavailable database is waited out, timed from its first
+   * refusal, before the step gives up; {@link ROUTINE_RESTART_MS} by default.
    */
   databaseWaitMs?: number;
   /** The pause between two attempts (injectable for deterministic tests). */
@@ -194,31 +194,41 @@ async function applyMigrationFile(
  * Apply every pending migration — the boot process's first use of the
  * database.
  *
- * A database that is unavailable at that moment — restarting, still
- * starting, a container restarted while `db` restarts, a host boot racing
- * it — is waited out like a restart anywhere else (`db/unavailable.ts`): the
- * whole step runs again with backoff while it fails that way, for up to
- * `databaseWaitMs`. Running it again is safe: the advisory lock belongs to
- * the session, each migration commits together with its tracking row or not
- * at all, and Better Auth's migrator only adds what is missing. Any other
- * failure (rejected credentials, a missing database, a migration that does
- * not apply) and an outage that outlasts the wait reject as before, and the
- * boot reports the error and exits.
+ * A database that is unavailable meanwhile — restarting, still starting, a
+ * container restarted while `db` restarts, a host boot racing it — is waited
+ * out like a restart anywhere else (`db/unavailable.ts`): the whole step runs
+ * again with backoff while it fails that way, until the outage has lasted
+ * `databaseWaitMs`. The outage is timed from its first refusal, so time spent
+ * queued behind another process's lock, or applying migrations, does not
+ * count against it; a second outage in the same boot shares the first one's
+ * clock. Running the step again is what a restarted process did anyway: the
+ * advisory lock belongs to the session, each app migration commits together
+ * with its tracking row or not at all, and Better Auth's migrator adds the
+ * tables and columns still missing. Any other failure (rejected credentials,
+ * a missing database, a migration that does not apply) and an outage that
+ * outlasts the wait reject as before, and the boot reports the error and
+ * exits.
  */
 export async function runBootMigrations(
   options: BootMigrationOptions,
 ): Promise<void> {
   const log = options.log ?? ((message: string) => console.log(message));
+  const waitMs = options.databaseWaitMs ?? ROUTINE_RESTART_MS;
+  let outageSince: number | null = null;
   await withRetry(() => migrateOnce(options, log), {
-    // The wait, not a count, ends the retries.
+    // The outage's clock below, not a count or a budget, ends the retries.
     attempts: Number.POSITIVE_INFINITY,
+    timeoutMs: Number.POSITIVE_INFINITY,
     baseDelayMs: DATABASE_RETRY_BASE_DELAY_MS,
     maxDelayMs: DATABASE_RETRY_MAX_DELAY_MS,
-    timeoutMs: options.databaseWaitMs ?? ROUTINE_RESTART_MS,
-    // Every client this step opens is a database client, so a bare socket
-    // error from Better Auth's node-postgres migrator is the database's too.
-    isTransient: (error) =>
-      isDatabaseUnavailable(error, { fromDatabase: true }),
+    isTransient: (error) => {
+      // Every client this step opens is a database client, so a bare socket
+      // error from Better Auth's node-postgres migrator is the database's too.
+      if (!isDatabaseUnavailable(error, { fromDatabase: true })) return false;
+      const now = Date.now();
+      outageSince ??= now;
+      return now - outageSince < waitMs;
+    },
     ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
   });
 }
@@ -237,6 +247,7 @@ async function migrateOnce(
     onnotice: () => undefined,
   });
   let locked = false;
+  let failure: unknown;
   try {
     await sql`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`;
     locked = true;
@@ -279,11 +290,16 @@ async function migrateOnce(
       await defaultTeamMemberCount(sql);
       await verifyProvisionedAccounts(sql, log);
     }
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
     // Session lock releases with the connection either way; explicit unlock
-    // keeps the happy path tidy. A lock never taken has nothing to release —
-    // and while the database is away, trying would only fail again.
-    if (locked) {
+    // keeps the happy path tidy. A lock never taken has nothing to release,
+    // and after a failure that says the database is away the unlock would
+    // only open a new connection to it — ending the session below releases
+    // the lock just the same.
+    if (locked && !isDatabaseUnavailable(failure, { fromDatabase: true })) {
       await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`.catch(
         (error: unknown) => {
           console.warn('[backend] advisory unlock failed (ignored):', error);

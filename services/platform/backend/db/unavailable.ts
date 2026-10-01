@@ -63,6 +63,10 @@ const SOCKET_CODES: ReadonlySet<string> = new Set([
   'EAI_AGAIN',
   'ENOTFOUND',
   'ETIMEDOUT',
+  // No route to the server's host or network — a host that is down, or one
+  // whose network is not up yet as it boots.
+  'EHOSTUNREACH',
+  'ENETUNREACH',
 ]);
 
 /** How far down a `cause` chain the classifier looks. */
@@ -82,8 +86,8 @@ export interface DatabaseErrorOrigin {
  * Whether `error` — or an error in its `cause` chain — says the database is
  * unavailable: SQLSTATE 57P01/57P02/57P03 or class 08 (either driver), one
  * of postgres.js's connection-lifecycle codes, node-postgres's closed-socket
- * or connect-timeout error, or a refused, reset, unresolved or timed-out
- * socket on a database client's query.
+ * or connect-timeout error, or a refused, reset, unreachable, unresolved or
+ * timed-out socket on a database client's query.
  */
 export function isDatabaseUnavailable(
   error: unknown,
