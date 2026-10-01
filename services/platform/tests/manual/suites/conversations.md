@@ -538,6 +538,20 @@ subject.
   carry `Content-Type: image/…` and `Content-Security-Policy: default-src
   'none'; sandbox`. Open one of those proxy URLs in a signed-out private window
   → 401, no image.
+- [ ] `CONV-F37` · **A triage pass prioritizes, stamps and drafts** — With a
+  sync automation deployed and a few open threads whose newest message is the
+  customer's (one of them already holding a priority a person set), run the
+  matching **Triage the … inbox** automation live (**Run** on its Runs tab;
+  `limit` 5) → The run succeeds; its output names what was read, a
+  summary, the threads that need a reply with their Inbox links, and one draft
+  per such thread. In the Inbox, each judged thread without a priority now
+  shows the model's (**Priority** facet filters on it) while the person-set
+  one is unchanged; a thread that needs a reply shows the draft as a
+  **pending message** below the thread (CONV-F13), nothing was sent. Run the
+  automation again without new mail → it reads **0** and calls no model;
+  reply as the customer (or re-sync a new inbound mail) → the thread is
+  listed again, and a thread still holding its earlier pending draft keeps
+  that one (`created: false` in the output's `drafted`).
 
 ## Boundary & error tests
 

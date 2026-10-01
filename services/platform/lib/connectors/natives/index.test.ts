@@ -191,6 +191,22 @@ const NATIVE_ACTIONS: Array<{
     input: { connectorSlug: 'imap-smtp', limit: 25 },
   },
   {
+    impl: 'conversation.list_untriaged',
+    connector: 'conversation',
+    action: 'list_untriaged',
+    input: { connectorSlug: 'gmail', limit: 25 },
+  },
+  {
+    impl: 'conversation.record_triage',
+    connector: 'conversation',
+    action: 'record_triage',
+    input: {
+      verdicts: [
+        { conversationId: 'conv_mock', action: 'reply', priority: 'high' },
+      ],
+    },
+  },
+  {
     impl: 'conversation.ingest_emails',
     connector: 'conversation',
     action: 'ingest_emails',
@@ -415,6 +431,23 @@ const conversationStore: WorkflowConversationStore = {
       conversationIds: ['conv_mock'],
     }),
   draftReply: () => Promise.resolve({ approvalId: 'apr_1', created: true }),
+  listUntriagedConversations: () =>
+    Promise.resolve({
+      conversations: [
+        {
+          conversationId: 'conv_mock',
+          subject: 'Mock subject',
+          contact: { name: 'Mock Sender', email: 'sender@example.com' },
+          lastInboundAt: '1970-01-01T00:00:01.000Z',
+          lastInboundText: 'Mock inbound message.',
+          unreadCount: 1,
+          assigned: false,
+          url: '/dashboard/org/conversations/open?conversation=conv_mock',
+        },
+      ],
+    }),
+  recordTriage: ({ verdicts }) =>
+    Promise.resolve({ recorded: verdicts.length, prioritized: 0, unknown: [] }),
   querySyncCursor: () => Promise.resolve({ since: null, messageId: null }),
   syncMailbox: () =>
     Promise.resolve({
