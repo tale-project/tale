@@ -43,6 +43,7 @@ vi.mock('./reviews.ts', () => ({
 }));
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
+  isStandardAgentRefusal: () => false,
   kickAgentRun: vi.fn(),
 }));
 vi.mock('./run-start.ts', () => ({
@@ -221,6 +222,10 @@ function fakeTx(
             ],
       );
     }
+    // The project's agent is its own, not the organization's standard one.
+    if (text.includes('FROM app.project_agents') && text.includes('managed')) {
+      return Promise.resolve([]);
+    }
     if (text.includes('FROM app.project_agents')) {
       return Promise.resolve([agent]);
     }
@@ -235,8 +240,9 @@ function fakeTx(
   const tx = Object.assign(tag, {
     json: (value: unknown) => ({ json: value }),
     unsafe: (text: string): unknown => text,
+    savepoint: (body: (sp: typeof tag) => Promise<unknown>) => body(tag),
   });
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- three-member stand-in for the postgres.js transaction function
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- four-member stand-in for the postgres.js transaction function
   return tx as unknown as TransactionSql;
 }
 

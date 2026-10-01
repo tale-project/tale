@@ -7,7 +7,7 @@ A project keeps the files, instructions, conversations, and tasks for one piece 
 
 ## Before you begin
 
-As a **Member**, you work in the projects shared with you: you ask in their chats, share conversations, and create tasks for the project's agents. Pick a project you can open that has an indexed reference file and at least one agent, and start at [Ask a question and check the source](#ask-a-question-and-check-the-source). Creating a project, uploading its files, saving its instructions, and adding agents need the **Editor** role or higher; if you are setting the project up, start at [Set up the project](#set-up-the-project). You need a short text document, PDF with selectable text, or modern Office file. Choose a file whose contents you can verify, such as a project brief with a named owner and a review date. An admin must have configured document storage and an embedding model for searchable uploads.
+As a **Member**, you work in the projects shared with you: you ask in their chats, share conversations, and create tasks for the project's agents. Pick a project you can open that has an indexed reference file, and start at [Ask a question and check the source](#ask-a-question-and-check-the-source). A project without agents of its own hands its tasks to the organization's [standard agent](/platform/projects/project-agents#standard-agent), unless an admin has turned it off. Creating a project, uploading its files, saving its instructions, and adding agents need the **Editor** role or higher; if you are setting the project up, start at [Set up the project](#set-up-the-project). You need a short text document, PDF with selectable text, or modern Office file. Choose a file whose contents you can verify, such as a project brief with a named owner and a review date. An admin must have configured document storage and an embedding model for searchable uploads.
 
 New projects are **Org-wide**. Use non-sensitive material for this walkthrough; if the real project needs restricted access, set its owning team under **General > Sharing** before uploading its files. Project chats remain personal until you share them.
 
@@ -50,7 +50,7 @@ Click **Save** in the page header. The instructions are part of the project’s 
 
 </Frame>
 
-The last part of this walkthrough also needs an agent in the project. [Project agents](/platform/projects/project-agents) explains how to add one.
+The last part of this walkthrough hands a task to an agent: one of the project's own or, until it has any, the organization's [standard agent](/platform/projects/project-agents#standard-agent). [Project agents](/platform/projects/project-agents) explains how to add one.
 
 ## Ask a question and check the source
 
@@ -78,7 +78,7 @@ Chat answers questions; it doesn't produce files. When the answer should become 
 
 1. In the conversation's header, select **Create task**. Because the chat belongs to this project, **Create task** opens there, holding your last question as the description, a link back to the chat, and any files you attached.
 2. Rewrite the description as the result you want, for example: `Draft a one-page launch summary from the brief as a Word document. Cite the brief for every date.`
-3. Under **Assignee**, choose one of the project's agents if none is chosen yet, then select **Create and start agent**.
+3. Under **Assignee**, choose one of the project's agents if none is chosen yet; in a project without agents of its own, the standard agent already is. Then select **Create and start agent**.
 4. Follow the run above the chat's message box; **Open** there takes you to the task.
 
 When the run ends, the agent's report is in the task's comments, the file is under **Deliverables**, and the task waits in **In review**. Mention the agent with `@` in a comment to ask for changes, and move the task to **Done** when the result meets the description.

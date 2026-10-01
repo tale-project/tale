@@ -19,7 +19,7 @@ Auch ein Projektchat verwendet den eingebauten Chat-Assistenten. Die Wahl eines 
 
 Beginne mit einer Verantwortung, deren Ergebnis du beurteilen kannst, etwa: „Prüfe Änderungen auf Regressionen und belege deine Befunde.“ Das gehört in die dauerhaften Anweisungen des Agenten. Das konkrete Repository, Dateien, Abnahmekriterien und einen Termin beschreibst du in der jeweiligen Aufgabe.
 
-Ein Agent gehört genau einem Projekt. Wer das Projekt lesen darf, sieht seine Agenten; wer es bearbeiten darf, kann sie im aktiven Projekt verwalten. Namen müssen innerhalb des Projekts eindeutig sein. Bis zu 50 Agenten sind möglich. Ein anderes Projekt braucht eine eigene Konfiguration, auch bei gleichem Namen und gleichen Anweisungen.
+Ein Agent gehört genau einem Projekt. Wer das Projekt lesen darf, sieht seine Agenten; wer es bearbeiten darf, kann sie im aktiven Projekt verwalten. Namen müssen innerhalb des Projekts eindeutig sein. Bis zu 50 Agenten sind möglich. Ein anderes Projekt braucht eine eigene Konfiguration, auch bei gleichem Namen und gleichen Anweisungen. Ein Projekt ohne eigene Agenten steht trotzdem nicht ohne da: Sofern ein Admin ihn nicht ausgeschaltet hat, übernimmt der [Standard-Agent](/de/platform/projects/project-agents#standard-agent) der Organisation seine Aufgaben, mit Einstellungen, die ein Admin für die ganze Organisation wählt.
 
 ## Die Konfiguration verstehen
 

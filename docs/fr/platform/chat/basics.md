@@ -61,9 +61,9 @@ L’assistant peut rechercher des documents, entrées de connaissances, sites, c
 
 ## Transformer un chat en tâche {#create-task-from-chat}
 
-Quand une conversation aboutit à un travail qui demande un fichier, par exemple une présentation, un rapport ou un tableur, confie-le à un agent de projet. Sélectionne **Créer une tâche** dans l’en-tête de la conversation ; sur un écran étroit, choisis **Créer une tâche depuis le chat** dans le menu **⋯**. Si le chat est classé dans un projet, la tâche y est créée. Sinon, choisis d’abord le projet : **Avec un agent** liste les projets que tu peux ouvrir qui ont des agents, avec leur nombre, et chaque projet sous **Sans agent pour l’instant** indique qui peut en ajouter un.
+Quand une conversation aboutit à un travail qui demande un fichier, par exemple une présentation, un rapport ou un tableur, confie-le à un agent de projet. Sélectionne **Créer une tâche** dans l’en-tête de la conversation ; sur un écran étroit, choisis **Créer une tâche depuis le chat** dans le menu **⋯**. Si le chat est classé dans un projet, la tâche y est créée. Sinon, choisis d’abord le projet : **Avec un agent** liste les projets que tu peux ouvrir qui ont des agents, avec leur nombre. Un projet sans agents propres y figure avec **Agent standard** : sa tâche va à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation. Quand l’agent standard ne peut pas fonctionner pour toi, par exemple parce qu’un Admin l’a désactivé, ces projets figurent plutôt sous **Sans agent pour l’instant**, chacun indiquant qui peut en ajouter un.
 
-La boîte de dialogue de la tâche s’ouvre avec ta dernière demande comme description, un lien vers le chat et les fichiers que tu as joints dans la conversation. Si le projet a un seul agent, il figure déjà sous **Assigné à** ; sinon, choisis-en un. Modifie ce que tu veux, puis sélectionne **Créer et démarrer l'agent** : la tâche est créée et l’agent s’y met aussitôt. **Créer seulement** la crée sans démarrer l’agent ; **Démarrer l'agent**, dans la tâche, le lance plus tard.
+La boîte de dialogue de la tâche s’ouvre avec ta dernière demande comme description, un lien vers le chat et les fichiers que tu as joints dans la conversation. Si le projet a un seul agent, ou s’il utilise l’agent standard, celui-ci figure déjà sous **Assigné à** ; sinon, choisis-en un. Modifie ce que tu veux, puis sélectionne **Créer et démarrer l'agent** : la tâche est créée et l’agent s’y met aussitôt. **Créer seulement** la crée sans démarrer l’agent ; **Démarrer l'agent**, dans la tâche, le lance plus tard.
 
 <Frame caption="Créer une tâche ouvre la boîte de dialogue de la tâche avec la demande, un lien vers le chat et l’agent à démarrer.">
 
@@ -81,7 +81,7 @@ La tâche apparaît ensuite au-dessus du champ de message du chat, avec ce qu’
 
 Demande un tel fichier à l’assistant : il répond ce qui tient dans une réponse, puis te guide dans ces étapes pour tes propres projets, en nommant les boutons tels que tu les vois.
 
-Aucun projet que tu peux ouvrir n’a encore d’agent ? Un Éditeur ou un Admin en ajoute un dans l’onglet **Agents** du projet. En tant qu’Éditeur, tu peux aussi en ajouter un depuis la tâche : sous **Assigné à**, choisis **Créer un agent…**.
+Aucun projet que tu peux ouvrir ne propose d’agent ? Alors l’agent standard ne peut pas fonctionner pour toi : un Admin l’a peut-être désactivé dans [Gouvernance > Modèles](/fr/platform/admin/governance/content-models#standard-agent), ou aucun modèle que tu peux utiliser ne peut le faire fonctionner. Demande à un Admin ce qu’il en est, ou demande à un Éditeur ou à un Admin d’ajouter un agent dans l’onglet **Agents** du projet. En tant qu’Éditeur, tu peux aussi en ajouter un depuis la tâche : sous **Assigné à**, choisis **Créer un agent…**.
 
 Seuls les fichiers de ta propre conversation suivent. Une tâche n’accepte que les fichiers téléversés par la personne qui la crée ; une tâche créée depuis un chat qu’une autre personne a partagé dans un projet commence donc sans eux.
 

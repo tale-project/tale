@@ -21,6 +21,7 @@ describe('readTaskHandover', () => {
           { name: 'Getting started', agentCount: 0, canEdit: false },
         ],
         automationEnabled: true,
+        standardAgent: true,
       })),
       ARGS,
     );
@@ -30,11 +31,13 @@ describe('readTaskHandover', () => {
       projectsWithoutAgents: 1,
       canAddAgents: false,
       automationOff: false,
+      standardAgent: true,
       labels: {
         createTask: 'Aufgabe erstellen',
         createAndStart: 'Erstellen und Agent starten',
         assignee: 'Zuständig',
         createAgent: 'Agent erstellen …',
+        standardAgent: 'Standard-Agent',
       },
     });
   });

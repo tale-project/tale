@@ -31,7 +31,8 @@ export function governanceShimHandlers(sql: Sql): ShimHandlers {
         // established best-effort default posture.
         args.policyType === 'vision_model' ||
           args.policyType === 'transcription_model' ||
-          args.policyType === 'image_generation'
+          args.policyType === 'image_generation' ||
+          args.policyType === 'standard_agent'
           ? { strict: true }
           : {},
       );

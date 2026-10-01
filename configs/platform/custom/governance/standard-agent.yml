@@ -1,0 +1,6 @@
+# The organization's standard agent: the project agent Tale provides in every
+# project that has none of its own, so work can go to an agent before anyone
+# sets one up. Leave harness, providerSlug and modelId out to let the platform
+# choose (set providerSlug and modelId together to pin a model), and add
+# instructions to replace its built-in standing instructions.
+enabled: true

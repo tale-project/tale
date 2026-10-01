@@ -56,11 +56,13 @@ export async function readTaskHandover(
         (project) => project.agentCount === 0 && project.canEdit,
       ),
       automationOff: facts.automationEnabled !== true,
+      standardAgent: facts.standardAgent === true,
       labels: {
         createTask: label('chat.createTask.headerButton'),
         createAndStart: label('tasks.actions.createAndStart'),
         assignee: label('tasks.fields.assignee'),
         createAgent: label('tasks.assignee.createAgent'),
+        standardAgent: label('tasks.assignee.standardAgent'),
       },
     };
   } catch (error) {

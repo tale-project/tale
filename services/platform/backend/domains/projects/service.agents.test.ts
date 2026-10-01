@@ -13,10 +13,13 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createAuditLog } from '../audit_logs/service.ts';
 import {
+  alignManagedProjectAgent,
   createProjectAgent,
   deleteProjectAgent,
   detachSkillFromAgents,
+  insertManagedProjectAgent,
   listProjectsPage,
   updateProjectAgent,
 } from './service.ts';
@@ -310,6 +313,146 @@ describe('updateProjectAgent — the optimistic precondition', () => {
     const unconditional = fakeTx();
     await updateProjectAgent(unconditional.tx, auth, config);
     expect(updates(unconditional.statements)).toHaveLength(1);
+  });
+});
+
+/** A transaction stand-in answering by statement text, for the cases that
+ * need answers `fakeTx` does not give. */
+function answeringTx(answer: (text: string) => unknown[]): {
+  tx: TransactionSql;
+  statements: Statement[];
+} {
+  const statements: Statement[] = [];
+  const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?').replace(/\s+/g, ' ').trim();
+    statements.push({ text, values });
+    return Promise.resolve(answer(text));
+  };
+  const tx = Object.assign(run, { unsafe: (text: string) => text });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js transaction
+  return { tx: tx as unknown as TransactionSql, statements };
+}
+
+describe('the standard agent follows the organization, not an edit', () => {
+  const managedTx = () =>
+    answeringTx((text) => {
+      if (text.includes('FROM app.project_agents WHERE id = ?')) {
+        return [{ ...AGENT, managed: true }];
+      }
+      if (text.includes('FROM app.projects WHERE id = ?')) return [PROJECT];
+      return [];
+    });
+
+  it('refuses a save of the standard agent with PROJECT_AGENT_MANAGED, writing nothing', async () => {
+    const { tx, statements } = managedTx();
+
+    await expect(updateProjectAgent(tx, auth, config)).rejects.toMatchObject({
+      code: 'PROJECT_AGENT_MANAGED',
+      status: 409,
+    });
+    expect(updates(statements)).toEqual([]);
+  });
+
+  it('answers someone who may not edit the project’s agents with the gate, not with what the agent is', async () => {
+    const { tx, statements } = managedTx();
+
+    await expect(
+      updateProjectAgent(tx, { ...auth, role: 'member' }, config),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(updates(statements)).toEqual([]);
+  });
+
+  const FIELDS = {
+    name: 'Standard agent',
+    harness: 'claude-code',
+    model: 'claude-sonnet-5',
+    modelProvider: 'anthropic',
+    skills: ['docx'],
+    instructions: 'Do the task.',
+  };
+
+  it('writes it with the project’s count, an audit row naming it managed, and a hint', async () => {
+    const { tx, statements } = answeringTx((text) =>
+      text.startsWith('INSERT INTO app.project_agents')
+        ? [{ id: 'agent-standard' }]
+        : [],
+    );
+
+    await expect(
+      insertManagedProjectAgent(tx, auth, PROJECT, FIELDS),
+    ).resolves.toEqual({ agentId: 'agent-standard', created: true });
+    const insert = statements.find((statement) =>
+      statement.text.startsWith('INSERT INTO app.project_agents'),
+    );
+    expect(insert?.text).toContain('ON CONFLICT (project_id) WHERE managed');
+    expect(
+      statements.some((statement) =>
+        statement.text.includes(
+          'project_agent_count = project_agent_count + 1',
+        ),
+      ),
+    ).toBe(true);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          op: 'create',
+          projectAgentId: 'agent-standard',
+          managed: true,
+        }),
+      }),
+    );
+    expect(outbox.emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers the standard agent a concurrent hand-over created, writing nothing more', async () => {
+    const { tx, statements } = answeringTx((text) =>
+      text.startsWith('SELECT id FROM app.project_agents')
+        ? [{ id: 'agent-winner' }]
+        : [],
+    );
+
+    await expect(
+      insertManagedProjectAgent(tx, auth, PROJECT, FIELDS),
+    ).resolves.toEqual({ agentId: 'agent-winner', created: false });
+    expect(
+      statements.some((statement) =>
+        statement.text.startsWith('UPDATE app.projects'),
+      ),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(outbox.emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('brings its stored settings in line only when they moved, and hints the project then', async () => {
+    const unchanged = answeringTx(() => []);
+    await expect(
+      alignManagedProjectAgent(
+        unchanged.tx,
+        {
+          id: 'agent-standard',
+          organizationId: 'org_1',
+          projectId: 'project-1',
+        },
+        FIELDS,
+      ),
+    ).resolves.toBe(false);
+    expect(unchanged.statements[0]?.text).toContain('IS DISTINCT FROM');
+    expect(outbox.emitHintInTx).not.toHaveBeenCalled();
+
+    const moved = answeringTx(() => [{ id: 'agent-standard' }]);
+    await expect(
+      alignManagedProjectAgent(
+        moved.tx,
+        {
+          id: 'agent-standard',
+          organizationId: 'org_1',
+          projectId: 'project-1',
+        },
+        FIELDS,
+      ),
+    ).resolves.toBe(true);
+    expect(outbox.emitHintInTx).toHaveBeenCalledTimes(1);
   });
 });
 

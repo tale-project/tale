@@ -290,6 +290,11 @@ const ADMITTED = [
   // whose team ids ride in `data`.
   "domains/folders/service.ts 'FOLDER_NAME_INVALID' error.message",
   'domains/folders/service.ts error.code error.message',
+  // The organization's standard agent refuses a start under the projects
+  // domain's class (`refusalError` in `domains/projects/standard-agent.ts`:
+  // one fixed sentence per reason, the reason in `data`); the kick re-throws
+  // its code and sentence under the task door's own.
+  'domains/tasks/agent-runs.ts error.code error.message',
   // The competences a review policy requires and the responder lacks: the
   // organization's own governance names, told to the PERSON approving so
   // they know what to acquire. Only a user's approve runs that check
@@ -320,7 +325,12 @@ describe('task refusal sentences', () => {
       sourceFiles(BACKEND),
       'domains/projects/',
     );
-    expect([...reached.keys()]).toEqual(['domains/projects/service.ts']);
+    // Every start reaches the standard agent's kick view, whose refusals are
+    // fixed sentences (`refusalError`).
+    expect([...reached.keys()].sort()).toEqual([
+      'domains/projects/service.ts',
+      'domains/projects/standard-agent.ts',
+    ]);
     expect([...(reached.get('domains/projects/service.ts') ?? [])]).toEqual(
       expect.arrayContaining([
         'getProjectAuthContext',
@@ -328,6 +338,9 @@ describe('task refusal sentences', () => {
         'loadProjectOrThrow',
       ]),
     );
+    expect([
+      ...(reached.get('domains/projects/standard-agent.ts') ?? []),
+    ]).toEqual(expect.arrayContaining(['standardAgentServingForKick']));
   });
 
   it('follow every automations-domain function a task door reaches', () => {

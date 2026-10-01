@@ -76,7 +76,13 @@ Der Lauf kann weiterhin die Aufgaben und das Wissen des Projekts lesen und behä
 
 Einen Agenten zuweisen und seinen Lauf starten sind zwei Entscheidungen. Klicke nach der Zuweisung auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Lies [Aufgaben automatisieren](/de/platform/projects/task-automation), bevor du Arbeit mit verbundenen Diensten oder Dateiergebnissen startest.
 
-Hat das Projekt noch keinen Agenten, sagt **Zuständig** das. Redakteure und höhere Rollen wählen **Agent erstellen …**: **Neuer Agent** öffnet sich über der Aufgabe, und der Agent, den du erstellst, wird ihr zugewiesen. Mitglieder erfahren, dass sie einen Redakteur oder Admin bitten können, im Tab **Agenten** des Projekts einen hinzuzufügen.
+Hat das Projekt keinen eigenen Agenten, bietet **Zuständig** die Option **Standard-Agent** an, den Agenten der Organisation für solche Projekte. Wählst du sie, richtet Tale den Agenten im Projekt ein und weist ihm die Aufgabe zu; [Der Standard-Agent](/de/platform/projects/project-agents#standard-agent) erklärt, wie er arbeitet. Redakteure und höhere Rollen können stattdessen **Agent erstellen …** wählen: **Neuer Agent** öffnet sich über der Aufgabe, und der Agent, den du erstellst, wird ihr zugewiesen. Kann der Standard-Agent für sie nicht laufen, etwa weil ein Admin ihn ausgeschaltet hat, erfahren Mitglieder, dass sie einen Redakteur oder Admin bitten können, im Tab **Agenten** des Projekts einen Agenten hinzuzufügen.
+
+<Frame caption="Zuständig bietet in einem Projekt ohne eigene Agenten den Standard-Agenten der Organisation an.">
+
+![Die Liste für Zuständig, bis zum Abschnitt Agenten gescrollt: der Standard-Agent mit der Beschreibung, dass er der Agent der Organisation für Projekte ohne eigene Agenten ist, darunter der Eintrag zum Erstellen eines Agenten und die Fußzeile, dass der Standard-Agent die Aufgaben übernimmt, bis das Projekt eigene Agenten hat.](/images/platform/project-task-standard-agent.webp)
+
+</Frame>
 
 Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, kann allerdings die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt das Ergebnis nicht aus einem Agentenlauf, gilt das für die Person, die die Aufgabe erstellt hat. Einen Lauf, den ein Mitglied auf seiner eigenen Aufgabe gestartet hat, muss dann ein Redakteur oder eine höhere Rolle annehmen, während das Mitglied einen Lauf, den ein Redakteur dort gestartet hat, weiterhin selbst annehmen kann.
 

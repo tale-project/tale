@@ -61,9 +61,9 @@ Der Assistent durchsucht unter anderem Dokumente, Wissenseinträge, Websites, Ko
 
 ## Aus einem Chat eine Aufgabe machen {#create-task-from-chat}
 
-Endet ein Gespräch in Arbeit, die eine Datei braucht, etwa eine Präsentation, einen Bericht oder eine Tabelle, übergib sie einem Projekt-Agenten. Wähle im Kopf des Gesprächs **Aufgabe erstellen**; auf einem schmalen Bildschirm findest du **Aufgabe aus Chat erstellen** im Menü **⋯**. Liegt der Chat in einem Projekt, entsteht die Aufgabe dort. Sonst wählst du zuerst das Projekt: Unter **Mit Agent** stehen die Projekte, die du öffnen kannst und die Agenten haben, samt ihrer Anzahl, und bei jedem Projekt unter **Noch ohne Agent** steht, wer einen hinzufügen kann.
+Endet ein Gespräch in Arbeit, die eine Datei braucht, etwa eine Präsentation, einen Bericht oder eine Tabelle, übergib sie einem Projekt-Agenten. Wähle im Kopf des Gesprächs **Aufgabe erstellen**; auf einem schmalen Bildschirm findest du **Aufgabe aus Chat erstellen** im Menü **⋯**. Liegt der Chat in einem Projekt, entsteht die Aufgabe dort. Sonst wählst du zuerst das Projekt: Unter **Mit Agent** stehen die Projekte, die du öffnen kannst und die Agenten haben, samt ihrer Anzahl. Ein Projekt ohne eigene Agenten steht dort mit **Standard-Agent**: Seine Aufgabe geht an den [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation. Kann der Standard-Agent für dich nicht laufen, etwa weil ein Admin ihn ausgeschaltet hat, stehen solche Projekte stattdessen unter **Noch ohne Agent**, jeweils mit dem Hinweis, wer einen hinzufügen kann.
 
-Der Aufgabendialog öffnet sich mit deiner letzten Anfrage als Beschreibung, einem Link zurück zum Chat und den Dateien, die du im Gespräch angehängt hast. Hat das Projekt genau einen Agenten, ist er unter **Zuständig** schon eingetragen; sonst wählst du einen. Passe alles nach Bedarf an und wähle dann **Erstellen und Agent starten**: Die Aufgabe entsteht, und der Agent beginnt sofort damit. **Nur erstellen** legt sie an, ohne den Agenten zu starten; das holst du später mit **Agent starten** in der Aufgabe nach.
+Der Aufgabendialog öffnet sich mit deiner letzten Anfrage als Beschreibung, einem Link zurück zum Chat und den Dateien, die du im Gespräch angehängt hast. Hat das Projekt genau einen Agenten oder nutzt es den Standard-Agenten, ist er unter **Zuständig** schon eingetragen; sonst wählst du einen. Passe alles nach Bedarf an und wähle dann **Erstellen und Agent starten**: Die Aufgabe entsteht, und der Agent beginnt sofort damit. **Nur erstellen** legt sie an, ohne den Agenten zu starten; das holst du später mit **Agent starten** in der Aufgabe nach.
 
 <Frame caption="Aufgabe erstellen öffnet den Aufgabendialog mit der Anfrage, einem Link zurück zum Chat und dem Agenten, der sie übernimmt.">
 
@@ -81,7 +81,7 @@ Danach steht die Aufgabe über dem Nachrichtenfeld des Chats, mit dem, was sie g
 
 Bittest du den Assistenten um eine solche Datei, beantwortet er, was in eine Antwort passt, und führt dich dann für deine eigenen Projekte durch diese Schritte, mit den Beschriftungen, die du siehst.
 
-Hat noch kein Projekt, das du öffnen kannst, einen Agenten? Ein Redakteur oder Admin fügt einen im Tab **Agenten** des Projekts hinzu. Als Redakteur kannst du auch direkt in der Aufgabe einen hinzufügen: Wähle unter **Zuständig** **Agent erstellen …**.
+Bietet kein Projekt, das du öffnen kannst, einen Agenten an? Dann kann der Standard-Agent für dich nicht laufen: Ein Admin hat ihn vielleicht unter [Richtlinien > Modelle](/de/platform/admin/governance/content-models#standard-agent) ausgeschaltet, oder kein Modell, das du nutzen darfst, kann ihn ausführen. Frag einen Admin danach, oder bitte einen Redakteur oder Admin, im Tab **Agenten** des Projekts einen Agenten hinzuzufügen. Als Redakteur kannst du auch direkt in der Aufgabe einen hinzufügen: Wähle unter **Zuständig** **Agent erstellen …**.
 
 Dateien kommen nur aus deinem eigenen Gespräch mit. Eine Aufgabe nimmt nur die Uploads der Person an, die sie erstellt; eine Aufgabe aus einem Chat, den jemand in ein Projekt geteilt hat, beginnt deshalb ohne sie.
 
