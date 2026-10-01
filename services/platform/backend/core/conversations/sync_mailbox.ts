@@ -28,6 +28,7 @@ import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
+import { emailEpochMs } from './ingest/email_epoch';
 import { materializeEmailAttachments } from './ingest/materialize_email_attachments';
 import { normalizeEmail } from './ingest/normalize_email';
 import { queryLatestMessageByDeliveryState } from './ingest/query_latest_message_by_delivery_state';
@@ -1046,7 +1047,85 @@ async function listInbox(
       credentialRef: args.credentialRef,
     }),
   });
-  return listedMessages(output);
+  const listed = listedMessages(output);
+  if (args.connectorSlug !== 'gmail') return listed;
+  return await fetchGmailEnvelopes(ctx, {
+    organizationId: args.organizationId,
+    listed,
+    mode: args.mode,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
+  });
+}
+
+/**
+ * Gmail's `list_messages` is `users.messages.list`: bare `{id, threadId}`
+ * pairs, no envelope. Outlook and IMAP list subject, sender and date in the
+ * same call, so the digest reads them off the listing; Gmail needs one
+ * metadata fetch per id (headers + snippet — no body, no attachment bytes) to
+ * carry the same fields, in the shape the IMAP listing already has. A message
+ * gone between the list and the fetch is skipped; every fetch failing fails
+ * the mailbox, so a dead token cannot read as an empty inbox.
+ */
+async function fetchGmailEnvelopes(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    listed: Array<Record<string, unknown>>;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+  },
+): Promise<Array<Record<string, unknown>>> {
+  const rows: Array<Record<string, unknown>> = [];
+  const failures: string[] = [];
+  for (const summary of args.listed) {
+    const messageId = typeof summary.id === 'string' ? summary.id : null;
+    if (!messageId) continue;
+    let output: unknown;
+    try {
+      output = await runMailAction(ctx, {
+        organizationId: args.organizationId,
+        connectorSlug: 'gmail',
+        action: 'get_message',
+        input: { messageId, format: 'metadata' },
+        mode: args.mode,
+        ...(args.credentialRef !== undefined && {
+          credentialRef: args.credentialRef,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[listMailboxMessages] gmail message ${messageId} skipped: ${message}`,
+      );
+      failures.push(`${messageId}: ${message}`);
+      continue;
+    }
+    const fetched = unwrapFetchedMessage(output);
+    // A connector answer that is not a raw Gmail message normalizes to itself,
+    // so every envelope field is read as possibly absent.
+    const email: Partial<EmailType> = normalizeEmail(fetched);
+    const sender = email.from?.[0];
+    const sentAt = emailEpochMs(email.date);
+    rows.push({
+      ...summary,
+      id: messageId,
+      from: sender?.address ?? sender?.name ?? '',
+      subject: email.subject ?? '',
+      ...(sentAt !== null && { sentAt }),
+      snippet:
+        isRecord(fetched) && typeof fetched.snippet === 'string'
+          ? fetched.snippet
+          : '',
+    });
+  }
+  if (rows.length === 0 && failures.length > 0) {
+    throw new Error(
+      `conversation.list_mailbox_messages: every gmail message fetch failed (${failures.join('; ')})`,
+    );
+  }
+  return rows;
 }
 
 function stampCredentialMessage(
