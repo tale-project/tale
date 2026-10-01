@@ -186,6 +186,15 @@ path list is held to every module the harness imports and every file it reads by
 `services/platform/tests/guards/integration-scope.guard.test.ts`: a new import from outside the
 list fails that guard until the list names it.
 
+A green **Playwright** job in `e2e.yml` can still hold a failure: CI retries a failed test twice
+(`@tale/e2e/config`), and a test that passes on a retry leaves its job green. Such a job carries
+a **Playwright diagnostics** notice and uploads the same report and test results a failed job
+does, as `playwright-report-<shard|service>-attempt-<n>` for 14 days (#4013). Open that artifact
+before you call a run clean; the platform shards and the static sites share the step, and
+`tools/cli/scripts/deployment-ci.test.ts` holds both to it. When the step cannot read
+`test-results/`, it fails the job with a **Playwright diagnostics** error instead of reading
+clean, and the upload runs as for any failure.
+
 Turbo's default source inputs cover a task's own workspace. A task that reads a file outside
 it lists the file in its workspace's `turbo.json` `inputs`; otherwise an edit to that file
 alone replays the cached verdict. Open the list with `$TURBO_EXTENDS$` (keeps the root task's
