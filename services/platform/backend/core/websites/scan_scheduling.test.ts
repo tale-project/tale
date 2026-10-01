@@ -3,10 +3,17 @@ import { describe, expect, it } from 'vitest';
 import {
   CONNECTION_FAILURES_BEFORE_PAUSE,
   connectionFailureCount,
+  EXPIRED_LINK_GRACE_MS,
   FAILED_SCAN_RETRY_MS,
   isDueForScan,
   lastScanAttemptAt,
+  LINK_LIFETIME_MS,
+  MAX_SCAN_RESUMES,
+  mayResumeScan,
+  resumedScanEpoch,
+  scanHeartbeatAt,
   scanPausedAt,
+  scanResumeCount,
   STUCK_SCANNING_RETRY_MS,
   type ScanSchedulingSite,
 } from './scan_scheduling';
@@ -131,6 +138,29 @@ describe('stuck-scanning takeover', () => {
     expect(isDueForScan(stuck, NOW)).toBe(false);
   });
 
+  // Regression: "stuck" was measured from the last COMPLETED scan alone, so
+  // every rescan of a site whose interval exceeds the window read as stuck
+  // from its first minute. It was queued again on every five-minute tick for
+  // as long as it ran, each time only to find the claim held, and those
+  // no-ops took the tick's five starts ahead of the sites really due.
+  it('a rescan that shows life is not stuck, however old the last completed scan', () => {
+    const running = site({
+      status: 'scanning',
+      lastScannedAt: NOW - 6 * HOUR,
+      scanHeartbeatAt: NOW - 5 * MINUTE,
+    });
+    expect(isDueForScan(running, NOW)).toBe(false);
+  });
+
+  it('a scan whose heartbeat stopped is taken over after the window', () => {
+    const crashed = site({
+      status: 'scanning',
+      lastScannedAt: NOW - 6 * HOUR,
+      scanHeartbeatAt: NOW - STUCK_SCANNING_RETRY_MS - MINUTE,
+    });
+    expect(isDueForScan(crashed, NOW)).toBe(true);
+  });
+
   it('a scanning row with no activity at all falls back to its creation time', () => {
     expect(
       isDueForScan(
@@ -144,7 +174,113 @@ describe('stuck-scanning takeover', () => {
   });
 });
 
+/**
+ * A scan cut off by a restart left its row on `scanning` for the whole
+ * takeover window — two hours, on every deploy that met a scan in progress —
+ * and then began again from its first page. The scheduler now resumes it;
+ * these are the judgments it makes.
+ */
+describe('resuming an interrupted scan', () => {
+  const failed = (
+    job: Partial<{ endedAt: number; ranOutItsExpiry: boolean }> = {},
+  ) => ({ endedAt: NOW - MINUTE, ranOutItsExpiry: false, ...job });
+
+  // Its process failed the job on the way out, or the supervisor did once
+  // the worker stopped refreshing it. A link a stalled process still runs
+  // cannot queue its successor, so nothing grows beside the resumed scan.
+  it('resumes at once a scan whose job ended before its expiry, however fresh the claim', () => {
+    expect(
+      mayResumeScan(
+        { resumes: 0, lastFailedJob: failed(), claimAgeMs: MINUTE },
+        NOW,
+      ),
+    ).toBe(true);
+  });
+
+  it('takes a claim no job speaks for only once it is older than a link can hold it', () => {
+    const scan = (claimAgeMs: number) => ({
+      resumes: 0,
+      lastFailedJob: null,
+      claimAgeMs,
+    });
+    expect(mayResumeScan(scan(LINK_LIFETIME_MS - 1), NOW)).toBe(false);
+    expect(mayResumeScan(scan(LINK_LIFETIME_MS), NOW)).toBe(true);
+  });
+
+  // The job's end does not say whether its process died or the link is
+  // merely slow and still working past it.
+  it('leaves a scan whose last job ran out its expiry alone for the grace', () => {
+    const ranOut = (endedAt: number) => ({
+      resumes: 0,
+      lastFailedJob: failed({ endedAt, ranOutItsExpiry: true }),
+      claimAgeMs: 2 * LINK_LIFETIME_MS,
+    });
+    expect(mayResumeScan(ranOut(NOW - MINUTE), NOW)).toBe(false);
+    expect(mayResumeScan(ranOut(NOW - EXPIRED_LINK_GRACE_MS + 1), NOW)).toBe(
+      false,
+    );
+    expect(mayResumeScan(ranOut(NOW - EXPIRED_LINK_GRACE_MS), NOW)).toBe(true);
+  });
+
+  // A scan that takes its process down would otherwise do so on every tick.
+  it('stops resuming one scan after the limit', () => {
+    const scan = (resumes: number) => ({
+      resumes,
+      lastFailedJob: failed(),
+      claimAgeMs: 2 * LINK_LIFETIME_MS,
+    });
+    expect(mayResumeScan(scan(MAX_SCAN_RESUMES - 1), NOW)).toBe(true);
+    expect(mayResumeScan(scan(MAX_SCAN_RESUMES), NOW)).toBe(false);
+  });
+
+  it('counts pages from where the interrupted scan began', () => {
+    expect(
+      resumedScanEpoch(
+        { cycleStartedAt: NOW - 2 * HOUR, scanIntervalSeconds: 6 * 3600 },
+        NOW,
+      ),
+    ).toBe(NOW - 2 * HOUR);
+  });
+
+  it('never counts a page older than one interval as done', () => {
+    expect(
+      resumedScanEpoch(
+        { cycleStartedAt: NOW - 9 * HOUR, scanIntervalSeconds: 6 * 3600 },
+        NOW,
+      ),
+    ).toBe(NOW - 6 * HOUR);
+  });
+
+  it('starts afresh when the beginning is unknown or lies ahead', () => {
+    expect(
+      resumedScanEpoch(
+        { cycleStartedAt: null, scanIntervalSeconds: 6 * 3600 },
+        NOW,
+      ),
+    ).toBeNull();
+    expect(
+      resumedScanEpoch(
+        { cycleStartedAt: NOW + MINUTE, scanIntervalSeconds: 6 * 3600 },
+        NOW,
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('metadata accessors', () => {
+  it('reads the resume count and treats anything else as none', () => {
+    expect(scanResumeCount({ scanResumes: 2 })).toBe(2);
+    expect(scanResumeCount({ scanResumes: null })).toBe(0);
+    expect(scanResumeCount({ scanResumes: 'two' })).toBe(0);
+    expect(scanResumeCount(undefined)).toBe(0);
+  });
+
+  it('reads the scan heartbeat and treats a cleared one as absent', () => {
+    expect(scanHeartbeatAt({ scanHeartbeatAt: NOW })).toBe(NOW);
+    expect(scanHeartbeatAt({ scanHeartbeatAt: null })).toBeNull();
+    expect(scanHeartbeatAt(undefined)).toBeNull();
+  });
+
   it('read valid values', () => {
     expect(
       connectionFailureCount({ corpusConnectionFailures: 2, other: 'x' }),

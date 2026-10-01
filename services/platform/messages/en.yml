@@ -7120,7 +7120,8 @@ settings:
       banner:
         title: Knowledge search is off
         body: This organization has an AI provider but no embedding model, so
-          documents cannot be indexed or searched.
+          documents cannot be indexed and neither documents nor websites can
+          be searched.
         link: Choose an embedding model
       recommendationBody:
         Your {provider} credential can serve {model} ({dimensions}-dimensional
@@ -8098,6 +8099,8 @@ websites:
     fetchPagesError: Couldn't load pages
     searchError: Search failed
     deleteError: Couldn't delete website
+    scanStarted: Scan started
+    scanAlreadyRunning: A scan is already running
   adding: Adding...
   viewDialog:
     title: Website details
@@ -8115,16 +8118,26 @@ websites:
       then resume scanning.
     scanError:
       runtime: Scanning didn't run.
-      notInCorpus: This site isn't in the crawler. Delete it and add it again.
+      notInCorpus: This URL list isn't in the crawler. Delete it and add it again.
+      notInCorpusSite: This site isn't in the crawler. The next scan adds it again.
+      embedding: The embedding model couldn't process the pages.
       generic: The last scan didn't finish.
     scanEmpty:
       runtime: Nothing was indexed. The URL isn't the problem.
       dns: Nothing was indexed. Change the URL if the host is wrong.
-      notInCorpus: Nothing was indexed. Delete the site and add it again.
+      notInCorpus: Nothing was indexed. Delete the URL list and add it again.
+      notInCorpusSite: Nothing was indexed. The next scan adds the site again.
+      embedding: Nothing was indexed. An admin can check the embedding model under Settings → Data residency.
       generic: Nothing was indexed.
   scanPausedBadge: Paused
   resumeScanning: Resume scanning
+  scanNow: Scan now
   indexed: Indexed
+  searchNotice:
+    title: Chat can't search these websites yet
+    description: Pages are crawled and stored, but knowledge search needs a working embedding model, and this organization doesn't have one yet.
+    configureCta: Configure embedding model
+    askAdmin: Ask an organization admin to set one up under Settings → Data residency.
   pagesDialog:
     title: Website pages
     noPages: No pages crawled yet

@@ -23,7 +23,9 @@ import {
   fetchWebsiteInfoFromCorpus,
   isMemberDomain,
   listPageChunks,
+  listVectorlessDomains,
   listWebsitePages,
+  readScanClaim,
   registerDomain,
   registerUrlList,
   searchDomainContent,
@@ -45,7 +47,12 @@ import {
   CONNECTION_FAILURES_BEFORE_PAUSE,
   connectionFailureCount,
   lastScanAttemptAt,
+  MAX_SCAN_RESUMES,
+  mayResumeScan,
+  resumedScanEpoch,
+  scanHeartbeatAt,
   scanPausedAt,
+  scanResumeCount,
   type ScanSchedulingSite,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../../core/websites/scan_scheduling.ts';
@@ -62,12 +69,20 @@ import {
   type ShimScheduler,
 } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
   markSessionDestroyed,
   reserveSessionSlot,
 } from '../sandbox/sessions.ts';
+import {
+  lastFailedScanJob,
+  listScanningRowsWithoutJob,
+  scanCycleStartedAt,
+  type ScanningRowWithoutJob,
+  scanJobEnded,
+} from './scan-queue.ts';
 
 /**
  * Websites — the 0.5 twin of `convex/websites` + the crawl engine host.
@@ -174,6 +189,47 @@ const WEBSITE_COLUMNS = `
   metadata, created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt"
 `;
+
+/**
+ * Tell the organization's open lists that a website row changed — the
+ * realtime hint the Websites table and its details refetch on. Without it
+ * the table could not follow a scan at all: a site just added sat on
+ * "Scanning · 0" until the page was reloaded, while the crawl landed page
+ * after page.
+ */
+async function hintWebsite(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  websiteId: string,
+): Promise<void> {
+  await emitHintInTx(db, {
+    orgId: organizationId,
+    entity: 'website',
+    entityId: websiteId,
+  });
+}
+
+/**
+ * What a reader of the list sees of a row: the fields whose change is worth
+ * a refetch. The bookkeeping stamps (`lastStatusSyncAt`, the attempt clock)
+ * are not among them — a status sweep that found nothing new would
+ * otherwise wake every open list once per row.
+ */
+function readerView(row: WebsiteRow): string {
+  return JSON.stringify([
+    row.kind,
+    row.title,
+    row.description,
+    row.scanInterval,
+    row.lastScannedAt,
+    row.status,
+    row.pageCount,
+    row.crawledPageCount,
+    row.failedPageCount,
+    row.metadata?.lastSyncError ?? null,
+    row.metadata?.scanPausedAt ?? null,
+  ]);
+}
 
 export async function getWebsite(
   db: Sql | TransactionSql,
@@ -350,6 +406,7 @@ export async function createWebsiteRow(
       409,
     );
   }
+  await hintWebsite(db, args.organizationId, id);
   return id;
 }
 
@@ -417,21 +474,27 @@ export async function patchWebsite(
     WHERE id = ${args.websiteId}
     RETURNING ${db.unsafe(WEBSITE_COLUMNS)}
   `;
-  return rows[0] ?? null;
+  const updated = rows[0] ?? null;
+  if (updated !== null && readerView(updated) !== readerView(existing)) {
+    await hintWebsite(db, updated.organizationId, updated.id);
+  }
+  return updated;
 }
 
 async function deleteWebsiteRow(
   db: Sql | TransactionSql,
   websiteId: string,
 ): Promise<string> {
-  const rows = await db<{ domain: string }[]>`
-    DELETE FROM app.websites WHERE id = ${websiteId} RETURNING domain
+  const rows = await db<{ domain: string; organizationId: string }[]>`
+    DELETE FROM app.websites WHERE id = ${websiteId}
+    RETURNING domain, org_id AS "organizationId"
   `;
-  const domain = rows[0]?.domain;
-  if (domain === undefined) {
+  const deleted = rows[0];
+  if (deleted === undefined) {
     throw new WebsiteError('WEBSITE_NOT_FOUND', 'Website not found', 404);
   }
-  return domain;
+  await hintWebsite(db, deleted.organizationId, websiteId);
+  return deleted.domain;
 }
 
 // ----------------------------------------------------- failure bookkeeping
@@ -476,6 +539,10 @@ export async function recordScanFailure(
         lastSyncError: args.message.slice(0, 1000),
         lastScanAttemptAt: now,
         corpusConnectionFailures: failures > 0 ? failures : null,
+        // The scan ended here: no heartbeat, and the next one counts its
+        // resumes from zero.
+        scanHeartbeatAt: null,
+        scanResumes: null,
         ...(pauseNow ? { scanPausedAt: now } : {}),
       },
     });
@@ -579,12 +646,14 @@ function toSchedulingSite(
 ): ScanSchedulingSite & { domain: string; organizationId: string } {
   const metadata = row.metadata ?? undefined;
   const attempt = lastScanAttemptAt(metadata);
+  const heartbeat = scanHeartbeatAt(metadata);
   const site: ScanSchedulingSite & {
     domain: string;
     organizationId: string;
     lastScannedAt?: number;
     lastAttemptAt?: number;
     status?: string;
+    scanHeartbeatAt?: number;
   } = {
     domain: row.domain,
     organizationId: row.organizationId,
@@ -595,6 +664,7 @@ function toSchedulingSite(
   };
   if (row.lastScannedAt !== null) site.lastScannedAt = row.lastScannedAt;
   if (attempt !== null) site.lastAttemptAt = attempt;
+  if (heartbeat !== null) site.scanHeartbeatAt = heartbeat;
   if (row.status !== null) site.status = row.status;
   return site;
 }
@@ -671,8 +741,15 @@ export function crawlHandlers(sql: Sql): ShimHandlers {
   };
 }
 
-/** The engine's scheduled refs, mapped onto pg-boss jobs. */
-function crawlScheduler(sql: Sql): ShimScheduler {
+/**
+ * The engine's scheduled refs, mapped onto pg-boss jobs. `jobId` is the scan
+ * link's own job, when a link is what schedules: a link whose job has ended
+ * under it — the supervisor failed it once its worker stopped refreshing it,
+ * or it ran out its expiry — queues no successor. The scan is the
+ * scheduler's to resume then (`resumeInterruptedScans`), and a successor
+ * from this link would grow a second chain beside the resumed one.
+ */
+function crawlScheduler(sql: Sql, jobId?: string): ShimScheduler {
   return async (name, delayMs, args) => {
     if (name === SCHEDULED_CRAWL_REFS.scanWebsite) {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the engine self-chains with exactly this shape
@@ -683,6 +760,12 @@ function crawlScheduler(sql: Sql): ShimScheduler {
         continuation?: number;
         scanStartedAt?: string;
       };
+      if (jobId !== undefined && (await scanJobEnded(sql, jobId))) {
+        console.warn(
+          `[websites] ${payload.domain}: link ${payload.continuation ?? 0} queues no successor — its job ended while it ran; the scheduler resumes the scan`,
+        );
+        return;
+      }
       await addJobInTx(
         sql,
         'websites.scan',
@@ -703,10 +786,10 @@ function crawlScheduler(sql: Sql): ShimScheduler {
   };
 }
 
-function crawlCtx(sql: Sql): never {
+function crawlCtx(sql: Sql, jobId?: string): never {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused engine's ActionCtx surface is exactly what the shim provides
   return createCtxShim(crawlHandlers(sql), {
-    scheduler: crawlScheduler(sql),
+    scheduler: crawlScheduler(sql, jobId),
   }) as never;
 }
 
@@ -887,6 +970,7 @@ export async function registerWebsite(
         callerOrgId: args.organizationId,
         scanInterval: args.scanInterval,
         status: 'scanning',
+        metadata: { scanHeartbeatAt: Date.now(), scanResumes: null },
       });
       id = existing.id;
       merged = true;
@@ -1087,6 +1171,15 @@ export async function syncSingleWebsite(
         metadata: {
           lastSyncError: info.status === 'error' ? info.error : null,
           lastStatusSyncAt: syncTimestamp,
+          // The corpus claim's own clock, which a running scan refreshes at
+          // every link: the scheduler tells a long scan from a crashed one
+          // by it.
+          scanHeartbeatAt:
+            info.status === 'scanning' && info.updated_at !== null
+              ? new Date(info.updated_at).getTime()
+              : null,
+          // Counted per scan: kept while it runs, cleared once it ended.
+          ...(info.status === 'scanning' ? {} : { scanResumes: null }),
         },
       });
     } else {
@@ -1096,6 +1189,8 @@ export async function syncSingleWebsite(
         metadata: {
           lastSyncError: WEBSITE_NOT_IN_CORPUS_MESSAGE,
           lastStatusSyncAt: syncTimestamp,
+          scanHeartbeatAt: null,
+          scanResumes: null,
         },
       });
     }
@@ -1105,7 +1200,12 @@ export async function syncSingleWebsite(
     await patchWebsite(sql, {
       websiteId: args.websiteId,
       status: 'error',
-      metadata: { lastSyncError: message, lastStatusSyncAt: syncTimestamp },
+      metadata: {
+        lastSyncError: message,
+        lastStatusSyncAt: syncTimestamp,
+        scanHeartbeatAt: null,
+        scanResumes: null,
+      },
     });
   }
 }
@@ -1159,6 +1259,44 @@ export function needsStatusSync(website: WebsiteRow): boolean {
   return Date.now() - lastSyncAt > STATUS_SYNC_INTERVAL_MS;
 }
 
+/**
+ * What a change of the organization's embedding model means for its
+ * websites: the Websites page re-reads whether search can reach them, and —
+ * when a model was saved — every site that a scan can now do better by is
+ * scanned: the ones whose pages were chunked without vectors (the scan is
+ * what embeds them) and the ones whose last scan failed. Without this a
+ * site added before the model kept waiting for its own interval, up to
+ * thirty days, to become searchable by meaning.
+ */
+export async function websitesAfterEmbeddingChange(
+  sql: Sql,
+  organizationId: string,
+  change: 'saved' | 'removed',
+): Promise<{ queued: number }> {
+  await emitHintInTx(sql, {
+    orgId: organizationId,
+    entity: 'website',
+    entityId: null,
+  });
+  if (change === 'removed') return { queued: 0 };
+  const orgSlug = await resolveOrgSlug(sql, organizationId);
+  if (!orgSlug) return { queued: 0 };
+  const pool = await getKnowledgePoolForOrg(orgSlug);
+  const vectorless = new Set(await listVectorlessDomains(pool, orgSlug));
+  const rows = await sql<WebsiteRow[]>`
+    SELECT ${sql.unsafe(WEBSITE_COLUMNS)} FROM app.websites
+    WHERE org_id = ${organizationId}
+    ORDER BY created_at_ms ASC
+  `;
+  let queued = 0;
+  for (const website of rows) {
+    if (scanPausedAt(website.metadata ?? undefined) !== null) continue;
+    if (website.status !== 'error' && !vectorless.has(website.domain)) continue;
+    if ((await scanWebsiteNow(sql, website)).queued) queued += 1;
+  }
+  return { queued };
+}
+
 /** Interval change → corpus cadence sync (silent no-op when the org never
  * registered the domain — the 0.4 `setScanIntervalOp` posture). */
 export async function syncScanIntervalToCorpus(
@@ -1194,27 +1332,61 @@ export async function deregisterAndDeleteWebsite(
   await deleteWebsiteRow(sql, website.id);
 }
 
+/**
+ * Put a site back on the crawl now: the row reads `scanning`, its failure
+ * bookkeeping is cleared and a scan is queued — in one transaction, so a row
+ * never reads `scanning` without the job that will scan it.
+ */
+async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
+  const orgSlug = await requireSlug(sql, website.organizationId);
+  await sql.begin(async (tx) => {
+    await patchWebsite(tx, {
+      websiteId: website.id,
+      status: 'scanning',
+      metadata: {
+        scanPausedAt: null,
+        corpusConnectionFailures: null,
+        lastScanAttemptAt: null,
+        lastSyncError: null,
+        // Queued now: the scheduler leaves the row to this scan rather than
+        // reading its last completed scan as a stuck one.
+        scanHeartbeatAt: Date.now(),
+        scanResumes: null,
+      },
+    });
+    await addJobInTx(tx, 'websites.scan', {
+      domain: website.domain,
+      orgSlug,
+      organizationId: website.organizationId,
+    });
+  });
+}
+
 /** Resume paused scans and kick a verification scan now (the 0.4 twin). */
 export async function resumeScanning(
   sql: Sql,
   website: WebsiteRow,
 ): Promise<void> {
-  await patchWebsite(sql, {
-    websiteId: website.id,
-    status: 'scanning',
-    metadata: {
-      scanPausedAt: null,
-      corpusConnectionFailures: null,
-      lastScanAttemptAt: null,
-      lastSyncError: null,
-    },
-  });
-  const orgSlug = await requireSlug(sql, website.organizationId);
-  await addJobInTx(sql, 'websites.scan', {
-    domain: website.domain,
-    orgSlug,
-    organizationId: website.organizationId,
-  });
+  await queueScan(sql, website);
+}
+
+/**
+ * Scan a site now, on a reader's word, instead of at its next interval: the
+ * retry after a failed scan, which otherwise waits out the failure cadence
+ * (up to two hours) or takes deleting and re-adding the site. A site that is
+ * already scanning, or being deleted, is left as it is — the corpus claim
+ * would turn a second scan away anyway — and the answer says nothing was
+ * queued.
+ */
+export async function scanWebsiteNow(
+  sql: Sql,
+  website: WebsiteRow,
+): Promise<{ queued: boolean }> {
+  if (website.status === 'scanning' || website.status === 'deleting') {
+    return { queued: false };
+  }
+  await queueScan(sql, website);
+  return { queued: true };
 }
 
 // --------------------------------------------------------- corpus reads
@@ -1278,12 +1450,180 @@ export async function searchWebsiteContent(
 
 // -------------------------------------------------------------------- jobs
 
-/** The five-minute scheduler tick (the 0.4 cron) on the reused engine. */
+/** Rows one tick considers for a resume. A restart that interrupted more
+ * scans than this resumes the rest on the ticks that follow. */
+const RESUME_BATCH_SIZE = 50;
+
+/**
+ * Resume the scans that stopped without a successor — a link cut off by a
+ * restart, a deploy or a crash (see `core/websites/scan_scheduling.ts`).
+ *
+ * A domain is resumed when its rows read `scanning`, no scan job for it is
+ * queued or running (nor the register job that queues a new site's first
+ * one), and the corpus claim is still held and free to take
+ * ({@link mayResumeScan}). The resumed scan is a first link that takes
+ * exactly that claim over, by its heartbeat, and counts its pages from
+ * where the interrupted scan began, so the pages already crawled stay done.
+ * The job and the rows' bookkeeping are written in one transaction; the
+ * fresh heartbeat keeps the tick that follows from queueing the rows a
+ * second time as stuck ones.
+ *
+ * Two organizations that registered one domain share its scan, so its rows
+ * are judged together: one resume, counted against the most any of them
+ * already had. A row whose claim is no longer held is only behind the
+ * corpus, and a row sync settles it now rather than whenever someone opens
+ * the page.
+ *
+ * Returns how many scans it resumed. Exported for tests only.
+ */
+export async function resumeInterruptedScans(sql: Sql): Promise<number> {
+  const byDomain = new Map<string, ScanningRowWithoutJob[]>();
+  for (const row of await listScanningRowsWithoutJob(sql, RESUME_BATCH_SIZE)) {
+    byDomain.set(row.domain, [...(byDomain.get(row.domain) ?? []), row]);
+  }
+  let resumedScans = 0;
+  for (const [domain, rows] of byDomain) {
+    const [first] = rows;
+    if (first === undefined) continue;
+    const resumes = Math.max(
+      ...rows.map((row) => scanResumeCount(row.metadata ?? undefined)),
+    );
+    if (resumes >= MAX_SCAN_RESUMES) continue;
+    try {
+      const orgSlug = await requireSlug(sql, first.organizationId);
+      const pool = await getKnowledgePoolForOrg(orgSlug);
+      const claim = await readScanClaim(pool, domain);
+      if (claim === null) {
+        await addJobInTx(
+          sql,
+          'websites.row_sync',
+          { orgSlug, domain },
+          { singletonKey: `websites-row-sync-${orgSlug}-${domain}` },
+        );
+        continue;
+      }
+      const now = Date.now();
+      const lastFailedJob = await lastFailedScanJob(sql, domain);
+      if (
+        !mayResumeScan({ resumes, lastFailedJob, claimAgeMs: claim.ageMs }, now)
+      ) {
+        continue;
+      }
+      const epoch = resumedScanEpoch(
+        {
+          cycleStartedAt: await scanCycleStartedAt(
+            sql,
+            domain,
+            claim.lastScannedAt,
+          ),
+          scanIntervalSeconds: scanIntervalToSeconds(first.scanInterval),
+        },
+        now,
+      );
+      await sql.begin(async (tx) => {
+        for (const row of rows) {
+          await patchWebsite(tx, {
+            websiteId: row.id,
+            metadata: { scanHeartbeatAt: now, scanResumes: resumes + 1 },
+          });
+        }
+        await addJobInTx(tx, 'websites.scan', {
+          domain,
+          orgSlug,
+          organizationId: first.organizationId,
+          takeover: claim.heartbeat,
+          ...(epoch === null
+            ? {}
+            : { scanStartedAt: new Date(epoch).toISOString() }),
+        });
+      });
+      resumedScans += 1;
+      console.log(
+        `[websites] ${domain}: its scan stopped without a successor; resumed (${resumes + 1} of ${MAX_SCAN_RESUMES})`,
+      );
+    } catch (error) {
+      // One site's trouble must not keep the others waiting.
+      console.warn(
+        `[websites] ${domain}: an interrupted scan could not be resumed:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  return resumedScans;
+}
+
+/** The five-minute scheduler tick (the 0.4 cron) on the reused engine,
+ * after the scans a restart interrupted are back on the queue. */
 export async function runWebsitesScanDue(sql: Sql): Promise<void> {
+  try {
+    await resumeInterruptedScans(sql);
+  } catch (error) {
+    console.warn(
+      '[websites] interrupted scans could not be listed:',
+      error instanceof Error ? error.message : error,
+    );
+  }
   await scanDueWebsitesImpl(crawlCtx(sql));
 }
 
-/** One continuation link of a domain scan (the reused engine body). */
+/**
+ * Give a whole-site row the corpus registration it is missing. A
+ * registration that failed (the knowledge database was unreachable when the
+ * site was added) used to be permanent: every later scan found nothing to
+ * claim and the row said "delete it and add it again" for good. A site
+ * needs only its domain and interval to register, so the scan that finds
+ * the membership missing writes it. A URL list cannot be restored here —
+ * its URLs were the registration — and keeps that instruction.
+ */
+async function restoreSiteRegistration(
+  sql: Sql,
+  payload: { domain: string; orgSlug: string; organizationId: string },
+): Promise<void> {
+  try {
+    const website = await getWebsiteByDomain(
+      sql,
+      payload.organizationId,
+      payload.domain,
+    );
+    if (!website || website.kind === 'list' || website.status === 'deleting') {
+      return;
+    }
+    const pool = await getKnowledgePoolForOrg(payload.orgSlug);
+    if (await isMemberDomain(pool, payload.orgSlug, payload.domain)) return;
+    await registerDomain(
+      pool,
+      payload.orgSlug,
+      payload.domain,
+      scanIntervalToSeconds(website.scanInterval),
+    );
+    // A delete that ran meanwhile has already released the registration it
+    // found: the one just written would outlive the site, its pages still
+    // searchable with nothing left on the page to remove them.
+    const still = await getWebsiteByDomain(
+      sql,
+      payload.organizationId,
+      payload.domain,
+    );
+    if (!still || still.status === 'deleting') {
+      await deregisterDomain(pool, payload.orgSlug, payload.domain);
+      return;
+    }
+    console.log(
+      `[websites] ${payload.domain}: corpus registration restored before its scan`,
+    );
+  } catch (error) {
+    // Only the repair is skipped: the scan that follows reports an
+    // unreachable corpus itself and counts it toward the pause.
+    console.warn(
+      `[websites] ${payload.domain}: corpus registration could not be checked:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
+/** One continuation link of a domain scan (the reused engine body). `job`
+ * is the link's own: its signal is aborted once the job has ended under the
+ * link, and its id tells the link whether it may still queue a successor. */
 export async function runWebsitesScan(
   sql: Sql,
   payload: {
@@ -1292,9 +1632,17 @@ export async function runWebsitesScan(
     organizationId: string;
     continuation?: number;
     scanStartedAt?: string;
+    takeover?: string;
   },
+  job?: { signal?: AbortSignal; jobId?: string },
 ): Promise<void> {
-  await scanWebsiteImpl(crawlCtx(sql), payload);
+  if ((payload.continuation ?? 0) === 0) {
+    await restoreSiteRegistration(sql, payload);
+  }
+  await scanWebsiteImpl(crawlCtx(sql, job?.jobId), {
+    ...payload,
+    ...(job?.signal === undefined ? {} : { signal: job.signal }),
+  });
 }
 
 /** Corpus → row push for one (orgSlug, domain) — the fan-out target. */

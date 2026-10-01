@@ -32854,6 +32854,10 @@ async function checkWebsitesCrawl(
       type: 'text/plain',
     });
   }
+  // A whole-site row whose corpus registration never landed (step 3b): one
+  // page, no robots.txt and no sitemap, so the scan that restores the
+  // registration finishes on the homepage.
+  const HEAL_DOMAIN = 'itest-heal.example';
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -32921,6 +32925,17 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (url.hostname === HEAL_DOMAIN || url.hostname === `www.${HEAL_DOMAIN}`) {
+      if (url.pathname !== '/') return new Response('gone', { status: 404 });
+      const body =
+        'Heal fixture home page. Enough words about the restored registration to survive the chunking thresholds of the pipeline.';
+      return new Response(body, {
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(body.length),
         },
       });
     }
@@ -33349,14 +33364,17 @@ async function checkWebsitesCrawl(
     );
 
     // 3b. A row whose domain has NO corpus registration (the register job
-    //     never landed, or the registration was released): the scan must
-    //     record the failure on the row — attempt clock + `error` status
-    //     with the delete-and-re-add message — instead of logging "already
-    //     running" and letting the scheduler re-pick it every tick forever.
+    //     never landed, or the registration was released). A URL list
+    //     cannot be registered again from its row — its URLs were the
+    //     registration — so its scan must record the failure on the row:
+    //     attempt clock + `error` status with the delete-and-re-add message,
+    //     instead of logging "already running" and letting the scheduler
+    //     re-pick it every tick forever.
     const UNREGISTERED_DOMAIN = 'itest-unregistered.example';
     const unregisteredId = await websites.createWebsiteRow(sql, {
       organizationId: orgId,
       domain: UNREGISTERED_DOMAIN,
+      kind: 'list',
       scanInterval: '6h',
       status: 'active',
     });
@@ -33375,13 +33393,276 @@ async function checkWebsitesCrawl(
       : true;
     await sql`DELETE FROM app.websites WHERE id = ${unregisteredId}`;
     record(
-      'websites scan of an unregistered domain records the failure',
+      'websites scan of an unregistered URL list records the failure',
       unregisteredRow?.status === 'error' &&
         typeof unregisteredMeta.lastScanAttemptAt === 'number' &&
         unregisteredMeta.lastSyncError ===
           scheduling.WEBSITE_NOT_IN_CORPUS_MESSAGE &&
         !unregisteredDueNow,
       `status=${unregisteredRow?.status}/error attemptStamped=${typeof unregisteredMeta.lastScanAttemptAt === 'number'} error=${String(unregisteredMeta.lastSyncError)} dueAgainNow=${unregisteredDueNow}(want false)`,
+    );
+
+    // 3c. The same gap on a WHOLE-SITE row heals: a site needs only its
+    //     domain and interval to register, so the scan that finds the
+    //     membership missing writes it and crawls. Before this the row read
+    //     "delete it and add it again" for good — one failed registration
+    //     (the knowledge database unreachable while the site was added) was
+    //     permanent.
+    const healId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: HEAL_DOMAIN,
+      scanInterval: '6h',
+      status: 'error',
+    });
+    const healMemberBefore = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: HEAL_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: HEAL_DOMAIN });
+    const healMemberAfter = await pool<{ orgSlug: string }[]>`
+      SELECT org_slug AS "orgSlug" FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healCorpus = await pool<{ status: string; interval: number }[]>`
+      SELECT status, scan_interval AS interval FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healRow = await websites.getWebsite(sql, healId);
+    const healError = healRow?.metadata?.lastSyncError;
+    if (healRow) await websites.deregisterAndDeleteWebsite(sql, healRow);
+    const healGone = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    record(
+      'websites scan of an unregistered whole site restores the registration and crawls',
+      healMemberBefore[0]?.count === '0' &&
+        healMemberAfter.length === 1 &&
+        healMemberAfter[0]?.orgSlug === orgSlug &&
+        healCorpus[0]?.status === 'completed' &&
+        healCorpus[0].interval === 21_600 &&
+        healRow?.status === 'active' &&
+        healRow.crawledPageCount === 1 &&
+        healRow.failedPageCount === 0 &&
+        healError == null &&
+        healGone[0]?.count === '0',
+      `membersBefore=${healMemberBefore[0]?.count ?? '?'}/0 membersAfter=${healMemberAfter.map((row) => row.orgSlug).join(',')}/${orgSlug} corpus=${healCorpus[0]?.status ?? 'MISSING'}/completed interval=${healCorpus[0]?.interval ?? '?'}/21600 row=${healRow?.status ?? 'MISSING'}/active crawled=${healRow?.crawledPageCount ?? '?'}/1 failed=${healRow?.failedPageCount ?? '?'}/0 error=${String(healError)} corpusAfterDelete=${healGone[0]?.count ?? '?'}/0`,
+    );
+
+    // 3d. A scan cut off mid-link — a restart, a deploy, a crash — ends
+    //     nowhere: the corpus claim stays held, the row reads `scanning` and
+    //     no scan job is left. The claim turned every new scan away for its
+    //     two-hour takeover window, and the scan that then replaced it
+    //     began again from the first page. The scheduler now resumes it: a
+    //     first link that takes exactly that claim over, by its heartbeat,
+    //     and counts its pages from where the interrupted scan began — here
+    //     one page is still due, and the two crawled since stay done.
+    const scanQueue = await import('./domains/websites/scan-queue.ts');
+    const aUrl = `https://${DOMAIN}/a.txt`;
+    const bUrl = `https://${DOMAIN}/docs/b.txt`;
+    const bBody = site.get('/docs/b.txt');
+    site.set('/a.txt', {
+      body: 'Alpha content v3 — the page the interrupted scan had not reached, rewritten so the resumed scan can be told by what it stores.',
+      type: 'text/plain',
+    });
+    site.set('/docs/b.txt', {
+      body: 'Bravo content v9 — changed at the origin after the interrupted scan crawled it; a resumed scan must not come back to it.',
+      type: 'text/plain',
+    });
+    await pool`
+      UPDATE public_web.website_urls
+      SET last_crawled_at = CASE WHEN url = ${aUrl}
+        THEN NOW() - INTERVAL '1 hour' ELSE NOW() END
+      WHERE domain = ${DOMAIN}
+    `;
+    const heldClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET status = 'scanning', updated_at = NOW(),
+          last_scanned_at = NOW() - INTERVAL '3 hours'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const claimHeartbeat = async (): Promise<string | undefined> =>
+      (
+        await pool<{ heartbeat: string }[]>`
+          SELECT updated_at::text AS heartbeat FROM public_web.websites
+          WHERE domain = ${DOMAIN} AND status = 'scanning'
+        `
+      )[0]?.heartbeat;
+    // A scan that is not a resume is turned away by the held claim.
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    const heartbeatAfterPlain = await claimHeartbeat();
+    // The interrupted scan's last link, as the queue would hold it. First a
+    // job that ran out its whole expiry half a minute ago: its link may
+    // still be working, so the scan is left alone for the grace.
+    const lastLink = await sql<{ id: string }[]>`
+      UPDATE pgboss.job
+      SET state = 'failed', started_on = now() - interval '16 minutes',
+          completed_on = now() - interval '30 seconds'
+      WHERE name = 'websites.scan' AND id = (
+        SELECT id FROM pgboss.job
+        WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+        ORDER BY created_on DESC LIMIT 1
+      )
+      RETURNING id
+    `;
+    const lastLinkId = lastLink[0]?.id ?? '';
+    const candidates = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    const ranOut = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const resumedInGrace = await websites.resumeInterruptedScans(sql);
+    // The claim's age is the database's reckoning of its last refresh. A
+    // resume that has no job to go by takes only a claim older than a link
+    // can hold it.
+    const crawlStore = await import('./core/knowledge/crawl.ts');
+    const freshClaim = await crawlStore.readScanClaim(pool, DOMAIN);
+    const agedClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET updated_at = now() - interval '16 minutes'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    const agedRead = await crawlStore.readScanClaim(pool, DOMAIN);
+    // Then the link a killed worker leaves: its heartbeat stopped a minute
+    // into its run and the supervisor failed the job. A link still running
+    // after its job ended queues no successor (the fence below), so the
+    // scan is resumed at once.
+    const cutShortAt = await sql<{ startedAt: number }[]>`
+      UPDATE pgboss.job
+      SET started_on = now() - interval '10 minutes',
+          completed_on = now() - interval '9 minutes',
+          output = ${sql.json({ value: { message: 'job heartbeat timeout' } })}
+      WHERE name = 'websites.scan' AND id = ${lastLinkId}
+      RETURNING (EXTRACT(EPOCH FROM started_on) * 1000)::float8 AS "startedAt"
+    `;
+    const cutShort = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const jobEnded = await scanQueue.scanJobEnded(sql, lastLinkId);
+    const unknownJobEnded = await scanQueue.scanJobEnded(sql, randomUUID());
+    const resumedScans = await websites.resumeInterruptedScans(sql);
+    const resumeJob = await sql<{ data: unknown }[]>`
+      SELECT data FROM pgboss.job
+      WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+      ORDER BY created_on DESC LIMIT 1
+    `;
+    const resumePayload = z
+      .object({ takeover: z.string(), scanStartedAt: z.string() })
+      .safeParse(resumeJob[0]?.data);
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const resumedCorpus = await pool<{ status: string }[]>`
+      SELECT status FROM public_web.websites WHERE domain = ${DOMAIN}
+    `;
+    const chunkTexts = async (url: string): Promise<string[]> =>
+      (
+        await pool<{ content: string }[]>`
+          SELECT chunk_content AS content FROM public_web.chunks
+          WHERE domain = ${DOMAIN} AND url = ${url}
+        `
+      ).map((chunk) => chunk.content);
+    const aResumed = await chunkTexts(aUrl);
+    const bResumed = await chunkTexts(bUrl);
+    const rowAfterResume = await websites.getWebsite(sql, websiteId);
+    if (bBody) site.set('/docs/b.txt', bBody);
+    const epochDrift = resumePayload.success
+      ? Math.abs(
+          Date.parse(resumePayload.data.scanStartedAt) -
+            (cutShortAt[0]?.startedAt ?? 0),
+        )
+      : -1;
+    record(
+      'websites resume: a scan cut off by a restart is taken over on the next tick and continues where it stopped',
+      heldClaim.length === 1 &&
+        heartbeatAfterPlain === heldClaim[0]?.heartbeat &&
+        candidates.some((row) => row.id === websiteId) &&
+        ranOut?.ranOutItsExpiry === true &&
+        resumedInGrace === 0 &&
+        freshClaim !== null &&
+        freshClaim.ageMs < scheduling.LINK_LIFETIME_MS &&
+        agedRead?.heartbeat === agedClaim[0]?.heartbeat &&
+        agedRead.ageMs >= scheduling.LINK_LIFETIME_MS &&
+        cutShort?.ranOutItsExpiry === false &&
+        jobEnded &&
+        !unknownJobEnded &&
+        resumedScans === 1 &&
+        resumePayload.success &&
+        resumePayload.data.takeover === agedClaim[0]?.heartbeat &&
+        epochDrift >= 0 &&
+        epochDrift < 5 &&
+        resumedCorpus[0]?.status === 'completed' &&
+        aResumed.length >= 1 &&
+        aResumed.every((text) => text.includes('v3')) &&
+        bResumed.length >= 1 &&
+        bResumed.every((text) => !text.includes('v9')) &&
+        rowAfterResume?.status === 'active' &&
+        rowAfterResume.metadata?.scanResumes == null &&
+        rowAfterResume.metadata?.scanHeartbeatAt == null,
+      `claim=${heldClaim[0]?.heartbeat ?? 'NONE'} afterPlainScan=${heartbeatAfterPlain === heldClaim[0]?.heartbeat ? 'unchanged' : `CHANGED(${heartbeatAfterPlain ?? 'released'})`} candidate=${candidates.some((row) => row.id === websiteId)} ranOut=${String(ranOut?.ranOutItsExpiry)}/true resumedInGrace=${resumedInGrace}/0 claimAge=${Math.round((freshClaim?.ageMs ?? -1) / 1000)}s→${Math.round((agedRead?.ageMs ?? -1) / 1000)}s cutShort=${String(cutShort?.ranOutItsExpiry)}/false jobEnded=${jobEnded}/true unknownJobEnded=${unknownJobEnded}/false resumedScans=${resumedScans}/1 payload=${resumePayload.success ? `takeover ${resumePayload.data.takeover === agedClaim[0]?.heartbeat ? 'matches' : 'DIFFERS'}, epoch drift ${epochDrift}ms` : 'BAD SHAPE'} corpus=${resumedCorpus[0]?.status ?? 'MISSING'}/completed a=${aResumed.length} allV3=${aResumed.every((text) => text.includes('v3'))} b=${bResumed.length} noneV9=${bResumed.every((text) => !text.includes('v9'))} row=${rowAfterResume?.status ?? 'MISSING'}/active resumes=${String(rowAfterResume?.metadata?.scanResumes)} heartbeat=${String(rowAfterResume?.metadata?.scanHeartbeatAt)}`,
+    );
+
+    // 3e. A site that was just added reads `scanning` before its first scan
+    //     job exists: the register job registers the domain, reads the
+    //     homepage and only then queues the scan. A scheduler tick in that
+    //     window took the row for an interrupted scan, found no claim and
+    //     queued a row sync — the new site read idle, or "not found in
+    //     crawler" when the registration had not landed yet, until its scan
+    //     began. The register job stands for the scan it is about to queue;
+    //     once it is gone with no scan behind it, the row is a candidate.
+    const REGISTERING_DOMAIN = 'itest-registering.example';
+    const registeringId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: REGISTERING_DOMAIN,
+      scanInterval: '6h',
+      status: 'scanning',
+    });
+    // Deferred, so the worker leaves it queued for the length of this step.
+    const registerJobId = await addJobInTx(
+      sql,
+      'websites.register',
+      {
+        websiteId: registeringId,
+        domain: REGISTERING_DOMAIN,
+        scanInterval: '6h',
+        organizationId: orgId,
+      },
+      { startAfter: new Date(Date.now() + 3_600_000) },
+    );
+    const whileRegistering = await scanQueue.listScanningRowsWithoutJob(
+      sql,
+      50,
+    );
+    await websites.resumeInterruptedScans(sql);
+    const syncsWhileRegistering = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'websites.row_sync'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const rowWhileRegistering = await websites.getWebsite(sql, registeringId);
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'websites.register'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const afterRegister = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    await sql`DELETE FROM app.websites WHERE id = ${registeringId}`;
+    record(
+      'websites resume: a new site whose register job is still queued is not taken for an interrupted scan',
+      registerJobId !== null &&
+        !whileRegistering.some((row) => row.id === registeringId) &&
+        syncsWhileRegistering[0]?.count === '0' &&
+        rowWhileRegistering?.status === 'scanning' &&
+        rowWhileRegistering.metadata?.lastSyncError == null &&
+        afterRegister.some((row) => row.id === registeringId),
+      `registerJob=${registerJobId === null ? 'NOT QUEUED' : 'queued'} candidateWhileRegistering=${whileRegistering.some((row) => row.id === registeringId)}/false rowSyncs=${syncsWhileRegistering[0]?.count ?? '?'}/0 row=${rowWhileRegistering?.status ?? 'MISSING'}/scanning error=${String(rowWhileRegistering?.metadata?.lastSyncError)} candidateAfterRegister=${afterRegister.some((row) => row.id === registeringId)}/true`,
     );
 
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
@@ -53139,7 +53420,9 @@ async function checkWatchdogs(
   // table, a batch of TWO. The old `ORDER BY created_at_ms LIMIT n` probed the
   // same two oldest rows every tick and never reached the third; the fair walk
   // (least-recently-visited first, visited rows stamped) reaches it on the
-  // second tick.
+  // second tick. They are project rows, not render ones: a render row this
+  // old is an abandoned batch, which the release pass takes on the first
+  // tick (proved below).
   const oldest = await sql<{ min: number | null }[]>`
     SELECT min(created_at_ms)::float8 AS min FROM app.sandbox_sessions
     WHERE status IN ('creating', 'active', 'degraded')
@@ -53150,11 +53433,11 @@ async function checkWatchdogs(
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES
-      (${orgId}, 'wd-fair-1', 'active', 'render', 'wd-fair-1', 'itest:wd',
+      (${orgId}, 'wd-fair-1', 'active', 'project', 'wd-fair-1', 'itest:wd',
        ${ancient}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-2', 'active', 'render', 'wd-fair-2', 'itest:wd',
+      (${orgId}, 'wd-fair-2', 'active', 'project', 'wd-fair-2', 'itest:wd',
        ${ancient + 1}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-3', 'active', 'render', 'wd-fair-3', 'itest:wd',
+      (${orgId}, 'wd-fair-3', 'active', 'project', 'wd-fair-3', 'itest:wd',
        ${ancient + 2}, ${now + 24 * 3_600_000})
   `;
   // Reclaim: an ENDED run's hibernated session (reclaimed), an expired
@@ -53272,6 +53555,94 @@ async function checkWatchdogs(
       tick2.reclaimed === 0,
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
+
+  // Lane 3d: the render sessions of cut-off scan links. A link destroys its
+  // render session when its batch ends; one cut off mid-batch (a restart, a
+  // deploy, a crash) left the row compute-holding and the container running,
+  // and no pass reached either — each held one of the organization's two
+  // render slots until the spawner's idle reaper took the container half an
+  // hour later. A render row older than a link can keep one is destroyed
+  // when idle and settled; a worker still rendering in it waits a tick, and
+  // neither a batch that is rendering now nor another owner's session is
+  // asked about.
+  const renderAge = sandboxWatchdogs.SANDBOX_RENDER_SESSION_MAX_AGE_MS;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-release-abandoned', 'active', 'render',
+       'wd-release-abandoned', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-creating', 'creating', 'render',
+       'wd-release-creating', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-rendering', 'active', 'render',
+       'wd-release-rendering', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-fresh', 'active', 'render',
+       'wd-release-fresh', 'itest:wd', ${now - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-project', 'active', 'project',
+       'wd-release-project', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000})
+  `;
+  const releaseAsked: string[] = [];
+  const releaseTick = await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    releaseBatch: 50,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        releaseAsked.push(sessionId);
+        return Promise.resolve(
+          sessionId === 'wd-release-rendering' ||
+            !sessionId.startsWith('wd-release-')
+            ? { destroyed: false, busy: true }
+            : { destroyed: true, busy: false },
+        );
+      },
+    },
+  });
+  const releaseRows = await sql<
+    { sessionId: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT session_id AS "sessionId", status,
+           destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-release-%'
+    ORDER BY session_id
+  `;
+  const released = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) =>
+        row.sessionId === sessionId &&
+        row.status === 'destroyed' &&
+        row.destroyedAt !== null,
+    );
+  const stillActive = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) => row.sessionId === sessionId && row.status === 'active',
+    );
+  record(
+    'sandbox watchdog releases the render sessions a cut-off scan link left behind: idle ones are destroyed and settled, a busy one waits, a fresh batch and other owners are never asked',
+    released('wd-release-abandoned') &&
+      released('wd-release-creating') &&
+      releaseAsked.includes('wd-release-rendering') &&
+      stillActive('wd-release-rendering') &&
+      !releaseAsked.includes('wd-release-fresh') &&
+      stillActive('wd-release-fresh') &&
+      !releaseAsked.includes('wd-release-project') &&
+      stillActive('wd-release-project') &&
+      releaseTick.released >= 2,
+    `rows=${releaseRows.map((row) => `${row.sessionId.replace('wd-release-', '')}=${row.status}`).join(' ')} asked=${releaseAsked.filter((id) => id.startsWith('wd-release-')).join(',')} released=${releaseTick.released} (want abandoned+creating destroyed, rendering asked and active, fresh and project never asked)`,
+  );
+  await sql`
+    DELETE FROM app.sandbox_sessions WHERE session_id LIKE 'wd-release-%'
+  `;
 
   // Lane 3b: the Sandboxes page's mount-time probe is the SAME pass scoped
   // to the org. A hibernated (`stopped`) project workspace is never a

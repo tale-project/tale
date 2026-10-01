@@ -313,6 +313,28 @@ describe('startWorker shouldDefer', () => {
     );
   });
 
+  // A website scan link is told apart from a dead worker's by its job's
+  // heartbeat, which the send that queued it set per job: the successor
+  // has to carry it, or a scan handed over across a deploy loses it.
+  it("keeps the job's heartbeat on its successor", async () => {
+    const { boss, send, handlers } = fakeBoss();
+    await startWorker({
+      boss,
+      taskList: { 'websites.scan': vi.fn() },
+      shouldDefer: async () => true,
+      sql: fakeSql([]),
+    });
+
+    await handlers.get('websites.scan')?.([
+      { ...job, heartbeatSeconds: 60 } as unknown as Job,
+    ]);
+    expect(send).toHaveBeenCalledWith(
+      'websites.scan',
+      { seq: 1 },
+      expect.objectContaining({ startAfter: 5, heartbeatSeconds: 60 }),
+    );
+  });
+
   it('keeps the claim when the hand-over fails, for pg-boss to retry', async () => {
     const { boss, send, calls, handlers } = fakeBoss();
     send.mockRejectedValueOnce(new Error('insert refused'));
@@ -342,7 +364,10 @@ describe('startWorker shouldDefer', () => {
 
     const results = await handlers.get('noop')?.([job]);
     expect(send).not.toHaveBeenCalled();
-    expect(handler).toHaveBeenCalledWith({ seq: 1 }, { signal: job.signal });
+    expect(handler).toHaveBeenCalledWith(
+      { seq: 1 },
+      { signal: job.signal, jobId: job.id },
+    );
     expect(results).toEqual([{ id: 'job-1', status: 'completed' }]);
   });
 });
@@ -387,6 +412,28 @@ describe('startWorker batch size', () => {
         ['sandbox.recreate_pinned', 1],
       ]),
     );
+  });
+});
+
+describe('startWorker slot queues', () => {
+  // Regression: a batch is fetched whole and awaited whole, so one website's
+  // scan link (five to nine minutes) held every other site's queued scan —
+  // a site added meanwhile sat on "Scanning · 0" until that link ended.
+  it('works the website scan queue through one-job slots, as many as the worker concurrency', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      taskList: { noop: vi.fn(), 'websites.scan': vi.fn() },
+    });
+
+    expect(workOptions.get('websites.scan')).toMatchObject({
+      batchSize: 1,
+      localConcurrency: 5,
+    });
+    // Every other queue keeps its batch, in one worker.
+    expect(workOptions.get('noop')?.batchSize).toBe(5);
+    expect(workOptions.get('noop')?.localConcurrency).toBeUndefined();
   });
 });
 

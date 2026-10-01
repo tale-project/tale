@@ -8,7 +8,12 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
 const mockResumeScanning = vi.fn();
+const mockScanNow = vi.fn();
+const mockToast = vi.fn();
 let mockCanWrite = true;
+let mockScanPending = false;
+/** The success handler the Scan now hook registers on the action. */
+let scanNowSuccess: ((result: { queued: boolean }) => void) | undefined;
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -29,13 +34,19 @@ vi.mock('@/app/hooks/use-ability', () => ({
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
-  toast: vi.fn(),
+  toast: (props: unknown) => mockToast(props),
 }));
 
 vi.mock('../hooks/mutations', () => ({
   useDeleteWebsite: () => ({ mutateAsync: vi.fn() }),
   useUpdateWebsite: () => ({ mutateAsync: vi.fn() }),
   useResumeScanning: () => ({ mutate: mockResumeScanning }),
+  useScanWebsiteNow: (options?: {
+    onSuccess?: (result: { queued: boolean }) => void;
+  }) => {
+    scanNowSuccess = options?.onSuccess;
+    return { mutate: mockScanNow, isPending: mockScanPending };
+  },
 }));
 
 vi.mock('./website-edit-dialog', () => ({
@@ -72,6 +83,8 @@ const pausedWebsite = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockCanWrite = true;
+  mockScanPending = false;
+  scanNowSuccess = undefined;
 });
 
 describe('WebsiteRowActions', () => {
@@ -137,6 +150,93 @@ describe('WebsiteRowActions', () => {
       expect(mockResumeScanning).toHaveBeenCalledWith({
         websiteId: 'website-1',
       });
+    });
+  });
+
+  // A failed scan could only be retried by waiting out the failure cadence
+  // (up to two hours) or by deleting the site and adding it again.
+  describe('scan now', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+      return user;
+    };
+    const failedWebsite = {
+      ...mockWebsite,
+      status: 'error',
+    } as Parameters<typeof WebsiteRowActions>[0]['website'];
+
+    it('offers Scan now between Edit and Delete for a site that is not scanning', async () => {
+      render(<WebsiteRowActions website={failedWebsite} />);
+      await openMenu();
+      expect(
+        screen.getAllByRole('menuitem').map((item) => item.textContent),
+      ).toEqual([
+        'common.actions.view',
+        'common.actions.edit',
+        'websites.scanNow',
+        'common.actions.delete',
+      ]);
+    });
+
+    it.each(['scanning', 'deleting'])(
+      'does not offer it while the site is %s',
+      async (status) => {
+        render(
+          <WebsiteRowActions
+            website={
+              { ...mockWebsite, status } as Parameters<
+                typeof WebsiteRowActions
+              >[0]['website']
+            }
+          />,
+        );
+        await openMenu();
+        expect(screen.queryByText('websites.scanNow')).not.toBeInTheDocument();
+      },
+    );
+
+    it('leaves a paused site to Resume scanning', async () => {
+      render(<WebsiteRowActions website={pausedWebsite} />);
+      await openMenu();
+      expect(screen.queryByText('websites.scanNow')).not.toBeInTheDocument();
+    });
+
+    // The answer is the action's own, not the click's: a click's callback
+    // fires for the last click only, and never once its menu or dialog has
+    // closed, so a scan could start without a word.
+    it('queues a scan and says so from the action, not the click', async () => {
+      mockScanNow.mockImplementation(() => scanNowSuccess?.({ queued: true }));
+      render(<WebsiteRowActions website={failedWebsite} />);
+      const user = await openMenu();
+      await user.click(screen.getByText('websites.scanNow'));
+      expect(mockScanNow).toHaveBeenCalledWith({ websiteId: 'website-1' });
+      expect(mockToast).toHaveBeenCalledWith({
+        title: 'websites.toast.scanStarted',
+        variant: 'success',
+      });
+    });
+
+    it('says a scan was already running when none was queued', async () => {
+      mockScanNow.mockImplementation(() => scanNowSuccess?.({ queued: false }));
+      render(<WebsiteRowActions website={failedWebsite} />);
+      const user = await openMenu();
+      await user.click(screen.getByText('websites.scanNow'));
+      // Neutral, not a success: this click started nothing.
+      expect(mockToast).toHaveBeenCalledWith({
+        title: 'websites.toast.scanAlreadyRunning',
+      });
+    });
+
+    it('offers no second Scan now while the first is on its way', async () => {
+      mockScanPending = true;
+      render(<WebsiteRowActions website={failedWebsite} />);
+      await openMenu();
+      expect(
+        screen.getByRole('menuitem', { name: 'websites.scanNow' }),
+      ).toHaveAttribute('aria-disabled', 'true');
     });
   });
 });

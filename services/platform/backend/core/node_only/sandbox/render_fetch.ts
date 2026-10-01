@@ -14,18 +14,21 @@
  * Binaries never enter the sandbox.
  *
  * Failure semantics are two-tier by design:
- *  - Infra failures (quota, session create, exec transport, no output file)
- *    THROW — the caller fails the whole scan visibly and retries next
- *    interval; per-page `fail_count` is never charged for a down sandbox.
+ *  - Infra failures (quota, session create, exec transport, no output file,
+ *    a worker that stopped before it attempted a page) THROW — the caller
+ *    fails the whole scan visibly and retries next interval; per-page
+ *    `fail_count` is never charged for a down sandbox.
  *    The worker reports the lane's own faults the same way, as a `halted`
  *    marker beside its pages: the egress proxy refusing the tunnel, or the
  *    browser gone — the caller stores what rendered and throws for the rest.
- *  - Per-URL render outcomes (nav timeout, blocked redirect, oversized DOM)
- *    come back as `failed` and are charged to that page alone. A navigation
+ *  - Per-URL render outcomes (nav timeout, blocked redirect, oversized DOM,
+ *    a page that held the browser until the worker was cut off) come back
+ *    as `failed` and are charged to that page alone. A navigation
  *    the browser lost (a crashed helper process, an aborted document) is
  *    retried once in a fresh context; when that fails too the outcome is
  *    `failed` with `transient` set, and the caller records it without a
- *    strike (`lib/knowledge/crawl-parse.ts`, the failure classes).
+ *    strike (`lib/knowledge/crawl-parse.ts`, the failure classes). So is a
+ *    page the batch's end cut off before it had its own time.
  *
  * One session per batch, destroyed in `finally` — a session never spans
  * loop iterations or scan continuation links. A batch whose create failed
@@ -38,6 +41,7 @@ import { z } from 'zod';
 import {
   RENDER_CRASH_ERROR_PATTERN,
   RENDER_PROXY_ERROR_PATTERN,
+  RENDER_UNFINISHED_REASON,
   type RenderLaneHalt,
 } from '../../../../lib/knowledge/crawl-parse';
 import { crawlerUserAgent } from '../../knowledge/crawler_identity';
@@ -52,6 +56,7 @@ import {
   sessionReadFile,
   sessionStageFiles,
 } from './helpers/session_client';
+import { RENDERED_LAYOUT_SCRIPT } from './render_layout';
 import { runStepsInSession } from './session_exec';
 
 /** Per-page navigation budget inside the worker. */
@@ -75,7 +80,8 @@ export type RenderPageOutcome =
       kind: 'failed';
       reason: string;
       /** The browser lost this navigation twice (a crashed helper process,
-       * an aborted document): the row records the reason, uncharged. */
+       * an aborted document), or the batch ended under a page it had
+       * started too late: the row records the reason, uncharged. */
       transient: boolean;
     }
   | { kind: 'not_attempted' };
@@ -244,6 +250,9 @@ export async function renderUrlsInSandbox(
         30_000,
         args.execTimeoutMs - WORKER_EXIT_MARGIN_MS,
       ),
+      // When the exec is cut: what tells a page that held the browser with
+      // its whole time ahead of it from one started too late to finish.
+      hardBudgetMs: args.execTimeoutMs,
       maxHtmlBytes: RENDER_MAX_HTML_BYTES,
       maxTotalBytes: RENDER_MAX_TOTAL_BYTES,
       // The site's robots.txt `Crawl-delay` paces the render leg too, not
@@ -276,22 +285,37 @@ export async function renderUrlsInSandbox(
       stepPaths: ['/agent/code/render.mjs'],
       timeoutMs: args.execTimeoutMs,
     });
-    // The worker rewrites its output after every page, so even a hard-killed
-    // exec leaves partial results behind; only a MISSING file is an infra
-    // failure worth failing the scan over.
-    const file = await sessionReadFile(sessionId, '/agent/output/pages.json');
-    if (!file) {
-      const detail = [
-        `status ${run.status}`,
-        run.errorMessage ?? '',
-        run.stderr.slice(-400),
-      ]
+    const detail = (): string =>
+      [`status ${run.status}`, run.errorMessage ?? '', run.stderr.slice(-400)]
         .filter((part) => part.length > 0)
         .join(' — ');
-      throw new Error(`render worker produced no output (${detail})`);
+    // The worker rewrites its output after every page, so even a hard-killed
+    // exec leaves partial results behind; a MISSING file is an infra failure
+    // worth failing the scan over.
+    const file = await sessionReadFile(sessionId, '/agent/output/pages.json');
+    if (!file) {
+      throw new Error(`render worker produced no output (${detail()})`);
     }
     const payload: unknown = JSON.parse(new TextDecoder().decode(file.bytes));
-    return parseRenderResults(payload, args.urls);
+    const result = parseRenderResults(payload, args.urls);
+    // So is a file on which no page was even attempted and that names no
+    // halt: the worker writes it before it launches the browser, so a
+    // Chromium that would not start leaves every URL `not_attempted`. Handed
+    // back as-is, the crawl would re-probe and re-render the same batch
+    // round after round, a session each, and end hours later blaming its
+    // continuation budget.
+    if (
+      result.halted === null &&
+      args.urls.length > 0 &&
+      [...result.outcomes.values()].every(
+        (outcome) => outcome.kind === 'not_attempted',
+      )
+    ) {
+      throw new Error(
+        `sandbox session rendered no page: the render worker stopped before its first one (${detail()})`,
+      );
+    }
+    return result;
   } finally {
     // Only a session this batch created is torn down here. A failed create's
     // row already reads `failed`: settling it `destroyed` would hide it from
@@ -387,7 +411,8 @@ async function settleFailedCreate(
  * navigation dies). Re-validates hostnames because the engine-side SSRF
  * guard does not travel into the sandbox: single-label hosts (docker service
  * aliases like `convex`) and private/link-local IP literals are refused, on
- * the original URL and again on the post-redirect landing host.
+ * the original URL and again on the post-redirect landing host. A page's HTML
+ * comes back with its CSS layout written in (`RENDERED_LAYOUT_SCRIPT`).
  */
 export const RENDER_WORKER_SOURCE = `
 import { createRequire } from 'node:module';
@@ -434,14 +459,29 @@ function isBlockedHost(hostname) {
   return false;
 }
 
+const UNFINISHED_PAGE_REASON = ${JSON.stringify(RENDER_UNFINISHED_REASON)};
+
+// The page's HTML with its CSS layout written in, so the host's tag-level
+// text pass separates what the page shows separated; the plain
+// serialization when the page refuses the script.
+const LAYOUT_SCRIPT = ${JSON.stringify(RENDERED_LAYOUT_SCRIPT)};
+async function renderedHtml(page) {
+  const layout = await page.evaluate(LAYOUT_SCRIPT).catch(() => null);
+  return typeof layout === 'string' && layout !== '' ? layout : page.content();
+}
+
 const input = JSON.parse(readFileSync('/agent/code/urls.json', 'utf8'));
 const urls = Array.isArray(input.urls) ? input.urls : [];
 const perPageTimeoutMs = input.perPageTimeoutMs || 20000;
 const idleTimeoutMs = input.idleTimeoutMs || 5000;
 const softBudgetMs = input.softBudgetMs || 180000;
+const hardBudgetMs = input.hardBudgetMs || softBudgetMs + 20000;
 const maxHtmlBytes = input.maxHtmlBytes || 6291456;
 const maxTotalBytes = input.maxTotalBytes || 15728640;
 const crawlDelayMs = Number(input.crawlDelayMs) || 0;
+// What one page may take by its own budgets: the load, the idle wait and
+// the settle loop, twice over for the retry in a fresh context.
+const pageRoomMs = 2 * (perPageTimeoutMs + idleTimeoutMs + Math.min(perPageTimeoutMs, 15000));
 const userAgent =
   typeof input.userAgent === 'string' && input.userAgent !== ''
     ? input.userAgent
@@ -585,7 +625,7 @@ async function renderOnce(url) {
     if (status < 200 || status >= 300) {
       return { ok: false, cls: 'page', status, error: 'HTTP ' + status + ' at render time' };
     }
-    const html = await page.content();
+    const html = await renderedHtml(page);
     if (Buffer.byteLength(html, 'utf8') > maxHtmlBytes) {
       return { ok: false, cls: 'page', error: 'rendered HTML exceeds the per-page bound' };
     }
@@ -599,14 +639,19 @@ async function renderOnce(url) {
 }
 
 let budgetExhausted = false;
+// Pages stored in this batch's output so far.
+let admitted = 0;
 try {
   await openContext();
   let renderedOne = false;
   for (const url of urls) {
-    if (Date.now() - startedAt > softBudgetMs) break;
-    // The site's Crawl-delay between two page loads (never before the first).
-    if (renderedOne && crawlDelayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, crawlDelayMs));
+    // The site's Crawl-delay between two page loads (never before the
+    // first) counts against the budget: a page is not started after it,
+    // and the pause used to be slept through before anyone looked.
+    const pauseMs = renderedOne ? crawlDelayMs : 0;
+    if (Date.now() - startedAt + pauseMs > softBudgetMs) break;
+    if (pauseMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, pauseMs));
     }
     renderedOne = true;
     const record = records.get(url);
@@ -624,7 +669,17 @@ try {
       flush();
       continue;
     }
+    // On file until the page settles: a worker killed mid-page leaves this
+    // reason behind, and the host records it instead of handing the page
+    // back to every batch. A page that held the browser with its whole
+    // time ahead of it is charged; one started too close to the batch's
+    // end to have had that time is recorded without a strike.
+    record.error = UNFINISHED_PAGE_REASON;
+    if (hardBudgetMs - (Date.now() - startedAt) < pageRoomMs) record.transient = true;
+    fileBytes = flush();
     let result = await renderOnce(url);
+    delete record.error;
+    delete record.transient;
     if (!result.ok && result.cls === 'crash') {
       // Once more, in a fresh context: a helper process the host killed is
       // back by now. A second loss is the page's row to show, uncharged.
@@ -659,12 +714,16 @@ try {
       // Admit the page only while the output stays under the batch cap —
       // decided BEFORE storing, in bytes. A page that does not fit is
       // handed back (not attempted) for the next batch, and this batch
-      // ends here.
-      if (fileBytes + admissionBytes(record, fields) > maxTotalBytes) {
+      // ends here. The one that does not fit an empty batch fits no batch:
+      // it is the page's failure, or it would lead every batch for good.
+      if (fileBytes + admissionBytes(record, fields) <= maxTotalBytes) {
+        Object.assign(record, fields);
+        admitted += 1;
+      } else if (admitted === 0) {
+        record.error = 'rendered HTML exceeds the batch output bound';
+      } else {
         record.attempted = false;
         budgetExhausted = true;
-      } else {
-        Object.assign(record, fields);
       }
     }
     fileBytes = flush();

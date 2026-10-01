@@ -96,6 +96,9 @@ import { addJobInTx } from './enqueue.ts';
 
 /** What the worker hands a handler beside its payload. */
 export interface TaskContext {
+  /** The job's id, for a handler that checks whether its job is still its
+   * own — pg-boss may have failed it from outside while the handler ran. */
+  readonly jobId?: string;
   /**
    * Aborted when pg-boss gives up on the job: it ran past its queue's
    * `expireInSeconds` (pg-boss then fails it and schedules any retry), or
@@ -852,10 +855,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         result.healed > 0 ||
         result.recreating > 0 ||
         result.reclaimed > 0 ||
-        result.collected > 0
+        result.collected > 0 ||
+        result.released > 0
       ) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, queued the recreate of ${result.recreating} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, queued the recreate of ${result.recreating} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s), released ${result.released} abandoned render session(s)`,
         );
       }
       // Removed sandbox devices the hub has not dropped yet (the spawner was
@@ -1028,7 +1032,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     'websites.scan_due': async () => {
       await runWebsitesScanDue(deps.sql);
     },
-    'websites.scan': async (payload) => {
+    'websites.scan': async (payload, context) => {
       const input = z
         .object({
           domain: z.string().min(1),
@@ -1036,9 +1040,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           organizationId: z.string().min(1),
           continuation: z.number().int().min(0).optional(),
           scanStartedAt: z.string().optional(),
+          takeover: z.string().min(1).optional(),
         })
         .parse(payload);
-      await runWebsitesScan(deps.sql, input);
+      await runWebsitesScan(deps.sql, input, context);
     },
     'websites.register': async (payload) => {
       const input = z

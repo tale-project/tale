@@ -24,6 +24,12 @@ Choisis l’**Intervalle d'analyse**, puis **Enregistrer**. La valeur par défau
 
 </Frame>
 
+## Permettre au chat de chercher dans les pages
+
+Le crawl enregistre le texte d’une page. Le chat et la recherche dans les connaissances n’y accèdent que lorsque ton organisation dispose d’un modèle d’embedding qui fonctionne, car chaque recherche transforme d’abord la question en vecteur. Sans modèle, une source peut afficher **Actif** avec toutes ses pages indexées pendant que l’assistant répond que la recherche dans les pages web n’est pas configurée.
+
+**Connaissances > Sites web** affiche alors l’avis **Le chat ne peut pas encore chercher dans ces sites web** ; un administrateur peut voir à sa place la bannière **La recherche de connaissances est coupée**, au-dessus de chaque page. Un administrateur définit le modèle dans **Paramètres > Résidence des données** ; les détails destinés aux exploitants figurent dans [Résidence des données](/fr/self-hosted/configuration/data-residency). Dès qu’un modèle est enregistré, Tale relance un scan de chaque source explorée sans modèle et de chaque source dont le dernier scan a échoué. Tu n’as pas à les ajouter de nouveau.
+
 ## Garder une liste d’URL ciblée
 
 Une liste récupère uniquement les adresses fournies et ne suit aucun autre lien. Elle peut couvrir plusieurs sites ; Tale les regroupe en une source par site. Une adresse listée en `http://` est acceptée et récupérée en `https://`, contrairement à un domaine `http://` en mode site entier, qui est refusé ; une page qui ne répond qu’en clair reste inaccessible dans les deux cas. Ajouter une liste à une source de type liste d’URL existante complète les adresses sans retirer les précédentes et actualise son intervalle de scan.
@@ -34,7 +40,7 @@ Utilise des URL publiques complètes. Les PDF et documents Office modernes liés
 
 Pour un site entier, le crawler utilise l’accueil et les sitemaps publiés, y compris les index de sitemaps et ceux déclarés dans `robots.txt`. Sans sitemap exploitable, il suit les liens du domaine depuis l’accueil. Une page absente des sitemaps et inaccessible par ces liens peut manquer. Utilise une liste d’URL si des pages précises sont indispensables.
 
-Les scans sont incrémentaux : les contenus inchangés sont ignorés, les contenus modifiés réindexés, les nouvelles pages ajoutées et les pages retirées supprimées de l’index — comme les pages que le `robots.txt` en est venu à interdire. Les compteurs de pages de la ligne suivent le scan à mesure que les pages arrivent, après la découverte et après chaque lot stocké, la table bouge donc pendant qu’un scan tourne. Une liste d’URL actualise sa sélection fixe au même rythme. Aucune publication séparée n’est nécessaire après l’indexation.
+Les scans sont incrémentaux : les contenus inchangés sont ignorés, les contenus modifiés réindexés, les nouvelles pages ajoutées et les pages retirées supprimées de l’index — comme les pages que le `robots.txt` en est venu à interdire. Une page qui redirige vers une autre adresse du même site n’est indexée qu’une fois, sous l’adresse où elle aboutit. Les compteurs de pages de la ligne suivent le scan à mesure que les pages arrivent, après la découverte et après chaque lot stocké, la table bouge donc pendant qu’un scan tourne. Une liste d’URL actualise sa sélection fixe au même rythme. Aucune publication séparée n’est nécessaire après l’indexation.
 
 Le crawler visite en lecteur anonyme. Ajouter une URL ne rend pas accessible un contenu privé. À chaque requête il se présente comme `TaleBot/<version> (+https://docs.tale.dev/platform/knowledge/crawling)`, si bien qu’un groupe de `robots.txt` peut le désigner par son nom — `User-agent: TaleBot` — pour l’autoriser, le ralentir ou le refuser seul.
 
@@ -65,6 +71,10 @@ Le tableau affiche **Statut**, **Indexé**, **Analysé** et **Intervalle**. La c
 | **Erreur** | Le scan a échoué ou les tentatives de récupération n’ont laissé aucun contenu stocké. Ouvre la source pour connaître la cause. |
 | **Suppression en cours** | La source est en cours de retrait. |
 
+Un scan en cours au moment où Tale a été redémarré, mis à jour ou arrêté brutalement reprend de lui-même en quelques minutes, avec les pages qu’il n’avait pas encore atteintes. Les pages qui ont besoin du navigateur peuvent suivre jusqu’à un quart d’heure plus tard. La source affiche **En cours d'analyse** pendant tout ce temps.
+
+Pour lancer un scan en dehors de l’intervalle, ouvre le menu de la ligne ou les détails de la source et choisis **Analyser maintenant**. C’est utile quand le site a changé ou après un scan en échec, qui sinon est relancé automatiquement dans les deux heures. L’action est proposée tant que la source n’est ni en cours d’analyse ni en cours de suppression.
+
 La vue des pages permet aussi de rechercher dans le contenu indexé. Essaie une expression distinctive de la page avant de t’appuyer dessus dans Chat, puis pose une question précise et vérifie la citation.
 
 ## Examiner une page absente
@@ -80,6 +90,9 @@ Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ou
 | La source refuse l’indexation | La réponse contient `X-Robots-Tag: noindex` ou `none`, ou la page porte `<meta name="robots" content="noindex">`. Le responsable du site doit modifier cette consigne pour que Tale puisse indexer le contenu. |
 | Contenu non pris en charge ou sans texte lisible | Les points d’accès JSON/XML, téléchargements binaires, images ou scans peuvent ne fournir aucun texte exploitable. Fournis une page HTML ou un document pris en charge dont le texte peut être extrait. |
 | Échec du rendu ou de l’extraction | Vérifie que la page publique se charge et que le document d’origine s’ouvre. Répare ou exporte à nouveau une source endommagée. |
+| L’assistant répond que la recherche dans les pages web n’est pas configurée | L’organisation n’a pas de modèle d’embedding qui fonctionne. Un administrateur le définit dans **Paramètres > Résidence des données** ; Tale relance ensuite un scan des sources concernées. |
+| **Erreur** avec « Le modèle d'embedding n'a pas pu traiter les pages. » | Le fournisseur d’embedding a refusé la requête ou n’a pas pu y répondre : identifiants rejetés, solde épuisé ou panne. Un administrateur corrige le modèle dans **Paramètres > Résidence des données** ou ses identifiants dans **Paramètres > Fournisseurs IA** ; l’enregistrement relance le scan des sources concernées. Après une panne chez le fournisseur, choisis **Analyser maintenant** dès qu’il est de nouveau disponible. |
+| **Erreur** avec « L'analyse n'a pas eu lieu. » | Le navigateur du crawler n’a pas pu démarrer, aucune page n’a donc été rendue. L’adresse n’est pas en cause : demande à ton exploitant de vérifier le service de sandbox, puis choisis **Analyser maintenant**. |
 
 Une récupération réussie efface l’erreur précédente. Si une actualisation échoue, la copie déjà indexée peut rester disponible : **Actif** et le nombre de pages indexées ne prouvent pas que chaque page est à jour. Compare les fragments enregistrés et la date du passage avec l’original avant de t’appuyer sur une modification récente.
 

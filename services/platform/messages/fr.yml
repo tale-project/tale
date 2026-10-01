@@ -7081,8 +7081,8 @@ settings:
       banner:
         title: La recherche de connaissances est coupée
         body: Cette organisation a un fournisseur IA mais aucun modèle
-          d'embedding, donc les documents ne peuvent être ni indexés ni
-          cherchés.
+          d'embedding, donc les documents ne peuvent pas être indexés, et ni
+          les documents ni les sites web ne peuvent être cherchés.
         link: Choisir un modèle d'embedding
       recommendationBody:
         Ton identifiant {provider} peut servir {model} (vecteurs à {dimensions}
@@ -8103,6 +8103,8 @@ websites:
     fetchPagesError: Échec du chargement des pages
     searchError: La recherche a échoué
     deleteError: Échec de la suppression du site web
+    scanStarted: Analyse lancée
+    scanAlreadyRunning: Une analyse est déjà en cours
   adding: Ajout en cours...
   viewDialog:
     title: Détails du site web
@@ -8120,17 +8122,30 @@ websites:
       Résidence des données, puis reprends l'analyse.
     scanError:
       runtime: L'analyse n'a pas eu lieu.
-      notInCorpus: Ce site n'est pas dans le crawler. Supprime-le et ajoute-le
-        à nouveau.
+      notInCorpus: Cette liste d'URL n'est pas dans le crawler. Supprime-la et
+        ajoute-la à nouveau.
+      notInCorpusSite: Ce site n'est pas dans le crawler. La prochaine analyse
+        l'ajoutera à nouveau.
+      embedding: Le modèle d'embedding n'a pas pu traiter les pages.
       generic: Le dernier scan ne s'est pas terminé.
     scanEmpty:
       runtime: Rien n'a été indexé. L'URL n'est pas le problème.
       dns: Rien n'a été indexé. Change l'URL si l'hôte est incorrect.
-      notInCorpus: Rien n'a été indexé. Supprime le site et ajoute-le à nouveau.
+      notInCorpus: Rien n'a été indexé. Supprime la liste d'URL et ajoute-la à
+        nouveau.
+      notInCorpusSite: Rien n'a été indexé. La prochaine analyse ajoutera le site
+        à nouveau.
+      embedding: Rien n'a été indexé. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
       generic: Rien n'a été indexé.
   scanPausedBadge: Suspendu
   resumeScanning: Reprendre l'analyse
+  scanNow: Analyser maintenant
   indexed: Indexé
+  searchNotice:
+    title: Le chat ne peut pas encore chercher dans ces sites web
+    description: Les pages sont explorées et enregistrées, mais la recherche de connaissances a besoin d'un modèle d'embedding qui fonctionne, et cette organisation n'en a pas encore.
+    configureCta: Configurer le modèle d'embedding
+    askAdmin: Demande à un administrateur de ton organisation d'en configurer un sous Paramètres → Résidence des données.
   pagesDialog:
     title: Pages du site web
     noPages: Aucune page explorée pour le moment

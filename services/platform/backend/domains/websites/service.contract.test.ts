@@ -136,7 +136,10 @@ describe('registerWebsite', () => {
       queries.push({ text, values });
       return Promise.resolve(answer(text, values));
     };
-    const handle = Object.assign(tag, { unsafe: (t: string) => t });
+    const handle = Object.assign(tag, {
+      unsafe: (t: string) => t,
+      json: (v: unknown) => v,
+    });
     const pool = Object.assign(handle, {
       begin: (callback: (tx: unknown) => Promise<unknown>) => callback(handle),
     });

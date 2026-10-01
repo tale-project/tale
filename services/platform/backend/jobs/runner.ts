@@ -8,13 +8,14 @@ import {
 import { reportError } from '../error-reporting.ts';
 import { bossDbInTx } from './enqueue.ts';
 import type { BackendTaskList } from './task-list.ts';
-import { TASK_WORKER_BATCH_LIMITS } from './tasks.ts';
+import { TASK_WORKER_BATCH_LIMITS, TASK_WORKER_SLOT_QUEUES } from './tasks.ts';
 
 export type WorkerOptions = {
   boss: PgBoss;
   taskList: BackendTaskList;
   /** Max jobs fetched (and processed concurrently) per queue per fetch;
-   * `TASK_WORKER_BATCH_LIMITS` lowers it for the queues it names. */
+   * `TASK_WORKER_BATCH_LIMITS` lowers it for the queues it names, and a
+   * queue in `TASK_WORKER_SLOT_QUEUES` runs as many one-job slots instead. */
   concurrency?: number;
 } & (
   | { shouldDefer?: undefined; sql?: undefined }
@@ -80,7 +81,9 @@ function claimsEnded(answer: unknown): 0 | 1 {
  * pg-boss's failure path under its queue's retry policy rather than ending
  * without a successor. A keyless job on a standard queue hands over as
  * before. The queue's own retry and expiry options apply to the successor,
- * as they applied to the job.
+ * as they applied to the job, and the job's own heartbeat travels with it:
+ * a queue created before its heartbeat was declared has none to lend
+ * (`TaskQueueOptions.heartbeatSeconds`).
  */
 async function handOver(
   boss: PgBoss,
@@ -99,6 +102,9 @@ async function handOver(
       startAfter: 5,
       ...(job.singletonKey !== null ? { singletonKey: job.singletonKey } : {}),
       ...(job.priority !== 0 ? { priority: job.priority } : {}),
+      ...(typeof job.heartbeatSeconds === 'number'
+        ? { heartbeatSeconds: job.heartbeatSeconds }
+        : {}),
     });
     if (successor !== null) return 'handed_over';
     // pg-boss's own record of the queue, read on this path only.
@@ -125,10 +131,14 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
     await options.boss.work(
       name,
       {
-        batchSize: Math.min(
-          concurrency,
-          TASK_WORKER_BATCH_LIMITS.get(name) ?? concurrency,
-        ),
+        ...(TASK_WORKER_SLOT_QUEUES.has(name)
+          ? { batchSize: 1, localConcurrency: concurrency }
+          : {
+              batchSize: Math.min(
+                concurrency,
+                TASK_WORKER_BATCH_LIMITS.get(name) ?? concurrency,
+              ),
+            }),
         perJobResults: true,
         // The hand-over re-sends a job with its own singleton key and
         // priority, which only the metadata carries.
@@ -176,7 +186,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
               // pg-boss aborts `job.signal` once the batch outlives the
               // queue's `expireInSeconds` and retries the job; a handler that
               // honours it stops instead of running beside its retry.
-              await handler(job.data, { signal: job.signal });
+              await handler(job.data, { signal: job.signal, jobId: job.id });
               return { id: job.id, status: 'completed' };
             } catch (error) {
               if (isDatabaseUnavailable(error)) {

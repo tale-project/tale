@@ -6976,8 +6976,8 @@ settings:
       banner:
         title: Wissenssuche ist aus
         body: Diese Organisation hat einen KI-Anbieter, aber kein
-          Embedding-Modell — Dokumente lassen sich weder indexieren noch
-          durchsuchen.
+          Embedding-Modell — Dokumente lassen sich nicht indexieren, und
+          weder Dokumente noch Websites lassen sich durchsuchen.
         link: Embedding-Modell wählen
       recommendationBody:
         Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
@@ -7996,6 +7996,8 @@ websites:
     fetchPagesError: Seiten konnten nicht geladen werden
     searchError: Suche fehlgeschlagen
     deleteError: Website konnte nicht gelöscht werden
+    scanStarted: Scan gestartet
+    scanAlreadyRunning: Es läuft bereits ein Scan
   adding: Füge hinzu...
   viewDialog:
     title: Website-Details
@@ -8013,18 +8015,30 @@ websites:
       Datenresidenz und setze die Scans danach fort.
     scanError:
       runtime: Der Scan ist nicht gelaufen.
-      notInCorpus: Diese Website ist nicht im Crawler. Lösche sie und füge sie
+      notInCorpus: Diese URL-Liste ist nicht im Crawler. Lösche sie und füge sie
         erneut hinzu.
+      notInCorpusSite: Diese Website ist nicht im Crawler. Der nächste Scan fügt
+        sie wieder hinzu.
+      embedding: Das Embedding-Modell konnte die Seiten nicht verarbeiten.
       generic: Der letzte Scan ist nicht durchgelaufen.
     scanEmpty:
       runtime: Nichts wurde indexiert. Die URL ist nicht das Problem.
       dns: Nichts wurde indexiert. Ändere die URL, wenn der Host nicht stimmt.
-      notInCorpus: Nichts wurde indexiert. Lösche die Website und füge sie
+      notInCorpus: Nichts wurde indexiert. Lösche die URL-Liste und füge sie
         erneut hinzu.
+      notInCorpusSite: Nichts wurde indexiert. Der nächste Scan fügt die Website
+        wieder hinzu.
+      embedding: Nichts wurde indexiert. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       generic: Nichts wurde indexiert.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
+  scanNow: Jetzt scannen
   indexed: Indexiert
+  searchNotice:
+    title: Der Chat kann diese Websites noch nicht durchsuchen
+    description: Die Seiten werden gecrawlt und gespeichert. Die Wissenssuche braucht aber ein funktionierendes Embedding-Modell, und diese Organisation hat noch keines.
+    configureCta: Embedding-Modell konfigurieren
+    askAdmin: Ein Admin deiner Organisation kann eines unter Einstellungen → Datenresidenz einrichten.
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt
