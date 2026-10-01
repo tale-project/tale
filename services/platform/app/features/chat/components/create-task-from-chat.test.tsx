@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
     enabled: boolean;
     available: boolean;
   },
+  standardAgentLoading: false,
   ensure: vi.fn(),
 }));
 
@@ -46,7 +47,11 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
       projectId === undefined ? [] : (state.agentsByProject[projectId] ?? []),
     isLoading: false,
   }),
-  useStandardAgent: () => state.standardAgent,
+  useStandardAgentQuery: () => ({
+    data: state.standardAgentLoading ? undefined : state.standardAgent,
+    isLoading: state.standardAgentLoading,
+    failureCount: 0,
+  }),
 }));
 
 vi.mock('@/app/features/projects/hooks/mutations', () => ({
@@ -151,6 +156,7 @@ beforeEach(() => {
   state.projects = [WEBSITE, HANDBOOK];
   state.agentsByProject = {};
   state.standardAgent = { enabled: true, available: false };
+  state.standardAgentLoading = false;
   state.ensure.mockReset();
   state.projectsFailed = false;
   state.messages = conversation();
@@ -308,6 +314,17 @@ describe('CreateTaskFromChat', () => {
     );
     expect(state.ensure).toHaveBeenCalledWith({ projectId: HANDBOOK.id });
     expect(screen.getByTestId('start')).toHaveTextContent('true');
+  });
+
+  it('opens nothing until it knows whether the standard agent takes the work', () => {
+    state.standardAgentLoading = true;
+    state.projects = [{ ...HANDBOOK, agentCount: 0 }];
+    open({ projectId: HANDBOOK.id });
+
+    // Neither an unassigned form that would open again assigned, nor a
+    // standard agent set up before the answer.
+    expect(screen.queryByTestId('project')).not.toBeInTheDocument();
+    expect(state.ensure).not.toHaveBeenCalled();
   });
 
   it('opens the task unassigned, saying why, when the standard agent cannot be added', async () => {

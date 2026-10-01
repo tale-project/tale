@@ -30,7 +30,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useEnsureStandardAgent } from '@/app/features/projects/hooks/mutations';
 import {
   useProjectAgents,
-  useStandardAgent,
+  useStandardAgentQuery,
 } from '@/app/features/projects/hooks/queries';
 import { TaskModal } from '@/app/features/tasks/components/task-modal';
 import { taskRunErrorMessage } from '@/app/features/tasks/lib/task-run-error';
@@ -95,8 +95,10 @@ export function CreateTaskFromChat({
   // Where work can go: projects with an agent first, then the rest, each
   // saying who could add one — or, while the organization provides a
   // standard agent, saying it takes the work there.
-  const standardAgentAvailable =
-    useStandardAgent(open ? organizationId : undefined)?.available === true;
+  const standardAgentQuery = useStandardAgentQuery(
+    open ? organizationId : undefined,
+  );
+  const standardAgentAvailable = standardAgentQuery.data?.available === true;
   const withAgents = listed.filter((row) => (row.agentCount ?? 0) > 0);
   const withoutAgents = listed.filter((row) => (row.agentCount ?? 0) === 0);
   // A lone project is the answer; asking would be a step with one choice.
@@ -278,7 +280,15 @@ export function CreateTaskFromChat({
     );
   }
 
-  if (projects.status === 'loading' || draft === undefined) {
+  // Whether the standard agent takes work decides how the projects group
+  // and whether the form opens assigned: wait for its first answer as for
+  // the list, so neither shows once one way and then again the other. A
+  // read that failed once goes on without it rather than through retries.
+  if (
+    projects.status === 'loading' ||
+    draft === undefined ||
+    (standardAgentQuery.isLoading && standardAgentQuery.failureCount === 0)
+  ) {
     return null;
   }
 
