@@ -223,6 +223,23 @@ export function taskBoardScope(
     : backendKey(orgId, 'task', 'by-project', projectId);
 }
 
+/**
+ * The tasks one conversation handed over, for the chat's tray — read by the
+ * task adapter below and by the chat seam's own table (`chat-backend.ts`),
+ * which routes only the names it lists. Under the task entity: every task
+ * and run write hints it, so the chat's rows move with the work.
+ */
+export function tasksFromThreadQuery(orgId: string, threadId: string) {
+  return {
+    queryKey: backendKey(orgId, 'task', 'from-thread', threadId),
+    queryFn: () =>
+      backendFetch<{ tasks: unknown[] }>(
+        `/tasks/by-thread/${encodeURIComponent(threadId)}`,
+        { orgId },
+      ).then((body) => body.tasks),
+  };
+}
+
 /** The shared board filter set → query-string + a stable key suffix. */
 function boardFilterParams(args: Record<string, unknown>): {
   search: string;
@@ -539,6 +556,12 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           { orgId },
         ).then((body) => body.previews),
     };
+  },
+  'tasks/queries:listTasksFromThread': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const threadId = args.threadId;
+    if (orgId === undefined || typeof threadId !== 'string') return null;
+    return tasksFromThreadQuery(orgId, threadId);
   },
   'tasks/queries:getLatestTaskAgentRunForTask': (args, ctx) => {
     const orgId = orgOf(args, ctx);

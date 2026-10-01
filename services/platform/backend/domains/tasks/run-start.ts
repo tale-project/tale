@@ -1,4 +1,4 @@
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { TaskError } from './errors.ts';
@@ -6,7 +6,7 @@ import { TaskError } from './errors.ts';
 /** New task work obeys the same master switch the mention preview shows.
  * Read fresh so a recently disabled policy cannot start another paid turn. */
 export async function taskAutomationEnabled(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   organizationId: string,
 ): Promise<boolean> {
   const policy = await readGovernancePolicyForOrg(
@@ -29,7 +29,7 @@ export async function taskAutomationEnabled(
  * description edit that asked for one; explicit start actions keep their
  * actionable configuration error. */
 export async function mentionAutomationEnabled(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   organizationId: string,
 ): Promise<boolean> {
   try {

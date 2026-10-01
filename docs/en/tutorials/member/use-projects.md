@@ -76,10 +76,10 @@ For a one-off link to a snapshot for organization members, follow [Shared chats]
 
 Chat answers questions; it doesn't produce files. When the answer should become a document, such as a one-page launch summary, give the work to one of the project's agents on a task.
 
-1. In the conversation, open the **⋯** menu and choose **Create task from chat**. Because the chat belongs to this project, **Create task** opens there, holding your last question as the description, a link back to the chat, and any files you attached.
+1. In the conversation's header, select **Create task**. Because the chat belongs to this project, **Create task** opens there, holding your last question as the description, a link back to the chat, and any files you attached.
 2. Rewrite the description as the result you want, for example: `Draft a one-page launch summary from the brief as a Word document. Cite the brief for every date.`
-3. Under **Assignee**, choose one of the project's agents, then select **Create task**.
-4. Select **Open task** in the confirmation, then **Start agent**.
+3. Under **Assignee**, choose one of the project's agents if none is chosen yet, then select **Create and start agent**.
+4. Follow the run above the chat's message box; **Open** there takes you to the task.
 
 When the run ends, the agent's report is in the task's comments, the file is under **Deliverables**, and the task waits in **In review**. Mention the agent with `@` in a comment to ask for changes, and move the task to **Done** when the result meets the description.
 

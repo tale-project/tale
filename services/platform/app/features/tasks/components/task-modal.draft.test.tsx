@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { TaskModal, type TaskDraft } from './task-modal';
@@ -57,8 +58,9 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
   useAssignableActors: () => ({
     assignableMembers: [],
-    assignableAgents: [],
+    assignableAgents: [{ type: 'agent', id: 'agent-1', name: 'Analyst' }],
     agents: [],
+    resolveActor: () => ({ name: 'Analyst' }),
   }),
 }));
 // The upload hook starts its list from the draft's files: the form's files
@@ -90,18 +92,35 @@ const DRAFT: TaskDraft = {
   ],
 };
 
-function openCreate(props: { onTaskCreated?: (taskId: string) => void } = {}) {
+function openCreate(
+  props: {
+    onTaskCreated?: (taskId: string) => void;
+    draft?: TaskDraft;
+    defaultStatus?: 'todo' | 'in_progress';
+  } = {},
+) {
   return render(
     <TaskModal
       open
       onOpenChange={vi.fn()}
       organizationId="org-1"
       projectId="project-1"
-      draft={DRAFT}
+      draft={props.draft ?? DRAFT}
       onTaskCreated={props.onTaskCreated}
+      {...(props.defaultStatus !== undefined
+        ? { defaultStatus: props.defaultStatus }
+        : {})}
     />,
   );
 }
+
+/** The chat's hand-over: its only agent picked, meant to start. */
+const HANDOVER_DRAFT: TaskDraft = {
+  ...DRAFT,
+  assignee: { type: 'agent', id: 'agent-1' },
+  sourceThreadId: 'thread-1',
+  startAgent: true,
+};
 
 beforeEach(() => {
   vi.mocked(toast).mockClear();
@@ -150,6 +169,88 @@ describe('TaskModal — a create drafted from a chat', () => {
       expect(toast).toHaveBeenCalledWith({
         title: 'Task created',
         variant: 'success',
+      }),
+    );
+  });
+
+  it('hands the task to the draft’s agent and starts it with the main verb', async () => {
+    const onTaskCreated = vi.fn();
+    const { user } = openCreate({ onTaskCreated, draft: HANDOVER_DRAFT });
+
+    await user.click(
+      screen.getByRole('button', { name: 'Create and start agent' }),
+    );
+
+    await waitFor(() => expect(onTaskCreated).toHaveBeenCalledWith('task-new'));
+    expect(mutations.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'in_progress',
+        assigneeType: 'agent',
+        assigneeId: 'agent-1',
+        sourceThreadId: 'thread-1',
+      }),
+    );
+  });
+
+  it('still lets the hand-over create without starting', async () => {
+    const { user } = openCreate({ draft: HANDOVER_DRAFT });
+
+    await user.click(screen.getByRole('button', { name: 'Create only' }));
+
+    await waitFor(() => expect(mutations.createTask).toHaveBeenCalledTimes(1));
+    expect(mutations.createTask).toHaveBeenCalledWith(
+      expect.not.objectContaining({ status: 'in_progress' }),
+    );
+  });
+
+  it('keeps Create as the board’s verb and offers the start beside it', async () => {
+    const { user } = openCreate({
+      draft: { ...HANDOVER_DRAFT, startAgent: false },
+    });
+
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Create and start agent' }),
+    );
+
+    await waitFor(() =>
+      expect(mutations.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'in_progress' }),
+      ),
+    );
+  });
+
+  it('says so when a card created at In progress starts its agent', () => {
+    openCreate({
+      draft: { ...HANDOVER_DRAFT, startAgent: false },
+      defaultStatus: 'in_progress',
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Create and start agent' }),
+    ).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Create task' })).toBeNull();
+  });
+
+  it('names a start the organization’s policy refuses', async () => {
+    mutations.createTask.mockRejectedValue(
+      new AppError({
+        code: 'TASK_AUTOMATION_DISABLED',
+        message: 'Task automation is disabled',
+      }),
+    );
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { user } = openCreate({ draft: HANDOVER_DRAFT });
+
+    await user.click(
+      screen.getByRole('button', { name: 'Create and start agent' }),
+    );
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        title:
+          'Task automation is turned off. Ask an organization admin to enable it.',
+        variant: 'destructive',
       }),
     );
   });

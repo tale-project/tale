@@ -16,6 +16,7 @@ import type { ChatMessageView, ChatProjectSummary } from '../types';
 
 const state = vi.hoisted(() => ({
   projects: [] as ChatProjectSummary[],
+  agentsByProject: {} as Record<string, { _id: string }[]>,
   projectsFailed: false,
   messages: [] as ChatMessageView[],
   navigate: vi.fn(),
@@ -32,6 +33,14 @@ vi.mock('../data/chat-backend', () => ({
     threadId === undefined
       ? { status: 'loading' }
       : { status: 'ready', data: state.messages },
+}));
+
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjectAgents: (projectId: string | undefined) => ({
+    agents:
+      projectId === undefined ? [] : (state.agentsByProject[projectId] ?? []),
+    isLoading: false,
+  }),
 }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -57,11 +66,17 @@ vi.mock('@/app/features/tasks/components/task-modal', () => ({
       title: string;
       description: string;
       attachments: readonly { fileName: string }[];
+      assignee?: { type: string; id: string };
+      sourceThreadId?: string;
+      startAgent?: boolean;
     };
     onTaskCreated?: (taskId: string) => void;
   }) => (
     <div role="dialog" aria-label="Create task">
       <p data-testid="project">{projectId}</p>
+      <p data-testid="assignee">{draft?.assignee?.id}</p>
+      <p data-testid="source">{draft?.sourceThreadId}</p>
+      <p data-testid="start">{String(draft?.startAgent === true)}</p>
       <p data-testid="title">{draft?.title}</p>
       <p data-testid="description">{draft?.description}</p>
       <p data-testid="files">
@@ -124,6 +139,7 @@ function open(props: { projectId?: string; viewerIsOwner?: boolean } = {}) {
 
 beforeEach(() => {
   state.projects = [WEBSITE, HANDBOOK];
+  state.agentsByProject = {};
   state.projectsFailed = false;
   state.messages = conversation();
   state.navigate.mockReset();
@@ -156,7 +172,7 @@ describe('CreateTaskFromChat', () => {
     expect(next).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: /^Project/ }));
-    await user.click(screen.getByRole('option', { name: HANDBOOK.name }));
+    await user.click(screen.getByRole('option', { name: /Employee handbook/ }));
     await user.click(next);
 
     expect(screen.getByTestId('project')).toHaveTextContent(HANDBOOK.id);
@@ -213,5 +229,71 @@ describe('CreateTaskFromChat', () => {
       params: { id: 'org-1', projectId: WEBSITE.id },
       search: { task: 'task-9' },
     });
+  });
+
+  it('groups projects by whether an agent can take the work, saying who could add one', async () => {
+    state.projects = [
+      { ...WEBSITE, agentCount: 2, canEdit: false },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+      { id: 'p-ops', name: 'Operations', agentCount: 0, canEdit: true },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(screen.getByText('With an agent')).toBeInTheDocument();
+    expect(screen.getByText('No agent yet')).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /Website relaunch.*2 agents/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', {
+        name: /Employee handbook.*An Editor or Admin can add one/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', {
+        name: /Operations.*You can add one in the task/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('picks the one project with an agent in advance', async () => {
+    state.projects = [
+      { ...WEBSITE, agentCount: 1 },
+      { ...HANDBOOK, agentCount: 0 },
+    ];
+    const { user } = open();
+
+    const next = screen.getByRole('button', { name: 'Continue' });
+    expect(next).toBeEnabled();
+    await user.click(next);
+
+    expect(screen.getByTestId('project')).toHaveTextContent(WEBSITE.id);
+  });
+
+  it('takes a lone project without asking', () => {
+    state.projects = [HANDBOOK];
+    open();
+
+    expect(screen.getByTestId('project')).toHaveTextContent(HANDBOOK.id);
+  });
+
+  it('hands the task to the project’s only agent, names the chat, and starts it', () => {
+    state.agentsByProject = { [WEBSITE.id]: [{ _id: 'agent-1' }] };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toHaveTextContent('agent-1');
+    expect(screen.getByTestId('source')).toHaveTextContent('t-root');
+    expect(screen.getByTestId('start')).toHaveTextContent('true');
+  });
+
+  it('leaves the choice open between two agents', () => {
+    state.agentsByProject = {
+      [WEBSITE.id]: [{ _id: 'agent-1' }, { _id: 'agent-2' }],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
   });
 });

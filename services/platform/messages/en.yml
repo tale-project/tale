@@ -1040,7 +1040,7 @@ chat:
   createTask:
     button: Create task from chat
     projectTitle: Create a task from this chat
-    projectDescription: Choose the project the task belongs to. A project agent there can work on it and deliver the files.
+    projectDescription: Choose the project the task belongs to. In a project with an agent, the agent can start on it right away and deliver the files.
     projectLabel: Project
     projectPlaceholder: Choose a project
     projectEmpty: No project matches
@@ -1052,6 +1052,24 @@ chat:
     openTask: Open task
     openTaskAltText: Open the task you just created on its project's board
     readFailed: Tale couldn't read this conversation, so the task can't carry your request and files yet. Try again, or create the task on the project's board.
+    headerButton: Create task
+    withAgents: With an agent
+    withoutAgents: No agent yet
+    agentCount: '{count, plural, one {# agent} other {# agents}}'
+    noAgentEditor: You can add one in the task
+    noAgentReader: An Editor or Admin can add one
+  taskTray:
+    label: Tasks from this chat
+    working: The agent is working
+    waitingForSlot: Waiting for a sandbox slot
+    retrying: Trying again…
+    failed: The agent couldn't finish
+    ready: Ready for review
+    readyWithFiles: '{count, plural, one {Ready for review · # file} other {Ready for review · # files}}'
+    notStarted: Waiting to be started
+    open: Open
+    openAria: 'Open task {title}'
+    more: '{count, plural, one {and # more task} other {and # more tasks}}'
   export:
     button: Export
     title: Export chat
@@ -7551,6 +7569,8 @@ tasks:
       deleteFailed: Couldn't delete the label.
   actions:
     create: Create task
+    createAndStart: Create and start agent
+    createOnly: Create only
     created: Task created
     comment: Comment
     commentPlaceholder: Write a comment — type @ to mention a person or an agent

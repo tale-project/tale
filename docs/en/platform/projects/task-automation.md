@@ -16,7 +16,7 @@ A project agent works on a task and returns a result for a person to review. Cho
 1. Create a [task](/platform/projects/tasks) with the desired result, completion criteria, and input files.
 2. Choose a [project agent](/platform/projects/project-agents) under **Assignee**.
 3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator. Reviewers need project edit access, so a Member who created the task is not sent the review request; they follow the task and hear when it reaches **In review**, and they can accept the result themselves unless your organization requires an independent reviewer and they started the run.
-4. Click **Start agent**, or move the task to **In progress**.
+4. Click **Start agent**, or move the task to **In progress**. When you assign the agent while creating the task, **Create and start agent** in **Create task** does this in the same step.
 
 Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed; until someone starts it, whoever can start the agent sees **Start agent** on the task with the note **The agent waits until you start it.** When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working. A run a Member starts keeps to its task and goes without the agent's secrets; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
 

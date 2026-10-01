@@ -217,6 +217,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/chat-task-tray.webp",
+      "shot": "chat-task-tray",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1140,
+        "height": 800
+      },
+      "dpr": 2,
+      "width": 1614,
+      "height": 488
+    },
+    {
       "file": "images/platform/chat-thread-reply.webp",
       "shot": "chat-thread-reply",
       "route": "/dashboard/:orgId/chat",

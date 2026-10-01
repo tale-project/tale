@@ -113,6 +113,8 @@ export interface TasksContract {
       parentTaskId?: string;
       startDate?: number;
       repeat?: TaskRepeat;
+      /** The conversation the task is handed over from (its root thread). */
+      sourceThreadId?: string;
       organizationId: string;
       projectId: string;
       title: string;
@@ -278,6 +280,34 @@ export interface TasksContract {
       executionId: null | string;
       reason?: 'already_running' | 'not_started';
     };
+  };
+  /** The tasks made from one conversation that the reader can open, newest
+   * first — the chat's own row of them. */
+  'tasks/queries:listTasksFromThread': {
+    kind: 'query';
+    args: { organizationId: string; threadId: string };
+    returns: Array<{
+      id: string;
+      projectId: string;
+      projectName: string;
+      title: string;
+      status:
+        | 'cancelled'
+        | 'done'
+        | 'in_review'
+        | 'backlog'
+        | 'todo'
+        | 'in_progress';
+      assigneeType: 'user' | 'agent' | 'app' | null;
+      assigneeId: string | null;
+      outputCount: number;
+      run?: {
+        status: 'queued' | 'running' | 'settled' | 'failed' | 'cancelled';
+        failureCode?: string;
+        retryPending?: boolean;
+        waitingForCapacity?: boolean;
+      };
+    }>;
   };
   'tasks/queries:getLatestTaskAgentRunForTask': {
     kind: 'query';

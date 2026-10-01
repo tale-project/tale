@@ -7,6 +7,7 @@ import {
   truncationNotice,
   type ContextInput,
 } from './context';
+import type { TaskHandover } from './handover';
 import type { ChatMessage } from './types';
 import { estimateMessageTokens, estimateTokens } from './types';
 import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from './untrusted-content';
@@ -43,6 +44,20 @@ function input(overrides: Partial<ContextInput> = {}): ContextInput {
   };
 }
 
+/** A person with one project that has an agent, in German. */
+const HANDOVER: TaskHandover = {
+  projectsWithAgents: ['Website relaunch'],
+  projectsWithoutAgents: 1,
+  canAddAgents: false,
+  automationOff: false,
+  labels: {
+    createTask: 'Aufgabe erstellen',
+    createAndStart: 'Erstellen und Agent starten',
+    assignee: 'Zuständig',
+    createAgent: 'Agent erstellen …',
+  },
+};
+
 describe('assembleContext', () => {
   it('emits the blocks in exactly the contracted order', () => {
     // Every optional block present, so the assembled list is the whole
@@ -50,6 +65,7 @@ describe('assembleContext', () => {
     const result = assembleContext(
       input({
         project: { name: 'Growth', instructions: 'Ship weekly.' },
+        taskHandover: HANDOVER,
         customInstructions: 'Reply tersely.',
       }),
     );
@@ -57,6 +73,37 @@ describe('assembleContext', () => {
     expect(result.blocks.map((block) => block.id)).toEqual([
       ...CONTEXT_BLOCK_ORDER,
     ]);
+  });
+
+  it('carries the person’s hand-over note after the breakpoint, never in the cached prefix', () => {
+    const result = assembleContext(
+      input({ taskHandover: HANDOVER, customInstructions: 'Reply tersely.' }),
+    );
+    const ids = result.blocks.map((block) => block.id);
+
+    expect(ids.indexOf('task-handover')).toBeGreaterThan(
+      ids.indexOf('runtime-directives'),
+    );
+    expect(ids.indexOf('task-handover')).toBeLessThan(
+      ids.indexOf('custom-instructions'),
+    );
+    expect(result.stablePrefix).not.toContain('Website relaunch');
+    expect(result.volatileSuffix).toContain('"Aufgabe erstellen"');
+    expect(result.volatileSuffix).toContain('Website relaunch');
+  });
+
+  it('leaves the hand-over note out of a sub-agent turn and a turn without one', () => {
+    const subAgent = assembleContext(
+      input({ taskHandover: HANDOVER, isSubAgentTurn: true }),
+    );
+    const without = assembleContext(input());
+
+    expect(subAgent.blocks.map((block) => block.id)).not.toContain(
+      'task-handover',
+    );
+    expect(without.blocks.map((block) => block.id)).not.toContain(
+      'task-handover',
+    );
   });
 
   it('puts the cache breakpoint after the tool docs and before the clock', () => {
