@@ -21,7 +21,7 @@
   "dependencies": {
     "@tale/ui": "workspace:*",
     "@tanstack/react-table": "8.21.3",
-    "hono": "4.13.5",
+    "hono": "4.13.7",
     "zod": "4.3.6"
   },
   "devDependencies": {
