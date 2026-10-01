@@ -274,6 +274,23 @@ actions:
         subject: 'Hello from Tale',
         body: 'This is a test message.',
       }
+  - name: get_profile
+    description: The address of the connected mailbox (the account the credential authorizes), as the mail sync reads it to tell the mailbox's own mail from a customer's.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ emailAddress: string }'
+    mock: |
+      return { emailAddress: 'mailbox@example.com' };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get('https://gmail.googleapis.com/gmail/v1/users/me/profile', { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail get_profile failed (${r.status}): ${r.text()}`);
+        const j = r.json();
+        return { emailAddress: String(j.emailAddress || '') };
+    exampleInput: {}
   - name: list_labels
     description: List all labels in the mailbox, including system labels (INBOX, SENT, etc.) and user-created labels.
     effects: read

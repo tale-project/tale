@@ -561,6 +561,18 @@ subject.
   reply as the customer (or re-sync a new inbound mail) → the thread is
   listed again, and a thread still holding its earlier pending draft keeps
   that one (`created: false` in the output's `drafted`).
+- [ ] `CONV-F38` · **The mailbox's own mail never becomes the contact** — With
+  a Gmail or Outlook mailbox connected and its sync automation deployed, send a
+  mail FROM that mailbox to an outside address, have the outside party reply,
+  and let the sync pass run (or **Run** it) → No conversation names the
+  mailbox's own address as its contact (the Inbox list shows the outside
+  party; the header's contact line is theirs); the outside party's reply
+  renders as an **inbound** bubble (left) and nothing of the mailbox's own
+  sent mail opens a thread of its own. Under **Settings › Connectors**, the
+  mailbox credential now shows its own address as the From address after the
+  first pass (Gmail/Outlook learn it from the account; IMAP from the login).
+  Reply from the mail client itself and sync again → that reply, when it is
+  in the thread, is **outbound** (right), never a new customer message.
 
 ## Boundary & error tests
 

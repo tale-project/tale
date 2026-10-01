@@ -27,6 +27,8 @@ Ces workflows importent les nouveaux messages dans des conversations toutes les 
 | Synchroniser les e-mails Outlook | Outlook | Toutes les 5 minutes |
 | Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toutes les 5 minutes |
 
+Une passe ne lit que le dossier Boîte de réception de la boîte. Elle distingue les réponses de la boîte elle-même de celles du client grâce à l’adresse de la boîte, que la première passe apprend du compte connecté et conserve sur la connexion comme adresse d’expéditeur ; pour IMAP, elle vient de l’identifiant de connexion.
+
 Connecte d’abord la boîte correspondante. Après la première exécution réelle, examine son [journal](/fr/platform/automations/execution-logs) et vérifie que les messages attendus apparaissent dans la vue **Réception** d’**Accueil**.
 
 Les pièces jointes sont enregistrées avec leur message : tu les ouvres et les télécharges depuis la conversation. Depuis Gmail, Tale ne récupère chaque pièce jointe que jusqu’à 3,5 Mo : une pièce plus lourde reste listée avec son nom et sa taille, mais tu l’ouvres dans Gmail.

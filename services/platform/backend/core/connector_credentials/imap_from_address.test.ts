@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   looksLikeEmailAddress,
+  withFromAddress,
   storedImapFromAddress,
   withImapFromAddress,
 } from './imap_from_address';
@@ -81,5 +82,24 @@ describe('withImapFromAddress', () => {
     ).toEqual({
       fromAddress: 'hello@acme.test',
     });
+  });
+});
+
+describe('withFromAddress', () => {
+  it("mirrors any mail connector's address and trims it", () => {
+    expect(withFromAddress({ label: 'Support' }, ' desk@acme.test ')).toEqual({
+      label: 'Support',
+      fromAddress: 'desk@acme.test',
+    });
+    expect(withFromAddress(undefined, 'desk@acme.test')).toEqual({
+      fromAddress: 'desk@acme.test',
+    });
+  });
+
+  it('leaves the config alone for a non-address', () => {
+    expect(withFromAddress({ fromAddress: 'x' }, 'ops')).toEqual({
+      fromAddress: 'x',
+    });
+    expect(withFromAddress(undefined, undefined)).toBe(undefined);
   });
 });

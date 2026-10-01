@@ -20,6 +20,7 @@ import type {
 import { isRecord } from '../../../lib/utils/type-utils';
 import {
   looksLikeEmailAddress,
+  withFromAddress,
   withImapFromAddress,
 } from '../connector_credentials/imap_from_address';
 import { resolveConnectorCredential } from '../connector_credentials/resolve_credential';
@@ -467,9 +468,10 @@ async function listFolder(
     if (args.since !== null) {
       input.q = `after:${Math.floor(args.since / 1000)}`;
     }
-    if (args.mailbox === 'sent') {
-      input.labelIds = 'SENT';
-    }
+    // Always a label: without one `users.messages.list` answers EVERY message
+    // — Sent included — and the mailbox's own mail opened conversations with
+    // the mailbox as the customer.
+    input.labelIds = args.mailbox === 'sent' ? 'SENT' : 'INBOX';
   } else if (args.connectorSlug === 'outlook') {
     input.top = args.limit;
     // Graph stamps Sent Items with `sentDateTime` and the Inbox with
@@ -477,9 +479,9 @@ async function listFolder(
     // the cursor field and the sort follow the folder.
     const dateField =
       args.mailbox === 'sent' ? 'sentDateTime' : 'receivedDateTime';
-    if (args.mailbox === 'sent') {
-      input.folder = 'sentitems';
-    }
+    // Always a folder: `/me/messages` spans every folder, Sent Items
+    // included (the same hole as Gmail's unlabelled listing).
+    input.folder = args.mailbox === 'sent' ? 'sentitems' : 'inbox';
     // Oldest-first: with the watermark advancing over the INGESTED set, a
     // backlog larger than one page must drain FORWARD from the cursor. Newest-
     // first (Graph's default) would re-read the newest page every pass while the
@@ -689,6 +691,90 @@ async function healImapFromAddress(
   }
 }
 
+/**
+ * Gmail and Outlook twins of the IMAP heal. An OAuth credential carries no
+ * login to mirror, so the first pass asks the provider who the mailbox is
+ * (`get_profile`) and keeps the answer on public `config.fromAddress` — the
+ * Inbox header, the composer and every later pass read it from there.
+ * Without it the ingest cannot tell the mailbox's own mail from the
+ * customer's, and a thread the mailbox started opened with the mailbox as
+ * the contact and every direction inverted.
+ *
+ * Backfill only, like the IMAP heal: the caller skips it once the public
+ * config resolves an address. A provider that cannot answer leaves the
+ * pass to run as before.
+ */
+async function healOAuthFromAddress(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+  },
+): Promise<string | undefined> {
+  if (args.connectorSlug !== 'gmail' && args.connectorSlug !== 'outlook') {
+    return undefined;
+  }
+  try {
+    const row: unknown = await ctx.runQuery(
+      internal.connector_credentials.queries.resolveCredentialRefInternal,
+      {
+        organizationId: args.organizationId,
+        connectorSlug: args.connectorSlug,
+        ...(args.credentialRef !== undefined && {
+          credentialRef: args.credentialRef,
+        }),
+      },
+    );
+    if (!isRecord(row) || typeof row._id !== 'string') return undefined;
+    const output = await runMailAction(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      action: 'get_profile',
+      input: {},
+      mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
+    });
+    const address =
+      isRecord(output) && typeof output.emailAddress === 'string'
+        ? output.emailAddress.trim()
+        : '';
+    if (!looksLikeEmailAddress(address)) return undefined;
+    const config = isRecord(row.config) ? row.config : undefined;
+    const nextConfig = withFromAddress(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shim serves config as the credential's public scalar map
+      config as Record<string, string | number | boolean> | undefined,
+      address,
+    );
+    if (
+      nextConfig !== undefined &&
+      nextConfig.fromAddress !== config?.fromAddress
+    ) {
+      await ctx.runMutation(
+        internal.connector_credentials.mutations.patchCredentialInternal,
+        {
+          organizationId: args.organizationId,
+          credentialId: row._id,
+          config: nextConfig,
+        },
+      );
+      console.info(
+        `[syncMailbox] learned the ${args.connectorSlug} mailbox address for credential ${row._id}`,
+      );
+    }
+    return address;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[syncMailbox] ${args.connectorSlug} mailbox address heal failed (${args.credentialRef ?? 'default'}): ${message}`,
+    );
+    return undefined;
+  }
+}
+
 async function syncOneMailbox(
   ctx: ActionCtx,
   args: {
@@ -720,11 +806,19 @@ async function syncOneMailbox(
     ...credentialRefArg,
   });
   if (accountEmail === undefined) {
-    accountEmail = await healImapFromAddress(ctx, {
-      organizationId: args.organizationId,
-      connectorSlug: args.connectorSlug,
-      ...credentialRefArg,
-    });
+    accountEmail =
+      args.connectorSlug === 'imap-smtp'
+        ? await healImapFromAddress(ctx, {
+            organizationId: args.organizationId,
+            connectorSlug: args.connectorSlug,
+            ...credentialRefArg,
+          })
+        : await healOAuthFromAddress(ctx, {
+            organizationId: args.organizationId,
+            connectorSlug: args.connectorSlug,
+            mode: args.mode,
+            ...credentialRefArg,
+          });
   }
 
   const inboundListed = await listFolder(ctx, {
