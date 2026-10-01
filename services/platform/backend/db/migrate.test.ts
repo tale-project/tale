@@ -1,0 +1,146 @@
+// @vitest-environment node
+
+import {
+  createServer,
+  type AddressInfo,
+  type Server,
+  type Socket,
+} from 'node:net';
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { runBootMigrations } from './migrate.ts';
+
+/** A FATAL ErrorResponse, as PostgreSQL sends one before it hangs up. */
+function fatal(code: string, message: string): Buffer {
+  const fields = Buffer.concat([
+    ...[
+      ['S', 'FATAL'],
+      ['V', 'FATAL'],
+      ['C', code],
+      ['M', message],
+    ].map(([key, value]) => Buffer.from(`${key}${value}\0`)),
+    Buffer.from([0]),
+  ]);
+  const header = Buffer.alloc(5);
+  header.write('E', 0);
+  header.writeInt32BE(fields.length + 4, 1);
+  return Buffer.concat([header, fields]);
+}
+
+const SHUTTING_DOWN = fatal('57P03', 'the database system is shutting down');
+const BAD_PASSWORD = fatal(
+  '28P01',
+  'password authentication failed for user "tale"',
+);
+
+/**
+ * A server that refuses every connection's startup with `answer()`'s FATAL
+ * — what PostgreSQL does while it shuts down, or when it rejects the
+ * credentials — and counts the connections it saw.
+ */
+async function refusingServer(
+  answer: () => Buffer,
+): Promise<{ url: string; connections: () => number; close: () => void }> {
+  let connections = 0;
+  const server: Server = createServer((socket: Socket) => {
+    connections += 1;
+    socket.once('data', () => {
+      socket.end(answer());
+    });
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `postgres://tale:pw@127.0.0.1:${port}/tale_app`,
+    connections: () => connections,
+    close: () => server.close(),
+  };
+}
+
+describe('runBootMigrations, while the database is unavailable', () => {
+  const closers: (() => void)[] = [];
+  afterEach(() => {
+    for (const close of closers.splice(0)) close();
+    vi.restoreAllMocks();
+  });
+
+  it('waits out a database that is shutting down instead of failing the boot', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // The database refuses as it shuts down until the second pause, then
+    // answers again — with a refusal no wait can fix, so the step stops
+    // there and the test needs no server that speaks the whole protocol.
+    let answer = SHUTTING_DOWN;
+    const server = await refusingServer(() => answer);
+    closers.push(server.close);
+    const sleep = vi.fn(async () => {
+      if (sleep.mock.calls.length === 2) answer = BAD_PASSWORD;
+    });
+
+    const failure = await runBootMigrations({
+      databaseUrl: server.url,
+      log: () => undefined,
+      sleep,
+    }).then(
+      () => new Error('the step was expected to fail'),
+      (error: unknown) => error,
+    );
+
+    // Two refusals waited out, 1 s then 2 s apart, then the real failure —
+    // rejected at once, as before.
+    expect(failure).toMatchObject({ code: '28P01' });
+    expect(sleep.mock.calls).toEqual([[1000], [2000]]);
+    // One connection per attempt: a lock never taken is not unlocked over a
+    // second one.
+    expect(server.connections()).toBe(3);
+  });
+
+  it('still fails the boot once the outage outlasts the wait', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let now = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const server = await refusingServer(() => SHUTTING_DOWN);
+    closers.push(server.close);
+    const sleep = vi.fn(async (ms: number) => {
+      now += ms;
+    });
+
+    const failure = await runBootMigrations({
+      databaseUrl: server.url,
+      log: () => undefined,
+      databaseWaitMs: 20_000,
+      sleep,
+    }).then(
+      () => new Error('the step was expected to fail'),
+      (error: unknown) => error,
+    );
+
+    // Attempts at 0, 1, 3, 7, 12 and 17 s — the pause stops doubling at 5 s —
+    // and the next one would end past the 20 s wait, so the last refusal is
+    // what the boot reports.
+    expect(failure).toMatchObject({
+      code: '57P03',
+      message: 'the database system is shutting down',
+    });
+    expect(sleep.mock.calls).toEqual([[1000], [2000], [4000], [5000], [5000]]);
+    expect(server.connections()).toBe(6);
+  });
+
+  it('fails at once on an error a wait cannot fix', async () => {
+    const server = await refusingServer(() => BAD_PASSWORD);
+    closers.push(server.close);
+    const sleep = vi.fn(async () => undefined);
+
+    await expect(
+      runBootMigrations({
+        databaseUrl: server.url,
+        log: () => undefined,
+        sleep,
+      }),
+    ).rejects.toMatchObject({ code: '28P01' });
+    expect(sleep).not.toHaveBeenCalled();
+    expect(server.connections()).toBe(1);
+  });
+});

@@ -1,9 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
 
+import { withRetry } from '@tale/shared/db/retry';
 import type { BetterAuthOptions } from 'better-auth';
 import postgres from 'postgres';
 
 import { resolvePostgresConnection } from './ssl.ts';
+import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
 
 /**
  * Boot-time migrator for the 0.5 app database.
@@ -39,7 +41,22 @@ export interface BootMigrationOptions {
    */
   authOptions?: BetterAuthOptions;
   log?: (message: string) => void;
+  /**
+   * How long to wait out an unavailable database before giving up;
+   * {@link ROUTINE_RESTART_MS} by default.
+   */
+  databaseWaitMs?: number;
+  /** The pause between two attempts (injectable for deterministic tests). */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/** The first pause after an attempt the database was unavailable for; it
+ * doubles from here up to {@link DATABASE_RETRY_MAX_DELAY_MS}. */
+const DATABASE_RETRY_BASE_DELAY_MS = 1_000;
+
+/** The longest pause between two attempts — how late a booting process at
+ * most notices that the database is back. */
+const DATABASE_RETRY_MAX_DELAY_MS = 5_000;
 
 /**
  * Give Better Auth's `team.memberCount` a SQL default.
@@ -173,10 +190,43 @@ async function applyMigrationFile(
   await module.migrate(tx);
 }
 
+/**
+ * Apply every pending migration — the boot process's first use of the
+ * database.
+ *
+ * A database that is unavailable at that moment — restarting, still
+ * starting, a container restarted while `db` restarts, a host boot racing
+ * it — is waited out like a restart anywhere else (`db/unavailable.ts`): the
+ * whole step runs again with backoff while it fails that way, for up to
+ * `databaseWaitMs`. Running it again is safe: the advisory lock belongs to
+ * the session, each migration commits together with its tracking row or not
+ * at all, and Better Auth's migrator only adds what is missing. Any other
+ * failure (rejected credentials, a missing database, a migration that does
+ * not apply) and an outage that outlasts the wait reject as before, and the
+ * boot reports the error and exits.
+ */
 export async function runBootMigrations(
   options: BootMigrationOptions,
 ): Promise<void> {
   const log = options.log ?? ((message: string) => console.log(message));
+  await withRetry(() => migrateOnce(options, log), {
+    // The wait, not a count, ends the retries.
+    attempts: Number.POSITIVE_INFINITY,
+    baseDelayMs: DATABASE_RETRY_BASE_DELAY_MS,
+    maxDelayMs: DATABASE_RETRY_MAX_DELAY_MS,
+    timeoutMs: options.databaseWaitMs ?? ROUTINE_RESTART_MS,
+    // Every client this step opens is a database client, so a bare socket
+    // error from Better Auth's node-postgres migrator is the database's too.
+    isTransient: (error) =>
+      isDatabaseUnavailable(error, { fromDatabase: true }),
+    ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+  });
+}
+
+async function migrateOnce(
+  options: BootMigrationOptions,
+  log: (message: string) => void,
+): Promise<void> {
   // Dedicated single-connection client: the advisory lock is session-scoped,
   // so the lock lives exactly as long as this connection.
   const { url, ssl } = resolvePostgresConnection(options.databaseUrl);
@@ -186,8 +236,10 @@ export async function runBootMigrations(
     connect_timeout: 10,
     onnotice: () => undefined,
   });
+  let locked = false;
   try {
     await sql`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`;
+    locked = true;
 
     await sql`
       CREATE TABLE IF NOT EXISTS app_migrations (
@@ -229,12 +281,15 @@ export async function runBootMigrations(
     }
   } finally {
     // Session lock releases with the connection either way; explicit unlock
-    // keeps the happy path tidy.
-    await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`.catch(
-      (error: unknown) => {
-        console.warn('[backend] advisory unlock failed (ignored):', error);
-      },
-    );
+    // keeps the happy path tidy. A lock never taken has nothing to release —
+    // and while the database is away, trying would only fail again.
+    if (locked) {
+      await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`.catch(
+        (error: unknown) => {
+          console.warn('[backend] advisory unlock failed (ignored):', error);
+        },
+      );
+    }
     await sql.end({ timeout: 5 });
   }
 }

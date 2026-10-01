@@ -9,8 +9,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * restart, so this is an operational event, not a defect: a request answers
  * a retryable 503 (`error-reporting.ts`), the `/events` stream backs off
  * (`realtime/sse.ts`), a job fails for pg-boss to retry (`jobs/runner.ts`),
- * pg-boss's failing polls log one line per outage (`jobs/boss.ts`), and none
- * of them reports an error.
+ * pg-boss's failing polls log one line per outage (`jobs/boss.ts`), a process
+ * that starts meanwhile waits for the database before it migrates
+ * (`db/migrate.ts`), and none of them reports an error.
  *
  * Deliberately narrower than its two neighbours. `isTransientDbError`
  * (`@tale/shared/db/retry`) decides whether to rerun an operation in place
@@ -19,6 +20,15 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * credentials (28xxx) and a missing database (3D000). Those need an operator,
  * not a retry, so they stay out of this one and keep being reported.
  */
+
+/**
+ * How long the database may stay unavailable and still count as a routine
+ * restart: only logged, never reported. `/events` reports an outage that
+ * outlasts it, once, at warning level (`realtime/sse.ts`); a process that
+ * starts during an outage waits this long for the database before its boot
+ * fails and is reported (`db/migrate.ts`).
+ */
+export const ROUTINE_RESTART_MS = 60_000;
 
 /** admin_shutdown, crash_shutdown, cannot_connect_now: the server is going
  * away, or not taking connections yet. */

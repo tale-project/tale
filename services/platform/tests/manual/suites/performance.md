@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 18 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 19 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -193,6 +193,18 @@ single warm sample.
   fail quietly until one succeeds: …` warning per container, and no
   `pg-boss error:` dump at all; the second restart adds its own line.
   Afterwards jobs run again: a new chat gets its generated title.
+- [ ] `PERF-B7` · **Backend start during a database restart** — Follow
+  `docker compose logs -f backend-api`, run `docker stop tale-db`, restart the
+  api while the database is down (`docker restart $(docker compose ps -q
+  backend-api)`), then `docker start tale-db` within half a minute. → The api
+  does not exit: while the database is away its log shows `[db] transient
+  error on attempt …, retrying in …ms: …` lines, and once `db` answers, the
+  boot carries on to `api listening on :3005`. `docker inspect --format
+  '{{.RestartCount}}'` on the api container is unchanged, and with
+  `SENTRY_DSN` set no event arrives. Leave `db` stopped for more than a
+  minute instead → after about a minute the api logs one `fatal startup
+  error`, sends one error-level event tagged `tale.lane: boot` and exits, and
+  Docker starts it again.
 
 ## Accessibility (WCAG 2.1 AA)
 
