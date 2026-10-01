@@ -73,6 +73,22 @@ const orphanRow = {
   runningOps: [],
 };
 
+/** Bob's workspace, hibernated and unused: the cleanup will delete it on
+ * `deletesAt` unless the agent works in it again first. */
+const hibernatedRow = {
+  ...aliceRow,
+  sessionId: 'session-bob',
+  ownerId: 'agent-bob',
+  ownerLabel: 'Bob',
+  status: 'stopped',
+  busy: false,
+  totalSpentCents: 0,
+  currentOp: null,
+  runningOps: [],
+  // Noon UTC, so the day reads the same in every runner's time zone.
+  deletesAt: Date.UTC(2026, 9, 31, 12),
+};
+
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({
     can: (action: string) =>
@@ -128,18 +144,21 @@ beforeEach(() => {
           },
           aliceRow,
           orphanRow,
+          hibernatedRow,
         ]
-      : name.endsWith(':getSandboxQuotaUsage')
-        ? [
-            { budget: 'project', used: 1, cap: 2 },
-            { budget: 'workflow', used: 0, cap: 2 },
-            { budget: 'render', used: 0, cap: 2 },
-          ]
-        : name.endsWith(':getSandboxDeploymentLimits')
-          ? { status: 'available', maxSessions: 16 }
-          : name === 'sandbox_devices/queries:list'
-            ? { devices: [], hub: 'available', serverVersion: '0.5.60' }
-            : { status: 'unavailable', reason: 'unreachable' },
+      : name === 'governance/queries:getPolicy'
+        ? null
+        : name.endsWith(':getSandboxQuotaUsage')
+          ? [
+              { budget: 'project', used: 1, cap: 2 },
+              { budget: 'workflow', used: 0, cap: 2 },
+              { budget: 'render', used: 0, cap: 2 },
+            ]
+          : name.endsWith(':getSandboxDeploymentLimits')
+            ? { status: 'available', maxSessions: 16 }
+            : name === 'sandbox_devices/queries:list'
+              ? { devices: [], hub: 'available', serverVersion: '0.5.60' }
+              : { status: 'unavailable', reason: 'unreachable' },
     isLoading: false,
     isFetching: false,
     isError: false,
@@ -207,6 +226,15 @@ describe('SandboxesSettings access', () => {
     expect(
       screen.queryByRole('heading', { name: 'Workspaces' }),
     ).not.toBeInTheDocument();
+    // The cleanup policy is an admin read: developers neither see its
+    // editor nor ask for it.
+    expect(
+      screen.queryByRole('heading', { name: 'Workspace cleanup' }),
+    ).not.toBeInTheDocument();
+    expect(query).not.toHaveBeenCalledWith(
+      'governance/queries:getPolicy',
+      expect.anything(),
+    );
     expect(screen.queryByText('Restricted project')).not.toBeInTheDocument();
     // Developers see the organization's devices, never the workspace table.
     expect(
@@ -231,6 +259,24 @@ describe('SandboxesSettings access', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Restricted project')).toBeInTheDocument();
     expect(mutate).toHaveBeenCalledWith({ organizationId: 'org-1' });
+  });
+
+  it('gives organization settings managers the workspace cleanup policy, right above the workspaces', () => {
+    state.canManage = true;
+    renderSettings();
+    expect(query).toHaveBeenCalledWith('governance/queries:getPolicy', {
+      organizationId: 'org-1',
+      policyType: 'sandbox_workspaces',
+    });
+    expect(
+      screen.getByRole('switch', { name: 'Delete unused workspaces' }),
+    ).toBeChecked();
+    const sections = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(sections.indexOf('Workspaces')).toBe(
+      sections.indexOf('Workspace cleanup') + 1,
+    );
   });
 });
 
@@ -263,6 +309,18 @@ describe('SandboxesSettings workspace rows', () => {
     expect(
       screen.queryByText('2408c68d-4585-4dc4-9123-a6d9f31af5b9'),
     ).not.toBeInTheDocument();
+  });
+
+  it('dates the deletion of an unused workspace, and of no other', () => {
+    renderSettings();
+    const bob = screen.getByText('Bob').closest('tr') as HTMLElement;
+    // Dated like the Created column (the short localized date).
+    expect(
+      within(bob).getByText('Deleted on 10/31/2026 unless used again'),
+    ).toBeInTheDocument();
+    const alice = screen.getByText('Alice').closest('tr') as HTMLElement;
+    expect(within(alice).queryByText(/^Deleted on/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^Deleted on/)).toHaveLength(1);
   });
 
   it('shows an idle workspace without a task and without a spend', () => {

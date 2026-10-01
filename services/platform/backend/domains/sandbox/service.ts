@@ -84,8 +84,11 @@ async function lifecycleLocked<T>(
   return outcome;
 }
 
-/** Wait for the session's lifecycle lock, then run `work` under it. */
-async function withSessionLifecycleLock<T>(
+/** Wait for the session's lifecycle lock, then run `work` under it. Every
+ * spawner-facing transition of one session — Destroy, pin, the reconcile's
+ * recreate, the workspace cleanup's retire — holds it through its remote
+ * call and row commit. */
+export async function withSessionLifecycleLock<T>(
   sql: Sql,
   args: SessionArgs,
   work: (sessionSql: Sql) => Promise<T>,

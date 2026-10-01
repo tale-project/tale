@@ -77,6 +77,6 @@ Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt F
 
 ## Einen Agenten ändern oder entfernen
 
-Bearbeite oder lösche den Agenten über sein Zeilenmenü. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Prüfe laufende Arbeit, bevor du den zugehörigen Agenten entfernst.
+Bearbeite oder lösche den Agenten über sein Zeilenmenü. Änderungen gelten für spätere Läufe; ein aktiver Lauf behält seine Startkonfiguration. Die Löschung entfernt Agentenzuweisungen von Aufgaben, erhält aber deren Verlauf. Sie löscht außerdem die [Sandbox-Arbeitsbereiche](/de/platform/admin/sandboxes#explain-why-a-workspace-disappeared) des Agenten samt Dateien, auch die der Mitglieder. Prüfe laufende Arbeit und sichere benötigte Ergebnisse, bevor du den zugehörigen Agenten entfernst.
 
 Scheitert das Erstellen, lies die Begründung: Ein doppelter Name, fehlender Projektzugriff, ein nicht verfügbares Modell und unsichtbare Skills sind unterschiedliche Ursachen. Ein Lauf, der endgültig scheitert, sagt oben in seiner Aufgabe, was schiefging und wer es beheben kann; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) zählt die Fälle auf. Neue Anweisungen beheben diese Voraussetzungen nicht.

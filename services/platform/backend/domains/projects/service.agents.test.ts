@@ -24,8 +24,11 @@ import {
 // Hoisted so the tests can read the mocks' calls without importing the
 // mocked modules themselves (a static import beside `importOriginal` made
 // the real equipment gate run).
-const { outbox, equipment, unassign } = vi.hoisted(() => ({
+const { outbox, equipment, unassign, retirement } = vi.hoisted(() => ({
   outbox: { emitHintInTx: vi.fn() },
+  retirement: {
+    scheduleAgentWorkspaceRetirement: vi.fn(() => Promise.resolve()),
+  },
   unassign: {
     clearAgentAssignmentsInTx: vi.fn(() => Promise.resolve(['task-1'])),
   },
@@ -43,6 +46,7 @@ vi.mock('../documents/service.ts', () => ({
 }));
 vi.mock('../tasks/retire.ts', () => ({ retireTasksInTx: vi.fn() }));
 vi.mock('../tasks/unassign.ts', () => unassign);
+vi.mock('../sandbox/retirement-schedule.ts', () => retirement);
 vi.mock('./agent-equipment.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agent-equipment.ts')>()),
   ...equipment,
@@ -365,6 +369,12 @@ describe('deleteProjectAgent', () => {
         s.text.startsWith('DELETE FROM app.project_agents'),
       ),
     ).toBe(true);
+    // Its workspaces — the standing one and every member's — are queued
+    // for deletion in the same transaction.
+    expect(retirement.scheduleAgentWorkspaceRetirement).toHaveBeenCalledWith(
+      tx,
+      { organizationId: 'org_1', agentIds: ['agent-1'] },
+    );
   });
 });
 

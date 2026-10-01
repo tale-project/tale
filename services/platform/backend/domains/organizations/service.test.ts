@@ -43,6 +43,12 @@ interface Scenario {
   orgTables?: string[];
   /** The app schema's foreign keys among them (child → parent). */
   fkEdges?: { child: string; parent: string }[];
+  /** What the sandbox teardown reads before the cascade removes the rows. */
+  sandbox?: {
+    sessions: { sessionId: string }[];
+    keys: { keyId: string }[];
+    devices: { deviceId: string }[];
+  };
 }
 
 /** A catalog slice with a two-level reference chain (tasks and bindings
@@ -99,6 +105,19 @@ function createRecordingTx(scenario: Scenario): {
     }
     if (text.includes('FROM app.legal_holds')) {
       return scenario.holds;
+    }
+    if (
+      text.startsWith(
+        'SELECT session_id AS "sessionId" FROM app.sandbox_sessions',
+      )
+    ) {
+      return scenario.sandbox?.sessions ?? [];
+    }
+    if (text.startsWith('SELECT llm_gateway_key_id AS "keyId"')) {
+      return scenario.sandbox?.keys ?? [];
+    }
+    if (text.startsWith('SELECT id AS "deviceId" FROM app.sandbox_devices')) {
+      return scenario.sandbox?.devices ?? [];
     }
     if (
       text.startsWith('SELECT pg_advisory_xact_lock(') ||
@@ -382,6 +401,11 @@ describe('deleteOrganization', () => {
       memberRole: 'owner',
       slug: 'acme',
       holds: [],
+      sandbox: {
+        sessions: [{ sessionId: 'pa-agent-1' }],
+        keys: [{ keyId: 'gateway-key-1' }],
+        devices: [{ deviceId: 'device-1' }],
+      },
     });
 
     await expect(
@@ -446,9 +470,30 @@ describe('deleteOrganization', () => {
       ),
     ).toBe(true);
 
+    // The sandboxes' teardown is read BEFORE the cascade removes the rows
+    // naming them, and queued in the same transaction.
+    const sandboxRead = statements.findIndex((s) =>
+      s.text.startsWith(
+        'SELECT session_id AS "sessionId" FROM app.sandbox_sessions',
+      ),
+    );
+    expect(sandboxRead).toBeGreaterThanOrEqual(0);
+    expect(sandboxRead).toBeLessThan(
+      statements.findIndex((s) => s.text.startsWith('DELETE FROM')),
+    );
     // The cleanup job rides the same transaction, keyed by the slug.
-    expect(sends).toHaveLength(1);
+    expect(sends).toHaveLength(2);
     expect(sends[0]).toMatchObject({
+      name: 'sandbox.retire_organization',
+      data: {
+        organizationId: ORG_ID,
+        sessionIds: ['pa-agent-1'],
+        gatewayKeyIds: ['gateway-key-1'],
+        deviceIds: ['device-1'],
+        teardown: true,
+      },
+    });
+    expect(sends[1]).toMatchObject({
       name: 'org.cleanup_files',
       data: { orgSlug: 'acme' },
       options: { singletonKey: 'org-cleanup:acme' },

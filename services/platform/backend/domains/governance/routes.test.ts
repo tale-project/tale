@@ -32,6 +32,7 @@ const {
   mayCreateApiKeys,
   restoreSoftDeletedRow,
   syncRagDocumentScope,
+  recordUnusedWorkspaceRule,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createAuditLog: vi.fn(),
@@ -47,6 +48,7 @@ const {
   mayCreateApiKeys: vi.fn(),
   restoreSoftDeletedRow: vi.fn(),
   syncRagDocumentScope: vi.fn(),
+  recordUnusedWorkspaceRule: vi.fn(),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({ transactSerializable }));
@@ -61,6 +63,7 @@ vi.mock('../../lib/governance-policy-write.ts', () => ({
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
+vi.mock('../sandbox/unused-rule.ts', () => ({ recordUnusedWorkspaceRule }));
 vi.mock('../model_api/models.ts', () => ({ listModelApiModels }));
 vi.mock('../../auth/api-key-create-gate.ts', () => ({ mayCreateApiKeys }));
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
@@ -293,6 +296,42 @@ describe('POST /policies/:policyType — write order', () => {
       previousState: { config: ON_DISK },
       newState: { config: NEXT },
     });
+  });
+});
+
+describe('POST /policies/sandbox_workspaces — the rule takes effect with the save', () => {
+  it('records the rule in the save transaction, before the file', async () => {
+    const order: string[] = [];
+    recordUnusedWorkspaceRule.mockImplementationOnce(async () => {
+      order.push('rule');
+    });
+    writeGovernancePolicyFile.mockImplementationOnce(async () => {
+      order.push('file');
+    });
+    const response = await post('/policies/sandbox_workspaces?orgId=o1', {
+      deleteUnused: true,
+      unusedDays: 7,
+    });
+    expect(response.status).toBe(200);
+    expect(recordUnusedWorkspaceRule).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      { deleteUnused: true, unusedDays: 7 },
+      expect.any(Number),
+    );
+    expect(order).toEqual(['rule', 'file']);
+  });
+
+  it('records nothing for another policy, and nothing for a refused save', async () => {
+    expect(
+      (await post('/policies/sandbox_workspaces', { unusedDays: 0 })).status,
+    ).toBe(400);
+    await post('/policies/sandbox_quota', {
+      maxSessionsPerOrg: 2,
+      maxWorkflowSessionsPerOrg: 2,
+      maxRenderSessionsPerOrg: 2,
+    });
+    expect(recordUnusedWorkspaceRule).not.toHaveBeenCalled();
   });
 });
 

@@ -82,6 +82,19 @@ sessions stay protected; stopping compute preserves the workspace. See the
 [session lifecycle contract](docs/sessions.md#capacity-and-idle-reclamation)
 for release ordering and failure handling.
 
+## Workspace cleanup
+
+Stopping keeps a workspace; the platform decides when one goes — its owner
+(agent, member, organization) was deleted, nobody used it for the
+organization's window, or nothing owns it any more — and the spawner reports
+and enforces: `GET /v1/workspaces` lists every workspace it holds (stopped
+sessions' data included) and the organizations holding build helpers or
+package caches, `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` deletes a
+workspace only while no compute runs under it, and `DELETE /v1/organizations/:id`
+removes what is left of a deleted organization. All three use the same HMAC
+authentication as the session routes. See the
+[workspace cleanup contract](docs/sessions.md#workspace-cleanup).
+
 Docker admission serializes creates through the host's single spawner.
 Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
 basis; use ResourceQuota for hard namespace resource bounds.

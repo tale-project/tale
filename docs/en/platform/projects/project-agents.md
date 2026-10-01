@@ -77,6 +77,6 @@ The agent’s report appears in task comments and collected files appear as deli
 
 ## Update or remove an agent
 
-Use the agent’s row actions to edit or delete it. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. Review current work before removing the worker it belongs to.
+Use the agent’s row actions to edit or delete it. Changes apply to later runs; an active run keeps its starting configuration. Deleting the agent clears task assignment references while preserving task history. It also deletes the agent's [sandbox workspaces](/platform/admin/sandboxes#explain-why-a-workspace-disappeared) and their files, including each Member's. Review current work and preserve outputs you still need before removing the worker it belongs to.
 
 If creation fails, use the displayed reason to distinguish a duplicate name, missing project access, an unavailable provider/model or a skill visibility issue. A run that fails for good says at the top of its task what went wrong and who can fix it; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) lists the cases. Changing instructions does not fix those dependencies.

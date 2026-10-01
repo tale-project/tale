@@ -4073,6 +4073,7 @@ governance:
       notifications: Security notifications
       wfExecutions: Automation runs
       promptTemplates: Personal prompts
+      sandboxWorkspaces: Sandbox workspaces
     legalHoldBlock:
       title: Erasure blocked by legal hold
       orgHeld:
@@ -6862,6 +6863,7 @@ settings:
         notification.retention_deleted: Notification retention deleted
         file_metadata.retention_deleted: File retention deleted
         sandbox_ledger.retention_deleted: Sandbox ledger retention deleted
+        sandbox_workspace.deleted: Sandbox workspace deleted
         chat_filter_event.retention_deleted: Chat filter event retention deleted
         policy_acknowledged: Policy acknowledged
         login_attempt: Login attempt
@@ -7032,6 +7034,7 @@ settings:
         openai_compat_request: OpenAI-compatible request
         provider: Provider
         video_link_job: Video link job
+        sandbox_workspace: Sandbox workspace
   branding:
     logo: Logo
     logoDescription: Upload your organization logo (SVG preferred; raster images at least 64×64 pixels)
@@ -8263,8 +8266,10 @@ sandboxes:
   sessionsTitle: Workspaces
   description:
     Project agents reuse their workspaces across tasks. Workflow runs share one
-    workspace across their steps. Runtime status and organization quota allocation
-    are shown separately; a released allocation can still have a running container.
+    workspace across their steps. A project agent's workspace stays until it goes
+    unused for longer than Workspace cleanup allows, or until its agent, project
+    or member is removed. Runtime status and organization quota allocation are
+    shown separately; a released allocation can still have a running container.
   limits:
     title: Organization limits
     description:
@@ -8292,6 +8297,19 @@ sandboxes:
       project: Project agents reuse one sandbox across their tasks.
       workflow: Agent and script steps share one sandbox per workflow run.
       render: Temporary sandboxes render web pages during website crawling.
+  cleanup:
+    title: Workspace cleanup
+    description:
+      Project agents keep their files in workspaces between runs. A workspace is
+      deleted right away when its agent, project or member is removed. Workspaces
+      under a legal hold are kept.
+    deleteUnused: Delete unused workspaces
+    deleteUnusedHint: Deletes a workspace after the number of days without use set below. Pinned workspaces are kept.
+    unusedDays: Days without use
+    unusedDaysHint: Counted from the last time the agent worked in the workspace. After you turn deletion on or shorten the period, no workspace is deleted until the full number of days has passed.
+    invalidDays: Must be a whole number between 1 and 3650.
+    loadFailed: Couldn't load the workspace cleanup settings. Reload the page to try again.
+    saveFailed: Couldn't save the workspace cleanup settings
   capacity:
     title: Infrastructure capacity
     description:
@@ -8339,6 +8357,7 @@ sandboxes:
     quotaReleased: Quota released
     pausedBudget: Paused (budget)
     pinned: Pinned
+    deletesOn: Deleted on {date} unless used again
   task:
     none: No active task
     project: '{count, plural, one {Project task} other {# project tasks}}'
@@ -8362,9 +8381,11 @@ sandboxes:
   empty:
     title: No workspaces yet
     description:
-      A project agent's workspace appears after its first task and stays listed
-      while the agent is idle. A workflow run's workspace is reclaimed once the
-      run ends. Temporary crawler sessions are included in capacity counts above.
+      A project agent's workspace appears after its first task and stays until it
+      goes unused for longer than Workspace cleanup allows, or until its agent,
+      project or member is removed. A workflow run's workspace is reclaimed once
+      the run ends. Temporary crawler sessions are included in capacity counts
+      above.
   accessDenied: You need developer or admin access to manage sandboxes.
   deletedAgent: Deleted agent
   devices:

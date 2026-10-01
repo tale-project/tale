@@ -573,7 +573,7 @@ rules:
     verbs: ['create', 'delete', 'list']
   - apiGroups: ['']
     resources: ['persistentvolumeclaims']
-    verbs: ['get', 'create', 'delete']
+    verbs: ['get', 'list', 'create', 'delete']
   - apiGroups: ['networking.k8s.io']
     resources: ['networkpolicies']
     verbs: ['create', 'update']
@@ -649,7 +649,7 @@ The spawner scales horizontally. Any replica resolves a session it did not creat
 
 At start the spawner applies the NetworkPolicy `tale-sandbox-session-egress`: session Pods may reach DNS and the Pods of their own namespace and nothing else, so the cloud metadata service, the nodes, and other namespaces stay unreachable even for a process that ignores `HTTP_PROXY`. Public destinations pass through `sandbox-egress`. A missing `networkpolicies` permission is logged and does not stop the spawner; verify that the policy exists before you admit workloads.
 
-Session Pods run the runner as uid 65534 with all capabilities dropped, a read-only root filesystem, no ServiceAccount token, and the session Secret mounted only as environment. The `/agent` workspace is a claim that survives an idle stop; only an explicit destroy deletes it. Session operations use plain HTTP to runnerd on the Pod IP, port 8200; no `pods/exec` is involved.
+Session Pods run the runner as uid 65534 with all capabilities dropped, a read-only root filesystem, no ServiceAccount token, and the session Secret mounted only as environment. The `/agent` workspace is a claim that survives an idle stop. An explicit destroy deletes it, and so does the workspace cleanup once its owner is removed or it stays unused past the organization's window; the cleanup finds the claims with `list`. Session operations use plain HTTP to runnerd on the Pod IP, port 8200; no `pods/exec` is involved.
 
 <Note>
 

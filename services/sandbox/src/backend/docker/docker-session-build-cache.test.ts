@@ -3,9 +3,12 @@ import { resolve } from 'node:path';
 
 // Module mocks run in a separate Bun process so they cannot replace the real
 // provisioning or firewall exports used by the other sandbox suites.
-async function create(
-  scenario: string,
-): Promise<{ events: string[]; error: string | null; retained: string }> {
+async function create(scenario: string): Promise<{
+  events: string[];
+  error: string | null;
+  retained: string;
+  owner: string | null;
+}> {
   const sourceRoot = resolve(import.meta.dir, '../..');
   const script = `
 import { mock } from 'bun:test';
@@ -62,8 +65,9 @@ try {
   await new DockerSessionBackend(cfg).createSession({sessionId:'test-session',organizationId:'org-a',profile:'agent',env:{TEST_VALUE:'set'},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
 } catch (e) { error=e.message; }
 const retained = await readFile(join(workspace,'sentinel'),'utf8');
+const owner = await readFile(join(root,'.owners','test-session.org'),'utf8').catch(() => null);
 await rm(root,{recursive:true,force:true});
-console.log(JSON.stringify({events,error,retained}));
+console.log(JSON.stringify({events,error,retained,owner}));
 `;
   const child = Bun.spawn([process.execPath, '-e', script], {
     stdout: 'pipe',
@@ -92,6 +96,8 @@ describe('Docker session build-cache readiness and create lease', () => {
       'release',
     ]);
     expect(result.retained).toBe('saved workspace');
+    // The workspace names its organization for when no container does.
+    expect(result.owner).toBe('org-a\n');
   });
 
   test('failed guard tears down compute, preserves workspace and releases the lease', async () => {
@@ -133,5 +139,7 @@ describe('Docker session build-cache readiness and create lease', () => {
       'release',
     ]);
     expect(result.retained).toBe('saved workspace');
+    // A resume that failed keeps the workspace, and with it whose it is.
+    expect(result.owner).toBe('org-a\n');
   });
 });

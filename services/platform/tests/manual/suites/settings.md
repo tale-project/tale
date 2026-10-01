@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 109 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 114 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -606,13 +606,15 @@ run.
   whose first section is **Email delivery**
   (`notificationPreferences.deliveryTitle`), the second section keeps its
   visible **Notifications** title (`notificationPreferences.title`).
-- [ ] `SET-F54` · **A deleted agent's workspace is named** —
+- [ ] `SET-F54` · **A deleted agent's workspace goes with it** —
   `/dashboard/{org}/settings/sandboxes` as an owner, with a project agent
   that has run at least one task (its workspace is listed under the agent's
   name) → delete that agent from the project's Agents tab → back on
-  Sandboxes → The row's **Workspace** column reads **Deleted agent**
-  (`sandboxes.deletedAgent`), never the owner id; the row's menu still
-  offers **Destroy**, and after destroying it the row is gone.
+  Sandboxes → Within a minute the row is gone on its own. While a task still
+  runs in it the row stays, its **Workspace** column reading **Deleted
+  agent** (`sandboxes.deletedAgent`), never the owner id, and it leaves once
+  that task ends. `/dashboard/{org}/settings/governance/logs` lists **Sandbox
+  workspace deleted** for it.
 - [ ] `SET-F55` · **One team name per organization** —
   `/dashboard/{org}/settings/teams` with a team named `Finance` →
   **Create team** (`settings.teams.createTeam`) → **Team name**
@@ -797,6 +799,36 @@ run.
   answered by that model; with the MCP block of
   `/dashboard/{org}/settings/api/mcp` in the same file, a `tale_get_knowledge`
   call works in the same session.
+- [ ] `SET-F69` · **An unused workspace shows when it goes** —
+  `/dashboard/{org}/settings/sandboxes` as an owner, with a project agent
+  whose last task has finished (its row **Stopped**, **Quota released**) →
+  The row's **Status** cell adds **Deleted on {date} unless used again**
+  (`sandboxes.status.deletesOn`), 30 days after that task — or later, a full
+  30 days after **Workspace cleanup** was turned on or shortened. **Pin** the
+  row → the date goes (a pinned workspace is kept); **Unpin** → it returns.
+  A running workspace and a workflow run's row carry no date.
+- [ ] `SET-F70` · **Workspace cleanup follows its setting** — Same page as
+  an owner → **Workspace cleanup** (`sandboxes.cleanup.title`) shows **Delete
+  unused workspaces** (`sandboxes.cleanup.deleteUnused`) on and **Days
+  without use** (`sandboxes.cleanup.unusedDays`) at `30` → set `60`, Save →
+  the rows' dates move 30 days later; switch **Delete unused workspaces**
+  off → **Days without use** is disabled; Save → no row shows a date; reload
+  → both settings stand. As a Developer the section is absent.
+- [ ] `SET-F71` · **A removed member's workspaces go** — With a Member who
+  started a project agent's run on their own task (`TASK-F50`), Sandboxes
+  lists a second workspace for that agent (the member's own) → **Members** →
+  that member's **Delete** → back on Sandboxes → within a minute the
+  member's workspace is gone and the agent's own stays;
+  `/dashboard/{org}/settings/governance/logs` lists **Sandbox workspace
+  deleted** for it.
+- [ ] `SET-F72` · **A deleted organization leaves no sandbox behind** —
+  Mode B on a Docker host. In a throwaway organization run a project agent's
+  task with Docker-in-Docker on (its build helpers start); note the
+  organization id → delete the organization (`SET-F13`) → within a few
+  minutes `docker ps -a --filter label=tale.org=<id>` and
+  `docker volume ls --filter label=tale.org=<id>` list nothing, no
+  `tale-sandbox-*-cache-<id>` volume remains, and the host session root
+  holds none of its `ses-pa-…` directories.
 
 ## Boundary & error tests
 
@@ -993,6 +1025,10 @@ run.
   Revoke the grant → the key keeps working with the Member's role, and a
   second create is refused again; **REST** stays, listing the key without
   **Create API key**, until the Member revokes it.
+- [ ] `SET-B28` · **Workspace cleanup's bounds** — `/dashboard/{org}/settings/sandboxes`
+  → **Days without use** (`sandboxes.cleanup.unusedDays`) → `0`, `3651` or
+  `2.5` → Save is blocked with **Must be a whole number between 1 and 3650.**
+  (`sandboxes.cleanup.invalidDays`); `1` and `3650` save.
 
 ## Accessibility (WCAG 2.1 AA)
 

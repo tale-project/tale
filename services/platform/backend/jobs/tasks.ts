@@ -266,6 +266,29 @@ export interface TaskPayloads {
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
   'sandbox.recreate_pinned': { organizationId: string; sessionId: string };
+  /** Delete the workspaces of deleted project agents (standing and every
+   * member's), or a departed member's workspaces with every agent —
+   * enqueued in the deleting transaction. Throws while one is busy, offline
+   * or unreachable, so the backoff retries; the hourly sweep is the
+   * backstop past the last retry. */
+  'sandbox.retire_workspaces':
+    | { organizationId: string; reason: 'agent_deleted'; agentIds: string[] }
+    | { organizationId: string; reason: 'member_removed'; userId: string };
+  /** Tear down a deleted organization's sandboxes: its workspaces, the
+   * gateway keys minted for them, its devices, and what the spawner still
+   * holds for it. Read before the deletion's cascade removed the rows; one
+   * job per slice of workspaces, the last one tearing the organization
+   * down on the spawner. */
+  'sandbox.retire_organization': {
+    organizationId: string;
+    sessionIds: string[];
+    gatewayKeyIds: string[];
+    deviceIds: string[];
+    teardown: boolean;
+  };
+  /** Hourly workspace cleanup: delete the workspaces nothing owns any more
+   * and the ones unused past their organization's window. */
+  'sandbox.workspace_gc': Record<string, never>;
   /** 2-min direct-chat crash recovery: clear stale generation rows so a
    * hard-killed turn cannot wedge its thread's composer. */
   'watchdog.chat_generations': Record<string, never>;
@@ -560,6 +583,25 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryLimit: 0,
     expireInSeconds: 300,
   },
+  // Every decision is re-read and every spawner call is idempotent, so a
+  // retry is always safe. The ladder (1 min doubling, eleven tries) waits
+  // out a turn still running in a deleted agent's workspace, a device that
+  // is offline for a day, and a spawner restart.
+  'sandbox.retire_workspaces': {
+    retryLimit: 10,
+    retryDelay: 60,
+    retryBackoff: true,
+    expireInSeconds: 900,
+  },
+  'sandbox.retire_organization': {
+    retryLimit: 10,
+    retryDelay: 60,
+    retryBackoff: true,
+    expireInSeconds: 900,
+  },
+  // A sweep that fails is picked up by the next hourly tick; it stops on the
+  // job's signal and leaves the rest for that tick.
+  'sandbox.workspace_gc': { retryLimit: 0, expireInSeconds: 1800 },
   'watchdog.chat_generations': { retryLimit: 1, expireInSeconds: 120 },
   'documents.replacement_cleanup': { retryLimit: 1, expireInSeconds: 300 },
   'onedrive.sync_scan': { retryLimit: 1, expireInSeconds: 300 },

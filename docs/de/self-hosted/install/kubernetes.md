@@ -573,7 +573,7 @@ rules:
     verbs: ['create', 'delete', 'list']
   - apiGroups: ['']
     resources: ['persistentvolumeclaims']
-    verbs: ['get', 'create', 'delete']
+    verbs: ['get', 'list', 'create', 'delete']
   - apiGroups: ['networking.k8s.io']
     resources: ['networkpolicies']
     verbs: ['create', 'update']
@@ -649,7 +649,7 @@ Der Spawner skaliert horizontal. Jedes Replikat findet eine Sitzung, die es nich
 
 Beim Start legt der Spawner die NetworkPolicy `tale-sandbox-session-egress` an: Sitzungs-Pods erreichen DNS und die Pods ihres eigenen Namespace und sonst nichts. Der Cloud-Metadatendienst, die Nodes und andere Namespaces bleiben damit auch für einen Prozess unerreichbar, der `HTTP_PROXY` ignoriert. Öffentliche Ziele laufen über `sandbox-egress`. Eine fehlende Berechtigung für `networkpolicies` wird protokolliert und stoppt den Spawner nicht; prüfe, dass die Richtlinie existiert, bevor du Arbeit zulässt.
 
-Sitzungs-Pods führen den Runner als uid 65534 aus, mit allen Capabilities entfernt, einem schreibgeschützten Root-Dateisystem, ohne ServiceAccount-Token und mit dem Sitzungs-Secret nur als Umgebung eingebunden. Der Workspace `/agent` ist ein Claim, der einen Leerlaufstopp überlebt; erst ein ausdrückliches Zerstören löscht ihn. Sitzungsaktionen laufen per HTTP zu runnerd auf der Pod-IP an Port 8200; `pods/exec` kommt nicht vor.
+Sitzungs-Pods führen den Runner als uid 65534 aus, mit allen Capabilities entfernt, einem schreibgeschützten Root-Dateisystem, ohne ServiceAccount-Token und mit dem Sitzungs-Secret nur als Umgebung eingebunden. Der Workspace `/agent` ist ein Claim, der einen Leerlaufstopp überlebt. Ein ausdrückliches Zerstören löscht ihn, ebenso die Workspace-Bereinigung, sobald sein Besitzer entfernt ist oder er länger als das Zeitfenster der Organisation ungenutzt bleibt; die Bereinigung findet die Claims über `list`. Sitzungsaktionen laufen per HTTP zu runnerd auf der Pod-IP an Port 8200; `pods/exec` kommt nicht vor.
 
 <Note>
 
