@@ -42,7 +42,25 @@
  * The queue is inert: every agent-turn and retry job the lane's projects
  * enqueue is parked a day past its own start at the queue's insert, no
  * worker takes one, and the lane delivers each retry job itself, as pg-boss
- * would. No sandbox, provider or model is touched. */
+ * would. No sandbox, provider or model is touched.
+ *
+ * A round that holds a delegated start open at the agent row keeps its
+ * SERIALIZABLE snapshot open for as long as its probes take (hundreds of
+ * milliseconds), in the one organization every lane of the run shares. A
+ * row of that organization written meanwhile fails the start's first
+ * attempt (40001), which rolls back and frees the agent row before it
+ * committed anything: the retry queued on it starts, and the start's next
+ * attempt answers `agent_busy` — one live run, but not the order the round
+ * holds. The hot row is the audit chain head, bumped by every audited
+ * write of the org and taken by a start that assigns its task (the audit
+ * row of the assignment), so every task a held start works is assigned up
+ * front, and such a start writes no audit row. What remains (a dependency
+ * on an index page another lane wrote, say) is rare: the retry queued
+ * behind the held start commits nothing while it waits, so a held start
+ * whose first attempt failed lost to a foreign write, never to the retry,
+ * and the round is void — re-run on fresh tasks ({@link HELD_ROUND_TRIES}).
+ * The failure is the signal, not an attempt count: a retry queued on a
+ * row's key runs on a reserved connection the traced `begin` never sees. */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 
@@ -74,6 +92,13 @@ import { archiveTask, assignTask, updateTaskStatus } from './service.ts';
 
 /** How long a case waits for one transaction to queue behind another. */
 const BLOCK_WAIT_MS = 10_000;
+
+/** How many times a round that holds a start open at the agent row is run
+ * before it is judged as it stands: a round whose held start lost a
+ * serializable attempt to another lane's write is void (see the header). A
+ * void round costs a fresh failed delegation and its probes — well under a
+ * second — and the collision is rare, so the bound is generous. */
+const HELD_ROUND_TRIES = 5;
 
 /** One point a transaction waits at until the case lets it go on. */
 interface Gate {
@@ -390,6 +415,13 @@ export async function checkAutomatedRetryAgentBusy(
       await settleAgentRun(sql, { runId: run.id, resultText: 'itest: done' });
     }
   };
+  /** Say a held-start round is void and re-run (see the header): its start
+   * lost a serializable attempt to a write of another lane. */
+  const voidRound = (round: string, tries: number, codes: string[]) => {
+    console.info(
+      `[itest] busy retry, ${round}: round ${tries} of ${HELD_ROUND_TRIES} void — the held start lost an attempt to a concurrent lane (${codes.join(', ')}); re-run on fresh tasks`,
+    );
+  };
 
   let managerRun = '';
   /** The manager's `task_start_agent`, as the tool door runs it: the
@@ -576,14 +608,19 @@ export async function checkAutomatedRetryAgentBusy(
     await free(worker);
 
     // ---- racing, the delegated start holds the agent row first ---------
-    {
+    for (let round = 1; ; round++) {
       const a = await failedDelegation('Race: retry second');
+      // Assigned up front: a start that assigns writes an audit row, and the
+      // org's chain head it takes is bumped by every audited write of the
+      // run's other lanes — a held start must not reach for it (header).
       const bTask = await fx.insertTask({
         projectId: projectA,
         title: 'Race: delegated first',
+        agentId: worker,
       });
       const at = gate();
       let bPid = 0;
+      const bErrors: string[] = [];
       const bStart = delegate(
         bTask,
         { agentId: worker },
@@ -591,6 +628,7 @@ export async function checkAutomatedRetryAgentBusy(
           onAttempt: (pid) => {
             bPid = pid;
           },
+          onError: (code) => bErrors.push(code),
           hold: { after: 'UPDATE app.project_agents', at },
         }),
       );
@@ -614,6 +652,13 @@ export async function checkAutomatedRetryAgentBusy(
         bStart,
         retryDelivery,
       ]);
+      if (bErrors.length > 0 && round < HELD_ROUND_TRIES) {
+        // The held start's attempt failed — to a write of another lane, as
+        // the retry queued on it committed nothing: the round is void.
+        voidRound('the delegated start first', round, bErrors);
+        await free(worker);
+        continue;
+      }
       const live = await liveIn(standing);
       const aRuns = await runsOf(sql, a.taskId);
       const b =
@@ -633,9 +678,10 @@ export async function checkAutomatedRetryAgentBusy(
           describeRuns(aRuns) === 'failed/delegated' &&
           live.length === 1 &&
           live[0]?.taskId === bTask,
-        `start held the agent row=${bHolds} retry queued behind it=${retryQueued} task row free meanwhile=${taskFree} start=${JSON.stringify(b)} retry log=${JSON.stringify(log)} A runs=${describeRuns(aRuns)} live=${JSON.stringify(live)}`,
+        `start held the agent row=${bHolds} retry queued behind it=${retryQueued} task row free meanwhile=${taskFree} start=${JSON.stringify(b)} start failed with=${JSON.stringify(bErrors)} retry log=${JSON.stringify(log)} A runs=${describeRuns(aRuns)} live=${JSON.stringify(live)} round=${round}`,
       );
       await free(worker);
+      break;
     }
 
     // ---- racing, the retry holds the agent row first --------------------
@@ -761,7 +807,7 @@ export async function checkAutomatedRetryAgentBusy(
     }
 
     // ---- lock order: task before agent would deadlock -------------------
-    {
+    for (let round = 1; ; round++) {
       // The manager restarts task X (agent row, then the task row) while a
       // transaction holds X and then wants the agent: the order the retry
       // must never take.
@@ -801,11 +847,34 @@ export async function checkAutomatedRetryAgentBusy(
         restart,
       ]);
       await free(worker);
+      const deadlocked =
+        outcomeOf(invertedResult) === '40P01' ||
+        restartErrors.includes('40P01');
+      if (
+        !deadlocked &&
+        restartErrors.includes('40001') &&
+        round < HELD_ROUND_TRIES
+      ) {
+        // The held restart lost its first attempt to a write of another
+        // lane before the task-first transaction could deadlock beside it:
+        // the round is void.
+        voidRound('the task first', round, restartErrors);
+        continue;
+      }
+      record(
+        'busy retry, lock order: a transaction that holds the task and then wants the agent deadlocks beside the manager restarting that task (40P01) — the order the retry avoids',
+        restartHolds && invertedQueued && deadlocked,
+        `restart held the agent row=${restartHolds} task-first transaction queued behind it=${invertedQueued} and ended ${outcomeOf(invertedResult)} restart attempts failed with=${JSON.stringify(restartErrors)} restart=${restartResult.status === 'fulfilled' ? restartResult.value.outcome : outcomeOf(restartResult)} round=${round}`,
+      );
+      break;
+    }
 
+    for (let round = 1; ; round++) {
       // The real retry in the same interleaving.
       const y = await failedDelegation('Lock order: the real retry');
       const at2 = gate();
       let restart2Pid = 0;
+      const restart2Errors: string[] = [];
       const restart2 = delegate(
         y.taskId,
         {},
@@ -813,6 +882,7 @@ export async function checkAutomatedRetryAgentBusy(
           onAttempt: (pid) => {
             restart2Pid = pid;
           },
+          onError: (code) => restart2Errors.push(code),
           hold: { after: 'UPDATE app.project_agents', at: at2 },
         }),
       );
@@ -836,6 +906,13 @@ export async function checkAutomatedRetryAgentBusy(
         retryDelivery,
         restart2,
       ]);
+      if (restart2Errors.length > 0 && round < HELD_ROUND_TRIES) {
+        // The held restart's attempt failed — to a write of another lane,
+        // as the retry queued on it committed nothing: the round is void.
+        voidRound('the real retry', round, restart2Errors);
+        await free(worker);
+        continue;
+      }
       const yRuns = await runsOf(sql, y.taskId);
       const restarted =
         restart2Result.status === 'fulfilled'
@@ -846,14 +923,6 @@ export async function checkAutomatedRetryAgentBusy(
           ? retryResult.value
           : [outcomeOf(retryResult)];
       record(
-        'busy retry, lock order: a transaction that holds the task and then wants the agent deadlocks beside the manager restarting that task (40P01) — the order the retry avoids',
-        restartHolds &&
-          invertedQueued &&
-          (outcomeOf(invertedResult) === '40P01' ||
-            restartErrors.includes('40P01')),
-        `restart held the agent row=${restartHolds} task-first transaction queued behind it=${invertedQueued} and ended ${outcomeOf(invertedResult)} restart attempts failed with=${JSON.stringify(restartErrors)} restart=${restartResult.status === 'fulfilled' ? restartResult.value.outcome : outcomeOf(restartResult)}`,
-      );
-      record(
         'busy retry, lock order: in the same interleaving the retry queues on the agent row holding no task lock — no deadlock — and, once the restart commits, stands down as superseded',
         restart2Holds &&
           retryQueued &&
@@ -861,9 +930,10 @@ export async function checkAutomatedRetryAgentBusy(
           restarted === 'started' &&
           JSON.stringify(log) === JSON.stringify(['skipped:superseded']) &&
           describeRuns(yRuns) === 'failed/delegated,queued/delegated',
-        `restart held the agent row=${restart2Holds} retry queued behind it=${retryQueued} task row free meanwhile=${taskFree} restart=${restarted} retry log=${JSON.stringify(log)} runs=${describeRuns(yRuns)}`,
+        `restart held the agent row=${restart2Holds} retry queued behind it=${retryQueued} task row free meanwhile=${taskFree} restart=${restarted} restart failed with=${JSON.stringify(restart2Errors)} retry log=${JSON.stringify(log)} runs=${describeRuns(yRuns)} round=${round}`,
       );
       await free(worker);
+      break;
     }
 
     // ---- standing roles: a To do card waits for its next occurrence -----
