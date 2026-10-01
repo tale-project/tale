@@ -175,7 +175,9 @@ describe('useGovernancePolicyToggle beside the editor’s save', () => {
       });
     });
     // The Save waits for the switch's write rather than overtaking it.
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     expect(posts).toBe(1);
 
     releaseAll(heldPosts);
@@ -306,7 +308,9 @@ describe('useGovernancePolicyToggle beside the editor’s save', () => {
         config: { enabled: true, idleTimeoutMinutes: 15 },
       });
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     expect(posts).toBe(1);
 
     releaseAll(heldPosts);
