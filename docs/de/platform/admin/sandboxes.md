@@ -3,7 +3,7 @@ title: Sandbox-Kapazität verwalten
 description: Passe Grenzen für gleichzeitige Arbeit an, lies Infrastrukturwerte und kläre blockierte Sandbox-Starts.
 ---
 
-Öffne **Einstellungen > Sandboxes**, wenn Agenten oder Website-Scans keine Ausführungsumgebung erhalten. Die Seite trennt die Arbeitsgrenzen deiner Organisation von der tatsächlichen Infrastruktur des Deployments. Inhaber und Admins dürfen Limits ändern. Entwickler sehen Limits und zusammengefasste Kapazität, aber keine privaten Workspace-Details.
+Öffne **Einstellungen > Sandboxes**, wenn Agenten oder Website-Scans keine Ausführungsumgebung erhalten. Die Seite trennt die Arbeitsgrenzen deiner Organisation von der tatsächlichen Infrastruktur des Deployments. Inhaber und Admins dürfen Limits ändern und festlegen, wann ungenutzte Arbeitsbereiche gelöscht werden. Entwickler sehen Limits und zusammengefasste Kapazität, aber keine privaten Workspace-Details.
 
 ## Das relevante Limit erkennen
 
@@ -51,7 +51,7 @@ Die Werte aktualisieren sich alle 15 Sekunden. Mit **Aktualisieren** forderst du
 
 ## Belegte und inaktive Workspaces unterscheiden
 
-Inhaber und Admins können **Arbeitsbereiche** prüfen. Jede Zeile nennt den zugehörigen Agenten oder Workflow-Lauf, Laufzeitstatus, Belegungsstatus und laufende Aufgaben. Die Zustände beantworten unterschiedliche Fragen: Ein Container kann für die Wiederverwendung weiterlaufen, obwohl er seinen Organisationsplatz bereits freigegeben hat. Der Arbeitsbereich eines Projekt-Agenten bleibt auch im Leerlauf aufgeführt, als **Gestoppt** mit **Kontingent freigegeben**, und verschwindet erst, wenn du ihn löschst; wurde der Agent selbst gelöscht, steht in der Zeile **Gelöschter Agent**, bis du den Arbeitsbereich löschst. Der Arbeitsbereich eines Workflow-Laufs wird kurz nach dem Ende des Laufs zurückgefordert.
+Inhaber und Admins können **Arbeitsbereiche** prüfen. Jede Zeile nennt den zugehörigen Agenten oder Workflow-Lauf, Laufzeitstatus, Belegungsstatus und laufende Aufgaben. Die Zustände beantworten unterschiedliche Fragen: Ein Container kann für die Wiederverwendung weiterlaufen, obwohl er seinen Organisationsplatz bereits freigegeben hat. Der Arbeitsbereich eines Projekt-Agenten bleibt auch im Leerlauf aufgeführt, als **Gestoppt** mit **Kontingent freigegeben**, bis du ihn löschst oder Tale ihn löscht: wenn ihn niemand [während der von deiner Organisation festgelegten Anzahl Tage](#delete-unused-workspaces-automatically) genutzt hat oder wenn [sein Agent, sein Projekt oder das zugehörige Mitglied entfernt wird](#explain-why-a-workspace-disappeared). Wurde der Agent selbst gelöscht, steht in der Zeile **Gelöschter Agent**, bis Tale den Arbeitsbereich gelöscht hat. Der Arbeitsbereich eines Workflow-Laufs wird kurz nach dem Ende des Laufs zurückgefordert.
 
 Die Ausgaben enthalten die gemessenen Kosten abgeschlossener Durchläufe. Ein noch laufender Durchlauf wird nach seinem Ende eingerechnet. Vorübergehende Crawler-Umgebungen zählen zur Kapazität, auch ohne eigene dauerhafte Workspace-Zeile.
 
@@ -64,10 +64,41 @@ Inhaber und Admins finden im Zeilenmenü diese Aktionen:
 | Aktion | Wirkung |
 | --- | --- |
 | **Aufgabe stoppen** | Bricht alle laufenden Vorgänge dieses Arbeitsbereichs ab. Prüfe zuerst die Aufgabenliste; ein Agent kann mehrere Aufgaben bearbeiten. |
-| **Anpinnen** / **Lösen** | Nimmt den Arbeitsbereich von der automatischen Inaktivitäts- und Ablaufbereinigung aus oder stellt die normale Bereinigung wieder her. Eine angeheftete Belegung kann weiter Kapazität beanspruchen. Verschwindet die Umgebung eines angehefteten Arbeitsbereichs, etwa nach einem Neustart des Hosts, startet Tale sie mit den Workspace-Dateien neu; der Arbeitsbereich bleibt angeheftet. |
+| **Anpinnen** / **Lösen** | Nimmt den Arbeitsbereich von der automatischen Inaktivitäts- und Ablaufbereinigung und vom Löschen wegen Nichtnutzung aus oder stellt die normale Bereinigung wieder her. Eine angeheftete Belegung kann weiter Kapazität beanspruchen. Verschwindet die Umgebung eines angehefteten Arbeitsbereichs, etwa nach einem Neustart des Hosts, startet Tale sie mit den Workspace-Dateien neu; der Arbeitsbereich bleibt angeheftet. |
 | **Löschen** | Fragt nach Bestätigung, bricht laufende Arbeit ab und entfernt Sandbox und Workspace-Dateien. Die Anheftung wird zuerst gelöst. Schlägt das Löschen fehl, bleibt der Arbeitsbereich ohne Anheftung in der Liste und du kannst **Löschen** erneut versuchen, um ihn vollständig zu entfernen. Der nächste Agentenstart erzeugt eine neue Umgebung. |
 
-Stoppe die Aufgabe, wenn die Arbeit enden, ihre Dateien aber bleiben sollen. Sichere vor dem Löschen benötigte Ergebnisse und lies die Bestätigung. Automatische Rückgewinnung inaktiver Kapazität bewahrt Workspace-Dateien; ausdrückliches Löschen entfernt sie.
+Stoppe die Aufgabe, wenn die Arbeit enden, ihre Dateien aber bleiben sollen. Sichere vor dem Löschen benötigte Ergebnisse und lies die Bestätigung. Automatische Rückgewinnung inaktiver Kapazität bewahrt Workspace-Dateien; ausdrückliches und automatisches Löschen entfernen sie.
+
+## Ungenutzte Arbeitsbereiche automatisch löschen {#delete-unused-workspaces-automatically}
+
+Ein Projekt-Agent bewahrt seine Dateien zwischen den Läufen in Arbeitsbereichen auf: in einem, den er für alle seine Aufgaben wiederverwendet, und in einem getrennten für jedes Mitglied, das [seine Läufe startet](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet). Tale löscht einen Arbeitsbereich, den niemand während der von deiner Organisation festgelegten Anzahl Tage genutzt hat; **Löschen** entfernt einen Arbeitsbereich weiterhin sofort. Inhaber und Admins legen diese Regel unter **Bereinigung der Arbeitsbereiche** fest, direkt über der Liste **Arbeitsbereiche**. Entwickler sehen diesen Abschnitt nicht.
+
+<Frame caption="Ist Ungenutzte Arbeitsbereiche löschen eingeschaltet, löscht Tale einen Arbeitsbereich, den niemand während der festgelegten Anzahl Tage genutzt hat. Angepinnte Arbeitsbereiche bleiben erhalten.">
+
+![Der Abschnitt Bereinigung der Arbeitsbereiche zeigt den eingeschalteten Schalter Ungenutzte Arbeitsbereiche löschen und den Wert 30 bei Tage ohne Nutzung, jeweils mit einer Erklärung ihrer Wirkung.](/images/platform/sandbox-workspace-cleanup.webp)
+
+</Frame>
+
+1. Lass **Ungenutzte Arbeitsbereiche löschen** eingeschaltet, wie es voreingestellt ist. Solange der Schalter aus ist, löscht Tale keinen Arbeitsbereich wegen Nichtnutzung.
+2. Gib bei **Tage ohne Nutzung** eine ganze Zahl von 1 bis 3650 ein; voreingestellt sind 30. Die Tage zählen ab dem Zeitpunkt, an dem der Agent zuletzt im Arbeitsbereich gearbeitet hat, oder ab dem Lösen seiner Anheftung.
+3. Wähle **Speichern** im Kopfbereich. **Verwerfen** stellt die gespeicherten Werte wieder her.
+
+Nach einer Änderung wird nie ein Arbeitsbereich vorzeitig gelöscht. Schaltest du das Löschen ein oder verkürzt du den Zeitraum, wird kein Arbeitsbereich wegen Nichtnutzung gelöscht, bevor seit der Änderung die volle Anzahl Tage vergangen ist. Dieselbe Wartezeit folgt auf das Update, das die Einstellung eingeführt hat. Ein längerer Zeitraum startet die Wartezeit nicht neu, Aus- und erneutes Einschalten dagegen schon.
+
+In der Liste **Arbeitsbereiche** zeigt ein gestoppter Agenten-Arbeitsbereich unter seinem Status, wann er gelöscht wird: **Wird am … gelöscht, falls weiterhin ungenutzt**. Ein neuer Lauf im Arbeitsbereich startet die Zählung neu. Ein angepinnter Arbeitsbereich oder einer, den ein [Legal Hold](/de/platform/admin/governance/legal-hold) bewahrt, zeigt kein Datum und wird nie wegen Nichtnutzung gelöscht.
+
+## Klären, warum ein Arbeitsbereich verschwunden ist {#explain-why-a-workspace-disappeared}
+
+Neben ungenutzten Arbeitsbereichen löscht Tale einen Arbeitsbereich auch, sobald entfernt wird, wozu er gehört, unabhängig von der Bereinigungseinstellung:
+
+- Das Löschen eines Projekt-Agenten löscht alle seine Arbeitsbereiche, auch die der Mitglieder. Das Löschen eines Projekts tut dasselbe für jeden Agenten darin.
+- [Entfernst du ein Mitglied](/de/platform/admin/members-and-roles#zugriff-entziehen-oder-wiederherstellen) aus der Organisation, werden seine eigenen Arbeitsbereiche mit allen Agenten gelöscht. Setzt du es stattdessen auf **Deaktiviert**, bleiben sie erhalten.
+- [Die Löschung der Daten einer Person](/de/platform/admin/governance/data-subject-requests) entfernt ihre eigenen Arbeitsbereiche, ohne auf laufende Arbeit darin zu warten.
+- Das Löschen der Organisation entfernt alle ihre Sandboxes samt Dateien, widerruft die dafür ausgegebenen Gateway-Schlüssel, trennt ihre [Geräte](/de/platform/admin/sandbox-devices) und löscht die für sie angelegten Build- und Paket-Caches.
+
+Das geschieht innerhalb von etwa einer Minute oder, falls im Arbeitsbereich noch eine Aufgabe läuft, nach deren Ende. Auch ein angepinnter Arbeitsbereich wird dann gelöscht, doch ein [Legal Hold](/de/platform/admin/governance/legal-hold) bewahrt jeden Arbeitsbereich, den er abdeckt: Eine Sperre der Organisation bewahrt alle, eine Sperre für eine Person deren eigene Arbeitsbereiche. Eine stündliche Bereinigung löscht außerdem Überreste, die niemandem mehr gehören, etwa den Arbeitsbereich eines Workflow-Laufs, der nie zurückgefordert wurde.
+
+Jeden Arbeitsbereich, den Tale von selbst löscht, aus einem dieser Gründe oder wegen Nichtnutzung, verzeichnet das [Audit-Log](/de/platform/admin/governance/audit-logs) unter **Einstellungen > Richtlinien > Protokolle** als **Sandbox-Arbeitsbereich gelöscht**. Das ist ein Systemereignis der Kategorie **Daten**, dessen Metadaten den Grund nennen: `agent_deleted`, `member_removed`, `member_erased`, `unused` oder `orphaned`.
 
 ## Einen blockierten Start klären
 

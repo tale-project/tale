@@ -17,6 +17,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import {
   DEFAULT_SANDBOX_QUOTA,
+  DEFAULT_SANDBOX_WORKSPACES,
   sandboxQuotaTotal,
 } from '@tale/shared/schemas/governance';
 
@@ -1691,6 +1692,67 @@ export const SHOTS: readonly Shot[] = [
     capture: (page) =>
       page.getByRole('region', {
         name: t('sandboxes.limits.title'),
+        exact: true,
+      }),
+  },
+  {
+    name: 'sandbox-workspace-cleanup',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/sandboxes',
+    prepare: async (page) => {
+      // The shot shows the rule every organization starts with: unused
+      // workspaces deleted after the default number of days. An earlier run
+      // may have saved another value; put the default back through the real
+      // editor, so the capture shows the persisted rule.
+      const toggle = page.getByRole('switch', {
+        name: t('sandboxes.cleanup.deleteUnused'),
+        exact: true,
+      });
+      const days = page.getByRole('spinbutton', {
+        name: t('sandboxes.cleanup.unusedDays'),
+        exact: true,
+      });
+      await expect(days).not.toHaveValue('');
+      let changed = false;
+      if ((await toggle.getAttribute('aria-checked')) !== 'true') {
+        await toggle.click();
+        changed = true;
+      }
+      const unusedDays = String(DEFAULT_SANDBOX_WORKSPACES.unusedDays);
+      if ((await days.inputValue()) !== unusedDays) {
+        await days.fill(unusedDays);
+        changed = true;
+      }
+      if (changed) {
+        const save = page.getByRole('button', {
+          name: t('common.actions.save'),
+          exact: true,
+        });
+        await expect(save).toBeEnabled();
+        await save.click();
+        await expect(
+          page.getByRole('button', {
+            name: t('common.actions.saved'),
+            exact: true,
+          }),
+        ).toBeVisible();
+        await page.reload();
+        await expect(
+          page.getByRole('spinbutton', {
+            name: t('sandboxes.cleanup.unusedDays'),
+            exact: true,
+          }),
+        ).toHaveValue(unusedDays);
+      }
+    },
+    readyWhen: (page) =>
+      page.getByRole('spinbutton', {
+        name: t('sandboxes.cleanup.unusedDays'),
+        exact: true,
+      }),
+    capture: (page) =>
+      page.getByRole('region', {
+        name: t('sandboxes.cleanup.title'),
         exact: true,
       }),
   },

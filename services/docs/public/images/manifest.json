@@ -577,6 +577,18 @@
       "height": 928
     },
     {
+      "file": "images/platform/sandbox-workspace-cleanup.webp",
+      "shot": "sandbox-workspace-cleanup",
+      "route": "/dashboard/:orgId/settings/sandboxes",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 550
+    },
+    {
       "file": "images/platform/settings-branding.webp",
       "shot": "settings-branding",
       "route": "/dashboard/:orgId/settings/branding",

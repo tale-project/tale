@@ -77,6 +77,6 @@ L’[automatisation des tâches](/fr/platform/projects/task-automation) explique
 
 ## Modifier ou retirer un agent
 
-Utilise le menu de sa ligne pour le modifier ou le supprimer. Les changements concernent les prochaines exécutions ; une exécution active conserve sa configuration initiale. La suppression retire les affectations à l’agent mais conserve l’historique des tâches. Examine le travail en cours avant de retirer l’agent concerné.
+Utilise le menu de sa ligne pour le modifier ou le supprimer. Les changements concernent les prochaines exécutions ; une exécution active conserve sa configuration initiale. La suppression retire les affectations à l’agent mais conserve l’historique des tâches. Elle efface aussi les [espaces de travail de sandbox](/fr/platform/admin/sandboxes#explain-why-a-workspace-disappeared) de l’agent avec leurs fichiers, y compris ceux des Membres. Examine le travail en cours et conserve les résultats nécessaires avant de retirer l’agent concerné.
 
 Si la création échoue, lis la cause affichée : un nom déjà utilisé, un accès au projet manquant, un modèle indisponible et un skill invisible sont des problèmes distincts. Une exécution qui échoue définitivement indique en haut de sa tâche ce qui s’est passé et qui peut y remédier ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) détaille les cas. Modifier les instructions ne résout pas ces prérequis.
