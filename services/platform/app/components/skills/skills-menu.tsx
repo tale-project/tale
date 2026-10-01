@@ -112,7 +112,9 @@ export function SkillsMenu({
                 : {}),
             }),
           }
-        : {}),
+        : option.description !== undefined
+          ? { description: option.description }
+          : {}),
       checked: selected.includes(option.slug),
       onCheckedChange: (next: boolean) =>
         onChange(apply(toggle(selected, option.slug, next))),
