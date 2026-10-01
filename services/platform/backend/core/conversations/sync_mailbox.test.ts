@@ -81,6 +81,8 @@ interface HarnessOptions {
   }>;
   /** Credential ids whose connector calls fail — one unreachable mailbox. */
   failCredentials?: Record<string, string>;
+  /** Message ids whose `get_message` fails — one message gone since the list. */
+  failMessages?: Record<string, string>;
   /**
    * Already-ingested messages, by normalized external id — what
    * `getMessageByExternalId` finds. Lets a test re-fetch a message the org
@@ -102,6 +104,7 @@ function harness(
   const outcome = options.outcome ?? { status: 'ok' };
   const credentials = options.credentials ?? [];
   const failCredentials = options.failCredentials ?? {};
+  const failMessages = options.failMessages ?? {};
   const existingMessages = options.existingMessages ?? {};
   const calls: ConnectorCall[] = [];
   const cursorPatches: Array<Record<string, unknown>> = [];
@@ -140,6 +143,11 @@ function harness(
         ? failCredentials[call.credentialRef]
         : undefined;
     if (failure !== undefined) return { status: 'error', message: failure };
+    const gone =
+      call.action === 'get_message'
+        ? failMessages[String(call.input.uid ?? call.input.messageId)]
+        : undefined;
+    if (gone !== undefined) return { status: 'error', message: gone };
     return { status: 'ok', output: reply(call) };
   };
   const runQuery = async (
@@ -1278,8 +1286,70 @@ describe('listMailboxMessages', () => {
     ).rejects.toThrow(/every imap-smtp mailbox failed/);
   });
 
-  it('uses the Gmail inbox query when no credentials are configured yet', async () => {
-    const { ctx, calls } = harness(mailbox([{ id: 'g1', subject: 'hi' }]));
+  it('reads Outlook envelopes off the listing alone', async () => {
+    const { ctx, calls } = harness(
+      mailbox([
+        {
+          id: 'o1',
+          subject: 'hi',
+          from: { emailAddress: { address: 'a@example.com' } },
+          receivedDateTime: '2026-10-01T08:00:00Z',
+        },
+      ]),
+    );
+
+    const result = await listMailboxMessages(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'outlook',
+      limit: 5,
+      mode: 'live',
+    });
+
+    expect(calls.map((call) => call.action)).toEqual(['list_messages']);
+    expect(result.messages).toEqual([
+      expect.objectContaining({ id: 'o1', subject: 'hi' }),
+    ]);
+  });
+
+  // Gmail's `users.messages.list` answers bare ids — the envelope is one
+  // metadata fetch away. Before the fetch landed, every digest row read
+  // `subject: ''`, `from: ''`, `receivedAt: ''` for a live Gmail inbox.
+  const GMAIL_DATE = 'Wed, 15 Nov 2023 10:13:20 +0000';
+
+  /** The Gmail dialect: a list of ids, then the raw API message per id. */
+  function gmailInbox(ids: string[]): Reply {
+    return (call) => {
+      if (call.action === 'list_messages') {
+        return {
+          messages: ids.map((id) => ({ id, threadId: `t-${id}` })),
+          nextPageToken: '',
+        };
+      }
+      const id = String(call.input.messageId);
+      return {
+        message: {
+          id,
+          threadId: `t-${id}`,
+          labelIds: ['INBOX', 'UNREAD'],
+          snippet: `Snippet of ${id}`,
+          internalDate: '1700043200000',
+          payload: {
+            mimeType: 'text/plain',
+            headers: [
+              { name: 'Subject', value: `Subject of ${id}` },
+              { name: 'From', value: `Alice <alice-${id}@example.com>` },
+              { name: 'Date', value: GMAIL_DATE },
+              { name: 'Message-ID', value: `<${id}@mail.example.com>` },
+            ],
+          },
+        },
+        attachments: [],
+      };
+    };
+  }
+
+  it('reads Gmail envelopes with one metadata fetch per listed id', async () => {
+    const { ctx, calls } = harness(gmailInbox(['g1', 'g2']));
 
     const result = await listMailboxMessages(ctx, {
       organizationId: 'org',
@@ -1291,9 +1361,107 @@ describe('listMailboxMessages', () => {
     expect(inputsFor(calls, 'list_messages')).toEqual([
       { maxResults: 5, q: 'in:inbox' },
     ]);
-    expect(result.messages).toEqual([
-      expect.objectContaining({ id: 'g1', subject: 'hi' }),
+    // Headers and snippet only: no body, no attachment bytes.
+    expect(inputsFor(calls, 'get_message')).toEqual([
+      { messageId: 'g1', format: 'metadata' },
+      { messageId: 'g2', format: 'metadata' },
     ]);
+    expect(result.messages).toEqual([
+      {
+        id: 'g1',
+        threadId: 't-g1',
+        subject: 'Subject of g1',
+        from: 'alice-g1@example.com',
+        sentAt: Date.parse(GMAIL_DATE),
+        snippet: 'Snippet of g1',
+      },
+      {
+        id: 'g2',
+        threadId: 't-g2',
+        subject: 'Subject of g2',
+        from: 'alice-g2@example.com',
+        sentAt: Date.parse(GMAIL_DATE),
+        snippet: 'Snippet of g2',
+      },
+    ]);
+  });
+
+  it('fetches Gmail envelopes with the credential that listed them', async () => {
+    const { ctx, calls } = harness(gmailInbox(['g1']), {
+      credentials: [
+        { id: 'cred_a', name: 'Alpha', isDefault: true },
+        { id: 'cred_b', name: 'Beta', isDefault: false },
+      ],
+    });
+
+    const result = await listMailboxMessages(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'gmail',
+      limit: 5,
+      mode: 'live',
+    });
+
+    expect(calls.map((call) => [call.credentialRef, call.action])).toEqual([
+      ['cred_a', 'list_messages'],
+      ['cred_a', 'get_message'],
+      ['cred_b', 'list_messages'],
+      ['cred_b', 'get_message'],
+    ]);
+    expect(result.messages).toEqual([
+      expect.objectContaining({
+        id: 'g1',
+        credentialName: 'Alpha',
+        subject: 'Subject of g1',
+      }),
+      expect.objectContaining({
+        id: 'g1',
+        credentialName: 'Beta',
+        subject: 'Subject of g1',
+      }),
+    ]);
+  });
+
+  it('skips a Gmail message gone between the list and the fetch', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { ctx } = harness(gmailInbox(['g1', 'g2', 'g3']), {
+        failMessages: { g2: 'Gmail get_message failed (404)' },
+      });
+
+      const result = await listMailboxMessages(ctx, {
+        organizationId: 'org',
+        connectorSlug: 'gmail',
+        limit: 5,
+        mode: 'live',
+      });
+
+      expect(result.messages.map((row) => row.id)).toEqual(['g1', 'g3']);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('gmail message g2 skipped'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('fails a Gmail mailbox when every envelope fetch fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { ctx } = harness(gmailInbox(['g1', 'g2']), {
+        failMessages: { g1: 'invalid_grant', g2: 'invalid_grant' },
+      });
+
+      await expect(
+        listMailboxMessages(ctx, {
+          organizationId: 'org',
+          connectorSlug: 'gmail',
+          limit: 5,
+          mode: 'live',
+        }),
+      ).rejects.toThrow(/every gmail message fetch failed/);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
