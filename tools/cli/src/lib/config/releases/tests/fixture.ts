@@ -1,5 +1,4 @@
 import { afterEach } from 'bun:test';
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -9,6 +8,7 @@ import { stringify } from 'yaml';
 import { verifyArtifactBytes } from '../artifacts';
 import { repoPath } from '../identity';
 import { buildRelease, type BuildOptions } from '../release';
+import { fixtureGit } from './fixture-git';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -26,6 +26,8 @@ export function fixture(
   external: string[] = [],
 ) {
   const root = temporary();
+  // Made first, so a step's offset also counts the file writes before it.
+  const git = fixtureGit(root);
   const descriptorPath = path.join(
     root,
     `tale/clients/${clientId}/client.json`,
@@ -95,11 +97,6 @@ export function fixture(
     );
     writeFileSync(path.join(pack, 'skills', skill, '.gitignore'), 'cache/\n');
   }
-  const git = (...args: string[]) =>
-    execFileSync('git', ['-C', root, ...args], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
   git('init', '--quiet');
   git('add', '--all');
   // Git owns the fixture's source modes; NTFS cannot persist chmod requests.

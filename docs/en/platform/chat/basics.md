@@ -57,17 +57,31 @@ Above the reply, the timeline shows search and reading steps. A failed step expl
 
 **Sources** below the answer lists documents and pages the assistant loaded. Open a source and check that it supports the relevant claim. A citation establishes which material was used, not that every conclusion is correct. A reply without a retrieval step may rely on the model’s prior knowledge.
 
-The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, create images, produce file deliverables, or use [skills](/platform/workspace/skills); assign that work to a [project task](/platform/projects/tasks). Any member can create one in a project they can open and hand it to one of the project's agents; [Create task from chat](#create-task-from-chat) starts it from the conversation. A project agent working on the task can create images when an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images).
+The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received and of their attachments. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, create images, produce file deliverables, or use [skills](/platform/workspace/skills); assign that work to a [project task](/platform/projects/tasks). Any member can create one in a project they can open and hand it to one of the project's agents; [Turn a chat into a task](#create-task-from-chat) shows how to start it from the conversation. A project agent working on the task can create images when an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images).
 
 ## Turn a chat into a task {#create-task-from-chat}
 
-When a conversation ends in work that needs a file, such as a presentation, a report, or a spreadsheet, hand it to a project agent. Open the conversation's **⋯** menu and choose **Create task from chat**. A chat filed in a project creates the task there; otherwise, pick the project first. The task dialog opens with your last request as the description, a link back to the chat, and the files you attached in the conversation. Edit anything you like, choose the agent as the **Assignee**, and select **Create task**. **Open task** in the confirmation takes you to the task, where **Start agent** runs it.
+When a conversation ends in work that needs a file, such as a presentation, a report, or a spreadsheet, hand it to a project agent. Select **Create task** in the conversation's header; on a narrow screen, choose **Create task from chat** in the **⋯** menu. A chat filed in a project creates the task there. Otherwise, choose the project first: **With an agent** lists the projects you can open that have agents, with how many. A project without agents of its own appears there with **Standard agent**: its task goes to the organization's [standard agent](/platform/projects/project-agents#standard-agent). When the standard agent can't run for you, for example because an admin has turned it off, such projects are listed under **No agent yet** instead, each saying who can add one.
 
-<Frame caption="Create task from chat opens the task dialog with the request and a link back to the chat.">
+The task dialog opens with your last request as the description, a link back to the chat, and the files you attached in the conversation. When the project has a single agent, or uses the standard agent, it's already the **Assignee**; otherwise, choose one. Edit anything you like, then select **Create and start agent**: the task is created, and the agent starts on it at once. **Create only** creates it without starting the agent; **Start agent** on the task starts it later.
 
-![The Create task dialog holds the title and description "Plan the quarterly business review agenda for Friday" and, below the request, a link labelled From the chat.](/images/platform/chat-create-task.webp)
+<Frame caption="Create task opens the task dialog with the request, a link back to the chat, and the agent to start.">
+
+![The Create task dialog holds the title and description "Plan the quarterly business review agenda for Friday", a link labelled From the chat below the request, Content editor as the assignee, and the buttons Create only and Create and start agent.](/images/platform/chat-create-task.webp)
 
 </Frame>
+
+The task then shows above the chat's message box with what it's doing: **The agent is working**, **Waiting for a sandbox slot**, **Trying again…**, **Ready for review** with the number of files it delivered, or **The agent couldn't finish**. **Open** takes you to the task. You're also notified when it's ready for review and when the agent can't finish; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) explains what to do next.
+
+<Frame caption="The task a chat handed over shows its progress above the message box.">
+
+![Above the message box, a row names the task "Plan the quarterly business review agenda for Friday" with Ready for review · Website relaunch and an Open link.](/images/platform/chat-task-tray.webp)
+
+</Frame>
+
+Ask the assistant for such a file, and it answers what fits in a reply, then walks you through these steps for your own projects, naming the buttons as you see them.
+
+No project you can open offers an agent? Then the standard agent can't run for you: an admin may have turned it off under [Governance > Models](/platform/admin/governance/content-models#standard-agent), or no model you may use can run it. Ask an Admin about it, or ask an Editor or Admin to add an agent on the project's **Agents** tab. As an Editor, you can also add one from the task: under **Assignee**, choose **Create an agent…**.
 
 Files come along only from your own conversation. A task takes only its creator's uploads, so a task created from a chat someone shared into a project starts without them.
 

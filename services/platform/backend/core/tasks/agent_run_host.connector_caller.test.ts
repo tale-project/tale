@@ -32,6 +32,14 @@ const io = vi.hoisted(() => ({
   toolCalls: [] as unknown[][],
   /** The gateway key the next mint hands out. */
   nextKey: 'vk-turn-1',
+  /** Every exec the hosts launched: its argv and the stdin it was fed. */
+  starts: [] as Array<{ execId: string; argv: string[]; stdin?: string }>,
+  /** The live op as the steer host reads it before a restart. */
+  opSteer: { status: 'running', finalized: false } as {
+    status: string;
+    finalized: boolean;
+    agentSessionId?: string;
+  },
 }));
 
 const { runConnectorAction } = vi.hoisted(() => ({
@@ -44,12 +52,22 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
   return {
     ...actual,
     // The exec launches and keeps running; the turn's own drive is not
-    // what this test is about.
-    drainHarnessWindow: async () => ({
-      kind: 'running',
-      text: '',
-      timeline: [],
-    }),
+    // what this test is about — only what it was launched with.
+    drainHarnessWindow: async (args: {
+      execId: string;
+      start?: { argv: string[]; stdin?: string };
+    }) => {
+      if (args.start !== undefined) {
+        io.starts.push({
+          execId: args.execId,
+          argv: args.start.argv,
+          ...(args.start.stdin !== undefined
+            ? { stdin: args.start.stdin }
+            : {}),
+        });
+      }
+      return { kind: 'running', text: '', timeline: [] };
+    },
   };
 });
 vi.mock('../automations/agent_host', () => ({
@@ -220,12 +238,16 @@ function makeCtx() {
         };
       }
       if (name === 'sandbox/session_queries:getOpSteerState') {
-        return { status: 'running', finalized: false };
+        return io.opSteer;
       }
       if (name === 'sandbox/session_queries:getSessionOpAttribution') {
         return { userId: run.startedBy };
       }
       if (name === 'governance/queries:getContextCapInternal') return null;
+      // No governance policies: the start reads none and launches the exec.
+      if (name === 'governance/internal_queries:getPolicyConfigInternal') {
+        return null;
+      }
       // An editor's run: the agent's full equipment.
       if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
         return { confined: false };
@@ -298,6 +320,8 @@ beforeEach(() => {
   io.run = { status: 'queued', execId: 'exec-1', startedBy: 'user-starter' };
   io.toolCalls = [];
   io.nextKey = 'vk-turn-1';
+  io.starts = [];
+  io.opSteer = { status: 'running', finalized: false };
   runConnectorAction.mockResolvedValue({
     status: 'ok',
     output: { issues: [{ id: 'GT-1' }] },
@@ -397,6 +421,49 @@ describe('a task run of an agent equipped with a connector', () => {
     );
     expect(stale.blockers[0]?.code).toBe('run_ended');
     expect(runConnectorAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('restarts a Gemini CLI turn as a fresh conversation on a comment, never with the handle', async () => {
+    // The live turn announced its conversation; a harness that resumes
+    // (codex) continues it with the comment as the next message, while
+    // Gemini CLI — `capabilities.resume: false`, its `--resume` replays
+    // every tool result twice — restarts on the rebuilt brief.
+    io.members.set('user-dana', 'member');
+    io.opSteer = {
+      status: 'running',
+      finalized: false,
+      agentSessionId: 'conv-live-1',
+    };
+    for (const harness of ['codex', 'gemini'] as const) {
+      io.starts = [];
+      io.run = {
+        status: 'queued',
+        execId: 'exec-1',
+        startedBy: 'user-starter',
+      };
+      const { ctx } = makeCtx();
+      await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+      await steerTaskAgentTurnImpl(ctx, {
+        ...KEYS,
+        harness,
+        feedback: 'Look at last week’s run too.',
+        author: 'Dana',
+        authorId: 'user-dana',
+        attempt: 0,
+      } as never);
+      const restarted = io.starts.at(-1);
+      expect(restarted?.execId).toBe('exec-rotated');
+      const argv = restarted?.argv ?? [];
+      if (harness === 'codex') {
+        expect(argv).toContain('conv-live-1');
+      } else {
+        expect(argv).not.toContain('conv-live-1');
+        expect(argv).not.toContain('--resume');
+        // The fresh restart opens on the brief, with the comment inside it.
+        expect(restarted?.stdin).toContain('Check the VAT run');
+        expect(restarted?.stdin).toContain('Look at last week’s run too.');
+      }
+    }
   });
 
   it.each([

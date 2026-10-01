@@ -84,6 +84,7 @@ import {
   type ToolCallDraft,
 } from './stream_decode';
 import { createStallGuard, type StallGuard } from './stream_stall';
+import { readTaskHandover } from './task_handover';
 
 /** The stored excerpt of an upstream error body. This is the ONLY record of
  * the provider's answer anywhere (nothing logs the full body), so it must fit
@@ -1043,6 +1044,15 @@ export async function executeTurn(
       userId: args.userId,
     }),
   );
+  // How this person hands work to an agent (the app's chat only).
+  const pendingTaskHandover = settled(
+    readTaskHandover(ctx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      locale: args.locale,
+      ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
+    }),
+  );
 
   // Verdicts in the serial order the reads used to run, so refusal
   // precedence is unchanged. The model-access policy holds at the boundary,
@@ -1098,6 +1108,7 @@ export async function executeTurn(
   const policies = unwrap(await pendingPolicies);
   const mandatoryInstructions = mandatoryInstructionsFor(policies);
   const customInstructions = unwrap(await pendingCustomInstructions);
+  const taskHandover = unwrap(await pendingTaskHandover);
 
   // The credential and endpoint are resolved HERE, ahead of the history
   // read and of any row being written: a disabled, deleted, rotated or
@@ -1258,6 +1269,7 @@ export async function executeTurn(
     agent: CHAT_ASSISTANT,
     ...(mandatoryInstructions !== undefined ? { mandatoryInstructions } : {}),
     ...(customInstructions !== undefined ? { customInstructions } : {}),
+    ...(taskHandover !== undefined ? { taskHandover } : {}),
     toolDocs: CHAT_TOOL_DOCS,
     ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,

@@ -40,10 +40,7 @@ import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
-import {
-  lookupHostAddresses,
-  setSafeFetchResolverForTests,
-} from '../lib/net/safe-fetch.ts';
+import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
@@ -60,6 +57,7 @@ import {
   TASK_TITLE_MAX,
   taskLimitText,
 } from './core/tasks/helpers.ts';
+import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
@@ -86,6 +84,7 @@ import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexin
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
+import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
@@ -95,6 +94,7 @@ import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integrat
 import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
+import { checkWorkspaceCleanup } from './domains/sandbox/workspace-cleanup.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
@@ -117,7 +117,9 @@ import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.inte
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
 import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibility.integration.ts';
+import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
@@ -130,6 +132,11 @@ import {
   requestedLanes,
   signUpUser,
 } from './integration-lane-helpers.ts';
+import {
+  itestResolve,
+  routeVendorFetch,
+  startItestVendorStub,
+} from './integration-vendor-stub.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
@@ -11026,6 +11033,23 @@ async function checkChat(
   const aiPort =
     aiAddress !== null && typeof aiAddress === 'object' ? aiAddress.port : 0;
   const aiBase = `http://127.0.0.1:${aiPort}/v1`;
+  // A provider whose model listing never answers — the Vercel AI Gateway
+  // without egress, but on loopback, so no check here depends on a vendor.
+  // It counts the listing requests it refuses.
+  let coldListingRequests = 0;
+  const coldServer = createServer((req, res) => {
+    if ((req.url ?? '').endsWith('/models')) coldListingRequests += 1;
+    res.statusCode = 503;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    coldServer.listen(0, '127.0.0.1', resolve);
+  });
+  const coldAddress = coldServer.address();
+  const coldPort =
+    coldAddress !== null && typeof coldAddress === 'object'
+      ? coldAddress.port
+      : 0;
 
   try {
     // The org's chat provider: a custom provider file + an api-key
@@ -11244,6 +11268,86 @@ async function checkChat(
       `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
     );
 
+    // One provider's catalog that cannot be read must not decide a model
+    // another provider serves. `itest-cold`'s listing fails cold — nothing
+    // cached, no shipped defaults — and then stays failed through the
+    // remembered back-off; custom providers are walked in file-name order,
+    // so it is read before `itestdeploy`. Every lookup that walked past it
+    // used to throw its error out of the send: a bare 500 instead of the
+    // reply, or of the refusal naming the model. It stays configured through
+    // the stale send below and is removed after it.
+    await writeFile(
+      path.join(providersDir, 'itest-cold.yml'),
+      [
+        'name: itest-cold',
+        'displayName: Itest Cold Catalog',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${coldPort}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    /** One send on the deployment thread, read as text first: a failed
+     * resolution used to answer a non-JSON 500. */
+    const deploySend = async (body: {
+      text: string;
+      modelId: string;
+      providerSlug?: string;
+    }): Promise<{ status: string; reason: string }> => {
+      const raw = await (
+        await send(
+          `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+          body,
+        )
+      ).text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        json = { status: `non-JSON: ${raw.slice(0, 80)}` };
+      }
+      const answer = z
+        .object({ status: z.string(), reason: z.string().optional() })
+        .safeParse(json);
+      return answer.success
+        ? { status: answer.data.status, reason: answer.data.reason ?? '' }
+        : { status: 'ERR', reason: '' };
+    };
+    const coldUnhinted = await deploySend({
+      text: 'Which ledger is this?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldRequests = coldListingRequests;
+    const rememberedUnhinted = await deploySend({
+      text: 'Which pigment does it name?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldHint = await deploySend({
+      text: 'Once more, please.',
+      modelId: 'itest-deploy-prod',
+      providerSlug: 'itest-cold',
+    });
+    const unknownModel = await deploySend({
+      text: 'Anyone there?',
+      modelId: 'itest-retired-model',
+    });
+    const rememberedRequests = coldListingRequests;
+    record(
+      'an unreadable catalog leaves the other providers resolving',
+      coldUnhinted.status === 'completed' &&
+        rememberedUnhinted.status === 'completed' &&
+        coldHint.status === 'completed' &&
+        coldRequests > 0 &&
+        rememberedRequests === coldRequests &&
+        unknownModel.status === 'refused' &&
+        unknownModel.reason.includes('"itest-retired-model"') &&
+        unknownModel.reason.includes('"itest-cold"') &&
+        !unknownModel.reason.includes('HTTP 503'),
+      `no hint: cold=${coldUnhinted.status} remembered=${rememberedUnhinted.status}, hint on the cold provider=${coldHint.status} (want completed ×3); cold listing requests ${coldRequests} → ${rememberedRequests} (want >0, then none while remembered); unknown model=${unknownModel.status} (${unknownModel.reason}) (want refused, naming the model and the unreachable catalog, not its error)`,
+    );
+
     // The picker and serving must read ONE world. Serving resolves a
     // provider's ACTIVE DEFAULT credential; the picker used to walk every
     // active credential — so after the routine key rotation (add B, disable
@@ -11352,6 +11456,7 @@ async function checkChat(
         offeredAgain,
       `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? `${sendWhileDefaultDisabled.data.status} (${sendWhileDefaultDisabled.data.reason ?? ''})` : 'ERR'} (want refused, naming the model); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
     );
+    await rm(path.join(providersDir, 'itest-cold.yml'), { force: true });
 
     // First-token UX metric. Covered because it was NOT: the statement that
     // stamps it built a `jsonb_build_object` around an uncast parameter, so
@@ -11875,6 +11980,9 @@ async function checkChat(
   } finally {
     await new Promise<void>((resolve) => {
       aiServer.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      coldServer.close(() => resolve());
     });
   }
 }
@@ -26512,6 +26620,197 @@ async function checkUndatedMailIngest(
 }
 
 /**
+ * The triage packs' Inbox lane (domains/conversations/triage.ts) on the real
+ * schema: a thread is listed when its newest message is the customer's and
+ * newer — by message `seq`, not by date — than the thread's triage stamp; the
+ * stamp sets the priority only where no person set one; and a message that
+ * lands after the stamp surfaces the thread again however old its own Date
+ * header is (a sync pass ingests mail minutes after it was sent).
+ */
+async function checkInboxTriageLane(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { createConversation, addMessageToConversation } =
+    await import('./domains/conversations/service.ts');
+  const { listUntriagedConversations, recordConversationTriage } =
+    await import('./domains/conversations/triage.ts');
+  // A connector name of this lane's own, so the mailbox lanes' threads in the
+  // shared org never land in its listing whatever the lane order.
+  const connector = 'itest-triage-mail';
+  const now = Date.now();
+  const contactRows = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Triage Contact', 'triage@ext.test', 'api_import',
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const contactId = contactRows[0]?.id ?? '';
+  const seed = async (
+    subject: string,
+    opts: {
+      priority?: string;
+      status?: 'open' | 'closed';
+      content: string;
+      teamRepliedLast?: boolean;
+    },
+  ): Promise<string> => {
+    const conversationId = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject,
+        channel: 'email',
+        direction: 'inbound',
+        connectorName: connector,
+        ...(opts.priority !== undefined ? { priority: opts.priority } : {}),
+        ...(opts.status !== undefined ? { status: opts.status } : {}),
+      }),
+    );
+    await sql.begin((tx) =>
+      addMessageToConversation(tx, {
+        conversationId,
+        organizationId: orgId,
+        sender: 'triage@ext.test',
+        content: opts.content,
+        isCustomer: true,
+        sentAt: now - 300_000,
+        connectorName: connector,
+      }),
+    );
+    if (opts.teamRepliedLast) {
+      await sql.begin((tx) =>
+        addMessageToConversation(tx, {
+          conversationId,
+          organizationId: orgId,
+          sender: 'team@door.test',
+          content: 'We are on it.',
+          isCustomer: false,
+          sentAt: now - 240_000,
+          connectorName: connector,
+        }),
+      );
+    }
+    return conversationId;
+  };
+  const waiting = await seed('When does it ship?', {
+    content: '<p>Hello <b>team</b>,<br>when does order 42 ship?</p>',
+  });
+  const answered = await seed('Already answered', {
+    content: 'Thanks for the quote.',
+    teamRepliedLast: true,
+  });
+  const prioritized = await seed('Site is down', {
+    priority: 'urgent',
+    content: 'Our site is down since 9:00.',
+  });
+  const closed = await seed('Closed thread', {
+    status: 'closed',
+    content: 'Closing this.',
+  });
+
+  const first = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  const firstIds = first.conversations.map((row) => row.conversationId);
+  const waitingRow = first.conversations.find(
+    (row) => row.conversationId === waiting,
+  );
+  record(
+    "inbox triage: the listing is the open threads whose newest message is the customer's, none judged yet",
+    firstIds.length === 2 &&
+      firstIds.includes(waiting) &&
+      firstIds.includes(prioritized) &&
+      !firstIds.includes(answered) &&
+      !firstIds.includes(closed) &&
+      // The stripper's exact spacing is its own contract; the lane holds the
+      // text to "readable, no markup".
+      waitingRow !== undefined &&
+      waitingRow.lastInboundText.includes('when does order 42 ship?') &&
+      !waitingRow.lastInboundText.includes('<') &&
+      waitingRow.contact.email === 'triage@ext.test' &&
+      !waitingRow.assigned &&
+      waitingRow.url ===
+        `/dashboard/${orgId}/conversations/open?conversation=${waiting}`,
+    `listed=${firstIds.length} (want 2: waiting+prioritized; not answered/closed) text=${JSON.stringify(waitingRow?.lastInboundText)} url=${waitingRow?.url}`,
+  );
+
+  const recorded = await recordConversationTriage(sql, {
+    organizationId: orgId,
+    runId: 'run_itest_triage',
+    verdicts: [
+      {
+        conversationId: waiting,
+        action: 'reply',
+        priority: 'high',
+        reason: 'Asks for a ship date.',
+      },
+      { conversationId: prioritized, action: 'no_reply', priority: 'low' },
+      { conversationId: 'conv_never_existed', action: 'reply' },
+    ],
+  });
+  const stamped = await sql<
+    { id: string; priority: string | null; triage: Record<string, unknown> }[]
+  >`
+    SELECT id, priority, metadata->'triage' AS triage FROM app.conversations
+    WHERE id IN (${waiting}, ${prioritized})
+  `;
+  const waitingStamp = stamped.find((row) => row.id === waiting);
+  const prioritizedStamp = stamped.find((row) => row.id === prioritized);
+  record(
+    'inbox triage: the stamp carries the verdict and sets the priority only where none was set',
+    recorded.recorded === 2 &&
+      recorded.prioritized === 1 &&
+      recorded.unknown.length === 1 &&
+      recorded.unknown[0] === 'conv_never_existed' &&
+      waitingStamp?.priority === 'high' &&
+      waitingStamp.triage.action === 'reply' &&
+      waitingStamp.triage.reason === 'Asks for a ship date.' &&
+      waitingStamp.triage.runId === 'run_itest_triage' &&
+      typeof waitingStamp.triage.seq === 'number' &&
+      waitingStamp.triage.seq > 0 &&
+      prioritizedStamp?.priority === 'urgent' &&
+      prioritizedStamp.triage.action === 'no_reply',
+    `recorded=${recorded.recorded} prioritized=${recorded.prioritized} unknown=${recorded.unknown.join(',')} waiting.priority=${waitingStamp?.priority} (want high) prioritized.priority=${prioritizedStamp?.priority} (want urgent, kept) stamp=${JSON.stringify(waitingStamp?.triage)}`,
+  );
+
+  const second = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  // A customer message that lands AFTER the stamp but was SENT before it — the
+  // sync's own lag — must surface the thread again: the cursor is seq, not date.
+  await sql.begin((tx) =>
+    addMessageToConversation(tx, {
+      conversationId: waiting,
+      organizationId: orgId,
+      sender: 'triage@ext.test',
+      content: 'Any news?',
+      isCustomer: true,
+      sentAt: now - 3_600_000,
+      connectorName: connector,
+    }),
+  );
+  const third = await listUntriagedConversations(sql, {
+    organizationId: orgId,
+    connectorSlug: connector,
+    limit: 25,
+  });
+  record(
+    'inbox triage: a judged thread is not listed again until a customer message lands after the stamp, however old its date',
+    second.conversations.length === 0 &&
+      third.conversations.length === 1 &&
+      third.conversations[0]?.conversationId === waiting,
+    `afterStamp=${second.conversations.length} (want 0) afterLateMail=${third.conversations.map((row) => row.conversationId).join(',')} (want ${waiting})`,
+  );
+}
+
+/**
  * Ingest idempotency is the DATABASE's rule now, not the lookup's. Two passes
  * of one mailbox can overlap (the schedule claims the occurrence, not the run)
  * and both miss `checkMessageExists`; migration 0077's partial unique index
@@ -32853,6 +33152,10 @@ async function checkWebsitesCrawl(
       type: 'text/plain',
     });
   }
+  // A whole-site row whose corpus registration never landed (step 3b): one
+  // page, no robots.txt and no sitemap, so the scan that restores the
+  // registration finishes on the homepage.
+  const HEAL_DOMAIN = 'itest-heal.example';
   const FAKE_HOSTS = new Set([
     DOMAIN,
     `www.${DOMAIN}`,
@@ -32920,6 +33223,17 @@ async function checkWebsitesCrawl(
         headers: {
           'content-type': page.type,
           'content-length': String(page.body.length),
+        },
+      });
+    }
+    if (url.hostname === HEAL_DOMAIN || url.hostname === `www.${HEAL_DOMAIN}`) {
+      if (url.pathname !== '/') return new Response('gone', { status: 404 });
+      const body =
+        'Heal fixture home page. Enough words about the restored registration to survive the chunking thresholds of the pipeline.';
+      return new Response(body, {
+        headers: {
+          'content-type': 'text/plain',
+          'content-length': String(body.length),
         },
       });
     }
@@ -33348,14 +33662,17 @@ async function checkWebsitesCrawl(
     );
 
     // 3b. A row whose domain has NO corpus registration (the register job
-    //     never landed, or the registration was released): the scan must
-    //     record the failure on the row — attempt clock + `error` status
-    //     with the delete-and-re-add message — instead of logging "already
-    //     running" and letting the scheduler re-pick it every tick forever.
+    //     never landed, or the registration was released). A URL list
+    //     cannot be registered again from its row — its URLs were the
+    //     registration — so its scan must record the failure on the row:
+    //     attempt clock + `error` status with the delete-and-re-add message,
+    //     instead of logging "already running" and letting the scheduler
+    //     re-pick it every tick forever.
     const UNREGISTERED_DOMAIN = 'itest-unregistered.example';
     const unregisteredId = await websites.createWebsiteRow(sql, {
       organizationId: orgId,
       domain: UNREGISTERED_DOMAIN,
+      kind: 'list',
       scanInterval: '6h',
       status: 'active',
     });
@@ -33374,13 +33691,276 @@ async function checkWebsitesCrawl(
       : true;
     await sql`DELETE FROM app.websites WHERE id = ${unregisteredId}`;
     record(
-      'websites scan of an unregistered domain records the failure',
+      'websites scan of an unregistered URL list records the failure',
       unregisteredRow?.status === 'error' &&
         typeof unregisteredMeta.lastScanAttemptAt === 'number' &&
         unregisteredMeta.lastSyncError ===
           scheduling.WEBSITE_NOT_IN_CORPUS_MESSAGE &&
         !unregisteredDueNow,
       `status=${unregisteredRow?.status}/error attemptStamped=${typeof unregisteredMeta.lastScanAttemptAt === 'number'} error=${String(unregisteredMeta.lastSyncError)} dueAgainNow=${unregisteredDueNow}(want false)`,
+    );
+
+    // 3c. The same gap on a WHOLE-SITE row heals: a site needs only its
+    //     domain and interval to register, so the scan that finds the
+    //     membership missing writes it and crawls. Before this the row read
+    //     "delete it and add it again" for good — one failed registration
+    //     (the knowledge database unreachable while the site was added) was
+    //     permanent.
+    const healId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: HEAL_DOMAIN,
+      scanInterval: '6h',
+      status: 'error',
+    });
+    const healMemberBefore = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    await websites.runWebsitesScan(sql, {
+      domain: HEAL_DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: HEAL_DOMAIN });
+    const healMemberAfter = await pool<{ orgSlug: string }[]>`
+      SELECT org_slug AS "orgSlug" FROM public_web.website_org_memberships
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healCorpus = await pool<{ status: string; interval: number }[]>`
+      SELECT status, scan_interval AS interval FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    const healRow = await websites.getWebsite(sql, healId);
+    const healError = healRow?.metadata?.lastSyncError;
+    if (healRow) await websites.deregisterAndDeleteWebsite(sql, healRow);
+    const healGone = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.websites
+      WHERE domain = ${HEAL_DOMAIN}
+    `;
+    record(
+      'websites scan of an unregistered whole site restores the registration and crawls',
+      healMemberBefore[0]?.count === '0' &&
+        healMemberAfter.length === 1 &&
+        healMemberAfter[0]?.orgSlug === orgSlug &&
+        healCorpus[0]?.status === 'completed' &&
+        healCorpus[0].interval === 21_600 &&
+        healRow?.status === 'active' &&
+        healRow.crawledPageCount === 1 &&
+        healRow.failedPageCount === 0 &&
+        healError == null &&
+        healGone[0]?.count === '0',
+      `membersBefore=${healMemberBefore[0]?.count ?? '?'}/0 membersAfter=${healMemberAfter.map((row) => row.orgSlug).join(',')}/${orgSlug} corpus=${healCorpus[0]?.status ?? 'MISSING'}/completed interval=${healCorpus[0]?.interval ?? '?'}/21600 row=${healRow?.status ?? 'MISSING'}/active crawled=${healRow?.crawledPageCount ?? '?'}/1 failed=${healRow?.failedPageCount ?? '?'}/0 error=${String(healError)} corpusAfterDelete=${healGone[0]?.count ?? '?'}/0`,
+    );
+
+    // 3d. A scan cut off mid-link — a restart, a deploy, a crash — ends
+    //     nowhere: the corpus claim stays held, the row reads `scanning` and
+    //     no scan job is left. The claim turned every new scan away for its
+    //     two-hour takeover window, and the scan that then replaced it
+    //     began again from the first page. The scheduler now resumes it: a
+    //     first link that takes exactly that claim over, by its heartbeat,
+    //     and counts its pages from where the interrupted scan began — here
+    //     one page is still due, and the two crawled since stay done.
+    const scanQueue = await import('./domains/websites/scan-queue.ts');
+    const aUrl = `https://${DOMAIN}/a.txt`;
+    const bUrl = `https://${DOMAIN}/docs/b.txt`;
+    const bBody = site.get('/docs/b.txt');
+    site.set('/a.txt', {
+      body: 'Alpha content v3 — the page the interrupted scan had not reached, rewritten so the resumed scan can be told by what it stores.',
+      type: 'text/plain',
+    });
+    site.set('/docs/b.txt', {
+      body: 'Bravo content v9 — changed at the origin after the interrupted scan crawled it; a resumed scan must not come back to it.',
+      type: 'text/plain',
+    });
+    await pool`
+      UPDATE public_web.website_urls
+      SET last_crawled_at = CASE WHEN url = ${aUrl}
+        THEN NOW() - INTERVAL '1 hour' ELSE NOW() END
+      WHERE domain = ${DOMAIN}
+    `;
+    const heldClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET status = 'scanning', updated_at = NOW(),
+          last_scanned_at = NOW() - INTERVAL '3 hours'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const claimHeartbeat = async (): Promise<string | undefined> =>
+      (
+        await pool<{ heartbeat: string }[]>`
+          SELECT updated_at::text AS heartbeat FROM public_web.websites
+          WHERE domain = ${DOMAIN} AND status = 'scanning'
+        `
+      )[0]?.heartbeat;
+    // A scan that is not a resume is turned away by the held claim.
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    const heartbeatAfterPlain = await claimHeartbeat();
+    // The interrupted scan's last link, as the queue would hold it. First a
+    // job that ran out its whole expiry half a minute ago: its link may
+    // still be working, so the scan is left alone for the grace.
+    const lastLink = await sql<{ id: string }[]>`
+      UPDATE pgboss.job
+      SET state = 'failed', started_on = now() - interval '16 minutes',
+          completed_on = now() - interval '30 seconds'
+      WHERE name = 'websites.scan' AND id = (
+        SELECT id FROM pgboss.job
+        WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+        ORDER BY created_on DESC LIMIT 1
+      )
+      RETURNING id
+    `;
+    const lastLinkId = lastLink[0]?.id ?? '';
+    const candidates = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    const ranOut = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const resumedInGrace = await websites.resumeInterruptedScans(sql);
+    // The claim's age is the database's reckoning of its last refresh. A
+    // resume that has no job to go by takes only a claim older than a link
+    // can hold it.
+    const crawlStore = await import('./core/knowledge/crawl.ts');
+    const freshClaim = await crawlStore.readScanClaim(pool, DOMAIN);
+    const agedClaim = await pool<{ heartbeat: string }[]>`
+      UPDATE public_web.websites
+      SET updated_at = now() - interval '16 minutes'
+      WHERE domain = ${DOMAIN}
+      RETURNING updated_at::text AS heartbeat
+    `;
+    const agedRead = await crawlStore.readScanClaim(pool, DOMAIN);
+    // Then the link a killed worker leaves: its heartbeat stopped a minute
+    // into its run and the supervisor failed the job. A link still running
+    // after its job ended queues no successor (the fence below), so the
+    // scan is resumed at once.
+    const cutShortAt = await sql<{ startedAt: number }[]>`
+      UPDATE pgboss.job
+      SET started_on = now() - interval '10 minutes',
+          completed_on = now() - interval '9 minutes',
+          output = ${sql.json({ value: { message: 'job heartbeat timeout' } })}
+      WHERE name = 'websites.scan' AND id = ${lastLinkId}
+      RETURNING (EXTRACT(EPOCH FROM started_on) * 1000)::float8 AS "startedAt"
+    `;
+    const cutShort = await scanQueue.lastFailedScanJob(sql, DOMAIN);
+    const jobEnded = await scanQueue.scanJobEnded(sql, lastLinkId);
+    const unknownJobEnded = await scanQueue.scanJobEnded(sql, randomUUID());
+    const resumedScans = await websites.resumeInterruptedScans(sql);
+    const resumeJob = await sql<{ data: unknown }[]>`
+      SELECT data FROM pgboss.job
+      WHERE name = 'websites.scan' AND data->>'domain' = ${DOMAIN}
+      ORDER BY created_on DESC LIMIT 1
+    `;
+    const resumePayload = z
+      .object({ takeover: z.string(), scanStartedAt: z.string() })
+      .safeParse(resumeJob[0]?.data);
+    await drainCrawlJobs();
+    await websites.runWebsitesRowSync(sql, { orgSlug, domain: DOMAIN });
+    const resumedCorpus = await pool<{ status: string }[]>`
+      SELECT status FROM public_web.websites WHERE domain = ${DOMAIN}
+    `;
+    const chunkTexts = async (url: string): Promise<string[]> =>
+      (
+        await pool<{ content: string }[]>`
+          SELECT chunk_content AS content FROM public_web.chunks
+          WHERE domain = ${DOMAIN} AND url = ${url}
+        `
+      ).map((chunk) => chunk.content);
+    const aResumed = await chunkTexts(aUrl);
+    const bResumed = await chunkTexts(bUrl);
+    const rowAfterResume = await websites.getWebsite(sql, websiteId);
+    if (bBody) site.set('/docs/b.txt', bBody);
+    const epochDrift = resumePayload.success
+      ? Math.abs(
+          Date.parse(resumePayload.data.scanStartedAt) -
+            (cutShortAt[0]?.startedAt ?? 0),
+        )
+      : -1;
+    record(
+      'websites resume: a scan cut off by a restart is taken over on the next tick and continues where it stopped',
+      heldClaim.length === 1 &&
+        heartbeatAfterPlain === heldClaim[0]?.heartbeat &&
+        candidates.some((row) => row.id === websiteId) &&
+        ranOut?.ranOutItsExpiry === true &&
+        resumedInGrace === 0 &&
+        freshClaim !== null &&
+        freshClaim.ageMs < scheduling.LINK_LIFETIME_MS &&
+        agedRead?.heartbeat === agedClaim[0]?.heartbeat &&
+        agedRead.ageMs >= scheduling.LINK_LIFETIME_MS &&
+        cutShort?.ranOutItsExpiry === false &&
+        jobEnded &&
+        !unknownJobEnded &&
+        resumedScans === 1 &&
+        resumePayload.success &&
+        resumePayload.data.takeover === agedClaim[0]?.heartbeat &&
+        epochDrift >= 0 &&
+        epochDrift < 5 &&
+        resumedCorpus[0]?.status === 'completed' &&
+        aResumed.length >= 1 &&
+        aResumed.every((text) => text.includes('v3')) &&
+        bResumed.length >= 1 &&
+        bResumed.every((text) => !text.includes('v9')) &&
+        rowAfterResume?.status === 'active' &&
+        rowAfterResume.metadata?.scanResumes == null &&
+        rowAfterResume.metadata?.scanHeartbeatAt == null,
+      `claim=${heldClaim[0]?.heartbeat ?? 'NONE'} afterPlainScan=${heartbeatAfterPlain === heldClaim[0]?.heartbeat ? 'unchanged' : `CHANGED(${heartbeatAfterPlain ?? 'released'})`} candidate=${candidates.some((row) => row.id === websiteId)} ranOut=${String(ranOut?.ranOutItsExpiry)}/true resumedInGrace=${resumedInGrace}/0 claimAge=${Math.round((freshClaim?.ageMs ?? -1) / 1000)}s→${Math.round((agedRead?.ageMs ?? -1) / 1000)}s cutShort=${String(cutShort?.ranOutItsExpiry)}/false jobEnded=${jobEnded}/true unknownJobEnded=${unknownJobEnded}/false resumedScans=${resumedScans}/1 payload=${resumePayload.success ? `takeover ${resumePayload.data.takeover === agedClaim[0]?.heartbeat ? 'matches' : 'DIFFERS'}, epoch drift ${epochDrift}ms` : 'BAD SHAPE'} corpus=${resumedCorpus[0]?.status ?? 'MISSING'}/completed a=${aResumed.length} allV3=${aResumed.every((text) => text.includes('v3'))} b=${bResumed.length} noneV9=${bResumed.every((text) => !text.includes('v9'))} row=${rowAfterResume?.status ?? 'MISSING'}/active resumes=${String(rowAfterResume?.metadata?.scanResumes)} heartbeat=${String(rowAfterResume?.metadata?.scanHeartbeatAt)}`,
+    );
+
+    // 3e. A site that was just added reads `scanning` before its first scan
+    //     job exists: the register job registers the domain, reads the
+    //     homepage and only then queues the scan. A scheduler tick in that
+    //     window took the row for an interrupted scan, found no claim and
+    //     queued a row sync — the new site read idle, or "not found in
+    //     crawler" when the registration had not landed yet, until its scan
+    //     began. The register job stands for the scan it is about to queue;
+    //     once it is gone with no scan behind it, the row is a candidate.
+    const REGISTERING_DOMAIN = 'itest-registering.example';
+    const registeringId = await websites.createWebsiteRow(sql, {
+      organizationId: orgId,
+      domain: REGISTERING_DOMAIN,
+      scanInterval: '6h',
+      status: 'scanning',
+    });
+    // Deferred, so the worker leaves it queued for the length of this step.
+    const registerJobId = await addJobInTx(
+      sql,
+      'websites.register',
+      {
+        websiteId: registeringId,
+        domain: REGISTERING_DOMAIN,
+        scanInterval: '6h',
+        organizationId: orgId,
+      },
+      { startAfter: new Date(Date.now() + 3_600_000) },
+    );
+    const whileRegistering = await scanQueue.listScanningRowsWithoutJob(
+      sql,
+      50,
+    );
+    await websites.resumeInterruptedScans(sql);
+    const syncsWhileRegistering = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'websites.row_sync'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const rowWhileRegistering = await websites.getWebsite(sql, registeringId);
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'websites.register'
+        AND data->>'domain' = ${REGISTERING_DOMAIN}
+    `;
+    const afterRegister = await scanQueue.listScanningRowsWithoutJob(sql, 50);
+    await sql`DELETE FROM app.websites WHERE id = ${registeringId}`;
+    record(
+      'websites resume: a new site whose register job is still queued is not taken for an interrupted scan',
+      registerJobId !== null &&
+        !whileRegistering.some((row) => row.id === registeringId) &&
+        syncsWhileRegistering[0]?.count === '0' &&
+        rowWhileRegistering?.status === 'scanning' &&
+        rowWhileRegistering.metadata?.lastSyncError == null &&
+        afterRegister.some((row) => row.id === registeringId),
+      `registerJob=${registerJobId === null ? 'NOT QUEUED' : 'queued'} candidateWhileRegistering=${whileRegistering.some((row) => row.id === registeringId)}/false rowSyncs=${syncsWhileRegistering[0]?.count ?? '?'}/0 row=${rowWhileRegistering?.status ?? 'MISSING'}/scanning error=${String(rowWhileRegistering?.metadata?.lastSyncError)} candidateAfterRegister=${afterRegister.some((row) => row.id === registeringId)}/true`,
     );
 
     // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
@@ -39894,7 +40474,15 @@ async function checkLoginThrottleAndAuditChain(
   );
 
   // The chain: failure rows + a lockout row + a success row, hash-linked.
-  const rows = await sql<AuditLogRow[]>`
+  // Rows and head come from ONE snapshot: an audit write commits its row
+  // and the head together, but a job of another lane (or this lane's own
+  // lockout bell) appending a row between two autocommit reads leaves the
+  // head one row ahead of the tail just read — seen as `chain=true,
+  // head=false` on an otherwise intact chain.
+  const { rows, headRows } = await sql.begin(
+    'isolation level repeatable read read only',
+    async (tx) => {
+      const chain = await tx<AuditLogRow[]>`
     SELECT id, org_id AS "organizationId", actor_id AS "actorId",
            actor_email AS "actorEmail", actor_email_hash AS "actorEmailHash",
            actor_role AS "actorRole", actor_type AS "actorType",
@@ -39912,6 +40500,13 @@ async function checkLoginThrottleAndAuditChain(
     WHERE org_id = ${orgId}
     ORDER BY ts ASC
   `;
+      const heads = await tx<{ lastHash: string }[]>`
+    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
+    WHERE org_id = ${orgId}
+  `;
+      return { rows: chain, headRows: heads };
+    },
+  );
   // Anchor on the first REMAINING row's stored previous_hash: retention
   // deletes the chain's oldest PREFIX, so genesis ('') only holds until the
   // first sweep — each surviving row still links to its predecessor's hash.
@@ -39939,10 +40534,6 @@ async function checkLoginThrottleAndAuditChain(
     }
     previousHash = row.integrityHash;
   }
-  const headRows = await sql<{ lastHash: string }[]>`
-    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
-    WHERE org_id = ${orgId}
-  `;
   const headOk = headRows[0]?.lastHash === rows[rows.length - 1]?.integrityHash;
   record(
     'audit chain verifies',
@@ -52818,9 +53409,11 @@ async function checkRetentionHeldRowsProgress(
 
 /**
  * Cloud-sync scan: every syncable config gets its job — a keyset walk over
- * the whole table, not the first thousand. The probe rows are removed right
- * after the scan: each enqueued per-config job then finds no row to claim
- * and returns.
+ * the whole table, not the first thousand. The probe rows are held by a live
+ * run (`running`, stamped now) and removed right after the scan, so each
+ * enqueued per-config job finds no row to claim and returns. Unheld, the
+ * in-process worker claimed hundreds of them before the cleanup and synced
+ * each against Microsoft Graph on the OneDrive lane's grant.
  */
 async function checkSyncScanFairness(
   sql: Sql,
@@ -52838,6 +53431,7 @@ async function checkSyncScanFairness(
     item_name: `scan-${index}.txt`,
     target_bucket: 'itest',
     status: 'active',
+    last_sync_status: 'running',
     created_at_ms: now - 2000 + index,
     updated_at_ms: now,
   }));
@@ -53376,7 +53970,9 @@ async function checkWatchdogs(
   // table, a batch of TWO. The old `ORDER BY created_at_ms LIMIT n` probed the
   // same two oldest rows every tick and never reached the third; the fair walk
   // (least-recently-visited first, visited rows stamped) reaches it on the
-  // second tick.
+  // second tick. They are project rows, not render ones: a render row this
+  // old is an abandoned batch, which the release pass takes on the first
+  // tick (proved below).
   const oldest = await sql<{ min: number | null }[]>`
     SELECT min(created_at_ms)::float8 AS min FROM app.sandbox_sessions
     WHERE status IN ('creating', 'active', 'degraded')
@@ -53387,11 +53983,11 @@ async function checkWatchdogs(
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms
     ) VALUES
-      (${orgId}, 'wd-fair-1', 'active', 'render', 'wd-fair-1', 'itest:wd',
+      (${orgId}, 'wd-fair-1', 'active', 'project', 'wd-fair-1', 'itest:wd',
        ${ancient}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-2', 'active', 'render', 'wd-fair-2', 'itest:wd',
+      (${orgId}, 'wd-fair-2', 'active', 'project', 'wd-fair-2', 'itest:wd',
        ${ancient + 1}, ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-fair-3', 'active', 'render', 'wd-fair-3', 'itest:wd',
+      (${orgId}, 'wd-fair-3', 'active', 'project', 'wd-fair-3', 'itest:wd',
        ${ancient + 2}, ${now + 24 * 3_600_000})
   `;
   // Reclaim: an ENDED run's hibernated session (reclaimed), an expired
@@ -53509,6 +54105,94 @@ async function checkWatchdogs(
       tick2.reclaimed === 0,
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
   );
+
+  // Lane 3d: the render sessions of cut-off scan links. A link destroys its
+  // render session when its batch ends; one cut off mid-batch (a restart, a
+  // deploy, a crash) left the row compute-holding and the container running,
+  // and no pass reached either — each held one of the organization's two
+  // render slots until the spawner's idle reaper took the container half an
+  // hour later. A render row older than a link can keep one is destroyed
+  // when idle and settled; a worker still rendering in it waits a tick, and
+  // neither a batch that is rendering now nor another owner's session is
+  // asked about.
+  const renderAge = sandboxWatchdogs.SANDBOX_RENDER_SESSION_MAX_AGE_MS;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-release-abandoned', 'active', 'render',
+       'wd-release-abandoned', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-creating', 'creating', 'render',
+       'wd-release-creating', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-rendering', 'active', 'render',
+       'wd-release-rendering', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-fresh', 'active', 'render',
+       'wd-release-fresh', 'itest:wd', ${now - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-project', 'active', 'project',
+       'wd-release-project', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000})
+  `;
+  const releaseAsked: string[] = [];
+  const releaseTick = await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    releaseBatch: 50,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        releaseAsked.push(sessionId);
+        return Promise.resolve(
+          sessionId === 'wd-release-rendering' ||
+            !sessionId.startsWith('wd-release-')
+            ? { destroyed: false, busy: true }
+            : { destroyed: true, busy: false },
+        );
+      },
+    },
+  });
+  const releaseRows = await sql<
+    { sessionId: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT session_id AS "sessionId", status,
+           destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-release-%'
+    ORDER BY session_id
+  `;
+  const released = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) =>
+        row.sessionId === sessionId &&
+        row.status === 'destroyed' &&
+        row.destroyedAt !== null,
+    );
+  const stillActive = (sessionId: string): boolean =>
+    releaseRows.some(
+      (row) => row.sessionId === sessionId && row.status === 'active',
+    );
+  record(
+    'sandbox watchdog releases the render sessions a cut-off scan link left behind: idle ones are destroyed and settled, a busy one waits, a fresh batch and other owners are never asked',
+    released('wd-release-abandoned') &&
+      released('wd-release-creating') &&
+      releaseAsked.includes('wd-release-rendering') &&
+      stillActive('wd-release-rendering') &&
+      !releaseAsked.includes('wd-release-fresh') &&
+      stillActive('wd-release-fresh') &&
+      !releaseAsked.includes('wd-release-project') &&
+      stillActive('wd-release-project') &&
+      releaseTick.released >= 2,
+    `rows=${releaseRows.map((row) => `${row.sessionId.replace('wd-release-', '')}=${row.status}`).join(' ')} asked=${releaseAsked.filter((id) => id.startsWith('wd-release-')).join(',')} released=${releaseTick.released} (want abandoned+creating destroyed, rendering asked and active, fresh and project never asked)`,
+  );
+  await sql`
+    DELETE FROM app.sandbox_sessions WHERE session_id LIKE 'wd-release-%'
+  `;
 
   // Lane 3b: the Sandboxes page's mount-time probe is the SAME pass scoped
   // to the org. A hibernated (`stopped`) project workspace is never a
@@ -56020,6 +56704,7 @@ async function runLanes(
   sql: Sql,
   base: string,
   ctx: { cookie: string; userId: string },
+  boundary: typeof globalThis.fetch,
   registered: readonly Lane[],
 ): Promise<LaneSummary> {
   const { selected: lanes, filter } = selectLanes(registered);
@@ -56052,6 +56737,17 @@ async function runLanes(
           `them, so every later lane reads the lane's value (or nothing) ` +
           `instead. Wrap the override in overrideEnv().`,
       );
+    }
+    if (globalThis.fetch !== boundary) {
+      record(
+        `harness: ${name} puts the outbound boundary back`,
+        false,
+        `globalThis.fetch is not the harness's boundary after the lane, so ` +
+          `every later lane's requests went to what the lane left (a stub ` +
+          `that passes a request on to the real fetch reaches off the box). ` +
+          `Restore the saved fetch in the lane's finally.`,
+      );
+      globalThis.fetch = boundary;
     }
     const membershipsAfter = await sharedMemberships(sql, ctx.userId);
     if (membershipsAfter !== membershipsBefore) {
@@ -56087,21 +56783,6 @@ async function runLanes(
 }
 
 async function main(): Promise<void> {
-  // The lanes stub `fetch` for fixture hosts no resolver knows
-  // (`itest-crawl.example`, `itest.atlassian.net`); `safeFetch` resolves
-  // and pins every host before it dials, so a name DNS cannot answer reads
-  // as one documentation-range public address here. Real names keep their
-  // real answers, and the guard itself is proven by its unit suite.
-  setSafeFetchResolverForTests(async (hostname) => {
-    try {
-      return await lookupHostAddresses(hostname);
-    } catch (error) {
-      console.info(
-        `[itest] ${hostname} has no DNS answer; resolving it to a fixture address (${error instanceof Error ? error.message : String(error)})`,
-      );
-      return [{ address: '203.0.113.10', family: 4 }];
-    }
-  });
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error(
@@ -56116,6 +56797,34 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
+
+  // The suite's HTTP stays on the box (`integration-vendor-stub.ts`). The
+  // lanes stub `fetch` for their own fixture hosts (`itest-crawl.example`,
+  // `itest.atlassian.net`); the shipped vendor origins the model catalogs
+  // and the title lane call are answered by the vendor stub; the object
+  // store passes wherever it runs; any other host is refused and named at
+  // the end. `safeFetch` resolves and pins every host before it dials, and
+  // the video-link pre-resolution checks every name: both read the fixture
+  // address, never a real resolver.
+  const vendorStub = await startItestVendorStub();
+  const offBox = new Map<string, number>();
+  const objectStore = itestObjectStore();
+  const boundary = routeVendorFetch(globalThis.fetch, {
+    stubOrigin: vendorStub.origin,
+    onTheBox:
+      objectStore === null ? [] : [new URL(objectStore.endpoint).origin],
+    onOffBox: ({ method, origin }) => {
+      const key = `${method} ${origin}`;
+      const seen = offBox.get(key) ?? 0;
+      offBox.set(key, seen + 1);
+      if (seen === 0) {
+        console.warn(`[itest] refused ${key}: no stub answers that host`);
+      }
+    },
+  });
+  globalThis.fetch = boundary;
+  setSafeFetchResolverForTests(itestResolve);
+  setUrlSafetyResolverForTests(itestResolve);
 
   // Give the scaffold job real (empty) config roots so org creation's
   // `org.scaffold` job runs to success instead of retrying on misconfig.
@@ -56399,7 +57108,7 @@ async function main(): Promise<void> {
     // session dead, ends the run as a recorded FAIL naming the lane and the
     // lanes that never ran — the tally can never read green for a run that
     // executed fewer checks than it contains.
-    lanes = await runLanes(sql, baseUrl, authCtx, [
+    lanes = await runLanes(sql, baseUrl, authCtx, boundary, [
       ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
       [
         'checkOutboxRetention',
@@ -56831,6 +57540,15 @@ async function main(): Promise<void> {
         () => checkTaskRetryProjectEligibility(sql, baseUrl, authCtx, record),
       ],
       [
+        'checkAgentRunFailureNotice',
+        () => checkAgentRunFailureNotice(sql, authCtx, record),
+      ],
+      [
+        'checkTaskSourceThread',
+        () => checkTaskSourceThread(sql, authCtx, record),
+      ],
+      ['checkStandardAgent', () => checkStandardAgent(sql, authCtx, record)],
+      [
         'checkScheduledAgentStarts',
         () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
       ],
@@ -56971,6 +57689,7 @@ async function main(): Promise<void> {
         'checkOutboundSendLane',
         () => checkOutboundSendLane(sql, baseUrl, authCtx),
       ],
+      ['checkInboxTriageLane', () => checkInboxTriageLane(sql, authCtx)],
       [
         'checkNotificationEmailSink',
         () => checkNotificationEmailSink(sql, authCtx),
@@ -57129,6 +57848,10 @@ async function main(): Promise<void> {
         () => checkSandboxIdleRelease(sql, authCtx, record),
       ],
       [
+        'checkWorkspaceCleanup',
+        () => checkWorkspaceCleanup(sql, authCtx, record),
+      ],
+      [
         'checkImageGenerationAdmission',
         () => checkImageGenerationAdmission(sql, authCtx, record),
       ],
@@ -57210,9 +57933,23 @@ async function main(): Promise<void> {
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
     });
+    await vendorStub.close();
     await sql`DROP TABLE IF EXISTS itest_counter`;
     await sql.end({ timeout: 5 });
   }
+
+  // The run's traffic off the box, as evidence in the log. A refused
+  // request fails the way it fails without egress, so no verdict can hang on
+  // a host off the box; one a background job makes after its lane's cleanup
+  // (a sync run the lane outpaced) is named here rather than turning a check
+  // red on timing.
+  const answered = new Map<string, number>();
+  for (const request of vendorStub.requests) {
+    answered.set(request.host, (answered.get(request.host) ?? 0) + 1);
+  }
+  console.log(
+    `\n[itest] off the box: the vendor stub answered ${[...answered].map(([host, count]) => `${host}×${count}`).join(', ') || 'nothing'}, ${vendorStub.unexpected.length} of them on a path it does not serve (404); refused ${[...offBox].map(([request, count]) => `${request}×${count}`).join(', ') || 'nothing'}`,
+  );
 
   const failed = results.filter((r) => !r.ok);
   const skipped = results.filter((r) => isSkippedCheck(r.name)).length;

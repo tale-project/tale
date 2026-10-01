@@ -1,0 +1,35 @@
+# Captured from the pinned Gemini CLI (0.59.0, `--output-format stream-json`)
+# after the gateway answered every attempt with a 429: the SDK's retry path
+# re-throws a bare message, so no `{"code":429}` body survives — the CLI's
+# own rate-limit sentence (`errorParsing.ts` getRateLimitMessage, gemini-api-key
+# variant) is the only tell.
+events:
+  - type: init
+    timestamp: 2026-10-01T02:05:39.943Z
+    session_id: 5b1c7a0e-2d7f-4a46-8f1e-6c3f9b2d4e55
+    model: deepseekmock/deepseek-v4-pro
+  - type: message
+    timestamp: 2026-10-01T02:05:39.943Z
+    role: user
+    content: 'FAIL_429: say hi'
+  - type: result
+    timestamp: 2026-10-01T02:09:20.264Z
+    status: error
+    error:
+      type: unknown
+      message: "[API Error: forced upstream failure 429]\nPlease wait and try again later. To increase your limits, request a quota increase through AI Studio, or switch to another /auth method"
+    stats:
+      total_tokens: 0
+      input_tokens: 0
+      output_tokens: 0
+      cached: 0
+      input: 0
+      duration_ms: 0
+      tool_calls: 0
+      models:
+        deepseekmock/deepseek-v4-pro:
+          total_tokens: 0
+          input_tokens: 0
+          output_tokens: 0
+          cached: 0
+          input: 0

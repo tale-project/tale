@@ -7,6 +7,7 @@ import {
   isUrlDisallowed,
   MAX_CRAWL_DELAY_MS,
   publicPageError,
+  RENDER_UNFINISHED_REASON,
   renderFailureClass,
   renderLaneHaltMessage,
   robotsMetaNoindexDirective,
@@ -500,6 +501,20 @@ describe('metaDescription', () => {
       metaDescription(`<meta content="Reversed" name="description">`),
     ).toBe('Reversed');
   });
+
+  it('reads a value that holds a quote of the other kind, or a bracket', () => {
+    expect(
+      metaDescription(`<meta name="description" content="It's a < b test">`),
+    ).toBe("It's a < b test");
+  });
+
+  it('passes over an empty description to the next tag that has one', () => {
+    expect(
+      metaDescription(
+        `<meta name="description" content=" "><meta property="og:description" content="OG one">`,
+      ),
+    ).toBe('OG one');
+  });
 });
 
 describe('robotsHeaderForbidsIndexing', () => {
@@ -664,6 +679,13 @@ describe('classifyRenderReason', () => {
     expect(classifyRenderReason('blocked host\nsecond line')).toEqual({
       kind: 'render_failed',
       message: 'blocked host',
+    });
+  });
+
+  it('names a page the worker was cut off in as a timeout', () => {
+    expect(classifyRenderReason(RENDER_UNFINISHED_REASON)).toEqual({
+      kind: 'timeout',
+      message: RENDER_UNFINISHED_REASON,
     });
   });
 });
@@ -874,5 +896,87 @@ describe('documentNameForUrl with an offered filename', () => {
     expect(documentNameForUrl('https://x.ch/page', '.xlsx', null)).toBe(
       'page.xlsx',
     );
+  });
+});
+
+/**
+ * A sitemap, a probed homepage and a rendered page are text the site
+ * chooses. The scanners looked for each tag's end, or for an attribute, to
+ * the end of the input from every opener of a run that closes nothing —
+ * megabytes read a million times over, on the one thread that serves every
+ * request (`markup-scan.ts`).
+ */
+describe('scanning markup that never closes its tags', () => {
+  const RUN = 50_000;
+  const cases: [string, () => unknown][] = [
+    [
+      'sitemap entries with no end',
+      () => parseSitemapLocs('<loc>'.repeat(RUN)),
+    ],
+    [
+      'sitemap entries whose only end is the last one',
+      () => parseSitemapLocs(`${'<loc '.repeat(RUN)}</loc>`),
+    ],
+    [
+      'CDATA openers inside one sitemap entry',
+      () => parseSitemapLocs(`<loc>${'<![CDATA['.repeat(RUN)}</loc>`),
+    ],
+    ['anchors with no target', () => extractLinks(`${'<a '.repeat(RUN)}>`)],
+    [
+      'anchors with an unquoted target',
+      () => extractLinks('<a href=x '.repeat(RUN)),
+    ],
+    [
+      'meta tags with no end (description)',
+      () => metaDescription('<meta '.repeat(RUN)),
+    ],
+    [
+      'meta tags whose only end is the last one (description)',
+      () => metaDescription(`${'<meta '.repeat(RUN)}>`),
+    ],
+    [
+      'meta tags with no end (robots)',
+      () => robotsMetaNoindexDirective('<meta '.repeat(RUN)),
+    ],
+    // One tag of repeated attributes: the description patterns spanned the
+    // name and the content and backtracked over every pair.
+    [
+      'one meta tag that repeats its name',
+      () => metaDescription(`<meta ${'name="description" '.repeat(RUN)}>`),
+    ],
+    [
+      'one meta tag that repeats its property',
+      () =>
+        metaDescription(`<meta ${'property="og:description" '.repeat(RUN)}>`),
+    ],
+  ];
+
+  it.each(cases)('reads %s in linear time', (_shape, scan) => {
+    const startedAt = performance.now();
+    scan();
+    expect(performance.now() - startedAt).toBeLessThan(2_000);
+  });
+
+  it('still reads what a well-formed document says', () => {
+    expect(
+      parseSitemapLocs(
+        '<urlset><url><loc>https://a.example/x</loc></url><url><loc><![CDATA[https://a.example/y?a=1&b=2]]></loc></url></urlset>',
+      ),
+    ).toEqual(['https://a.example/x', 'https://a.example/y?a=1&b=2']);
+    expect(
+      extractLinks(
+        '<p><a class="nav" href="/one">1</a> <a href=\'/two\'>2</a></p>',
+      ),
+    ).toEqual(['/one', '/two']);
+    expect(
+      metaDescription(
+        '<head><meta charset="utf-8"><meta name="description" content="A page."></head>',
+      ),
+    ).toBe('A page.');
+    expect(
+      robotsMetaNoindexDirective(
+        '<head><meta name="robots" content="noindex, follow"></head>',
+      ),
+    ).toBe('noindex, follow');
   });
 });

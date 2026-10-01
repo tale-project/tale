@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 60 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 64 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -308,6 +308,9 @@ records and delete them after.
   `websites.viewDialog.scanEmpty.runtime` for a missing crawler runtime,
   `websites.pagesDialog.errorKind.dnsFailed` +
   `websites.viewDialog.scanEmpty.dns` for a host that does not resolve,
+  `websites.viewDialog.scanError.embedding` +
+  `websites.viewDialog.scanEmpty.embedding` for an embedding provider that
+  refused or failed the pages,
   `websites.viewDialog.scanError.generic` +
   `websites.viewDialog.scanEmpty.generic` otherwise) — never the raw sandbox
   JSON, `tale-sandbox-runtime`, or `getaddrinfo` dump, and never a hollow
@@ -433,6 +436,54 @@ records and delete them after.
   of the organization, synced ones included, as the documents guide says. As
   an Editor of one team → the same pickers list that team only. Assign a
   document to a team you are not in → its preview sidebar names that team.
+- [ ] `KNOW-F32` · **Scan now** — Websites → a site whose badge is **Error**
+  (`websites.filter.status.error`) or **Active** → row **Open menu** →
+  **Scan now** (`websites.scanNow`) → toast **Scan started**
+  (`websites.toast.scanStarted`); the badge turns **Scanning**
+  (`websites.filter.status.scanning`) without a reload, and **Scan now**
+  leaves the menu while the scan runs. The details dialog offers the same
+  **Scan now** beside **Edit**. A paused site offers **Resume scanning**
+  (`websites.resumeScanning`) in its place; a Member (no knowledge write)
+  sees neither.
+- [ ] `KNOW-F33` · **The table follows a scan** — Websites → **Add website**
+  for a site with a few dozen pages, then leave the page open and do not
+  reload → the row appears **Scanning**; within a minute or two the
+  **Indexed** (`websites.indexed`) count starts moving and keeps moving as
+  pages land, and the badge turns **Active** (or **Error**) by itself when
+  the scan ends. Open the row's details while it still scans → the
+  **Website pages** list (`websites.pagesDialog.title`) grows with the count,
+  without closing and reopening. Add a second site while the first still
+  scans → its count starts moving within seconds too, not only once the
+  first site's step has ended.
+- [ ] `KNOW-F34` · **Notice when chat cannot search websites** — With no
+  embedding model (Settings › Data residency → **Embedding model** off): as
+  an Editor open Websites → a warning above the table reads **Chat can't
+  search these websites yet** (`websites.searchNotice.title`) and points at
+  an admin (`websites.searchNotice.askAdmin`), with no link. As an Owner of
+  an organization that has an AI provider → the dashboard banner **Knowledge
+  search is off** (`settings.dataResidency.orgEmbedding.banner.title`) names
+  documents and websites, and the page shows no second notice; with no AI
+  provider yet → the page notice carries **Configure embedding model**
+  (`websites.searchNotice.configureCta`), which opens Settings › Data
+  residency. As the Editor, keep Websites open while an admin saves an
+  embedding model in another session → the notice disappears without a
+  reload, and every site crawled before the model turns **Scanning** by
+  itself. (The Owner's banner follows in the tab that saved the model; in
+  another tab it reads the setting on the next load.)
+- [ ] `KNOW-F35` · **A scan survives a restart** — Websites → add a site
+  with a few hundred pages and wait until **Indexed** (`websites.indexed`)
+  shows a few dozen. While the badge reads **Scanning**
+  (`websites.filter.status.scanning`), restart the platform (the backend
+  process, or the platform container) → once it is back the badge still
+  reads **Scanning**, never **Error** and never **Paused**
+  (`websites.scanPausedBadge`), and the row menu offers no **Scan now**.
+  Within about five minutes the count moves again by itself; on a site
+  whose pages need the browser it can take up to a quarter of an hour. Open
+  the details → the pages crawled before the restart keep their earlier
+  crawled time: the scan continued, it did not begin again. Restart once
+  more while it still scans → the same again. Then stop the backend without
+  warning (`kill -9`, or `docker kill` on the backend worker) → the same,
+  a couple of minutes later.
 
 ## Boundary & error tests
 

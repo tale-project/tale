@@ -13,9 +13,11 @@
  * gives it one.
  */
 
+import type { PgBoss } from 'pg-boss';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { setEnqueueBoss } from '../jobs/enqueue.ts';
 import { createAuth } from './auth.ts';
 
 const BASE = {
@@ -67,8 +69,29 @@ describe('the plugin’s leave door', () => {
   });
 });
 
+/** Capture what the cascade queues: a stand-in exposing the one method
+ * `addJobInTx` calls. */
+function installFakeBoss(): { name: string; data: unknown }[] {
+  const sends: { name: string; data: unknown }[] = [];
+  const fake = {
+    send: (name: string, data: unknown) => {
+      sends.push({ name, data });
+      return Promise.resolve('job-id');
+    },
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- capture stub; addJobInTx only calls send()
+  setEnqueueBoss(fake as unknown as PgBoss);
+  return sends;
+}
+
+afterEach(() => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reset the module-level boss between tests
+  setEnqueueBoss(null as unknown as PgBoss);
+});
+
 describe('the plugin’s remove-member door', () => {
   it('ends the membership’s capability grants, not just its member row', async () => {
+    const sends = installFakeBoss();
     const { sql, statements } = recordingSql();
     const hook = removalHook(sql);
     expect(hook, 'afterRemoveMember must be wired').toBeDefined();
@@ -101,5 +124,16 @@ describe('the plugin’s remove-member door', () => {
         statement.includes('app.user_preferences'),
       ),
     ).toBe(true);
+    // And the member's sandbox workspaces, once the transaction commits.
+    expect(sends).toEqual([
+      {
+        name: 'sandbox.retire_workspaces',
+        data: {
+          organizationId: 'org-1',
+          reason: 'member_removed',
+          userId: 'u-1',
+        },
+      },
+    ]);
   });
 });

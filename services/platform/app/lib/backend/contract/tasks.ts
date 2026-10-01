@@ -113,6 +113,8 @@ export interface TasksContract {
       parentTaskId?: string;
       startDate?: number;
       repeat?: TaskRepeat;
+      /** The conversation the task is handed over from (its root thread). */
+      sourceThreadId?: string;
       organizationId: string;
       projectId: string;
       title: string;
@@ -279,6 +281,34 @@ export interface TasksContract {
       reason?: 'already_running' | 'not_started';
     };
   };
+  /** The tasks made from one conversation that the reader can open, newest
+   * first — the chat's own row of them. */
+  'tasks/queries:listTasksFromThread': {
+    kind: 'query';
+    args: { organizationId: string; threadId: string };
+    returns: Array<{
+      id: string;
+      projectId: string;
+      projectName: string;
+      title: string;
+      status:
+        | 'cancelled'
+        | 'done'
+        | 'in_review'
+        | 'backlog'
+        | 'todo'
+        | 'in_progress';
+      assigneeType: 'user' | 'agent' | 'app' | null;
+      assigneeId: string | null;
+      outputCount: number;
+      run?: {
+        status: 'queued' | 'running' | 'settled' | 'failed' | 'cancelled';
+        failureCode?: string;
+        retryPending?: boolean;
+        waitingForCapacity?: boolean;
+      };
+    }>;
+  };
   'tasks/queries:getLatestTaskAgentRunForTask': {
     kind: 'query';
     args: { organizationId: string; taskId: string };
@@ -294,6 +324,11 @@ export interface TasksContract {
       waitingForCapacity?: boolean;
       resultText?: string;
       error?: string;
+      /** The producer's classification of a failed run; the card words its
+       * reason by it (`lib/shared/task-run-failure.ts`). */
+      failureCode?: string;
+      /** A failed run the platform is about to retry by itself. */
+      retryPending?: boolean;
       harness: string;
       model: string;
       agentName?: string;
@@ -599,6 +634,7 @@ export interface TasksContract {
         | 'decomposition';
       status: 'running' | 'failed' | 'completed' | 'timed_out';
       error: undefined | string;
+      failureCode: undefined | string;
       startedAt: number;
       durationMs: undefined | number;
       costCents: number;
@@ -974,7 +1010,8 @@ export interface TasksContract {
         | 'pack_disabled'
         | 'breaker_paused'
         | 'budget_paused'
-        | 'not_permitted';
+        | 'not_permitted'
+        | 'standard_agent_unavailable';
     }>;
   };
   'tasks/review_mutations:setTaskReviewer': {

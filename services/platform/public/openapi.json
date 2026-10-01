@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.8.0",
+    "version": "3.9.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -14343,7 +14343,7 @@
             }
           },
           "409": {
-            "description": "`expectedUpdatedAt` is older than the agent’s `updatedAt` (`PROJECT_AGENT_STALE`), or the new name is another agent’s in this project, compared without regard to case (`PROJECT_AGENT_NAME_TAKEN`) — nothing was written",
+            "description": "`expectedUpdatedAt` is older than the agent’s `updatedAt` (`PROJECT_AGENT_STALE`), the new name is another agent’s in this project, compared without regard to case (`PROJECT_AGENT_NAME_TAKEN`), or the agent is the organization’s standard agent, whose settings follow the `standard_agent` policy (`PROJECT_AGENT_MANAGED`) — nothing was written",
             "content": {
               "application/json": {
                 "schema": {
@@ -19988,7 +19988,7 @@
             }
           },
           "403": {
-            "description": "The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`), or a task held by the organization’s standard agent while its `standard_agent` policy is off (`STANDARD_AGENT_OFF`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -20045,7 +20045,7 @@
             }
           },
           "409": {
-            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`)",
+            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)",
             "content": {
               "application/json": {
                 "schema": {
@@ -38236,7 +38236,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.8.0"
+          "example": "3.9.0"
         }
       },
       "Location": {
@@ -38469,6 +38469,7 @@
                   "PROJECT_AGENT_CONNECTOR_UNKNOWN",
                   "PROJECT_AGENT_HARNESS_INVALID",
                   "PROJECT_AGENT_LIMIT",
+                  "PROJECT_AGENT_MANAGED",
                   "PROJECT_AGENT_MODEL_INVALID",
                   "PROJECT_AGENT_NAME_TAKEN",
                   "PROJECT_AGENT_NOT_FOUND",
@@ -38506,6 +38507,8 @@
                   "SKILL_PUBLISH_FORBIDDEN",
                   "SKILL_STALE",
                   "SKILL_TEAM_UNKNOWN",
+                  "STANDARD_AGENT_OFF",
+                  "STANDARD_AGENT_UNAVAILABLE",
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
@@ -38688,6 +38691,7 @@
                   "PROJECT_AGENT_CONNECTOR_UNKNOWN",
                   "PROJECT_AGENT_HARNESS_INVALID",
                   "PROJECT_AGENT_LIMIT",
+                  "PROJECT_AGENT_MANAGED",
                   "PROJECT_AGENT_MODEL_INVALID",
                   "PROJECT_AGENT_NAME_TAKEN",
                   "PROJECT_AGENT_NOT_FOUND",
@@ -38725,6 +38729,8 @@
                   "SKILL_PUBLISH_FORBIDDEN",
                   "SKILL_STALE",
                   "SKILL_TEAM_UNKNOWN",
+                  "STANDARD_AGENT_OFF",
+                  "STANDARD_AGENT_UNAVAILABLE",
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
@@ -38898,6 +38904,7 @@
               "PROJECT_AGENT_CONNECTOR_UNKNOWN",
               "PROJECT_AGENT_HARNESS_INVALID",
               "PROJECT_AGENT_LIMIT",
+              "PROJECT_AGENT_MANAGED",
               "PROJECT_AGENT_MODEL_INVALID",
               "PROJECT_AGENT_NAME_TAKEN",
               "PROJECT_AGENT_NOT_FOUND",
@@ -38935,6 +38942,8 @@
               "SKILL_PUBLISH_FORBIDDEN",
               "SKILL_STALE",
               "SKILL_TEAM_UNKNOWN",
+              "STANDARD_AGENT_OFF",
+              "STANDARD_AGENT_UNAVAILABLE",
               "TASK_ARCHIVED",
               "TASK_AUTOMATION_DISABLED",
               "TASK_AUTOMATION_UNAVAILABLE",
@@ -42782,6 +42791,7 @@
           "tools",
           "secrets",
           "instructions",
+          "managed",
           "createdBy",
           "createdAt",
           "updatedAt"
@@ -42837,6 +42847,10 @@
           "instructions": {
             "type": "string",
             "nullable": true
+          },
+          "managed": {
+            "type": "boolean",
+            "description": "The organization’s standard agent: Tale created it in a project that had no agents of its own, and keeps its runtime, model and instructions in line with the organization’s `standard_agent` governance policy, so it cannot be saved here (`PROJECT_AGENT_MANAGED`). It can be deleted."
           },
           "createdBy": {
             "type": "string"

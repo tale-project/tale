@@ -27,6 +27,7 @@ promptTransport: argv
 capabilities:
   planMode: false
   steering: false
+  resume: true
   # The CLI can read MCP servers from a repo-local config file, but the exec
   # facts stage no MCP config for it — a requested browser/bridge mount
   # would silently drop. Declared off until the exec vocabulary carries a

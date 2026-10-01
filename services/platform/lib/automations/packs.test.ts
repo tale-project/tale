@@ -98,14 +98,14 @@ describe('the shipped automation packs', () => {
 
 /**
  * The three inbox triage packs are one document with the connector substituted.
- * `conversation.list_mailbox_messages` owns the provider dialect and the
- * multi-credential fan-out, so the ONLY thing left that may differ between the
+ * `conversation.list_untriaged` reads the Inbox, which the sync packs already
+ * keep provider-neutral, so the ONLY thing left that may differ between the
  * three is the `connectorSlug` VALUE handed to that node. Everything else —
  * node ids and order, control flow, transform code, prompts, the model, the
- * output mapping, the test names and inputs, and the fetch node's other inputs
+ * output mapping, the test names and inputs, and the read node's other inputs
  * — must be identical, or the three have silently become three automations.
  */
-const TRIAGE_FAN_OUT_NODE = 'conversation.list_mailbox_messages';
+const TRIAGE_FAN_OUT_NODE = 'conversation.list_untriaged';
 
 const EMAIL_PACKS = [
   { slug: 'gmail/triage-inbox', connector: 'gmail' },

@@ -21,7 +21,7 @@ import type {
 } from '../backend/types.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
-import { SessionRoutes } from './session-routes.ts';
+import { SessionRoutes, settlesWithin } from './session-routes.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
 
 const cfg: SpawnerConfig = {
@@ -321,6 +321,15 @@ const fakeBackend: SessionBackend = {
     backendPins.set(sessionId, pinned);
   },
   async reconcileBuildCache() {},
+  async listWorkspaces() {
+    return [];
+  },
+  async listOrganizationResources() {
+    return [];
+  },
+  async teardownOrganization() {
+    return { containers: 0, volumes: 0, networks: 0 };
+  },
 };
 
 interface SseEvent {
@@ -823,7 +832,8 @@ describe('SessionRoutes (fake runnerd)', () => {
 
   test('sweepExpired TTL-reaps via STOP (preserve), NOT destroy', async () => {
     // A session past its hard lifetime is stopped, not destroyed — data is
-    // removed only by an explicit Destroy (decision: persist until Destroy).
+    // removed only by a destroy (the explicit one, or the platform's
+    // workspace cleanup), never by the reaper.
     const shortTtl = { ...cfg, session: { ...cfg.session, maxLifetimeMs: 1 } };
     const routes = new SessionRoutes(shortTtl, fakeBackend);
     await routes.handleCreate(
@@ -1050,7 +1060,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(res.status).toBe(404);
       // The stale registry entry is evicted (404 for good), but the workspace
       // is PRESERVED — a gone container is a resumable stopped state, not a
-      // teardown. Data is removed only by an explicit Destroy.
+      // teardown. Data is removed only by a destroy.
       expect(destroyed.has('dead-z1')).toBe(false);
       expect((await routes.handleGet('dead-z1')).status).toBe(404);
     });
@@ -1853,6 +1863,282 @@ describe('capacity pressure reclamation', () => {
     expect(await replacement.sweepExpired()).toBe(1);
     expect((await create(replacement, 'after-restart')).status).toBe(201);
     expect(destroyed.size).toBe(0);
+  });
+});
+
+describe('workspace cleanup routes', () => {
+  async function until(condition: () => boolean): Promise<void> {
+    for (let i = 0; i < 200 && !condition(); i += 1) await Bun.sleep(1);
+    expect(condition()).toBe(true);
+  }
+
+  test('if_stopped destroys only a workspace with no compute under its id', async () => {
+    const listed: BackendSession[] = [];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        return listed;
+      },
+    });
+
+    // Nothing runs under the id: the preserved workspace goes.
+    const idle = await routes.handleDestroy('stopped-1', { ifStopped: true });
+    expect(await idle.json()).toEqual({ destroyed: false, busy: false });
+    expect(destroyed.has('stopped-1')).toBe(true);
+
+    // A container still starting (on a peer replica): kept.
+    listed.push({
+      ...mkBackendSession('starting-1', 'org_ws'),
+      state: 'degraded',
+    });
+    const starting = await routes.handleDestroy('starting-1', {
+      ifStopped: true,
+    });
+    expect(await starting.json()).toEqual({ destroyed: false, busy: true });
+    expect(destroyed.has('starting-1')).toBe(false);
+
+    // A container whose process exited out-of-band is no compute.
+    listed.push({
+      ...mkBackendSession('exited-1', 'org_ws'),
+      state: 'degraded',
+      ended: true,
+    });
+    await routes.handleDestroy('exited-1', { ifStopped: true });
+    expect(destroyed.has('exited-1')).toBe(true);
+  });
+
+  test('if_stopped keeps a registered session even with no exec running', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'warm-1', organizationId: 'org_ws' }),
+    );
+    fakeHealth.liveExecs = 0;
+    const res = await routes.handleDestroy('warm-1', { ifStopped: true });
+    expect(await res.json()).toEqual({ destroyed: false, busy: true });
+    expect(destroyed.has('warm-1')).toBe(false);
+  });
+
+  test('if_stopped keeps the workspace when the backend cannot list', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        throw new Error('docker ps failed');
+      },
+    });
+    const res = await routes.handleDestroy('unknown-1', { ifStopped: true });
+    expect(await res.json()).toEqual({ destroyed: false, busy: true });
+    expect(destroyed.has('unknown-1')).toBe(false);
+  });
+
+  test('a conditional destroy refuses while a create of the id is in flight', async () => {
+    const gate = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec: SessionSpec) {
+        await gate.promise;
+        return fakeBackend.createSession(spec);
+      },
+    });
+    const creating = routes.handleCreate(
+      JSON.stringify({ sessionId: 'racing-1', organizationId: 'org_ws' }),
+    );
+    await until(() => routes.holds('racing-1'));
+    for (const opts of [{ ifIdle: true }, { ifStopped: true }]) {
+      const res = await routes.handleDestroy('racing-1', opts);
+      expect(await res.json()).toEqual({ destroyed: false, busy: true });
+    }
+    gate.resolve();
+    expect((await creating).status).toBe(201);
+    expect(destroyed.has('racing-1')).toBe(false);
+  });
+
+  test('a create waits for a destroy of the same id already under way', async () => {
+    const gate = Promise.withResolvers<void>();
+    const order: string[] = [];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async destroySession(sessionId: string) {
+        order.push('destroy:start');
+        await gate.promise;
+        order.push('destroy:end');
+        return fakeBackend.destroySession(sessionId);
+      },
+      async createSession(spec: SessionSpec) {
+        order.push('create');
+        return fakeBackend.createSession(spec);
+      },
+    });
+    const destroying = routes.handleDestroy('reborn-1');
+    await until(() => order.includes('destroy:start'));
+    const creating = routes.handleCreate(
+      JSON.stringify({ sessionId: 'reborn-1', organizationId: 'org_ws' }),
+    );
+    await Bun.sleep(20);
+    expect(order).toEqual(['destroy:start']);
+    gate.resolve();
+    expect((await destroying).status).toBe(200);
+    expect((await creating).status).toBe(201);
+    expect(order).toEqual(['destroy:start', 'destroy:end', 'create']);
+  });
+
+  test('the inventory reports sessions this replica holds as active', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listWorkspaces() {
+        return [
+          { sessionId: 'held-1', touchedAtMs: 1, active: false, pinned: false },
+          {
+            sessionId: 'stopped-2',
+            touchedAtMs: 2,
+            active: false,
+            pinned: true,
+            organizationId: 'org_ws',
+          },
+        ];
+      },
+      async listOrganizationResources() {
+        return ['org_gone', 'org_ws'];
+      },
+    });
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'held-1', organizationId: 'org_ws' }),
+    );
+    const res = await routes.handleWorkspaces();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      backend: 'docker',
+      workspaces: [
+        { sessionId: 'held-1', touchedAtMs: 1, active: true, pinned: false },
+        {
+          sessionId: 'stopped-2',
+          touchedAtMs: 2,
+          active: false,
+          pinned: true,
+          organizationId: 'org_ws',
+        },
+      ],
+      organizations: ['org_gone', 'org_ws'],
+    });
+  });
+
+  test('an inventory that cannot be read is a 503, never an empty list', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listWorkspaces(): Promise<never> {
+        throw new Error('EACCES');
+      },
+    });
+    expect((await routes.handleWorkspaces()).status).toBe(503);
+  });
+
+  test('organization teardown destroys what is left, then the resources beyond it', async () => {
+    const torn: string[] = [];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(organizationId?: string): Promise<BackendSession[]> {
+        return organizationId === 'org_gone'
+          ? [
+              mkBackendSession('left-running', 'org_gone'),
+              {
+                ...mkBackendSession('left-exited', 'org_gone'),
+                state: 'degraded',
+                ended: true,
+              },
+            ]
+          : [];
+      },
+      async listWorkspaces() {
+        const quiet = { touchedAtMs: 1, active: false, pinned: false };
+        return [
+          // Stopped: no container names it, its workspace does.
+          { sessionId: 'left-stopped', organizationId: 'org_gone', ...quiet },
+          { sessionId: 'left-running', organizationId: 'org_gone', ...quiet },
+          { sessionId: 'kept-other', organizationId: 'org_ws', ...quiet },
+          { sessionId: 'kept-unnamed', ...quiet },
+        ];
+      },
+      async teardownOrganization(organizationId: string) {
+        torn.push(organizationId);
+        return { containers: 4, volumes: 7, networks: 1 };
+      },
+    });
+    const res = await routes.handleOrganizationTeardown('org_gone');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      sessions: 3,
+      containers: 4,
+      volumes: 7,
+      networks: 1,
+    });
+    expect([...destroyed].sort()).toEqual([
+      'left-exited',
+      'left-running',
+      'left-stopped',
+    ]);
+    expect(torn).toEqual(['org_gone']);
+  });
+
+  test('organization teardown goes on when the workspaces cannot be listed', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(organizationId?: string): Promise<BackendSession[]> {
+        return organizationId === 'org_gone'
+          ? [mkBackendSession('left-running', 'org_gone')]
+          : [];
+      },
+      async listWorkspaces(): Promise<never> {
+        throw new Error('persistentvolumeclaims is forbidden');
+      },
+    });
+    const res = await routes.handleOrganizationTeardown('org_gone');
+    expect(res.status).toBe(200);
+    expect([...destroyed]).toEqual(['left-running']);
+  });
+
+  test('organization teardown waits out a create in flight and surfaces a failed destroy', async () => {
+    const gate = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec: SessionSpec) {
+        await gate.promise;
+        return fakeBackend.createSession(spec);
+      },
+      async listSessions(organizationId?: string): Promise<BackendSession[]> {
+        return organizationId === 'org_busy'
+          ? [mkBackendSession('stuck-1', 'org_busy')]
+          : [];
+      },
+      async teardownOrganization() {
+        throw new Error('teardown must wait for the sessions');
+      },
+    });
+    const creating = routes.handleCreate(
+      JSON.stringify({ sessionId: 'late-1', organizationId: 'org_busy' }),
+    );
+    await until(() => routes.holds('late-1'));
+    expect((await routes.handleOrganizationTeardown('org_busy')).status).toBe(
+      409,
+    );
+    gate.resolve();
+    await creating;
+
+    backendDestroyThrows.add('stuck-1');
+    const failed = await routes.handleOrganizationTeardown('org_busy');
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toEqual({
+      error: 'destroy_failed',
+      sessionId: 'stuck-1',
+    });
+  });
+});
+
+describe('settlesWithin', () => {
+  test('answers whether a promise settled, either way, in time', async () => {
+    expect(await settlesWithin(Promise.resolve(), 1_000)).toBe(true);
+    expect(await settlesWithin(Promise.reject(new Error('gone')), 1_000)).toBe(
+      true,
+    );
+    expect(await settlesWithin(new Promise(() => {}), 5)).toBe(false);
   });
 });
 

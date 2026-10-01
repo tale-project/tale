@@ -17,13 +17,13 @@ Une tâche regroupe le but d’un travail, son responsable, son statut, ses fich
 2. Donne au **Titre** le nom du résultat attendu, par exemple « Vérifier le brief de lancement ».
 3. Explique dans **Description** ce qui est demandé et comment le résultat sera vérifié. Ajoute les fichiers nécessaires en pièces jointes.
 4. Choisis au besoin **Statut**, **Priorité** et **Assigné à**. Une nouvelle tâche commence à **À faire**. Utilise **Backlog** pour une proposition qui n’a pas encore été retenue.
-5. Clique sur **Créer une tâche**, puis ouvre la carte pour compléter ses détails.
+5. Clique sur **Créer une tâche**, puis ouvre la carte pour compléter ses détails. Si un agent figure sous **Assigné à**, **Créer et démarrer l'agent** crée la tâche et démarre l’agent en une seule étape.
 
 Un titre compte jusqu’à 200 caractères et une description jusqu’à 20 000 ; la plupart des emojis comptent double. Une description plus longue, collée ou laissée sur une tâche par un import antérieur, n’est pas coupée : le champ indique la limite et compte la longueur, et **Créer une tâche** ou **Enregistrer** reste indisponible tant que tu ne l’as pas raccourcie.
 
 Tale attribue un identifiant à partir de la clé du projet, par exemple `WEB-1`. Utilise-le pour désigner le travail sans confondre des tâches aux titres proches.
 
-Une conversation peut aussi lancer une tâche : **Créer une tâche depuis le chat** dans le menu **⋯** du chat ouvre **Créer une tâche** avec ta demande, les fichiers du chat et un lien vers celui-ci. Voir [Transformer un chat en tâche](/fr/platform/chat/basics#create-task-from-chat).
+Une conversation peut aussi lancer une tâche : **Créer une tâche** dans l’en-tête du chat ouvre la même boîte de dialogue avec ta demande, les fichiers du chat et un lien vers celui-ci, puis le chat suit la tâche au-dessus de son champ de message. Voir [Transformer un chat en tâche](/fr/platform/chat/basics#create-task-from-chat).
 
 Une automatisation conçue pour les tâches peut aussi proposer un modèle dans **Créer une tâche** : son nom apparaît alors à côté de **Tâche vierge**, au-dessus du formulaire. Choisis-la, saisis le nom qu’elle demande, par exemple un trimestre, puis clique sur **Créer une tâche** ; l’automatisation devient responsable de la tâche. Si une tâche existe déjà pour ce nom, Tale l’ouvre au lieu d’en créer une deuxième et indique **Une tâche existe déjà pour ce sujet.** Un Membre peut alors la lire et la commenter, mais ne la modifie que si elle est la sienne. Les modèles qui créent des dossiers ou des fichiers de paramètres dans le projet ne sont proposés qu’aux Éditeurs et aux rôles supérieurs.
 
@@ -66,7 +66,7 @@ Une exécution démarrée par une personne qui ne peut pas modifier le projet, p
 - Ses outils de plateforme ne modifient que cette tâche et ses sous-tâches : l’agent ne crée de nouvelles tâches que comme sous-tâches de celle-ci, n’utilise que des étiquettes que le projet possède déjà et ne peut pas synchroniser dans le projet des éléments venant d’autres systèmes.
 - Elle ne peut pas enregistrer de documents dans le projet. Les fichiers produits arrivent quand même sur la tâche, sous **Fichiers produits**.
 - L’exécution ne reçoit ni les **Secrets** de l’agent ni le jeton d’un accès GitHub équipé. L’agent apprend quels identifiants ont été retenus et doit le signaler dans son compte rendu si le travail en a besoin ; un Éditeur ou un rôle supérieur doit alors le démarrer. Les connecteurs équipés sur l’agent continuent de fonctionner, au nom de la personne qui a démarré l’exécution.
-- Elle travaille dans son propre espace de travail, conservé pour les exécutions de cette personne avec cet agent : les fichiers des exécutions que des Éditeurs ont démarrées n’y sont pas, et ce que cette exécution laisse ne parvient jamais à celles-ci. Les exécutions suivantes de la même personne avec cet agent le retrouvent.
+- Elle travaille dans son propre espace de travail, conservé pour les exécutions de cette personne avec cet agent : les fichiers des exécutions que des Éditeurs ont démarrées n’y sont pas, et ce que cette exécution laisse ne parvient jamais à celles-ci. Les exécutions suivantes de la même personne avec cet agent le retrouvent, jusqu’à ce que Tale le supprime : quand la personne quitte l’organisation ou que l’agent est supprimé, ou dès qu’aucune exécution ne l’a utilisé pendant le nombre de jours fixé par l’organisation sous [**Jours sans utilisation**](/fr/platform/admin/sandboxes#delete-unused-workspaces-automatically).
 
 L’exécution peut toujours lire les tâches et les connaissances du projet, et elle garde ces limites même si un Éditeur la guide ensuite. Une exécution qu’un Éditeur ou un rôle supérieur démarre dispose, sur toute tâche, de l’équipement complet de l’agent. Le commentaire d’un Membre peut changer cela : si l’environnement de l’agent redémarre pour prendre en compte le commentaire, comme le font [tous les environnements sauf Claude Code](/fr/platform/agents/harnesses), la suite de l’exécution compte comme celle du Membre, avec les mêmes limites pour ses outils et ses identifiants.
 
@@ -75,6 +75,14 @@ L’exécution peut toujours lire les tâches et les connaissances du projet, et
 **Assigné à** indique qui fait le travail : une personne, un agent du projet ou une automatisation disponible dans ce projet. **Relecteur** désigne la personne à prévenir lorsque le résultat d’un agent attend une revue. Seuls les membres qui peuvent modifier le projet peuvent être relecteurs.
 
 Assigner un agent et lancer son exécution sont deux choix distincts. Après l’assignation, clique sur **Démarrer l'agent** ou passe la tâche à **En cours**. Lis [Automatiser les tâches](/fr/platform/projects/task-automation) avant de lancer un travail qui utilise des services connectés ou produit des fichiers.
+
+Si le projet n’a pas d’agent propre, **Assigné à** propose l’option **Agent standard**, l’agent de l’organisation pour ces projets. La choisir met l’agent en place dans le projet et lui assigne la tâche ; [L’agent standard](/fr/platform/projects/project-agents#standard-agent) explique son fonctionnement. Les Éditeurs et les rôles supérieurs peuvent plutôt choisir **Créer un agent…** : **Nouvel agent** s’ouvre par-dessus la tâche, et l’agent que tu crées lui est assigné. Quand l’agent standard ne peut pas fonctionner pour eux, par exemple parce qu’un Admin l’a désactivé, les Membres sont invités à demander à un Éditeur ou à un Admin d’ajouter un agent dans l’onglet **Agents** du projet.
+
+<Frame caption="Dans un projet sans agents propres, Assigné à propose l’agent standard de l’organisation.">
+
+![La liste Assigné à, défilée jusqu’à sa section Agents : l’agent standard, décrit comme l’agent de l’organisation pour les projets sans agent propre, puis l’entrée pour créer un agent, au-dessus du pied de liste qui indique que l’agent standard prend en charge les tâches tant que le projet n’a pas d’agents propres.](/images/platform/project-task-standard-agent.webp)
+
+</Frame>
 
 Le relecteur reçoit la demande de revue, sans être le seul autorisé à décider. Toute autre personne qui peut modifier la tâche peut aussi accepter le résultat : un Éditeur ou un rôle supérieur, ou le Membre à qui la tâche appartient. Si ton organisation exige une relecture indépendante, la personne qui a démarré l’exécution d’agent examinée ne peut toutefois pas en accepter le résultat ; quand aucune exécution d’agent n’a produit le résultat, c’est la personne qui a créé la tâche qui ne le peut pas. Une exécution qu’un Membre a démarrée sur sa propre tâche attend alors un Éditeur ou un rôle supérieur, tandis que le Membre peut toujours accepter une exécution qu’un Éditeur y a démarrée.
 

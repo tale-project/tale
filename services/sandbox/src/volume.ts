@@ -40,6 +40,91 @@ export function bunCacheVolumeName(
   return `${cfg.cacheVolumePrefix.bun}-${orgSlug(organizationId)}`;
 }
 
+const CACHE_LABEL = 'tale.sandbox-cache';
+
+/** The organizations holding a package cache volume on this daemon, read
+ * off the cache label and the configured name prefixes (the longest prefix
+ * wins, so one prefix extending another never misreads an id). THROWS when
+ * the volume list cannot be read. */
+export async function listCacheVolumeOrganizations(
+  cfg: SpawnerConfig,
+): Promise<string[]> {
+  const listed = await runDocker(
+    [
+      'volume',
+      'ls',
+      '--filter',
+      `label=${CACHE_LABEL}=1`,
+      '--format',
+      '{{.Name}}',
+    ],
+    { timeoutMs: 15_000 },
+  );
+  if (listed.exitCode !== 0) {
+    throw new Error(
+      `volume: cannot list cache volumes: ${listed.stderr.trim() || listed.stdout.trim()}`,
+    );
+  }
+  const prefixes = [
+    cfg.cacheVolumePrefix.pip,
+    cfg.cacheVolumePrefix.npm,
+    cfg.cacheVolumePrefix.bun,
+  ].sort((a, b) => b.length - a.length);
+  const organizations = new Set<string>();
+  for (const line of listed.stdout.split('\n')) {
+    const name = line.trim();
+    const prefix = prefixes.find((p) => name.startsWith(`${p}-`));
+    if (prefix === undefined) continue;
+    const organizationId = name.slice(prefix.length + 1);
+    if (ORG_SLUG_RE.test(organizationId)) organizations.add(organizationId);
+  }
+  return [...organizations];
+}
+
+/** Remove an organization's package caches once it no longer exists. A
+ * volume under a cache name that does not carry the cache label is not the
+ * spawner's and is refused; a missing one is already gone. Returns how many
+ * were removed; THROWS when one could not be (still mounted, a daemon
+ * hiccup), so the caller retries. */
+export async function removeCacheVolumes(
+  cfg: SpawnerConfig,
+  organizationId: string,
+): Promise<number> {
+  let removed = 0;
+  for (const name of [
+    pipCacheVolumeName(cfg, organizationId),
+    npmCacheVolumeName(cfg, organizationId),
+    bunCacheVolumeName(cfg, organizationId),
+  ]) {
+    const inspected = await runDocker(
+      ['volume', 'inspect', '--format', '{{json .Labels}}', name],
+      { timeoutMs: 15_000 },
+    );
+    if (inspected.exitCode !== 0) {
+      if (/no such volume/i.test(inspected.stderr)) continue;
+      throw new Error(
+        `volume: cannot inspect ${name}: ${inspected.stderr.trim()}`,
+      );
+    }
+    const labels: unknown = JSON.parse(inspected.stdout.trim() || 'null');
+    if (
+      labels === null ||
+      typeof labels !== 'object' ||
+      Reflect.get(labels, CACHE_LABEL) !== '1'
+    ) {
+      throw new Error(`volume: refusing to remove unlabelled volume ${name}`);
+    }
+    const rm = await runDocker(['volume', 'rm', name], { timeoutMs: 30_000 });
+    if (rm.exitCode === 0) {
+      removed += 1;
+      continue;
+    }
+    if (/no such volume/i.test(rm.stderr)) continue;
+    throw new Error(`volume: cannot remove ${name}: ${rm.stderr.trim()}`);
+  }
+  return removed;
+}
+
 // Coalesce concurrent ensureCacheVolume calls for the same volume name.
 // Two parallel /v1/execute requests from the same org trigger this twice
 // in quick succession; without a mutex, both race past the `volume inspect`
@@ -76,7 +161,7 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
   if (inspect.exitCode === 0) return; // already exists, already chowned
 
   const create = await runDocker(
-    ['volume', 'create', '--label', 'tale.sandbox-cache=1', name],
+    ['volume', 'create', '--label', `${CACHE_LABEL}=1`, name],
     { timeoutMs: 15_000 },
   );
   if (create.exitCode !== 0) {

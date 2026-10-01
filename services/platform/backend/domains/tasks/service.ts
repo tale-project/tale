@@ -63,7 +63,12 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
-import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
+import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
+import {
+  cancelAgentRunInTx,
+  isStandardAgentRefusal,
+  kickAgentRun,
+} from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
 import { TaskError } from './errors.ts';
 import {
@@ -84,6 +89,7 @@ import {
 } from './reviews.ts';
 import { scheduleMayActInProject } from './run-authority.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
+import { assertTaskSourceThreadReadable } from './source-thread.ts';
 
 /**
  * Tasks domain, Tier A — the task board core: CRUD, status choreography
@@ -1252,6 +1258,9 @@ export interface CreateTaskArgs {
   dueDate?: number;
   /** The rule the task repeats on: closing it creates the next copy. */
   repeat?: TaskRepeat;
+  /** The conversation the task was handed over from — its root thread, one
+   * the creator can read (`source-thread.ts`). */
+  sourceThreadId?: string;
 }
 
 export async function createTask(
@@ -1302,6 +1311,13 @@ export async function createTask(
     auth,
     attachments.map((entry) => entry.fileId),
   );
+  if (args.sourceThreadId !== undefined) {
+    await assertTaskSourceThreadReadable(tx, {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+      threadId: args.sourceThreadId,
+    });
+  }
 
   if (args.parentTaskId) {
     const parent = await loadTaskOrThrow(
@@ -1329,7 +1345,7 @@ export async function createTask(
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
       due_date_ms, repeat_rule, rank, number, created_by, created_by_type,
-      created_at_ms, updated_at_ms, status_changed_at_ms
+      created_at_ms, updated_at_ms, status_changed_at_ms, source_thread_id
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1339,7 +1355,8 @@ export async function createTask(
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
       ${args.startDate ?? null}, ${args.dueDate ?? null},
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
-      ${auth.userId}, 'user', ${now}, ${now}, ${now}
+      ${auth.userId}, 'user', ${now}, ${now}, ${now},
+      ${args.sourceThreadId ?? null}
     )
     RETURNING id
   `;
@@ -3547,7 +3564,12 @@ export async function searchTasks(
 export interface MentionTriggerPreviewRow {
   slug: string;
   willTrigger: boolean;
-  reason: 'ok' | 'pack_disabled' | 'breaker_paused' | 'not_permitted';
+  reason:
+    | 'ok'
+    | 'pack_disabled'
+    | 'breaker_paused'
+    | 'not_permitted'
+    | 'standard_agent_unavailable';
 }
 
 /**
@@ -3597,6 +3619,29 @@ export async function mentionTriggerPreview(
     'task_automation',
   );
   const packEnabled = automationPolicy?.enabled !== false;
+  // The organization's standard agent answers only while it can start for
+  // the person mentioning it — switched on, with a model they may use — as
+  // the mention lane itself decides (`isStandardAgentRefusal`).
+  const standardAgents = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agents
+    WHERE project_id = ${project.id} AND managed AND id IN ${sql(slugs)}
+  `;
+  const standardAgentRuns =
+    standardAgents.length === 0 ||
+    (await readStandardAgentAvailability(sql, {
+      organizationId: auth.organizationId,
+      userId: auth.userId,
+    }).then(
+      (availability) => availability.available,
+      (error: unknown) => {
+        console.warn(
+          '[tasks] mention preview could not read the standard agent',
+          error,
+        );
+        return false;
+      },
+    ));
+  const standardAgentIds = new Set(standardAgents.map((agent) => agent.id));
 
   return slugs.map((slug) => {
     if (restricted && slug !== steerableAgentId) {
@@ -3604,6 +3649,13 @@ export async function mentionTriggerPreview(
     }
     if (!packEnabled) {
       return { slug, willTrigger: false, reason: 'pack_disabled' as const };
+    }
+    if (standardAgentIds.has(slug) && !standardAgentRuns) {
+      return {
+        slug,
+        willTrigger: false,
+        reason: 'standard_agent_unavailable' as const,
+      };
     }
     return { slug, willTrigger: true, reason: 'ok' as const };
   });
@@ -3922,45 +3974,59 @@ export async function dispatchMentionedProjectAgent(
     );
     return;
   }
-  if (
-    args.task.assigneeType !== 'agent' ||
-    args.task.assigneeId !== instance.id
-  ) {
-    // (Re)assign exactly like the picker — activity, audit, notify.
-    await assignTask(tx, args.auth, {
-      taskId: args.task.id,
-      assigneeType: 'agent',
-      assigneeId: instance.id,
+  const agent = instance;
+  try {
+    // A savepoint, so a start the organization's standard agent refuses for
+    // this author (switched off, or no model they may use) takes the
+    // reassignment with it: the text stays a plain mention, as with the
+    // lane's other refusals, and the comment or task still saves.
+    await tx.savepoint(async (sp) => {
+      if (
+        args.task.assigneeType !== 'agent' ||
+        args.task.assigneeId !== agent.id
+      ) {
+        // (Re)assign exactly like the picker — activity, audit, notify.
+        await assignTask(sp, args.auth, {
+          taskId: args.task.id,
+          assigneeType: 'agent',
+          assigneeId: agent.id,
+        });
+      }
+      const kicked = await kickAgentRun(sp, {
+        organizationId: args.auth.organizationId,
+        projectId: args.task.projectId,
+        taskId: args.task.id,
+        agentId: agent.id,
+        harness: agent.harness,
+        model: agent.model,
+        ...(agent.modelProvider !== null
+          ? { modelProvider: agent.modelProvider }
+          : {}),
+        startedBy: args.auth.userId,
+        trigger: 'mention',
+        mentionSource: args.source,
+        ...(args.source === 'comment' ? { feedback: args.text } : {}),
+      });
+      if (kicked.reused) {
+        // A racing kick landed between this transaction's live-run probe
+        // and here — the text rides the standing run instead.
+        console.warn(
+          `[tasks] mention kick for agent ${agent.id} reused the standing run`,
+        );
+        return;
+      }
+      await handTaskToInProgressForKick(sp, {
+        organizationId: args.auth.organizationId,
+        taskId: args.task.id,
+        userId: args.auth.userId,
+      });
     });
-  }
-  const kicked = await kickAgentRun(tx, {
-    organizationId: args.auth.organizationId,
-    projectId: args.task.projectId,
-    taskId: args.task.id,
-    agentId: instance.id,
-    harness: instance.harness,
-    model: instance.model,
-    ...(instance.modelProvider !== null
-      ? { modelProvider: instance.modelProvider }
-      : {}),
-    startedBy: args.auth.userId,
-    trigger: 'mention',
-    mentionSource: args.source,
-    ...(args.source === 'comment' ? { feedback: args.text } : {}),
-  });
-  if (kicked.reused) {
-    // A racing kick landed between this transaction's live-run probe and
-    // here — the text rides the standing run instead.
+  } catch (error) {
+    if (!isStandardAgentRefusal(error)) throw error;
     console.warn(
-      `[tasks] mention kick for agent ${instance.id} reused the standing run`,
+      `[tasks] agent mention on ${args.task.id} stays a plain mention (${error.code})`,
     );
-    return;
   }
-  await handTaskToInProgressForKick(tx, {
-    organizationId: args.auth.organizationId,
-    taskId: args.task.id,
-    userId: args.auth.userId,
-  });
 }
 
 /**

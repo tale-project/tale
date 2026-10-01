@@ -7,12 +7,21 @@ export type ScanErrorKind =
   | 'runtime'
   | 'dns'
   | 'notInCorpus'
+  | 'embedding'
+  | 'renderLane'
   | 'timeout'
   | 'generic';
 
 export function classifyScanError(message: string): ScanErrorKind {
   const m = message.toLowerCase();
   if (m.includes('website not found in crawler')) return 'notInCorpus';
+  // Before the timeout test: a provider's own words may name one.
+  if (m.includes('embedding model could not embed')) return 'embedding';
+  // The render lane halted the scan: its egress proxy refused the site, or
+  // its browser stopped answering. The pages are not the cause, and what
+  // rendered before the halt is stored, so it is neither a scan that did
+  // not run nor anything a page row says.
+  if (m.includes('the render sandbox')) return 'renderLane';
   if (
     m.includes('sandbox session') ||
     m.includes('tale-sandbox-runtime') ||
@@ -32,23 +41,53 @@ export function classifyScanError(message: string): ScanErrorKind {
   return 'generic';
 }
 
+/**
+ * Whether the scan failed as a whole, for a reason no page row carries. A
+ * scan that ends on its pages' own failures ("no page could be stored") is
+ * explained by the rows; one that the embedding model, the crawler's
+ * browser or a missing registration stopped is not, however many pages
+ * beside it failed for reasons of their own.
+ */
+export function isSiteLevelScanError(kind: ScanErrorKind): boolean {
+  return (
+    kind === 'embedding' ||
+    kind === 'runtime' ||
+    kind === 'renderLane' ||
+    kind === 'notInCorpus'
+  );
+}
+
+/**
+ * What a source missing from the crawler is told: a whole site is registered
+ * again by its next scan, so it only has to wait for one (or start one); a
+ * URL list cannot be, because its URLs were the registration, and has to be
+ * deleted and added again. A row without a kind is a whole site.
+ */
+type SourceKind = 'site' | 'list' | undefined;
+
 export function scanErrorMessageKey(
   kind: ScanErrorKind,
+  source?: SourceKind,
 ):
   | 'viewDialog.scanError.runtime'
   | 'viewDialog.scanError.notInCorpus'
+  | 'viewDialog.scanError.notInCorpusSite'
+  | 'viewDialog.scanError.embedding'
   | 'viewDialog.scanError.generic'
   | 'pagesDialog.errorKind.dnsFailed'
   | 'pagesDialog.errorKind.timeout' {
   switch (kind) {
     case 'runtime':
       return 'viewDialog.scanError.runtime';
+    case 'embedding':
+      return 'viewDialog.scanError.embedding';
     case 'dns':
       return 'pagesDialog.errorKind.dnsFailed';
     case 'timeout':
       return 'pagesDialog.errorKind.timeout';
     case 'notInCorpus':
-      return 'viewDialog.scanError.notInCorpus';
+      if (source === 'list') return 'viewDialog.scanError.notInCorpus';
+      return 'viewDialog.scanError.notInCorpusSite';
     default:
       return 'viewDialog.scanError.generic';
   }
@@ -56,18 +95,24 @@ export function scanErrorMessageKey(
 
 export function scanEmptyMessageKey(
   kind: ScanErrorKind,
+  source?: SourceKind,
 ):
   | 'viewDialog.scanEmpty.runtime'
   | 'viewDialog.scanEmpty.dns'
   | 'viewDialog.scanEmpty.notInCorpus'
+  | 'viewDialog.scanEmpty.notInCorpusSite'
+  | 'viewDialog.scanEmpty.embedding'
   | 'viewDialog.scanEmpty.generic' {
   switch (kind) {
     case 'runtime':
       return 'viewDialog.scanEmpty.runtime';
+    case 'embedding':
+      return 'viewDialog.scanEmpty.embedding';
     case 'dns':
       return 'viewDialog.scanEmpty.dns';
     case 'notInCorpus':
-      return 'viewDialog.scanEmpty.notInCorpus';
+      if (source === 'list') return 'viewDialog.scanEmpty.notInCorpus';
+      return 'viewDialog.scanEmpty.notInCorpusSite';
     default:
       return 'viewDialog.scanEmpty.generic';
   }

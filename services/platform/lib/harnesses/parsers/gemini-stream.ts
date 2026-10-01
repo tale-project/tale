@@ -35,6 +35,71 @@ import type {
  * error mentioning "max_tokens" never reads as an exhausted loop. */
 const MAX_TURNS_ERROR = /reached max session turns/i;
 
+/** The sentence the CLI appends to a 429 and to nothing else
+ * (`utils/errorParsing.ts` `getRateLimitMessage`, one variant per auth
+ * type) — its only tell for a rate limit whose body it does not relay: the
+ * SDK's retry path re-throws a bare message, so the `{"code":429}` body
+ * that every other status keeps is gone by the time the result is written
+ * (verified on the pinned 0.59.0). */
+const RATE_LIMIT_PROSE =
+  /Please wait and try again later\.|Possible quota limitations in place/;
+
+/**
+ * What a failed turn says, in one line, and the HTTP status behind it when
+ * the CLI relays one. The CLI's `result.error.message` for a provider
+ * refusal is `[API Error: {"error":{"code":400,"message":"…","status":"…"}}]`
+ * — the gateway's whole JSON body inside the brackets — so the run's
+ * reason read like a log dump and the kick could not tell a 400 (a
+ * transcript the provider refuses — start fresh) from a 429 (wait and
+ * resume) or a 401 on a brokered turn (the token rotated — vend again).
+ * Read the provider's own sentence and the code out of such a body; a 429
+ * is recognised by the prose the CLI adds; any other message passes
+ * through as is.
+ */
+export function describeTurnFailure(message: string): {
+  message: string;
+  apiErrorStatus?: number;
+} {
+  const text = message.trim();
+  const rateLimited = RATE_LIMIT_PROSE.test(text);
+  const fallback = {
+    message: text,
+    ...(rateLimited ? { apiErrorStatus: 429 } : {}),
+  };
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end <= start) return fallback;
+  let body: unknown;
+  try {
+    body = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return fallback;
+  }
+  if (!isRecord(body) || !isRecord(body.error)) return fallback;
+  const code = body.error.code;
+  const status =
+    typeof code === 'number' &&
+    Number.isInteger(code) &&
+    code >= 400 &&
+    code <= 599
+      ? code
+      : rateLimited
+        ? 429
+        : undefined;
+  const detail = asString(body.error.message);
+  if (detail === undefined && status === undefined) return fallback;
+  const line =
+    detail !== undefined
+      ? status !== undefined
+        ? `${detail} (API status ${status})`
+        : detail
+      : `The model request failed (API status ${status})`;
+  return {
+    message: line,
+    ...(status !== undefined ? { apiErrorStatus: status } : {}),
+  };
+}
+
 function mapRunStatus(
   status: string | undefined,
   error?: string,
@@ -181,7 +246,11 @@ class GeminiStreamParser implements HarnessEventParser {
       }
       if (err) {
         result.isError = true;
-        events.push({ type: 'error', message: err, raw: ev });
+        const failure = describeTurnFailure(err);
+        if (failure.apiErrorStatus !== undefined) {
+          result.apiErrorStatus = failure.apiErrorStatus;
+        }
+        events.push({ type: 'error', message: failure.message, raw: ev });
       }
       events.push(result);
       return events;

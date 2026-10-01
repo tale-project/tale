@@ -3,16 +3,22 @@
 # One of three provider variants of the same automation (gmail / outlook /
 # imap-smtp). They stay the SAME document with the connectorSlug substituted;
 # a test in lib/automations/packs.test.ts fails if they drift apart.
-# `conversation.list_mailbox_messages` fans out across every active credential.
+#
+# The pack works on the Inbox the sync pack fills, not on the raw mailbox:
+# `conversation.list_untriaged` hands it the open threads waiting on the team
+# since the last pass, the model judges each one, `conversation.record_triage`
+# stamps the verdict (and the priority where none is set), and for every
+# thread that needs an answer a second model call drafts one that
+# `conversation.draft_reply` leaves in the thread for a person to send.
 version: 1
 name: gmail-triage-inbox
-description: Read the newest messages from every connected Gmail mailbox and turn them into one triage digest.
+description: Triage the open Gmail conversations waiting on the team — set their priority and leave a drafted reply where one is due.
 inputs:
   type: object
   properties:
     limit:
       type: number
-      description: How many of the newest messages to read per mailbox in one pass (25 when unset).
+      description: How many waiting conversations to judge in one pass (25 when unset, at most 100).
     # Every trigger-started run arrives inside the trigger wrapper
     # (docs/en/platform/automations/triggers.md). A declared schema must
     # describe that wrapper, or the pack's own schedule is refused at start
@@ -25,101 +31,183 @@ inputs:
       description: Epoch-ms occurrence the schedule fired for.
   additionalProperties: false
 nodes:
-  - id: fetch
-    type: conversation.list_mailbox_messages
+  - id: inbox
+    type: conversation.list_untriaged
     input:
       connectorSlug: gmail
       limit: '{{ input.limit ?? 25 }}'
 
-  # One shape for every provider, so everything downstream is provider-neutral.
-  - id: inbox
-    type: transform
-    input:
-      messages: '{{ nodes.fetch.output.messages }}'
-    code: |
-      const asText = (value) => (typeof value === 'string' ? value : '');
-      const senderOf = (from) => {
-        if (typeof from === 'string') return from;
-        const one = Array.isArray(from) ? from[0] : from;
-        if (!one || typeof one !== 'object') return '';
-        const address = one.emailAddress ?? one;
-        return asText(address.address ?? address.name);
-      };
-      const receivedAtOf = (message) => {
-        if (typeof message.receivedDateTime === 'string') return message.receivedDateTime;
-        if (typeof message.date === 'string') return message.date;
-        if (typeof message.sentAt === 'number') return new Date(message.sentAt).toISOString();
-        return '';
-      };
-      const messages = (Array.isArray(input.messages) ? input.messages : [])
-        .map((message) => ({
-          id: asText(message.id ?? message.uid ?? message.messageId),
-          subject: asText(message.subject),
-          from: senderOf(message.from),
-          receivedAt: receivedAtOf(message),
-          preview: asText(message.bodyPreview ?? message.snippet ?? message.text),
-          mailbox: asText(message.credentialName),
-        }));
-      return { count: messages.length, messages };
-
-  # Skipped when nothing came in, so an empty pass costs no model call.
+  # Skipped when nothing is waiting, so an empty pass costs no model call;
+  # every node below reads this one and skips with it.
   - id: triage
     type: llm
-    when: '{{ nodes.inbox.output.count > 0 }}'
+    when: '{{ nodes.inbox.output.conversations.length > 0 }}'
     model: anthropic/claude-haiku-4-5
     system: >-
-      You triage shared mailboxes for a small team. Judge only from what you are
-      given, never invent senders or content, and keep the digest to what a
-      person needs to decide what to open first.
+      You triage a shared mailbox for a small team. Judge only from what you
+      are given and never invent senders, facts or intent. For every
+      conversation decide whether the team has to reply, how urgent it is,
+      and say why in one short sentence a teammate can act on.
     prompt: |
-      Here are the newest messages across every connected mailbox, oldest field
-      values included as they arrived:
+      These open conversations are waiting on the team. Each carries the
+      customer's newest message as text, cut at 4000 characters.
 
-      {{ nodes.inbox.output.messages }}
+      {{ nodes.inbox.output.conversations }}
 
-      Write one short digest of what came in, and list the id of every message
-      that plainly needs a reply today.
+      Return one verdict per conversation, with its conversationId exactly as
+      given. "reply" means a person has to answer; automated notifications,
+      newsletters, receipts and bounces are "no_reply". Priority is for the
+      Inbox: "urgent" only for an outage, a deadline today or an angry
+      customer; "high" for a question that blocks the customer; "medium" for
+      the rest that needs a reply; "low" for what needs none. Then write two
+      or three sentences describing what is waiting.
     outputSchema:
       type: object
       properties:
         summary:
           type: string
-          description: Two or three sentences describing what came in.
-        needsReply:
+          description: Two or three sentences describing what is waiting on the team.
+        items:
           type: array
+          description: One verdict per conversation.
           items:
-            type: string
-          description: Ids of the messages that need a reply today.
-      required:
-        - summary
-        - needsReply
+            type: object
+            properties:
+              conversationId:
+                type: string
+              action:
+                type: string
+                enum: [reply, no_reply]
+              priority:
+                type: string
+                enum: [low, medium, high, urgent]
+              reason:
+                type: string
+                description: One sentence for the person who opens the thread.
+            required: [conversationId, action, priority, reason]
+      required: [summary, items]
+
+  - id: record
+    type: conversation.record_triage
+    input:
+      verdicts: '{{ nodes.triage.output.items }}'
+
+  # The threads that need an answer, joined back onto what the Inbox handed
+  # out: a verdict naming an id the listing never had is dropped, so the
+  # model cannot draft on a thread it has not read.
+  - id: due
+    type: transform
+    input:
+      items: '{{ nodes.triage.output.items }}'
+      conversations: '{{ nodes.inbox.output.conversations }}'
+    code: |
+      const byId = new Map();
+      for (const conversation of Array.isArray(input.conversations) ? input.conversations : []) {
+        if (conversation && typeof conversation.conversationId === 'string') {
+          byId.set(conversation.conversationId, conversation);
+        }
+      }
+      const seen = new Set();
+      const conversations = [];
+      for (const item of Array.isArray(input.items) ? input.items : []) {
+        if (!item || item.action !== 'reply') continue;
+        const conversation = byId.get(item.conversationId);
+        if (!conversation || seen.has(item.conversationId)) continue;
+        seen.add(item.conversationId);
+        conversations.push({
+          conversationId: conversation.conversationId,
+          subject: conversation.subject,
+          contact: conversation.contact,
+          lastInboundAt: conversation.lastInboundAt,
+          lastInboundText: conversation.lastInboundText,
+          url: conversation.url,
+          priority: item.priority,
+          reason: item.reason,
+        });
+      }
+      return { count: conversations.length, conversations };
+
+  # One draft per thread that needs an answer. The draft is a proposal: the
+  # next node leaves it in the thread, and only a person sends it.
+  - id: draft
+    type: llm
+    forEach: '{{ nodes.due.output.conversations }}'
+    model: anthropic/claude-haiku-4-5
+    system: >-
+      You draft replies for a small team's shared mailbox. Write the whole
+      reply — greeting, body and sign-off — in the language of the customer's
+      message, never mixing in another. Be brief, warm and concrete: answer
+      what can be answered from the message itself, ask the one question that
+      is missing when something is, and never promise a date, a refund or a
+      fix the message does not support. Plain text, no subject line, no
+      placeholders; end with that language's usual closing line and nothing
+      after it.
+    prompt: |
+      Customer: {{ item.contact.name || item.contact.email }}
+      Subject: {{ item.subject }}
+      Why a reply is due: {{ item.reason }}
+
+      Their newest message:
+      {{ item.lastInboundText }}
+
+      Write the reply.
+    outputSchema:
+      type: object
+      properties:
+        body:
+          type: string
+          description: The reply, ready for a person to send or edit.
+      required: [body]
+
+  # A thread that already carries a pending draft keeps it (created: false);
+  # a thread gone since the listing is skipped rather than failing the pass.
+  - id: propose
+    type: conversation.draft_reply
+    forEach: '{{ nodes.due.output.conversations }}'
+    onError: continue
+    input:
+      conversationId: '{{ item.conversationId }}'
+      body: '{{ nodes.draft.output[index].body }}'
+      confidence: 0.5
 output:
-  read: '{{ nodes.inbox.output.count }}'
-  messages: '{{ nodes.inbox.output.messages }}'
-  triage: '{{ nodes.triage.output }}'
+  read: '{{ nodes.inbox.output.conversations.length }}'
+  summary: '{{ nodes.triage.output?.summary ?? null }}'
+  recorded: '{{ nodes.record.output ?? null }}'
+  needsReply: '{{ nodes.due.output?.conversations ?? [] }}'
+  drafted: '{{ nodes.propose.output ?? [] }}'
 tests:
-  - name: the newest message is normalized and triaged
+  - name: a waiting thread is judged, stamped and left a draft
     input:
       limit: 1
     expect:
       output:
         read: 1
-        messages:
-          - id: mock-1
-            subject: Mock message 1
-            from: sender1@example.com
-            receivedAt: '1970-01-01T00:00:01.000Z'
-            preview: ''
-            mailbox: default
-        triage:
-          summary: mock
-          needsReply:
-            - mock
-  - name: a pass that reads nothing skips the model
+        summary: mock
+        recorded:
+          recorded: 1
+          prioritized: 1
+          unknown: []
+        needsReply:
+          - conversationId: mock
+            subject: Mock subject
+            contact:
+              name: Mock Sender
+              email: sender@example.com
+            lastInboundAt: '1970-01-01T00:00:01.000Z'
+            lastInboundText: Mock inbound message asking for an answer.
+            url: /dashboard/org/conversations/open?conversation=mock
+            priority: low
+            reason: mock
+        drafted:
+          - approvalId: apr_mock_mock
+            created: true
+  - name: a pass with nothing waiting skips the model
     input:
       limit: 0
     expect:
       output:
         read: 0
-        messages: []
-        triage: null
+        summary: null
+        recorded: null
+        needsReply: []
+        drafted: []

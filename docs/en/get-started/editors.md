@@ -3,7 +3,7 @@ title: Create and test a project agent
 description: Give a project agent a focused job, start it on a task, and review the result.
 ---
 
-A project agent is a reusable brief for work on project tasks. You choose its instructions, runtime, model, and tools, then start it on a task and review what it produces.
+A project agent is a reusable brief for work on project tasks. You choose its instructions, runtime, model, and tools, then start it on a task and review what it produces. Until a project has an agent of its own, its tasks can go to the organization's [standard agent](/platform/projects/project-agents#standard-agent).
 
 ## Before you begin
 

@@ -9,6 +9,8 @@ import {
   ensureBuildkitVolume,
   inspectBuildkitContainer,
   readDockerMetadata,
+  removeBuildkitNetwork,
+  removeBuildkitVolume,
   retireLegacyBuildkitd,
 } from './buildkit-resources.ts';
 import { runDocker } from './spawn-util.ts';
@@ -387,6 +389,83 @@ async function sweepIdleBuildkitdUnlocked(
     }
   }
   return result;
+}
+
+/**
+ * Remove every build resource of an organization that no longer exists: its
+ * builder and mirrors, their cache volumes and its private network. Runs
+ * under the organization's launch/idle-stop lock and refuses while a session
+ * create still holds a lease on the helpers. Containers are inventoried by
+ * their ownership labels and removed by immutable id — only the helper names
+ * this organization's ensure creates, so a similarly-labelled stranger is
+ * left alone — and every volume and the network are ownership-checked before
+ * removal. Idempotent: a second call finds nothing and reports zeros.
+ */
+export async function removeOrganizationBuildkit(
+  organizationId: string,
+): Promise<{ containers: number; volumes: number; networks: number }> {
+  assertOrg(organizationId);
+  return withBuildkitdOperation(organizationId, async () => {
+    if (createLeases.has(organizationId)) {
+      throw new Error(
+        `buildkitd: a session create of ${organizationId} still holds its build helpers`,
+      );
+    }
+    const result = { containers: 0, volumes: 0, networks: 0 };
+    const listed = await readDockerMetadata([
+      'ps',
+      '--all',
+      '--no-trunc',
+      '--filter',
+      'label=tale.buildkitd=1',
+      '--filter',
+      `label=tale.org=${organizationId}`,
+      '--format',
+      '{{.ID}}\t{{.Names}}',
+    ]);
+    if (listed.exitCode !== 0) {
+      throw new Error('buildkitd: cannot inventory the organization helpers');
+    }
+    const helperNames = organizationHelperNames(organizationId);
+    for (const line of listed.stdout.split('\n').filter(Boolean)) {
+      const [id, name, extra] = line.split('\t');
+      if (!id || !DOCKER_ID_RE.test(id) || !name || extra !== undefined) {
+        throw new Error('buildkitd: invalid helper inventory during teardown');
+      }
+      if (!helperNames.includes(name)) {
+        console.warn(
+          `[sandbox.buildkitd] leaving ${name}: labelled for ${organizationId} but not one of its helpers`,
+        );
+        continue;
+      }
+      const removed = await runDocker(['rm', '--force', id], {
+        timeoutMs: 35_000,
+      });
+      if (removed.exitCode !== 0 && !/no such container/i.test(removed.stderr))
+        throw new Error(`buildkitd: failed to remove helper ${name}`);
+      result.containers++;
+    }
+    if (
+      await removeBuildkitNetwork(
+        buildkitdNetworkName(organizationId),
+        organizationId,
+      )
+    ) {
+      result.networks++;
+    }
+    for (const volume of [
+      buildkitdCacheVolumeName(organizationId),
+      ...MIRROR_REGISTRIES.map((registry) =>
+        buildkitdMirrorVolumeName(organizationId, registry),
+      ),
+    ]) {
+      if (await removeBuildkitVolume(volume, organizationId)) {
+        result.volumes++;
+      }
+    }
+    idleSince.delete(organizationId);
+    return result;
+  });
 }
 
 /**

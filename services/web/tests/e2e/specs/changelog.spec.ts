@@ -1,9 +1,31 @@
 import { expect, test } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 
+import {
+  RELEASES,
+  RELEASES_FETCHED_AT,
+} from '../../../app/generated/releases-manifest';
+
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
 test.describe('changelog timeline', () => {
+  // Once the preview server's first refresh lands, `/api/releases` answers
+  // GitHub's live list. The E2E build embeds the committed snapshot, which may
+  // share no tag with that list; the page's swap then replaces every nav link
+  // while a test still holds one. Answer what a cold server answers, the
+  // snapshot the page already renders; the feed itself is tested below.
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/releases', (route) =>
+      route.fulfill({
+        json: {
+          releases: RELEASES,
+          fetchedAt: RELEASES_FETCHED_AT,
+          source: 'snapshot',
+        },
+      }),
+    );
+  });
+
   test('sticky nav scrolls so late versions stay clickable', async ({
     page,
   }) => {

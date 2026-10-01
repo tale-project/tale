@@ -32,10 +32,16 @@ interface WebsiteCreateDialogProps {
   organizationId: string;
 }
 
+/**
+ * The input as a URL: surrounding whitespace dropped and `https://` put in
+ * front of a bare host. A scheme is recognized in any case, as the URL
+ * parser and the server read it — a pasted ` https://example.com` or
+ * `HTTPS://example.com` used to get a second scheme prepended and fail as
+ * an invalid domain.
+ */
 function ensureScheme(value: string): string {
-  return value.startsWith('http://') || value.startsWith('https://')
-    ? value
-    : `https://${value}`;
+  const trimmed = value.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function isValidDomainInput(value: string): boolean {
@@ -200,7 +206,7 @@ export function WebsiteCreateDialog({
   const submitSite = (data: FormData) => {
     void createWebsiteAsync({
       organizationId,
-      domain: data.domain,
+      domain: data.domain.trim(),
       scanInterval: data.scanInterval,
     }).then(
       () => {

@@ -113,6 +113,8 @@ interface ProjectAgentWire {
   tools: string[];
   secrets: string[];
   instructions: string | null;
+  /** Absent on a row an older backend sent, which knew no managed agents. */
+  managed?: boolean;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -133,6 +135,7 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
     tools: row.tools,
     secrets: row.secrets,
     ...(row.instructions !== null ? { instructions: row.instructions } : {}),
+    managed: row.managed === true,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -335,6 +338,20 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
           `/projects/${encodeURIComponent(projectId)}/agents`,
           { orgId },
         ).then((body): ProjectAgentItem[] => body.agents.map(projectAgentView)),
+    };
+  },
+  'projects/queries:getStandardAgent': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Under the governance policy entity: saving the standard agent's
+      // policy hints it, and the read answers anew.
+      queryKey: backendKey(orgId, 'governance_policy', 'standard-agent'),
+      queryFn: () =>
+        backendFetch<ReturnsOf<'projects/queries:getStandardAgent'>>(
+          '/projects/standard-agent',
+          { orgId },
+        ),
     };
   },
   'projects/queries:listSidebarProjects': (args, ctx) => {
@@ -668,6 +685,17 @@ export const projectWriteAdapters: Record<string, WriteAdapter> = {
         orgId,
       });
       return null;
+    },
+    invalidate: projectWriteInvalidate,
+  },
+  'projects/mutations:ensureStandardAgent': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const projectId = requireString(args, 'projectId');
+      return backendFetch<{ agentId: string; created: boolean }>(
+        `/projects/${encodeURIComponent(projectId)}/standard-agent`,
+        { method: 'POST', body: {}, orgId },
+      );
     },
     invalidate: projectWriteInvalidate,
   },

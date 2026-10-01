@@ -10,10 +10,32 @@
  * never deleted: the register is the trail.
  */
 
+import type { PgBoss } from 'pg-boss';
 import type { TransactionSql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { setEnqueueBoss } from '../jobs/enqueue.ts';
 import { removeMembershipCascade } from './membership.ts';
+
+/** Capture what the cascade queues: a stand-in exposing the one method
+ * `addJobInTx` calls. */
+function installFakeBoss(): { name: string; data: unknown }[] {
+  const sends: { name: string; data: unknown }[] = [];
+  const fake = {
+    send: (name: string, data: unknown) => {
+      sends.push({ name, data });
+      return Promise.resolve('job-id');
+    },
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- capture stub; addJobInTx only calls send()
+  setEnqueueBoss(fake as unknown as PgBoss);
+  return sends;
+}
+
+afterEach(() => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reset the module-level boss between tests
+  setEnqueueBoss(null as unknown as PgBoss);
+});
 
 function fakeTx(): {
   tx: TransactionSql;
@@ -33,6 +55,7 @@ function fakeTx(): {
 
 describe('removeMembershipCascade — competence grants', () => {
   it('revokes every live grant of the member in this organization and keeps the rows', async () => {
+    installFakeBoss();
     const { tx, statements } = fakeTx();
     const before = Date.now();
     await removeMembershipCascade(tx, 'org-1', 'u-1');
@@ -53,5 +76,23 @@ describe('removeMembershipCascade — competence grants', () => {
         statement.text.includes('DELETE FROM app.competence_records'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('removeMembershipCascade — sandbox workspaces', () => {
+  it("queues the deletion of the member's workspaces with the organization's agents", async () => {
+    const sends = installFakeBoss();
+    const { tx } = fakeTx();
+    await removeMembershipCascade(tx, 'org-1', 'u-1');
+    expect(sends).toEqual([
+      {
+        name: 'sandbox.retire_workspaces',
+        data: {
+          organizationId: 'org-1',
+          reason: 'member_removed',
+          userId: 'u-1',
+        },
+      },
+    ]);
   });
 });

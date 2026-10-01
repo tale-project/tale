@@ -49,6 +49,34 @@ const RECLAIM_PROBE_BACKOFF_MS = 30_000;
  * image answers not-found (the caller retries) rather than a client timeout. */
 const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
 
+/** Longest a create waits for a destroy of the same id under way. A destroy
+ * deletes the whole workspace, which a large one takes a while for; past
+ * this the destroy is taken for wedged and the create answers busy. */
+const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
+
+/** Whether `promise` settles, either way, within `ms`. */
+export async function settlesWithin(
+  promise: Promise<unknown>,
+  ms: number,
+): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([
+      promise.then(
+        () => true,
+        () => true,
+      ),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export class SessionRoutes {
   private readonly registry = new SessionRegistry();
   // Session ids with a createSession in flight → their organization. The
@@ -87,6 +115,13 @@ export class SessionRoutes {
   // skipped as reclaim candidates for a short window so one wedged daemon
   // (a full health timeout) does not stall every create at capacity.
   private readonly probeFailedAtMs = new Map<string, number>();
+  // Settles when the destroy of that id is done (success or failure):
+  // destroys of one id run one after another, and a create of the id waits
+  // for the one under way instead of racing its workspace removal.
+  private readonly destroySettled = new Map<
+    string,
+    PromiseWithResolvers<void>
+  >();
 
   // Backend lists behind ensureRegistered (the platform probes sessionIsAlive
   // + exec-status per turn, so a stopped session would otherwise cost one
@@ -687,7 +722,8 @@ export class SessionRoutes {
    * subsequent calls resolve to 404 → `SessionNotFoundError` → the platform
    * resumes the session in place (re-create against the PRESERVED workspace).
    * It does NOT delete the workspace: a gone container is now a resumable
-   * stopped state, and data is removed only by an explicit Destroy. A THROWING
+   * stopped state, and data is removed only by a destroy (the explicit
+   * Destroy, or the platform's workspace cleanup). A THROWING
    * check means "can't judge" (backend hiccup): keep the entry — a transient
    * blip must never evict a live session. Returns true when a stale entry was
    * evicted.
@@ -731,6 +767,25 @@ export class SessionRoutes {
     const refused = await this.reserveCreate(req.sessionId, req.organizationId);
     if (refused !== null) return refused;
     try {
+      // A destroy of this id already under way finishes first, so the create
+      // lays out its workspace on a settled slate instead of beside an
+      // `rm -rf` of the old one. Bounded: one wedged on a stuck filesystem
+      // must not hold this create, and its capacity slot, for ever — the
+      // caller retries on the busy answer.
+      const destroying = this.destroySettled.get(req.sessionId);
+      if (
+        destroying !== undefined &&
+        !(await settlesWithin(destroying.promise, CREATE_WAITS_FOR_DESTROY_MS))
+      ) {
+        return jsonResponse(
+          {
+            error: 'busy',
+            message: `a destroy of ${req.sessionId} is still under way`,
+          },
+          429,
+          { 'retry-after': '30' },
+        );
+      }
       const createdAtMs = Date.now();
       let created: CreateSessionResult;
       try {
@@ -825,6 +880,102 @@ export class SessionRoutes {
       .map((s) => this.toInfo(s.sessionId))
       .filter((s): s is SessionInfo => s !== null);
     return jsonResponse({ sessions }, 200);
+  }
+
+  /**
+   * GET /v1/workspaces — every workspace this spawner holds (stopped
+   * sessions' preserved data included) and the organizations holding
+   * resources beyond them: the physical half of the platform's workspace
+   * cleanup, which decides from its own records what may go. A session this
+   * replica is creating or serving reads as active even when the backend
+   * listing has not caught up with it. An inventory that cannot be read is a
+   * 503, never an empty answer.
+   */
+  async handleWorkspaces(): Promise<Response> {
+    try {
+      const [workspaces, organizations] = await Promise.all([
+        this.backend.listWorkspaces(),
+        this.backend.listOrganizationResources(),
+      ]);
+      for (const workspace of workspaces) {
+        if (this.holds(workspace.sessionId)) workspace.active = true;
+      }
+      return jsonResponse(
+        { backend: this.backend.kind, workspaces, organizations },
+        200,
+        { 'cache-control': 'no-store' },
+      );
+    } catch (error) {
+      console.warn('[sandbox.session] workspace inventory failed:', error);
+      return jsonResponse({ error: 'inventory_unavailable' }, 503, {
+        'cache-control': 'no-store',
+      });
+    }
+  }
+
+  /**
+   * DELETE /v1/organizations/:id — tear down an organization that no longer
+   * exists: destroy every session the backend still holds for it (running or
+   * stopped containers/Pods, workspaces with them), then its resources beyond
+   * them (build helpers, networks, caches). The platform calls it only after
+   * the organization is deleted and after destroying the sessions it knew
+   * of; this is the pass that catches the rest. A create still in flight for
+   * the organization answers 409 so the caller retries once it settled; a
+   * destroy or removal that failed answers 502, and a retry resumes where
+   * this one stopped.
+   */
+  async handleOrganizationTeardown(organizationId: string): Promise<Response> {
+    if ([...this.creating.values()].includes(organizationId)) {
+      return jsonResponse({ error: 'busy' }, 409, { 'retry-after': '10' });
+    }
+    let listed: BackendSession[];
+    try {
+      listed = await this.backend.listSessions(organizationId);
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] teardown of ${organizationId}: session list failed:`,
+        error,
+      );
+      return jsonResponse({ error: 'inventory_unavailable' }, 503);
+    }
+    const sessionIds = new Set([
+      ...listed.map((session) => session.sessionId),
+      ...this.registry.list(organizationId).map((session) => session.sessionId),
+    ]);
+    // Stopped sessions hold no compute, only their workspaces: the ones the
+    // backend attributes to the organization go too. A list that cannot be
+    // read (Kubernetes without `list` on claims) leaves them to the
+    // platform, which names every workspace its rows knew.
+    try {
+      for (const workspace of await this.backend.listWorkspaces()) {
+        if (workspace.organizationId === organizationId) {
+          sessionIds.add(workspace.sessionId);
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] teardown of ${organizationId}: workspace list failed; its stopped workspaces stay to the platform's list:`,
+        error,
+      );
+    }
+    let sessions = 0;
+    for (const sessionId of sessionIds) {
+      const destroyed = await this.handleDestroy(sessionId);
+      if (!destroyed.ok) {
+        return jsonResponse({ error: 'destroy_failed', sessionId }, 502);
+      }
+      sessions += 1;
+    }
+    try {
+      const removed = await this.backend.teardownOrganization(organizationId);
+      return jsonResponse({ sessions, ...removed }, 200);
+    } catch (error) {
+      console.error(
+        `[sandbox.session] teardown of ${organizationId} failed:`,
+        error,
+      );
+      return jsonResponse({ error: 'teardown_failed' }, 502);
+    }
   }
 
   /** The release ticket is read BEFORE the platform releases its allocation.
@@ -933,7 +1084,7 @@ export class SessionRoutes {
 
   async handleDestroy(
     sessionId: string,
-    opts: { ifIdle?: boolean } = {},
+    opts: { ifIdle?: boolean; ifStopped?: boolean } = {},
   ): Promise<Response> {
     // Conditional destroy (`?if_idle=1`): a janitor caller (the end-of-turn
     // thread-session teardown) must never destroy a session another turn is
@@ -943,9 +1094,64 @@ export class SessionRoutes {
     // the live-exec truth. The skip is always safe — the surviving turn's own
     // teardown (or the TTL reaper) cleans up later; destroying a live exec
     // never is.
-    if (opts.ifIdle && (await this.hasLiveExecs(sessionId))) {
-      return jsonResponse({ destroyed: false, busy: true }, 200);
+    //
+    // `?if_stopped=1` is stricter, for the workspace cleanup of a session
+    // nobody has used for a while: only the preserved workspace of a STOPPED
+    // session goes. Any compute under the id — a container a turn just
+    // resumed, before its first exec — or a create in flight means someone
+    // came back to it, and the cleanup must leave it alone.
+    //
+    // Either condition also refuses while a create of the id is in flight:
+    // the create is laying out the very workspace this would delete. The
+    // destroy is announced BEFORE that check, so a create admitted while the
+    // check awaits the backend finds it and waits for it to settle (see
+    // handleCreate) — and a create admitted first is caught by the re-check.
+    const settled = Promise.withResolvers<void>();
+    const previous = this.destroySettled.get(sessionId);
+    this.destroySettled.set(sessionId, settled);
+    try {
+      await previous?.promise;
+      if (opts.ifIdle || opts.ifStopped) {
+        const busy =
+          this.creating.has(sessionId) ||
+          (opts.ifStopped
+            ? await this.holdsCompute(sessionId)
+            : await this.hasLiveExecs(sessionId)) ||
+          this.creating.has(sessionId);
+        if (busy) return jsonResponse({ destroyed: false, busy: true }, 200);
+      }
+      return await this.destroyNow(sessionId);
+    } finally {
+      settled.resolve();
+      if (this.destroySettled.get(sessionId) === settled) {
+        this.destroySettled.delete(sessionId);
+      }
     }
+  }
+
+  /** Is there compute under the id — a registered session, a stop still
+   * removing one, or a container/Pod the backend holds that has not ended
+   * (one still starting on a peer replica counts; an exited container whose
+   * process died out-of-band does not)? A backend that cannot answer counts
+   * as holding it. */
+  private async holdsCompute(sessionId: string): Promise<boolean> {
+    if (this.registry.has(sessionId) || this.stopping.has(sessionId)) {
+      return true;
+    }
+    try {
+      return (await this.backend.listSessions()).some(
+        (session) => session.sessionId === sessionId && !session.ended,
+      );
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] compute of ${sessionId} unknown; keeping its workspace:`,
+        error,
+      );
+      return true;
+    }
+  }
+
+  private async destroyNow(sessionId: string): Promise<Response> {
     // Delete from the registry BEFORE awaiting the backend so a concurrent
     // destroy of the same id sees an empty cache and can't double-call
     // destroySession. The backend destroy then runs exactly once; its return

@@ -34,12 +34,25 @@ capabilities:
   planMode: false
   steering: false
   mcp: true
+  # No conversation continuity: the pinned CLI's `--resume` replays every
+  # tool result of the recorded session twice (its `toolCalls[].result`
+  # AND the user record it also writes for the same response —
+  # google-gemini/gemini-cli#29365, open), so the first request of a
+  # resumed conversation that ever ran a tool is refused by the model
+  # (Google: "number of function response parts…"; an OpenAI-wire upstream:
+  # "role 'tool' must be a response to a preceding message with
+  # 'tool_calls'"). Every later kick of a task or node therefore starts a
+  # FRESH conversation over the preserved workspace (the planners read this
+  # flag; the exec builder refuses a handle). Flip to true and restore the
+  # `resume: { flag: '--resume' }` argv slot once the pin carries the
+  # upstream fix — see the GEMINI_CLI_VERSION note in the sandbox-runtime
+  # Dockerfile for what a bump past 0.59.0 needs first.
+  resume: false
 parser: gemini-stream
 exec:
   bin: tale-gemini-run
   argv:
     - args: ['--workdir', '${workdir}']
-    - resume: { flag: '--resume' }
     # Managed: the gateway model id (the /genai route's {model:*} matcher
     # takes slashed ids). byo: the caller-resolved vendor-native id.
     - model: { flag: '--model' }
@@ -67,8 +80,8 @@ exec:
             - set:
                 privacy:
                   usageStatisticsEnabled: false
-            # The CLI must request the model id it was given. The pinned
-            # CLI (0.49.0) rewrites ANY --model ending in "flash" to its own
+            # The CLI must request the model id it was given. Every CLI
+            # release before 0.61.0 rewrites ANY --model ending in "flash" to its own
             # gemini-3.5-flash on API-key auth (config/models.ts resolveModel:
             # isFlashModel = endsWith('flash'), gated by
             # hasGemini35FlashGAAccess(), which is unconditionally true for

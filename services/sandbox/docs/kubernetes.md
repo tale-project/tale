@@ -84,9 +84,12 @@ rules:
   - apiGroups: ['']
     resources: ['persistentvolumeclaims']
     # The per-session workspace PVC (`<pod>-ws`): read-before-create on every
-    # create/resume, deleted ONLY by an explicit destroy. Without `delete`
-    # every destroy leaks a PVC (the failure is surfaced as 502 and retried).
-    verbs: ['get', 'create', 'delete']
+    # create/resume, deleted ONLY by a destroy (the explicit Destroy, or the
+    # platform's workspace cleanup). Without `delete` every destroy leaks a
+    # PVC (the failure is surfaced as 502 and retried). `list` backs the
+    # workspace inventory the cleanup reconciles against; without it the
+    # inventory answers 503 and orphaned PVCs stay.
+    verbs: ['get', 'list', 'create', 'delete']
   - apiGroups: ['networking.k8s.io']
     resources: ['networkpolicies']
     # The session egress fence, applied at boot (create, or update an

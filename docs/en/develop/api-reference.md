@@ -518,6 +518,8 @@ curl -fsS "$AGENT_URL/$AGENT_ID" \
 
 `POST` and `PUT` require `name`, `harness`, `model`, `skills` and `connectors`; a `harness` outside the eligible set returns **400**, `PROJECT_AGENT_HARNESS_INVALID`, with the set in `data.harnesses`. Optional fields are `modelProvider`, `tools`, `secrets` and `instructions`. A `PUT` saves the full configuration: omitted provider/instructions reset to `null`, and omitted tools/secrets reset to empty lists. It updates an existing agent; it does not create one at an unknown ID. Pass the `updatedAt` you last read as `expectedUpdatedAt` to make the save conditional: an agent that changed since returns **409**, `PROJECT_AGENT_STALE`, with the current `updatedAt` in `data`, and nothing is written — reload it and merge before saving again.
 
+An agent whose `managed` is `true` is the organization's [standard agent](/platform/projects/project-agents#standard-agent): Tale set it up in a project without agents of its own and keeps its runtime, model and instructions in line with the organization's settings. A `PUT` of it returns **409**, `PROJECT_AGENT_MANAGED`, and writes nothing; `DELETE` removes it like any other agent (contract 3.9.0).
+
 ### Validate models, grants, and limits
 
 A project holds at most 50 agents. Names are unique within the project without regard to case, up to 120 characters; each equipment list allows 25 entries and instructions allow 20,000 characters. An invalid configuration or an exceeded limit returns **400**; a name another agent of the project already carries returns **409**, `PROJECT_AGENT_NAME_TAKEN` — the class every other duplicate on this endpoint returns, so reuse the existing agent rather than retrying.

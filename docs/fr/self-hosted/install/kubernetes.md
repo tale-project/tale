@@ -573,7 +573,7 @@ rules:
     verbs: ['create', 'delete', 'list']
   - apiGroups: ['']
     resources: ['persistentvolumeclaims']
-    verbs: ['get', 'create', 'delete']
+    verbs: ['get', 'list', 'create', 'delete']
   - apiGroups: ['networking.k8s.io']
     resources: ['networkpolicies']
     verbs: ['create', 'update']
@@ -649,7 +649,7 @@ Le spawner se met à l’échelle horizontalement. Chaque réplica retrouve une 
 
 Au démarrage, le spawner applique la NetworkPolicy `tale-sandbox-session-egress` : les Pods de session peuvent joindre le DNS et les Pods de leur propre namespace, rien d’autre. Le service de métadonnées du cloud, les nœuds et les autres namespaces restent ainsi inaccessibles, même pour un processus qui ignore `HTTP_PROXY`. Les destinations publiques passent par `sandbox-egress`. Une permission `networkpolicies` absente est journalisée sans arrêter le spawner ; vérifie que la politique existe avant d’admettre des traitements.
 
-Les Pods de session exécutent le runner avec l’uid 65534, toutes les capabilities retirées, un système de fichiers racine en lecture seule, sans jeton ServiceAccount, et avec le Secret de session monté uniquement comme environnement. Le workspace `/agent` est un claim qui survit à un arrêt sur inactivité ; seule une destruction explicite le supprime. Les opérations de session utilisent HTTP vers runnerd sur l’IP du Pod, port 8200 ; `pods/exec` n’intervient jamais.
+Les Pods de session exécutent le runner avec l’uid 65534, toutes les capabilities retirées, un système de fichiers racine en lecture seule, sans jeton ServiceAccount, et avec le Secret de session monté uniquement comme environnement. Le workspace `/agent` est un claim qui survit à un arrêt sur inactivité. Une destruction explicite le supprime, tout comme le nettoyage des workspaces dès que son propriétaire est retiré ou qu’il reste inutilisé au-delà de la fenêtre de l’organisation ; le nettoyage trouve les claims avec `list`. Les opérations de session utilisent HTTP vers runnerd sur l’IP du Pod, port 8200 ; `pods/exec` n’intervient jamais.
 
 <Note>
 

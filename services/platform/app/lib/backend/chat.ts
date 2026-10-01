@@ -509,6 +509,8 @@ export async function sendChatTurn(
       fileSize: number;
     }[];
     resend?: boolean;
+    /** The UI's language (see the send door's `locale`). */
+    locale?: string;
   },
 ): Promise<ChatTurnOutcome> {
   const response = await fetch(
@@ -668,6 +670,7 @@ export function regenerateChatTurn(
     modelSelection?: 'auto';
     providerSlug?: string;
     reasoningEffort?: string;
+    locale?: string;
   },
 ): Promise<ChatTurnOutcome> {
   return sendChatTurn(organizationId, threadId, {
@@ -894,17 +897,27 @@ export function chatProjectsQuery(organizationId: string) {
         projects: {
           id: string;
           name: string;
+          key?: string | null;
           icon?: string | null;
           color?: string | null;
           pinnedAt?: number | null;
+          projectAgentCount?: number;
+          canEdit?: boolean;
         }[];
       }>('/projects', { signal, orgId: organizationId }).then((body) =>
         body.projects.map((row) =>
           Object.assign(
             { _id: row.id, name: row.name },
+            row.key != null ? { key: row.key } : {},
             row.icon != null ? { icon: row.icon } : {},
             row.color != null ? { color: row.color } : {},
             row.pinnedAt != null ? { pinnedAt: row.pinnedAt } : {},
+            // The hand-over asks where work can go: which projects have an
+            // agent, and whether the reader may add one.
+            typeof row.projectAgentCount === 'number'
+              ? { projectAgentCount: row.projectAgentCount }
+              : {},
+            typeof row.canEdit === 'boolean' ? { canEdit: row.canEdit } : {},
           ),
         ),
       ),

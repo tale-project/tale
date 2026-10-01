@@ -223,6 +223,23 @@ export function taskBoardScope(
     : backendKey(orgId, 'task', 'by-project', projectId);
 }
 
+/**
+ * The tasks one conversation handed over, for the chat's tray — read by the
+ * task adapter below and by the chat seam's own table (`chat-backend.ts`),
+ * which routes only the names it lists. Under the task entity: every task
+ * and run write hints it, so the chat's rows move with the work.
+ */
+export function tasksFromThreadQuery(orgId: string, threadId: string) {
+  return {
+    queryKey: backendKey(orgId, 'task', 'from-thread', threadId),
+    queryFn: () =>
+      backendFetch<{ tasks: unknown[] }>(
+        `/tasks/by-thread/${encodeURIComponent(threadId)}`,
+        { orgId },
+      ).then((body) => body.tasks),
+  };
+}
+
 /** The shared board filter set → query-string + a stable key suffix. */
 function boardFilterParams(args: Record<string, unknown>): {
   search: string;
@@ -445,6 +462,7 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
             agentId: string;
             status: string;
             error: string | null;
+            failureCode: string | null;
             trigger: string | null;
             startedAt: number;
             launchedAt: number | null;
@@ -462,6 +480,9 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               trigger: run.trigger ?? 'manual',
               status: run.status,
               ...(run.error !== null ? { error: run.error } : {}),
+              ...(run.failureCode !== null
+                ? { failureCode: run.failureCode }
+                : {}),
               // A run an automation step started links to that automation
               // run; one another agent started names that agent.
               ...(run.startedVia === 'automation' &&
@@ -536,6 +557,12 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.previews),
     };
   },
+  'tasks/queries:listTasksFromThread': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const threadId = args.threadId;
+    if (orgId === undefined || typeof threadId !== 'string') return null;
+    return tasksFromThreadQuery(orgId, threadId);
+  },
   'tasks/queries:getLatestTaskAgentRunForTask': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const taskId = args.taskId;
@@ -547,11 +574,9 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           `/tasks/${encodeURIComponent(taskId)}/agent-runs/latest`,
           { orgId },
         ).then((body) => body.run),
-      // The run card follows a LIVE run through queued → running → settled,
-      // and the run-lifecycle writes emit no task hint — poll while the
-      // task modal holds the card open (the WS lane pushed; the HTTP lane
-      // asks).
-      refetchInterval: 2000,
+      // No poll: every write that changes a run — queued, launched, parked,
+      // settled, failed, cancelled — hints the task, and this read keys
+      // under it.
     };
   },
   'tasks/queries:getTaskAgentRunSandboxOp': (args, ctx) => {

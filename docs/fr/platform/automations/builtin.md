@@ -27,13 +27,23 @@ Ces workflows importent les nouveaux messages dans des conversations toutes les 
 | Synchroniser les e-mails Outlook | Outlook | Toutes les 5 minutes |
 | Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toutes les 5 minutes |
 
+Une passe ne lit que le dossier Boîte de réception de la boîte. Elle distingue les réponses de la boîte elle-même de celles du client grâce à l’adresse de la boîte, que la première passe apprend du compte connecté et conserve sur la connexion comme adresse d’expéditeur ; pour IMAP, elle vient de l’identifiant de connexion.
+
 Connecte d’abord la boîte correspondante. Après la première exécution réelle, examine son [journal](/fr/platform/automations/execution-logs) et vérifie que les messages attendus apparaissent dans la vue **Réception** d’**Accueil**.
 
 Les pièces jointes sont enregistrées avec leur message : tu les ouvres et les télécharges depuis la conversation. Depuis Gmail, Tale ne récupère chaque pièce jointe que jusqu’à 3,5 Mo : une pièce plus lourde reste listée avec son nom et sa taille, mais tu l’ouvres dans Gmail.
 
-## Lire un résumé des messages récents
+## Trier la Boîte de réception
 
-Ces workflows lisent toutes les six heures les messages récents de chaque boîte connectée de leur type. Ils produisent un résumé et repèrent les messages qui semblent demander une réponse aujourd’hui. Le résumé constitue la sortie de l’exécution : ouvre celle-ci pour le lire. Ils n’écrivent rien dans la boîte et ne changent pas le statut des conversations.
+Ces workflows travaillent toutes les six heures sur la **Boîte de réception** que les automatisations de synchronisation alimentent. Chacun lit les conversations ouvertes de son connector de messagerie dont le dernier message vient du client et qu’aucune exécution précédente n’a jugées depuis l’arrivée de ce message – au plus 25 par exécution si tu ne relèves pas `limit`, et jamais plus de 100. Le modèle décide pour chaque fil si une personne doit répondre, et avec quelle urgence.
+
+Ce qu’une exécution change :
+
+- Le verdict est noté sur chaque fil, avec sa raison, de sorte que l’exécution suivante ne réexamine le fil que lorsque le client écrit de nouveau.
+- La **priorité** du fil prend la valeur du verdict du modèle – mais seulement si personne n’en a fixé une. Une priorité choisie par une personne reste telle quelle.
+- Là où une réponse est due, un second appel au modèle en rédige une et la dépose sur le fil comme **Réponse suggérée** : une carte au-dessus de l’éditeur, à l’écart de ce qu’une personne a tapé. **Mettre dans l’éditeur** confie le texte à l’éditeur pour le retoucher et l’envoyer ; **Ignorer** l’abandonne, et le fil ne reçoit plus de suggestion tant que le client n’écrit pas de nouveau. L’automatisation n’envoie rien. Un fil qui porte déjà une suggestion la conserve.
+
+La sortie de l’exécution liste ce qui a été lu, le résumé du modèle, les fils qui demandent une réponse avec leurs liens vers la Boîte de réception, et les brouillons déposés. Une exécution sans rien en attente n’appelle pas le modèle. Déploie d’abord l’automatisation de synchronisation correspondante ; sans conversations synchronisées, il n’y a rien à trier.
 
 | Automatisation | Connector requis | Planification |
 | --- | --- | --- |

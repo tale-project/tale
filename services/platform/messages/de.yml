@@ -1082,7 +1082,7 @@ chat:
   createTask:
     button: Aufgabe aus Chat erstellen
     projectTitle: Aufgabe aus diesem Chat erstellen
-    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. Ein Projekt-Agent dort kann sie bearbeiten und die Dateien liefern.
+    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. In einem Projekt mit Agent kann der Agent sofort loslegen und die Dateien liefern.
     projectLabel: Projekt
     projectPlaceholder: Projekt wählen
     projectEmpty: Kein passendes Projekt
@@ -1094,6 +1094,25 @@ chat:
     openTask: Aufgabe öffnen
     openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
     readFailed: Tale konnte dieses Gespräch nicht lesen, deshalb kann die Aufgabe deine Anfrage und Dateien noch nicht übernehmen. Versuche es erneut oder lege die Aufgabe auf dem Board des Projekts an.
+    headerButton: Aufgabe erstellen
+    withAgents: Mit Agent
+    withoutAgents: Noch ohne Agent
+    agentCount: '{count, plural, one {# Agent} other {# Agenten}}'
+    noAgentEditor: Du kannst in der Aufgabe einen hinzufügen
+    noAgentReader: Ein Redakteur oder Admin kann einen hinzufügen
+    standardAgent: Standard-Agent
+  taskTray:
+    label: Aufgaben aus diesem Chat
+    working: Der Agent arbeitet
+    waitingForSlot: Wartet auf einen Sandbox-Platz
+    retrying: Wird erneut versucht…
+    failed: Der Agent konnte sie nicht fertigstellen
+    ready: Bereit zur Prüfung
+    readyWithFiles: '{count, plural, one {Bereit zur Prüfung · # Datei} other {Bereit zur Prüfung · # Dateien}}'
+    notStarted: Wartet auf den Start
+    open: Öffnen
+    openAria: 'Aufgabe {title} öffnen'
+    more: '{count, plural, one {und # weitere Aufgabe} other {und # weitere Aufgaben}}'
   export:
     button: Exportieren
     title: Chat exportieren
@@ -1944,6 +1963,13 @@ conversations:
     undoSendFailed: Das Senden lässt sich nicht mehr abbrechen — die Nachricht ist vermutlich schon unterwegs.
     retrySendFailed: Das erneute Senden konnte nicht gestartet werden.
     discardMessageFailed: Die Nachricht konnte nicht gelöscht werden.
+  suggestedReply:
+    title: Antwortvorschlag
+    description: Von einer Automatisierung entworfen und wartet auf dich — gesendet wurde nichts.
+    use: In den Editor übernehmen
+    discard: Verwerfen
+    used: Der Vorschlag steht im Editor. Passe ihn nach Belieben an; mit dem Senden ist er erledigt.
+    discardFailed: Der Vorschlag konnte nicht verworfen werden.
   message:
     sendingIn: Sendet in {seconds}s
     undoSend: Rückgängig
@@ -4229,6 +4255,7 @@ governance:
       notifications: Sicherheitsbenachrichtigungen
       wfExecutions: Automatisierungsläufe
       promptTemplates: Persönliche Prompts
+      sandboxWorkspaces: Sandbox-Arbeitsbereiche
     legalHoldBlock:
       title: Löschung durch Legal Hold blockiert
       orgHeld: Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem
@@ -4423,6 +4450,40 @@ governance:
     removedMailbox: Entferntes Postfach
     duplicateRule: Für dieses Postfach und diese Adresse gibt es bereits eine Regel
     precedence: 'Die genaueste Regel gewinnt: zuerst ein Postfach mit genau dieser Adresse, dann ein Postfach mit der Grundadresse, dann eine Adresse in beliebigem Postfach, zuletzt ein Postfach allein.'
+  standardAgent:
+    title: Standard-Agent
+    description: Der Agent, den Tale in jedem Projekt ohne eigene Agenten bereitstellt. So kann jeder, der das Projekt öffnen kann, ihm eine Aufgabe übergeben, auch Mitglieder.
+    enabledLabel: Standard-Agenten bereitstellen
+    harnessLabel: Agent-Laufzeit
+    harnessHint: Automatisch nutzt Claude Code oder die Agent-Laufzeit, an die ein Abo-Modell gebunden ist.
+    modelLabel: Modell
+    modelHint: Automatisch wählt ein empfohlenes Modell, das die Person nutzen darf, die die Aufgabe startet. Ein gewähltes Modell bleibt in Kraft, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
+    automaticLabel: Automatisch
+    automaticHarnessHint: Tale wählt die Agent-Laufzeit.
+    automaticModelHint: Tale wählt für jede Person ein Modell.
+    instructionsLabel: Anweisungen
+    instructionsHint: Was der Standard-Agent immer beachten soll. Lass das Feld leer, um die eingebauten Anweisungen zu nutzen.
+    instructionsPlaceholder: Eingebaute Anweisungen
+    current: Für dich läuft er mit {harness} und {model}.
+    refusal:
+      switchedOff: Der Standard-Agent ist ausgeschaltet.
+      unreadable: Die gespeicherten Einstellungen können nicht gelesen werden. Versuche es erneut oder speichere sie noch einmal, um sie zu reparieren.
+      harnessInvalid: Die gewählte Agent-Laufzeit ist nicht verfügbar, deshalb kann der Standard-Agent nicht starten. Wähle eine andere Agent-Laufzeit oder Automatisch.
+      noModel: Kein Modell, das du nutzen darfst, kann den Standard-Agenten ausführen. Füge unter KI-Anbieter einen Zugang hinzu oder prüfe den Modellzugriff.
+      pinUnavailable: Das gewählte Modell steht dir nicht zur Verfügung, deshalb kann der Standard-Agent für dich nicht starten. Wähle ein anderes Modell oder Automatisch. Solange diese Auswahl gespeichert ist, wechselt Tale nicht zu einem anderen Modell.
+    invalidPolicy: Die gespeicherten Einstellungen des Standard-Agenten sind ungültig. Speichere sie noch einmal, um sie zu reparieren.
+    savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
+    searchHarnesses: Agent-Laufzeiten durchsuchen
+    noHarnessesFound: Keine passende Agent-Laufzeit
+    searchModels: Modelle durchsuchen
+    noModelsFound: Kein passendes Modell
+    draftHint: Speichere, um diese Einstellungen anzuwenden.
+    saveFailed: Die Einstellungen des Standard-Agenten konnten nicht gespeichert werden
+    loadFailed: Die Einstellungen des Standard-Agenten konnten nicht geladen werden. Versuche es erneut.
+    remoteUpdate: Diese Einstellungen wurden in einer anderen Sitzung geändert. Verwirf deinen Entwurf, um sie zu laden, oder speichere, um sie zu ersetzen.
+    offNote: Solange das ausgeschaltet ist, bieten Projekte ohne eigene Agenten keinen Agenten an, und Aufgaben, die schon einem Standard-Agenten gehören, können nicht starten.
+    providersLink: KI-Anbieter
+    retry: Erneut versuchen
 metrics:
   title: Metriken
   groups:
@@ -4838,8 +4899,7 @@ notificationPreferences:
       lockedHint: Immer an — das ist ein Sicherheitssignal.
     escalation:
       label: Agenten-Eskalationen
-      description: Wenn ein Agent dir eine Frage stellt oder eine Aufgabe an
-        einen Menschen eskaliert.
+      description: Wenn ein Agent dir eine Frage stellt, eine Aufgabe an einen Menschen eskaliert oder eine Aufgabe nicht fertigstellen kann.
     automationAlerts:
       label: Automatisierungs-Warnungen
       description: Wenn der Zeitplan einer Automatisierung pausiert, weil ihre Läufe immer wieder fehlschlagen.
@@ -6721,6 +6781,7 @@ settings:
         notification.retention_deleted: Benachrichtigung per Aufbewahrung gelöscht
         file_metadata.retention_deleted: Datei per Aufbewahrung gelöscht
         sandbox_ledger.retention_deleted: Sandbox-Protokoll per Aufbewahrung gelöscht
+        sandbox_workspace.deleted: Sandbox-Arbeitsbereich gelöscht
         chat_filter_event.retention_deleted: Chat-Filter-Ereignis per Aufbewahrung gelöscht
         policy_acknowledged: Richtlinie bestätigt
         login_attempt: Anmeldeversuch
@@ -6891,6 +6952,7 @@ settings:
         openai_compat_request: OpenAI-kompatible Anfrage
         provider: Anbieter
         video_link_job: Video-Link-Job
+        sandbox_workspace: Sandbox-Arbeitsbereich
   branding:
     logo: Logo
     logoDescription: Lade dein Organisationslogo hoch (am besten SVG; Rastergrafiken mit mindestens 64×64 Pixeln)
@@ -6998,8 +7060,8 @@ settings:
       banner:
         title: Wissenssuche ist aus
         body: Diese Organisation hat einen KI-Anbieter, aber kein
-          Embedding-Modell — Dokumente lassen sich weder indexieren noch
-          durchsuchen.
+          Embedding-Modell — Dokumente lassen sich nicht indexieren, und
+          weder Dokumente noch Websites lassen sich durchsuchen.
         link: Embedding-Modell wählen
       recommendationBody:
         Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
@@ -7225,6 +7287,10 @@ inbox:
   usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
   automationTriggerPaused: Zeitplan pausiert
   automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
+  agentRunFailed: Agenten-Lauf fehlgeschlagen
+  agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
+  agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
+  agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
   email:
     cta: In Tale öffnen
     footer:
@@ -7334,6 +7400,25 @@ tasks:
     resumedAfterTokenRefresh: Nach einer Token-Erneuerung fortgesetzt
     retry: Erneut ausführen
     cancel: Lauf abbrechen
+    notStartedYet: Der Agent wartet, bis du ihn startest.
+    failureTitle: Der Agent konnte diese Aufgabe nicht fertigstellen
+    reported: Was der Lauf gemeldet hat
+    failure:
+      budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
+      setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+      time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
+      capacity: Der Lauf hat zu lange auf eine freie Sandbox gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
+      model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
+      start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+      interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
+      unknown: 'Der Lauf ist fehlgeschlagen. Starte den Agenten erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
+    standardAgent:
+      switchedOff: Der Standard-Agent der Organisation ist ausgeschaltet. Bitte einen Admin, ihn unter Richtlinien einzuschalten.
+      noModel: Kein Modell, das du nutzen darfst, kann den Standard-Agenten ausführen. Bitte einen Admin, einen KI-Anbieter einzurichten oder dir Zugriff auf ein Modell zu geben.
+      pinUnavailable: Das für den Standard-Agenten gewählte Modell steht dir nicht zur Verfügung. Bitte einen Admin, unter Richtlinien ein anderes zu wählen.
+      harnessInvalid: Die für den Standard-Agenten gewählte Agent-Laufzeit ist nicht verfügbar. Bitte einen Admin, unter Richtlinien eine andere zu wählen.
+      unreadable: Die Einstellungen des Standard-Agenten können nicht gelesen werden. Bitte einen Admin, sie unter Richtlinien zu prüfen.
+      notNeeded: Dieses Projekt hat eigene Agenten. Weise stattdessen einen davon zu.
   automation:
     hint: '{name} betreibt diese Aufgabe und führt sie durch ihre Schritte.'
     chipReady: Bereit zum Start
@@ -7433,6 +7518,8 @@ tasks:
       deleteFailed: Label konnte nicht gelöscht werden.
   actions:
     create: Aufgabe erstellen
+    createAndStart: Erstellen und Agent starten
+    createOnly: Nur erstellen
     created: Aufgabe erstellt
     comment: Kommentieren
     commentPlaceholder: Schreib einen Kommentar – mit @ erwähnst du eine Person oder einen Agenten
@@ -7565,10 +7652,11 @@ tasks:
     liveAgentsOnly:
       Hier erscheinen nur die Agenten dieses Projekts — erstelle sie im
       Tab "Agenten" des Projekts.
-    nonCodeWarning:
-      Dieser Agent läuft auf einem Coding-Harness und ist für Repo-Arbeit
-      optimiert. Für Recherche, Texte oder persönliche Deliverables weise
-      besser eine Person zu.
+    noAgentsReader: 'Dieses Projekt hat noch keine Agenten — bitte einen Redakteur oder Admin, im Tab "Agenten" des Projekts einen hinzuzufügen.'
+    liveAgentsOnlyReader: 'Hier erscheinen nur die Agenten dieses Projekts — Redakteure und Admins fügen sie im Tab "Agenten" des Projekts hinzu.'
+    standardAgent: Standard-Agent
+    standardAgentHint: Der Agent der Organisation für Projekte ohne eigene Agenten
+    standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
   activity:
     created: Erstellt
     updated: Aktualisiert
@@ -7721,6 +7809,7 @@ tasks:
     budgetPaused: '{slug} antwortet nicht — Monatsbudget aufgebraucht'
     agentNotLive: '{slug} antwortet nicht — Agent ist nicht installiert oder deaktiviert'
     notPermitted: '{slug} antwortet nicht — auf dieser Aufgabe kannst du keine Agenten starten'
+    standardAgentUnavailable: '{slug} antwortet nicht — er steht dir nicht zur Verfügung'
   mentionPicker:
     title: Mitglied, Agent oder Automatisierung erwähnen
     empty: Keine Treffer
@@ -8004,6 +8093,8 @@ websites:
     fetchPagesError: Seiten konnten nicht geladen werden
     searchError: Suche fehlgeschlagen
     deleteError: Website konnte nicht gelöscht werden
+    scanStarted: Scan gestartet
+    scanAlreadyRunning: Es läuft bereits ein Scan
   adding: Füge hinzu...
   viewDialog:
     title: Website-Details
@@ -8021,18 +8112,30 @@ websites:
       Datenresidenz und setze die Scans danach fort.
     scanError:
       runtime: Der Scan ist nicht gelaufen.
-      notInCorpus: Diese Website ist nicht im Crawler. Lösche sie und füge sie
+      notInCorpus: Diese URL-Liste ist nicht im Crawler. Lösche sie und füge sie
         erneut hinzu.
+      notInCorpusSite: Diese Website ist nicht im Crawler. Der nächste Scan fügt
+        sie wieder hinzu.
+      embedding: Das Embedding-Modell konnte die Seiten nicht verarbeiten.
       generic: Der letzte Scan ist nicht durchgelaufen.
     scanEmpty:
       runtime: Nichts wurde indexiert. Die URL ist nicht das Problem.
       dns: Nichts wurde indexiert. Ändere die URL, wenn der Host nicht stimmt.
-      notInCorpus: Nichts wurde indexiert. Lösche die Website und füge sie
+      notInCorpus: Nichts wurde indexiert. Lösche die URL-Liste und füge sie
         erneut hinzu.
+      notInCorpusSite: Nichts wurde indexiert. Der nächste Scan fügt die Website
+        wieder hinzu.
+      embedding: Nichts wurde indexiert. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       generic: Nichts wurde indexiert.
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
+  scanNow: Jetzt scannen
   indexed: Indexiert
+  searchNotice:
+    title: Der Chat kann diese Websites noch nicht durchsuchen
+    description: Die Seiten werden gecrawlt und gespeichert. Die Wissenssuche braucht aber ein funktionierendes Embedding-Modell, und diese Organisation hat noch keines.
+    configureCta: Embedding-Modell konfigurieren
+    askAdmin: Ein Admin deiner Organisation kann eines unter Einstellungen → Datenresidenz einrichten.
   pagesDialog:
     title: Website-Seiten
     noPages: Noch keine Seiten gecrawlt
@@ -8291,6 +8394,9 @@ projects:
     newAgent: Neuer Agent
     emptyTitle: Agenten zu diesem Projekt hinzufügen
     emptyBody: Agenten erledigen Aufgaben in deinem Namen — gib einem ein Modell, Skills und Anweisungen, um loszulegen.
+    sectionDescriptionReader: Die Agenten, die die Aufgaben dieses Projekts bearbeiten, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen. Redakteure und Admins fügen sie hinzu und ändern sie.
+    emptyReaderTitle: Noch keine Agenten in diesem Projekt
+    emptyReaderBody: Agenten erledigen Aufgaben in deinem Namen. Bitte einen Redakteur oder Admin, diesem Projekt einen hinzuzufügen.
     equippedCount: '{count} ausgerüstet'
     rowEdit: Agent bearbeiten
     rowDelete: Agent löschen
@@ -8380,6 +8486,13 @@ projects:
     mutationError: Agent konnte nicht gespeichert werden
     deleteTitle: Agent löschen
     deleteBody: '"{name}" löschen? Aufgaben, die auf ihn verwiesen haben, behalten ihre Historie.'
+    standard:
+      name: Standard-Agent
+      badge: Standard
+      managedNote: Von Tale für dieses Projekt eingerichtet. Agent-Laufzeit, Modell und Anweisungen folgen den Einstellungen der Organisation unter Richtlinien.
+      emptyTitle: Der Standard-Agent übernimmt die Aufgaben dieses Projekts
+      emptyBody: "Bis dieses Projekt eigene Agenten hat, können seine Aufgaben an den Standard-Agenten der Organisation gehen. Füge mit \"Neuer Agent\" einen hinzu, um dem Projekt eine eigene Agent-Laufzeit, ein eigenes Modell und eigene Anweisungen zu geben."
+      emptyReaderBody: Bis dieses Projekt eigene Agenten hat, kannst du seine Aufgaben dem Standard-Agenten der Organisation übergeben. Ein Redakteur oder Admin kann eigene Agenten hinzufügen.
   settings:
     name: Name
     nameHint: Wird in der Projektliste und in der Seitenleiste von Start angezeigt.
@@ -8549,7 +8662,10 @@ sandboxes:
   sessionsTitle: Arbeitsbereiche
   description:
     Projekt-Agenten nutzen ihren Arbeitsbereich für mehrere Aufgaben. Die Schritte
-    eines Workflow-Laufs teilen sich einen Arbeitsbereich. Laufzeitstatus und
+    eines Workflow-Laufs teilen sich einen Arbeitsbereich. Der Arbeitsbereich eines
+    Projekt-Agenten wird gelöscht, sobald er länger ungenutzt ist, als die
+    Bereinigung der Arbeitsbereiche zulässt, oder sobald sein Agent, sein Projekt
+    oder das zugehörige Mitglied entfernt wird. Laufzeitstatus und
     Kontingentbelegung stehen getrennt, denn ein Container kann nach der Freigabe
     des Kontingents weiterlaufen.
   limits:
@@ -8580,6 +8696,20 @@ sandboxes:
       project: Projekt-Agenten nutzen dieselbe Sandbox für mehrere Aufgaben.
       workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
       render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
+  cleanup:
+    title: Bereinigung der Arbeitsbereiche
+    description:
+      Projekt-Agenten bewahren ihre Dateien zwischen den Läufen in Arbeitsbereichen
+      auf. Ein Arbeitsbereich wird sofort gelöscht, wenn sein Agent, sein Projekt
+      oder das zugehörige Mitglied entfernt wird. Arbeitsbereiche unter einem
+      Legal Hold bleiben erhalten.
+    deleteUnused: Ungenutzte Arbeitsbereiche löschen
+    deleteUnusedHint: Löscht einen Arbeitsbereich nach der unten angegebenen Anzahl Tage ohne Nutzung. Angepinnte Arbeitsbereiche bleiben erhalten.
+    unusedDays: Tage ohne Nutzung
+    unusedDaysHint: Die Tage zählen ab dem Zeitpunkt, an dem der Agent zuletzt im Arbeitsbereich gearbeitet hat. Wenn du das Löschen einschaltest oder den Zeitraum verkürzt, wird kein Arbeitsbereich gelöscht, bevor die volle Anzahl Tage vergangen ist.
+    invalidDays: Gib eine ganze Zahl zwischen 1 und 3650 ein.
+    loadFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht geladen werden. Lade die Seite neu, um es erneut zu versuchen.
+    saveFailed: Die Einstellungen zur Bereinigung der Arbeitsbereiche konnten nicht gespeichert werden
   capacity:
     title: Infrastrukturkapazität
     description:
@@ -8628,6 +8758,7 @@ sandboxes:
     quotaReleased: Kontingent freigegeben
     pausedBudget: Pausiert (Budget)
     pinned: Angepinnt
+    deletesOn: Wird am {date} gelöscht, falls weiterhin ungenutzt
   task:
     none: Keine aktive Aufgabe
     project: '{count, plural, one {Projektaufgabe} other {# Projektaufgaben}}'
@@ -8651,8 +8782,10 @@ sandboxes:
   empty:
     title: Noch keine Arbeitsbereiche
     description:
-      Der Arbeitsbereich eines Projekt-Agenten erscheint nach seiner ersten Aufgabe
-      und bleibt auch im Leerlauf aufgeführt. Der Arbeitsbereich eines Workflow-Laufs
+      Der Arbeitsbereich eines Projekt-Agenten erscheint nach seiner ersten Aufgabe.
+      Er wird gelöscht, sobald er länger ungenutzt ist, als die Bereinigung der
+      Arbeitsbereiche zulässt, oder sobald sein Agent, sein Projekt oder das
+      zugehörige Mitglied entfernt wird. Der Arbeitsbereich eines Workflow-Laufs
       wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
       enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.

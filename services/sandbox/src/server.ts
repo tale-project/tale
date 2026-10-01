@@ -6,6 +6,10 @@
 //                                        control (control-routes.ts).
 //   POST/GET/DELETE /v1/sessions[...]  — HMAC-auth, persistent session API
 //                                        (create/get/list/destroy/exec/cancel).
+//   GET /v1/workspaces                 — HMAC-auth, workspace inventory for the
+//                                        platform's cleanup.
+//   DELETE /v1/organizations/:id       — HMAC-auth, a deleted organization's
+//                                        remaining sessions and caches.
 //
 // Every route but /health is verified against the REQUIRED shared secret
 // (request-auth.ts; loadConfig fails closed without SANDBOX_TOKEN).
@@ -194,6 +198,7 @@ function isSessionRoute(method: string, path: string): boolean {
 const ORG_ID_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const DEVICE_DISCONNECT_RE =
   /^\/v1\/devices\/([a-zA-Z0-9_-]{1,64})\/disconnect$/;
+const ORGANIZATION_RE = /^\/v1\/organizations\/([a-zA-Z0-9_-]{1,128})$/;
 
 // How often the session TTL/idle reaper runs.
 const SESSION_SWEEP_INTERVAL_MS = 60_000;
@@ -318,10 +323,12 @@ async function handleSessionRoutes(
     }
     if (req.method === 'DELETE') {
       // `?if_idle=1` — conditional destroy for janitor callers: no-op with
-      // {busy:true} while the session still has a live exec. The query string
-      // is HMAC-covered (authorize signs pathname + search).
+      // {busy:true} while the session still has a live exec. `?if_stopped=1`
+      // — the workspace cleanup's: no-op while ANY compute runs under the id.
+      // The query string is HMAC-covered (authorize signs pathname + search).
       return getSessionRoutes().handleDestroy(id, {
         ifIdle: url.searchParams.get('if_idle') === '1',
+        ifStopped: url.searchParams.get('if_stopped') === '1',
       });
     }
   }
@@ -375,6 +382,23 @@ export async function router(req: Request): Promise<Response> {
         placementsDropped: 0,
       },
       200,
+    );
+  }
+  // GET /v1/workspaces — the workspace inventory the platform's cleanup
+  // reconciles against its own records.
+  if (req.method === 'GET' && url.pathname === '/v1/workspaces') {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    return getSessionRoutes().handleWorkspaces();
+  }
+  // DELETE /v1/organizations/:id — the organization was deleted: its
+  // remaining sessions, build helpers and caches go.
+  const organizationMatch = url.pathname.match(ORGANIZATION_RE);
+  if (req.method === 'DELETE' && organizationMatch) {
+    const signed = await auth.readAndAuth(req);
+    if ('error' in signed) return signed.error;
+    return getSessionRoutes().handleOrganizationTeardown(
+      organizationMatch[1] ?? '',
     );
   }
   if (req.method === 'GET' && url.pathname === '/v1/capacity') {

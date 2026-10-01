@@ -41,7 +41,12 @@ describe('CHAT_ASSISTANT', () => {
     expect(instructions).toMatch(/never invent facts/i);
     expect(instructions).toContain('DELIVERABLES GO TO TASKS');
     // An image is agent work too: chat never generates one.
-    expect(instructions).toMatch(/a generated file, an image, a data export/);
+    expect(instructions).toMatch(/a translated document, an image, an export/);
+    // What fits in a reply comes first; the file follows the person's own
+    // hand-over steps, never ones the model makes up.
+    expect(instructions).toMatch(/first give what fits in a reply/);
+    expect(instructions).toMatch(/hand-over note below/);
+    expect(instructions).toMatch(/never invent menus, projects or roles/);
     expect(instructions).toMatch(/internal formats/i);
     expect(instructions).toMatch(/cite the documents and pages/i);
   });

@@ -412,11 +412,11 @@ jobs:
   # build and the log dump after a wedged run. Draft PRs skip. When the scope
   # job itself fails, this job fails with it rather than reading skipped.
   #
-  # A few lanes still reach real vendors, so an outage of theirs can turn this
-  # red: open the failed check's name before suspecting the change. The AI
-  # title lane asks api.anthropic.com, the model-picker and deferred-send
-  # checks list the openrouter.ai and ai-gateway.vercel.sh catalogs, and the
-  # video-link URL checks resolve public DNS.
+  # The harness keeps the suite's HTTP on the runner: it answers its lanes'
+  # vendor calls itself and refuses any other host, a redirect's next hop
+  # included (services/platform/backend/integration-vendor-stub.ts), so no
+  # vendor outage can fail a check. The setup steps still pull from
+  # registries and mirrors: re-run one that fails on their outage.
   backend-integration:
     needs: [candidate-source, integration-scope]
     name: Backend integration

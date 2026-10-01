@@ -36,7 +36,9 @@ import {
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
 import {
+  emitTaskRunHint,
   failAgentRunFromTurn,
+  isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
   settleAgentRun,
@@ -315,24 +317,38 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         `;
         const agent = agents[0];
         if (agent === undefined) return { refusal: 'agent_unavailable' };
-        const result = await kickAgentRun(tx, {
-          organizationId: args.organizationId,
-          projectId: task.projectId,
-          taskId: args.taskId,
-          agentId: task.assigneeId ?? '',
-          harness: agent.harness,
-          model: agent.model,
-          ...(agent.modelProvider !== null
-            ? { modelProvider: agent.modelProvider }
-            : {}),
-          trigger: 'mention',
-          // A description kick carries no copy: the run reads the
-          // description as it stands when it starts.
-          ...(args.mentionSource === 'description'
-            ? { mentionSource: 'description' as const }
-            : { feedback: args.feedback, mentionSource: 'comment' as const }),
-          startedBy: args.authorId,
-        });
+        let result: Awaited<ReturnType<typeof kickAgentRun>>;
+        try {
+          result = await kickAgentRun(tx, {
+            organizationId: args.organizationId,
+            projectId: task.projectId,
+            taskId: args.taskId,
+            agentId: task.assigneeId ?? '',
+            harness: agent.harness,
+            model: agent.model,
+            ...(agent.modelProvider !== null
+              ? { modelProvider: agent.modelProvider }
+              : {}),
+            trigger: 'mention',
+            // A description kick carries no copy: the run reads the
+            // description as it stands when it starts.
+            ...(args.mentionSource === 'description'
+              ? { mentionSource: 'description' as const }
+              : {
+                  feedback: args.feedback,
+                  mentionSource: 'comment' as const,
+                }),
+            startedBy: args.authorId,
+          });
+        } catch (error) {
+          // The organization's standard agent no longer starts for the
+          // author. The refusal is a check made before the kick wrote
+          // anything, so this transaction stays good to end.
+          if (isStandardAgentRefusal(error)) {
+            return { refusal: 'standard_agent_unavailable' };
+          }
+          throw error;
+        }
         if (result.reused) return result;
         // The mention kick moves the card too (the 0.4 shared-core rule: the
         // board verb IS the interface): the settled predecessor parked the
@@ -362,13 +378,18 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     'tasks/agent_runs:parkTaskAgentRunForCapacity': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { runId: string; execId: string };
-      await sql`
-        UPDATE app.project_agent_runs SET
-          waiting_for_capacity_at_ms = ${Date.now()},
-          updated_at_ms = ${Date.now()}
-        WHERE id = ${args.runId} AND exec_id = ${args.execId}
-          AND status = 'queued'
-      `;
+      await sql.begin(async (tx) => {
+        const parked = await tx<{ organizationId: string; taskId: string }[]>`
+          UPDATE app.project_agent_runs SET
+            waiting_for_capacity_at_ms = ${Date.now()},
+            updated_at_ms = ${Date.now()}
+          WHERE id = ${args.runId} AND exec_id = ${args.execId}
+            AND status = 'queued'
+          RETURNING org_id AS "organizationId", task_id AS "taskId"
+        `;
+        // The card now reads "Waiting for a sandbox slot", not "Queued".
+        if (parked[0] !== undefined) await emitTaskRunHint(tx, parked[0]);
+      });
       return null;
     },
 

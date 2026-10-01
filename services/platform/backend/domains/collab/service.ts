@@ -3,6 +3,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import { isActionableNotificationType } from '../../../lib/shared/attention.ts';
 import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import {
+  taskRunFailureClass,
+  type TaskRunFailureClass,
+} from '../../../lib/shared/task-run-failure.ts';
+import {
   coalesceKeyFor,
   NOTIFICATION_EMAIL_DEBOUNCE_MS,
 } from '../../core/collab/coalesce.ts';
@@ -78,6 +82,7 @@ const PREF_FIELD: Record<string, string> = {
   document_review_requested: 'task_review',
   document_review_resolved: 'task_review',
   agent_escalation: 'escalation',
+  agent_run_failed: 'escalation',
   automation_failed: 'automation_alerts',
   conversation_message: 'conversation_messages',
   conversation_assigned: 'conversation_messages',
@@ -1124,6 +1129,141 @@ export async function notifyTaskMentions(
     actorId: args.actorId,
     actorName: await resolveActorName(db, args.actorType, args.actorId),
   });
+}
+
+// ---------------------------------------------------- agent-run failures
+
+/** The `inbox` body a failed run is announced with, by who can act on it
+ * (`lib/shared/task-run-failure.ts`). A spent usage limit waits on an admin
+ * and a broken setup on a project editor, so those two say so; every other
+ * failure is the reader's to start again, and the task says what happened. */
+const AGENT_RUN_FAILED_BODY_KEY: Record<TaskRunFailureClass, string> = {
+  budget: 'agentRunFailedBudgetBody',
+  setup: 'agentRunFailedSetupBody',
+  time_limit: 'agentRunFailedBody',
+  capacity: 'agentRunFailedBody',
+  model: 'agentRunFailedBody',
+  start: 'agentRunFailedBody',
+  interrupted: 'agentRunFailedBody',
+  unknown: 'agentRunFailedBody',
+};
+
+/**
+ * Of `userIds`, those who can still open the project: current, non-disabled
+ * members of the organization in its audience (owners and admins always; an
+ * organization-wide project, every member). A subscription row outlives its
+ * subscriber's membership and team access, and a run keeps its starter's
+ * id — neither is permission to read about the task, least of all by email.
+ */
+async function projectReadersAmong(
+  db: Db,
+  args: { organizationId: string; projectId: string; userIds: string[] },
+): Promise<string[]> {
+  if (args.userIds.length === 0) return [];
+  const projects = await db<{ teamIds: string[] | null }[]>`
+    SELECT ${db.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
+    FROM app.projects
+    WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
+    LIMIT 1
+  `;
+  const project = projects[0];
+  if (project === undefined) return [];
+  const teamIds = project.teamIds ?? [];
+  const rows =
+    teamIds.length === 0
+      ? await db<{ userId: string }[]>`
+          SELECT "userId" FROM "member"
+          WHERE "organizationId" = ${args.organizationId}
+            AND "userId" IN ${db(args.userIds)}
+            AND lower("role") <> 'disabled'
+        `
+      : await db<{ userId: string }[]>`
+          SELECT m."userId" FROM "member" m
+          WHERE m."organizationId" = ${args.organizationId}
+            AND m."userId" IN ${db(args.userIds)}
+            AND lower(m."role") <> 'disabled'
+            AND (lower(m."role") IN ('owner', 'admin')
+                 OR EXISTS (
+                   SELECT 1 FROM "teamMember" tm
+                   WHERE tm."userId" = m."userId"
+                     AND tm."teamId" IN ${db(teamIds)}
+                 ))
+        `;
+  return rows.map((row) => row.userId);
+}
+
+/**
+ * A project agent's run on a task failed and nothing will start it again by
+ * itself — the automatic retries are spent, or the failure is one a retry
+ * cannot change. Until this row existed the only trace was the run strip
+ * inside the task: whoever started the agent and went back to their chat
+ * was never told, and the task sat at In progress with nothing working on
+ * it.
+ *
+ * Told: the person who started the run, and the task's unmuted watchers —
+ * those of them who can still open the project. Gated by the `escalation`
+ * preference (an agent needs a human) and actionable, so it leaves the app
+ * as an email. One row per task — a later failure on the same task
+ * rewrites the unread one.
+ */
+export async function notifyAgentRunFailed(
+  db: Db,
+  args: {
+    task: TaskFacts;
+    agentId: string;
+    /** The person who started the run; null when a schedule did. */
+    starterUserId: string | null;
+    failureCode: string | null;
+  },
+): Promise<number> {
+  const candidates = new Set(await taskSubscriberUserIds(db, args.task.id));
+  if (args.starterUserId !== null) candidates.add(args.starterUserId);
+  const recipients = await projectReadersAmong(db, {
+    organizationId: args.task.organizationId,
+    projectId: args.task.projectId,
+    userIds: [...candidates],
+  });
+  const bodyKey =
+    AGENT_RUN_FAILED_BODY_KEY[taskRunFailureClass(args.failureCode)];
+  for (const userId of recipients) {
+    await notifyUser(db, {
+      userId,
+      organizationId: args.task.organizationId,
+      type: 'agent_run_failed',
+      titleKey: 'agentRunFailed',
+      bodyKey,
+      params: { title: args.task.title, projectId: args.task.projectId },
+      resourceType: 'task',
+      resourceId: args.task.id,
+      taskId: args.task.id,
+      actorType: 'agent',
+      actorId: args.agentId,
+    });
+  }
+  return recipients.length;
+}
+
+/**
+ * Mark a task's unread failed-run rows read — a new run started on it, which
+ * is what the row asked for, so the bell stops ringing for everyone it rang
+ * for. Read rows stay as history.
+ */
+export async function dismissAgentRunFailedNotifications(
+  db: Db,
+  args: { organizationId: string; taskId: string },
+): Promise<number> {
+  const rows = await db<{ userId: string }[]>`
+    UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId} AND type = 'agent_run_failed'
+      AND read = false AND task_id = ${args.taskId}
+    RETURNING user_id AS "userId"
+  `;
+  await emitBellHints(
+    db,
+    args.organizationId,
+    rows.map((row) => row.userId),
+  );
+  return rows.length;
 }
 
 // ------------------------------------------------------- agent-ask bells

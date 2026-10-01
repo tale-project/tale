@@ -4,8 +4,11 @@ Every sandbox run is a **session** (`/v1/sessions/*`) — a long-lived "remote
 computer" that survives many operations. One model, one codebase, one runtime
 image; the only thing that varies is _when the session is destroyed_:
 
-- **project agents** — a standing per-agent session that persists across task
-  runs (idle-stopped, workspace preserved).
+- **project agents** — a standing per-agent session (and one per member who
+  starts the agent's runs) that persists across task runs (idle-stopped,
+  workspace preserved) until the agent or the member is removed, or nobody
+  uses it for the organization's `sandbox_workspaces` window (30 days by
+  default) — see [Workspace cleanup](#workspace-cleanup).
 - **workflow runs** — one session shared by the run's agent AND script nodes,
   reclaimed after the run ends and no execution remains.
 - **crawler renders** — an ephemeral render session, destroyed right after the
@@ -105,11 +108,78 @@ the hard TTL ever deletes data — they only hibernate. The next turn **resumes*
 a stopped session by re-creating against the same deterministic `sessionId`,
 which re-attaches the same workspace (`createSession`'s `mkdir`/PVC-ensure are
 idempotent), so files **and** the harness `--resume` conversation
-continue (the platform keeps the same incarnation `createdAt`). The only path
-that deletes a workspace is the **explicit Destroy** (management page →
-`destroySession`); `evictIfBackendGone` evicts a stale registry entry without
-touching the workspace. Pinned ("always-on") and live-exec sessions are exempt
-from the reaper entirely.
+continue (the platform keeps the same incarnation `createdAt`). Only
+`destroySession` deletes a workspace — reached by the **explicit Destroy**
+(management page) and by the platform's [workspace cleanup](#workspace-cleanup);
+`evictIfBackendGone` evicts a stale registry entry without touching the
+workspace. Pinned ("always-on") and live-exec sessions are exempt from the
+reaper entirely.
+
+### Workspace cleanup
+
+A preserved workspace is only worth keeping while something can come back to
+it. The platform owns that decision — it knows who owns each workspace — and
+the spawner reports what it physically holds and refuses what is in use. The
+platform's side (`services/platform/backend/domains/sandbox/workspace-cleanup.ts`)
+deletes a workspace:
+
+- when its owner is deleted: a project agent (or its project), a member who
+  leaves the organization (their workspaces with every agent), a user's GDPR
+  erasure, a whole organization — through jobs queued in the deleting
+  transaction, and the hourly sweep after them (a workspace of runs a
+  departed person started is found through those runs);
+- when nobody used a project agent's workspace for the organization's
+  `sandbox_workspaces` window (a governance policy, 30 days by default;
+  pinned workspaces are never deleted for being unused, and an unpin starts
+  the window over) — and never before a
+  full window has passed since that rule took effect (the upgrade that
+  brought it, turning it on, a shorter window; `app.sandbox_workspace_retention`),
+  so nobody loses a workspace they had no window to use or pin;
+- when nothing owns it any more — an ended run whose reclaim never came, a
+  cut-off render, a workspace of an organization the platform deleted —
+  found through the inventory. Of the workspaces no row names, only those
+  attributable to the deployment go: a render's, or one whose recorded
+  organization the deployment holds (unless its project agent still exists)
+  or deleted. A spawner or namespace can also hold another deployment's
+  workspaces, which no row names either; those, and the ones with no
+  recorded organization, are left alone.
+
+An hourly sweep (`sandbox.workspace_gc`) is the backstop for all of it. A legal
+hold keeps everything it covers. Every decision is taken again under the
+organization's admission lock right before the platform ends the session's
+live incarnation, so a turn that resumed the workspace in between keeps it, and
+a turn after that starts a fresh incarnation.
+
+The spawner's part:
+
+- `GET /v1/workspaces` — every workspace the backend holds (Docker: the
+  `ses-<id>` dirs in both layouts; Kubernetes: the `tale.sandbox-session-ws`
+  PVCs), with when it last changed, whether compute exists for it, its pin and
+  its organization when recorded, plus the organizations holding resources
+  beyond their workspaces (Docker build helpers and package caches). The
+  organization is the container's or Pod's label, else the workspace's own
+  record: on Docker `<root>/.owners/<id>.org`, written at create beside the
+  pin markers and outside the workspace, and removed with it; on Kubernetes
+  the PVC's `tale.dev/organization-id` annotation. A workspace created before
+  either existed names none. Leaving a workspace out is always safe: the
+  platform only deletes what the list names and its records disown. A list
+  that cannot be read is a 503.
+- `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` — the cleanup's destroy:
+  `if_stopped` refuses (`{busy:true}`) while any compute runs under the id or a
+  create of it is in flight; `if_idle` rides along so a spawner or device that
+  predates `if_stopped` still refuses a live exec. Destroys of one id run one
+  after another, and a create of an id waits for a destroy of it under way —
+  up to two minutes; past that it answers 429 busy (`retry-after`), so a
+  destroy wedged on its filesystem never holds the create and its capacity
+  slot for ever.
+- `DELETE /v1/organizations/:id` — for an organization the platform deleted:
+  destroys every session the backend still holds for it (containers/Pods with
+  their workspaces) and every stopped workspace attributed to it, then its
+  build helpers, their network and volumes, and its package caches (Docker;
+  Kubernetes keeps nothing per organization beyond PVCs). A workspace list
+  that cannot be read leaves the stopped ones to the platform, which names
+  every workspace its rows knew. 409 while a create of the organization is in
+  flight, 502 on a failure; idempotent.
 
 ## Secret-management model (tiered — the security invariant)
 
@@ -185,17 +255,20 @@ of `/agent` across stop→resume: `stopSession` deletes the Pod + Secret but
 binds to a node, so on a multi-node cluster a resume Pod must be schedulable
 where the volume can attach — operators needing cross-node resume must supply a
 storage class whose volumes re-bind (e.g. a networked/CSI RWO backend), else a
-resume can stall pending volume attach. Orphan PVCs (a spawner crash between Pod
-delete and PVC delete during an explicit destroy) are rare under the
-delete-only-on-Destroy model; a label-selector sweep (`tale.sandbox-session-ws`)
-is a follow-up if they accumulate.
+resume can stall pending volume attach. A PVC records its session and, since
+the workspace cleanup, its organization (`tale.dev/organization-id`); the
+cleanup's inventory lists PVCs by the `tale.sandbox-session-ws` label, so one
+whose session nothing owns any more — a spawner crash between Pod delete and
+PVC delete, a deleted organization — is deleted like any other orphaned
+workspace.
 
 ### RBAC
 
 The session backend needs, in the sandbox namespace, on `pods`: `create`,
 `get`, `list`, `delete`, `patch`; on `secrets`: `create`, `delete`, `list`; and
-on `persistentvolumeclaims`: `get`, `create`, `delete` (the per-session
-workspace PVC). **No `pods/exec`, ever.** The full Role, including the
+on `persistentvolumeclaims`: `get`, `list`, `create`, `delete` (the per-session
+workspace PVC; `list` backs the workspace inventory — without it the inventory
+answers 503 and the platform skips its orphan pass). **No `pods/exec`, ever.** The full Role, including the
 NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--no-cluster-scope-no-podsexec).
 
 ### NetworkPolicy

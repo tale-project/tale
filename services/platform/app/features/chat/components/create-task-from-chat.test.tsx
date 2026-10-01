@@ -16,10 +16,17 @@ import type { ChatMessageView, ChatProjectSummary } from '../types';
 
 const state = vi.hoisted(() => ({
   projects: [] as ChatProjectSummary[],
+  agentsByProject: {} as Record<string, { _id: string }[]>,
   projectsFailed: false,
   messages: [] as ChatMessageView[],
   navigate: vi.fn(),
   toast: vi.fn(),
+  standardAgent: { enabled: true, available: false } as {
+    enabled: boolean;
+    available: boolean;
+  },
+  standardAgentLoading: false,
+  ensure: vi.fn(),
 }));
 
 vi.mock('../data/chat-backend', () => ({
@@ -32,6 +39,23 @@ vi.mock('../data/chat-backend', () => ({
     threadId === undefined
       ? { status: 'loading' }
       : { status: 'ready', data: state.messages },
+}));
+
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjectAgents: (projectId: string | undefined) => ({
+    agents:
+      projectId === undefined ? [] : (state.agentsByProject[projectId] ?? []),
+    isLoading: false,
+  }),
+  useStandardAgentQuery: () => ({
+    data: state.standardAgentLoading ? undefined : state.standardAgent,
+    isLoading: state.standardAgentLoading,
+    failureCount: 0,
+  }),
+}));
+
+vi.mock('@/app/features/projects/hooks/mutations', () => ({
+  useEnsureStandardAgent: () => ({ mutateAsync: state.ensure }),
 }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -57,11 +81,17 @@ vi.mock('@/app/features/tasks/components/task-modal', () => ({
       title: string;
       description: string;
       attachments: readonly { fileName: string }[];
+      assignee?: { type: string; id: string };
+      sourceThreadId?: string;
+      startAgent?: boolean;
     };
     onTaskCreated?: (taskId: string) => void;
   }) => (
     <div role="dialog" aria-label="Create task">
       <p data-testid="project">{projectId}</p>
+      <p data-testid="assignee">{draft?.assignee?.id}</p>
+      <p data-testid="source">{draft?.sourceThreadId}</p>
+      <p data-testid="start">{String(draft?.startAgent === true)}</p>
       <p data-testid="title">{draft?.title}</p>
       <p data-testid="description">{draft?.description}</p>
       <p data-testid="files">
@@ -124,6 +154,10 @@ function open(props: { projectId?: string; viewerIsOwner?: boolean } = {}) {
 
 beforeEach(() => {
   state.projects = [WEBSITE, HANDBOOK];
+  state.agentsByProject = {};
+  state.standardAgent = { enabled: true, available: false };
+  state.standardAgentLoading = false;
+  state.ensure.mockReset();
   state.projectsFailed = false;
   state.messages = conversation();
   state.navigate.mockReset();
@@ -156,7 +190,7 @@ describe('CreateTaskFromChat', () => {
     expect(next).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: /^Project/ }));
-    await user.click(screen.getByRole('option', { name: HANDBOOK.name }));
+    await user.click(screen.getByRole('option', { name: /Employee handbook/ }));
     await user.click(next);
 
     expect(screen.getByTestId('project')).toHaveTextContent(HANDBOOK.id);
@@ -213,5 +247,144 @@ describe('CreateTaskFromChat', () => {
       params: { id: 'org-1', projectId: WEBSITE.id },
       search: { task: 'task-9' },
     });
+  });
+
+  it('groups projects by whether an agent can take the work, saying who could add one', async () => {
+    state.projects = [
+      { ...WEBSITE, agentCount: 2, canEdit: false },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+      { id: 'p-ops', name: 'Operations', agentCount: 0, canEdit: true },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(screen.getByText('With an agent')).toBeInTheDocument();
+    expect(screen.getByText('No agent yet')).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /Website relaunch.*2 agents/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', {
+        name: /Employee handbook.*An Editor or Admin can add one/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', {
+        name: /Operations.*You can add one in the task/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('lists a project without agents as one the standard agent takes, while the organization provides it', async () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.projects = [
+      { ...WEBSITE, agentCount: 2, canEdit: false },
+      { ...HANDBOOK, agentCount: 0, canEdit: false },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+
+    expect(screen.getByText('With an agent')).toBeInTheDocument();
+    expect(screen.queryByText('No agent yet')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /Employee handbook.*Standard agent/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('adds the standard agent to the chosen project and hands it the task', async () => {
+    state.standardAgent = { enabled: true, available: true };
+    state.ensure.mockResolvedValue({
+      agentId: 'agent-standard',
+      created: true,
+    });
+    state.projects = [
+      { ...WEBSITE, agentCount: 2 },
+      { ...HANDBOOK, agentCount: 0 },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+    await user.click(screen.getByRole('option', { name: /Employee handbook/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByTestId('assignee')).toHaveTextContent(
+      'agent-standard',
+    );
+    expect(state.ensure).toHaveBeenCalledWith({ projectId: HANDBOOK.id });
+    expect(screen.getByTestId('start')).toHaveTextContent('true');
+  });
+
+  it('opens nothing until it knows whether the standard agent takes the work', () => {
+    state.standardAgentLoading = true;
+    state.projects = [{ ...HANDBOOK, agentCount: 0 }];
+    open({ projectId: HANDBOOK.id });
+
+    // Neither an unassigned form that would open again assigned, nor a
+    // standard agent set up before the answer.
+    expect(screen.queryByTestId('project')).not.toBeInTheDocument();
+    expect(state.ensure).not.toHaveBeenCalled();
+  });
+
+  it('opens the task unassigned, saying why, when the standard agent cannot be added', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    state.standardAgent = { enabled: true, available: true };
+    state.ensure.mockRejectedValue(
+      Object.assign(new Error('off'), {
+        data: { code: 'STANDARD_AGENT_OFF' },
+      }),
+    );
+    state.projects = [{ ...HANDBOOK, agentCount: 0 }];
+    open();
+
+    expect(await screen.findByTestId('project')).toHaveTextContent(HANDBOOK.id);
+    expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
+    expect(state.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('standard agent is switched off'),
+        variant: 'destructive',
+      }),
+    );
+    warn.mockRestore();
+  });
+
+  it('picks the one project with an agent in advance', async () => {
+    state.projects = [
+      { ...WEBSITE, agentCount: 1 },
+      { ...HANDBOOK, agentCount: 0 },
+    ];
+    const { user } = open();
+
+    const next = screen.getByRole('button', { name: 'Continue' });
+    expect(next).toBeEnabled();
+    await user.click(next);
+
+    expect(screen.getByTestId('project')).toHaveTextContent(WEBSITE.id);
+  });
+
+  it('takes a lone project without asking', () => {
+    state.projects = [HANDBOOK];
+    open();
+
+    expect(screen.getByTestId('project')).toHaveTextContent(HANDBOOK.id);
+  });
+
+  it('hands the task to the project’s only agent, names the chat, and starts it', () => {
+    state.agentsByProject = { [WEBSITE.id]: [{ _id: 'agent-1' }] };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toHaveTextContent('agent-1');
+    expect(screen.getByTestId('source')).toHaveTextContent('t-root');
+    expect(screen.getByTestId('start')).toHaveTextContent('true');
+  });
+
+  it('leaves the choice open between two agents', () => {
+    state.agentsByProject = {
+      [WEBSITE.id]: [{ _id: 'agent-1' }, { _id: 'agent-2' }],
+    };
+    open({ projectId: WEBSITE.id });
+
+    expect(screen.getByTestId('assignee')).toBeEmptyDOMElement();
   });
 });

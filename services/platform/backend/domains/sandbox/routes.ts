@@ -29,6 +29,7 @@ import {
   listSandboxViewsForOrg,
 } from './sessions.ts';
 import { reconcileOrgSessions } from './watchdogs.ts';
+import { unusedWorkspaceDeletions } from './workspace-cleanup.ts';
 /**
  * /api/app/sandbox — the sandbox-management surface: the org's live
  * sessions (with their running ops), always-on pinning, and explicit
@@ -320,9 +321,26 @@ export function createSandboxRoutes(deps: {
   app.get('/sessions/view', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
-    return c.json({
-      sessions: await listSandboxViewsForOrg(deps.sql, c.get('orgId')),
-    });
+    const organizationId = c.get('orgId');
+    const sessions = await listSandboxViewsForOrg(deps.sql, organizationId);
+    // Each hibernated agent workspace carries the date the cleanup deletes
+    // it on if it stays unused, so nobody is surprised by it.
+    const deletions = await unusedWorkspaceDeletions(
+      deps.sql,
+      organizationId,
+      sessions
+        .filter(
+          (session) =>
+            session.ownerType === 'project_agent' &&
+            session.status === 'stopped' &&
+            !session.pinned,
+        )
+        .map((session) => session.sessionId),
+    );
+    for (const session of sessions) {
+      session.deletesAt = deletions.get(session.sessionId) ?? null;
+    }
+    return c.json({ sessions });
   });
 
   /** Cancel every running op on one session (the 0.4 `stopSandboxTask`). */

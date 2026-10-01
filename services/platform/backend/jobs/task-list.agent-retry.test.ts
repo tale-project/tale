@@ -19,12 +19,43 @@ const { inPlaceOfRun, kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock('../domains/tasks/agent-runs.ts', () => ({
-  inPlaceOfRun,
-  kickAgentRun,
-  startedViaOfRun,
-}));
+vi.mock('../domains/tasks/agent-runs.ts', async () => {
+  const errors = await import('../domains/tasks/errors.ts');
+  return {
+    inPlaceOfRun,
+    kickAgentRun,
+    startedViaOfRun,
+    isStandardAgentRefusal: (error: unknown) =>
+      error instanceof errors.TaskError &&
+      (error.code === 'STANDARD_AGENT_OFF' ||
+        error.code === 'STANDARD_AGENT_UNAVAILABLE'),
+  };
+});
 vi.mock('./enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+
+// What a final refusal means to people is the notice module's; these tests
+// pin WHEN the job ends a failed run's retry for good, and whether it tells.
+const { announceAgentRunFailed, retireAutoRetry } = vi.hoisted(() => ({
+  announceAgentRunFailed: vi.fn(async () => {}),
+  retireAutoRetry: vi.fn(async () => {}),
+}));
+vi.mock('../domains/tasks/run-failure-notice.ts', () => ({
+  announceAgentRunFailed,
+  retireAutoRetry,
+}));
+
+/** The retirement of the failed run's retry, as the job asks for it. */
+function retiredWith(announce: boolean) {
+  return [
+    expect.anything(),
+    {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      runId: 'run-failed',
+      announce,
+    },
+  ];
+}
 
 import { memberSessionIdForProjectAgent } from '../core/sandbox/session_naming.ts';
 import {
@@ -34,6 +65,7 @@ import {
   AUTO_RETRY_HISTORY_LIMIT,
   AUTO_RETRY_MAX_ATTEMPTS,
 } from '../core/tasks/task_auto_retry.ts';
+import { TaskError } from '../domains/tasks/errors.ts';
 import { addJobInTx } from './enqueue.ts';
 import { agentRetryRecheckKey, createTaskList } from './task-list.ts';
 import { TASK_QUEUE_OPTIONS } from './tasks.ts';
@@ -359,6 +391,8 @@ describe('task.agent_retry', () => {
     await handler?.(PAYLOAD);
 
     expect(kickAgentRun).not.toHaveBeenCalled();
+    // The budget is spent: nothing starts the task again, so it is said.
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
   });
 });
 
@@ -426,13 +460,54 @@ describe('task.agent_retry admission', () => {
 
       expect(kickAgentRun).not.toHaveBeenCalled();
       expect(lines).toEqual([`[task-agent] auto-retry skipped: ${reason}`]);
+      // A lost starter ends the retry for good, and it is told. A project
+      // archived or gone may come back, and the job's next delivery then
+      // starts the retry: nothing is retired.
+      if (reason === 'not_permitted') {
+        expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
+      } else {
+        expect(retireAutoRetry).not.toHaveBeenCalled();
+      }
     },
   );
+
+  it.each(['STANDARD_AGENT_OFF', 'STANDARD_AGENT_UNAVAILABLE'])(
+    'retires the failed run once, and tells, when the standard agent refuses its retry (%s)',
+    async (code) => {
+      kickAgentRun.mockRejectedValueOnce(
+        new TaskError(code, 'The standard agent cannot run', 409),
+      );
+      const handler = createTaskList({
+        sql: sqlWith([failedRun('run-failed', 'harness_error')]),
+      })['task.agent_retry'];
+
+      await handler?.(PAYLOAD);
+
+      expect(kickAgentRun).toHaveBeenCalledTimes(1);
+      expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
+    },
+  );
+
+  it('lets any other kick refusal fail the delivery, so the queue retries it', async () => {
+    kickAgentRun.mockRejectedValueOnce(
+      new TaskError('TASK_AUTOMATION_UNAVAILABLE', 'unreadable', 409),
+    );
+    const handler = createTaskList({
+      sql: sqlWith([failedRun('run-failed', 'harness_error')]),
+    })['task.agent_retry'];
+
+    await expect(handler?.(PAYLOAD)).rejects.toMatchObject({
+      code: 'TASK_AUTOMATION_UNAVAILABLE',
+    });
+    expect(retireAutoRetry).not.toHaveBeenCalled();
+  });
 
   it('retries a member on a task of their own, which they may still work', async () => {
     await deliver({ member: { role: 'member' }, createdBy: 'user-starter' });
 
     expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(retireAutoRetry).not.toHaveBeenCalled();
+    expect(announceAgentRunFailed).not.toHaveBeenCalled();
   });
 
   it('retries a team member of a team project', async () => {
@@ -525,6 +600,7 @@ describe('task.agent_retry admission', () => {
     expect(lines).toEqual([
       '[task-agent] auto-retry skipped: task_circuit_breaker',
     ]);
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
     const refusal = statements.find((text) =>
       text.includes('INSERT INTO app.task_activity'),
     );
@@ -822,6 +898,10 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     expect(statements[retire]).toContain("status = 'failed'");
     expect(refusal).toBeGreaterThan(retire);
     expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
+    expect(announceAgentRunFailed).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      runId: 'run-failed',
+    });
   });
 
   it('gives up once a look would fall past the longest wait after the failure', async () => {
@@ -860,6 +940,8 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
       statements.some((text) => text.includes('INSERT INTO app.task_activity')),
     ).toBe(false);
     expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
+    // Told once, by the delivery that retired it.
+    expect(announceAgentRunFailed).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -963,5 +1045,6 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     expect(probes).toHaveLength(0);
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
   });
 });

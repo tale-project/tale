@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   RENDER_CRASH_ERROR_PATTERN,
   RENDER_PROXY_ERROR_PATTERN,
+  RENDER_UNFINISHED_REASON,
   type RenderLaneHalt,
 } from '../../../../lib/knowledge/crawl-parse';
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
@@ -301,6 +302,77 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
     ]);
   });
 
+  it('hands a halt on with every page untouched instead of calling it a worker that never started', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    const halted = {
+      reason: 'egress_proxy',
+      error: 'page.goto: net::ERR_TUNNEL_CONNECTION_FAILED',
+    };
+    spawner.sessionReadFile.mockImplementation(async () => {
+      run.events.push('read');
+      const payload = JSON.stringify({
+        pages: [{ url: 'https://a.ch/x', attempted: false }],
+        halted,
+      });
+      return {
+        bytes: new TextEncoder().encode(payload).buffer,
+        contentType: 'application/json',
+      };
+    });
+
+    const results = await run.render();
+
+    expect(results.halted).toEqual(halted);
+    expect(results.outcomes.get('https://a.ch/x')).toEqual({
+      kind: 'not_attempted',
+    });
+  });
+
+  // Regression: the worker writes its output before it launches the browser,
+  // so a Chromium that would not start left a file with every URL not
+  // attempted — handed back as such, the crawl re-rendered the same batch
+  // round after round, a session each, for up to 200 continuation links.
+  it('a worker that stopped before its first page fails the batch with its own words, and tears the session down', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    spawner.runStepsInSession.mockImplementation(async () => {
+      run.events.push('exec');
+      return {
+        status: 'failed',
+        exitCode: 1,
+        stdout: '',
+        stderr:
+          'browserType.launch: Target page, context or browser has been closed',
+      };
+    });
+    spawner.sessionReadFile.mockImplementation(async () => {
+      run.events.push('read');
+      const payload = JSON.stringify({
+        pages: [{ url: 'https://a.ch/x', attempted: false }],
+      });
+      return {
+        bytes: new TextEncoder().encode(payload).buffer,
+        contentType: 'application/json',
+      };
+    });
+
+    await expect(run.render()).rejects.toThrow(
+      /rendered no page.*status failed.*browserType\.launch/,
+    );
+
+    expect(run.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'setSessionStatus',
+      'stage',
+      'exec',
+      'read',
+      'destroy',
+      'markSessionRowDestroyed',
+    ]);
+  });
+
   it('a reservation the quota refuses creates, destroys and settles nothing', async () => {
     const run = renderRun('row_1');
     scriptSpawner(run.events);
@@ -492,6 +564,12 @@ const fs = require('node:fs');
 const chars = Number(process.env.FAKE_HTML_CHARS || '100');
 // 'é' is one UTF-16 code unit but two UTF-8 bytes.
 const html = '<html><body>' + 'é'.repeat(chars) + '</body></html>';
+// The layout script's answer: unset, the page answers it like any other
+// expression (not markup); 'throw', the page refuses it.
+const layout = process.env.FAKE_LAYOUT_HTML;
+// A page that holds the browser for good: its navigation never settles,
+// and the process lives on until the exec budget kills it.
+const hangUrl = process.env.FAKE_HANG_URL;
 // Per URL, the outcome of each successive goto; a rendered page once the
 // script runs out.
 const script = JSON.parse(process.env.FAKE_SCRIPT || '{}');
@@ -506,6 +584,7 @@ function makePage() {
   return {
     async goto(url) {
       current = url;
+      if (url === hangUrl) await new Promise(() => setInterval(() => {}, 1000));
       const step = nextStep(url);
       if (step.throw) throw new Error(step.throw);
       const failure = step.bodyCut ? { errorText: step.bodyCut } : null;
@@ -516,7 +595,13 @@ function makePage() {
       };
     },
     async waitForLoadState() {},
-    async evaluate() { return 42; },
+    async evaluate(expression) {
+      if (String(expression).includes('renderedLayoutHtml') && layout) {
+        if (layout === 'throw') throw new Error('the page refused the script');
+        return layout;
+      }
+      return 42;
+    },
     url() { return current; },
     async content() { return html; },
     async close() {},
@@ -525,6 +610,9 @@ function makePage() {
 module.exports = {
   chromium: {
     async launch() {
+      if (process.env.FAKE_LAUNCH_FAILS) {
+        throw new Error('browserType.launch: Failed to launch the browser process');
+      }
       return {
         async newContext(options) {
           const file = process.env.FAKE_CONTEXT_OPTIONS_FILE;
@@ -626,6 +714,104 @@ describe('render worker — output budget in bytes', () => {
     return { bytes: raw.byteLength, results: outcomes, halted };
   }
 
+  /** Run the worker until it fails or is killed, and read what it left. */
+  async function workerLeftBehind(
+    urls: readonly string[],
+    env: Record<string, string>,
+    killAfterMs: number,
+    extraInput: Record<string, unknown> = {},
+  ): Promise<Map<string, unknown>> {
+    writeFileSync(
+      path.join(agent, 'code', 'urls.json'),
+      JSON.stringify({
+        urls,
+        perPageTimeoutMs: 10,
+        idleTimeoutMs: 10,
+        softBudgetMs: 60_000,
+        maxHtmlBytes: 1_000_000,
+        maxTotalBytes: 2_000_000,
+        proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,
+        crashErrorPattern: RENDER_CRASH_ERROR_PATTERN.source,
+        ...extraInput,
+      }),
+    );
+    await expect(
+      execFileAsync(NODE_BIN, [path.join(agent, 'code', 'render.mjs')], {
+        env: { ...process.env, FAKE_HTML_CHARS: '10', ...env },
+        timeout: killAfterMs,
+      }),
+    ).rejects.toBeDefined();
+    const raw = readFileSync(path.join(agent, 'output', 'pages.json'), 'utf8');
+    const payload: unknown = JSON.parse(raw);
+    return parseRenderResults(payload, urls).outcomes;
+  }
+
+  it('a browser that will not launch leaves every URL not attempted — the host fails that batch', async () => {
+    const urls = ['https://site.example/a', 'https://site.example/b'];
+    const results = await workerLeftBehind(
+      urls,
+      { FAKE_LAUNCH_FAILS: '1' },
+      25_000,
+    );
+    expect([...results.values()]).toEqual([
+      { kind: 'not_attempted' },
+      { kind: 'not_attempted' },
+    ]);
+  }, 30_000);
+
+  // Regression: a page that held the browser past the exec budget was never
+  // written, so it came back `not_attempted`, led the next batch (never
+  // crawled sorts first) and stalled the site's scan for good.
+  it('a page the worker is cut off in is left on file as unfinished, the page before it as rendered', async () => {
+    const urls = ['a', 'b', 'c'].map((p) => `https://site.example/${p}`);
+    const results = await workerLeftBehind(
+      urls,
+      { FAKE_HANG_URL: urls[1] ?? '' },
+      6_000,
+    );
+    expect(results.get(urls[0] ?? '')).toMatchObject({ kind: 'ok' });
+    expect(results.get(urls[1] ?? '')).toEqual({
+      kind: 'failed',
+      reason: RENDER_UNFINISHED_REASON,
+      transient: false,
+    });
+    expect(results.get(urls[2] ?? '')).toEqual({ kind: 'not_attempted' });
+  }, 30_000);
+
+  // The same cut, under a page that was started with less than its own time
+  // left in the batch: the batch's doing, recorded without a strike. The
+  // page is still stamped, so it does not come back within the scan.
+  it('a page started too close to the batch end to finish is recorded without a strike', async () => {
+    const urls = ['a', 'b'].map((p) => `https://site.example/${p}`);
+    const results = await workerLeftBehind(
+      urls,
+      { FAKE_HANG_URL: urls[1] ?? '' },
+      6_000,
+      { hardBudgetMs: 50 },
+    );
+    expect(results.get(urls[1] ?? '')).toEqual({
+      kind: 'failed',
+      reason: RENDER_UNFINISHED_REASON,
+      transient: true,
+    });
+  }, 30_000);
+
+  // The pause a site asks for between two pages was slept through before
+  // the budget was looked at, so a page could start after it — and be cut.
+  it('does not start a page whose Crawl-delay would carry it past the budget', async () => {
+    const urls = ['a', 'b'].map((p) => `https://site.example/${p}`);
+    const startedAt = Date.now();
+    const { results } = await runWorker(
+      urls,
+      { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 },
+      10,
+      { softBudgetMs: 2_000, crawlDelayMs: 20_000 },
+    );
+    expect(results.get(urls[0] ?? '')).toMatchObject({ kind: 'ok' });
+    expect(results.get(urls[1] ?? '')).toEqual({ kind: 'not_attempted' });
+    expect(Date.now() - startedAt).toBeLessThan(15_000);
+  }, 30_000);
+
   // Regression: the batch total was `html.length` summed AFTER storing each
   // page and checked only before the NEXT one, so pages.json could exceed the
   // host's read cap (and by more with multibyte text) — the host then saw no
@@ -653,6 +839,25 @@ describe('render worker — output budget in bytes', () => {
     expect(results.get(urls[3] ?? '')).toEqual({ kind: 'not_attempted' });
   }, 30_000);
 
+  // A page that fits no batch was handed back every time: it led the next
+  // batch, was rendered and handed back again, round after round.
+  it('charges a page that does not fit an empty batch instead of handing it back', async () => {
+    const urls = ['a', 'b'].map((p) => `https://site.example/${p}`);
+    // 1700 chars = 3400 bytes: under the per-page bound, over the batch's.
+    const { results } = await runWorker(
+      urls,
+      { maxHtmlBytes: 4_000, maxTotalBytes: 3_000 },
+      1_700,
+    );
+    for (const url of urls) {
+      expect(results.get(url)).toEqual({
+        kind: 'failed',
+        reason: 'rendered HTML exceeds the batch output bound',
+        transient: false,
+      });
+    }
+  }, 30_000);
+
   it('opens the browser context under the User-Agent the host hands in, and under none otherwise', async () => {
     // The render leg browsed as a stock HeadlessChrome: the host now hands
     // the crawler's own identity in with the batch (2026-09-15 evaluation,
@@ -665,6 +870,38 @@ describe('render worker — output budget in bytes', () => {
     await runWorker(['https://site.example/a'], caps, 10, { userAgent });
     expect(contextsOpened()).toEqual([{ userAgent }]);
   });
+
+  it('hands back the markup with the layout written in, and the plain serialization when the page refuses the script', async () => {
+    const caps = { maxHtmlBytes: 1_000_000, maxTotalBytes: 2_000_000 };
+    const url = 'https://site.example/a';
+    const laidOut = '<html><body>\n<span>Price</span>\n</body></html>';
+    const withLayout = await runWorker(
+      [url],
+      caps,
+      10,
+      {},
+      {
+        FAKE_LAYOUT_HTML: laidOut,
+      },
+    );
+    expect(withLayout.results.get(url)).toMatchObject({
+      kind: 'ok',
+      html: laidOut,
+    });
+    const refused = await runWorker(
+      [url],
+      caps,
+      10,
+      {},
+      {
+        FAKE_LAYOUT_HTML: 'throw',
+      },
+    );
+    expect(refused.results.get(url)).toMatchObject({
+      kind: 'ok',
+      html: `<html><body>${'é'.repeat(10)}</body></html>`,
+    });
+  }, 30_000);
 
   it('applies the per-page bound in bytes, not UTF-16 code units', async () => {
     const urls = ['https://site.example/big'];

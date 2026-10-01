@@ -371,6 +371,17 @@ export function buildHarnessExec(
     );
   }
 
+  if (spec.resume !== undefined && !fact.capabilities.resume) {
+    // The planners (task kick, automation retry, answered ask) start a
+    // fresh conversation on such a harness; a handle reaching here is a
+    // planner that bypassed the capability. Refusing beats building a fresh
+    // process that believes it is mid-conversation (a delta prompt without
+    // the assignment it continues).
+    throw new Error(
+      `${fact.displayName} does not resume conversations; the caller must plan a fresh turn.`,
+    );
+  }
+
   // The condition atoms a `when` list ANDs over.
   const conditions: Record<'managed' | 'byo' | 'model' | 'no-model', boolean> =
     {

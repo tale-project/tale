@@ -20,6 +20,7 @@ import {
   reviewPolicyConfigSchema,
   skillOrgWideModeOf,
   skillSharingConfigSchema,
+  standardAgentConfigSchema,
   transcriptionModelConfigSchema,
   visionModelConfigSchema,
 } from './governance';
@@ -487,6 +488,49 @@ describe('imageGenerationConfigSchema', () => {
     { enabled: true, provider: 'misspelled-pin' },
   ])('refuses a config that cannot be routed or read: %j', (config) => {
     expect(imageGenerationConfigSchema.safeParse(config).success).toBe(false);
+  });
+});
+
+describe('standardAgentConfigSchema', () => {
+  it('is registered as the standard_agent policy schema', () => {
+    expect(POLICY_SCHEMAS.standard_agent).toBe(standardAgentConfigSchema);
+  });
+
+  it('reads on with everything automatic, and every pin', () => {
+    expect(standardAgentConfigSchema.parse({ enabled: true })).toEqual({
+      enabled: true,
+    });
+    const pinned = {
+      enabled: true,
+      harness: 'codex',
+      providerSlug: 'openai',
+      modelId: 'gpt-5.5',
+      instructions: 'Answer in the language of the task.',
+    };
+    expect(standardAgentConfigSchema.parse(pinned)).toEqual(pinned);
+  });
+
+  it('keeps its pins while switched off, so switching it on restores them', () => {
+    const parked = {
+      enabled: false,
+      harness: 'claude-code',
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-5',
+    };
+    expect(standardAgentConfigSchema.parse(parked)).toEqual(parked);
+  });
+
+  it.each([
+    {},
+    { enabled: 'yes' },
+    { enabled: true, providerSlug: 'openai' },
+    { enabled: true, modelId: 'gpt-5.5' },
+    { enabled: true, harness: '' },
+    { enabled: true, instructions: '' },
+    { enabled: true, instructions: 'x'.repeat(20_001) },
+    { enabled: true, model: 'misspelled-pin' },
+  ])('refuses a config that cannot be routed or read: %j', (config) => {
+    expect(standardAgentConfigSchema.safeParse(config).success).toBe(false);
   });
 });
 

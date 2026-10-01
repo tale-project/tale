@@ -1040,7 +1040,7 @@ chat:
   createTask:
     button: Create task from chat
     projectTitle: Create a task from this chat
-    projectDescription: Choose the project the task belongs to. A project agent there can work on it and deliver the files.
+    projectDescription: Choose the project the task belongs to. In a project with an agent, the agent can start on it right away and deliver the files.
     projectLabel: Project
     projectPlaceholder: Choose a project
     projectEmpty: No project matches
@@ -1052,6 +1052,25 @@ chat:
     openTask: Open task
     openTaskAltText: Open the task you just created on its project's board
     readFailed: Tale couldn't read this conversation, so the task can't carry your request and files yet. Try again, or create the task on the project's board.
+    headerButton: Create task
+    withAgents: With an agent
+    withoutAgents: No agent yet
+    agentCount: '{count, plural, one {# agent} other {# agents}}'
+    noAgentEditor: You can add one in the task
+    noAgentReader: An Editor or Admin can add one
+    standardAgent: Standard agent
+  taskTray:
+    label: Tasks from this chat
+    working: The agent is working
+    waitingForSlot: Waiting for a sandbox slot
+    retrying: Trying again…
+    failed: The agent couldn't finish
+    ready: Ready for review
+    readyWithFiles: '{count, plural, one {Ready for review · # file} other {Ready for review · # files}}'
+    notStarted: Waiting to be started
+    open: Open
+    openAria: 'Open task {title}'
+    more: '{count, plural, one {and # more task} other {and # more tasks}}'
   export:
     button: Export
     title: Export chat
@@ -1878,6 +1897,13 @@ conversations:
     undoSendFailed: Couldn't undo the send — the message may already be on its way.
     retrySendFailed: Couldn't retry the send.
     discardMessageFailed: Couldn't delete the message.
+  suggestedReply:
+    title: Suggested reply
+    description: Drafted by an automation and waiting for you — nothing has been sent.
+    use: Put in editor
+    discard: Discard
+    used: The suggestion is in the editor. Edit it as you like; sending it completes the suggestion.
+    discardFailed: Couldn't discard the suggestion.
   message:
     sendingIn: Sending in {seconds}s
     undoSend: Undo
@@ -4076,6 +4102,7 @@ governance:
       notifications: Security notifications
       wfExecutions: Automation runs
       promptTemplates: Personal prompts
+      sandboxWorkspaces: Sandbox workspaces
     legalHoldBlock:
       title: Erasure blocked by legal hold
       orgHeld:
@@ -4260,6 +4287,40 @@ governance:
     removedMailbox: Removed mailbox
     duplicateRule: A rule for this mailbox and address already exists
     precedence: 'The most specific rule wins: a mailbox with its exact address, then a mailbox with the base address, then an address on any mailbox, then a mailbox alone.'
+  standardAgent:
+    title: Standard agent
+    description: The agent Tale provides in every project that has none of its own, so anyone who can open the project can hand it a task, Members included.
+    enabledLabel: Provide a standard agent
+    harnessLabel: Agent type
+    harnessHint: Automatic runs Claude Code, or the agent type a subscription model is bound to.
+    modelLabel: Model
+    modelHint: Automatic picks a recommended model the person starting the task may use. A chosen model stays in effect until you change it, even if it becomes unavailable.
+    automaticLabel: Automatic
+    automaticHarnessHint: Let Tale choose the agent type.
+    automaticModelHint: Let Tale choose a model for each person.
+    instructionsLabel: Instructions
+    instructionsHint: What the standard agent always keeps in mind. Leave this empty to use the built-in instructions.
+    instructionsPlaceholder: Built-in instructions
+    current: For you, it runs on {harness} with {model}.
+    refusal:
+      switchedOff: The standard agent is switched off.
+      unreadable: The saved settings can't be read. Retry, or save them again to repair them.
+      harnessInvalid: The chosen agent type isn't available, so the standard agent can't start. Choose another agent type or Automatic.
+      noModel: No model you can use can run the standard agent. Add a credential under AI providers, or check model access.
+      pinUnavailable: The chosen model isn't available to you, so the standard agent can't start for you. Choose another model or Automatic. Tale won't switch to another model while this choice is saved.
+    invalidPolicy: The saved standard agent settings are invalid. Save them again to repair them.
+    savedUnavailable: Saved selection is not currently available
+    searchHarnesses: Search agent types
+    noHarnessesFound: No matching agent type
+    searchModels: Search models
+    noModelsFound: No matching model
+    draftHint: Save to apply these settings.
+    saveFailed: Couldn't save the standard agent settings
+    loadFailed: Couldn't load the standard agent settings. Retry to load them.
+    remoteUpdate: These settings changed in another session. Discard your draft to load them, or save to replace them.
+    offNote: While this is off, projects without agents of their own offer no agent, and tasks already given to a standard agent can't start.
+    providersLink: AI providers
+    retry: Retry
 metrics:
   title: Metrics
   groups:
@@ -4670,7 +4731,7 @@ notificationPreferences:
       lockedHint: Always on — it's a safety signal.
     escalation:
       label: Agent escalations
-      description: When an agent asks you a question or escalates a task to a human.
+      description: When an agent asks you a question, escalates a task to a human, or can't finish a task.
     automationAlerts:
       label: Automation alerts
       description: When an automation's schedule pauses itself because its runs keep failing.
@@ -5407,6 +5468,9 @@ projects:
     newAgent: New agent
     emptyTitle: Add an agent to this project
     emptyBody: Agents run tasks on your behalf — give one a model, skills, and instructions to get started.
+    sectionDescriptionReader: The agents that work this project's tasks, each with their own model, skills, and instructions. Editors and Admins add and change them.
+    emptyReaderTitle: No agents in this project yet
+    emptyReaderBody: Agents work tasks on your behalf. Ask an Editor or Admin to add one to this project.
     equippedCount: '{count} equipped'
     rowEdit: Edit agent
     rowDelete: Delete agent
@@ -5492,6 +5556,13 @@ projects:
     mutationError: Couldn't save the agent
     deleteTitle: Delete agent
     deleteBody: 'Delete "{name}"? Tasks that referenced it keep their history.'
+    standard:
+      name: Standard agent
+      badge: Standard
+      managedNote: Set up by Tale for this project. Its agent type, model and instructions follow the organization's settings under Governance.
+      emptyTitle: The standard agent takes this project's tasks
+      emptyBody: Until this project has agents of its own, its tasks can go to the organization's standard agent. Add one with New agent to give this project its own agent type, model and instructions.
+      emptyReaderBody: Until this project has agents of its own, you can hand its tasks to the organization's standard agent. An Editor or Admin can add agents of its own.
   settings:
     name: Name
     nameHint: Shown in the projects list and the Home panel.
@@ -6862,6 +6933,7 @@ settings:
         notification.retention_deleted: Notification retention deleted
         file_metadata.retention_deleted: File retention deleted
         sandbox_ledger.retention_deleted: Sandbox ledger retention deleted
+        sandbox_workspace.deleted: Sandbox workspace deleted
         chat_filter_event.retention_deleted: Chat filter event retention deleted
         policy_acknowledged: Policy acknowledged
         login_attempt: Login attempt
@@ -7032,6 +7104,7 @@ settings:
         openai_compat_request: OpenAI-compatible request
         provider: Provider
         video_link_job: Video link job
+        sandbox_workspace: Sandbox workspace
   branding:
     logo: Logo
     logoDescription: Upload your organization logo (SVG preferred; raster images at least 64×64 pixels)
@@ -7138,7 +7211,8 @@ settings:
       banner:
         title: Knowledge search is off
         body: This organization has an AI provider but no embedding model, so
-          documents cannot be indexed or searched.
+          documents cannot be indexed and neither documents nor websites can
+          be searched.
         link: Choose an embedding model
       recommendationBody:
         Your {provider} credential can serve {model} ({dimensions}-dimensional
@@ -7349,6 +7423,10 @@ inbox:
   usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
   automationTriggerPaused: Schedule paused
   automationTriggerPausedBody: '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.'
+  agentRunFailed: Agent run failed
+  agentRunFailedBody: 'The agent couldn''t finish "{title}". Open the task to see why and start it again.'
+  agentRunFailedBudgetBody: 'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.'
+  agentRunFailedSetupBody: 'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project''s Agents tab.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.
@@ -7454,6 +7532,25 @@ tasks:
     resumedAfterTokenRefresh: Resumed after a token refresh
     retry: Retry
     cancel: Cancel run
+    notStartedYet: The agent waits until you start it.
+    failureTitle: The agent couldn't finish this task
+    reported: What the run reported
+    failure:
+      budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
+      setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
+      time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
+      capacity: The run waited too long for a free sandbox. Start the agent again when fewer agents are busy.
+      model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
+      start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
+      interrupted: The run was interrupted before the agent finished. Start the agent again.
+      unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported under Details.
+    standardAgent:
+      switchedOff: The organization's standard agent is switched off. Ask an Admin to switch it on under Governance.
+      noModel: No model you can use can run the standard agent. Ask an Admin to set up an AI provider or to give you access to a model.
+      pinUnavailable: The model chosen for the standard agent isn't one you can use. Ask an Admin to choose another under Governance.
+      harnessInvalid: The agent type chosen for the standard agent isn't available. Ask an Admin to choose another under Governance.
+      unreadable: The standard agent's settings can't be read. Ask an Admin to check them under Governance.
+      notNeeded: This project has agents of its own. Assign one of them instead.
   automation:
     hint: 'Operated by {name} — it drives this task through its steps.'
     chipReady: Ready to start
@@ -7552,6 +7649,8 @@ tasks:
       deleteFailed: Couldn't delete the label.
   actions:
     create: Create task
+    createAndStart: Create and start agent
+    createOnly: Create only
     created: Task created
     comment: Comment
     commentPlaceholder: Write a comment — type @ to mention a person or an agent
@@ -7679,9 +7778,11 @@ tasks:
     search: Search people
     liveAgentsOnly: Only this project's agents appear here — create them on
       the project's Agents tab.
-    nonCodeWarning:
-      This agent runs on a coding harness optimized for repo work. For
-      research, writing, or personal deliverables, assign a person instead.
+    noAgentsReader: This project has no agents yet — ask an Editor or Admin to add one on the project's Agents tab.
+    liveAgentsOnlyReader: Only this project's agents appear here — Editors and Admins add them on the project's Agents tab.
+    standardAgent: Standard agent
+    standardAgentHint: The organization's agent for projects without their own
+    standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
   activity:
     created: Created
     updated: Updated
@@ -7833,6 +7934,7 @@ tasks:
     budgetPaused: "{slug} won't respond — monthly budget exhausted"
     agentNotLive: "{slug} won't respond — agent is not installed or is disabled"
     notPermitted: "{slug} won't respond — you can't start agents on this task"
+    standardAgentUnavailable: "{slug} won't respond — it isn't available to you"
   mentionPicker:
     title: Mention a member, agent, or automation
     empty: No matches
@@ -8101,6 +8203,8 @@ websites:
     fetchPagesError: Couldn't load pages
     searchError: Search failed
     deleteError: Couldn't delete website
+    scanStarted: Scan started
+    scanAlreadyRunning: A scan is already running
   adding: Adding...
   viewDialog:
     title: Website details
@@ -8118,16 +8222,26 @@ websites:
       then resume scanning.
     scanError:
       runtime: Scanning didn't run.
-      notInCorpus: This site isn't in the crawler. Delete it and add it again.
+      notInCorpus: This URL list isn't in the crawler. Delete it and add it again.
+      notInCorpusSite: This site isn't in the crawler. The next scan adds it again.
+      embedding: The embedding model couldn't process the pages.
       generic: The last scan didn't finish.
     scanEmpty:
       runtime: Nothing was indexed. The URL isn't the problem.
       dns: Nothing was indexed. Change the URL if the host is wrong.
-      notInCorpus: Nothing was indexed. Delete the site and add it again.
+      notInCorpus: Nothing was indexed. Delete the URL list and add it again.
+      notInCorpusSite: Nothing was indexed. The next scan adds the site again.
+      embedding: Nothing was indexed. An admin can check the embedding model under Settings → Data residency.
       generic: Nothing was indexed.
   scanPausedBadge: Paused
   resumeScanning: Resume scanning
+  scanNow: Scan now
   indexed: Indexed
+  searchNotice:
+    title: Chat can't search these websites yet
+    description: Pages are crawled and stored, but knowledge search needs a working embedding model, and this organization doesn't have one yet.
+    configureCta: Configure embedding model
+    askAdmin: Ask an organization admin to set one up under Settings → Data residency.
   pagesDialog:
     title: Website pages
     noPages: No pages crawled yet
@@ -8233,8 +8347,10 @@ sandboxes:
   sessionsTitle: Workspaces
   description:
     Project agents reuse their workspaces across tasks. Workflow runs share one
-    workspace across their steps. Runtime status and organization quota allocation
-    are shown separately; a released allocation can still have a running container.
+    workspace across their steps. A project agent's workspace stays until it goes
+    unused for longer than Workspace cleanup allows, or until its agent, project
+    or member is removed. Runtime status and organization quota allocation are
+    shown separately; a released allocation can still have a running container.
   limits:
     title: Organization limits
     description:
@@ -8262,6 +8378,19 @@ sandboxes:
       project: Project agents reuse one sandbox across their tasks.
       workflow: Agent and script steps share one sandbox per workflow run.
       render: Temporary sandboxes render web pages during website crawling.
+  cleanup:
+    title: Workspace cleanup
+    description:
+      Project agents keep their files in workspaces between runs. A workspace is
+      deleted right away when its agent, project or member is removed. Workspaces
+      under a legal hold are kept.
+    deleteUnused: Delete unused workspaces
+    deleteUnusedHint: Deletes a workspace after the number of days without use set below. Pinned workspaces are kept.
+    unusedDays: Days without use
+    unusedDaysHint: Counted from the last time the agent worked in the workspace. After you turn deletion on or shorten the period, no workspace is deleted until the full number of days has passed.
+    invalidDays: Must be a whole number between 1 and 3650.
+    loadFailed: Couldn't load the workspace cleanup settings. Reload the page to try again.
+    saveFailed: Couldn't save the workspace cleanup settings
   capacity:
     title: Infrastructure capacity
     description:
@@ -8309,6 +8438,7 @@ sandboxes:
     quotaReleased: Quota released
     pausedBudget: Paused (budget)
     pinned: Pinned
+    deletesOn: Deleted on {date} unless used again
   task:
     none: No active task
     project: '{count, plural, one {Project task} other {# project tasks}}'
@@ -8332,9 +8462,11 @@ sandboxes:
   empty:
     title: No workspaces yet
     description:
-      A project agent's workspace appears after its first task and stays listed
-      while the agent is idle. A workflow run's workspace is reclaimed once the
-      run ends. Temporary crawler sessions are included in capacity counts above.
+      A project agent's workspace appears after its first task and stays until it
+      goes unused for longer than Workspace cleanup allows, or until its agent,
+      project or member is removed. A workflow run's workspace is reclaimed once
+      the run ends. Temporary crawler sessions are included in capacity counts
+      above.
   accessDenied: You need developer or admin access to manage sandboxes.
   deletedAgent: Deleted agent
   devices:

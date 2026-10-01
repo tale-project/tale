@@ -206,6 +206,19 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'websites/queries:searchReadiness': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Under the website entity: the embedding settings hint it org-wide
+      // when the model is saved or removed.
+      queryKey: backendKey(orgId, 'website', 'search-readiness'),
+      queryFn: () =>
+        backendFetch<{ ready: boolean }>('/websites/search-readiness', {
+          orgId,
+        }),
+    };
+  },
   'contacts/search:searchContacts': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -643,6 +656,14 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
         `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}/resume`,
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
+    invalidate: invalidateWebsites,
+  },
+  'websites/actions:scanNow': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean; queued: boolean }>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}/scan`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then((body) => ({ queued: body.queued })),
     invalidate: invalidateWebsites,
   },
   'websites/actions:syncStatuses': {

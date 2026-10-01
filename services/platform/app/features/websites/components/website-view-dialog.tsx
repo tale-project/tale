@@ -20,7 +20,13 @@ import type { StatGridItem } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
-import { FileText, Globe, Play, Search as SearchIcon } from 'lucide-react';
+import {
+  FileText,
+  Globe,
+  Play,
+  RefreshCw,
+  Search as SearchIcon,
+} from 'lucide-react';
 import {
   type RefObject,
   type ChangeEvent,
@@ -28,6 +34,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -44,10 +51,12 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
+import { useScanNow } from '../hooks/use-scan-now';
 import { indexedPageCount } from '../lib/indexed-page-count';
 import {
   classifyScanError,
   isHollowSiteScan,
+  isSiteLevelScanError,
   scanEmptyMessageKey,
   scanErrorMessageKey,
 } from '../lib/scan-error';
@@ -315,6 +324,11 @@ export function WebsiteViewDialog({
   const canWrite = ability.can('write', 'knowledgeWrite');
   const { mutate: resumeScanning } = useResumeScanning();
   const paused = isScanPaused(website);
+  const {
+    available: canScanNow,
+    pending: scanPending,
+    scanNow,
+  } = useScanNow(website);
 
   const [pages, setPages] = useState<CrawlerPage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -327,15 +341,24 @@ export function WebsiteViewDialog({
 
   const isSearchMode = activeQuery.length > 0;
 
+  // How many pages the list holds, as the answers arrive. A refresh reads
+  // the shown pages again from the top, so a "Load more" answer that comes
+  // after it no longer continues the list: its rows are already there, and
+  // appended they showed twice.
+  const shownPages = useRef(0);
   const { mutate: fetchPages, isPending } = useBackendAction(
     'websites/actions:fetchPages',
     {
       errorToast: false,
       onSuccess: (data) => {
         if (data.offset === 0) {
+          shownPages.current = data.pages.length;
           setPages(data.pages);
-        } else {
+        } else if (data.offset === shownPages.current) {
+          shownPages.current += data.pages.length;
           setPages((prev) => [...prev, ...data.pages]);
+        } else {
+          return;
         }
         setHasMore(data.hasMore);
         setIsFirstLoad(false);
@@ -364,6 +387,7 @@ export function WebsiteViewDialog({
 
   useEffect(() => {
     if (isOpen) {
+      shownPages.current = 0;
       setPages([]);
       setOffset(0);
       setHasMore(false);
@@ -374,6 +398,30 @@ export function WebsiteViewDialog({
       fetchPages({ websiteId: website._id, offset: 0, limit: PAGE_SIZE });
     }
   }, [isOpen, website._id, fetchPages]);
+
+  // The row follows the scan through realtime hints; the pages below are
+  // read on open, so they follow the row: whenever a scan moves what the row
+  // counts, the pages already shown are read again in place.
+  const scanProgress = [
+    website.status,
+    website.pageCount,
+    website.crawledPageCount,
+    website.failedPageCount,
+    website.lastScannedAt,
+  ].join(':');
+  const shownProgress = useRef(scanProgress);
+  useEffect(() => {
+    if (!isOpen || shownProgress.current === scanProgress) {
+      shownProgress.current = scanProgress;
+      return;
+    }
+    shownProgress.current = scanProgress;
+    fetchPages({
+      websiteId: website._id,
+      offset: 0,
+      limit: offset + PAGE_SIZE,
+    });
+  }, [isOpen, scanProgress, offset, website._id, fetchPages]);
 
   const triggerSearch = useCallback(() => {
     const query = searchQuery.trim();
@@ -586,6 +634,15 @@ export function WebsiteViewDialog({
           onClick: () => resumeScanning({ websiteId: website._id }),
           visible: canWrite && paused,
         },
+        {
+          // A scan outside the interval, as the row menu offers it.
+          key: 'scan',
+          label: t('scanNow'),
+          icon: RefreshCw,
+          onClick: scanNow,
+          visible: canScanNow,
+          disabled: scanPending,
+        },
       ]}
       facts={facts}
       restoreFocusRef={restoreFocusRef}
@@ -597,9 +654,11 @@ export function WebsiteViewDialog({
           title={lastSyncError ?? undefined}
         >
           <Heading level={3} size="sm" weight="medium">
-            {t(scanErrorMessageKey(scanErrorKind))}
+            {t(scanErrorMessageKey(scanErrorKind, website.kind))}
           </Heading>
-          <Text variant="muted">{t(scanEmptyMessageKey(scanErrorKind))}</Text>
+          <Text variant="muted">
+            {t(scanEmptyMessageKey(scanErrorKind, website.kind))}
+          </Text>
         </Stack>
       ) : (
         <EntityViewSection
@@ -612,15 +671,19 @@ export function WebsiteViewDialog({
             </>
           }
         >
+          {/* The pages' own failures explain a scan that stored nothing;
+              they do not explain one the embedding model or the crawler's
+              browser stopped, which says so beside them. */}
           {lastSyncError !== null &&
           !paused &&
-          !pages.some((page) => pageFailureCaption(page, t) !== null) ? (
+          (isSiteLevelScanError(scanErrorKind) ||
+            !pages.some((page) => pageFailureCaption(page, t) !== null)) ? (
             <Text
               variant="caption"
               className="text-muted-foreground"
               title={lastSyncError}
             >
-              {t(scanErrorMessageKey(scanErrorKind))}
+              {t(scanErrorMessageKey(scanErrorKind, website.kind))}
             </Text>
           ) : null}
           {indexedPageCount(website) > 0 ? (

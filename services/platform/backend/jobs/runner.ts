@@ -6,14 +6,16 @@ import {
   isDatabaseUnavailable,
 } from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
+import { bossDbInTx } from './enqueue.ts';
 import type { BackendTaskList } from './task-list.ts';
-import { TASK_WORKER_BATCH_LIMITS } from './tasks.ts';
+import { TASK_WORKER_BATCH_LIMITS, TASK_WORKER_SLOT_QUEUES } from './tasks.ts';
 
 export type WorkerOptions = {
   boss: PgBoss;
   taskList: BackendTaskList;
   /** Max jobs fetched (and processed concurrently) per queue per fetch;
-   * `TASK_WORKER_BATCH_LIMITS` lowers it for the queues it names. */
+   * `TASK_WORKER_BATCH_LIMITS` lowers it for the queues it names, and a
+   * queue in `TASK_WORKER_SLOT_QUEUES` runs as many one-job slots instead. */
   concurrency?: number;
 } & (
   | { shouldDefer?: undefined; sql?: undefined }
@@ -31,17 +33,57 @@ export type WorkerOptions = {
 );
 
 /**
+ * The queue policies whose unique index admits one QUEUED job per key: a
+ * successor refused there collapses into the job already queued under its
+ * key, which does the work (`TaskQueueOptions.policy` in `tasks.ts`).
+ */
+const COLLAPSING_POLICIES: ReadonlySet<string> = new Set(['short', 'stately']);
+
+/** How a hand-over ended: its successor queued; collapsed into the job
+ * already queued under its key; or none, because the claim had already
+ * ended. */
+type HandOverOutcome = 'handed_over' | 'collapsed' | 'claim_ended';
+
+/**
+ * How many claims the hand-over's completion of ONE job ended. pg-boss
+ * completes active jobs only and answers `{ jobs, requested, affected }`
+ * (typed as an empty interface): 1 is this worker's claim, ended here; 0 a
+ * claim that was no longer active — cancelled, completed or failed, or
+ * expired back to its queue, while this worker held it. Anything else
+ * confirms nothing, and throws.
+ */
+function claimsEnded(answer: unknown): 0 | 1 {
+  if (typeof answer === 'object' && answer !== null && 'affected' in answer) {
+    const { affected } = answer;
+    if (affected === 0 || affected === 1) return affected;
+  }
+  throw new Error(
+    `the completion confirmed no claim: ${answer === undefined ? 'undefined' : JSON.stringify(answer)}`,
+  );
+}
+
+/**
  * Hand a claimed job over to the live colour: a successor with the job's
  * own payload, singleton key and priority, due five seconds out so the
  * live colour takes it once this worker is gone. The claim is completed
- * first and both writes are ONE transaction, so a crash between them loses
- * nothing and doubles nothing, and no queue policy refuses the successor
- * for the claim itself (`exclusive` admits one queued-or-active job per
- * key). A successor its key refuses because another job with that key is
- * already queued is not needed: that job does the work (`short`, `stately`
- * collapse by key by design). A keyless job on a standard queue hands over
- * as before, keyless. The queue's own retry and expiry options apply to
- * the successor, as they applied to the job.
+ * first and both writes are ONE transaction (`bossDbInTx`), so a crash
+ * between them loses nothing and doubles nothing, and no queue policy
+ * refuses the successor for the claim itself (`exclusive` admits one
+ * queued-or-active job per key).
+ *
+ * The successor is sent only once the completion confirms that this
+ * worker's claim ended here. A claim that ended meanwhile — cancelled, or
+ * completed elsewhere — gets none: its work is withdrawn or done, and a
+ * successor would bring it back. A successor refused on a `short` or
+ * `stately` queue is not needed: the job already queued under its key does
+ * the work. Any other refusal, or a completion that confirms nothing,
+ * throws inside the transaction: it rolls back, and the claim takes
+ * pg-boss's failure path under its queue's retry policy rather than ending
+ * without a successor. A keyless job on a standard queue hands over as
+ * before. The queue's own retry and expiry options apply to the successor,
+ * as they applied to the job, and the job's own heartbeat travels with it:
+ * a queue created before its heartbeat was declared has none to lend
+ * (`TaskQueueOptions.heartbeatSeconds`).
  */
 async function handOver(
   boss: PgBoss,
@@ -49,22 +91,30 @@ async function handOver(
   name: string,
   job: JobWithMetadata<unknown>,
   data: object | null,
-): Promise<void> {
-  await sql.begin(async (tx) => {
-    const db = {
-      executeSql: async (text: string, values?: unknown[]) => {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg-boss hands plain JSON-safe parameters, as `addJobInTx` passes them
-        const parameters = (values ?? []) as never[];
-        return { rows: [...(await tx.unsafe(text, parameters))] };
-      },
-    };
-    await boss.complete(name, job.id, null, { db });
-    await boss.send(name, data, {
+): Promise<HandOverOutcome> {
+  return sql.begin(async (tx): Promise<HandOverOutcome> => {
+    const db = bossDbInTx(tx);
+    if (claimsEnded(await boss.complete(name, job.id, null, { db })) === 0) {
+      return 'claim_ended';
+    }
+    const successor = await boss.send(name, data, {
       db,
       startAfter: 5,
       ...(job.singletonKey !== null ? { singletonKey: job.singletonKey } : {}),
       ...(job.priority !== 0 ? { priority: job.priority } : {}),
+      ...(typeof job.heartbeatSeconds === 'number'
+        ? { heartbeatSeconds: job.heartbeatSeconds }
+        : {}),
     });
+    if (successor !== null) return 'handed_over';
+    // pg-boss's own record of the queue, read on this path only.
+    const policy = (await boss.getQueue(name))?.policy;
+    if (policy !== undefined && COLLAPSING_POLICIES.has(policy)) {
+      return 'collapsed';
+    }
+    throw new Error(
+      `the hand-over queued no successor on queue ${name} (policy ${policy ?? 'unknown'})`,
+    );
   });
 }
 
@@ -81,10 +131,14 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
     await options.boss.work(
       name,
       {
-        batchSize: Math.min(
-          concurrency,
-          TASK_WORKER_BATCH_LIMITS.get(name) ?? concurrency,
-        ),
+        ...(TASK_WORKER_SLOT_QUEUES.has(name)
+          ? { batchSize: 1, localConcurrency: concurrency }
+          : {
+              batchSize: Math.min(
+                concurrency,
+                TASK_WORKER_BATCH_LIMITS.get(name) ?? concurrency,
+              ),
+            }),
         perJobResults: true,
         // The hand-over re-sends a job with its own singleton key and
         // priority, which only the metadata carries.
@@ -108,19 +162,31 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                 // Completing a `retryLimit: 0` job without a successor
                 // would drop it: the hand-over completes it and queues its
                 // successor together (the batch's own completion then finds
-                // it done and changes nothing).
+                // it done and changes nothing — as it does a claim that had
+                // already ended, since pg-boss completes active jobs only).
                 if (typeof job.data !== 'object') {
                   throw new Error(
                     `task ${name} (job ${job.id}) payload is not an object`,
                   );
                 }
-                await handOver(options.boss, options.sql, name, job, job.data);
+                const outcome = await handOver(
+                  options.boss,
+                  options.sql,
+                  name,
+                  job,
+                  job.data,
+                );
+                if (outcome === 'claim_ended') {
+                  console.log(
+                    `[backend] task ${name} (job ${job.id}) not handed over: the claim was no longer active (cancelled, completed or expired)`,
+                  );
+                }
                 return { id: job.id, status: 'completed' };
               }
               // pg-boss aborts `job.signal` once the batch outlives the
               // queue's `expireInSeconds` and retries the job; a handler that
               // honours it stops instead of running beside its retry.
-              await handler(job.data, { signal: job.signal });
+              await handler(job.data, { signal: job.signal, jobId: job.id });
               return { id: job.id, status: 'completed' };
             } catch (error) {
               if (isDatabaseUnavailable(error)) {

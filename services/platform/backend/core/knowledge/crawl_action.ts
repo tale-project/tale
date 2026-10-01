@@ -100,8 +100,10 @@ import {
   RenderCapacityError,
   renderUrlsInSandbox,
 } from '../node_only/sandbox/render_fetch';
+import { runFailureMessage } from '../provider_credentials/resolve_credential';
 import {
   isDueForScan,
+  WEBSITE_EMBEDDING_FAILED_PREFIX,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../websites/scan_scheduling';
 import { type PageFailureKind, PAGE_SKIP_KINDS_SQL } from '../websites/types';
@@ -112,8 +114,13 @@ import {
   CRAWLER_PRODUCT_TOKEN,
   crawlerRequestHeaders,
 } from './crawler_identity';
-import { pinDimensions } from './dimensions';
-import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
+import { EmbeddingDimensionMismatch, pinDimensions } from './dimensions';
+import {
+  classifyEmbeddingFailure,
+  Embedder,
+  embedderForOrg,
+  EmbeddingNotConfigured,
+} from './embedding';
 import { assertCorpusWritable } from './index_health';
 import {
   getKnowledgePoolForOrg,
@@ -204,6 +211,9 @@ const MAX_FETCH_FAILURES = 5;
  * still lets a page revived on the site come back on its own. */
 const BENCHED_PAGE_RETRY_INTERVAL = '7 days';
 
+/** Pages the vector backfill reads per query (`PageIndexer.embedVectorless`). */
+const EMBED_BATCH_PAGES = 20;
+
 /** A paragraph seen on at least this many pages of a domain is boilerplate
  * (navigation, footer, cookie banner) and is kept out of the chunks. */
 const BOILERPLATE_PAGE_THRESHOLD = 5;
@@ -236,6 +246,14 @@ export async function scanWebsiteImpl(
     organizationId: string;
     continuation?: number;
     scanStartedAt?: string;
+    /** The heartbeat of a claim whose scan is known to have stopped: the
+     * scheduler found the row scanning with no scan job left for it. Link 0
+     * takes exactly that claim over instead of waiting out
+     * {@link STUCK_SCAN_TAKEOVER}; a claim that moved since is left alone. */
+    takeover?: string;
+    /** Aborted once the job this link runs in has ended under it — the
+     * process is stopping, or the link outlived the job's expiry. */
+    signal?: AbortSignal;
   },
 ): Promise<null> {
   {
@@ -269,8 +287,19 @@ export async function scanWebsiteImpl(
       // The robots rules every non-listed admission and fetch of this link
       // judges by: read fresh on link 0, from the row on every later link.
       let policy: RobotsPolicy = facts.policy;
+      if (continuation > 0) {
+        // The link's sign of life on the claim, as link 0's claim is: a
+        // claim is taken over only once it is older than a link can hold it
+        // (`LINK_LIFETIME_MS`), and a continuation may have waited in the
+        // queue for long after the link before it refreshed it.
+        await sql.unsafe(
+          `UPDATE ${PUBLIC_WEB_SCHEMA}.websites SET updated_at = NOW()
+            WHERE domain = $1 AND status = 'scanning'`,
+          [args.domain],
+        );
+      }
       if (continuation === 0) {
-        const claim = await claimScan(sql, args.domain);
+        const claim = await claimScan(sql, args.domain, args.takeover);
         if (claim === 'held') {
           console.log(`[crawl] ${args.domain}: scan already running, skipping`);
           return null;
@@ -314,6 +343,7 @@ export async function scanWebsiteImpl(
             args.domain,
             actionStartedAt + DISCOVERY_BUDGET_MS,
             robots,
+            scanStartedAt,
           );
           const retired = await retireDisallowedRows(sql, args.domain, policy);
           if (retired > 0) {
@@ -447,7 +477,8 @@ export async function scanWebsiteImpl(
             htmlTitle(outcome.html),
             htmlToText(outcome.html),
           );
-          if (stored === 'changed') await indexer.indexPage(page.url);
+          await indexer.settle(page.url, stored);
+          await markPageCrawled(sql, args.domain, page.url);
           if (kind === 'site') {
             await admitRenderedLinks(
               sql,
@@ -455,6 +486,7 @@ export async function scanWebsiteImpl(
               outcome.html,
               outcome.finalUrl,
               policy,
+              scanStartedAt,
             );
           }
         }
@@ -484,9 +516,13 @@ export async function scanWebsiteImpl(
             args.domain,
             page,
             policy,
+            scanStartedAt,
           );
           if (outcome === 'render') renderQueue.push(page);
-          else if (outcome === 'changed') await indexer.indexPage(page.url);
+          else if (outcome !== 'failed') {
+            await indexer.settle(page.url, outcome);
+            await markPageCrawled(sql, args.domain, page.url);
+          }
           await sleep(fetchDelayMs(policy));
           if (renderQueue.length >= RENDER_BATCH_SIZE) await flushRenderBatch();
         }
@@ -498,9 +534,17 @@ export async function scanWebsiteImpl(
         // of at the link's end (2026-09-14 evaluation, h5).
         await fanOutRowSync(ctx, sql, args.domain);
       }
+      // What was stored without vectors — by this scan before an admin saved
+      // a model, or by an earlier one — is embedded from its stored text
+      // once a model can, in the time the link has left; what is left keeps
+      // the chain going.
+      const unembedded = renderDeferred
+        ? 0
+        : await indexer.embedVectorless(deadline);
       await indexer.finish();
 
-      const remaining = await countDuePages(sql, args.domain, scanStartedAt);
+      const remaining =
+        (await countDuePages(sql, args.domain, scanStartedAt)) + unembedded;
       if (remaining > 0 && continuation < MAX_CONTINUATIONS) {
         // Refresh the claim so a long chain is not mistaken for a crash.
         await sql.unsafe(
@@ -615,6 +659,17 @@ export async function scanWebsiteImpl(
       }
     } catch (error) {
       if (isConnectionFailure(error)) {
+        if (args.signal?.aborted === true) {
+          // The job this link ran in has already ended: the process is
+          // stopping and has closed its pools under the link. That is not
+          // the corpus being unreachable, and recorded as that it would
+          // count toward the three failures that pause a site and notify
+          // its admins. The scheduler resumes the scan.
+          console.warn(
+            `[crawl] ${args.domain}: link ${continuation} lost its connection after its job ended; nothing recorded`,
+          );
+          return null;
+        }
         // The corpus database dropped away mid-scan. Recording the failure
         // into it would fail with it, and the row-sync fan-out below reads
         // it — the Convex row is the only store still standing, so record
@@ -828,19 +883,27 @@ async function loadRobotsRules(
  * another scan holds it (`held`) or that the domain has no corpus row at all
  * (`missing` — the two zero-row cases must not be conflated: a held claim is
  * routine, a missing row is a failure to record). A claim older than
- * {@link STUCK_SCAN_TAKEOVER} belongs to a crashed scan and is taken over. */
+ * {@link STUCK_SCAN_TAKEOVER} belongs to a crashed scan and is taken over,
+ * and so is the claim whose heartbeat is `takeover` — the one the scheduler
+ * established has no scan left behind it. Compared by value, so a claim
+ * that was taken or refreshed since is another scan's and stays held. The
+ * heartbeat travels as text and is cast by the server: bound as a timestamp
+ * the driver would round it to the millisecond, and it would match nothing. */
 async function claimScan(
   sql: Sql,
   domain: string,
+  takeover?: string,
 ): Promise<'claimed' | 'held' | 'missing'> {
   const rows = await sql.unsafe<{ domain: string }[]>(
     `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
         SET status = 'scanning', error = NULL, updated_at = NOW()
       WHERE domain = $1
         AND (status NOT IN ('scanning', 'deleting')
-             OR (status = 'scanning' AND updated_at < NOW() - INTERVAL '${STUCK_SCAN_TAKEOVER}'))
+             OR (status = 'scanning'
+                 AND (updated_at < NOW() - INTERVAL '${STUCK_SCAN_TAKEOVER}'
+                      OR updated_at = $2::text::timestamptz)))
       RETURNING domain`,
-    [domain],
+    [domain, takeover ?? null],
   );
   if (rows.length > 0) return 'claimed';
   const present = await sql.unsafe<{ domain: string }[]>(
@@ -860,6 +923,7 @@ async function discoverAndRecordUrls(
   domain: string,
   deadline: number,
   robots: RobotsRules,
+  scanStartedAt: string,
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const baseUrl = `https://${domain}/`;
@@ -1019,8 +1083,12 @@ async function discoverAndRecordUrls(
 
   // The shared admission door: new rows start `discovered`, and a row a past
   // scan marked `deleted` is revived — the site links to the page again, so
-  // the fetch (not the memory of a 404) decides whether it is back.
-  await admitUrls(sql, domain, [...urls], { listed: false });
+  // the fetch (not the memory of a 404) decides whether it is back. What
+  // this scan retired itself (a resumed scan's discovery) stays retired.
+  await admitUrls(sql, domain, [...urls], {
+    listed: false,
+    retiredBefore: scanStartedAt,
+  });
   console.log(`[crawl] ${domain}: ${urls.size} URLs discovered`);
 }
 
@@ -1070,7 +1138,17 @@ async function countDuePages(
   return Number(rows[0]?.n ?? 0);
 }
 
-type FetchOutcome = 'changed' | 'unchanged' | 'failed' | 'render';
+type FetchOutcome = StoreOutcome | 'failed' | 'render';
+
+/** Whether a redirect landed on another host or path of the site — not
+ * merely on the same address with another query string. */
+function isAnotherAddress(from: string, to: string): boolean {
+  const source = new URL(from);
+  const target = new URL(to);
+  return (
+    source.hostname !== target.hostname || source.pathname !== target.pathname
+  );
+}
 
 /**
  * Probe one page and dispatch on its content type: binaries and plain text
@@ -1080,13 +1158,14 @@ type FetchOutcome = 'changed' | 'unchanged' | 'failed' | 'render';
  * status codes, deletes, size caps, and the SSRF guard for every byte
  * download. Change detection is the stored content hash alone: a 304 on an
  * SPA shell proves nothing about rendered content, so no conditional
- * validators are sent.
+ * validators are sent. Exported for tests only.
  */
-async function fetchAndStorePage(
+export async function fetchAndStorePage(
   sql: Sql,
   domain: string,
   page: DuePage,
   policy: RobotsPolicy,
+  scanStartedAt?: string,
 ): Promise<FetchOutcome> {
   const hosts = siteHosts(domain);
 
@@ -1166,6 +1245,30 @@ async function fetchAndStorePage(
       }`,
     });
     return 'failed';
+  }
+  // A redirect inside the site makes this URL another page's alias: `www.`
+  // onto the apex, a missing trailing slash, a removed page sent to the
+  // homepage. Stored under both addresses, the same text was chunked,
+  // embedded and cited twice. The alias leaves the index and its target
+  // joins the frontier — unless robots.txt disallows it — to be fetched
+  // under its own address. A LISTED URL is the operator's instruction and
+  // keeps its row, and a redirect that only rewrites the query (a session
+  // id, a language parameter) is the same address: following those would
+  // mint a new row every scan.
+  if (!page.listed) {
+    const target = normalizeCandidateUrl(response.finalUrl, page.url, hosts);
+    if (target !== null && isAnotherAddress(page.url, target)) {
+      await retirePage(sql, domain, page.url);
+      if (!isUrlDisallowed(target, policy)) {
+        await admitUrls(sql, domain, [target], {
+          listed: false,
+          ...(scanStartedAt === undefined
+            ? {}
+            : { retiredBefore: scanStartedAt }),
+        });
+      }
+      return 'unchanged';
+    }
   }
   // The origin's own wish, in the HTTP form (`X-Robots-Tag: noindex` — the
   // only way a site can say so for a non-HTML resource such as a PDF): an
@@ -1265,18 +1368,29 @@ async function fetchAndStorePage(
 }
 
 /**
- * Store one page's extracted text, title, and paragraph hashes; report
- * whether the content changed. Only changed pages are re-chunked and
- * re-embedded — and a page whose text is unchanged but whose chunks are
- * missing (an earlier scan died between fetch and index) counts as changed.
+ * What storing a page means for its chunks: `changed` text (or text whose
+ * chunks are missing or were cut from other text — an earlier scan died
+ * between storing the page and indexing it) is re-chunked and re-embedded;
+ * `vectorless` text is unchanged but was chunked without vectors (no
+ * embedding model at the time), so it is embedded once a model can do it;
+ * `unchanged` text is left as it is.
  */
-async function storePageText(
+export type StoreOutcome = 'changed' | 'vectorless' | 'unchanged';
+
+/**
+ * Store one page's extracted text, title, and paragraph hashes; report what
+ * that means for its chunks ({@link StoreOutcome}). The page is not stamped
+ * as visited here: that waits until it is indexed too
+ * ({@link markPageCrawled}), so a link cut off in between leaves the page
+ * due for the scan that resumes it. Exported for tests only.
+ */
+export async function storePageText(
   sql: Sql,
   domain: string,
   page: DuePage,
   title: string | null,
   text: string,
-): Promise<'changed' | 'unchanged'> {
+): Promise<StoreOutcome> {
   const contentHash = computeContentHash(text);
   const wordCount = text.split(/\s+/).filter((word) => word.length > 0).length;
 
@@ -1285,7 +1399,7 @@ async function storePageText(
     await tx.unsafe(
       `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
           SET content = $3, title = $4, content_hash = $5, word_count = $6,
-              status = 'active', last_crawled_at = NOW(), fail_count = 0,
+              status = 'active', fail_count = 0,
               last_error = NULL, last_error_kind = NULL, last_error_at = NULL
         WHERE domain = $1 AND url = $2`,
       [domain, page.url, text, title, contentHash, wordCount],
@@ -1311,14 +1425,38 @@ async function storePageText(
   });
 
   if (unchanged) {
-    const chunkRows = await sql.unsafe<{ ok: number }[]>(
-      `SELECT 1 AS ok FROM ${PUBLIC_WEB_SCHEMA}.chunks
-        WHERE domain = $1 AND url = $2 LIMIT 1`,
-      [domain, page.url],
+    const [chunks] = await sql.unsafe<
+      { present: boolean; current: boolean; vectorless: boolean }[]
+    >(
+      `SELECT count(*) > 0 AS present,
+              coalesce(bool_and(content_hash = $3), false) AS current,
+              coalesce(bool_or(embedding IS NULL), false) AS vectorless
+         FROM ${PUBLIC_WEB_SCHEMA}.chunks
+        WHERE domain = $1 AND url = $2`,
+      [domain, page.url, contentHash],
     );
-    return chunkRows.length > 0 ? 'unchanged' : 'changed';
+    // Chunks of other text: the text was stored and the scan stopped before
+    // it was indexed. Left alone, the index kept serving the old text until
+    // the page changed again.
+    if (chunks === undefined || !chunks.present || !chunks.current) {
+      return 'changed';
+    }
+    return chunks.vectorless ? 'vectorless' : 'unchanged';
   }
   return 'changed';
+}
+
+/** Stamp a page as visited by this scan, once it is stored and indexed. */
+async function markPageCrawled(
+  sql: Sql,
+  domain: string,
+  url: string,
+): Promise<void> {
+  await sql.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls SET last_crawled_at = NOW()
+      WHERE domain = $1 AND url = $2`,
+    [domain, url],
+  );
 }
 
 /**
@@ -1422,6 +1560,7 @@ async function admitRenderedLinks(
   html: string,
   baseUrl: string,
   policy: RobotsPolicy,
+  scanStartedAt: string,
 ): Promise<void> {
   const hosts = siteHosts(domain);
   const countRows = await sql.unsafe<{ n: string }[]>(
@@ -1438,8 +1577,13 @@ async function admitRenderedLinks(
       return;
     }
     // Inserted or revived rows are newly tracked (`deleted` rows are not in
-    // the count above); unchanged live rows report zero.
-    tracked += await admitUrls(sql, domain, [normalized], { listed: false });
+    // the count above); unchanged live rows report zero. A link to what this
+    // scan retired (the alias it just followed, a page that answered 404)
+    // leaves that row retired.
+    tracked += await admitUrls(sql, domain, [normalized], {
+      listed: false,
+      retiredBefore: scanStartedAt,
+    });
   }
 }
 
@@ -1490,6 +1634,26 @@ async function recordPageFailure(
 }
 
 /**
+ * A failure of the organization's embedding model — a rejected credential,
+ * an exhausted balance, an outage, a model whose vectors the corpus cannot
+ * hold — ends the scan as any error does, but under a reason that says so:
+ * the row used to carry the provider's bare words ("401 User not found.")
+ * and the page could only answer that the last scan did not finish. Any
+ * other error is handed back as it is.
+ */
+function embeddingScanFailure(error: unknown): unknown {
+  const modelFailed =
+    error instanceof EmbeddingDimensionMismatch ||
+    classifyEmbeddingFailure(error) !== null;
+  if (!modelFailed) return error;
+  // A credential refusal's own sentence, not its serialized payload.
+  return new Error(
+    `${WEBSITE_EMBEDDING_FAILED_PREFIX}: ${runFailureMessage(error)}`,
+    { cause: error },
+  );
+}
+
+/**
  * Indexes changed pages one at a time, as the fetch loop hands them over —
  * fetch and index share the budget window, so no phase of a scan can outgrow
  * the action's hard kill.
@@ -1498,12 +1662,15 @@ async function recordPageFailure(
  * nothing changed never touches the provider) and the boilerplate ledger is
  * re-read per page, so each page is filtered against every paragraph hash
  * stored so far. Without an embedding model the chunks are stored with NULL
- * vectors — the BM25 leg and `rag_fetch` still work, and the dense leg fills
- * in on the re-scan after a model is configured.
+ * vectors: the site's own content search reads them, knowledge search does
+ * not run until a model is configured, and the first scan after that embeds
+ * them even though their text has not changed (`vectorless`). Exported for
+ * tests only.
  */
-class PageIndexer {
+export class PageIndexer {
   private embedder: Embedder | null = null;
   private embedderResolved = false;
+  private missingModelLogged = false;
   private indexedAny = false;
 
   constructor(
@@ -1524,25 +1691,105 @@ class PageIndexer {
         config,
       });
     } catch (error) {
-      if (error instanceof EmbeddingNotConfigured) {
+      if (!(error instanceof EmbeddingNotConfigured)) {
+        throw embeddingScanFailure(error);
+      }
+      if (!this.missingModelLogged) {
+        this.missingModelLogged = true;
         console.warn(
-          `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — indexing for keyword search only`,
+          `[crawl] ${domain}: no embedding model configured for "${orgSlug}" — chunks are stored without vectors until one is`,
         );
-      } else {
-        throw error;
       }
     }
     if (this.embedder) {
       const dbUrl = await resolveOrgUrl(orgSlug);
-      await pinDimensions({
-        sql: this.sql,
-        dbUrl,
-        schema: PUBLIC_WEB_SCHEMA,
-        dimensions: this.embedder.dimensions,
-        context: `organization "${orgSlug}" (website crawl)`,
-      });
+      try {
+        await pinDimensions({
+          sql: this.sql,
+          dbUrl,
+          schema: PUBLIC_WEB_SCHEMA,
+          dimensions: this.embedder.dimensions,
+          context: `organization "${orgSlug}" (website crawl)`,
+        });
+      } catch (error) {
+        throw embeddingScanFailure(error);
+      }
     }
     return this.embedder;
+  }
+
+  /** The chunks' vectors, or null without an embedding model. */
+  private async embed(texts: string[]): Promise<number[][] | null> {
+    const embedder = await this.resolveEmbedder();
+    if (embedder === null) return null;
+    try {
+      return await embedder.embedAll(texts);
+    } catch (error) {
+      throw embeddingScanFailure(error);
+    }
+  }
+
+  /**
+   * Embed the site's pages whose chunks still lack vectors, from their
+   * stored text, until `deadline`: pages stored while the organization had
+   * no embedding model. A scan that was running when an admin saved one
+   * used to keep them so — each was done for that scan — until its next
+   * interval, up to thirty days. The model is looked for again when this
+   * link found none: it may have been saved since. Returns how many such
+   * pages are left for a later link; none when there is no model.
+   */
+  async embedVectorless(deadline: number): Promise<number> {
+    const { domain } = this.identity;
+    const vectorless = (limit: number) =>
+      this.sql.unsafe<{ url: string }[]>(
+        `SELECT DISTINCT c.url
+           FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+           JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
+             ON u.domain = c.domain AND u.url = c.url
+          WHERE c.domain = $1 AND c.embedding IS NULL
+            AND u.status = 'active' AND u.content IS NOT NULL
+          ORDER BY c.url
+          LIMIT $2`,
+        [domain, limit],
+      );
+    if ((await vectorless(1)).length === 0) return 0;
+    if (this.embedderResolved && this.embedder === null) {
+      this.embedderResolved = false;
+    }
+    if ((await this.resolveEmbedder()) === null) return 0;
+    // Once each: a page this pass indexed has vectors or no chunks left.
+    const done = new Set<string>();
+    while (Date.now() < deadline) {
+      const batch = (await vectorless(EMBED_BATCH_PAGES + done.size)).filter(
+        (row) => !done.has(row.url),
+      );
+      if (batch.length === 0) break;
+      for (const { url } of batch) {
+        if (Date.now() >= deadline) break;
+        done.add(url);
+        await this.indexPage(url);
+      }
+    }
+    const [left] = await this.sql.unsafe<{ n: string }[]>(
+      `SELECT count(DISTINCT c.url)::text AS n
+         FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+         JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
+           ON u.domain = c.domain AND u.url = c.url
+        WHERE c.domain = $1 AND c.embedding IS NULL
+          AND u.status = 'active' AND u.content IS NOT NULL`,
+      [domain],
+    );
+    return Number(left?.n ?? '0');
+  }
+
+  /** Index a page if its store outcome calls for it: changed text always,
+   * text chunked without vectors once a model can embed it. */
+  async settle(url: string, outcome: StoreOutcome): Promise<void> {
+    if (outcome === 'unchanged') return;
+    if (outcome === 'vectorless' && (await this.resolveEmbedder()) === null) {
+      return;
+    }
+    await this.indexPage(url);
   }
 
   async indexPage(url: string): Promise<void> {
@@ -1579,10 +1826,7 @@ class PageIndexer {
       );
       return;
     }
-    const embedder = await this.resolveEmbedder();
-    const vectors = embedder
-      ? await embedder.embedAll(chunks.map((chunk) => chunk.embedText))
-      : null;
+    const vectors = await this.embed(chunks.map((chunk) => chunk.embedText));
     const contentHash = computeContentHash(row.content);
 
     await this.sql.begin(async (tx) => {

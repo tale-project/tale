@@ -60,6 +60,7 @@ import {
   type GuardrailFilter,
   type GuardrailRefusal,
 } from './guardrails';
+import type { TaskHandover } from './handover';
 import {
   type ChatToolExecutor,
   type ToolCallRequest,
@@ -408,6 +409,9 @@ export interface TurnRequest {
   /** The person's own standing instructions, already gated by the host (see
    * `ContextInput.customInstructions`); they ride after the cache breakpoint. */
   readonly customInstructions?: string;
+  /** How this person hands work to an agent (`ContextInput.taskHandover`);
+   * the app's chat only. */
+  readonly taskHandover?: TaskHandover;
   readonly toolDocs?: readonly ToolDoc[];
   /** The project a project-bound thread belongs to — named in the prompt as
    * the scope its tools work inside (the executor enforces that boundary
@@ -597,6 +601,9 @@ function assembleTurnContext(
     ...(request.project !== undefined ? { project: request.project } : {}),
     ...(request.customInstructions !== undefined
       ? { customInstructions: request.customInstructions }
+      : {}),
+    ...(request.taskHandover !== undefined
+      ? { taskHandover: request.taskHandover }
       : {}),
     now,
     history,

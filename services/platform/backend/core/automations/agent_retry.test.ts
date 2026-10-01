@@ -19,12 +19,17 @@ import {
   type WorkflowAgentAttempt,
 } from './agent_retry';
 
+/** Every harness but Gemini CLI continues its conversations. */
+const RESUMES = { resumable: true };
+
 describe('workflowAgentRetryResume', () => {
   it('continues the failed conversation when the harness left a handle', () => {
     expect(
       workflowAgentRetryResume(
         { failureCode: 'harness_error', agentSessionId: 'conv-1' },
         'the agent turn failed: API Error: 502',
+        {},
+        RESUMES,
       ),
     ).toEqual({
       agentSessionId: 'conv-1',
@@ -32,13 +37,23 @@ describe('workflowAgentRetryResume', () => {
     });
     // A settle from before the failure code existed still resumes.
     expect(
-      workflowAgentRetryResume({ agentSessionId: 'conv-1' }, 'crashed'),
+      workflowAgentRetryResume(
+        { agentSessionId: 'conv-1' },
+        'crashed',
+        {},
+        RESUMES,
+      ),
     ).toEqual({ agentSessionId: 'conv-1', reason: 'crashed' });
   });
 
   it('starts fresh when there is no conversation to continue', () => {
     expect(
-      workflowAgentRetryResume({ failureCode: 'harness_error' }, 'no handle'),
+      workflowAgentRetryResume(
+        { failureCode: 'harness_error' },
+        'no handle',
+        {},
+        RESUMES,
+      ),
     ).toBeUndefined();
     for (const failureCode of [
       'session_gone',
@@ -49,11 +64,39 @@ describe('workflowAgentRetryResume', () => {
         workflowAgentRetryResume(
           { failureCode, agentSessionId: 'conv-1' },
           'gone',
+          {},
+          RESUMES,
         ),
       ).toBeUndefined();
       // Both stay retryable — fresh, not abandoned.
       expect(isWorkflowAgentRetryable(failureCode)).toBe(true);
     }
+  });
+});
+
+describe('workflowAgentRetryResume on a harness that never resumes', () => {
+  it('starts fresh even with a handle, a plain cut, and a cooled-down resume to pick up', () => {
+    // Gemini CLI: `capabilities.resume: false` — its `--resume` replays every
+    // tool result twice, so the conversation it names cannot be continued.
+    const gemini = { resumable: false };
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'harness_error', agentSessionId: 'conv-1' },
+        'the agent turn failed: API Error: 502',
+        {},
+        gemini,
+      ),
+    ).toBeUndefined();
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'credential_cooldown' },
+        'refused',
+        { resumedFrom: 'conv-1', resumeReason: 'cut' },
+        gemini,
+      ),
+    ).toBeUndefined();
+    // Still retryable — fresh, not abandoned.
+    expect(isWorkflowAgentRetryable('harness_error')).toBe(true);
   });
 });
 
@@ -69,6 +112,7 @@ describe('workflowAgentRetryResume after a start the cooling pool refused', () =
           resumedFrom: 'conv-1',
           resumeReason: 'the agent turn failed: API Error: 429',
         },
+        RESUMES,
       ),
     ).toEqual({
       agentSessionId: 'conv-1',
@@ -80,14 +124,20 @@ describe('workflowAgentRetryResume after a start the cooling pool refused', () =
         { failureCode: 'credential_cooldown' },
         'refused',
         {},
+        RESUMES,
       ),
     ).toBeUndefined();
     // Any other start failure keeps its fresh re-kick: the session itself
     // may be what failed.
     expect(
-      workflowAgentRetryResume({ failureCode: 'start_failed' }, 'refused', {
-        resumedFrom: 'conv-1',
-      }),
+      workflowAgentRetryResume(
+        { failureCode: 'start_failed' },
+        'refused',
+        {
+          resumedFrom: 'conv-1',
+        },
+        RESUMES,
+      ),
     ).toBeUndefined();
   });
 });

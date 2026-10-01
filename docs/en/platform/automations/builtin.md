@@ -27,13 +27,23 @@ These workflows pull new messages into conversations every five minutes. Each de
 | Sync Outlook emails | Outlook | Every 5 minutes |
 | Sync emails via SMTP/IMAP | IMAP/SMTP | Every 5 minutes |
 
+A pass reads the mailbox's Inbox folder only. It tells the mailbox's own replies from a customer's by the mailbox address, which the first pass learns from the connected account and keeps on the connection as its From address; IMAP takes it from the login.
+
 Connect the matching mailbox first. After the first live run, inspect its [execution log](/platform/automations/execution-logs) and check that the expected messages appear in the **Inbox** view in Home.
 
 Attachments are stored with their message, so you open and download them from the conversation. Gmail hands over each attachment only up to 3.5 MB: a larger one is still listed with its name and size, but you open it in Gmail.
 
-## Read a digest of recent mail
+## Triage the Inbox
 
-These workflows read recent messages from every connected mailbox of their kind every six hours. They return a summary and identify messages that appear to need a reply today. The digest is the run’s output: open the run to read it. They do not write back to the mailbox or change conversation status.
+These workflows work on the **Inbox** that the sync automations fill, every six hours. Each one reads the open conversations of its mail connector whose newest message is the customer's and that no earlier pass has judged since that message arrived — 25 per run, or the `limit` you set, up to 100. The model decides for each thread whether a person has to reply, and how urgent it is.
+
+What a run changes:
+
+- The verdict is recorded on each thread, with its reason, so the next run looks at the thread again only when the customer writes again.
+- The thread's **priority** is set to the model's verdict — but only when nobody has set one. A priority a person chose stays as it is.
+- Where a reply is due, a second model call drafts one and leaves it on the thread as a **Suggested reply**: a card above the composer, apart from anything a person typed. **Put in editor** hands the text to the composer to edit and send; **Discard** drops it, and the thread is not proposed on again until the customer writes again. Nothing is sent by the automation. A thread that already carries a suggestion keeps it.
+
+The run's output lists what was read, the model's summary, the threads that need a reply with their Inbox links, and the drafts it left. A run with nothing waiting makes no model call. Deploy the matching sync automation first; without synchronized conversations there is nothing to triage.
 
 | Automation | Required connector | Schedule |
 | --- | --- | --- |

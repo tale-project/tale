@@ -31,6 +31,8 @@ Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform
 
 Kommentiere eine Projektaufgabe und erwähne ihren Agenten, um die Arbeit zu lenken. Claude Code erhält den Hinweis beim nächsten Werkzeugübergang. Bei den anderen Laufzeiten beendet Tale den aktuellen Prozess und setzt dieselbe Unterhaltung mit dem Kommentar in einem neuen Prozess fort. Deshalb kann ein laufender Prozess nach einer neuen Anweisung neu starten.
 
+Gemini CLI ist die Ausnahme: Tale setzt eine seiner Unterhaltungen nie fort. Ein späterer Kommentar, ein automatischer neuer Versuch oder die Antwort auf eine Frage des Agenten beginnt eine neue Unterhaltung im selben Arbeitsbereich, in der die Aufgabenbeschreibung und die bisherigen Runden erneut mitgegeben werden, weil die Laufzeit eine Unterhaltung mit einem Werkzeugaufruf nicht wiederaufnehmen kann. Dateien und Ausgaben bleiben erhalten; nur die Unterhaltung beginnt von vorn.
+
 ## Zugangsdaten und Kosten verstehen
 
 Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable stellt Tale einen sitzungsgebundenen Gateway-Schlüssel bereit. Der ursprüngliche Modell-Provider-Schlüssel bleibt bei der Plattform. Gateway-Aufrufe werden gemessen und unterliegen den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt.

@@ -24,6 +24,7 @@ import {
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
+import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
@@ -33,7 +34,6 @@ import {
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
-import { DOCUMENT_SKILL_SLUGS } from '../lib/document-skills';
 import { findSelectedModel, type ModelOption } from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 
@@ -56,6 +56,9 @@ interface ProjectAgentDialogProps {
   connectors: readonly SkillOption[];
   /** The row being edited; absent = create. */
   agent?: ProjectAgentRow;
+  /** Create mode: the new agent's id, once it exists and before the dialog
+   * closes — for a caller that goes on to use it (assign it to a task). */
+  onCreated?: (agentId: string) => void;
 }
 
 /** Mirrors the mutation's `PROJECT_AGENT_INSTRUCTIONS_MAX`. */
@@ -77,6 +80,7 @@ export function ProjectAgentDialog({
   skills,
   connectors,
   agent,
+  onCreated,
 }: ProjectAgentDialogProps) {
   const { t } = useT('projects');
   const { mutateAsync: createAgent } = useCreateProjectAgent();
@@ -247,7 +251,8 @@ export function ProjectAgentDialog({
       if (agent) {
         await updateAgent({ agentId: agent._id, ...payload });
       } else {
-        await createAgent({ projectId, ...payload });
+        const agentId = await createAgent({ projectId, ...payload });
+        onCreated?.(agentId);
       }
       toast({
         title: t(agent ? 'agents.editSuccess' : 'agents.createSuccess'),

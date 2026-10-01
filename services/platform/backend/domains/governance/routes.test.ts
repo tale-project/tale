@@ -32,6 +32,7 @@ const {
   mayCreateApiKeys,
   restoreSoftDeletedRow,
   syncRagDocumentScope,
+  recordUnusedWorkspaceRule,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createAuditLog: vi.fn(),
@@ -47,6 +48,7 @@ const {
   mayCreateApiKeys: vi.fn(),
   restoreSoftDeletedRow: vi.fn(),
   syncRagDocumentScope: vi.fn(),
+  recordUnusedWorkspaceRule: vi.fn(),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({ transactSerializable }));
@@ -61,6 +63,7 @@ vi.mock('../../lib/governance-policy-write.ts', () => ({
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
+vi.mock('../sandbox/unused-rule.ts', () => ({ recordUnusedWorkspaceRule }));
 vi.mock('../model_api/models.ts', () => ({ listModelApiModels }));
 vi.mock('../../auth/api-key-create-gate.ts', () => ({ mayCreateApiKeys }));
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
@@ -296,6 +299,42 @@ describe('POST /policies/:policyType — write order', () => {
   });
 });
 
+describe('POST /policies/sandbox_workspaces — the rule takes effect with the save', () => {
+  it('records the rule in the save transaction, before the file', async () => {
+    const order: string[] = [];
+    recordUnusedWorkspaceRule.mockImplementationOnce(async () => {
+      order.push('rule');
+    });
+    writeGovernancePolicyFile.mockImplementationOnce(async () => {
+      order.push('file');
+    });
+    const response = await post('/policies/sandbox_workspaces?orgId=o1', {
+      deleteUnused: true,
+      unusedDays: 7,
+    });
+    expect(response.status).toBe(200);
+    expect(recordUnusedWorkspaceRule).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      { deleteUnused: true, unusedDays: 7 },
+      expect.any(Number),
+    );
+    expect(order).toEqual(['rule', 'file']);
+  });
+
+  it('records nothing for another policy, and nothing for a refused save', async () => {
+    expect(
+      (await post('/policies/sandbox_workspaces', { unusedDays: 0 })).status,
+    ).toBe(400);
+    await post('/policies/sandbox_quota', {
+      maxSessionsPerOrg: 2,
+      maxWorkflowSessionsPerOrg: 2,
+      maxRenderSessionsPerOrg: 2,
+    });
+    expect(recordUnusedWorkspaceRule).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /policies/sandbox_quota — deployment capacity', () => {
   const atCapacity = {
     maxSessionsPerOrg: 2,
@@ -468,6 +507,41 @@ describe('POST /policies/sandbox_quota — deployment capacity', () => {
       expectNoWrite();
     },
   );
+});
+
+describe('POST /policies/standard_agent — the runtime a project agent may use', () => {
+  it('refuses a runtime the managed lane cannot run, naming the ones it can, before any write', async () => {
+    const response = await post('/policies/standard_agent', {
+      config: { enabled: true, harness: 'cursor' },
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      error: string;
+      data: { harnesses: string[] };
+    };
+    expect(body.error).toBe('STANDARD_AGENT_HARNESS_INVALID');
+    expect(body.data.harnesses).toContain('claude-code');
+    expect(body.data.harnesses).not.toContain('cursor');
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+  });
+
+  it('saves a runtime the managed lane can run, and Automatic', async () => {
+    for (const config of [
+      { enabled: true, harness: 'codex' },
+      { enabled: false },
+    ]) {
+      writeGovernancePolicyFile.mockClear();
+      const response = await post('/policies/standard_agent', { config });
+      expect(response.status).toBe(200);
+      expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'acme',
+        'standard_agent',
+        config,
+      );
+    }
+  });
 });
 
 describe('GET /my/model-api', () => {
