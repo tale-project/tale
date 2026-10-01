@@ -1,10 +1,12 @@
 // @vitest-environment node
 
 import type { Sql } from 'postgres';
+import * as client from 'prom-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closeKnowledgePools, setPoolFactory } from './core/knowledge/pool';
 import { probeStores, resetStoreHealth } from './store-health';
+import { registerBackendCollectors } from './telemetry';
 
 /**
  * The gauge that tells an operator an EXTERNAL store stopped answering. Its
@@ -146,5 +148,74 @@ describe('probeStores', () => {
     const second = await probeStores(sql);
     // A scrape must not cost a round-trip to every store.
     expect(second).toBe(first);
+  });
+
+  it('exports a timed-out knowledge probe as down until a fresh probe recovers', async () => {
+    let hanging = false;
+    let settleLateProbe: ((rows: unknown[]) => void) | undefined;
+    const query = () =>
+      hanging
+        ? new Promise<unknown[]>((resolve) => {
+            settleLateProbe = resolve;
+          })
+        : Promise.resolve([]);
+    setPoolFactory(
+      () =>
+        Object.assign(query, {
+          end: async (): Promise<void> => undefined,
+        }) as unknown as Sql,
+    );
+    const down = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const recovered = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const metric = 'tale_backend_store_up{store="knowledge_db"}';
+    const downMessage = '[backend] store "knowledge_db" is unreachable:';
+    const recoveryMessage = '[backend] store "knowledge_db" is reachable again';
+    vi.useFakeTimers();
+    try {
+      registerBackendCollectors(fakeSql());
+      expect(await client.register.metrics()).toContain(`${metric} 1`);
+      hanging = true;
+      await vi.advanceTimersByTimeAsync(30_000);
+      let settled = false;
+      const scrape = client.register.metrics().then((text) => {
+        settled = true;
+        return text;
+      });
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await scrape).toContain(`${metric} 0`);
+      expect(down).toHaveBeenCalledWith(
+        `${downMessage} the knowledge database did not answer within 5000 ms`,
+      );
+
+      // A late answer cannot rewrite the cached failed probe. A sustained
+      // outage still reads down on the next fresh scrape, without log spam.
+      settleLateProbe?.([]);
+      expect(await client.register.metrics()).toContain(`${metric} 0`);
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      const stillDown = client.register.metrics();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(await stillDown).toContain(`${metric} 0`);
+      expect(
+        down.mock.calls.filter(([line]) =>
+          String(line).startsWith(downMessage),
+        ),
+      ).toHaveLength(1);
+
+      hanging = false;
+      expect(await client.register.metrics()).toContain(`${metric} 0`);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(await client.register.metrics()).toContain(`${metric} 1`);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(await client.register.metrics()).toContain(`${metric} 1`);
+      expect(
+        recovered.mock.calls.filter(([line]) => line === recoveryMessage),
+      ).toHaveLength(1);
+    } finally {
+      client.register.clear();
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
   });
 });
