@@ -8,8 +8,10 @@
  *   count it once, and both answer it;
  * - nobody edits the standard agent: a save answers `PROJECT_AGENT_MANAGED`
  *   and writes nothing;
- * - a start brings its row in line with what resolved, and never waits for
- *   a row another start holds (`FOR UPDATE SKIP LOCKED`);
+ * - a start brings its row in line with what resolved — runtime, model,
+ *   instructions and the document skills the project can still equip —
+ *   and never waits for a row another start holds (`FOR UPDATE SKIP
+ *   LOCKED`);
  * - a project with agents of its own is left to them
  *   (`STANDARD_AGENT_NOT_NEEDED`);
  * - switched off, the standard agent is created nowhere and starts nothing
@@ -139,7 +141,7 @@ export async function checkStandardAgent(
       harness: 'claude-code',
       model: 'lane-model',
       modelProvider: 'lane-provider',
-      skills: [] as string[],
+      skills: ['docx', 'pptx'],
       instructions: 'Do the task.',
     };
     const project = { id: projectId, name: 'Standard agent lane' };
@@ -198,10 +200,12 @@ export async function checkStandardAgent(
 
     // ---- a start aligns the row, and never waits for it ---------------------
     const target = { id: first.agentId, organizationId: orgId, projectId };
+    // An admin disabled `pptx` since the agent was set up: the start drops it.
     const resolved = {
       harness: 'claude-code',
       model: 'healed-model',
       modelProvider: 'lane-provider',
+      skills: ['docx'],
       instructions: 'Do the task.',
     };
     // Another start holds the row: the alignment skips it at once.
@@ -224,17 +228,18 @@ export async function checkStandardAgent(
     const again = await sql.begin((tx) =>
       alignManagedProjectAgent(tx, target, resolved),
     );
-    const aligned = await sql<{ model: string }[]>`
-      SELECT model FROM app.project_agents WHERE id = ${first.agentId}
+    const aligned = await sql<{ model: string; skills: string[] }[]>`
+      SELECT model, skills FROM app.project_agents WHERE id = ${first.agentId}
     `;
     record(
-      'standard agent: a start aligns its row once, and skips a row another start holds',
+      'standard agent: a start aligns its row once, dropping a skill gone since, and skips a row another start holds',
       whileHeld === false &&
         whileHeldMs < 2_000 &&
         healed &&
         !again &&
-        aligned[0]?.model === 'healed-model',
-      `whileHeld=${String(whileHeld)} in ${whileHeldMs}ms healed=${String(healed)} again=${String(again)} model=${aligned[0]?.model}`,
+        aligned[0]?.model === 'healed-model' &&
+        aligned[0].skills.join(',') === 'docx',
+      `whileHeld=${String(whileHeld)} in ${whileHeldMs}ms healed=${String(healed)} again=${String(again)} model=${aligned[0]?.model} skills=${aligned[0]?.skills.join(',')}`,
     );
 
     // ---- a project with agents of its own ----------------------------------

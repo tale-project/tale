@@ -3,7 +3,7 @@ title: Créer et tester un agent de projet
 description: Donner une tâche précise à un agent, le lancer et examiner son résultat.
 ---
 
-Un agent de projet est une consigne réutilisable pour les tâches du projet. Tu choisis ses instructions, son environnement d’exécution, son modèle et ses outils, puis tu le lances sur une tâche et examines ce qu’il produit.
+Un agent de projet est une consigne réutilisable pour les tâches du projet. Tu choisis ses instructions, son environnement d’exécution, son modèle et ses outils, puis tu le lances sur une tâche et examines ce qu’il produit. Tant qu’un projet n’a pas d’agent propre, ses tâches peuvent aller à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation.
 
 ## Avant de commencer
 

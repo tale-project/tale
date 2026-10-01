@@ -3,7 +3,7 @@ title: Einen Projektagenten erstellen und testen
 description: Einem Projektagenten einen klaren Auftrag geben, ihn starten und das Ergebnis prüfen.
 ---
 
-Ein Projektagent ist ein wiederverwendbarer Arbeitsauftrag für Projektaufgaben. Du legst Anweisungen, Laufzeit, Modell und Werkzeuge fest, startest ihn an einer Aufgabe und prüfst das Ergebnis.
+Ein Projektagent ist ein wiederverwendbarer Arbeitsauftrag für Projektaufgaben. Du legst Anweisungen, Laufzeit, Modell und Werkzeuge fest, startest ihn an einer Aufgabe und prüfst das Ergebnis. Solange ein Projekt keinen eigenen Agenten hat, können seine Aufgaben an den [Standard-Agenten](/de/platform/projects/project-agents#standard-agent) der Organisation gehen.
 
 ## Was du brauchst
 

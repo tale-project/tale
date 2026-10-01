@@ -6,14 +6,14 @@ import type { ComposerModelOption } from '../../core/chat/composer.ts';
 const {
   readGovernancePolicyForOrg,
   listGovernedChatModels,
-  listProjectCapabilities,
+  listProjectSkillSlugs,
   alignManagedProjectAgent,
   insertManagedProjectAgent,
   loadProjectOrThrow,
 } = vi.hoisted(() => ({
   readGovernancePolicyForOrg: vi.fn(),
   listGovernedChatModels: vi.fn(),
-  listProjectCapabilities: vi.fn(),
+  listProjectSkillSlugs: vi.fn(),
   alignManagedProjectAgent: vi.fn(),
   insertManagedProjectAgent: vi.fn(),
   loadProjectOrThrow: vi.fn(),
@@ -22,7 +22,7 @@ const {
 vi.mock('../../lib/org-config.ts', () => ({ readGovernancePolicyForOrg }));
 vi.mock('../chat/composer.ts', () => ({
   listGovernedChatModels,
-  listProjectCapabilities,
+  listProjectSkillSlugs,
 }));
 // Wholly stood in, never `importOriginal`: the real service reaches the kick
 // through the task domain (retire → agent runs → this module), and loading
@@ -267,6 +267,11 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
     query.includes('FROM app.project_agents')
       ? [{ managed: true, projectId: 'project-1', createdBy: 'editor-1' }]
       : [];
+  // The project can equip two of the four document skills now — an admin
+  // disabled the others since the agent was set up.
+  beforeEach(() => {
+    listProjectSkillSlugs.mockResolvedValue(['xlsx', 'house-style', 'docx']);
+  });
 
   it('starts any other agent exactly as its caller read it', async () => {
     const { tx } = fakeTx((query) =>
@@ -304,6 +309,7 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
         harness: 'claude-code',
         model: 'claude-sonnet-5',
         modelProvider: 'anthropic',
+        skills: ['docx', 'xlsx'],
         instructions: STANDARD_AGENT_DEFAULT_INSTRUCTIONS,
       },
     );
@@ -389,10 +395,7 @@ describe('ensureStandardAgent — the door a Member hands a project work through
       archivedAt: null,
       teamIds: [],
     });
-    listProjectCapabilities.mockResolvedValue({
-      skills: [{ slug: 'docx' }, { slug: 'pdf' }, { slug: 'brief-summary' }],
-      connectors: [],
-    });
+    listProjectSkillSlugs.mockResolvedValue(['pdf', 'brief-summary', 'docx']);
     insertManagedProjectAgent.mockResolvedValue({
       agentId: 'agent-new',
       created: true,
@@ -424,12 +427,12 @@ describe('ensureStandardAgent — the door a Member hands a project work through
         instructions: STANDARD_AGENT_DEFAULT_INSTRUCTIONS,
       },
     );
-    // Which slugs are equippable is all it asks: no creator attribution.
-    expect(listProjectCapabilities).toHaveBeenCalledWith(
-      expect.anything(),
-      { organizationId: 'org-1', userId: auth.userId, projectId: 'project-1' },
-      { attribution: false },
-    );
+    // What the project itself can equip, not the member's visibility, in
+    // the document skills' own order.
+    expect(listProjectSkillSlugs).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      projectId: 'project-1',
+    });
   });
 
   it('answers the standing standard agent, and leaves a project with its own agents to them', async () => {

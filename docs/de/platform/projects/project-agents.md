@@ -85,7 +85,7 @@ Auch ein Projekt ohne eigene Agenten kann Arbeit an einen Agenten übergeben. So
 
 </Frame>
 
-Der Tab **Agenten** führt ihn mit dem Abzeichen **Standard**. Niemand bearbeitet ihn: Agent-Laufzeit, Modell und Anweisungen folgen den Einstellungen der Organisation, die Tale bei jedem Start eines Laufs neu liest, und seine Ausstattung sind die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf` des Projekts. Auf **Automatisch** nutzt jeder Lauf ein Modell, das die Person, die ihn startet, nutzen darf. Er kann also für verschiedene Personen mit verschiedenen Modellen laufen.
+Der Tab **Agenten** führt ihn mit dem Abzeichen **Standard**. Niemand bearbeitet ihn: Agent-Laufzeit, Modell und Anweisungen folgen den Einstellungen der Organisation, die Tale bei jedem Start eines Laufs neu liest, und seine Ausstattung sind die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf`, die das Projekt beim Start eines Laufs nutzen kann. Schaltet ein Admin einen davon ab, fällt er weg, statt den Agenten aufzuhalten. Auf **Automatisch** nutzt jeder Lauf ein Modell, das die Person, die ihn startet, nutzen darf. Er kann also für verschiedene Personen mit verschiedenen Modellen laufen.
 
 Um dem Projekt einen eigenen Agenten zu geben, wähle **Neuer Agent**. Ab dann bietet das Projekt den Standard-Agenten nicht mehr an; der bereits eingerichtete bleibt zuweisbar, bis du ihn löschst. Beim Löschen bleibt der Verlauf seiner Aufgaben erhalten, und solange das Projekt keine Agenten hat, richtet die nächste Aufgabe für den Standard-Agenten ihn wieder ein.
 

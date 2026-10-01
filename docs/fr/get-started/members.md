@@ -44,7 +44,7 @@ Dans **Accueil**, choisis un projet accessible sous **Projets**. Consulte **Tâc
 
 </Frame>
 
-Ouvre une tâche pour lire sa description, son attribution et la discussion. Dans tout projet que tu peux ouvrir, tu crées des tâches et modifies celles que tu as créées ou qui te sont attribuées, par exemple pour confier le travail à l’un des agents du projet. [Gérer les tâches du projet](/fr/platform/projects/tasks) explique le travail courant ; [utiliser les projets](/fr/tutorials/member/use-projects) propose un exemple complet.
+Ouvre une tâche pour lire sa description, son attribution et la discussion. Dans tout projet que tu peux ouvrir, tu crées des tâches et modifies celles que tu as créées ou qui te sont attribuées, par exemple pour confier le travail à l’un des agents du projet ou, dans un projet sans agents propres, à l’[agent standard](/fr/platform/projects/project-agents#standard-agent) de l’organisation. [Gérer les tâches du projet](/fr/platform/projects/tasks) explique le travail courant ; [utiliser les projets](/fr/tutorials/member/use-projects) propose un exemple complet.
 
 ## Reprendre ton travail
 
