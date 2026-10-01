@@ -255,7 +255,10 @@ export async function markRecreatedSessionActive(
   return rows.length > 0;
 }
 
-/** "Always-on" pin: exempt from the idle reaper + the hard TTL. */
+/** "Always-on" pin: exempt from the idle reaper + the hard TTL. An unpin also
+ * counts as the workspace's last use: a pinned period is no disuse, so the
+ * workspace cleanup's window starts over (`workspace-cleanup.ts`) instead of
+ * taking a long-pinned workspace within the hour. */
 export async function setSessionPinned(
   sql: Sql,
   args: { organizationId: string; sessionId: string; pinned: boolean },
@@ -268,7 +271,9 @@ export async function setSessionPinned(
       pinned_at_ms = CASE WHEN ${args.pinned}
         THEN ${now}::bigint ELSE NULL END,
       expires_at_ms = CASE WHEN ${args.pinned} THEN ${farFuture}::bigint
-        ELSE ${now + SANDBOX_SESSION_MAX_LIFETIME_MS}::bigint END
+        ELSE ${now + SANDBOX_SESSION_MAX_LIFETIME_MS}::bigint END,
+      last_activity_at_ms = CASE WHEN ${args.pinned} THEN last_activity_at_ms
+        ELSE greatest(coalesce(last_activity_at_ms, 0), ${now}::bigint) END
     WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
       AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
     RETURNING id
@@ -600,6 +605,9 @@ export interface SandboxSessionView {
    * all of them rather than one "current" turn. */
   runningOps: SandboxCurrentOpView[];
   totalSpentCents: number;
+  /** When the workspace is deleted for being unused, if it stays unused
+   * (`unusedWorkspaceDeletions`); null when nothing will delete it. */
+  deletesAt?: number | null;
 }
 
 interface SessionOpViewRow {

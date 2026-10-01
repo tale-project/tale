@@ -14,6 +14,7 @@ const {
   pin,
   reconcileOrg,
   teardown,
+  deletions,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   capacity: vi.fn(),
@@ -23,6 +24,7 @@ const {
   pin: vi.fn(),
   reconcileOrg: vi.fn(),
   teardown: vi.fn(),
+  deletions: vi.fn(),
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -63,6 +65,9 @@ vi.mock('./service.ts', () => ({
 vi.mock('./watchdogs.ts', () => ({
   reconcileOrgSessions: reconcileOrg,
 }));
+vi.mock('./workspace-cleanup.ts', () => ({
+  unusedWorkspaceDeletions: deletions,
+}));
 vi.mock('./sessions.ts', () => ({
   listSandboxViewsForOrg: listViews,
   listRunningOpsBySession: vi.fn(),
@@ -93,6 +98,7 @@ beforeEach(() => {
     maxRenderSessionsPerOrg: 6,
   });
   listViews.mockResolvedValue([]);
+  deletions.mockResolvedValue(new Map());
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -155,6 +161,38 @@ describe('sandbox settings read and write authority', () => {
       expect(query).not.toHaveBeenCalled();
     },
   );
+
+  it('dates the deletion of each hibernated agent workspace', async () => {
+    const view = (sessionId: string, extra: Record<string, unknown>) => ({
+      sessionId,
+      ownerType: 'project_agent',
+      status: 'stopped',
+      pinned: false,
+      ...extra,
+    });
+    listViews.mockResolvedValue([
+      view('pa-idle', {}),
+      view('pa-pinned', { pinned: true }),
+      view('pa-busy', { status: 'active' }),
+      view('wf-run', { ownerType: 'workflow_run' }),
+    ]);
+    deletions.mockResolvedValue(new Map([['pa-idle', 1_000_000]]));
+    const response = await app().request('/sessions/view');
+    expect(response.status).toBe(200);
+    // Only a stopped, unpinned agent workspace is asked about.
+    expect(deletions).toHaveBeenCalledWith(query, 'member-org', ['pa-idle']);
+    const body = (await response.json()) as {
+      sessions: Array<{ sessionId: string; deletesAt: number | null }>;
+    };
+    expect(
+      body.sessions.map(({ sessionId, deletesAt }) => [sessionId, deletesAt]),
+    ).toEqual([
+      ['pa-idle', 1_000_000],
+      ['pa-pinned', null],
+      ['pa-busy', null],
+      ['wf-run', null],
+    ]);
+  });
 
   it('keeps developers read-only for every sandbox mutation', async () => {
     caller.role = 'developer';

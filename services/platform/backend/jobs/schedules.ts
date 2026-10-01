@@ -66,6 +66,9 @@ export const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.automation_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
+  // Workspace cleanup: owner-less workspaces and the ones unused past their
+  // organization's window. Hourly, on a minute no other sweep takes.
+  { name: 'sandbox.workspace_gc', cron: '21 * * * *' },
   { name: 'watchdog.chat_generations', cron: '*/2 * * * *' },
   // Deferred-send crash recovery: revive severed poll chains and clear sends
   // wedged 'claimed' by a crash mid-turn (an un-cancellable tray chip).

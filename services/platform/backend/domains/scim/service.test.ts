@@ -1,12 +1,14 @@
 // @vitest-environment node
 
+import type { PgBoss } from 'pg-boss';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   MEMBER_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '../../../lib/shared/hint-entities.ts';
+import { setEnqueueBoss } from '../../jobs/enqueue.ts';
 import {
   deleteGroup,
   deprovisionUser,
@@ -473,6 +475,26 @@ describe('deleteGroup', () => {
   });
 });
 
+// The membership cascade queues the deletion of the member's sandbox
+// workspaces; a stand-in exposing the one method `addJobInTx` calls
+// captures it.
+const queued: { name: string; data: unknown }[] = [];
+beforeEach(() => {
+  queued.length = 0;
+  const fake = {
+    send: (name: string, data: unknown) => {
+      queued.push({ name, data });
+      return Promise.resolve('job-id');
+    },
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- capture stub; addJobInTx only calls send()
+  setEnqueueBoss(fake as unknown as PgBoss);
+});
+afterEach(() => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reset the module-level boss between tests
+  setEnqueueBoss(null as unknown as PgBoss);
+});
+
 /**
  * SCIM DELETE removes the whole per-org footprint, not just the member row:
  * Better Auth's own deleteMember drops the user's teamMember rows when
@@ -490,6 +512,17 @@ describe('deprovisionUser — the membership cascade', () => {
     const verdict = await deprovisionUser(sql, 'org-1', 'u-1');
 
     expect(verdict).toBe('deprovisioned');
+    // The member's sandbox workspaces go too, once the transaction commits.
+    expect(queued).toEqual([
+      {
+        name: 'sandbox.retire_workspaces',
+        data: {
+          organizationId: 'org-1',
+          reason: 'member_removed',
+          userId: 'u-1',
+        },
+      },
+    ]);
     const deleted = writes(queries).filter((q) => q.text.startsWith('DELETE'));
     const memberAt = deleted.findIndex((q) =>
       q.text.startsWith('DELETE FROM "member"'),

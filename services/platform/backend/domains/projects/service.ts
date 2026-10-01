@@ -48,6 +48,7 @@ import {
   LegalHoldError,
   loadActiveHolds,
 } from '../legal_holds/service.ts';
+import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
 import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import {
@@ -1237,6 +1238,16 @@ export async function deleteProject(
     closedReason: 'project_deleted',
   });
 
+  // The project's agents die with its row (FK cascade), and their
+  // workspaces with them once this commits.
+  const agents = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agents
+    WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
+  `;
+  await scheduleAgentWorkspaceRetirement(tx, {
+    organizationId: auth.organizationId,
+    agentIds: agents.map((agent) => agent.id),
+  });
   await tx`DELETE FROM app.projects WHERE id = ${args.projectId}`;
 
   await createAuditLog(
@@ -1857,6 +1868,12 @@ export async function deleteProjectAgent(
   assertAgentWritable(project, auth);
 
   await tx`DELETE FROM app.project_agents WHERE id = ${agentId}`;
+  // Its workspaces — the standing one and every member's — go once this
+  // commits: nothing can run the agent again to use them.
+  await scheduleAgentWorkspaceRetirement(tx, {
+    organizationId: auth.organizationId,
+    agentIds: [agentId],
+  });
   // The docs' promise, kept in the same transaction: no task stays "assigned"
   // to a row that is gone (the board showed the raw id, Retry re-kicked an
   // agent that could not exist). History — runs, comments, activity — stays.

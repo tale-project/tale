@@ -9,6 +9,7 @@ import {
   POLICY_SCHEMAS,
   sandboxQuotaConfigSchema,
   sandboxQuotaTotal,
+  sandboxWorkspacesConfigSchema,
 } from '@tale/shared/schemas/governance';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
@@ -39,6 +40,7 @@ import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
 import { listModelApiModels } from '../model_api/models.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
+import { recordUnusedWorkspaceRule } from '../sandbox/unused-rule.ts';
 import { holdsApiKeys, listOrgApiKeys } from './api-keys.ts';
 import {
   findBudgetViolation,
@@ -277,6 +279,17 @@ export function createGovernanceRoutes(deps: {
           entity: PROVIDER_CREDENTIAL_HINT_ENTITY,
           entityId: policyType,
         });
+      }
+      if (policyType === 'sandbox_workspaces') {
+        // The unused-workspace rule takes effect with this save: a rule
+        // turned (back) on or a shorter window starts its full window now,
+        // not at the next hourly sweep.
+        await recordUnusedWorkspaceRule(
+          tx,
+          organizationId,
+          sandboxWorkspacesConfigSchema.parse(parsed.data),
+          Date.now(),
+        );
       }
       // The file LAST, inside the transaction: a write failure rolls the
       // audit row back, and a transaction failure never leaves a policy in
