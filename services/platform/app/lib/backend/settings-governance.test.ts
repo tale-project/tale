@@ -165,6 +165,61 @@ describe('organization API key listing adapter', () => {
   });
 });
 
+/**
+ * The key listing describes the keys the saved budget rules name, so a rule
+ * change is a change to the listing too — though the listing is keyed under
+ * the API-key entity, not the policy one. Saving the budgets must refresh it,
+ * for this organization only.
+ */
+describe('budgets save → the organization’s key listing', () => {
+  const listingOf = (organizationId: string) => {
+    const key = settingsReadAdapters['governance/api_keys:listOrgApiKeys']?.(
+      { organizationId },
+      {},
+    )?.queryKey;
+    if (key === undefined) throw new Error('no key listing read');
+    return key;
+  };
+
+  it('invalidates this organization’s key listing and leaves the rest fresh', () => {
+    const client = new QueryClient();
+    const own = listingOf('org-a');
+    const otherOrg = listingOf('org-b');
+    const otherOrgPolicy = backendKey('org-b', 'governance_policy', 'budgets');
+    const ownKeyAccess = backendKey('org-a', 'api_key', 'my-access');
+    for (const key of [own, otherOrg, otherOrgPolicy, ownKeyAccess]) {
+      client.setQueryData(key, []);
+    }
+    settingsWriteAdapters[
+      'governance/file_actions:saveGovernancePolicy'
+    ]?.invalidate?.(
+      client,
+      { organizationId: 'org-a', policyType: 'budgets', config: {} },
+      {},
+    );
+    expect(client.getQueryState(own)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(otherOrg)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(otherOrgPolicy)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(ownKeyAccess)?.isInvalidated).toBe(false);
+    client.clear();
+  });
+
+  it('leaves the key listing alone when another policy is saved', () => {
+    const client = new QueryClient();
+    const own = listingOf('org-a');
+    client.setQueryData(own, []);
+    settingsWriteAdapters[
+      'governance/file_actions:saveGovernancePolicy'
+    ]?.invalidate?.(
+      client,
+      { organizationId: 'org-a', policyType: 'login_policy', config: {} },
+      {},
+    );
+    expect(client.getQueryState(own)?.isInvalidated).toBe(false);
+    client.clear();
+  });
+});
+
 describe('competence register adapters', () => {
   it('reads the register as its record list', async () => {
     const records = [{ id: 'record-a', competence: 'tale:rest.act-as' }];

@@ -1,3 +1,5 @@
+import { API_KEY_HINT_ENTITY } from '@/lib/shared/hint-entities';
+
 /**
  * Query-key vocabulary for 0.5-backend data.
  *
@@ -39,4 +41,16 @@ export function backendEntityPrefix(
  * could not serve in full) invalidates. */
 export function backendOrgPrefix(orgId: string): readonly ['backend', string] {
   return ['backend', orgId];
+}
+
+/**
+ * The organization's API-key listing (`GET /governance/api-keys`, the budget
+ * editor's): keyed under the API-key entity, so a key created, renamed or
+ * revoked anywhere refreshes it. It also describes the keys the saved budget
+ * rules name, so a budgets change must refresh it as well — the save
+ * adapter, and the hint handler for every `governance_policy` change another
+ * session or a configuration import or rollback makes.
+ */
+export function orgApiKeyListKey(orgId: string): BackendQueryKey {
+  return backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list');
 }

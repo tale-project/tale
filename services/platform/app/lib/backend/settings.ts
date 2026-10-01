@@ -25,7 +25,11 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch } from './api-client';
-import { backendEntityPrefix, backendKey } from './query-keys';
+import {
+  backendEntityPrefix,
+  backendKey,
+  orgApiKeyListKey,
+} from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
 type TeamMemberItem = ItemOf<'team_members/queries:listByTeam'>;
@@ -678,7 +682,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list'),
+      queryKey: orgApiKeyListKey(orgId),
       // One list for the editor: every live key (what the picker offers),
       // then the keys the saved rules still name. A backend from before
       // `ruleKeys` answers the live keys alone.
@@ -1547,6 +1551,10 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       void client.invalidateQueries({
         queryKey: backendEntityPrefix(orgId, 'governance_policy'),
       });
+      // The key listing describes the keys the budget rules name.
+      if (args.policyType === 'budgets') {
+        void client.invalidateQueries({ queryKey: orgApiKeyListKey(orgId) });
+      }
       if (args.policyType === 'sandbox_quota') {
         void client.invalidateQueries({
           queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),
