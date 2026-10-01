@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '@/backend/core/websites/scan_scheduling';
+import {
+  WEBSITE_EMBEDDING_FAILED_PREFIX,
+  WEBSITE_NOT_IN_CORPUS_MESSAGE,
+} from '@/backend/core/websites/scan_scheduling';
 import { renderLaneHaltMessage } from '@/lib/knowledge/crawl-parse';
 
 import {
@@ -74,12 +77,39 @@ describe('classifyScanError', () => {
     ).toBe('dns');
   });
 
-  it('maps a missing corpus row', () => {
+  it('maps a missing corpus row, as rows carry it now and as they did', () => {
+    expect(classifyScanError(WEBSITE_NOT_IN_CORPUS_MESSAGE)).toBe(
+      'notInCorpus',
+    );
     expect(
       classifyScanError(
         'Website not found in crawler. Please delete and re-add it.',
       ),
     ).toBe('notInCorpus');
+  });
+
+  // A whole site is registered again by its next scan; only a URL list,
+  // whose URLs were the registration, has to be deleted and added again.
+  it('tells a missing site and a missing URL list apart', () => {
+    expect(scanErrorMessageKey('notInCorpus', 'site')).toBe(
+      'viewDialog.scanError.notInCorpusSite',
+    );
+    expect(scanEmptyMessageKey('notInCorpus', 'site')).toBe(
+      'viewDialog.scanEmpty.notInCorpusSite',
+    );
+    // A row from before sources had a kind is a whole site.
+    expect(scanErrorMessageKey('notInCorpus')).toBe(
+      'viewDialog.scanError.notInCorpusSite',
+    );
+    expect(scanEmptyMessageKey('notInCorpus')).toBe(
+      'viewDialog.scanEmpty.notInCorpusSite',
+    );
+    expect(scanErrorMessageKey('notInCorpus', 'list')).toBe(
+      'viewDialog.scanError.notInCorpus',
+    );
+    expect(scanEmptyMessageKey('notInCorpus', 'list')).toBe(
+      'viewDialog.scanEmpty.notInCorpus',
+    );
   });
 
   // A rejected embedding key left "401 User not found." on the site and

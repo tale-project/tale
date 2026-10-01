@@ -108,9 +108,14 @@ export const EXPIRED_LINK_GRACE_MS = 15 * 60 * 1000;
 /** The row's error when its domain has no corpus registration — written by
  * the status sync AND by a scan that finds nothing to claim, so the failure
  * ledger (attempt clock, `error` status) fires for that class too instead
- * of the scheduler re-picking the domain every tick in silence. */
+ * of the scheduler re-picking the domain every tick in silence. It names
+ * both ways out, because the scan that finds nothing to claim does not know
+ * the row's kind and the row shows this on hover and over REST: a whole
+ * site is registered again by its next scan (`restoreSiteRegistration`), a
+ * URL list is not. The Websites page tells by the first sentence and says
+ * the one that applies. */
 export const WEBSITE_NOT_IN_CORPUS_MESSAGE =
-  'Website not found in crawler. Please delete and re-add it.';
+  'Website not found in crawler. A whole-site source is registered again by its next scan; a URL list must be deleted and re-added.';
 
 /** How a scan's error opens when the organization's embedding model could
  * not embed its pages (a rejected credential, an exhausted balance, a

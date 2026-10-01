@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
+import { WEBSITE_NOT_IN_CORPUS_MESSAGE } from '@/backend/core/websites/scan_scheduling';
 import type { CrawlerPage } from '@/backend/core/websites/types';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
@@ -308,6 +309,56 @@ describe('WebsiteViewDialog', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/User not found/)).not.toBeInTheDocument();
+  });
+
+  // A whole site missing from the crawler is registered again by its next
+  // scan; it was told to delete itself and be added again, which only a URL
+  // list still has to do.
+  it('tells a site missing from the crawler to wait for its scan, a URL list to be added again', () => {
+    const missing: WebsiteDoc = {
+      ...WEBSITE,
+      status: 'error',
+      crawledPageCount: 0,
+      failedPageCount: 0,
+      metadata: { lastSyncError: WEBSITE_NOT_IN_CORPUS_MESSAGE },
+    };
+    const { unmount } = render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={missing} />,
+    );
+
+    const siteDialog = screen.getByRole('dialog', { name: 'Website details' });
+    expect(
+      within(siteDialog).getByRole('heading', {
+        name: "This site isn't in the crawler. The next scan adds it again.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(siteDialog).getByText(
+        'Nothing was indexed. The next scan adds the site again.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(siteDialog).queryByText(/add it again/)).toBeNull();
+    unmount();
+
+    render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...missing, kind: 'list' }}
+      />,
+    );
+
+    const listDialog = screen.getByRole('dialog', { name: 'Website details' });
+    expect(
+      within(listDialog).getByRole('heading', {
+        name: "This URL list isn't in the crawler. Delete it and add it again.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(listDialog).getByText(
+        'Nothing was indexed. Delete the URL list and add it again.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('keeps the page list when a scan error follows indexed pages', () => {

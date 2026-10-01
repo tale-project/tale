@@ -8122,14 +8122,19 @@ websites:
       Résidence des données, puis reprends l'analyse.
     scanError:
       runtime: L'analyse n'a pas eu lieu.
-      notInCorpus: Ce site n'est pas dans le crawler. Supprime-le et ajoute-le
-        à nouveau.
+      notInCorpus: Cette liste d'URL n'est pas dans le crawler. Supprime-la et
+        ajoute-la à nouveau.
+      notInCorpusSite: Ce site n'est pas dans le crawler. La prochaine analyse
+        l'ajoutera à nouveau.
       embedding: Le modèle d'embedding n'a pas pu traiter les pages.
       generic: Le dernier scan ne s'est pas terminé.
     scanEmpty:
       runtime: Rien n'a été indexé. L'URL n'est pas le problème.
       dns: Rien n'a été indexé. Change l'URL si l'hôte est incorrect.
-      notInCorpus: Rien n'a été indexé. Supprime le site et ajoute-le à nouveau.
+      notInCorpus: Rien n'a été indexé. Supprime la liste d'URL et ajoute-la à
+        nouveau.
+      notInCorpusSite: Rien n'a été indexé. La prochaine analyse ajoutera le site
+        à nouveau.
       embedding: Rien n'a été indexé. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
       generic: Rien n'a été indexé.
   scanPausedBadge: Suspendu

@@ -654,9 +654,11 @@ export function WebsiteViewDialog({
           title={lastSyncError ?? undefined}
         >
           <Heading level={3} size="sm" weight="medium">
-            {t(scanErrorMessageKey(scanErrorKind))}
+            {t(scanErrorMessageKey(scanErrorKind, website.kind))}
           </Heading>
-          <Text variant="muted">{t(scanEmptyMessageKey(scanErrorKind))}</Text>
+          <Text variant="muted">
+            {t(scanEmptyMessageKey(scanErrorKind, website.kind))}
+          </Text>
         </Stack>
       ) : (
         <EntityViewSection
@@ -681,7 +683,7 @@ export function WebsiteViewDialog({
               className="text-muted-foreground"
               title={lastSyncError}
             >
-              {t(scanErrorMessageKey(scanErrorKind))}
+              {t(scanErrorMessageKey(scanErrorKind, website.kind))}
             </Text>
           ) : null}
           {indexedPageCount(website) > 0 ? (

@@ -57,11 +57,21 @@ export function isSiteLevelScanError(kind: ScanErrorKind): boolean {
   );
 }
 
+/**
+ * What a source missing from the crawler is told: a whole site is registered
+ * again by its next scan, so it only has to wait for one (or start one); a
+ * URL list cannot be, because its URLs were the registration, and has to be
+ * deleted and added again. A row without a kind is a whole site.
+ */
+type SourceKind = 'site' | 'list' | undefined;
+
 export function scanErrorMessageKey(
   kind: ScanErrorKind,
+  source?: SourceKind,
 ):
   | 'viewDialog.scanError.runtime'
   | 'viewDialog.scanError.notInCorpus'
+  | 'viewDialog.scanError.notInCorpusSite'
   | 'viewDialog.scanError.embedding'
   | 'viewDialog.scanError.generic'
   | 'pagesDialog.errorKind.dnsFailed'
@@ -76,7 +86,8 @@ export function scanErrorMessageKey(
     case 'timeout':
       return 'pagesDialog.errorKind.timeout';
     case 'notInCorpus':
-      return 'viewDialog.scanError.notInCorpus';
+      if (source === 'list') return 'viewDialog.scanError.notInCorpus';
+      return 'viewDialog.scanError.notInCorpusSite';
     default:
       return 'viewDialog.scanError.generic';
   }
@@ -84,10 +95,12 @@ export function scanErrorMessageKey(
 
 export function scanEmptyMessageKey(
   kind: ScanErrorKind,
+  source?: SourceKind,
 ):
   | 'viewDialog.scanEmpty.runtime'
   | 'viewDialog.scanEmpty.dns'
   | 'viewDialog.scanEmpty.notInCorpus'
+  | 'viewDialog.scanEmpty.notInCorpusSite'
   | 'viewDialog.scanEmpty.embedding'
   | 'viewDialog.scanEmpty.generic' {
   switch (kind) {
@@ -98,7 +111,8 @@ export function scanEmptyMessageKey(
     case 'dns':
       return 'viewDialog.scanEmpty.dns';
     case 'notInCorpus':
-      return 'viewDialog.scanEmpty.notInCorpus';
+      if (source === 'list') return 'viewDialog.scanEmpty.notInCorpus';
+      return 'viewDialog.scanEmpty.notInCorpusSite';
     default:
       return 'viewDialog.scanEmpty.generic';
   }
