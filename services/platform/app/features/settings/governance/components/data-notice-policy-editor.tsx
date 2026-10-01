@@ -100,7 +100,7 @@ export function DataNoticePolicyEditor({
     [policy?.config],
   );
 
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'data_classification_notice',
     savedEnabled: saved.enabled,
@@ -215,7 +215,7 @@ export function DataNoticePolicyEditor({
             aria-label={t('dataNotice.enabledLabel')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={cannotManage || isToggling || editor.isSaving}
+            disabled={cannotManage || isSettling || editor.isSaving}
           />
         }
       >

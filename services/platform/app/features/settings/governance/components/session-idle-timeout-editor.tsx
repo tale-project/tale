@@ -68,7 +68,7 @@ export function SessionIdleTimeoutEditor({
 
   // `enabled` is instant-save (header switch); `idleTimeoutMinutes` is batched
   // through the settings header's global Save/Discard cluster.
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'session_idle_timeout',
     savedEnabled: savedConfig.enabled,
@@ -152,7 +152,7 @@ export function SessionIdleTimeoutEditor({
             aria-label={t('sessionIdleTimeout.enabled')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={!canEdit || isToggling || editor.isSaving}
+            disabled={!canEdit || isSettling || editor.isSaving}
           />
         }
       >

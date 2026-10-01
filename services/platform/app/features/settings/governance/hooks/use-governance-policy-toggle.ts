@@ -1,6 +1,8 @@
 import { toast } from '@tale/ui/use-toast';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { usePolicySettling } from '@/app/lib/backend/policy-write-order';
+
 import { useUpsertGovernancePolicy } from './mutations';
 
 interface GovernancePolicyToggleOptions<C> {
@@ -28,16 +30,26 @@ interface GovernancePolicyToggleOptions<C> {
  * write is a filesystem action with no optimistic cache patch — the reactive
  * `getPolicy` query only updates once the write + cache-sync complete, so the
  * mirror gives immediate feedback and is rolled back by hand on failure.
+ *
+ * The switch writes the whole policy file, built from the saved config, so
+ * the order of writes matters (#4048):
+ * - A Save made while the switch's write is in flight waits for that write
+ *   (`policy-write-order.ts`), so the Save lands last.
+ * - `isSettling` stays true while any write of the policy from this tab is
+ *   in flight, or the policy's re-read after one. That covers the switch's
+ *   own write, a Save and a rule edit. A switch disabled on `isSettling`
+ *   never builds its write from a config that a newer write has replaced.
  */
 export function useGovernancePolicyToggle<C>(
   options: GovernancePolicyToggleOptions<C>,
 ): {
   enabled: boolean;
-  isToggling: boolean;
+  isSettling: boolean;
   onToggle: (next: boolean) => Promise<void>;
 } {
   const { organizationId, policyType, savedEnabled, isLoading } = options;
   const upsert = useUpsertGovernancePolicy({ errorToast: false });
+  const settling = usePolicySettling(organizationId, policyType);
   const [enabled, setEnabled] = useState(false);
 
   // Seed the optimistic mirror from the persisted value once the read settles
@@ -75,5 +87,5 @@ export function useGovernancePolicyToggle<C>(
     [upsert, organizationId, policyType],
   );
 
-  return { enabled, isToggling: upsert.isPending, onToggle };
+  return { enabled, isSettling: upsert.isPending || settling, onToggle };
 }

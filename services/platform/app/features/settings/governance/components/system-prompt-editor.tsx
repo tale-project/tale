@@ -112,7 +112,7 @@ export function SystemPromptEditor({
   // reads off. Only an explicit `false` silences configured text.
   const savedEnabled = saved.storedEnabled ?? saved.text.trim().length > 0;
 
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'system_prompt',
     savedEnabled,
@@ -181,7 +181,7 @@ export function SystemPromptEditor({
             aria-label={t('systemPrompt.enabled')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={isToggling || editor.isSaving}
+            disabled={isSettling || editor.isSaving}
           />
         }
       >

@@ -99,7 +99,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
 
   // `enabled` is instant-save (a switch in the section header); the other
   // fields are batched through the EditorActions cluster at the bottom.
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'login_policy',
     savedEnabled: savedConfig.enabled,
@@ -200,7 +200,7 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
             aria-label={t('loginPolicy.enabled')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={!canEdit || isToggling || editor.isSaving}
+            disabled={!canEdit || isSettling || editor.isSaving}
           />
         }
       >

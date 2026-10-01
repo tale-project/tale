@@ -25,6 +25,7 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch } from './api-client';
+import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
@@ -1524,17 +1525,34 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
     invalidate: invalidateConnectorOauthApps,
   },
   'governance/file_actions:saveGovernancePolicy': {
-    run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
-        `/governance/policies/${encodeURIComponent(stringArg(args, 'policyType'))}`,
-        { orgId: requireOrg(args, ctx), body: { config: args.config } },
-      ).then(() => null),
+    // Each write carries the whole file, so a policy's writes go out one at
+    // a time, in the order they were made (`policy-write-order.ts`).
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const policyType = stringArg(args, 'policyType');
+      return inPolicyWriteOrder(orgId, policyType, () =>
+        backendFetch<{ ok: boolean }>(
+          `/governance/policies/${encodeURIComponent(policyType)}`,
+          { orgId, body: { config: args.config } },
+        ),
+      ).then(() => null);
+    },
     invalidate: (client, args, ctx) => {
       const orgId = orgOf(args, ctx);
       if (orgId === undefined) return;
       void client.invalidateQueries({
         queryKey: backendEntityPrefix(orgId, 'governance_policy'),
       });
+      // The policy settles once its own read, which the invalidation above
+      // is fetching again, shows this write.
+      if (typeof args.policyType === 'string') {
+        settleUntilRead(
+          client,
+          orgId,
+          args.policyType,
+          backendKey(orgId, 'governance_policy', args.policyType),
+        );
+      }
       if (args.policyType === 'sandbox_quota') {
         void client.invalidateQueries({
           queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),

@@ -114,7 +114,7 @@ export function StandardAgentEditor({
     return parsed.success ? parsed.data : { enabled: true };
   }, [policyInvalid, policyQuery.data, policyQuery.isError]);
 
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'standard_agent',
     savedEnabled: saved?.enabled ?? true,
@@ -272,7 +272,7 @@ export function StandardAgentEditor({
             aria-label={t('standardAgent.enabledLabel')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={!canEdit || isToggling || editor.isSaving || readFailed}
+            disabled={!canEdit || isSettling || editor.isSaving || readFailed}
           />
         }
       >

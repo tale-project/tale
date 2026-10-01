@@ -569,7 +569,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   // The section's toggle. Rules survive it being switched off, so turning the
   // feature back on restores them; enforcement short-circuits on
   // `!enabled || rules.length === 0` server-side either way.
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'budgets',
     savedEnabled: savedConfig.enabled,
@@ -704,7 +704,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
             aria-label={t('budgets.title')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={cannotManage || isToggling}
+            disabled={cannotManage || isSettling}
           />
         }
       >
