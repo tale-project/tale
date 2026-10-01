@@ -14,7 +14,7 @@ import { loadHarnesses } from '../../core/lib/providers/load_system_config.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   listGovernedChatModels,
-  listProjectCapabilities,
+  listProjectSkillSlugs,
 } from '../chat/composer.ts';
 import {
   alignManagedProjectAgent,
@@ -345,6 +345,20 @@ async function standardAgentName(
 }
 
 /**
+ * The standard agent's equipment: the document skills (`docx`, `pptx`,
+ * `xlsx`, `pdf`) its project can equip right now, in that order — read at
+ * setup and again at every start, since nobody edits a managed agent to
+ * drop a skill an admin disabled since.
+ */
+async function standardAgentSkills(
+  sql: Sql,
+  args: { organizationId: string; projectId: string },
+): Promise<string[]> {
+  const visible = new Set(await listProjectSkillSlugs(sql, args));
+  return DOCUMENT_SKILL_SLUGS.filter((slug) => visible.has(slug));
+}
+
+/**
  * The project's standard agent, created if it has none yet — the door a
  * Member (or anyone who can open the project) uses to hand it work. Answers
  * the standing managed agent when there is one; refuses a project with
@@ -387,24 +401,16 @@ export async function ensureStandardAgent(
   });
   if (!serving.ok) throw refusalError(serving.refusal);
 
-  // Only which slugs are equippable: no creator names, so no audit-trail
-  // read inside a transaction that then writes an audit row.
-  const { skills } = await listProjectCapabilities(
-    tx,
-    {
-      organizationId: auth.organizationId,
-      userId: auth.userId,
-      projectId,
-    },
-    { attribution: false },
-  );
-  const visible = new Set(skills.map((skill) => skill.slug));
+  const skills = await standardAgentSkills(tx, {
+    organizationId: auth.organizationId,
+    projectId,
+  });
   return insertManagedProjectAgent(tx, auth, project, {
     name: await standardAgentName(tx, auth.organizationId),
     harness: serving.harness,
     model: serving.model,
     modelProvider: serving.modelProvider,
-    skills: DOCUMENT_SKILL_SLUGS.filter((slug) => visible.has(slug)),
+    skills,
     instructions: config.instructions ?? STANDARD_AGENT_DEFAULT_INSTRUCTIONS,
   });
 }
@@ -470,6 +476,10 @@ export async function standardAgentServingForKick(
       harness: serving.harness,
       model: serving.model,
       modelProvider: serving.modelProvider,
+      skills: await standardAgentSkills(tx, {
+        organizationId: args.organizationId,
+        projectId: agent.projectId,
+      }),
       instructions: config.instructions ?? STANDARD_AGENT_DEFAULT_INSTRUCTIONS,
     },
   );

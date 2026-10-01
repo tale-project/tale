@@ -1801,8 +1801,11 @@ export async function insertManagedProjectAgent(
 
 /**
  * Bring a standard agent's stored settings in line with what the policy
- * resolved for a run (`standard-agent.ts`), so its row — the Agents tab, the
- * run card, the next run's resume plan — says what actually runs. Writes
+ * resolved for a run (`standard-agent.ts`) and with the document skills its
+ * project can equip now, so its row — the Agents tab, the run card, the
+ * next run's resume plan, the launch's skill staging — says what actually
+ * runs: a skill an admin since disabled is dropped rather than failing
+ * every start of an agent nobody can edit. Writes
  * only on a difference, and no audit row: this is the organization's own
  * setting applied, not a person's edit (the policy save audits that).
  *
@@ -1821,13 +1824,13 @@ export async function alignManagedProjectAgent(
   },
   fields: Pick<
     ManagedProjectAgentFields,
-    'harness' | 'model' | 'modelProvider' | 'instructions'
+    'harness' | 'model' | 'modelProvider' | 'skills' | 'instructions'
   >,
 ): Promise<boolean> {
   const changed = await tx<{ id: string }[]>`
     UPDATE app.project_agents SET
       harness = ${fields.harness}, model = ${fields.model},
-      model_provider = ${fields.modelProvider},
+      model_provider = ${fields.modelProvider}, skills = ${fields.skills},
       instructions = ${fields.instructions}, updated_at_ms = ${Date.now()}
     WHERE id = (
       SELECT id FROM app.project_agents
@@ -1835,6 +1838,7 @@ export async function alignManagedProjectAgent(
         AND (harness IS DISTINCT FROM ${fields.harness}
           OR model IS DISTINCT FROM ${fields.model}
           OR model_provider IS DISTINCT FROM ${fields.modelProvider}
+          OR skills IS DISTINCT FROM ${fields.skills}
           OR instructions IS DISTINCT FROM ${fields.instructions})
       FOR UPDATE SKIP LOCKED
     )

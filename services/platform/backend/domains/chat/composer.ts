@@ -294,6 +294,28 @@ export async function listProjectCapabilities(
 }
 
 /**
+ * The skill slugs visible to a PROJECT — org-wide plus its teams' — exactly
+ * as its agents' equipment resolves at launch, without a member's access
+ * check: for the organization's standard agent, which is kept in step with
+ * what its project can equip whoever its run acts for.
+ */
+export async function listProjectSkillSlugs(
+  sql: Sql,
+  args: { organizationId: string; projectId: string },
+): Promise<string[]> {
+  const orgSlug = await resolveOrgSlug(sql, args.organizationId);
+  if (orgSlug === null) return [];
+  const listing = await listSkillsForViewer({
+    orgSlug,
+    viewer: {
+      kind: 'project',
+      teamIds: await projectTeamIds(sql, args.projectId),
+    },
+  });
+  return listing.skills.map((skill) => skill.slug);
+}
+
+/**
  * What an AUTOMATION's agent node can equip: org-wide skills, optionally
  * widened to a project's team skills, plus the org's connected connectors.
  * The route gates on the developer role, matching the automation domain's
