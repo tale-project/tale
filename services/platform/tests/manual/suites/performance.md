@@ -193,7 +193,7 @@ single warm sample.
   fail quietly until one succeeds: …` warning per container, and no
   `pg-boss error:` dump at all; the second restart adds its own line.
   Afterwards jobs run again: a new chat gets its generated title.
-- [ ] `PERF-B7` · **A write and a list while the app tier is away** — With
+- [ ] `PERF-B8` · **A write and a list while the app tier is away** — With
   `SENTRY_DSN` pointing at a project you can read, open a project's task
   board, open **Create task** and type a title, then run `docker compose stop
   backend-api`. Click **Create task**, open **All projects** from the Home
