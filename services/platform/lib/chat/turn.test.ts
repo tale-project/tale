@@ -2334,6 +2334,54 @@ describe('runTurn — a failed turn books what it consumed', () => {
     });
   });
 
+  it('books nothing for a refusal the provider reports on its stream before any answer', async () => {
+    // OpenRouter commits its 200 early, while it waits on the upstream; the
+    // upstream's 429 then arrives on the stream. It turned the request away
+    // exactly like the same status sent as an HTTP answer.
+    const refusedOnStream: ModelCall = async function* stream(call) {
+      call.onAccepted?.();
+      yield* [];
+      throw Object.assign(
+        new Error(
+          'The model provider ended the reply with an error: Rate limit exceeded upstream (429)',
+        ),
+        { status: 429 },
+      );
+    };
+    const d = deps({ model: refusedOnStream });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(d.usage).toEqual([]);
+    expect(d.store.finalized.at(-1)).not.toHaveProperty('usage');
+  });
+
+  it('books a stream failure that is no refusal, and a refusal that came after words', async () => {
+    // A provider fault on the stream (502) after it accepted the request:
+    // the prompt was read.
+    const broke = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield* [];
+        throw Object.assign(new Error(OVERLOADED), { status: 502 });
+      },
+    });
+    await runTurn(request(), broke.deps);
+    expect(broke.usage).toHaveLength(1);
+    expect(broke.usage[0]?.inputTokens).toBeGreaterThan(0);
+    // A refusal status after the model had already written: consumed.
+    const late = deps({
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield { text: 'x'.repeat(40) };
+        throw Object.assign(new Error(OVERLOADED), { status: 429 });
+      },
+    });
+    await runTurn(request(), late.deps);
+    expect(late.usage).toMatchObject([
+      { outputTokens: estimateTokens('x'.repeat(40)) },
+    ]);
+  });
+
   it('books nothing for a request refused before its stream opened', async () => {
     // An HTTP status refusal (a 429 before the stream) never accepts.
     const refused: ModelCall = (call) => {

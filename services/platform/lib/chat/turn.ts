@@ -661,6 +661,8 @@ interface StreamRoundOptions {
 interface RoundObservation {
   /** The provider accepted the request (`onAccepted`), or a chunk arrived. */
   accepted: boolean;
+  /** Some of the answer, or its usage, arrived. */
+  answered: boolean;
   /** The model's text as it arrived, before the output guardrails. */
   text: string;
   reasoning: string;
@@ -748,6 +750,7 @@ async function streamWithOutputGuardrails(
   let persistedNonEmpty = false;
   const observed: RoundObservation = round.observed ?? {
     accepted: false,
+    answered: false,
     text: '',
     reasoning: '',
   };
@@ -851,6 +854,7 @@ async function streamWithOutputGuardrails(
       // A chunk is proof the provider answered with a stream; what it
       // carries is what the round has consumed so far.
       observed.accepted = true;
+      observed.answered = true;
       observed.text += chunk.text;
       if (chunk.reasoning !== undefined) observed.reasoning += chunk.reasoning;
       if (chunk.usage) observed.reportedUsage = chunk.usage;
@@ -1098,6 +1102,15 @@ function roundUsage(
     ...detail,
     estimated: !inputReported || !outputReported,
   };
+}
+
+/** The HTTP status a failure stands for, when it carries one — an HTTP
+ * answer's, or the one a provider named for a failure on its stream. */
+function failureStatus(error: unknown): number | undefined {
+  if (error === null || typeof error !== 'object' || !('status' in error)) {
+    return undefined;
+  }
+  return typeof error.status === 'number' ? error.status : undefined;
 }
 
 /** The rounds' counts summed — see `summed` in `runTurn`. */
@@ -1461,6 +1474,7 @@ export async function runTurn(
       };
       const observed: RoundObservation = {
         accepted: false,
+        answered: false,
         text: '',
         reasoning: '',
       };
@@ -1772,13 +1786,24 @@ export async function runTurn(
     // finished, and the failing round once the provider had accepted it —
     // its prompt was read and its partial answer written, so it is booked
     // like a cut round (`roundUsage`: reported counts where the stream gave
-    // them, estimated where it did not). A round refused before its stream
-    // opened (an HTTP status, an unreachable provider) adds nothing, and a
-    // turn with no such round books no row at all. Booked once, and stamped
-    // on the failed reply so the message and the ledger tell one story.
+    // them, estimated where it did not). A round the provider refused adds
+    // nothing: one refused before its stream opened (an HTTP status, an
+    // unreachable provider), and one whose stream reports a refusal — a
+    // 4xx status: a rate limit, a refused key or payment, a request too
+    // large — before any of the answer, which is the same refusal from a
+    // provider that commits its 200 early (OpenRouter, while it waits on the
+    // upstream). A turn with no consumed round books no row at all. Booked
+    // once, and stamped on the failed reply so the message and the ledger
+    // tell one story.
     let consumed: TurnUsage | undefined;
     if (!usageBooked) {
-      if (inFlight?.observed.accepted === true) {
+      const status = failureStatus(err);
+      const refusedOnStream =
+        inFlight?.observed.answered === false &&
+        status !== undefined &&
+        status >= 400 &&
+        status < 500;
+      if (inFlight?.observed.accepted === true && !refusedOnStream) {
         addRound(
           roundUsage(
             {

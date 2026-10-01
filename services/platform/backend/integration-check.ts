@@ -10828,6 +10828,9 @@ async function checkChat(
   // with an HTTP status before any stream.
   const STREAM_FAILS_MARKER = 'FAIL INSIDE THE STREAM';
   const REFUSED_MARKER = 'REFUSE BY STATUS';
+  // OpenRouter's early 200: keep-alives, then the upstream's rate limit
+  // reported on the stream before any of the answer.
+  const REFUSED_ON_STREAM_MARKER = 'REFUSE ON THE STREAM';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
   /** Every chat-completion request body the model saw, in order — the
@@ -10924,6 +10927,19 @@ async function checkChat(
         return;
       }
       res.setHeader('content-type', 'text/event-stream');
+      if (transcript.includes(REFUSED_ON_STREAM_MARKER)) {
+        res.write(': OPENROUTER PROCESSING\n\n');
+        res.write(
+          sse({
+            error: { code: 429, message: 'Rate limit exceeded upstream' },
+            choices: [
+              { index: 0, delta: { content: '' }, finish_reason: 'error' },
+            ],
+          }),
+        );
+        res.end();
+        return;
+      }
       if (transcript.includes(STREAM_FAILS_MARKER)) {
         res.write(
           sse({
@@ -11294,8 +11310,9 @@ async function checkChat(
       .loose()
       .safeParse(inStream.row?.usage);
     const refusedByStatus = await failedTurn(REFUSED_MARKER);
+    const refusedOnStream = await failedTurn(REFUSED_ON_STREAM_MARKER);
     record(
-      'chat turn that fails inside its stream books what it consumed; a refusal by HTTP status books nothing',
+      'chat turn that fails inside its stream books what it consumed; a refusal by HTTP status, or on the stream before any answer, books nothing',
       inStream.row?.status === 'failed' &&
         (inStream.row.error ?? '').includes(
           'Provider disconnected unexpectedly',
@@ -11314,8 +11331,16 @@ async function checkChat(
         refusedByStatus.row.usage === null &&
         refusedByStatus.delta.input === 0 &&
         refusedByStatus.delta.output === 0 &&
-        refusedByStatus.delta.requests === 0,
-      `in-stream: send → ${inStream.status}, row=${inStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(inStream.delta)} (want 100/5/1), stamped=${JSON.stringify(inStream.row?.usage ?? null)}; refused: send → ${refusedByStatus.status}, row=${refusedByStatus.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedByStatus.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedByStatus.row?.usage ?? null)}`,
+        refusedByStatus.delta.requests === 0 &&
+        refusedOnStream.row?.status === 'failed' &&
+        (refusedOnStream.row.error ?? '').includes(
+          'Rate limit exceeded upstream',
+        ) &&
+        refusedOnStream.row.usage === null &&
+        refusedOnStream.delta.input === 0 &&
+        refusedOnStream.delta.output === 0 &&
+        refusedOnStream.delta.requests === 0,
+      `in-stream: send → ${inStream.status}, row=${inStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(inStream.delta)} (want 100/5/1), stamped=${JSON.stringify(inStream.row?.usage ?? null)}; refused: send → ${refusedByStatus.status}, row=${refusedByStatus.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedByStatus.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedByStatus.row?.usage ?? null)}; refused on the stream: row=${refusedOnStream.row?.status ?? 'MISSING'}, booked Δ=${JSON.stringify(refusedOnStream.delta)} (want 0/0/0), stamped=${JSON.stringify(refusedOnStream.row?.usage ?? null)}`,
     );
 
     // A provider that ships NO catalog (Azure deployment names, Nous Portal):

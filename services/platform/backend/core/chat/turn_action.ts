@@ -296,6 +296,16 @@ export async function* streamSse(
       if (!event) continue;
       const failure = readStreamFailure(apiFormat, event);
       if (failure !== undefined) {
+        // Usage the failure event itself reports is what the round had
+        // consumed: hand it on before the round ends, so it is booked. A
+        // count of nothing is no evidence of consumption, and stays behind.
+        const { usage } = readEvent(apiFormat, event, state);
+        if (
+          usage !== undefined &&
+          (usage.inputTokens > 0 || usage.outputTokens > 0)
+        ) {
+          yield { text: '', usage };
+        }
         // Nothing the provider sends after its own error belongs to the
         // reply; leave the connection rather than drain it.
         void reader.cancel().then(
@@ -566,7 +576,8 @@ function createDirectModelCall(
  * success status means it accepted the prompt — `onAccepted` tells the
  * pipeline so before the first byte is read, and a failure from there on
  * (an error event on the stream, a stall, a dropped connection) still books
- * what the round used.
+ * what the round used, unless the stream's first word is a refusal of its
+ * own (`runTurn`).
  */
 export async function* streamProviderAnswer(
   response: Response,

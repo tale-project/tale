@@ -9697,7 +9697,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               type: 'object',
               additionalProperties: false,
               description:
-                'The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles. A failed turn carries what it consumed — its finished model rounds and, once the provider had accepted the request, the round that failed — and none when the provider refused the request before streaming. Counts are the provider’s own unless `estimated` is present.',
+                'The token counters the finished turn recorded and the catalog cost estimate stamped beside them; absent until the turn settles. A failed turn carries what it consumed — its finished model rounds and, if the provider had already accepted the request, the round that failed; a round the provider refused (an HTTP error status, or a refusal such as a rate limit reported before any output) adds nothing, so a turn refused on its first round carries none. Counts are the provider’s own unless `estimated` is present.',
               properties: {
                 inputTokens: {
                   ...int,

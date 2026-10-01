@@ -447,6 +447,44 @@ describe('streamSse — a failure reported on the stream ends the round', () => 
     expect(classifyChatErrorCode(error)).toBe('provider_error');
   });
 
+  it('hands on the usage the failure event reports, but not a count of nothing', async () => {
+    const usageOf = async (usage: unknown) => {
+      const chunks: unknown[] = [];
+      const read = async (): Promise<void> => {
+        for await (const chunk of streamSse(
+          sseResponse([
+            {
+              error: {
+                code: 502,
+                message: 'Provider disconnected unexpectedly',
+              },
+              choices: [
+                { index: 0, delta: { content: '' }, finish_reason: 'error' },
+              ],
+              usage,
+            },
+          ]),
+          'openai',
+        )) {
+          chunks.push(chunk);
+        }
+      };
+      await expect(read()).rejects.toThrow(/Provider disconnected/);
+      return chunks;
+    };
+    await expect(
+      usageOf({ prompt_tokens: 100, completion_tokens: 5 }),
+    ).resolves.toEqual([
+      {
+        text: '',
+        usage: { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+      },
+    ]);
+    await expect(
+      usageOf({ prompt_tokens: 0, completion_tokens: 0 }),
+    ).resolves.toEqual([]);
+  });
+
   it('says so when the provider named no reason', async () => {
     await expect(
       chunksOf(
@@ -646,6 +684,52 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
     expect(booked[0]?.inputTokens).toBeGreaterThan(0);
     expect(booked[0]?.outputTokens).toBe(0);
     expect(settled?.usage).toMatchObject({ estimated: true });
+  });
+
+  it('books nothing for a rate limit OpenRouter reports on its stream before any answer', async () => {
+    // The same refusal as an HTTP 429, from a provider that committed its
+    // 200 early: nothing was consumed.
+    const { outcome, booked, settled } = await turnOver(
+      providerModel(
+        () =>
+          rawSse(
+            `: OPENROUTER PROCESSING\n\n${frames({
+              error: { code: 429, message: 'Rate limit exceeded upstream' },
+              choices: [
+                { index: 0, delta: { content: '' }, finish_reason: 'error' },
+              ],
+            })}`,
+          ),
+        'openai',
+      ),
+    );
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(booked).toEqual([]);
+    expect(settled).not.toHaveProperty('usage');
+    expect(decodeChatError(settled?.error as string).code).toBe('rate_limited');
+  });
+
+  it('books the usage an error event reports itself', async () => {
+    const { booked, settled } = await turnOver(
+      providerModel(
+        () =>
+          rawSse(
+            frames({
+              ...OPENROUTER_ERROR,
+              usage: { prompt_tokens: 100, completion_tokens: 5 },
+            }),
+          ),
+        'openai',
+      ),
+    );
+    expect(booked).toMatchObject([
+      { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+    ]);
+    expect(settled?.usage).toEqual({
+      inputTokens: 100,
+      outputTokens: 5,
+      totalTokens: 105,
+    });
   });
 
   it('books nothing for a refusal answered as an HTTP status (the control)', async () => {
