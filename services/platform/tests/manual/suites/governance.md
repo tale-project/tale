@@ -608,8 +608,10 @@ agent.
   (`tasks.assignee.standardAgent`), and **Start agent**
   (`tasks.agentRun.start`) on a task already given to a standard agent
   answers the toast `tasks.agentRun.standardAgent.switchedOff` and queues
-  nothing. Turn it back on → the pin is still selected, and the same task
-  starts.
+  nothing. A comment there that @mentions the standard agent shows
+  `tasks.mentionPreview.standardAgentUnavailable` under the comment box and
+  saves as a plain mention: no run, the assignee and status unchanged. Turn
+  it back on → the pin is still selected, and the same task starts.
 
 ## Boundary & error tests
 
@@ -734,9 +736,9 @@ agent.
   **Start agent** (`tasks.agentRun.start`) → the toast
   `tasks.agentRun.standardAgent.pinUnavailable` says to ask an Admin, nothing
   is queued, and no other model stands in; as the owner, the same task starts
-  on the pinned model. In a project without agents, the Member's **Standard
-  agent** in **Assignee** answers the same toast and leaves the assignee
-  unchanged. Restore the rule and **Automatic**.
+  on the pinned model. In a project without agents, the Member's
+  **Assignee** offers no **Standard agent**, its footer reading
+  `tasks.assignee.noAgentsReader`. Restore the rule and **Automatic**.
 
 ## Accessibility (WCAG 2.1 AA)
 

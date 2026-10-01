@@ -1113,14 +1113,16 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the member's run fail for good (`TASK-F57`) → the member's bell gets
   **Agent run failed** (`inbox.agentRunFailed`); the removed member gets no
   row and no email.
-- [ ] `TASK-B37` · **A standard agent that can't run says why** — With no
-  credential serving a model the member may use, as the member choose
-  **Standard agent** (`tasks.assignee.standardAgent`) in **Assignee** in a
-  project without agents → the toast `tasks.agentRun.standardAgent.noModel`
-  says to ask an Admin, and the assignee is unchanged after a reload; once
-  the owner has given a task there to the standard agent, the member's
-  **Start agent** (`tasks.agentRun.start`) on it answers the same toast and no
-  run appears under **Activity**.
+- [ ] `TASK-B37` · **A standard agent that can't run for you says why** —
+  Under **Model access**, block every model for the Member role, with the
+  standard agent's **Model** on **Automatic**. As the member, open
+  **Assignee** (`tasks.fields.assignee`) on a task of theirs in a project
+  without agents → it offers no **Standard agent**
+  (`tasks.assignee.standardAgent`), and its footer reads
+  `tasks.assignee.noAgentsReader`. As the owner, give that task to
+  **Standard agent**; as the member, **Start agent** (`tasks.agentRun.start`)
+  → the toast `tasks.agentRun.standardAgent.noModel` says to ask an Admin,
+  and no run appears under **Activity**. Restore the rule.
 
 ## Accessibility (WCAG 2.1 AA)
 
