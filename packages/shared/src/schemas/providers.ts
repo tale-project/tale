@@ -1280,6 +1280,14 @@ export const harnessDefinitionSchema = z
         steering: z.boolean(),
         /** Whether the harness can mount MCP servers at all. */
         mcp: z.boolean(),
+        /**
+         * Whether the platform continues a previous turn's conversation
+         * (`resume`) on the next kick of the same task or node. `false`
+         * means every kick is a FRESH conversation over the preserved
+         * workspace — declared for a CLI whose resume path is broken, so no
+         * planner ever hands the exec a handle it cannot honour.
+         */
+        resume: z.boolean(),
       })
       .strict(),
     /** The stdout stream dialect (`lib/harnesses/parsers/<family>`). */
@@ -1332,6 +1340,15 @@ export const harnessDefinitionSchema = z
     if (provider.capabilities.planMode !== (counts.get('posture') ?? 0) > 0) {
       issue(
         'capabilities.planMode must match the presence of an argv posture slot',
+      );
+    }
+
+    // Resume ⇔ a resume slot exists: a harness the platform never resumes
+    // carries no slot, so a stray handle cannot reach its argv; one it does
+    // resume must have somewhere to put the handle.
+    if (provider.capabilities.resume !== (counts.get('resume') ?? 0) > 0) {
+      issue(
+        'capabilities.resume must match the presence of an argv resume slot',
       );
     }
 

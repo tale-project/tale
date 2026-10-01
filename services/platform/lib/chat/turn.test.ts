@@ -56,7 +56,12 @@ function harness(
     credentialEnvKeys: ['TALE_GATEWAY_TOKEN'],
     modelIdDialect: 'vendor-native',
     promptTransport: 'stdin-ndjson',
-    capabilities: { planMode: false, steering: false, mcp: false },
+    capabilities: {
+      planMode: false,
+      steering: false,
+      mcp: false,
+      resume: false,
+    },
     parser: 'hermes-jsonl',
     exec: {
       bin: 'test-harness',

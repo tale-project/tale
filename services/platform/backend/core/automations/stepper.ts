@@ -23,6 +23,7 @@ import type {
   Automation,
 } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
+import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
@@ -1270,7 +1271,11 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       // only the cut is repaired. No handle (or a session that is gone)
       // means a fresh conversation over the preserved workspace, as before.
       // A start refused while the pool cooled down resumes what it was to.
-      const resume = workflowAgentRetryResume(settled, reason, parked);
+      // A harness the platform never resumes (Gemini CLI) starts fresh
+      // whatever the settle left.
+      const resume = workflowAgentRetryResume(settled, reason, parked, {
+        resumable: harnessResumesConversations(parked.harness),
+      });
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,

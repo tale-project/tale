@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { harnessResumesConversations } from '../../core/chat/external_turn_shared.ts';
 import {
   AUTO_RETRY_HISTORY_LIMIT,
   freeCredentialRotations,
@@ -183,6 +184,7 @@ export async function resolveTaskKickStartArgs(
       harness: args.harness,
       sessionId: args.sessionId,
       ...(liveSessionCreatedAt !== undefined ? { liveSessionCreatedAt } : {}),
+      resumable: harnessResumesConversations(args.harness),
     },
   });
   const previousStartedAt = previous?.startedAt ?? 0;

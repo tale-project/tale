@@ -81,16 +81,19 @@ const NO_RESUME_FAILURE_CODES: ReadonlySet<string> = new Set([
 /**
  * The resume a retry of this settle should carry, or undefined when the
  * re-kick must be a fresh conversation: no handle announced (a harness that
- * died before its init line), or a failure class with nothing to resume.
- * A start refused while the broker pool cooled down never launched, so the
- * conversation it was to resume (`parked.resumedFrom`) still stands, with
- * the cut that ended it.
+ * died before its init line), a failure class with nothing to resume, or a
+ * harness the platform never resumes (`capabilities.resume: false` in its
+ * YAML — the exec builder refuses a handle on it). A start refused while
+ * the broker pool cooled down never launched, so the conversation it was to
+ * resume (`parked.resumedFrom`) still stands, with the cut that ended it.
  */
 export function workflowAgentRetryResume(
   settled: { failureCode?: string; agentSessionId?: string },
   reason: string,
-  parked: Pick<WorkflowAgentAttempt, 'resumedFrom' | 'resumeReason'> = {},
+  parked: Pick<WorkflowAgentAttempt, 'resumedFrom' | 'resumeReason'>,
+  harness: { resumable: boolean },
 ): WorkflowAgentRetryResume | undefined {
+  if (!harness.resumable) return undefined;
   if (
     settled.failureCode === 'credential_cooldown' &&
     parked.resumedFrom !== undefined

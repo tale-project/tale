@@ -533,3 +533,14 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   books only what the gateway kept (2026-09). Paying it down means a gateway release that keeps
   the usage a cancelled call had reached, then booking the gateway's figure alone in
   `metering.ts`.
+- **Gemini CLI never continues a conversation** — the pinned CLI's `--resume` replays every tool
+  result of the recorded session twice (its `toolCalls[].result` and the user record it also
+  writes for the same response — google-gemini/gemini-cli#29365, fix PRs open), so the first
+  request of a resumed conversation that ever ran a tool is refused by the model. The gemini
+  harness YAML declares `capabilities.resume: false`: every later kick of a task, every automatic
+  retry and every answered ask starts a fresh conversation over the preserved workspace with the
+  brief and the earlier rounds restated, where the other harnesses hand the exec the announced
+  handle (2026-10). Paying it down means a sandbox-runtime pin that carries the upstream fix —
+  which first needs root-owned system-settings staging in `tale-gemini-run`, as the
+  `GEMINI_CLI_VERSION` note in `services/sandbox-runtime/Dockerfile` says — then flipping the
+  flag and restoring the `resume` argv slot (the schema holds the two coherent).
