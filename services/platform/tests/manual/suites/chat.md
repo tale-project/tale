@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 91 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 97 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -164,10 +164,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   list shows **With an agent** (`chat.createTask.withAgents`, each row
   counting its agents, `chat.createTask.agentCount`) above **No agent yet**
   (`chat.createTask.withoutAgents`, each row reading **An Editor or Admin can
-  add one**, `chat.createTask.noAgentReader`); with exactly one project that
-  has agents it is picked already, otherwise **Continue** stays off until
-  one is picked; **Continue** → **Create task** opens holding your last
-  request as the description, a link back to the chat
+  add one**, `chat.createTask.noAgentReader`) — with the organization's
+  standard agent switched off ([governance.md](governance.md) `GOV-F52`);
+  while it is on, those projects are startable too (`CHAT-F56`); with exactly
+  one project that has agents it is picked already, otherwise **Continue**
+  stays off until one is picked; **Continue** → **Create task** opens holding
+  your last request as the description, a link back to the chat
   (`chat.createTask.fromChat`, or `chat.createTask.fromChatUntitled` while
   the model has not named the chat) and the attached file; a project with a
   single agent has it under **Assignee** already, and with an agent there
@@ -215,9 +217,25 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   the interface's own words: **Aufgabe erstellen** in the chat header, the
   projects you can open that have an agent, by name, and **Erstellen und
   Agent starten**; it names no menu, project or role that does not exist.
-  As a Member whose projects have no agent, the reply says an Editor or
+  As a Member whose projects have no agent, the reply says the
+  organization's standard agent takes the task (`CHAT-F56`), or, with it
+  switched off ([governance.md](governance.md) `GOV-F52`), that an Editor or
   Admin adds one on the project's Agents tab; with task automation switched
   off for the organization, it says agents cannot be started right now.
+- [ ] `CHAT-F56` · **The hand-over offers the standard agent** — With the
+  standard agent on (the default), as a Member, **Create task** in the
+  header of a chat filed in no project (`chat.createTask.headerButton`) → a
+  project without agents of its own sits under **With an agent**
+  (`chat.createTask.withAgents`) marked **Standard agent**
+  (`chat.createTask.standardAgent`), and **No agent yet**
+  (`chat.createTask.withoutAgents`) is gone. Pick it and **Continue** → the
+  task dialog opens with **Standard agent** as the **Assignee** and **Create
+  and start agent** (`tasks.actions.createAndStart`) as its verb; it creates
+  the task and starts the agent, and the tray above the message box follows
+  the run (`CHAT-F53`). With a real model, ask for a spreadsheet in a chat:
+  the reply's steps say that in projects without agents of their own the
+  organization's standard agent, named as the interface names it, takes the
+  task.
 - [ ] `CHAT-F21` · **Share link** — **Share** (`chat.share.button`) → dialog
   **Share chat** (`chat.share.title`) → under **Who can view this chat**
   (`chat.share.accessPickerLabel`) pick **Share with organization**
@@ -715,8 +733,10 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `<origin>/app/dashboard/{org}/chat/shared/{shareToken}`, one slash between
   each part, and the link opens the snapshot in another member's session; on a
   root deployment the same link has no prefix.
-- [ ] `CHAT-B20` · **A hand-over where no project has an agent** — As a
-  Member whose projects all lack agents, **Create task** in the chat header
+- [ ] `CHAT-B20` · **A hand-over where no project has an agent** — With the
+  organization's standard agent switched off ([governance.md](governance.md)
+  `GOV-F52`), as a Member whose projects all lack agents, **Create task** in
+  the chat header
   (`chat.createTask.headerButton`) → every project sits under **No agent
   yet** (`chat.createTask.withoutAgents`) reading **An Editor or Admin can
   add one** (`chat.createTask.noAgentReader`), and **Continue** stays off
