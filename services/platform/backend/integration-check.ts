@@ -26628,11 +26628,11 @@ async function checkInboxTriageLane(
       !firstIds.includes(closed) &&
       // The stripper's exact spacing is its own contract; the lane holds the
       // text to "readable, no markup".
-      waitingRow?.lastInboundText.includes('when does order 42 ship?') ===
-        true &&
+      waitingRow !== undefined &&
+      waitingRow.lastInboundText.includes('when does order 42 ship?') &&
       !waitingRow.lastInboundText.includes('<') &&
       waitingRow.contact.email === 'triage@ext.test' &&
-      waitingRow.assigned === false &&
+      !waitingRow.assigned &&
       waitingRow.url ===
         `/dashboard/${orgId}/conversations/open?conversation=${waiting}`,
     `listed=${firstIds.length} (want 2: waiting+prioritized; not answered/closed) text=${JSON.stringify(waitingRow?.lastInboundText)} url=${waitingRow?.url}`,
