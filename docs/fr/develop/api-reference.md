@@ -965,10 +965,10 @@ Le champ `usage` décrit les tokens et le coût estimé :
 - `reasoningTokens` est la part d’`outputTokens` consacrée au raisonnement. Le champ est absent si le fournisseur ne l’a pas communiqué ; `0` signifie qu’un zéro a été communiqué.
 - `cachedInputTokens` est la part d’`inputTokens` servie depuis le cache du fournisseur.
 - `costEstimateCents` est l’estimation du catalogue, en centimes de dollar américain, arrondie au millionième de centime. C’est la même estimation que dans le registre d’usage de l’organisation. Le champ est absent si le modèle n’a pas de tarif publié. Les entrées en cache utilisent le tarif d’entrée normal ; l’estimation représente donc une borne haute pour un tour bénéficiant du cache.
-- `estimated: true` indique que Tale a estimé les compteurs faute de données du fournisseur, notamment après une annulation. Le prompt complet, outils de l’assistant compris, est inclus.
+- `estimated: true` indique que Tale a estimé les compteurs faute de données du fournisseur, notamment après une annulation ou un échec en cours de flux. Le prompt complet, outils de l’assistant compris, est inclus.
 - `stepLimitHit: true` indique que la boucle d’outils a atteint son nombre maximal d’appels au modèle.
 
-`usage` est absent si le tour a échoué avant que le fournisseur ne transmette de compteurs.
+Un tour en échec conserve l’`usage` qu’il a consommé : ses appels au modèle terminés et, dès que le fournisseur a accepté la requête, l’appel qui a échoué, estimé là où le fournisseur n’a transmis aucun compteur. `usage` est absent si le fournisseur a refusé la requête avant de commencer à diffuser sa réponse.
 
 `parts` est une liste ordonnée dont les éléments sont distingués par `type` : `text`, `reasoning`, `attachment`, `tool-call`, `tool-result` ou `approval`. Le document OpenAPI décrit chaque forme comme un schéma nommé (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`) derrière un discriminant `type` à mapping explicite, un client généré obtient donc une classe par type. Traite un type inconnu comme un élément opaque : de nouveaux types peuvent être ajoutés.
 

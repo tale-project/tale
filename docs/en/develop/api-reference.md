@@ -813,10 +813,10 @@ Language is an instruction to the model, not a validated output guarantee. A mod
 | `reasoningTokens` | Share of output spent reasoning; absent means unreported, while `0` is a reported zero |
 | `cachedInputTokens` | Share of input served from the provider's cache |
 | `costEstimateCents` | Catalog estimate in fractional US cents, rounded to a millionth of a cent; absent without catalog pricing |
-| `estimated: true` | Platform-estimated counts, typically when provider counts were lost on cancellation |
+| `estimated: true` | Platform-estimated counts, typically when provider counts were lost to a cancellation or a failure mid-stream |
 | `stepLimitHit: true` | The tool loop used its full round budget |
 
-The usage ledger books the same catalog estimate. Cached input is priced at the normal input rate, so the estimate is an upper bound for a cached turn. Estimated usage includes the whole prompt, including assistant tools. A turn that fails before any counts are available has no `usage`.
+The usage ledger books the same catalog estimate. Cached input is priced at the normal input rate, so the estimate is an upper bound for a cached turn. Estimated usage includes the whole prompt, including assistant tools. A failed turn keeps the `usage` it consumed: its finished model rounds and, once the provider accepted the request, the round that failed, estimated where the provider reported no counts. A request the provider refused before streaming has no `usage`.
 
 `parts` is an ordered list discriminated by `type`: `text`, `reasoning`, `attachment`, `tool-call`, `tool-result`, or `approval`. The OpenAPI schema types each variant as its own named schema (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`) behind a `type` discriminator with an explicit mapping, so a generated client gets a class per kind. Treat future unknown variants as opaque rather than failing the whole message.
 

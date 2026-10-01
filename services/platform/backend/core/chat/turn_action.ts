@@ -545,26 +545,49 @@ function createDirectModelCall(
         { cause: error },
       );
     }
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      stall.dispose();
-      // The HTTP status rides on the error so the chat-error classifier can
-      // bucket it precisely (401/402/429…) instead of regexing the text.
-      throw Object.assign(
-        new Error(
-          `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
-        ),
-        { status: response.status },
-      );
-    }
-    // Headers count as the first sign of life; the body's bytes take over.
-    stall.touch();
     try {
-      yield* streamSse(response, wire.apiFormat, stall);
+      yield* streamProviderAnswer(
+        response,
+        wire.apiFormat,
+        stall,
+        request.onAccepted,
+      );
     } finally {
       stall.dispose();
     }
   };
+}
+
+/**
+ * The provider's answer to one round's request, read as the round's stream.
+ * A refusal answered as an HTTP status throws before anything streams: the
+ * provider turned the request away, and the round consumed nothing. A
+ * success status means it accepted the prompt — `onAccepted` tells the
+ * pipeline so before the first byte is read, and a failure from there on
+ * (an error event on the stream, a stall, a dropped connection) still books
+ * what the round used.
+ */
+export async function* streamProviderAnswer(
+  response: Response,
+  apiFormat: ApiFormat,
+  stall: StallGuard,
+  onAccepted?: () => void,
+): AsyncGenerator<ModelStreamChunk> {
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    // The HTTP status rides on the error so the chat-error classifier can
+    // bucket it precisely (401/402/429…) instead of regexing the text.
+    throw Object.assign(
+      new Error(
+        `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
+      ),
+      { status: response.status },
+    );
+  }
+  // Headers count as the first sign of life; the body's bytes take over.
+  stall.touch();
+  onAccepted?.();
+  yield* streamSse(response, apiFormat, stall);
 }
 
 // ----------------------------------------------------------------- the turn

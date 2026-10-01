@@ -180,6 +180,12 @@ export interface ModelCallRequest {
    * attachments as content blocks. Without it they read as text surfaces. */
   readonly vision?: boolean;
   readonly signal?: AbortSignal;
+  /** The host calls this once the provider ACCEPTED the request: it answered
+   * with a success status and its stream opened. From then on the round has
+   * consumed its prompt, and a failure later in the stream still books what
+   * the round used. A refusal answered as an HTTP status never calls it, so
+   * a request the provider turned away books nothing. */
+  readonly onAccepted?: () => void;
 }
 
 /** The model seam. Injected so the pipeline is testable without a provider,
@@ -633,6 +639,26 @@ interface StreamRoundOptions {
   /** Invoked once when the store reports a user cancel; the caller aborts
    * the round's signal in response. */
   readonly onCancelRequested?: () => void;
+  /** Filled in as the round streams, so a round that throws still tells the
+   * caller what it consumed. */
+  readonly observed?: RoundObservation;
+}
+
+/**
+ * What one round's stream has shown so far. The round's own result carries
+ * the same figures when it returns; this copy is for the round that THROWS
+ * instead — an error the provider reported inside an opened stream, a stall,
+ * a dropped connection — whose prompt the provider read and whose partial
+ * answer it wrote all the same.
+ */
+interface RoundObservation {
+  /** The provider accepted the request (`onAccepted`), or a chunk arrived. */
+  accepted: boolean;
+  /** The model's text as it arrived, before the output guardrails. */
+  text: string;
+  reasoning: string;
+  /** The last usage the provider reported on this round. */
+  reportedUsage?: TurnUsage;
 }
 
 /** How often a stalled stream re-asks the store whether the user hit Stop.
@@ -713,6 +739,11 @@ async function streamWithOutputGuardrails(
   let firstReasoningAtMs: number | undefined;
   let cancelled = false;
   let persistedNonEmpty = false;
+  const observed: RoundObservation = round.observed ?? {
+    accepted: false,
+    text: '',
+    reasoning: '',
+  };
 
   const emit = (chunk: {
     text: string;
@@ -774,6 +805,9 @@ async function streamWithOutputGuardrails(
       // never re-derives capability from a model id.
       vision: request.model.supportsVision,
       signal: round.signal ?? request.signal,
+      onAccepted: () => {
+        observed.accepted = true;
+      },
     });
     // A manual iterator instead of `for await`: each next() races the
     // cancel poll below, so Stop stays responsive while the provider is
@@ -807,6 +841,12 @@ async function streamWithOutputGuardrails(
       }
       if (winner.done === true) break;
       const chunk = winner.value;
+      // A chunk is proof the provider answered with a stream; what it
+      // carries is what the round has consumed so far.
+      observed.accepted = true;
+      observed.text += chunk.text;
+      if (chunk.reasoning !== undefined) observed.reasoning += chunk.reasoning;
+      if (chunk.usage) observed.reportedUsage = chunk.usage;
       if (chunk.usage) reportedUsage = chunk.usage;
       if (chunk.finishReason !== undefined) finishReason = chunk.finishReason;
       if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
@@ -986,14 +1026,17 @@ export function estimateCostCents(
  * cancelled round is the mixed case: the abort cuts the stream before an
  * OpenAI usage frame (sent last) and after an Anthropic `message_start`
  * (input only), so each side is taken from the provider where it reported
- * a count and estimated where it did not. `estimated` marks any round that
- * carries an estimate, so the stamp never passes one off as a fact.
+ * a count and estimated where it did not. A round that failed inside its
+ * stream is cut the same way. `estimated` marks any round that carries an
+ * estimate, so the stamp never passes one off as a fact.
  */
 function roundUsage(
   streamed: {
     text: string;
     reasoning?: string;
     cancelled?: boolean;
+    /** The stream failed before its settle chunk: cut, like a cancel. */
+    failed?: boolean;
     reportedUsage?: TurnUsage;
   },
   wire: {
@@ -1017,7 +1060,11 @@ function roundUsage(
       ? { reasoning: reported.reasoningTokens }
       : {}),
   };
-  if (reported !== undefined && streamed.cancelled !== true) {
+  if (
+    reported !== undefined &&
+    streamed.cancelled !== true &&
+    streamed.failed !== true
+  ) {
     return {
       input: reported.inputTokens,
       output: reported.outputTokens,
@@ -1043,6 +1090,46 @@ function roundUsage(
     output: outputReported ? reported.outputTokens : estimatedOutput,
     ...detail,
     estimated: !inputReported || !outputReported,
+  };
+}
+
+/** The rounds' counts summed — see `summed` in `runTurn`. */
+interface RoundSum {
+  input: number;
+  output: number;
+  cached?: number;
+  reasoning?: number;
+  estimated?: true;
+}
+
+/** The counts a turn books and stamps for its summed rounds, priced at the
+ * catalog rate by the ONE cost formula. The finish reason, timings and the
+ * step-limit flag are the settle's to add. */
+function summedUsage(
+  summed: RoundSum,
+  pricing: ModelCatalogEntry['pricing'] | undefined,
+): TurnUsage {
+  return {
+    inputTokens: summed.input,
+    outputTokens: summed.output,
+    totalTokens: summed.input + summed.output,
+    ...(summed.cached !== undefined
+      ? { cachedInputTokens: summed.cached }
+      : {}),
+    ...(summed.reasoning !== undefined
+      ? { reasoningTokens: summed.reasoning }
+      : {}),
+    ...(pricing !== undefined
+      ? {
+          costEstimateCents: estimateCostCents(
+            summed.input,
+            summed.output,
+            pricing,
+            summed.cached,
+          ),
+        }
+      : {}),
+    ...(summed.estimated === true ? { estimated: true } : {}),
   };
 }
 
@@ -1229,6 +1316,38 @@ export async function runTurn(
       : {}),
   });
 
+  /** Usage summed across rounds — every round bills its own full prompt.
+   * A round that reports nothing is estimated at the same rates the
+   * context assembly uses (`roundUsage`), and marks the sum estimated.
+   * Cache and reasoning counts stay undefined until a round actually
+   * reports one, so the stamp never invents a zero. Kept outside the `try`:
+   * a turn that fails still owes what its rounds consumed. */
+  const summed: RoundSum = { input: 0, output: 0 };
+  let roundsSummed = 0;
+  const addRound = (round: ReturnType<typeof roundUsage>): void => {
+    summed.input += round.input;
+    summed.output += round.output;
+    if (round.cached !== undefined) {
+      summed.cached = (summed.cached ?? 0) + round.cached;
+    }
+    if (round.reasoning !== undefined) {
+      summed.reasoning = (summed.reasoning ?? 0) + round.reasoning;
+    }
+    if (round.estimated) summed.estimated = true;
+    roundsSummed += 1;
+  };
+  /** The round streaming right now, with the wire it was sent: what a
+   * round that throws had consumed when it did. */
+  let inFlight:
+    | {
+        observed: RoundObservation;
+        wire: Parameters<typeof roundUsage>[1];
+      }
+    | undefined;
+  /** The turn's usage went to the ledger (or was attempted) on the way to
+   * a settle — a failure after that books nothing a second time. */
+  let usageBooked = false;
+
   try {
     steps.push('stream');
     // The FIRST round's sampling, resolved before any chunk flows: the model
@@ -1257,18 +1376,6 @@ export async function runTurn(
     const executor = deps.tools;
     /** Parts settled by finished tool rounds, in authored order. */
     const settledParts: MessagePart[] = [];
-    /** Usage summed across rounds — every round bills its own full prompt.
-     * A round that reports nothing is estimated at the same rates the
-     * context assembly uses (`roundUsage`), and marks the sum estimated.
-     * Cache and reasoning counts stay undefined until a round actually
-     * reports one, so the stamp never invents a zero. */
-    const summed: {
-      input: number;
-      output: number;
-      cached?: number;
-      reasoning?: number;
-      estimated?: true;
-    } = { input: 0, output: 0 };
     /** The TTFT anchor is the FIRST round's first provider text SSE;
      * reasoning and setup anchor the same way (first round wins). */
     let firstChunkAtMs: number | undefined;
@@ -1340,6 +1447,17 @@ export async function runTurn(
           parts: [{ type: 'text', text: budgetNotice }],
         });
       }
+      const wire = {
+        system: context.system,
+        messages: roundMessages,
+        tools: offeredTools,
+      };
+      const observed: RoundObservation = {
+        accepted: false,
+        text: '',
+        reasoning: '',
+      };
+      inFlight = { observed, wire };
       streamed = await streamWithOutputGuardrails(
         request,
         context,
@@ -1352,26 +1470,15 @@ export async function runTurn(
           ...(offeredTools !== undefined ? { tools: offeredTools } : {}),
           signal: roundSignal,
           onCancelRequested: () => cancel.abort(),
+          observed,
         },
       );
+      inFlight = undefined;
       if (streamed.finishReason === 'length') anyRoundLength = true;
       firstChunkAtMs ??= streamed.firstChunkAtMs;
       firstReasoningAtMs ??= streamed.firstReasoningAtMs;
       firstRoundStartedAtMs ??= streamed.roundStartedAtMs;
-      const round = roundUsage(streamed, {
-        system: context.system,
-        messages: roundMessages,
-        tools: offeredTools,
-      });
-      summed.input += round.input;
-      summed.output += round.output;
-      if (round.cached !== undefined) {
-        summed.cached = (summed.cached ?? 0) + round.cached;
-      }
-      if (round.reasoning !== undefined) {
-        summed.reasoning = (summed.reasoning ?? 0) + round.reasoning;
-      }
-      if (round.estimated) summed.estimated = true;
+      addRound(roundUsage(streamed, wire));
 
       const calls = streamed.toolCalls ?? [];
       if (
@@ -1554,27 +1661,8 @@ export async function runTurn(
             ? 'length'
             : streamed.finishReason;
     const usage: TurnUsage = {
-      inputTokens: summed.input,
-      outputTokens: summed.output,
-      totalTokens: summed.input + summed.output,
-      ...(summed.cached !== undefined
-        ? { cachedInputTokens: summed.cached }
-        : {}),
-      ...(summed.reasoning !== undefined
-        ? { reasoningTokens: summed.reasoning }
-        : {}),
-      ...(request.model.pricing !== undefined
-        ? {
-            costEstimateCents: estimateCostCents(
-              summed.input,
-              summed.output,
-              request.model.pricing,
-              summed.cached,
-            ),
-          }
-        : {}),
+      ...summedUsage(summed, request.model.pricing),
       ...(toolRounds >= MAX_TOOL_ROUNDS ? { stepLimitHit: true } : {}),
-      ...(summed.estimated === true ? { estimated: true } : {}),
       ...(finishReason !== undefined ? { finishReason } : {}),
       ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
     };
@@ -1602,6 +1690,7 @@ export async function runTurn(
     if (streamed.refusal) {
       const reason = refusalReason(streamed.refusal);
       steps.push('usage-ledger');
+      usageBooked = true;
       await recordUsage(request, usage, deps);
       await deps.store.finalizeAssistantMessage({
         organizationId: request.organizationId,
@@ -1628,6 +1717,7 @@ export async function runTurn(
     }
 
     steps.push('usage-ledger');
+    usageBooked = true;
     await recordUsage(request, usage, deps);
     // A stop is a clean terminal, not a completion: the row says
     // `cancelled` and keeps what streamed — a reader who cancelled a turn
@@ -1671,6 +1761,45 @@ export async function runTurn(
     // line is the operator's copy of it (the reason text was already
     // secret-redacted and truncated where it was thrown).
     console.error('[chat] turn failed:', reason);
+    // A failure does not undo what the turn consumed: every round that
+    // finished, and the failing round once the provider had accepted it —
+    // its prompt was read and its partial answer written, so it is booked
+    // like a cut round (`roundUsage`: reported counts where the stream gave
+    // them, estimated where it did not). A round refused before its stream
+    // opened (an HTTP status, an unreachable provider) adds nothing, and a
+    // turn with no such round books no row at all. Booked once, and stamped
+    // on the failed reply so the message and the ledger tell one story.
+    let consumed: TurnUsage | undefined;
+    if (!usageBooked) {
+      if (inFlight?.observed.accepted === true) {
+        addRound(
+          roundUsage(
+            {
+              text: inFlight.observed.text,
+              reasoning: inFlight.observed.reasoning,
+              failed: true,
+              ...(inFlight.observed.reportedUsage !== undefined
+                ? { reportedUsage: inFlight.observed.reportedUsage }
+                : {}),
+            },
+            inFlight.wire,
+          ),
+        );
+      }
+      if (roundsSummed > 0) {
+        consumed = summedUsage(summed, request.model.pricing);
+        try {
+          await recordUsage(request, consumed, deps);
+        } catch (bookingError) {
+          // The failure still settles; an unbooked spend is the operator's
+          // to see, never a reason to leave the reply unsettled.
+          console.error(
+            '[chat] the failed turn’s usage was not booked:',
+            bookingError instanceof Error ? bookingError.message : bookingError,
+          );
+        }
+      }
+    }
     // Stored as the structured envelope: the code the classifier derives
     // here is what lets the client render a localized, actionable hint
     // instead of the raw provider sentence. `decodeChatError` degrades
@@ -1681,6 +1810,7 @@ export async function runTurn(
       messageId: placeholder.id,
       model: request.model.id,
       providerSlug: request.model.provider,
+      ...(consumed !== undefined ? { usage: consumed } : {}),
       error: encodeChatError({
         code: classifyChatErrorCode(err),
         provider: request.model.provider,

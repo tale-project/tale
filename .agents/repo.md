@@ -533,13 +533,3 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   books only what the gateway kept (2026-09). Paying it down means a gateway release that keeps
   the usage a cancelled call had reached, then booking the gateway's figure alone in
   `metering.ts`.
-- **A chat turn that fails inside its stream books nothing** — a provider error reported on an
-  opened stream (OpenRouter's mid-stream `error` event, the Anthropic `error` event) settles the
-  reply `failed`, like a stall or a dropped connection mid-answer, and `runTurn`'s catch
-  (`services/platform/lib/chat/turn.ts`) writes no `usage_ledger` row, although the provider may
-  bill the prompt it read and any output before the failure. Until 2026-09-30 such an error was
-  read as an empty `complete` reply and booked at the platform's estimate. A refusal answered as
-  an HTTP status before the stream is billed nothing, so booking nothing is right there. Paying it
-  down means keeping the rounds' running sum outside the `try`, estimating the failing round from
-  its wire the way `roundUsage` does, and booking that estimate (`estimated`) before the failed
-  finalize.
