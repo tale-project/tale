@@ -40,10 +40,7 @@ import * as XLSX from 'xlsx';
 import { z } from 'zod';
 
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
-import {
-  lookupHostAddresses,
-  setSafeFetchResolverForTests,
-} from '../lib/net/safe-fetch.ts';
+import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
@@ -60,6 +57,7 @@ import {
   TASK_TITLE_MAX,
   taskLimitText,
 } from './core/tasks/helpers.ts';
+import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
@@ -132,6 +130,11 @@ import {
   requestedLanes,
   signUpUser,
 } from './integration-lane-helpers.ts';
+import {
+  itestResolve,
+  routeVendorFetch,
+  startItestVendorStub,
+} from './integration-vendor-stub.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
@@ -52874,9 +52877,11 @@ async function checkRetentionHeldRowsProgress(
 
 /**
  * Cloud-sync scan: every syncable config gets its job — a keyset walk over
- * the whole table, not the first thousand. The probe rows are removed right
- * after the scan: each enqueued per-config job then finds no row to claim
- * and returns.
+ * the whole table, not the first thousand. The probe rows are held by a live
+ * run (`running`, stamped now) and removed right after the scan, so each
+ * enqueued per-config job finds no row to claim and returns. Unheld, the
+ * in-process worker claimed hundreds of them before the cleanup and synced
+ * each against Microsoft Graph on the OneDrive lane's grant.
  */
 async function checkSyncScanFairness(
   sql: Sql,
@@ -52894,6 +52899,7 @@ async function checkSyncScanFairness(
     item_name: `scan-${index}.txt`,
     target_bucket: 'itest',
     status: 'active',
+    last_sync_status: 'running',
     created_at_ms: now - 2000 + index,
     updated_at_ms: now,
   }));
@@ -56166,6 +56172,7 @@ async function runLanes(
   sql: Sql,
   base: string,
   ctx: { cookie: string; userId: string },
+  boundary: typeof globalThis.fetch,
   registered: readonly Lane[],
 ): Promise<LaneSummary> {
   const { selected: lanes, filter } = selectLanes(registered);
@@ -56198,6 +56205,17 @@ async function runLanes(
           `them, so every later lane reads the lane's value (or nothing) ` +
           `instead. Wrap the override in overrideEnv().`,
       );
+    }
+    if (globalThis.fetch !== boundary) {
+      record(
+        `harness: ${name} puts the outbound boundary back`,
+        false,
+        `globalThis.fetch is not the harness's boundary after the lane, so ` +
+          `every later lane's requests went to what the lane left (a stub ` +
+          `that passes a request on to the real fetch reaches off the box). ` +
+          `Restore the saved fetch in the lane's finally.`,
+      );
+      globalThis.fetch = boundary;
     }
     const membershipsAfter = await sharedMemberships(sql, ctx.userId);
     if (membershipsAfter !== membershipsBefore) {
@@ -56233,21 +56251,6 @@ async function runLanes(
 }
 
 async function main(): Promise<void> {
-  // The lanes stub `fetch` for fixture hosts no resolver knows
-  // (`itest-crawl.example`, `itest.atlassian.net`); `safeFetch` resolves
-  // and pins every host before it dials, so a name DNS cannot answer reads
-  // as one documentation-range public address here. Real names keep their
-  // real answers, and the guard itself is proven by its unit suite.
-  setSafeFetchResolverForTests(async (hostname) => {
-    try {
-      return await lookupHostAddresses(hostname);
-    } catch (error) {
-      console.info(
-        `[itest] ${hostname} has no DNS answer; resolving it to a fixture address (${error instanceof Error ? error.message : String(error)})`,
-      );
-      return [{ address: '203.0.113.10', family: 4 }];
-    }
-  });
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error(
@@ -56262,6 +56265,34 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
+
+  // The suite's HTTP stays on the box (`integration-vendor-stub.ts`). The
+  // lanes stub `fetch` for their own fixture hosts (`itest-crawl.example`,
+  // `itest.atlassian.net`); the shipped vendor origins the model catalogs
+  // and the title lane call are answered by the vendor stub; the object
+  // store passes wherever it runs; any other host is refused and named at
+  // the end. `safeFetch` resolves and pins every host before it dials, and
+  // the video-link pre-resolution checks every name: both read the fixture
+  // address, never a real resolver.
+  const vendorStub = await startItestVendorStub();
+  const offBox = new Map<string, number>();
+  const objectStore = itestObjectStore();
+  const boundary = routeVendorFetch(globalThis.fetch, {
+    stubOrigin: vendorStub.origin,
+    onTheBox:
+      objectStore === null ? [] : [new URL(objectStore.endpoint).origin],
+    onOffBox: ({ method, origin }) => {
+      const key = `${method} ${origin}`;
+      const seen = offBox.get(key) ?? 0;
+      offBox.set(key, seen + 1);
+      if (seen === 0) {
+        console.warn(`[itest] refused ${key}: no stub answers that host`);
+      }
+    },
+  });
+  globalThis.fetch = boundary;
+  setSafeFetchResolverForTests(itestResolve);
+  setUrlSafetyResolverForTests(itestResolve);
 
   // Give the scaffold job real (empty) config roots so org creation's
   // `org.scaffold` job runs to success instead of retrying on misconfig.
@@ -56545,7 +56576,7 @@ async function main(): Promise<void> {
     // session dead, ends the run as a recorded FAIL naming the lane and the
     // lanes that never ran — the tally can never read green for a run that
     // executed fewer checks than it contains.
-    lanes = await runLanes(sql, baseUrl, authCtx, [
+    lanes = await runLanes(sql, baseUrl, authCtx, boundary, [
       ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
       [
         'checkOutboxRetention',
@@ -57364,9 +57395,23 @@ async function main(): Promise<void> {
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
     });
+    await vendorStub.close();
     await sql`DROP TABLE IF EXISTS itest_counter`;
     await sql.end({ timeout: 5 });
   }
+
+  // The run's traffic off the box, as evidence in the log. A refused
+  // request fails the way it fails without egress, so no verdict can hang on
+  // a host off the box; one a background job makes after its lane's cleanup
+  // (a sync run the lane outpaced) is named here rather than turning a check
+  // red on timing.
+  const answered = new Map<string, number>();
+  for (const request of vendorStub.requests) {
+    answered.set(request.host, (answered.get(request.host) ?? 0) + 1);
+  }
+  console.log(
+    `\n[itest] off the box: the vendor stub answered ${[...answered].map(([host, count]) => `${host}×${count}`).join(', ') || 'nothing'}, ${vendorStub.unexpected.length} of them on a path it does not serve (404); refused ${[...offBox].map(([request, count]) => `${request}×${count}`).join(', ') || 'nothing'}`,
+  );
 
   const failed = results.filter((r) => !r.ok);
   const skipped = results.filter((r) => isSkippedCheck(r.name)).length;

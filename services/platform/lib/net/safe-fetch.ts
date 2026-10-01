@@ -199,7 +199,7 @@ export type SafeFetchResolver = (
 
 /** The OS resolver — `/etc/hosts` and `nsswitch` included, exactly what
  * the socket would consult — every address, in answer order. */
-export async function lookupHostAddresses(
+async function lookupHostAddresses(
   hostname: string,
 ): Promise<readonly ResolvedAddress[]> {
   const found = await dns.promises.lookup(hostname, { all: true });
