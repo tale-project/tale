@@ -15,6 +15,7 @@ import {
 } from '@tanstack/react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { toBackendError } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -23,9 +24,10 @@ import { StandardAgentEditor } from './standard-agent-editor';
 
 type Availability = ReturnsOf<'projects/queries:getStandardAgent'>;
 
-const { state, saved, refetch } = vi.hoisted(() => ({
+const { state, saved, refetch, refetchAvailability } = vi.hoisted(() => ({
   saved: vi.fn(),
   refetch: vi.fn(),
+  refetchAvailability: vi.fn(),
   state: {
     config: {} as unknown,
     hasPolicy: true,
@@ -81,7 +83,11 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
       ],
     },
   }),
-  useStandardAgent: () => state.availability,
+  useStandardAgentQuery: () => ({
+    data: state.availability,
+    isFetching: false,
+    refetch: refetchAvailability,
+  }),
 }));
 
 const TOGGLE = 'Provide a standard agent';
@@ -125,6 +131,7 @@ async function renderEditor() {
 beforeEach(() => {
   saved.mockReset().mockResolvedValue(null);
   refetch.mockReset();
+  refetchAvailability.mockReset();
   state.config = {};
   state.hasPolicy = true;
   state.policyError = undefined;
@@ -236,11 +243,26 @@ describe('standard agent settings', () => {
     );
   });
 
+  it('asks both the policy and what it resolves to again on Retry', async () => {
+    state.config = { enabled: true };
+    state.availability = {
+      enabled: true,
+      available: false,
+      refusal: 'pin-unavailable',
+    };
+    const { user } = await renderEditor();
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(refetchAvailability).toHaveBeenCalledTimes(1);
+  });
+
   it('offers to repair a malformed file instead of locking the section', async () => {
-    state.policyError = new BackendApiError(
-      400,
-      'invalid',
-      'GOVERNANCE_POLICY_INVALID',
+    // What an adapted read throws for the door's 400: an AppError, not the
+    // raw API error.
+    state.policyError = toBackendError(
+      new BackendApiError(400, 'invalid', 'GOVERNANCE_POLICY_INVALID'),
     );
     await renderEditor();
 

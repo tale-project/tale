@@ -81,11 +81,16 @@ export type StandardAgentAvailability =
 export function useStandardAgent(
   organizationId: string | undefined,
 ): StandardAgentAvailability | undefined {
-  const { data } = useBackendQuery(
+  return useStandardAgentQuery(organizationId).data;
+}
+
+/** The read behind {@link useStandardAgent}, with its loading state and
+ * refetch — for a surface that waits for the answer or retries it. */
+export function useStandardAgentQuery(organizationId: string | undefined) {
+  return useBackendQuery(
     'projects/queries:getStandardAgent',
     organizationId !== undefined ? { organizationId } : 'skip',
   );
-  return data;
 }
 
 export type ProjectOverviewRow =

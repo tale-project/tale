@@ -22,7 +22,7 @@ import { z } from 'zod';
 
 import {
   useProjectHarnesses,
-  useStandardAgent,
+  useStandardAgentQuery,
 } from '@/app/features/projects/hooks/queries';
 import {
   SettingsFieldList,
@@ -30,8 +30,8 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
@@ -93,16 +93,17 @@ export function StandardAgentEditor({
   const canEdit = ability.can('write', 'orgSettings');
   const policyQuery = useGovernancePolicy(organizationId, 'standard_agent');
   const roster = useProjectHarnesses(organizationId);
-  const availability = useStandardAgent(organizationId);
+  const availabilityQuery = useStandardAgentQuery(organizationId);
+  const availability = availabilityQuery.data;
   const { mutateAsync: upsertMutation } = useUpsertGovernancePolicy({
     errorToast: false,
   });
 
   // A malformed file is offered for repair: saving writes a valid one. A
   // file that cannot be read at all is not — nothing is known to replace.
+  // Read by its code: an adapted read answers a refusal as an AppError.
   const policyInvalid =
-    policyQuery.error instanceof BackendApiError &&
-    policyQuery.error.code === 'GOVERNANCE_POLICY_INVALID';
+    backendErrorCode(policyQuery.error) === 'GOVERNANCE_POLICY_INVALID';
   const readFailed = policyQuery.isError && !policyInvalid;
   // A missing file is the default: on, everything automatic.
   const saved = useMemo<StandardAgentConfig | null>(() => {
@@ -405,8 +406,15 @@ export function StandardAgentEditor({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  disabled={policyQuery.isFetching}
-                  onClick={() => void policyQuery.refetch()}
+                  disabled={
+                    policyQuery.isFetching || availabilityQuery.isFetching
+                  }
+                  onClick={() => {
+                    // The alert may be the policy's or what it resolves to
+                    // for you (no model, a pin you may not use): ask both.
+                    void policyQuery.refetch();
+                    void availabilityQuery.refetch();
+                  }}
                 >
                   {t('standardAgent.retry')}
                 </Button>
