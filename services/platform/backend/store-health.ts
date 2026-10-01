@@ -67,6 +67,9 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Our deadline, distinct from a statement rejected by a live database. */
+class StoreProbeTimeoutError extends Error {}
+
 /**
  * Bound a probe that has no timeout of its own.
  *
@@ -85,7 +88,7 @@ async function withTimeout<T>(work: Promise<T>, label: string): Promise<T> {
         timer = setTimeout(
           () =>
             reject(
-              new Error(
+              new StoreProbeTimeoutError(
                 `${label} did not answer within ${PROBE_TIMEOUT_MS} ms`,
               ),
             ),
@@ -124,7 +127,10 @@ async function probeKnowledgeDatabase(): Promise<StoreStatus> {
   } catch (error: unknown) {
     // A statement that fails against a healthy connection says nothing about
     // reachability, which is the only thing this gauge claims.
-    if (!isConnectionFailure(error)) {
+    if (
+      !(error instanceof StoreProbeTimeoutError) &&
+      !isConnectionFailure(error)
+    ) {
       return { name: 'knowledge_db', up: true };
     }
     return { name: 'knowledge_db', up: false, detail: describe(error) };
