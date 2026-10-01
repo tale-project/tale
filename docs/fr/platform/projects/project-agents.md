@@ -85,7 +85,7 @@ Un projet sans agents propres peut quand même confier du travail à un agent. S
 
 </Frame>
 
-L’onglet **Agents** l’affiche avec le badge **Standard**. Personne ne le modifie : son harness, son modèle et ses instructions suivent les réglages de l’organisation, relus à chaque démarrage d’une exécution, et son équipement se limite aux skills de documents `docx`, `pptx`, `xlsx` et `pdf` du projet. Sur **Automatique**, chaque exécution utilise un modèle que la personne qui la démarre peut utiliser ; il peut donc fonctionner avec des modèles différents selon les personnes.
+L’onglet **Agents** l’affiche avec le badge **Standard**. Personne ne le modifie : son harness, son modèle et ses instructions suivent les réglages de l’organisation, relus à chaque démarrage d’une exécution, et son équipement se limite aux skills de documents `docx`, `pptx`, `xlsx` et `pdf` que le projet peut utiliser au démarrage d’une exécution. Si un admin en désactive un, il disparaît de son équipement au lieu de bloquer l’agent. Sur **Automatique**, chaque exécution utilise un modèle que la personne qui la démarre peut utiliser ; il peut donc fonctionner avec des modèles différents selon les personnes.
 
 Pour donner au projet un agent propre, choisis **Nouvel agent**. Dès lors, le projet ne propose plus l’agent standard ; celui déjà mis en place reste assignable jusqu’à ce que tu le supprimes. Sa suppression conserve l’historique de ses tâches, et tant que le projet n’a pas d’agents, la prochaine tâche confiée à l’agent standard le remet en place.
 

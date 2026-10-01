@@ -85,7 +85,7 @@ A project without agents of its own can still take on agent work. Unless an admi
 
 </Frame>
 
-The **Agents** tab lists it with the **Standard** badge. Nobody edits it: its agent type, model and instructions follow the organization's settings, read again whenever a run starts, and its equipment is the project's document skills `docx`, `pptx`, `xlsx` and `pdf`. On **Automatic**, each run uses a model that the person who starts it may use, so it can run on different models for different people.
+The **Agents** tab lists it with the **Standard** badge. Nobody edits it: its agent type, model and instructions follow the organization's settings, read again whenever a run starts, and its equipment is whichever of the document skills `docx`, `pptx`, `xlsx` and `pdf` the project can use when a run starts, so a skill an admin turns off drops out instead of stopping the agent. On **Automatic**, each run uses a model that the person who starts it may use, so it can run on different models for different people.
 
 To give the project an agent of its own, select **New agent**. From then on, the project isn't offered the standard agent any more; the one already set up stays assignable until you delete it. Deleting it keeps the history of its tasks, and while the project has no agents, the next task given to the standard agent sets it up again.
 
