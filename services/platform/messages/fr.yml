@@ -1112,6 +1112,7 @@ chat:
     agentCount: '{count, plural, one {# agent} other {# agents}}'
     noAgentEditor: Tu peux en ajouter un dans la tâche
     noAgentReader: Un éditeur ou un admin peut en ajouter un
+    standardAgent: Agent standard
   taskTray:
     label: Tâches issues de ce chat
     working: L’agent travaille
@@ -4489,6 +4490,40 @@ governance:
     removedMailbox: Boîte supprimée
     duplicateRule: Une règle existe déjà pour cette boîte et cette adresse
     precedence: 'La règle la plus précise l''emporte : une boîte avec son adresse exacte, puis une boîte avec l''adresse de base, puis une adresse sur n''importe quelle boîte, enfin une boîte seule.'
+  standardAgent:
+    title: Agent standard
+    description: L'agent que Tale fournit dans chaque projet qui n'en a pas, pour que toute personne qui peut ouvrir le projet puisse lui confier une tâche, membres compris.
+    enabledLabel: Fournir un agent standard
+    harnessLabel: Harness
+    harnessHint: Automatique utilise Claude Code, ou le harness auquel un modèle d'abonnement est lié.
+    modelLabel: Modèle
+    modelHint: Automatique choisit un modèle recommandé que la personne qui lance la tâche peut utiliser. Un modèle choisi reste en vigueur jusqu'à ce que tu le changes, même s'il devient indisponible.
+    automaticLabel: Automatique
+    automaticHarnessHint: Laisse Tale choisir le harness.
+    automaticModelHint: Laisse Tale choisir un modèle pour chaque personne.
+    instructionsLabel: Instructions
+    instructionsHint: Ce que l'agent standard garde toujours en tête. Laisse ce champ vide pour utiliser les instructions intégrées.
+    instructionsPlaceholder: Instructions intégrées
+    current: Pour toi, il fonctionne avec {harness} et {model}.
+    refusal:
+      switchedOff: L'agent standard est désactivé.
+      unreadable: Les réglages enregistrés sont illisibles. Réessaie, ou enregistre-les à nouveau pour les réparer.
+      harnessInvalid: Le harness choisi n'est pas disponible, l'agent standard ne peut donc pas démarrer. Choisis un autre harness ou Automatique.
+      noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Ajoute un accès dans Fournisseurs IA, ou vérifie l'accès aux modèles.
+      pinUnavailable: Le modèle choisi ne t'est pas accessible, l'agent standard ne peut donc pas démarrer pour toi. Choisis un autre modèle ou Automatique. Tale ne passe pas à un autre modèle tant que ce choix est enregistré.
+    invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Enregistre-les à nouveau pour les réparer.
+    savedUnavailable: La sélection enregistrée est actuellement indisponible
+    searchHarnesses: Rechercher un harness
+    noHarnessesFound: Aucun harness correspondant
+    searchModels: Rechercher un modèle
+    noModelsFound: Aucun modèle correspondant
+    draftHint: Enregistre pour appliquer ces réglages.
+    saveFailed: Impossible d'enregistrer les réglages de l'agent standard
+    loadFailed: Impossible de charger les réglages de l'agent standard. Réessaie de les charger.
+    remoteUpdate: Ces réglages ont changé dans une autre session. Abandonne tes modifications pour les charger, ou enregistre pour les remplacer.
+    offNote: Tant que ce réglage est désactivé, les projets sans agents propres ne proposent aucun agent, et les tâches déjà confiées à un agent standard ne peuvent pas démarrer.
+    providersLink: Fournisseurs IA
+    retry: Réessayer
 metrics:
   title: Métriques
   groups:
@@ -7460,6 +7495,13 @@ tasks:
       start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
       interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.
       unknown: L’exécution a échoué. Relance l’agent — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
+    standardAgent:
+      switchedOff: L'agent standard de l'organisation est désactivé. Demande à un admin de l'activer dans Gouvernance.
+      noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Demande à un admin de configurer un fournisseur IA ou de te donner accès à un modèle.
+      pinUnavailable: Le modèle choisi pour l'agent standard ne t'est pas accessible. Demande à un admin d'en choisir un autre dans Gouvernance.
+      harnessInvalid: Le harness choisi pour l'agent standard n'est pas disponible. Demande à un admin d'en choisir un autre dans Gouvernance.
+      unreadable: Les réglages de l'agent standard sont illisibles. Demande à un admin de les vérifier dans Gouvernance.
+      notNeeded: Ce projet a ses propres agents. Assigne plutôt l'un d'eux.
   automation:
     hint: '{name} opère cette tâche et la fait avancer dans ses étapes.'
     chipReady: Prête à démarrer
@@ -7692,6 +7734,9 @@ tasks:
       l'onglet Agents du projet.
     noAgentsReader: Ce projet n’a pas encore d’agent — demande à un éditeur ou à un admin d’en ajouter un dans l’onglet Agents du projet.
     liveAgentsOnlyReader: Seuls les agents de ce projet apparaissent ici — les éditeurs et les admins les ajoutent dans l’onglet Agents du projet.
+    standardAgent: Agent standard
+    standardAgentHint: L'agent de l'organisation pour les projets sans agent propre
+    standardAgentFooter: Tant que ce projet n'a pas d'agents propres, l'agent standard de l'organisation prend en charge ses tâches.
   activity:
     created: Créé
     updated: Mis à jour
@@ -8518,6 +8563,13 @@ projects:
     mutationError: Impossible d'enregistrer l'agent
     deleteTitle: Supprimer l'agent
     deleteBody: 'Supprimer « {name} » ? Les tâches qui y faisaient référence gardent leur historique.'
+    standard:
+      name: Agent standard
+      badge: Standard
+      managedNote: Mis en place par Tale pour ce projet. Son harness, son modèle et ses instructions suivent les réglages de l'organisation dans Gouvernance.
+      emptyTitle: L'agent standard prend en charge les tâches de ce projet
+      emptyBody: Tant que ce projet n'a pas d'agents propres, ses tâches peuvent aller à l'agent standard de l'organisation. Ajoutes-en un avec Nouvel agent pour donner à ce projet son propre harness, son propre modèle et ses propres instructions.
+      emptyReaderBody: Tant que ce projet n'a pas d'agents propres, tu peux confier ses tâches à l'agent standard de l'organisation. Un éditeur ou un admin peut ajouter des agents propres au projet.
   settings:
     name: Nom
     nameHint: Affiché dans la liste des projets et dans le panneau latéral d’Accueil.

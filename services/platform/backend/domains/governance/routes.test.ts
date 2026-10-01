@@ -509,6 +509,41 @@ describe('POST /policies/sandbox_quota — deployment capacity', () => {
   );
 });
 
+describe('POST /policies/standard_agent — the runtime a project agent may use', () => {
+  it('refuses a runtime the managed lane cannot run, naming the ones it can, before any write', async () => {
+    const response = await post('/policies/standard_agent', {
+      config: { enabled: true, harness: 'cursor' },
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      error: string;
+      data: { harnesses: string[] };
+    };
+    expect(body.error).toBe('STANDARD_AGENT_HARNESS_INVALID');
+    expect(body.data.harnesses).toContain('claude-code');
+    expect(body.data.harnesses).not.toContain('cursor');
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+  });
+
+  it('saves a runtime the managed lane can run, and Automatic', async () => {
+    for (const config of [
+      { enabled: true, harness: 'codex' },
+      { enabled: false },
+    ]) {
+      writeGovernancePolicyFile.mockClear();
+      const response = await post('/policies/standard_agent', { config });
+      expect(response.status).toBe(200);
+      expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'acme',
+        'standard_agent',
+        config,
+      );
+    }
+  });
+});
+
 describe('GET /my/model-api', () => {
   async function read(sql: never = {} as never): Promise<Response> {
     return await createGovernanceRoutes({ sql, auth: {} as never }).request(

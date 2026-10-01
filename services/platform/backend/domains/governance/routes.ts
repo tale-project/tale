@@ -10,6 +10,7 @@ import {
   sandboxQuotaConfigSchema,
   sandboxQuotaTotal,
   sandboxWorkspacesConfigSchema,
+  standardAgentConfigSchema,
 } from '@tale/shared/schemas/governance';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
@@ -39,6 +40,7 @@ import { ContactError } from '../contacts/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
 import { listModelApiModels } from '../model_api/models.ts';
+import { eligibleProjectAgentHarnesses } from '../projects/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
 import { recordUnusedWorkspaceRule } from '../sandbox/unused-rule.ts';
 import { holdsApiKeys, listOrgApiKeys } from './api-keys.ts';
@@ -135,7 +137,9 @@ export function createGovernanceRoutes(deps: {
       deps.sql,
       c.get('orgId'),
       policyType,
-      policyType === 'transcription_model' || policyType === 'image_generation'
+      policyType === 'transcription_model' ||
+        policyType === 'image_generation' ||
+        policyType === 'standard_agent'
         ? { strict: true }
         : {},
     );
@@ -184,6 +188,18 @@ export function createGovernanceRoutes(deps: {
         },
         400,
       );
+    }
+    if (policyType === 'standard_agent') {
+      // The runtime a project agent may run on is the managed lane's list,
+      // which only the platform knows; the shared schema cannot check it.
+      const { harness } = standardAgentConfigSchema.parse(parsed.data);
+      const harnesses = eligibleProjectAgentHarnesses();
+      if (harness !== undefined && !harnesses.includes(harness)) {
+        return c.json(
+          { error: 'STANDARD_AGENT_HARNESS_INVALID', data: { harnesses } },
+          400,
+        );
+      }
     }
     if (policyType === 'sandbox_quota') {
       const total = sandboxQuotaTotal(

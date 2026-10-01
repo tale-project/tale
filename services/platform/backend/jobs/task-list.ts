@@ -44,6 +44,7 @@ import {
   runOneDriveSyncScan,
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
+import { STANDARD_AGENT_REFUSAL_CODES } from '../domains/projects/standard-agent.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import { recreatePinnedSession } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
@@ -72,6 +73,7 @@ import {
   retireBusyRetry,
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from '../domains/tasks/delegated-start.ts';
+import { TaskError } from '../domains/tasks/errors.ts';
 import {
   loadTaskRetryHistory,
   resolveTaskKickStartArgs,
@@ -455,29 +457,44 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           return 'task_circuit_breaker';
         }
       }
-      await kickAgentRun(tx, {
-        organizationId: input.organizationId,
-        projectId: task.projectId,
-        taskId: input.taskId,
-        agentId: input.agentId,
-        harness: agent.harness,
-        model: agent.model,
-        ...(agent.modelProvider !== null
-          ? { modelProvider: agent.modelProvider }
-          : {}),
-        startedBy: newest.startedBy,
-        trigger: 'auto_retry',
-        ...(startedVia !== undefined
-          ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
-          : {}),
-        autoRetryAttempt: budget.attempt,
-        // Queued now, so the card shows the retry; started once the
-        // broker's cooldown has an account back.
-        ...(input.startAfterMs !== undefined
-          ? { startAfterMs: input.startAfterMs }
-          : {}),
-        ...(sessionId !== undefined ? { sessionId } : {}),
-      });
+      try {
+        await kickAgentRun(tx, {
+          organizationId: input.organizationId,
+          projectId: task.projectId,
+          taskId: input.taskId,
+          agentId: input.agentId,
+          harness: agent.harness,
+          model: agent.model,
+          ...(agent.modelProvider !== null
+            ? { modelProvider: agent.modelProvider }
+            : {}),
+          startedBy: newest.startedBy,
+          trigger: 'auto_retry',
+          ...(startedVia !== undefined
+            ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
+            : {}),
+          autoRetryAttempt: budget.attempt,
+          // Queued now, so the card shows the retry; started once the
+          // broker's cooldown has an account back.
+          ...(input.startAfterMs !== undefined
+            ? { startAfterMs: input.startAfterMs }
+            : {}),
+          ...(sessionId !== undefined ? { sessionId } : {}),
+        });
+      } catch (error) {
+        // The organization's standard agent was switched off, or no longer
+        // runs for the starter: no retry changes that, so the failed run
+        // ends here and its watchers are told. The refusal is a check, not
+        // a failed statement, so the transaction is still good to write.
+        if (
+          error instanceof TaskError &&
+          STANDARD_AGENT_REFUSAL_CODES.has(error.code)
+        ) {
+          await retire(true);
+          return 'standard_agent_unavailable';
+        }
+        throw error;
+      }
       return 'kicked';
     });
     if (typeof outcome === 'object') {

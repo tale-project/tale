@@ -58,6 +58,7 @@ import {
   AUTO_RETRY_HISTORY_LIMIT,
   AUTO_RETRY_MAX_ATTEMPTS,
 } from '../core/tasks/task_auto_retry.ts';
+import { TaskError } from '../domains/tasks/errors.ts';
 import { addJobInTx } from './enqueue.ts';
 import { agentRetryRecheckKey, createTaskList } from './task-list.ts';
 import { TASK_QUEUE_OPTIONS } from './tasks.ts';
@@ -462,6 +463,37 @@ describe('task.agent_retry admission', () => {
       }
     },
   );
+
+  it.each(['STANDARD_AGENT_OFF', 'STANDARD_AGENT_UNAVAILABLE'])(
+    'retires the failed run once, and tells, when the standard agent refuses its retry (%s)',
+    async (code) => {
+      kickAgentRun.mockRejectedValueOnce(
+        new TaskError(code, 'The standard agent cannot run', 409),
+      );
+      const handler = createTaskList({
+        sql: sqlWith([failedRun('run-failed', 'harness_error')]),
+      })['task.agent_retry'];
+
+      await handler?.(PAYLOAD);
+
+      expect(kickAgentRun).toHaveBeenCalledTimes(1);
+      expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
+    },
+  );
+
+  it('lets any other kick refusal fail the delivery, so the queue retries it', async () => {
+    kickAgentRun.mockRejectedValueOnce(
+      new TaskError('TASK_AUTOMATION_UNAVAILABLE', 'unreadable', 409),
+    );
+    const handler = createTaskList({
+      sql: sqlWith([failedRun('run-failed', 'harness_error')]),
+    })['task.agent_retry'];
+
+    await expect(handler?.(PAYLOAD)).rejects.toMatchObject({
+      code: 'TASK_AUTOMATION_UNAVAILABLE',
+    });
+    expect(retireAutoRetry).not.toHaveBeenCalled();
+  });
 
   it('retries a member on a task of their own, which they may still work', async () => {
     await deliver({ member: { role: 'member' }, createdBy: 'user-starter' });

@@ -74,6 +74,7 @@ export {
   chooseChatModel,
   eligibleChatCandidates,
   type ChatAutoRefusal,
+  type ChatChoiceEntry,
   type ChatModelChoice,
 } from './model-choice';
 export {

@@ -81,6 +81,10 @@ export const POLICY_TYPES = [
   // may generate images, and with which model. Missing file ⇒ off — the
   // capability is opt-in. See `imageGenerationConfigSchema`.
   'image_generation',
+  // The organization's standard agent: the project agent Tale provides in
+  // every project that has none of its own. Missing file ⇒ on, runtime and
+  // model automatic. See `standardAgentConfigSchema`.
+  'standard_agent',
   // Independent-review requirements for the task-review gate. Missing row /
   // empty config ⇒ no extra requirement — anyone with project edit access
   // may approve, exactly as today. See `reviewPolicyConfigSchema`; enforced
@@ -406,6 +410,40 @@ export const imageGenerationConfigSchema = z
     },
   );
 export type ImageGenerationConfig = z.infer<typeof imageGenerationConfigSchema>;
+
+/**
+ * The organization's standard agent — the project agent Tale provides in
+ * every project that has none of its own, so work can go to an agent before
+ * anyone sets one up (`backend/domains/projects/standard-agent.ts`).
+ *
+ * On by default: a missing file and `enabled: true` both mean ON. Off, no
+ * project offers it and a task already given to it cannot start. The
+ * runtime (`harness`) and the model are each automatic when absent: the
+ * platform picks a model the person starting the run may use, run by Claude
+ * Code (or by the runtime a subscription-served model is bound to). Pin both
+ * `providerSlug` and `modelId`, or neither; the write door checks `harness`
+ * against the runtimes a project agent may use. Pins may stay while the
+ * policy is off, so switching it back on restores them. `instructions`
+ * replaces the built-in standing instructions.
+ */
+export const standardAgentConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    harness: z.string().min(1).max(64).optional(),
+    providerSlug: z.string().min(1).max(64).optional(),
+    modelId: z.string().min(1).max(200).optional(),
+    instructions: z.string().min(1).max(20_000).optional(),
+  })
+  .strict()
+  .refine(
+    (config) =>
+      (config.providerSlug === undefined) === (config.modelId === undefined),
+    {
+      message:
+        'pin both providerSlug and modelId, or neither (neither = automatic selection)',
+    },
+  );
+export type StandardAgentConfig = z.infer<typeof standardAgentConfigSchema>;
 
 export const uploadPolicyConfigSchema = z.object({
   enabled: z.boolean(),
@@ -1222,6 +1260,7 @@ export const POLICY_SCHEMAS = {
   vision_model: visionModelConfigSchema,
   transcription_model: transcriptionModelConfigSchema,
   image_generation: imageGenerationConfigSchema,
+  standard_agent: standardAgentConfigSchema,
   review_policy: reviewPolicyConfigSchema,
   embedding: embeddingConfigSchema,
   skill_sharing: skillSharingConfigSchema,

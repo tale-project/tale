@@ -89,7 +89,7 @@ const MAX_PROJECT_AGENTS = 50;
  * `GET /api/v1/models` lists under `harnesses`. A hard-coded set once stood
  * beside it, and the refusal named nothing (2026-09-14 evaluation, h9).
  */
-function eligibleProjectAgentHarnesses(): string[] {
+export function eligibleProjectAgentHarnesses(): string[] {
   return loadHarnesses()
     .filter((harness) => harness.credentialPolicy.managed)
     .map((harness) => harness.slug)
@@ -1339,6 +1339,10 @@ export interface ProjectAgentRow {
   tools: string[];
   secrets: string[];
   instructions: string | null;
+  /** The organization's standard agent (migration 0146): Tale created it
+   * and keeps its runtime, model and instructions in line with the
+   * `standard_agent` policy (`standard-agent.ts`), so nobody edits it here. */
+  managed: boolean;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -1347,7 +1351,7 @@ export interface ProjectAgentRow {
 const PROJECT_AGENT_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId", name, harness,
   model, model_provider AS "modelProvider", skills, connectors, tools,
-  secrets, instructions, created_by AS "createdBy",
+  secrets, instructions, managed, created_by AS "createdBy",
   created_at_ms::float8 AS "createdAt", updated_at_ms::float8 AS "updatedAt"
 `;
 
@@ -1719,6 +1723,118 @@ export async function createProjectAgent(
   return agentId;
 }
 
+/** What the standard agent is made of (`standard-agent.ts` decides it). */
+export interface ManagedProjectAgentFields {
+  name: string;
+  harness: string;
+  model: string;
+  modelProvider: string;
+  skills: string[];
+  instructions: string;
+}
+
+/**
+ * Write the organization's standard agent into a project: the managed row,
+ * the project's agent count, the audit row and the hint, as
+ * `createProjectAgent` writes a person's agent. The gates are the caller's
+ * (`ensureStandardAgent`): it may be a Member handing work to a project, so
+ * no edit right is asked here. Two people handing work to the same project
+ * at once create one agent — the partial unique index (migration 0146)
+ * answers the second insert with nothing, and this answers the first's row.
+ */
+export async function insertManagedProjectAgent(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  project: { id: string; name: string },
+  fields: ManagedProjectAgentFields,
+): Promise<{ agentId: string; created: boolean }> {
+  const now = Date.now();
+  const inserted = await tx<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, model_provider, skills,
+      connectors, tools, secrets, instructions, managed, created_by,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${auth.organizationId}, ${project.id}, ${fields.name},
+      ${fields.harness}, ${fields.model}, ${fields.modelProvider},
+      ${fields.skills}, ${[]}, ${[]}, ${[]}, ${fields.instructions}, true,
+      ${auth.userId}, ${now}, ${now}
+    )
+    ON CONFLICT (project_id) WHERE managed DO NOTHING
+    RETURNING id
+  `;
+  const agentId = inserted[0]?.id;
+  if (agentId === undefined) {
+    const standing = await tx<{ id: string }[]>`
+      SELECT id FROM app.project_agents
+      WHERE project_id = ${project.id} AND managed
+      LIMIT 1
+    `;
+    const existing = standing[0]?.id;
+    if (existing === undefined) {
+      throw new Error(
+        'PROJECT_AGENT_CREATE_FAILED: the standard agent insert answered no row and none stands',
+      );
+    }
+    return { agentId: existing, created: false };
+  }
+  await tx`
+    UPDATE app.projects SET
+      project_agent_count = project_agent_count + 1, updated_at_ms = ${now}
+    WHERE id = ${project.id}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
+      newState: {
+        name: fields.name,
+        harness: fields.harness,
+        model: fields.model,
+        skills: fields.skills,
+      },
+      metadata: { op: 'create', projectAgentId: agentId, managed: true },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, project.id);
+  return { agentId, created: true };
+}
+
+/**
+ * Bring a standard agent's stored settings in line with what the policy
+ * resolved for a run (`standard-agent.ts`), so its row — the Agents tab, the
+ * run card, the next run's resume plan — says what actually runs. Writes
+ * only on a difference, and no audit row: this is the organization's own
+ * setting applied, not a person's edit (the policy save audits that).
+ */
+export async function alignManagedProjectAgent(
+  tx: TransactionSql,
+  agent: {
+    id: string;
+    organizationId: string;
+    projectId: string;
+  },
+  fields: Pick<
+    ManagedProjectAgentFields,
+    'harness' | 'model' | 'modelProvider' | 'instructions'
+  >,
+): Promise<boolean> {
+  const changed = await tx<{ id: string }[]>`
+    UPDATE app.project_agents SET
+      harness = ${fields.harness}, model = ${fields.model},
+      model_provider = ${fields.modelProvider},
+      instructions = ${fields.instructions}, updated_at_ms = ${Date.now()}
+    WHERE id = ${agent.id} AND managed
+      AND (harness IS DISTINCT FROM ${fields.harness}
+        OR model IS DISTINCT FROM ${fields.model}
+        OR model_provider IS DISTINCT FROM ${fields.modelProvider}
+        OR instructions IS DISTINCT FROM ${fields.instructions})
+    RETURNING id
+  `;
+  if (changed.length === 0) return false;
+  await hintProject(tx, agent.organizationId, agent.projectId);
+  return true;
+}
+
 export async function updateProjectAgent(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -1749,6 +1865,15 @@ export async function updateProjectAgent(
   const agent = rows[0];
   if (!agent) {
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  }
+  if (agent.managed) {
+    // Its settings are the organization's: a hand edit would be undone at
+    // the next start (`standard-agent.ts`), so it is refused instead.
+    throw new ProjectError(
+      'PROJECT_AGENT_MANAGED',
+      "This is the organization's standard agent: its runtime, model and instructions follow the organization's settings, which an Owner or Admin changes under Governance",
+      409,
+    );
   }
   if (
     args.expectedUpdatedAt !== undefined &&

@@ -13,6 +13,11 @@ import {
 } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { ProjectError } from '../projects/service.ts';
+import {
+  STANDARD_AGENT_REFUSAL_CODES,
+  standardAgentServingForKick,
+} from '../projects/standard-agent.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
 import { loadTaskRetryHistory } from './kick-plan.ts';
@@ -189,6 +194,39 @@ export interface KickAgentRunArgs {
   sessionId?: string;
 }
 
+/** The kick's serving for this agent (`standardAgentServingForKick`), its
+ * refusals answered as the task door's own errors. */
+async function standardAgentServing(
+  tx: TransactionSql,
+  args: KickAgentRunArgs,
+): Promise<{ harness: string; model: string; modelProvider?: string }> {
+  try {
+    return await standardAgentServingForKick(tx, {
+      organizationId: args.organizationId,
+      agentId: args.agentId,
+      startedBy: args.startedBy,
+      harness: args.harness,
+      model: args.model,
+      ...(args.modelProvider !== undefined
+        ? { modelProvider: args.modelProvider }
+        : {}),
+    });
+  } catch (error) {
+    if (
+      error instanceof ProjectError &&
+      STANDARD_AGENT_REFUSAL_CODES.has(error.code)
+    ) {
+      throw new TaskError(
+        error.code,
+        error.message,
+        error.status === 403 ? 403 : 409,
+        error.data,
+      );
+    }
+    throw error;
+  }
+}
+
 /**
  * Kick one run: insert the `queued` row and enqueue the turn job in the
  * SAME transaction. At most one live (queued|running) run per task — a
@@ -228,6 +266,10 @@ export async function kickAgentRun(
     return { runId: standing.id, execId: standing.execId, reused: true };
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
+  // The organization's standard agent runs what its policy says now, not
+  // what its row said when the caller read it (`standard-agent.ts`); every
+  // other agent runs what the caller read.
+  const serving = await standardAgentServing(tx, args);
   // The workspace follows the starter: a project editor's run joins the
   // agent's standing session, a member's run works in its own
   // (`run-authority.ts`).
@@ -255,8 +297,8 @@ export async function kickAgentRun(
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
-      'queued', ${args.harness}, ${args.model},
-      ${args.modelProvider ?? null}, ${args.trigger ?? 'manual'},
+      'queued', ${serving.harness}, ${serving.model},
+      ${serving.modelProvider ?? null}, ${args.trigger ?? 'manual'},
       ${args.feedback ?? null}, ${args.mentionSource ?? null},
       ${args.autoRetryAttempt ?? null},
       ${args.startedBy}, ${now},

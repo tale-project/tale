@@ -3173,9 +3173,12 @@ export function buildSpec(): Json {
         ...projectAgentErrors,
         '409': errorResponse(
           '`expectedUpdatedAt` is older than the agent’s `updatedAt` ' +
-            '(`PROJECT_AGENT_STALE`), or the new name is another agent’s ' +
+            '(`PROJECT_AGENT_STALE`), the new name is another agent’s ' +
             'in this project, compared without regard to case ' +
-            '(`PROJECT_AGENT_NAME_TAKEN`) — nothing was written',
+            '(`PROJECT_AGENT_NAME_TAKEN`), or the agent is the ' +
+            "organization's standard agent, whose settings follow the " +
+            '`standard_agent` policy (`PROJECT_AGENT_MANAGED`) — nothing was ' +
+            'written',
         ),
       },
     },
@@ -9761,6 +9764,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'tools',
             'secrets',
             'instructions',
+            'managed',
             'createdBy',
             'createdAt',
             'updatedAt',
@@ -9782,6 +9786,15 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'Granted organization secret names. Secret values are never returned.',
             },
             instructions: nullable(str),
+            managed: {
+              type: 'boolean',
+              description:
+                "The organization's standard agent: Tale created it in a " +
+                'project that had no agents of its own, and keeps its ' +
+                "runtime, model and instructions in line with the organization's " +
+                '`standard_agent` governance policy, so it cannot be saved ' +
+                'here (`PROJECT_AGENT_MANAGED`). It can be deleted.',
+            },
             createdBy: str,
             createdAt: epochMs,
             updatedAt: epochMs,
