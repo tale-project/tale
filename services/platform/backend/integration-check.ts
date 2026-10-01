@@ -11033,6 +11033,23 @@ async function checkChat(
   const aiPort =
     aiAddress !== null && typeof aiAddress === 'object' ? aiAddress.port : 0;
   const aiBase = `http://127.0.0.1:${aiPort}/v1`;
+  // A provider whose model listing never answers — the Vercel AI Gateway
+  // without egress, but on loopback, so no check here depends on a vendor.
+  // It counts the listing requests it refuses.
+  let coldListingRequests = 0;
+  const coldServer = createServer((req, res) => {
+    if ((req.url ?? '').endsWith('/models')) coldListingRequests += 1;
+    res.statusCode = 503;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    coldServer.listen(0, '127.0.0.1', resolve);
+  });
+  const coldAddress = coldServer.address();
+  const coldPort =
+    coldAddress !== null && typeof coldAddress === 'object'
+      ? coldAddress.port
+      : 0;
 
   try {
     // The org's chat provider: a custom provider file + an api-key
@@ -11251,6 +11268,86 @@ async function checkChat(
       `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
     );
 
+    // One provider's catalog that cannot be read must not decide a model
+    // another provider serves. `itest-cold`'s listing fails cold — nothing
+    // cached, no shipped defaults — and then stays failed through the
+    // remembered back-off; custom providers are walked in file-name order,
+    // so it is read before `itestdeploy`. Every lookup that walked past it
+    // used to throw its error out of the send: a bare 500 instead of the
+    // reply, or of the refusal naming the model. It stays configured through
+    // the stale send below and is removed after it.
+    await writeFile(
+      path.join(providersDir, 'itest-cold.yml'),
+      [
+        'name: itest-cold',
+        'displayName: Itest Cold Catalog',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${coldPort}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    /** One send on the deployment thread, read as text first: a failed
+     * resolution used to answer a non-JSON 500. */
+    const deploySend = async (body: {
+      text: string;
+      modelId: string;
+      providerSlug?: string;
+    }): Promise<{ status: string; reason: string }> => {
+      const raw = await (
+        await send(
+          `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+          body,
+        )
+      ).text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        json = { status: `non-JSON: ${raw.slice(0, 80)}` };
+      }
+      const answer = z
+        .object({ status: z.string(), reason: z.string().optional() })
+        .safeParse(json);
+      return answer.success
+        ? { status: answer.data.status, reason: answer.data.reason ?? '' }
+        : { status: 'ERR', reason: '' };
+    };
+    const coldUnhinted = await deploySend({
+      text: 'Which ledger is this?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldRequests = coldListingRequests;
+    const rememberedUnhinted = await deploySend({
+      text: 'Which pigment does it name?',
+      modelId: 'itest-deploy-prod',
+    });
+    const coldHint = await deploySend({
+      text: 'Once more, please.',
+      modelId: 'itest-deploy-prod',
+      providerSlug: 'itest-cold',
+    });
+    const unknownModel = await deploySend({
+      text: 'Anyone there?',
+      modelId: 'itest-retired-model',
+    });
+    const rememberedRequests = coldListingRequests;
+    record(
+      'an unreadable catalog leaves the other providers resolving',
+      coldUnhinted.status === 'completed' &&
+        rememberedUnhinted.status === 'completed' &&
+        coldHint.status === 'completed' &&
+        coldRequests > 0 &&
+        rememberedRequests === coldRequests &&
+        unknownModel.status === 'refused' &&
+        unknownModel.reason.includes('"itest-retired-model"') &&
+        unknownModel.reason.includes('"itest-cold"') &&
+        !unknownModel.reason.includes('HTTP 503'),
+      `no hint: cold=${coldUnhinted.status} remembered=${rememberedUnhinted.status}, hint on the cold provider=${coldHint.status} (want completed ×3); cold listing requests ${coldRequests} → ${rememberedRequests} (want >0, then none while remembered); unknown model=${unknownModel.status} (${unknownModel.reason}) (want refused, naming the model and the unreachable catalog, not its error)`,
+    );
+
     // The picker and serving must read ONE world. Serving resolves a
     // provider's ACTIVE DEFAULT credential; the picker used to walk every
     // active credential — so after the routine key rotation (add B, disable
@@ -11359,6 +11456,7 @@ async function checkChat(
         offeredAgain,
       `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? `${sendWhileDefaultDisabled.data.status} (${sendWhileDefaultDisabled.data.reason ?? ''})` : 'ERR'} (want refused, naming the model); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
     );
+    await rm(path.join(providersDir, 'itest-cold.yml'), { force: true });
 
     // First-token UX metric. Covered because it was NOT: the statement that
     // stamps it built a `jsonb_build_object` around an uncast parameter, so
@@ -11882,6 +11980,9 @@ async function checkChat(
   } finally {
     await new Promise<void>((resolve) => {
       aiServer.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      coldServer.close(() => resolve());
     });
   }
 }
