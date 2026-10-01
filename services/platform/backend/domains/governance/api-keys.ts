@@ -78,9 +78,9 @@ export async function listOrgApiKeys(
  *  - `expired` / `disabled` — the key is still held by a member.
  *  - `holder_left` — its holder is no longer a member; what became of the
  *    key since is theirs, not this organization's, to know.
- *  - `revoked` — the key was deleted while this organization could see it:
- *    its audit trail recorded the revoke, or its creator is still a member
- *    and no longer holds it.
+ *  - `revoked` — the key is gone, and this organization may say so: its
+ *    audit trail recorded the revoke, or its creator is a member now and no
+ *    longer holds it.
  *  - `unknown` — no member holds it and the audit trail never saw it.
  *  - `active` — a live key past the listing's bound.
  */
@@ -157,37 +157,47 @@ export async function describeRuleApiKeys(
       ON m."userId" = k."referenceId" AND m."organizationId" = ${organizationId}
     WHERE k."id" = ANY(${ids})
   `;
-  const created = await sql<
+  // The trail's latest creation and latest revoke of each key. A key made
+  // before its holder joined has no creation here, but a revoke while they
+  // were a member landed here all the same.
+  const trail = await sql<
     {
       id: string;
+      action: string;
       actorId: string;
       actorEmail: string | null;
       name: string | null;
       start: string | null;
-      revoked: boolean;
     }[]
   >`
-    SELECT DISTINCT ON (c.resource_id)
-           c.resource_id AS "id", c.actor_id AS "actorId",
-           c.actor_email AS "actorEmail", c.resource_name AS "name",
-           c.new_state->>'start' AS "start",
-           EXISTS (
-             SELECT 1 FROM app.audit_logs r
-             WHERE r.org_id = c.org_id AND r.resource_type = 'api_key'
-               AND r.action = 'api_key.revoked'
-               AND r.resource_id = c.resource_id
-           ) AS "revoked"
-    FROM app.audit_logs c
-    WHERE c.org_id = ${organizationId} AND c.resource_type = 'api_key'
-      AND c.action = 'api_key.created' AND c.resource_id = ANY(${ids})
-    ORDER BY c.resource_id, c.ts DESC
+    SELECT DISTINCT ON (resource_id, action)
+           resource_id AS "id", action, actor_id AS "actorId",
+           actor_email AS "actorEmail", resource_name AS "name",
+           new_state->>'start' AS "start"
+    FROM app.audit_logs
+    WHERE org_id = ${organizationId} AND resource_type = 'api_key'
+      AND action IN ('api_key.created', 'api_key.revoked')
+      AND resource_id = ANY(${ids})
+    ORDER BY resource_id, action, ts DESC
   `;
   const heldById = new Map(held.map((row) => [row.id, row]));
-  const createdById = new Map(created.map((row) => [row.id, row]));
+  const createdById = new Map(
+    trail
+      .filter((row) => row.action === 'api_key.created')
+      .map((row) => [row.id, row]),
+  );
+  const revokedById = new Map(
+    trail
+      .filter((row) => row.action === 'api_key.revoked')
+      .map((row) => [row.id, row]),
+  );
 
   /** Who this organization may name as the key's holder, or null. */
   const holderOf = (id: string): string | null =>
-    heldById.get(id)?.holderId ?? createdById.get(id)?.actorId ?? null;
+    heldById.get(id)?.holderId ??
+    createdById.get(id)?.actorId ??
+    revokedById.get(id)?.actorId ??
+    null;
   const holderIds = [...new Set(ids.map(holderOf).filter((id) => id !== null))];
   // Current profiles of current members only.
   const members =
@@ -206,6 +216,7 @@ export async function describeRuleApiKeys(
     // The key row speaks for a member's key; for any other, the audit trail.
     const current = heldById.get(id);
     const audit = createdById.get(id);
+    const revoke = revokedById.get(id);
     const holderId = holderOf(id);
     const member = holderId === null ? undefined : memberById.get(holderId);
     const status: RuleApiKeyStatus =
@@ -215,11 +226,11 @@ export async function describeRuleApiKeys(
           : current.expired
             ? 'expired'
             : 'active'
-        : audit === undefined
+        : audit === undefined && revoke === undefined
           ? 'unknown'
           : // A member who created it no longer holds it; anyone else's key
             // is revoked only where this organization's trail says so.
-            member !== undefined || audit.revoked
+            revoke !== undefined || member !== undefined
             ? 'revoked'
             : 'holder_left';
     return {
@@ -234,7 +245,9 @@ export async function describeRuleApiKeys(
         member?.email ??
         (holderId !== null && holderId === audit?.actorId
           ? audit.actorEmail
-          : null),
+          : holderId !== null && holderId === revoke?.actorId
+            ? revoke.actorEmail
+            : null),
       status,
       expiresAt:
         current?.expiresAt != null ? current.expiresAt.getTime() : null,

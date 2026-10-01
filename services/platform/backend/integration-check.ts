@@ -51801,6 +51801,86 @@ async function checkOrgApiKeyListing(
       sameAnswer(afterDeletion.leftRevoked, beforeDeletion.leftRevoked),
     `save → ${savedForLeaver.status}, revoke while a member → ${revokedWhileMember?.status ?? 'not minted'}, delete after leaving → ${deletedElsewhere?.status ?? 'not minted'} (rows left ${keyRowsLeft.length}), before=${JSON.stringify(beforeDeletion.left ?? null)}, after=${JSON.stringify(afterDeletion.left ?? null)}, revoked before=${beforeDeletion.leftRevoked?.status ?? 'MISSING'} after=${afterDeletion.leftRevoked?.status ?? 'MISSING'}`,
   );
+
+  // A key made BEFORE its holder joined has no creation row here, but a
+  // revoke while they are a member lands here as it does in each of their
+  // organizations: this organization recorded the key's end, and reads it
+  // as revoked and whose, not as a key it has no record of.
+  const joiner = await signUpUser(base, `keylist-joiner-${suffix}`);
+  const joinerOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${joinerOrgId}, ${`Key listing joiner ${suffix}`},
+            ${`keylist-joiner-${suffix}`}, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${joinerOrgId}, ${joiner.userId}, 'owner',
+            ${new Date()})
+  `;
+  const joinerKey = await mint(joiner.cookie, `keylist-joiner-key-${suffix}`);
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${ctx.orgId}, ${joiner.userId}, 'developer',
+            ${new Date()})
+  `;
+  const joinerRevoked =
+    joinerKey === null ? null : await deleteKey(joiner.cookie, joinerKey.id);
+  const savedForJoiner = await savePolicy({
+    enabled: true,
+    rules:
+      joinerKey === null
+        ? []
+        : [
+            {
+              scope: 'apiKey',
+              apiKeyId: joinerKey.id,
+              period: 'monthly',
+              maxRequests: 1_000_000_000,
+            },
+          ],
+  });
+  const joinerRes = await list(ctx.cookie);
+  let joinerBody: unknown = null;
+  try {
+    joinerBody = JSON.parse(await joinerRes.text());
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the joiner read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  // The shared organization's member count is as the lane found it.
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${joiner.userId}
+  `;
+  const joinerParsed = z
+    .object({
+      ruleKeys: z.array(
+        z.object({ id: z.string(), status: z.string() }).loose(),
+      ),
+    })
+    .safeParse(joinerBody);
+  const joinerRule = joinerParsed.success
+    ? joinerParsed.data.ruleKeys.find((key) => key.id === joinerKey?.id)
+    : undefined;
+  record(
+    'org api-key listing: a key made before its holder joined and revoked while a member reads revoked, with its holder',
+    savedForJoiner.status === 200 &&
+      joinerRevoked?.status === 200 &&
+      joinerRes.status === 200 &&
+      joinerRule?.status === 'revoked' &&
+      joinerRule.userId === joiner.userId &&
+      joinerRule.ownerEmail === joiner.email &&
+      joinerRule.name === null,
+    `save → ${savedForJoiner.status}, revoke → ${joinerRevoked?.status ?? 'not minted'}, read → ${joinerRes.status}, described=${JSON.stringify(joinerRule ?? null)}`,
+  );
 }
 
 async function checkTwoFactor(

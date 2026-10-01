@@ -103,25 +103,22 @@ function fakeSql(tables: Tables) {
         [],
     );
     if (text.includes('FROM app.audit_logs')) {
-      const trail = (tables.audit ?? []).filter((row) =>
-        ids.has(row.resourceId),
-      );
-      const created = new Map<string, KeyAuditRow>();
-      for (const row of trail) {
-        if (row.action === 'api_key.created') created.set(row.resourceId, row);
+      // `DISTINCT ON (resource_id, action)`: the latest row of each action
+      // the query names, per key — the fixture lists rows oldest first.
+      const latest = new Map<string, KeyAuditRow>();
+      for (const row of tables.audit ?? []) {
+        if (ids.has(row.resourceId) && text.includes(`'${row.action}'`)) {
+          latest.set(`${row.resourceId} ${row.action}`, row);
+        }
       }
       return Promise.resolve(
-        [...created.values()].map((row) => ({
+        [...latest.values()].map((row) => ({
           id: row.resourceId,
+          action: row.action,
           actorId: row.actorId,
           actorEmail: row.actorEmail,
           name: row.name,
           start: row.start,
-          revoked: trail.some(
-            (other) =>
-              other.resourceId === row.resourceId &&
-              other.action === 'api_key.revoked',
-          ),
         })),
       );
     }
@@ -356,7 +353,8 @@ describe('GET /api-keys', () => {
       'org-1',
       ['key-expired', 'key-revoked', 'key-foreign'],
     ]);
-    expect(lookups[1]?.text).toContain("action = 'api_key.created'");
+    expect(lookups[1]?.text).toContain("'api_key.created'");
+    expect(lookups[1]?.text).toContain("'api_key.revoked'");
     expect(lookups[1]?.values).toContain('org-1');
     for (const lookup of lookups) {
       expect(lookup.text).not.toMatch(/k\."key"/);
@@ -558,6 +556,41 @@ describe('describeRuleApiKeys', () => {
       ownerName: null,
       ownerEmail: 'cara@example.test',
     });
+  });
+
+  it('reads a key revoked here as revoked, though it was made before its holder joined', async () => {
+    // Cara made the key before she joined, so this trail has no creation —
+    // but her revoke landed here, because she was a member then. Before and
+    // after she leaves, that record is this organization's to read.
+    const revokedHere: KeyAuditRow = {
+      ...CREATED,
+      action: 'api_key.revoked',
+      name: null,
+      start: null,
+    };
+    const asMember = fakeSql({
+      members: ['u-cara'],
+      audit: [revokedHere],
+      users: [CARA],
+    });
+    const afterLeaving = fakeSql({ members: [], audit: [revokedHere] });
+    const [whileMember] = await describeRuleApiKeys(asMember.sql, 'org-1', [
+      'key-a',
+    ]);
+    const [left] = await describeRuleApiKeys(afterLeaving.sql, 'org-1', [
+      'key-a',
+    ]);
+    expect(whileMember).toEqual({
+      id: 'key-a',
+      name: null,
+      start: null,
+      userId: 'u-cara',
+      ownerName: 'Cara',
+      ownerEmail: 'cara@example.test',
+      status: 'revoked',
+      expiresAt: null,
+    });
+    expect(left).toEqual({ ...whileMember, ownerName: null });
   });
 
   it('reads a key a member created and no longer holds as revoked', async () => {
