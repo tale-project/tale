@@ -3176,7 +3176,7 @@ export function buildSpec(): Json {
             '(`PROJECT_AGENT_STALE`), the new name is another agent’s ' +
             'in this project, compared without regard to case ' +
             '(`PROJECT_AGENT_NAME_TAKEN`), or the agent is the ' +
-            "organization's standard agent, whose settings follow the " +
+            'organization’s standard agent, whose settings follow the ' +
             '`standard_agent` policy (`PROJECT_AGENT_MANAGED`) — nothing was ' +
             'written',
         ),
@@ -4387,13 +4387,13 @@ export function buildSpec(): Json {
           },
         }),
         '403': errorResponse(
-          'The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`)',
+          'The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`), or a task held by the organization’s standard agent while its `standard_agent` policy is off (`STANDARD_AGENT_OFF`)',
         ),
         '404': errorResponse(
           'The project is missing or invisible (`PROJECT_NOT_FOUND`), the task is missing or outside this project (`TASK_NOT_FOUND`), no member carries the actor’s e-mail (`ACTOR_NOT_FOUND`), or `workflowSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',
         ),
         '409': errorResponse(
-          'The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`)',
+          'The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)',
         ),
         ...standardErrors,
         '400': withDoorRefusal(
@@ -9789,9 +9789,9 @@ curl -H "Authorization: Bearer <api-key>" \\
             managed: {
               type: 'boolean',
               description:
-                "The organization's standard agent: Tale created it in a " +
+                'The organization’s standard agent: Tale created it in a ' +
                 'project that had no agents of its own, and keeps its ' +
-                "runtime, model and instructions in line with the organization's " +
+                'runtime, model and instructions in line with the organization’s ' +
                 '`standard_agent` governance policy, so it cannot be saved ' +
                 'here (`PROJECT_AGENT_MANAGED`). It can be deleted.',
             },
