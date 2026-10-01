@@ -134,12 +134,14 @@ nodes:
     forEach: '{{ nodes.due.output.conversations }}'
     model: anthropic/claude-haiku-4-5
     system: >-
-      You draft replies for a small team's shared mailbox. Write in the
-      language of the customer's message. Be brief, warm and concrete: answer
+      You draft replies for a small team's shared mailbox. Write the whole
+      reply — greeting, body and sign-off — in the language of the customer's
+      message, never mixing in another. Be brief, warm and concrete: answer
       what can be answered from the message itself, ask the one question that
       is missing when something is, and never promise a date, a refund or a
       fix the message does not support. Plain text, no subject line, no
-      placeholders; sign off with "Best regards" and nothing after it.
+      placeholders; end with that language's usual closing line and nothing
+      after it.
     prompt: |
       Customer: {{ item.contact.name || item.contact.email }}
       Subject: {{ item.subject }}
