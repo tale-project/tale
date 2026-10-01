@@ -1,7 +1,10 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
-import { useProjectAgents } from '@/app/features/projects/hooks/queries';
+import {
+  useProjectAgents,
+  useStandardAgent,
+} from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
@@ -305,6 +308,10 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
  * project without agents a way to make one, or say who can. It is false
  * until the project read has answered; `projectResolved` says it has, and
  * found the project.
+ *
+ * `standardAgentAvailable` says whether this viewer could hand a task to the
+ * organization's standard agent now — the agent a project without its own
+ * gets on first use. False while that read loads or when it failed.
  */
 export function useAssignableActors(
   organizationId: string,
@@ -335,6 +342,9 @@ export function useAssignableActors(
   const scopeReady = !projectId || scope.data !== undefined;
   const projectResolved = project.data != null;
   const canAddAgents = project.data?.canEdit === true;
+  const standardAgentAvailable =
+    useStandardAgent(projectId ? organizationId : undefined)?.available ===
+    true;
 
   return {
     ...directory,
@@ -343,5 +353,6 @@ export function useAssignableActors(
     scopeReady,
     projectResolved,
     canAddAgents,
+    standardAgentAvailable,
   };
 }

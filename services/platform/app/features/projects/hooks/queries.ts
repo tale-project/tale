@@ -58,7 +58,8 @@ export type AgentSecretSummary =
 
 export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
 
-/** The project's user-created agents (name-sorted). */
+/** The project's agents, oldest first — its standard agent among them once
+ * someone handed it work (`managed`). */
 export function useProjectAgents(projectId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useBackendQuery(
@@ -66,6 +67,25 @@ export function useProjectAgents(projectId: string | undefined) {
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { agents: data ?? [], isLoading };
+}
+
+export type StandardAgentAvailability =
+  ReturnsOf<'projects/queries:getStandardAgent'>;
+
+/**
+ * Whether the signed-in person can hand work to the organization's standard
+ * agent — the agent Tale provides in a project with none of its own — and
+ * what it would run on. `undefined` while it loads or when the read failed:
+ * callers then offer nothing rather than a choice that may not work.
+ */
+export function useStandardAgent(
+  organizationId: string | undefined,
+): StandardAgentAvailability | undefined {
+  const { data } = useBackendQuery(
+    'projects/queries:getStandardAgent',
+    organizationId !== undefined ? { organizationId } : 'skip',
+  );
+  return data;
 }
 
 export type ProjectOverviewRow =
