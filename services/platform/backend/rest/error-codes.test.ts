@@ -248,6 +248,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_REVIEWER_NO_EDIT_ACCESS',
   'TASK_SCHEDULE_INVALID',
   'TASK_SOURCE_THREAD_NOT_FOUND',
+  // The organization's standard agent is set up only through the app's
+  // hand-over door (`POST /api/app/projects/{id}/standard-agent`); REST
+  // takes no agent assignee, so it never asks for one.
+  'STANDARD_AGENT_NOT_NEEDED',
   // Tasks: the door's schemas trim and cap the title, description, labels
   // and comment body at the domain's own constants and canonicalize the
   // external reference (`externalKeySchema`) before the intake runs, so

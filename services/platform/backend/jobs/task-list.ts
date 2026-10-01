@@ -44,7 +44,6 @@ import {
   runOneDriveSyncScan,
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
-import { STANDARD_AGENT_REFUSAL_CODES } from '../domains/projects/standard-agent.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import { recreatePinnedSession } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
@@ -59,6 +58,7 @@ import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
 import {
   failAgentRun,
   inPlaceOfRun,
+  isStandardAgentRefusal,
   kickAgentRun,
   startedViaOfRun,
 } from '../domains/tasks/agent-runs.ts';
@@ -73,7 +73,6 @@ import {
   retireBusyRetry,
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from '../domains/tasks/delegated-start.ts';
-import { TaskError } from '../domains/tasks/errors.ts';
 import {
   loadTaskRetryHistory,
   resolveTaskKickStartArgs,
@@ -486,10 +485,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // runs for the starter: no retry changes that, so the failed run
         // ends here and its watchers are told. The refusal is a check, not
         // a failed statement, so the transaction is still good to write.
-        if (
-          error instanceof TaskError &&
-          STANDARD_AGENT_REFUSAL_CODES.has(error.code)
-        ) {
+        if (isStandardAgentRefusal(error)) {
           await retire(true);
           return 'standard_agent_unavailable';
         }

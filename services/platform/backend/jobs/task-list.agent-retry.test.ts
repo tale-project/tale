@@ -19,11 +19,18 @@ const { inPlaceOfRun, kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock('../domains/tasks/agent-runs.ts', () => ({
-  inPlaceOfRun,
-  kickAgentRun,
-  startedViaOfRun,
-}));
+vi.mock('../domains/tasks/agent-runs.ts', async () => {
+  const errors = await import('../domains/tasks/errors.ts');
+  return {
+    inPlaceOfRun,
+    kickAgentRun,
+    startedViaOfRun,
+    isStandardAgentRefusal: (error: unknown) =>
+      error instanceof errors.TaskError &&
+      (error.code === 'STANDARD_AGENT_OFF' ||
+        error.code === 'STANDARD_AGENT_UNAVAILABLE'),
+  };
+});
 vi.mock('./enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
 // What a final refusal means to people is the notice module's; these tests

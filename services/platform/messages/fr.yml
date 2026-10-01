@@ -7891,6 +7891,7 @@ tasks:
     budgetPaused: '{slug} ne répondra pas — budget mensuel épuisé'
     agentNotLive: "{slug} ne répondra pas — l'agent n'est pas installé ou est désactivé"
     notPermitted: "{slug} ne répondra pas — tu ne peux pas lancer d'agents sur cette tâche"
+    standardAgentUnavailable: "{slug} ne répondra pas — il n'est pas disponible pour toi"
   mentionPicker:
     title: Mentionner un membre, un agent ou une automatisation
     empty: Aucun résultat

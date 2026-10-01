@@ -194,6 +194,18 @@ export interface KickAgentRunArgs {
   sessionId?: string;
 }
 
+/**
+ * A start the organization's standard agent refused — switched off, or no
+ * model the person may use. Final for that person until an admin acts, so a
+ * best-effort start (a mention, a late steer, an automatic retry) stops
+ * there instead of failing the gesture that carried it.
+ */
+export function isStandardAgentRefusal(error: unknown): error is TaskError {
+  return (
+    error instanceof TaskError && STANDARD_AGENT_REFUSAL_CODES.has(error.code)
+  );
+}
+
 /** The kick's serving for this agent (`standardAgentServingForKick`), its
  * refusals answered as the task door's own errors. */
 async function standardAgentServing(

@@ -7906,6 +7906,7 @@ tasks:
     budgetPaused: "{slug} won't respond — monthly budget exhausted"
     agentNotLive: "{slug} won't respond — agent is not installed or is disabled"
     notPermitted: "{slug} won't respond — you can't start agents on this task"
+    standardAgentUnavailable: "{slug} won't respond — it isn't available to you"
   mentionPicker:
     title: Mention a member, agent, or automation
     empty: No matches

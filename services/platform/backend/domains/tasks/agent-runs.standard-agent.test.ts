@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { ProjectError } from '../projects/service.ts';
 import { standardAgentServingForKick } from '../projects/standard-agent.ts';
-import { kickAgentRun } from './agent-runs.ts';
+import { isStandardAgentRefusal, kickAgentRun } from './agent-runs.ts';
+import { TaskError } from './errors.ts';
 
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: vi.fn().mockResolvedValue(null),
@@ -117,4 +118,29 @@ describe('kickAgentRun — the standard agent runs what its policy says at the s
       expect(addJobInTx).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('isStandardAgentRefusal', () => {
+  it('names the two standard agent refusals of the task door, and nothing else', () => {
+    expect(
+      isStandardAgentRefusal(new TaskError('STANDARD_AGENT_OFF', 'off', 403)),
+    ).toBe(true);
+    expect(
+      isStandardAgentRefusal(
+        new TaskError('STANDARD_AGENT_UNAVAILABLE', 'no model', 409),
+      ),
+    ).toBe(true);
+    expect(
+      isStandardAgentRefusal(
+        new TaskError('TASK_AUTOMATION_DISABLED', 'off', 403),
+      ),
+    ).toBe(false);
+    // The project door's own error is answered by the kick, not here.
+    expect(
+      isStandardAgentRefusal(
+        new ProjectError('STANDARD_AGENT_OFF', 'off', 403),
+      ),
+    ).toBe(false);
+    expect(isStandardAgentRefusal(new Error('boom'))).toBe(false);
+  });
 });
