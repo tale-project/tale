@@ -721,7 +721,6 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   gateway log shows one `tool` message per tool call on every request —
   env-gated: mark **ENVIRONMENT** without a credential that serves Gemini
   CLI.
-||||||| parent of 08aa4d318 (test(manual): cover the chat hand-over in the manual suites)
 - [ ] `TASK-F60` · **Create a task and start its agent in one step** — On
   a project board, **Create task** (`tasks.actions.create`) with a project
   agent under **Assignee** and **Status** **To do** → the footer adds
