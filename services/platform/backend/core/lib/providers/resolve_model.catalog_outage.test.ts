@@ -186,9 +186,67 @@ describe('resolveModel past an unreadable catalog', () => {
     expect(requests(REMOTE_LISTING)).toBe(3);
     expect(console.warn).toHaveBeenCalledWith(
       '[resolve-model] could not resolve catalog for "remote-gateway"',
-      RAW_FAILURE,
     );
   });
+
+  it.each([
+    {
+      source: 'a malformed JSON response',
+      baseUrl: 'https://gateway.remote.test/v1',
+      body: 'TOKEN_X9 not valid JSON',
+      marker: 'TOKEN_X9',
+      attempts: 3,
+    },
+    {
+      source: 'an empty catalog at a URL with a query',
+      baseUrl: 'https://gateway.remote.test/v1?token=SYNTHETIC_QUERY_MARKER',
+      body: '{"data":[]}',
+      marker: 'SYNTHETIC_QUERY_MARKER',
+      attempts: 1,
+    },
+  ])(
+    'keeps $source out of cold and remembered resolver warnings',
+    async ({ baseUrl, body, marker, attempts }) => {
+      connectors(providerDefinitionSchema.parse({ ...REMOTE, baseUrl }), LOCAL);
+      const remoteListing = `${baseUrl}/models`;
+      vi.mocked(safeFetch).mockImplementation(async (url: string) => {
+        if (url === remoteListing) return { ...listing([]), body };
+        if (url === LOCAL_LISTING) return listing(['local-chat']);
+        throw new Error(`unexpected request to ${url}`);
+      });
+
+      // Run the real parser, normalizer and failure cache. The parser error
+      // can quote response bytes; an empty-catalog error names its full URL.
+      // Inspect only this resolver's diagnostics: shared catalog logging is
+      // a separate boundary, and neither it nor its retry ladder is changed.
+      const warnings: unknown[][][] = [];
+      for (const round of ['cold', 'remembered']) {
+        const start = vi.mocked(console.warn).mock.calls.length;
+        expect(await resolve('local-chat'), round).toMatchObject({
+          ok: true,
+          value: { connector: { name: 'local' } },
+        });
+        expect(requests(remoteListing), round).toBe(attempts);
+        warnings.push(
+          vi
+            .mocked(console.warn)
+            .mock.calls.slice(start)
+            .filter(
+              ([message]) =>
+                typeof message === 'string' &&
+                message.startsWith('[resolve-model]'),
+            ),
+        );
+      }
+
+      for (const calls of warnings) {
+        expect(calls).toEqual([
+          ['[resolve-model] could not resolve catalog for "remote-gateway"'],
+        ]);
+        expect(calls.flat().map(String).join(' ')).not.toContain(marker);
+      }
+    },
+  );
 
   it('keeps resolving while that failure is remembered, without asking the listing again', async () => {
     connectors(REMOTE, LOCAL);

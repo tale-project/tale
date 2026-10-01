@@ -81,10 +81,10 @@ export async function resolveModel(
     let catalog: readonly ModelCatalogEntry[];
     try {
       catalog = await getServableCatalog(connector, allowlist);
-    } catch (error) {
+    } catch {
+      // Catalog errors can contain response bytes or URL query values.
       console.warn(
         `[resolve-model] could not resolve catalog for "${connector.name}"`,
-        error instanceof Error ? error.message : error,
       );
       unreachable.push(connector.name);
       continue;
