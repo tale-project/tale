@@ -51,31 +51,105 @@ vi.mock('../../lib/org-config.ts', async (importOriginal) => ({
 import { describeRuleApiKeys } from './api-keys.ts';
 import { createGovernanceRoutes } from './routes.ts';
 
+/** A key row in the auth store — every organization's, as the database
+ * holds them. */
+interface AuthKey {
+  id: string;
+  name: string | null;
+  start: string | null;
+  enabled: boolean;
+  expiresAt: Date | null;
+  referenceId: string;
+}
+
+/** One row of this organization's API-key audit trail. */
+interface KeyAuditRow {
+  resourceId: string;
+  action: 'api_key.created' | 'api_key.revoked';
+  actorId: string;
+  actorEmail: string | null;
+  name: string | null;
+  start: string | null;
+}
+
 interface Tables {
   /** `listOrgApiKeys`: the live keys of the organization's members. */
   live?: unknown[];
-  /** `describeRuleApiKeys`: the named keys that still exist. */
-  held?: unknown[];
-  /** The organization's `api_key.created` audit rows for the named keys. */
-  created?: unknown[];
-  /** The holders' accounts. */
-  users?: unknown[];
+  /** The auth store's key rows, whoever holds them. */
+  apikeys?: AuthKey[];
+  /** Who is a member of `org-1` now. */
+  members?: string[];
+  /** `org-1`'s API-key audit trail. */
+  audit?: KeyAuditRow[];
+  /** The deployment's accounts. */
+  users?: Array<{ id: string; name: string | null; email: string | null }>;
 }
 
-/** A `sql` double answering each read by the table it selects from, and
- * recording each query's text and bound values. */
+/**
+ * A `sql` double over a small model of the tables, recording each query's
+ * text and bound values. It answers each read as the database would answer
+ * its SQL — a key-row read through an inner join on `member` sees current
+ * members' keys only, through a left join every key — so what a description
+ * may depend on is decided by the query, not by the fixture.
+ */
 function fakeSql(tables: Tables) {
   const queries: Array<{ text: string; values: unknown[] }> = [];
+  const members = new Set(tables.members ?? []);
   const sql = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
     queries.push({ text, values });
+    const ids = new Set(
+      (values.find((value) => Array.isArray(value)) as string[] | undefined) ??
+        [],
+    );
     if (text.includes('FROM app.audit_logs')) {
-      return Promise.resolve(tables.created ?? []);
+      const trail = (tables.audit ?? []).filter((row) =>
+        ids.has(row.resourceId),
+      );
+      const created = new Map<string, KeyAuditRow>();
+      for (const row of trail) {
+        if (row.action === 'api_key.created') created.set(row.resourceId, row);
+      }
+      return Promise.resolve(
+        [...created.values()].map((row) => ({
+          id: row.resourceId,
+          actorId: row.actorId,
+          actorEmail: row.actorEmail,
+          name: row.name,
+          start: row.start,
+          revoked: trail.some(
+            (other) =>
+              other.resourceId === row.resourceId &&
+              other.action === 'api_key.revoked',
+          ),
+        })),
+      );
     }
-    if (text.includes('FROM "user"'))
-      return Promise.resolve(tables.users ?? []);
-    if (text.includes('LEFT JOIN "member" m')) {
-      return Promise.resolve(tables.held ?? []);
+    if (text.includes('FROM "user"')) {
+      return Promise.resolve(
+        (tables.users ?? []).filter(
+          (user) => ids.has(user.id) && members.has(user.id),
+        ),
+      );
+    }
+    if (text.includes('k."id" = ANY(')) {
+      const innerJoin = !text.includes('LEFT JOIN "member"');
+      return Promise.resolve(
+        (tables.apikeys ?? [])
+          .filter((key) => ids.has(key.id))
+          .filter((key) => !innerJoin || members.has(key.referenceId))
+          .map((key) => ({
+            id: key.id,
+            name: key.name,
+            start: key.start,
+            enabled: key.enabled,
+            expired:
+              key.expiresAt !== null && key.expiresAt.getTime() <= Date.now(),
+            expiresAt: key.expiresAt,
+            holderId: key.referenceId,
+            holderIsMember: members.has(key.referenceId),
+          })),
+      );
     }
     return Promise.resolve(tables.live ?? []);
   };
@@ -187,30 +261,48 @@ describe('GET /api-keys', () => {
     );
     const { sql, queries } = fakeSql({
       live: [KEY_ROW],
-      held: [
+      apikeys: [
         {
           id: 'key-expired',
           name: 'Nightly export',
           start: 'tale_Ex',
           enabled: true,
-          expired: true,
           expiresAt: new Date('2026-09-20T00:00:00Z'),
-          holderId: 'u-anna',
-          holderIsMember: true,
+          referenceId: 'u-anna',
+        },
+        // Another organization's key: it exists, and none of it may show.
+        {
+          id: 'key-foreign',
+          name: 'Someone else’s key',
+          start: 'tale_Fo',
+          enabled: true,
+          expiresAt: null,
+          referenceId: 'u-stranger',
         },
       ],
-      created: [
+      members: ['u-anna', 'u-ben'],
+      audit: [
         {
-          id: 'key-revoked',
+          resourceId: 'key-revoked',
+          action: 'api_key.created',
           actorId: 'u-ben',
           actorEmail: 'ben@example.test',
           name: 'opencode laptop',
           start: 'tale_Rv',
         },
+        {
+          resourceId: 'key-revoked',
+          action: 'api_key.revoked',
+          actorId: 'u-ben',
+          actorEmail: 'ben@example.test',
+          name: null,
+          start: null,
+        },
       ],
       users: [
         { id: 'u-anna', name: 'Anna', email: 'anna@example.test' },
         { id: 'u-ben', name: 'Ben', email: 'ben@example.test' },
+        { id: 'u-stranger', name: 'Stranger', email: 'stranger@example.test' },
       ],
     });
     const res = await createGovernanceRoutes({
@@ -286,14 +378,22 @@ describe('GET /api-keys', () => {
 });
 
 describe('describeRuleApiKeys', () => {
-  const HELD = {
+  /** A key Cara created while a member: the trail's `api_key.created`. */
+  const CREATED: KeyAuditRow = {
+    resourceId: 'key-a',
+    action: 'api_key.created',
+    actorId: 'u-cara',
+    actorEmail: 'cara@example.test',
+    name: 'Desk script',
+    start: 'tale_Ds',
+  };
+  const KEY: AuthKey = {
+    id: 'key-a',
     name: 'Desk script',
     start: 'tale_Ds',
     enabled: true,
-    expired: false,
     expiresAt: null,
-    holderId: 'u-cara',
-    holderIsMember: true,
+    referenceId: 'u-cara',
   };
   const CARA = { id: 'u-cara', name: 'Cara', email: 'cara@example.test' };
 
@@ -305,14 +405,18 @@ describe('describeRuleApiKeys', () => {
 
   it.each([
     ['disabled', { enabled: false }],
-    ['expired', { expired: true }],
+    ['expired', { expiresAt: new Date('2026-09-20T00:00:00Z') }],
     // A disabled key that also expired is first of all switched off.
-    ['disabled', { enabled: false, expired: true }],
+    [
+      'disabled',
+      { enabled: false, expiresAt: new Date('2026-09-20T00:00:00Z') },
+    ],
     // A live key the listing's bound cut off still reads as live.
     ['active', {}],
   ])('reads a member’s key as %s', async (status, state) => {
     const { sql } = fakeSql({
-      held: [{ ...HELD, ...state, id: 'key-a' }],
+      apikeys: [{ ...KEY, ...state }],
+      members: ['u-cara'],
       users: [CARA],
     });
     const [key] = await describeRuleApiKeys(sql, 'org-1', ['key-a']);
@@ -325,6 +429,15 @@ describe('describeRuleApiKeys', () => {
     });
   });
 
+  it('asks the auth store about current members’ keys only', async () => {
+    const { sql, queries } = fakeSql({});
+    await describeRuleApiKeys(sql, 'org-1', ['key-a']);
+    const read = queries.find((query) => query.text.includes('FROM "apikey"'));
+    expect(read?.text).toContain('JOIN "member" m');
+    expect(read?.text).not.toContain('LEFT JOIN');
+    expect(read?.values).toEqual(['org-1', ['key-a']]);
+  });
+
   it('names the holder who left from the audit trail, and no one else', async () => {
     // Both keys exist and neither holder is a member. The organization's
     // audit trail recorded the first being created here — and that record is
@@ -333,32 +446,23 @@ describe('describeRuleApiKeys', () => {
     // Of the second it knows nothing, so a rule naming it must not reveal
     // that it exists, what it is called or whose it is.
     const { sql, queries } = fakeSql({
-      held: [
+      apikeys: [
         {
-          ...HELD,
+          ...KEY,
           id: 'key-left',
           name: 'Renamed after leaving',
           expiresAt: new Date('2027-06-01T00:00:00Z'),
-          holderIsMember: false,
         },
         {
-          ...HELD,
+          ...KEY,
           id: 'key-elsewhere',
           name: 'Someone else’s key',
-          holderId: 'u-stranger',
-          holderIsMember: false,
+          referenceId: 'u-stranger',
         },
       ],
-      created: [
-        {
-          id: 'key-left',
-          actorId: 'u-cara',
-          actorEmail: 'cara@example.test',
-          name: 'Desk script',
-          start: 'tale_Ds',
-        },
-      ],
-      users: [],
+      members: [],
+      audit: [{ ...CREATED, resourceId: 'key-left' }],
+      users: [CARA, { id: 'u-stranger', name: 'Stranger', email: null }],
     });
     const keys = await describeRuleApiKeys(sql, 'org-1', [
       'key-left',
@@ -392,22 +496,101 @@ describe('describeRuleApiKeys', () => {
     expect(queries.at(-1)?.values).toEqual(['org-1', ['u-cara']]);
   });
 
-  it('keeps the audit row’s address for a holder whose account is gone', async () => {
+  it('answers the same for a holder who left whether or not they deleted the key since', async () => {
+    // Identical history here: Cara created the key as a member, then left.
+    // Deleting it afterwards happened elsewhere — its revoke row landed in
+    // the organizations she belongs to now, not this one — so nothing this
+    // organization may see changed, and neither may its answer.
+    const history = {
+      members: [],
+      audit: [CREATED],
+      users: [CARA],
+    };
+    const kept = fakeSql({ ...history, apikeys: [KEY] });
+    const deleted = fakeSql({ ...history, apikeys: [] });
+    const whileKept = await describeRuleApiKeys(kept.sql, 'org-1', ['key-a']);
+    const afterDeletion = await describeRuleApiKeys(deleted.sql, 'org-1', [
+      'key-a',
+    ]);
+    expect(afterDeletion).toEqual(whileKept);
+    expect(whileKept).toEqual([
+      {
+        id: 'key-a',
+        name: 'Desk script',
+        start: 'tale_Ds',
+        userId: 'u-cara',
+        ownerName: null,
+        ownerEmail: 'cara@example.test',
+        status: 'holder_left',
+        expiresAt: null,
+      },
+    ]);
+  });
+
+  it('reads a key its holder revoked while a member as revoked, before and after they leave', async () => {
+    const revokedHere: KeyAuditRow = {
+      ...CREATED,
+      action: 'api_key.revoked',
+      name: null,
+      start: null,
+    };
+    const stillMember = fakeSql({
+      members: ['u-cara'],
+      audit: [CREATED, revokedHere],
+      users: [CARA],
+    });
+    const left = fakeSql({ members: [], audit: [CREATED, revokedHere] });
+    const [asMember] = await describeRuleApiKeys(stillMember.sql, 'org-1', [
+      'key-a',
+    ]);
+    const [afterLeaving] = await describeRuleApiKeys(left.sql, 'org-1', [
+      'key-a',
+    ]);
+    expect(asMember).toMatchObject({
+      status: 'revoked',
+      name: 'Desk script',
+      ownerName: 'Cara',
+    });
+    expect(afterLeaving).toMatchObject({
+      status: 'revoked',
+      name: 'Desk script',
+      userId: 'u-cara',
+      ownerName: null,
+      ownerEmail: 'cara@example.test',
+    });
+  });
+
+  it('reads a key a member created and no longer holds as revoked', async () => {
+    // Cara is a member, so her keys are this organization's to see: one she
+    // made here and no longer holds is gone, whether or not the trail kept
+    // its revoke (she deleted it while away, or the audit write failed).
     const { sql } = fakeSql({
-      created: [
+      members: ['u-cara'],
+      audit: [CREATED],
+      users: [CARA],
+    });
+    const [key] = await describeRuleApiKeys(sql, 'org-1', ['key-a']);
+    expect(key).toMatchObject({ status: 'revoked', ownerName: 'Cara' });
+  });
+
+  it('keeps the audit row’s address for a holder whose account is gone', async () => {
+    // An erased account leaves no member row and no revoke in this trail:
+    // it reads as a holder who left, named by the address recorded here.
+    const { sql } = fakeSql({
+      audit: [
         {
-          id: 'key-gone',
+          ...CREATED,
+          resourceId: 'key-gone',
           actorId: 'u-erased',
           actorEmail: 'erased@example.test',
           name: 'Old export',
           start: 'tale_Oe',
         },
       ],
-      users: [],
     });
     const [key] = await describeRuleApiKeys(sql, 'org-1', ['key-gone']);
     expect(key).toMatchObject({
-      status: 'revoked',
+      status: 'holder_left',
       name: 'Old export',
       userId: 'u-erased',
       ownerName: null,
@@ -416,7 +599,10 @@ describe('describeRuleApiKeys', () => {
   });
 
   it('looks each key up once however many rules name it', async () => {
-    const { sql, queries } = fakeSql({ held: [{ ...HELD, id: 'key-a' }] });
+    const { sql, queries } = fakeSql({
+      apikeys: [KEY],
+      members: ['u-cara'],
+    });
     const keys = await describeRuleApiKeys(sql, 'org-1', [
       'key-a',
       'key-a',

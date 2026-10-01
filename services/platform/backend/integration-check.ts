@@ -50934,6 +50934,118 @@ async function checkOrgApiKeyListing(
       !ruleKeySecretLeaked,
     `save → ${saved.status}, read → ${describedRes.status}, live described=${ruleKey(memberKey?.id) !== undefined}, expired=${expiredRule?.status ?? 'MISSING'}/${expiredRule?.ownerEmail ?? 'no owner'}, revoked=${revokedRule?.status ?? 'MISSING'}/${revokedRule?.name ?? 'no name'}/${revokedRule?.ownerEmail ?? 'no owner'}, outsider=${outsiderRule?.status ?? 'MISSING'}/${outsiderRule?.name ?? 'no name'}, none=${noSuchRule?.status ?? 'MISSING'}, outsider named=${describedText.includes(outsider.email)}, secret leaked=${ruleKeySecretLeaked}`,
   );
+
+  // A key whose holder LEFT is described from what this organization
+  // recorded while they were a member, and nothing else. What they do with
+  // the key afterwards happens elsewhere: deleting it writes its
+  // `api_key.revoked` row into the organizations they belong to NOW, so the
+  // former organization's answer must not move when they do. A key they
+  // revoked while still a member reads `revoked` from that record, before
+  // and after they leave.
+  const leaver = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keylist-leaver-${suffix}`,
+    'developer',
+  );
+  const deleteKey = (cookie: string, keyId: string) =>
+    fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ keyId }),
+    });
+  const leftKey = await mint(leaver.cookie, `keylist-left-${suffix}`);
+  const leftRevokedKey = await mint(
+    leaver.cookie,
+    `keylist-left-revoked-${suffix}`,
+  );
+  const revokedWhileMember =
+    leftRevokedKey === null
+      ? null
+      : await deleteKey(leaver.cookie, leftRevokedKey.id);
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${ctx.orgId} AND "userId" = ${leaver.userId}
+  `;
+  const savedForLeaver = await savePolicy({
+    enabled: true,
+    rules: [leftKey?.id, leftRevokedKey?.id]
+      .filter((id) => id !== undefined)
+      .map((apiKeyId) => ({
+        scope: 'apiKey',
+        apiKeyId,
+        period: 'monthly',
+        maxRequests: 1_000_000_000,
+      })),
+  });
+  /** The whole description of each key the rules name, as the admin reads it. */
+  const readRuleKeys = async () => {
+    const res = await list(ctx.cookie);
+    let body: unknown = null;
+    try {
+      body = JSON.parse(await res.text());
+    } catch (error) {
+      console.warn(
+        '[org api-key listing] the departed-holder read answered no JSON',
+        error instanceof Error ? error.message : error,
+      );
+    }
+    const parsed = z
+      .object({
+        ruleKeys: z.array(
+          z.object({ id: z.string(), status: z.string() }).loose(),
+        ),
+      })
+      .safeParse(body);
+    const find = (id: string | undefined) =>
+      parsed.success
+        ? parsed.data.ruleKeys.find((key) => key.id === id)
+        : undefined;
+    return {
+      status: res.status,
+      left: find(leftKey?.id),
+      leftRevoked: find(leftRevokedKey?.id),
+    };
+  };
+  const beforeDeletion = await readRuleKeys();
+  const deletedElsewhere =
+    leftKey === null ? null : await deleteKey(leaver.cookie, leftKey.id);
+  const keyRowsLeft =
+    leftKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${leftKey.id}`;
+  const afterDeletion = await readRuleKeys();
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+  const sameAnswer = (
+    a: Record<string, unknown> | undefined,
+    b: Record<string, unknown> | undefined,
+  ) => a !== undefined && JSON.stringify(a) === JSON.stringify(b);
+  record(
+    'org api-key listing: a holder who left is described from this organization’s record alone — deleting the key elsewhere afterwards changes nothing',
+    savedForLeaver.status === 200 &&
+      revokedWhileMember?.status === 200 &&
+      deletedElsewhere?.status === 200 &&
+      // The deletion really happened: the key is gone from the auth store.
+      keyRowsLeft.length === 0 &&
+      beforeDeletion.status === 200 &&
+      afterDeletion.status === 200 &&
+      beforeDeletion.left?.status === 'holder_left' &&
+      beforeDeletion.left.name === `keylist-left-${suffix}` &&
+      beforeDeletion.left.userId === leaver.userId &&
+      beforeDeletion.left.ownerEmail === leaver.email &&
+      beforeDeletion.left.ownerName === null &&
+      beforeDeletion.left.expiresAt === null &&
+      sameAnswer(afterDeletion.left, beforeDeletion.left) &&
+      beforeDeletion.leftRevoked?.status === 'revoked' &&
+      beforeDeletion.leftRevoked.name === `keylist-left-revoked-${suffix}` &&
+      sameAnswer(afterDeletion.leftRevoked, beforeDeletion.leftRevoked),
+    `save → ${savedForLeaver.status}, revoke while a member → ${revokedWhileMember?.status ?? 'not minted'}, delete after leaving → ${deletedElsewhere?.status ?? 'not minted'} (rows left ${keyRowsLeft.length}), before=${JSON.stringify(beforeDeletion.left ?? null)}, after=${JSON.stringify(afterDeletion.left ?? null)}, revoked before=${beforeDeletion.leftRevoked?.status ?? 'MISSING'} after=${afterDeletion.leftRevoked?.status ?? 'MISSING'}`,
+  );
 }
 
 async function checkTwoFactor(

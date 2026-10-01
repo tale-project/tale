@@ -76,8 +76,11 @@ export async function listOrgApiKeys(
  * longer spend here, or this organization knows nothing about it.
  *
  *  - `expired` / `disabled` — the key is still held by a member.
- *  - `holder_left` — the key exists, its holder is no longer a member.
- *  - `revoked` — the key was deleted; the audit trail remembers it.
+ *  - `holder_left` — its holder is no longer a member; what became of the
+ *    key since is theirs, not this organization's, to know.
+ *  - `revoked` — the key was deleted while this organization could see it:
+ *    its audit trail recorded the revoke, or its creator is still a member
+ *    and no longer holds it.
  *  - `unknown` — no member holds it and the audit trail never saw it.
  *  - `active` — a live key past the listing's bound.
  */
@@ -116,7 +119,10 @@ export interface RuleApiKey {
  * the key while they were one (`api_key.created` lands in every organization
  * of the holder). For a holder who left, that record is all it says — the
  * key's name and the address as they were when it was created, never the
- * person's current profile or what the key became since. A key id that
+ * person's current profile or what the key became since: whether they
+ * deleted it after leaving is not this organization's to see, so its state
+ * comes from the same trail (a revoke lands in the organizations the holder
+ * belongs to at the time), never from the auth store's row. A key id that
  * matches neither — a holder who was never a member here, or an id that
  * names nothing — answers `unknown`, exactly alike, so a saved rule cannot be
  * used to ask whether a key exists or whose it is elsewhere on the
@@ -130,6 +136,8 @@ export async function describeRuleApiKeys(
   const ids = [...new Set(keyIds)];
   if (ids.length === 0) return [];
 
+  // The auth store answers for current members' keys only — the rows the
+  // live listing reads too. A key held by anyone else is not looked up there.
   const held = await sql<
     {
       id: string;
@@ -139,15 +147,13 @@ export async function describeRuleApiKeys(
       expired: boolean;
       expiresAt: Date | null;
       holderId: string;
-      holderIsMember: boolean;
     }[]
   >`
     SELECT k."id", k."name", k."start", k."enabled",
            (k."expiresAt" IS NOT NULL AND k."expiresAt" <= now()) AS "expired",
-           k."expiresAt", k."referenceId" AS "holderId",
-           (m."userId" IS NOT NULL) AS "holderIsMember"
+           k."expiresAt", k."referenceId" AS "holderId"
     FROM "apikey" k
-    LEFT JOIN "member" m
+    JOIN "member" m
       ON m."userId" = k."referenceId" AND m."organizationId" = ${organizationId}
     WHERE k."id" = ANY(${ids})
   `;
@@ -158,26 +164,30 @@ export async function describeRuleApiKeys(
       actorEmail: string | null;
       name: string | null;
       start: string | null;
+      revoked: boolean;
     }[]
   >`
-    SELECT DISTINCT ON (resource_id)
-           resource_id AS "id", actor_id AS "actorId",
-           actor_email AS "actorEmail", resource_name AS "name",
-           new_state->>'start' AS "start"
-    FROM app.audit_logs
-    WHERE org_id = ${organizationId} AND resource_type = 'api_key'
-      AND action = 'api_key.created' AND resource_id = ANY(${ids})
-    ORDER BY resource_id, ts DESC
+    SELECT DISTINCT ON (c.resource_id)
+           c.resource_id AS "id", c.actor_id AS "actorId",
+           c.actor_email AS "actorEmail", c.resource_name AS "name",
+           c.new_state->>'start' AS "start",
+           EXISTS (
+             SELECT 1 FROM app.audit_logs r
+             WHERE r.org_id = c.org_id AND r.resource_type = 'api_key'
+               AND r.action = 'api_key.revoked'
+               AND r.resource_id = c.resource_id
+           ) AS "revoked"
+    FROM app.audit_logs c
+    WHERE c.org_id = ${organizationId} AND c.resource_type = 'api_key'
+      AND c.action = 'api_key.created' AND c.resource_id = ANY(${ids})
+    ORDER BY c.resource_id, c.ts DESC
   `;
   const heldById = new Map(held.map((row) => [row.id, row]));
   const createdById = new Map(created.map((row) => [row.id, row]));
 
   /** Who this organization may name as the key's holder, or null. */
-  const holderOf = (id: string): string | null => {
-    const row = heldById.get(id);
-    if (row?.holderIsMember) return row.holderId;
-    return createdById.get(id)?.actorId ?? null;
-  };
+  const holderOf = (id: string): string | null =>
+    heldById.get(id)?.holderId ?? createdById.get(id)?.actorId ?? null;
   const holderIds = [...new Set(ids.map(holderOf).filter((id) => id !== null))];
   // Current profiles of current members only.
   const members =
@@ -193,25 +203,25 @@ export async function describeRuleApiKeys(
   const memberById = new Map(members.map((row) => [row.id, row]));
 
   return ids.map((id) => {
-    const row = heldById.get(id);
+    // The key row speaks for a member's key; for any other, the audit trail.
+    const current = heldById.get(id);
     const audit = createdById.get(id);
     const holderId = holderOf(id);
     const member = holderId === null ? undefined : memberById.get(holderId);
-    // Known here at all: held by a member, or recorded by the audit trail.
-    const known = row?.holderIsMember === true || audit !== undefined;
-    // The key row speaks for a member's key; for any other, the audit trail.
-    const current = row?.holderIsMember === true ? row : undefined;
-    const status: RuleApiKeyStatus = !known
-      ? 'unknown'
-      : row === undefined
-        ? 'revoked'
-        : !row.holderIsMember
-          ? 'holder_left'
-          : row.enabled === false
-            ? 'disabled'
-            : row.expired
-              ? 'expired'
-              : 'active';
+    const status: RuleApiKeyStatus =
+      current !== undefined
+        ? current.enabled === false
+          ? 'disabled'
+          : current.expired
+            ? 'expired'
+            : 'active'
+        : audit === undefined
+          ? 'unknown'
+          : // A member who created it no longer holds it; anyone else's key
+            // is revoked only where this organization's trail says so.
+            member !== undefined || audit.revoked
+            ? 'revoked'
+            : 'holder_left';
     return {
       id,
       name: current !== undefined ? current.name : (audit?.name ?? null),
