@@ -60,7 +60,7 @@ const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
 /** How long a destroy asked to await its deletion (`?await_deletion=1`)
  * waits for the workspace's bytes before answering how far they came: well
  * inside the 30 s the platform gives a destroy, and enough for most. */
-export const DESTROY_AWAITS_DELETION_MS = 10_000;
+const DESTROY_AWAITS_DELETION_MS = 10_000;
 
 /** Whether `promise` settles, either way, within `ms`. */
 export async function settlesWithin(
