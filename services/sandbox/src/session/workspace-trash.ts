@@ -213,6 +213,11 @@ export class WorkspaceTrash {
         }
         return;
       }
+      // A failure mark outlives no entry: one removed by other means goes.
+      const listed = new Set(names);
+      for (const name of this.failed) {
+        if (!listed.has(name)) this.failed.delete(name);
+      }
       for (const name of names) {
         const path = join(this.dir, name);
         const startedAtMs = Date.now();
