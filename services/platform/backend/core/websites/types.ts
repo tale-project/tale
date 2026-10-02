@@ -131,6 +131,32 @@ export const PAGE_SKIP_KINDS_SQL = PAGE_SKIP_KINDS.map(
   (kind) => `'${kind}'`,
 ).join(', ');
 
+/**
+ * The two states a page list can be narrowed to, and what each means on a
+ * `website_urls` row aliased `u`: **failed** — the last attempt stored
+ * nothing for a reason that was the page's or the origin's (a kind outside
+ * the skip kinds, or a reason recorded before kinds were); **skipped** —
+ * the crawler looked and chose not to index. The website's `failedPageCount`
+ * is the first fragment counted, so the number a reader sees and the list
+ * it opens agree.
+ */
+export const WEBSITE_PAGE_STATES = ['failed', 'skipped'] as const;
+
+export type WebsitePageState = (typeof WEBSITE_PAGE_STATES)[number];
+
+export function isWebsitePageState(value: string): value is WebsitePageState {
+  return (WEBSITE_PAGE_STATES as readonly string[]).includes(value);
+}
+
+export const FAILED_PAGE_SQL = `u.last_error IS NOT NULL AND (u.last_error_kind IS NULL OR u.last_error_kind NOT IN (${PAGE_SKIP_KINDS_SQL}))`;
+
+export const SKIPPED_PAGE_SQL = `u.last_error IS NOT NULL AND u.last_error_kind IN (${PAGE_SKIP_KINDS_SQL})`;
+
+export const PAGE_STATE_SQL: Record<WebsitePageState, string> = {
+  failed: FAILED_PAGE_SQL,
+  skipped: SKIPPED_PAGE_SQL,
+};
+
 export interface CrawlerPage {
   url: string;
   title: string | null;

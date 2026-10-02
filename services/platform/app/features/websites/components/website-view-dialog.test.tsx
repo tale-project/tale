@@ -20,8 +20,26 @@ const pagesPayload = {
     pages: CrawlerPage[];
     hasMore: boolean;
     offset: number;
+    state?: 'failed' | 'skipped' | null;
+    counts?: { failed: number; skipped: number };
   },
 };
+/** A pages answer as the backend shapes it: the state the read asked for
+ * echoed, the counts zero unless the payload says otherwise. */
+const pagesAnswer = (
+  payload: NonNullable<typeof pagesPayload.current>,
+  args: unknown,
+) => ({
+  state:
+    typeof args === 'object' &&
+    args !== null &&
+    'state' in args &&
+    typeof args.state === 'string'
+      ? args.state
+      : null,
+  counts: { failed: 0, skipped: 0 },
+  ...payload,
+});
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
@@ -45,9 +63,11 @@ vi.mock('@/app/hooks/use-backend-action', () => {
       if (options?.onSuccess) onSuccessByName.set(name, options.onSuccess);
       let mutate = mutateByName.get(name);
       if (!mutate) {
-        mutate = vi.fn(() => {
+        mutate = vi.fn((args: unknown) => {
           if (name === 'websites/actions:fetchPages' && pagesPayload.current) {
-            onSuccessByName.get(name)?.(pagesPayload.current);
+            onSuccessByName.get(name)?.(
+              pagesAnswer(pagesPayload.current, args),
+            );
           }
         });
         mutateByName.set(name, mutate);
@@ -499,6 +519,151 @@ describe('WebsiteViewDialog', () => {
     expect(screen.queryByText(/User not found/)).not.toBeInTheDocument();
   });
 
+  // "5 pages failed" used to be a number beside a list that hid them twenty
+  // rows at a time. The count opens the failed pages, the segments switch
+  // between every page, the failed and the skipped ones, and each switch is
+  // a fresh read from the top under that state.
+  it('narrows the list to the failed or the skipped pages', async () => {
+    pagesPayload.current = {
+      offset: 0,
+      hasMore: false,
+      counts: { failed: 2, skipped: 1 },
+      pages: [
+        {
+          url: 'https://docs.example.com/fine',
+          title: 'Fine',
+          word_count: 120,
+          status: 'active',
+          content_hash: 'abc',
+          last_crawled_at: '2026-09-14T11:11:00.000Z',
+          discovered_at: '2026-09-14T11:11:00.000Z',
+          chunks_count: 3,
+          indexed: true,
+          fail_count: 0,
+          last_error: null,
+          last_error_kind: null,
+          last_error_at: null,
+        },
+      ],
+    };
+    const { mutate: fetchPages } = useBackendAction(
+      'websites/actions:fetchPages',
+    );
+    vi.mocked(fetchPages).mockClear();
+    const { user } = render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{
+          ...WEBSITE,
+          status: 'active',
+          crawledPageCount: 12,
+          failedPageCount: 2,
+        }}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Website details' });
+    expect(fetchPages).toHaveBeenLastCalledWith({
+      websiteId: 'w-1',
+      offset: 0,
+      limit: 20,
+    });
+    const filter = within(dialog).getByRole('radiogroup', {
+      name: 'Which pages to show',
+    });
+    expect(
+      within(filter).getByRole('radio', { name: 'Failed (2)' }),
+    ).toBeInTheDocument();
+    expect(
+      within(filter).getByRole('radio', { name: 'Skipped (1)' }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole('button', { name: '2 pages failed' }),
+    );
+    expect(fetchPages).toHaveBeenLastCalledWith({
+      websiteId: 'w-1',
+      offset: 0,
+      limit: 20,
+      state: 'failed',
+    });
+    expect(
+      within(filter).getByRole('radio', { name: 'Failed (2)' }),
+    ).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(
+      within(filter).getByRole('radio', { name: 'Skipped (1)' }),
+    );
+    expect(fetchPages).toHaveBeenLastCalledWith({
+      websiteId: 'w-1',
+      offset: 0,
+      limit: 20,
+      state: 'skipped',
+    });
+
+    await user.click(within(filter).getByRole('radio', { name: 'All' }));
+    expect(fetchPages).toHaveBeenLastCalledWith({
+      websiteId: 'w-1',
+      offset: 0,
+      limit: 20,
+    });
+    expect(fetchPages).toHaveBeenCalledTimes(4);
+  });
+
+  it('says so when no page is in the chosen state', async () => {
+    pagesPayload.current = {
+      offset: 0,
+      hasMore: false,
+      counts: { failed: 1, skipped: 0 },
+      pages: [],
+    };
+    const { user } = render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{ ...WEBSITE, status: 'active', failedPageCount: 1 }}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Website details' });
+    await user.click(
+      within(dialog).getByRole('radio', { name: 'Skipped (0)' }),
+    );
+    expect(within(dialog).getByText('No page was skipped')).toBeInTheDocument();
+  });
+
+  // A failure charged to the render lane, not the page, leaves the reason
+  // without a strike; the row used to read as a page nobody had fetched.
+  it('shows the reason of a failure that cost the page no strike', () => {
+    pagesPayload.current = {
+      offset: 0,
+      hasMore: false,
+      pages: [
+        {
+          url: 'https://docs.example.com/halted',
+          title: null,
+          word_count: 0,
+          status: 'discovered',
+          content_hash: null,
+          last_crawled_at: '2026-09-14T11:11:00.000Z',
+          discovered_at: '2026-09-14T11:11:00.000Z',
+          chunks_count: 0,
+          indexed: false,
+          fail_count: 0,
+          last_error: 'browser closed',
+          last_error_kind: 'render_failed',
+          last_error_at: '2026-09-14T11:11:00.000Z',
+        },
+      ],
+    };
+    render(
+      <WebsiteViewDialog isOpen onClose={vi.fn()} website={{ ...WEBSITE }} />,
+    );
+    expect(
+      screen.getByText("The browser couldn't render the page."),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
   // The row follows a scan through realtime hints; the pages were read once
   // on open, so an open dialog showed the first batch for the whole scan.
   it('reads the shown pages again when a scan moves the row', () => {
@@ -582,8 +747,12 @@ describe('WebsiteViewDialog', () => {
     );
     const answer = answerAction.get('websites/actions:fetchPages');
     // The refresh answers first, the page read after it.
-    answer?.({ offset: 0, hasMore: false, pages: range(0, 40) });
-    answer?.({ offset: 20, hasMore: true, pages: range(20, 40) });
+    answer?.(
+      pagesAnswer({ offset: 0, hasMore: false, pages: range(0, 40) }, {}),
+    );
+    answer?.(
+      pagesAnswer({ offset: 20, hasMore: true, pages: range(20, 40) }, {}),
+    );
 
     await waitFor(() => {
       expect(

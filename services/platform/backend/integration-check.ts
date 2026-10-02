@@ -34556,6 +34556,39 @@ async function checkWebsitesCrawl(
       .loose()
       .safeParse(await (await v1('/websites?status=error')).json());
     const downBadFilter = await v1('/websites?status=broken');
+    // The page list narrowed to one state: the failed home page alone under
+    // `state=failed`, nothing under `state=skipped`, the counts beside
+    // either, and a state the list does not know refused.
+    const pagesStateWindow = z.looseObject({
+      pages: z.array(failurePage),
+      total: z.number(),
+      state: z.string().nullable(),
+      counts: z.object({ failed: z.number(), skipped: z.number() }),
+    });
+    const downFailedOnly = pagesStateWindow.safeParse(
+      await (await v1(`/websites/${downId}/pages?state=failed`)).json(),
+    );
+    const downSkippedOnly = pagesStateWindow.safeParse(
+      await (await v1(`/websites/${downId}/pages?state=skipped`)).json(),
+    );
+    const downBadState = await v1(`/websites/${downId}/pages?state=broken`);
+    record(
+      'websites pages: the list narrows to the failed or the skipped pages and counts both',
+      downFailedOnly.success &&
+        downFailedOnly.data.state === 'failed' &&
+        downFailedOnly.data.total === 1 &&
+        downFailedOnly.data.pages.length === 1 &&
+        downFailedOnly.data.pages[0]?.url === `https://${DOWN_DOMAIN}/` &&
+        downFailedOnly.data.counts.failed === 1 &&
+        downFailedOnly.data.counts.skipped === 0 &&
+        downSkippedOnly.success &&
+        downSkippedOnly.data.state === 'skipped' &&
+        downSkippedOnly.data.total === 0 &&
+        downSkippedOnly.data.pages.length === 0 &&
+        downSkippedOnly.data.counts.failed === 1 &&
+        downBadState.status === 400,
+      `failed=${downFailedOnly.success ? `${downFailedOnly.data.state ?? 'null'}/${downFailedOnly.data.total}/${downFailedOnly.data.pages[0]?.url ?? '-'}/counts ${JSON.stringify(downFailedOnly.data.counts)}` : 'PARSE'} (want failed/1/https://${DOWN_DOMAIN}//{failed:1,skipped:0}) skipped=${downSkippedOnly.success ? `${downSkippedOnly.data.state ?? 'null'}/${downSkippedOnly.data.total}/${downSkippedOnly.data.pages.length}` : 'PARSE'} (want skipped/0/0) badState=${downBadState.status} (want 400)`,
+    );
     const downDeleted = await v1(`/websites/${downId}`, { method: 'DELETE' });
     record(
       'websites scan end: a site whose every page failed reads error with the reason, never active',

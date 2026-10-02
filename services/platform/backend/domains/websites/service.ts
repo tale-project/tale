@@ -19,6 +19,7 @@ import {
 import { safeFetch } from '../../../lib/net/safe-fetch.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
+  countWebsitePagesByState,
   deregisterDomain,
   fetchWebsiteInfoFromCorpus,
   isMemberDomain,
@@ -56,6 +57,7 @@ import {
   type ScanSchedulingSite,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
 } from '../../core/websites/scan_scheduling.ts';
+import type { WebsitePageState } from '../../core/websites/types.ts';
 import {
   isValidScanInterval,
   SCAN_INTERVAL_VALUES,
@@ -1391,30 +1393,50 @@ export async function scanWebsiteNow(
 
 // --------------------------------------------------------- corpus reads
 
-export async function fetchWebsitePages(
-  sql: Sql,
-  website: WebsiteRow,
-  args: { offset?: number; limit?: number },
-): Promise<{
+export interface WebsitePagesWindow {
   pages: unknown[];
+  /** How many pages the window's state holds — all of them without one. */
   total: number;
   offset: number;
   hasMore: boolean;
-}> {
+  /** The state the window was narrowed to; null for the whole inventory. */
+  state: WebsitePageState | null;
+  /** How many pages are in each state, whichever the window shows. */
+  counts: Record<WebsitePageState, number>;
+}
+
+export async function fetchWebsitePages(
+  sql: Sql,
+  website: WebsiteRow,
+  args: { offset?: number; limit?: number; state?: WebsitePageState },
+): Promise<WebsitePagesWindow> {
+  const state = args.state ?? null;
+  const offset = args.offset ?? 0;
   const orgSlug = await requireSlug(sql, website.organizationId);
   const pool = await getKnowledgePoolForOrg(orgSlug);
   if (!(await isMemberDomain(pool, orgSlug, website.domain))) {
-    return { pages: [], total: 0, offset: args.offset ?? 0, hasMore: false };
+    return {
+      pages: [],
+      total: 0,
+      offset,
+      hasMore: false,
+      state,
+      counts: { failed: 0, skipped: 0 },
+    };
   }
-  const offset = args.offset ?? 0;
   const limit = args.limit ?? 100;
-  const { pages, total } = await listWebsitePages(
-    pool,
-    website.domain,
+  const [{ pages, total }, counts] = await Promise.all([
+    listWebsitePages(pool, website.domain, offset, limit, args.state),
+    countWebsitePagesByState(pool, website.domain),
+  ]);
+  return {
+    pages,
+    total,
     offset,
-    limit,
-  );
-  return { pages, total, offset, hasMore: offset + pages.length < total };
+    hasMore: offset + pages.length < total,
+    state,
+    counts,
+  };
 }
 
 export async function fetchPageChunks(

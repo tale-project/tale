@@ -79,7 +79,7 @@ La vue des pages permet aussi de rechercher dans le contenu indexé. Essaie une 
 
 ## Examiner une page absente
 
-Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ouvre ensuite le site et lis l’erreur de la page concernée.
+Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ouvre ensuite le site, limite la liste des pages à **En échec** ou **Ignorées**, puis lis l’erreur de la page concernée.
 
 | Problème signalé | Vérification ou correction |
 | --- | --- |

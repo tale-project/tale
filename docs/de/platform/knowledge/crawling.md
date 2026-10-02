@@ -79,7 +79,7 @@ Die Seitenansicht bietet auch eine Suche im indexierten Inhalt. Suche nach einer
 
 ## Eine fehlende Seite untersuchen
 
-Prüfe zuerst Adresse, Quelltyp und letzte Scan-Zeit. Öffne danach die Quelle und lies die Fehlermeldung der betroffenen Seite.
+Prüfe zuerst Adresse, Quelltyp und letzte Scan-Zeit. Öffne danach die Quelle, schalte die Seitenliste auf **Fehlgeschlagen** oder **Übersprungen** und lies die Fehlermeldung der betroffenen Seite.
 
 | Gemeldetes Problem | Prüfung oder Abhilfe |
 | --- | --- |

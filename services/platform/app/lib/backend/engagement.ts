@@ -681,8 +681,14 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
       const websiteId = stringArg(args, 'websiteId');
       const offset = typeof args.offset === 'number' ? args.offset : 0;
       const limit = typeof args.limit === 'number' ? args.limit : 100;
+      // The state narrows the window to the failed or the skipped pages;
+      // without one the window is the whole inventory.
+      const state =
+        typeof args.state === 'string'
+          ? `&state=${encodeURIComponent(args.state)}`
+          : '';
       return backendFetch<unknown>(
-        `/websites/${encodeURIComponent(websiteId)}/pages?offset=${offset}&limit=${limit}`,
+        `/websites/${encodeURIComponent(websiteId)}/pages?offset=${offset}&limit=${limit}${state}`,
         { orgId: requireOrg(args, ctx) },
       );
     },

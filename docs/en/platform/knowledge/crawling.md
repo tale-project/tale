@@ -79,7 +79,7 @@ The page view also offers search over indexed content. Try a distinctive phrase 
 
 ## Resolve a missing page
 
-First check the address, source type, and latest scan time. Then open the source and read the affected page's error.
+First check the address, source type, and latest scan time. Then open the source, narrow its page list to **Failed** or **Skipped**, and read the affected page's error.
 
 | Reported issue | What to check or change |
 | --- | --- |
