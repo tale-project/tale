@@ -73,7 +73,7 @@ export class SandboxQuotaError extends Error {
  * tick, then starts in a fresh workspace, or in this one once every attempt
  * has failed; an automation step fails with this reason instead.
  */
-export class SandboxDestroyPendingError extends SandboxQuotaError {
+class SandboxDestroyPendingError extends SandboxQuotaError {
   constructor() {
     super(
       'An administrator is deleting this sandbox workspace. No new work starts in it until the deletion has finished.',
