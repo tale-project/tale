@@ -224,7 +224,7 @@ export interface AutomationsContract {
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */
-      waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
+      waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
       input: unknown;
     };
   };
@@ -277,7 +277,7 @@ export interface AutomationsContract {
       /** Which kind of trigger started a `trigger:<id>` run. */
       startedVia?: 'schedule' | 'webhook' | 'event';
       /** What a `waiting` run is parked on. */
-      waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
+      waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
     }>;
   };
   'automations/queries:listTriggers': {

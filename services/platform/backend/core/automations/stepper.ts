@@ -37,6 +37,7 @@ import {
   SANDBOX_ROOM_MAX_WAIT_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
+  roomWaitSince,
   sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
 } from './agent_retry';
@@ -1038,6 +1039,19 @@ interface AgentStepArgs {
 }
 
 /**
+ * The park detail of an agent node's turn: `room:<node>` while its start
+ * waits for sandbox room and has not launched since — the run's read model
+ * says so (`waitingFor: room`) instead of an agent at work — and
+ * `agent:<node>` otherwise. The launch stamp turns a `room:` park into an
+ * `agent:` one the moment the start launches (`stampAgentTurnLaunch`).
+ */
+function agentParkDetail(nodeId: string, agent: AgentCursor): string {
+  return roomWaitSince(agent) !== undefined
+    ? `room:${nodeId}`
+    : `agent:${nodeId}`;
+}
+
+/**
  * Advance a LIVE agent node: kick the sandbox turn and park the run, keep
  * parking while it runs, and consume the settled result the agent host wrote
  * into the cursor. The turn spans suspensions, so this is stepNode's async
@@ -1220,7 +1234,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       throw new Error('the agent turn ran past its time limit and was stopped');
     }
     const waited = await sink.wait({
-      detail: `agent:${node.id}`,
+      detail: agentParkDetail(node.id, parked),
       cursor: checkpoints.cursor ?? {
         node: node.id,
         index: 0,
@@ -1347,7 +1361,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         agent,
       };
       const waited = await sink.wait({
-        detail: `agent:${node.id}`,
+        detail: agentParkDetail(node.id, agent),
         cursor,
         executions: checkpoints.executions,
         resumeInMs: AGENT_POLL_MS,

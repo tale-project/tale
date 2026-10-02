@@ -451,7 +451,8 @@ const runProperties: Record<string, Json> = {
       'The failure or wait reason; null while the run has none — and null ' +
       'again once a cancel lands (the park it named is over). ' +
       'While `waiting` it names the park: `approval:<approvalId>`, ' +
-      '`agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the ' +
+      '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
+      '`waitingFor` is the ' +
       'field to branch on; when `failed`, the failure sentence, and ' +
       '`failureCode` the stable cause to branch on — the sentence is not ' +
       'contractual.',
@@ -480,13 +481,15 @@ const runProperties: Record<string, Json> = {
   },
   waitingFor: {
     type: 'string',
-    enum: ['approval', 'ask', 'agent', 'repeat'],
+    enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
     description:
       'Present only while `status` is `waiting`: what the run is ' +
       'parked on. `approval` — a person’s decision on a gate; `ask` ' +
       '— a question a person has to answer; `agent` — an agent turn ' +
-      'still running, no one to page; `repeat` — a node polling ' +
-      'until its `repeatUntil` condition holds, no one to page.',
+      'still running, no one to page; `room` — an agent turn whose ' +
+      'start waits for sandbox room, no one to page; `repeat` — a ' +
+      'node polling until its `repeatUntil` condition holds, no one ' +
+      'to page.',
   },
   claimEpoch: {
     ...int,
@@ -9265,7 +9268,8 @@ curl -H "Authorization: Bearer <api-key>" \\
               description:
                 'The failure or wait reason, when the run has one. While ' +
                 '`waiting` it names the park: `approval:<approvalId>`, ' +
-                '`agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the ' +
+                '`agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — ' +
+                '`waitingFor` is the ' +
                 'field to branch on; when `failed`, the failure sentence, ' +
                 'and `failureCode` the stable cause — the sentence is not ' +
                 'contractual.',
@@ -9281,13 +9285,15 @@ curl -H "Authorization: Bearer <api-key>" \\
             },
             waitingFor: {
               type: 'string',
-              enum: ['approval', 'ask', 'agent', 'repeat'],
+              enum: ['approval', 'ask', 'agent', 'room', 'repeat'],
               description:
                 'Present only while `status` is `waiting`: what the run is ' +
                 'parked on. `approval` — a person’s decision on a gate; `ask` ' +
                 '— a question a person has to answer; `agent` — an agent turn ' +
-                'still running, no one to page; `repeat` — a node polling ' +
-                'until its `repeatUntil` condition holds, no one to page. ' +
+                'still running, no one to page; `room` — an agent turn whose ' +
+                'start waits for sandbox room, no one to page; `repeat` — a ' +
+                'node polling until its `repeatUntil` condition holds, no one ' +
+                'to page. ' +
                 '"Runs that need a human" is `waitingFor` in (`approval`, ' +
                 '`ask`), never `status=waiting` alone.',
             },

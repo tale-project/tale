@@ -83,15 +83,19 @@ function TypingDots() {
  * The agent's latest move, as one truncated line — what the step timeline
  * shows on the RUNNING agent row while it is collapsed, so "is it moving?"
  * has an answer without unfolding the whole transcript. Renders nothing
- * unless the run's agent turn is live right now.
+ * unless the run's agent turn is live right now, or its start waits for
+ * sandbox room — which the line then says, instead of an agent starting up.
  */
 export function AgentActivityLine({
   organizationId,
   runId,
+  waitingForRoom = false,
   className,
 }: {
   organizationId: string;
   runId: string;
+  /** The run is parked on the turn's start, waiting for sandbox room. */
+  waitingForRoom?: boolean;
   className?: string;
 }) {
   const { t } = useT('automations');
@@ -100,11 +104,14 @@ export function AgentActivityLine({
     { organizationId, runId },
   );
   const op = opQuery.data ?? null;
-  if (op === null || op.status !== 'running') return null;
-  const latest = op.liveTimeline?.at(-1);
+  const live = op !== null && op.status === 'running';
+  if (!live && !waitingForRoom) return null;
+  const latest = live ? op.liveTimeline?.at(-1) : undefined;
   const line =
     latest === undefined
-      ? t('runs.agentLog.starting')
+      ? waitingForRoom
+        ? t('runs.waiting.room')
+        : t('runs.agentLog.starting')
       : latest.toolCallId !== undefined && latest.toolCallId !== ''
         ? [toolLabel(latest.type), summarizeToolInput(latest.input)]
             .filter((part) => part !== '')
@@ -171,10 +178,14 @@ function displayModelRef(ref: string): string {
  */
 export function ExecutionLogView({
   op,
+  waitingForRoom = false,
   hideHeader = false,
   className,
 }: {
   op: AgentSandboxOpView | null;
+  /** The run is parked on the turn's start, waiting for sandbox room: an
+   * empty transcript says so, not that the agent starts up or wrote nothing. */
+  waitingForRoom?: boolean;
   /** Drops the "Agent log" heading and its live spinner — for hosts whose own
    * title already names the transcript; the host then owns the liveness cue. */
   hideHeader?: boolean;
@@ -245,7 +256,7 @@ export function ExecutionLogView({
       )}
       {rows.length === 0 && !live ? (
         <Text as="p" variant="muted">
-          {t('runs.agentLog.empty')}
+          {waitingForRoom ? t('runs.waiting.room') : t('runs.agentLog.empty')}
         </Text>
       ) : (
         <div className="relative min-h-0 flex-1">
@@ -331,7 +342,9 @@ export function ExecutionLogView({
                         aria-hidden
                       />
                       <Text as="span" variant="muted" className="text-sm">
-                        {t('runs.agentLog.starting')}
+                        {waitingForRoom
+                          ? t('runs.waiting.room')
+                          : t('runs.agentLog.starting')}
                       </Text>
                     </Row>
                   ) : (
@@ -394,15 +407,24 @@ export function ExecutionLogView({
 export function AgentExecutionLog({
   organizationId,
   runId,
+  waitingForRoom = false,
   className,
 }: {
   organizationId: string;
   runId: string;
+  /** The run is parked on the turn's start, waiting for sandbox room. */
+  waitingForRoom?: boolean;
   className?: string;
 }) {
   const opQuery = useBackendQuery(
     'sandbox/session_queries_public:getAgentNodeSandboxOp',
     { organizationId, runId },
   );
-  return <ExecutionLogView op={opQuery.data ?? null} className={className} />;
+  return (
+    <ExecutionLogView
+      op={opQuery.data ?? null}
+      waitingForRoom={waitingForRoom}
+      className={className}
+    />
+  );
 }

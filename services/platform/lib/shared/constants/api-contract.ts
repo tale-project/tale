@@ -336,5 +336,9 @@
  * of a native changes-requested decision. Native task_get adds nullable
  * reviewDecision for the latest validated native receipt. No public REST
  * repair operation, grant change or automatic verdict dispatch is added.
+ *
+ * 3.14.0 — 2026-10-03: a run's `waitingFor` gains `room`, an agent step
+ * whose start waits for sandbox room (its `detail` reads `room:<nodeId>`)
+ * where it read `agent` before; no one to page. Additive.
  */
-export const API_CONTRACT_VERSION = '3.13.0';
+export const API_CONTRACT_VERSION = '3.14.0';

@@ -23,7 +23,7 @@ export interface AutomationRunSummary {
   mode: string;
   startedBy: string;
   startedVia?: 'schedule' | 'webhook' | 'event';
-  waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
+  waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
   detail?: string;
   startedAt: number;
   finishedAt?: number;

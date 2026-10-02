@@ -947,6 +947,7 @@ automations:
       approval: En attente d’approbation
       ask: En attente de ta réponse
       agent: Agent au travail
+      room: En attente d’une place de sandbox
       repeat: 'Interrogation — étape {node}'
     startedAt: 'Lancée {date}'
     finishedAt: 'Terminée {date}'

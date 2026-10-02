@@ -261,6 +261,22 @@ export interface WorkflowAgentAttempt {
   roomRefusals?: number;
 }
 
+/**
+ * When the attempt's wait for sandbox room began, or undefined when it is
+ * not waiting for room. A start that launched after the wait began ended
+ * that wait: a later refusal — the resume of an answered question, hours
+ * on — begins a new one instead of inheriting the old one's clock.
+ */
+export function roomWaitSince(
+  parked: Pick<WorkflowAgentAttempt, 'waitingForRoomSince' | 'launchedAt'>,
+): number | undefined {
+  return parked.waitingForRoomSince !== undefined &&
+    (parked.launchedAt === undefined ||
+      parked.waitingForRoomSince >= parked.launchedAt)
+    ? parked.waitingForRoomSince
+    : undefined;
+}
+
 /** What a re-kick of a failed attempt carries, and whether it may happen. */
 export interface WorkflowAgentRetryPlan {
   /** Whether the budget admits the re-kick (the failure code's own gate,
@@ -303,15 +319,7 @@ export function planWorkflowAgentRetry(
 ): WorkflowAgentRetryPlan {
   const attempt = parked.attempt ?? 0;
   if (failureCode === 'sandbox_capacity') {
-    // A start that launched after the wait began ended that wait: a later
-    // refusal — the resume of an answered question, hours on — begins a
-    // new one instead of inheriting the old one's clock.
-    const waitingSince =
-      parked.waitingForRoomSince !== undefined &&
-      (parked.launchedAt === undefined ||
-        parked.waitingForRoomSince >= parked.launchedAt)
-        ? parked.waitingForRoomSince
-        : undefined;
+    const waitingSince = roomWaitSince(parked);
     const since = waitingSince ?? now;
     return {
       retry: now - since < SANDBOX_ROOM_MAX_WAIT_MS,

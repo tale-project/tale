@@ -336,7 +336,11 @@ describe('the stepper re-kicking a failed agent attempt', () => {
 
     expect(kicks).toHaveLength(1);
     expect(kicks[0]?.notBefore).toBeGreaterThan(Date.now());
-    expect(suspended[0]).toMatchObject({ executions: 100 });
+    // The run says it waits for room, not that an agent works.
+    expect(suspended[0]).toMatchObject({
+      executions: 100,
+      detail: 'room:repair',
+    });
     expect(parkedCursor(suspended)).toMatchObject({
       attempt: AUTO_RETRY_MAX_ATTEMPTS,
       waitingForRoomSince: expect.any(Number),
@@ -464,6 +468,26 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     expect(String(finished[0]?.detail)).toContain(
       "waited 120 minutes for sandbox room without getting any (the organization's workflow sessions are all in use)",
     );
+  });
+
+  it('keeps saying a step waits for room while its kicked start has not launched, and an agent works once it has', async () => {
+    const waiting = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 60_000,
+      }),
+    );
+    await stepRunImpl(waiting.ctx, RUN);
+    expect(waiting.suspended[0]).toMatchObject({ detail: 'room:repair' });
+
+    const launched = harness(
+      parkedAttempt({
+        launchedAt: Date.now() - 1_000,
+        waitingForRoomSince: Date.now() - 60_000,
+      }),
+    );
+    await stepRunImpl(launched.ctx, RUN);
+    expect(launched.suspended[0]).toMatchObject({ detail: 'agent:repair' });
   });
 
   it('fails the run once the budget is spent on ordinary failures', async () => {
