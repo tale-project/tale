@@ -230,6 +230,36 @@ async function withBuildkitdOperation<T>(
 
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
 
+/** The cgroup, process and log bounds a helper runs under. A build's RUN steps
+ * execute inside the builder, outside any session's cgroup: unbounded, one
+ * organization's parallel builds could take the whole host, and under memory
+ * pressure the kernel killed sessions (OOM score 500) before the builder (0).
+ * The builder gets the budget of one agent session (a Docker-in-sandbox one
+ * when the cache is on); a mirror idles at about 10 MB. Logging is set in
+ * full, as for a session (docker-session-args.ts): an option left unset falls
+ * through to the host daemon's defaults, which can make the run fail. */
+export function buildkitHelperLimits(
+  cfg: SpawnerConfig,
+  role: 'builder' | 'mirror',
+): string[] {
+  const agent = cfg.session.agentProfile;
+  const memory = role === 'builder' ? agent.memory : '512m';
+  return [
+    `--cpus=${role === 'builder' ? agent.cpus : 1}`,
+    `--memory=${memory}`,
+    `--memory-swap=${memory}`,
+    `--pids-limit=${role === 'builder' ? Math.max(agent.pidsLimit, 16384) : 256}`,
+    '--oom-score-adj=500',
+    '--log-driver=json-file',
+    '--log-opt',
+    'max-size=10m',
+    '--log-opt',
+    'max-file=1',
+    '--log-opt',
+    'compress=false',
+  ];
+}
+
 async function liveBuildkitOrganizations(
   organizationId?: string,
 ): Promise<Set<string>> {
@@ -241,14 +271,14 @@ async function liveBuildkitOrganizations(
     'label=tale.sandbox-session=1',
     ...(organizationId ? ['--filter', `label=tale.org=${organizationId}`] : []),
     '--format',
-    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}',
+    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}',
   ]);
   if (sessions.exitCode !== 0) {
     throw new Error('buildkitd: cannot establish idle session dependencies');
   }
   const live = new Set<string>();
   for (const line of sessions.stdout.split('\n').filter(Boolean)) {
-    const [id, status, org, extra] = line.split('\t');
+    const [id, status, org, profile, extra] = line.split('\t');
     if (
       !id ||
       !DOCKER_ID_RE.test(id) ||
@@ -259,6 +289,10 @@ async function liveBuildkitOrganizations(
     ) {
       throw new Error('buildkitd: invalid session inventory during idle sweep');
     }
+    // Only agent sessions build: a crawler render or a script session of the
+    // organization kept its helpers running for nothing. A container without
+    // the label predates it and counts, as before.
+    if (profile === 'default') continue;
     // Created, paused, restarting, removing and unrecognized non-terminal
     // states may still use the cache. Pinned/warm runtimes are also retained.
     if (status !== 'exited' && status !== 'dead') live.add(org);
@@ -336,6 +370,9 @@ async function sweepIdleBuildkitdUnlocked(
   }
   const result = { stopped: 0, organizations: 0 };
   for (const [org, names] of byOrg) {
+    // One organization's helpers that cannot be judged or stopped (a wedged
+    // container, a stranger under a helper name) must not keep every other
+    // organization's helpers running: it is logged and retried next sweep.
     const stopped = await withBuildkitdOperation(org, async () => {
       if (live.has(org) || createLeases.has(org)) {
         idleSince.delete(org);
@@ -382,6 +419,12 @@ async function sweepIdleBuildkitdUnlocked(
       }
       idleSince.delete(org);
       return stoppedCount;
+    }).catch((error: unknown) => {
+      console.warn(
+        `[sandbox.buildkitd] idle sweep of ${org}'s helpers failed (next sweep retries):`,
+        error,
+      );
+      return 0;
     });
     if (stopped > 0) {
       result.stopped += stopped;
@@ -551,6 +594,7 @@ async function ensureOneMirrorUnlocked(
       `tale.org=${organizationId}`,
       '--restart',
       'unless-stopped',
+      ...buildkitHelperLimits(cfg, 'mirror'),
       // On this organization's network so buildkit reaches it by name; it pulls upstream
       // through the egress proxy (so the mirror itself needs no external DNS).
       '--network',
@@ -761,6 +805,7 @@ async function ensureBuildkitdOnNetwork(
       // Long-lived shared infra: survive a daemon crash + host docker restart.
       '--restart',
       'unless-stopped',
+      ...buildkitHelperLimits(cfg, 'builder'),
       // Only this organization's sessions can reach the builder. RUN-step
       // egress goes through the proxy attached to this private bridge.
       '--network',

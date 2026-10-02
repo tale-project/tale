@@ -133,9 +133,9 @@ An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
 sessions build locally.
 
-After no session may still depend on an organization's cache helpers, the
-`SANDBOX_SESSION_MAX_IDLE_MS` window (30 minutes by default) starts. The helpers
-then stop; their network and volumes remain intact and the next build restarts
+After no agent session may still depend on an organization's cache helpers
+(only agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
+minutes by default) starts. The helpers then stop; their network and volumes remain intact and the next build restarts
 them. Legacy global cache helpers retire once their remaining sessions drain,
 with their cache volumes retained.
 

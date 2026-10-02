@@ -51,7 +51,7 @@ if (a[0] === 'ps') {
   s.sessionReads++;
   if (s.lateSession && s.sessionReads >= s.lateSession.afterRead) s.sessions = [s.lateSession.session];
   const orgFilter = flags('--filter').find(value => value.startsWith('label=tale.org='))?.slice('label=tale.org='.length);
-  done(s.sessions.filter(c => !orgFilter || c.org === orgFilter).map(c => [c.id, c.status, ...(flag('--format').includes('.Label') ? [c.org] : [])].join('\t')).join('\n'), 'sessions');
+  done(s.sessions.filter(c => !orgFilter || c.org === orgFilter).map(c => [c.id, c.status, ...(flag('--format').includes('.Label') ? [c.org] : []), ...(flag('--format').includes('tale.profile') ? [c.profile || ''] : [])].join('\t')).join('\n'), 'sessions');
 }
 if (a[0] === 'inspect') {
   if (flag('--format').includes('"id"')) done({ id: s.egressId, name: '/egress', networks: { 'tale-sandbox-net': { Aliases: ['sandbox-egress'], IPAddress: '172.22.0.2' } } });
@@ -99,6 +99,7 @@ interface FakeSession {
   id: string;
   status: string;
   org: string;
+  profile?: string;
 }
 
 interface FakeState {
@@ -229,6 +230,21 @@ async function rejection(promise: Promise<unknown>): Promise<string | null> {
     return error instanceof Error ? error.message : String(error);
   }
 }
+/** Run a sweep that must resolve, returning its result and what it warned. */
+async function sweepWarning(
+  promise: Promise<{ stopped: number }>,
+): Promise<{ stopped: number; warnings: string }> {
+  const warn = console.warn;
+  const lines: string[] = [];
+  console.warn = (...args: unknown[]) => {
+    lines.push(args.map(String).join(' '));
+  };
+  try {
+    return { stopped: (await promise).stopped, warnings: lines.join('\n') };
+  } finally {
+    console.warn = warn;
+  }
+}
 function nextOrg(): string {
   return `lifecycle-org-${++orgSequence}`;
 }
@@ -326,6 +342,16 @@ describe('organization build-cache lifecycle', () => {
     expect(launches.find((args) => args.includes('--privileged'))).toContain(
       buildkitdContainerName(org),
     );
+    // Every helper runs bounded, the builder by one agent session's budget.
+    const agent = cfg.session.agentProfile;
+    for (const args of launches) {
+      const builder = args.includes('--privileged');
+      expect(args).toContain(`--memory=${builder ? agent.memory : '512m'}`);
+      expect(args).toContain(`--cpus=${builder ? agent.cpus : 1}`);
+      expect(args.some((arg) => arg.startsWith('--pids-limit='))).toBe(true);
+      expect(args).toContain('--oom-score-adj=500');
+      expect(args).toContain('max-size=10m');
+    }
   });
 
   test.each([
@@ -415,9 +441,17 @@ describe('organization build-cache lifecycle', () => {
       failed.oversized = oversized;
       await save(failed);
 
-      expect(await rejection(sweepIdleBuildkitd(cfg, now + 1000))).toMatch(
-        /truncated/,
-      );
+      if (oversized === 'resource') {
+        // One organization's unreadable helper is that organization's
+        // failure: logged, retried next sweep, and nothing stopped.
+        const swept = await sweepWarning(sweepIdleBuildkitd(cfg, now + 1000));
+        expect(swept.stopped).toBe(0);
+        expect(swept.warnings).toMatch(/truncated/);
+      } else {
+        expect(await rejection(sweepIdleBuildkitd(cfg, now + 1000))).toMatch(
+          /truncated/,
+        );
+      }
       expect((await calls()).some((args) => args[0] === 'stop')).toBe(false);
     },
   );
@@ -452,9 +486,9 @@ describe('organization build-cache lifecycle', () => {
       const now = Date.now();
 
       await sweepIdleBuildkitd(cfg, now);
-      expect(await rejection(sweepIdleBuildkitd(cfg, now + 1000))).toMatch(
-        /refusing/,
-      );
+      const swept = await sweepWarning(sweepIdleBuildkitd(cfg, now + 1000));
+      expect(swept.stopped).toBe(0);
+      expect(swept.warnings).toMatch(/refusing/);
       expect((await calls()).some((args) => args[0] === 'stop')).toBe(false);
     },
   );
@@ -467,9 +501,9 @@ describe('organization build-cache lifecycle', () => {
     const now = Date.now();
 
     await sweepIdleBuildkitd(cfg, now);
-    expect(await rejection(sweepIdleBuildkitd(cfg, now + 1000))).toMatch(
-      /failed to stop idle helper/,
-    );
+    const swept = await sweepWarning(sweepIdleBuildkitd(cfg, now + 1000));
+    expect(swept.stopped).toBe(0);
+    expect(swept.warnings).toMatch(/failed to stop idle helper/);
     expect(
       Object.values((await state()).containers).every(
         (container) => container.running,
@@ -483,6 +517,54 @@ describe('organization build-cache lifecycle', () => {
     recovered.stopFails = null;
     await save(recovered);
     expect((await sweepIdleBuildkitd(cfg, now + 2000)).stopped).toBe(4);
+  });
+
+  test("one organization's failing stop does not keep another organization's helpers running", async () => {
+    const failing = nextOrg();
+    const healthy = nextOrg();
+    const first = seed(failing);
+    const second = seed(healthy);
+    // Distinct container ids for the second organization's helpers.
+    for (const [index, container] of Object.values(
+      second.containers,
+    ).entries()) {
+      container.id = String(index + 11).padStart(64, '0');
+    }
+    await save({
+      ...first,
+      containers: { ...first.containers, ...second.containers },
+      networks: { ...first.networks, ...second.networks },
+      volumes: { ...first.volumes, ...second.volumes },
+      stopFails: buildkitdContainerName(failing),
+    });
+    const now = Date.now();
+    await sweepIdleBuildkitd(cfg, now);
+    const swept = await sweepWarning(sweepIdleBuildkitd(cfg, now + 1000));
+    expect(swept.stopped).toBe(4);
+    expect(swept.warnings).toMatch(/failed to stop idle helper/);
+    const containers = Object.values((await state()).containers);
+    expect(
+      containers
+        .filter((container) => container.labels['tale.org'] === healthy)
+        .every((container) => !container.running),
+    ).toBe(true);
+    expect(
+      containers
+        .filter((container) => container.labels['tale.org'] === failing)
+        .every((container) => container.running),
+    ).toBe(true);
+  });
+
+  test("a running session of the organization's that never builds does not keep its helpers", async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.sessions = [
+      { id: 'd'.repeat(64), org, status: 'running', profile: 'default' },
+    ];
+    await save(initial);
+    const now = Date.now();
+    await sweepIdleBuildkitd(cfg, now);
+    expect((await sweepIdleBuildkitd(cfg, now + 1000)).stopped).toBe(4);
   });
 
   test('an ensure arriving during an idle stop waits, then restores every helper', async () => {

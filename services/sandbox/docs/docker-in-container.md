@@ -214,8 +214,10 @@ drain, the legacy global service remains reachable on the shared network.
 Resources with foreign or missing ownership labels are never stopped or adopted.
 
 This integration currently belongs to the Docker backend. The Kubernetes
-backend does not provision this shared BuildKit service. BuildKit's GC budget
-applies per organization; registry mirror storage is separate. See
+backend does not provision this shared BuildKit service. BuildKit's GC caps
+each organization's cache at 20 GB and keeps a tenth of the disk free;
+registry mirror storage is separate. The builder runs under one agent
+session's limits, since builds run in it rather than in the session. See
 [the BuildKit reference](../../sandbox-buildkitd/README.md) for the resource
 boundary and upgrade requirements.
 
