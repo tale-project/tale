@@ -55783,6 +55783,70 @@ async function checkWatchdogs(
     `rows=${refusedAfter.map((row) => `${row.status}/${row.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} asked=${refusedAsked.filter((id) => id.endsWith('-wd-refused')).join(',') || 'none'} (want both failed/stamped, neither asked)`,
   );
 
+  // What waiting for room leaves behind goes: the op rows of refused starts
+  // an hour after they ended — the session's newest kept, the run view
+  // reads it — and failed session rows a week after they were collected.
+  const waitSession = `wf-wd-wait-${randomUUID()}`;
+  const hourAgo = now - 2 * 60 * 60 * 1000;
+  for (const [execId, startedAt] of [
+    ['wait-1', hourAgo - 3_000],
+    ['wait-2', hourAgo - 2_000],
+    ['wait-3', hourAgo - 1_000],
+  ] as const) {
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, agent_result_status,
+        started_at_ms, finished_at_ms
+      ) VALUES (
+        ${orgId}, ${waitSession}, ${execId}, 'workflow-agent', 'failed',
+        'awaiting_room', ${startedAt}, ${startedAt + 500}
+      )
+    `;
+  }
+  // One that minted a key is the settlement's to finish, never this sweep's.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      minted_key_id, started_at_ms, finished_at_ms
+    ) VALUES (
+      ${orgId}, ${waitSession}, 'wait-keyed', 'workflow-agent', 'failed',
+      'awaiting_room', 'key-wd-wait', ${hourAgo - 4_000}, ${hourAgo - 3_500}
+    )
+  `;
+  const week = 7 * 24 * 60 * 60 * 1000;
+  const collectedRows = await sql<{ id: string; old: boolean }[]>`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - week - 120_000}, ${now}, ${now - week - 60_000}),
+      (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 120_000}, ${now}, ${now - 60_000})
+    RETURNING id, destroyed_at_ms < ${now - week} AS old
+  `;
+  const { sweepRoomWaitLeftovers } =
+    await import('./domains/sandbox/wait-retention.ts');
+  await sweepRoomWaitLeftovers(sql, { now });
+  const waitOpsLeft = (
+    await sql<{ execId: string }[]>`
+      SELECT exec_id AS "execId" FROM app.sandbox_session_ops
+      WHERE session_id = ${waitSession} ORDER BY started_at_ms
+    `
+  ).map((row) => row.execId);
+  const collectedLeft = await sql<{ id: string }[]>`
+    SELECT id FROM app.sandbox_sessions
+    WHERE id = ANY(${collectedRows.map((row) => row.id)})
+  `;
+  const keptRecent = collectedRows.find((row) => !row.old)?.id;
+  record(
+    'what waiting for room leaves behind is deleted past its retention, the newest op and a keyed one kept',
+    waitOpsLeft.join(',') === 'wait-keyed,wait-3' &&
+      collectedLeft.length === 1 &&
+      collectedLeft[0]?.id === keptRecent,
+    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions=${collectedLeft.length}/1 recent kept=${String(collectedLeft[0]?.id === keptRecent)}`,
+  );
+
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
   // settles idle and the pending placeholder fails.
   const thread = await sql<{ id: string }[]>`
