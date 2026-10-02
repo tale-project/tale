@@ -70,12 +70,14 @@ export function sessionWorkspacePvcNameFor(sessionId: string): string {
 /** What a session Pod asks the scheduler for: its typical working set, not
  * its ceiling. An idle session uses ~60 MB and next to no CPU and an agent
  * turn a few hundred MB, so the old flat 500m / 1Gi reserved ~17x the idle
- * footprint and capped a node's sessions by CPU it never used. Limits stay
- * the profile's; an operator override applies to every session Pod. */
+ * footprint and capped a node's sessions by CPU it never used. A crawler
+ * render is never idle: Chromium is up from the start, at 170 MB with no page
+ * and 365 MB after five modest ones (measured), so it asks for that. Limits
+ * stay the profile's; an operator override applies to every session Pod. */
 const SESSION_REQUESTS = {
   agent: { cpu: '250m', memory: '512Mi' },
   dind: { cpu: '250m', memory: '1Gi' },
-  default: { cpu: '100m', memory: '256Mi' },
+  default: { cpu: '250m', memory: '512Mi' },
 } as const;
 
 /** A CPU quantity in millicores ('250m', '2', '1.5'), NaN when unreadable. */

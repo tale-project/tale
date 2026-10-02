@@ -50,7 +50,7 @@ would not describe the cluster.
 
 **Resource bounds:** the runner container enforces the profile's cpu/memory
 limits and requests its typical working set rather than its ceiling: an agent
-Pod `250m` / `512Mi` (`1Gi` under DinD), a crawler render `100m` / `256Mi`,
+Pod `250m` / `512Mi` (`1Gi` under DinD), a crawler render `250m` / `512Mi`,
 overridable for every Pod by `SANDBOX_K8S_CPU_REQUEST` /
 `SANDBOX_K8S_MEMORY_REQUEST` and never above the limit (an idle session uses
 ~60 MB; the old flat `500m` / `1Gi` capped a node's sessions by CPU they

@@ -172,7 +172,7 @@ describe('buildSessionPod', () => {
     });
     expect(
       runner(buildSessionPod(cfg, { ...input, profile: 'default' }))?.requests,
-    ).toEqual({ cpu: '100m', memory: '256Mi' });
+    ).toEqual({ cpu: '250m', memory: '512Mi' });
     // An operator override applies to every Pod, clamped to each limit.
     const tuned = {
       ...cfg,

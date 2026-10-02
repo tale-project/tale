@@ -34,7 +34,7 @@ describe('sizing from the host', () => {
   });
 
   test('a starting session is planned at its kind of working set', () => {
-    expect(sessionWorkingSetBytes('default', true)).toBe(256 * 1024 ** 2);
+    expect(sessionWorkingSetBytes('default', true)).toBe(512 * 1024 ** 2);
     expect(sessionWorkingSetBytes('agent', false)).toBe(512 * 1024 ** 2);
     expect(sessionWorkingSetBytes('agent', true)).toBe(1536 * 1024 ** 2);
   });

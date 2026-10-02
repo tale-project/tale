@@ -20,12 +20,13 @@ const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
 
 /** What one session typically holds while it works: an agent turn (the CLI
- * and its MCP servers), a turn with its inner Docker daemon, a crawler render.
- * Admission keeps this much per starting session beyond the reserve. */
+ * and its MCP servers), a turn with its inner Docker daemon, a crawler render
+ * (Chromium and a few pages). Admission keeps this much per starting session
+ * beyond the reserve. */
 export const SESSION_WORKING_SET_BYTES = {
   agent: 512 * MIB,
   dind: 1536 * MIB,
-  default: 256 * MIB,
+  default: 512 * MIB,
 } as const;
 
 /** The memory a session slot is sized with when capacity follows the host:
