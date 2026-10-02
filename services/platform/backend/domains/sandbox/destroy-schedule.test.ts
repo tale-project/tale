@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   scheduleSessionDestroy,
+  sessionDestroyPending,
   sessionDestroyStates,
 } from './destroy-schedule.ts';
 
@@ -51,10 +52,15 @@ describe('scheduleSessionDestroy', () => {
       { ...ARGS, rowId: 'row-2' },
       { singletonKey: JSON.stringify(['org-1', 'pa-1', 'row-2']) },
     );
+    // The organization's admission lock first, which every reserve and
+    // resume takes: a turn is admitted either before the request, or after
+    // it and refused while the Destroy is pending.
+    expect(statements[0]?.text).toContain('pg_advisory_xact_lock');
+    expect(statements[0]?.values).toEqual(['org-1']);
     // The row the teardown will read: the newest under the id, in the
     // caller's organization.
-    expect(statements[0]?.text).toContain('ORDER BY created_at_ms DESC');
-    expect(statements[0]?.values).toEqual(['org-1', 'pa-1']);
+    expect(statements[1]?.text).toContain('ORDER BY created_at_ms DESC');
+    expect(statements[1]?.values).toEqual(['org-1', 'pa-1']);
   });
 
   it('queues nothing when the organization holds no row under the id', async () => {
@@ -112,5 +118,49 @@ describe('sessionDestroyStates', () => {
       new Map(),
     );
     expect(statements).toEqual([]);
+  });
+});
+
+describe('sessionDestroyPending', () => {
+  it('reads a queued, retrying or running Destroy of a live row under the id', async () => {
+    const { sql, statements } = fakeSql([{ pending: true }]);
+    await expect(sessionDestroyPending(sql, ARGS)).resolves.toBe(true);
+    const [statement] = statements;
+    expect(statement?.text).toContain('j.name = ?');
+    expect(statement?.values).toContain('sandbox.destroy_session');
+    // Unfinished only: a Destroy whose ladder ran out (`failed`) no longer
+    // holds the row, so a workspace id is never locked for good.
+    expect(statement?.values).toContainEqual(['created', 'retry', 'active']);
+    // Against the row the job names, live, in the caller's organization.
+    expect(statement?.text).toContain("s.id::text = j.data ->> 'rowId'");
+    expect(statement?.text).toContain('s.status = ANY(');
+    expect(statement?.values).toContainEqual([
+      'creating',
+      'active',
+      'degraded',
+      'stopped',
+    ]);
+    expect(statement?.values.filter((value) => value === 'org-1')).toHaveLength(
+      2,
+    );
+    expect(statement?.values).toContain('pa-1');
+  });
+
+  it('narrows to one row when asked for it', async () => {
+    const { sql, statements } = fakeSql([{ pending: false }]);
+    await expect(
+      sessionDestroyPending(sql, { ...ARGS, rowId: 'row-2' }),
+    ).resolves.toBe(false);
+    expect(
+      statements[0]?.values.filter((value) => value === 'row-2'),
+    ).toHaveLength(2);
+  });
+
+  it('reads any live row under the id without one', async () => {
+    const { sql, statements } = fakeSql([{ pending: false }]);
+    await sessionDestroyPending(sql, ARGS);
+    expect(
+      statements[0]?.values.filter((value) => value === null),
+    ).toHaveLength(2);
   });
 });
