@@ -26,8 +26,14 @@ const { readRow, actionRow } = vi.hoisted(() => ({
 }));
 vi.mock('@/app/lib/backend/adapters', () => ({
   READ_ADAPTERS: { 'fake:adapted': readRow },
-  ACTION_QUERY_ADAPTERS: { 'fake:action': actionRow },
+  ACTION_QUERY_ADAPTERS: {
+    'fake:action': actionRow,
+    // The settings-values hook keys its lane off this row's presence.
+    'documents/public_actions:readProjectTextValues': actionRow,
+  },
+  WRITE_ADAPTERS: {},
   activeOrganizationId: () => undefined,
+  projectAdaptedRead: vi.fn(),
   runAdapted: (run: () => Promise<unknown>) => run(),
   retryAdaptedRead: () => false,
 }));
@@ -35,6 +41,8 @@ vi.mock('@/app/lib/backend/adapters', () => ({
 vi.mock('@/lib/auth-client', () => ({
   authClient: { getSession: () => new Promise(() => {}) },
 }));
+
+import { useAutomationSettingsValues } from '@/app/features/automations/hooks/use-settings-values';
 
 import { useActionQuery } from './use-action-query';
 import { useBackendQuery } from './use-backend-query';
@@ -204,6 +212,16 @@ describe('session probe observers (#4062)', () => {
     renderHook(() => useActionQuery(ACTION_KEY, ADAPTED_ACTION, {}), {
       wrapper: wrapperFor(client),
     });
+    expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
+  });
+
+  it('the automation settings read takes no probe subscription on its adapted lane', () => {
+    const client = newClient(null);
+    renderHook(
+      () => useAutomationSettingsValues('org-1', 'project-1', null, null),
+      { wrapper: wrapperFor(client) },
+    );
+
     expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
   });
 

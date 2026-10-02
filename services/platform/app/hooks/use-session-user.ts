@@ -67,7 +67,9 @@ interface SessionUserOptions {
    * `false` reads the probe's cached answer without subscribing to it: no
    * observer joins the probe's query, the caller does not re-render when the
    * probe answers, and its mount never refetches the probe. For a hook that
-   * needs the answer on one branch only. Every subscription is an observer on
+   * needs the answer on one branch only, and then read `isAuthenticated`
+   * alone: unsubscribed, `isLoading` reports the fetch a mount would start,
+   * which never comes. Every subscription is an observer on
    * the probe's one shared query, and react-query removes an observer in time
    * linear in that query's observer count, so a subscription per mounted read
    * made unmounting a 2,000-card board take ~20 s (#4062).
