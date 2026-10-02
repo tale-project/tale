@@ -316,6 +316,38 @@ export async function processesLeft(
   });
 }
 
+/** Send `signal` to `target` (a negative pid: a process group); true when
+ * it was delivered. A target already gone is skipped quietly. */
+function deliver(
+  deps: ReaperDeps,
+  target: number,
+  signal: NodeJS.Signals,
+  label: string,
+): boolean {
+  const kill = deps.kill ?? ((pid, sig) => process.kill(pid, sig));
+  try {
+    kill(target, signal);
+    return true;
+  } catch (err) {
+    if (errorCode(err) !== 'ESRCH') {
+      console.warn(`[runnerd] ${signal} to ${label} failed:`, err);
+    }
+    return false;
+  }
+}
+
+/** Signal an exec's process group, and nothing else, without reading the
+ * process table: for a group certainly the exec's (its leader still runs).
+ * True when the signal was delivered. */
+export function signalGroup(
+  groupId: number | undefined,
+  signal: NodeJS.Signals,
+  deps: ReaperDeps = {},
+): boolean {
+  if (groupId === undefined || groupId <= 1) return false;
+  return deliver(deps, -groupId, signal, `pgroup ${groupId}`);
+}
+
 /** What a round did. */
 export interface RoundResult {
   /** How many signals were delivered. */
@@ -340,17 +372,9 @@ export async function signalExecProcesses(
   deps: ReaperDeps = {},
 ): Promise<RoundResult> {
   if (targets.length === 0) return { reached: 0, members: [] };
-  const kill = deps.kill ?? ((pid, sig) => process.kill(pid, sig));
   let reached = 0;
   const send = (target: number, label: string) => {
-    try {
-      kill(target, signal);
-      reached += 1;
-    } catch (err) {
-      if (errorCode(err) !== 'ESRCH') {
-        console.warn(`[runnerd] ${signal} to ${label} failed:`, err);
-      }
-    }
+    if (deliver(deps, target, signal, label)) reached += 1;
   };
   // Negative pid: the whole process group. Sent before the scan, which can
   // wait on a stuck process for as long as its deadline.

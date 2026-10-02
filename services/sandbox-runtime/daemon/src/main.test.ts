@@ -1,7 +1,13 @@
 // Drive runnerd over HTTP without Docker: the retired viewing surface must be
 // gone while ordinary command execution still streams stdout and exit status.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs';
 import { request, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 
@@ -45,6 +51,15 @@ afterAll(async () => {
 });
 
 const headers = { 'x-tale-runnerd-token': token };
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err instanceof Error && 'code' in err && err.code === 'EPERM';
+  }
+}
 
 function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object'
@@ -211,6 +226,57 @@ describe('runnerd HTTP service', () => {
       await source.stop(true);
     }
   });
+
+  test.skipIf(!existsSync('/proc/self/environ'))(
+    'a cancel with leftovers=keep leaves what the exec started outside its group to the next exec',
+    async () => {
+      const execBody = (execId: string, shell: string) =>
+        JSON.stringify({
+          execId,
+          shell,
+          cwd: workspace,
+          timeoutMs: 30_000,
+          stdoutMaxBytes: 10_000,
+          stderrMaxBytes: 10_000,
+        });
+      const turn = fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: execBody(
+          'rotated-turn',
+          'setsid /bin/sleep 408 >/dev/null 2>&1 </dev/null & sleep 0.2; pgrep -n -f "^/bin/sleep 408$" > server.pid; exec sleep 30',
+        ),
+      }).then((response) => response.text());
+      let pid = 0;
+      const started = Date.now();
+      while (pid <= 1 && Date.now() - started < 5_000) {
+        await new Promise((r) => setTimeout(r, 20));
+        pid = existsSync(`${workspace}/server.pid`)
+          ? Number(readFileSync(`${workspace}/server.pid`, 'utf8').trim())
+          : 0;
+      }
+      expect(pid).toBeGreaterThan(1);
+      const cancel = await fetch(
+        `${baseUrl}/execs/rotated-turn/cancel?leftovers=keep`,
+        { method: 'POST', headers },
+      );
+      expect(await cancel.json()).toEqual({ killed: true });
+      expect(await turn).toContain('"cancelled":true');
+      await new Promise((r) => setTimeout(r, 300));
+      expect(alive(pid)).toBe(true);
+      const next = await fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: execBody('next-turn', 'true'),
+      });
+      expect(await next.text()).toContain('"exitCode":0');
+      const until = Date.now() + 3_000;
+      while (alive(pid) && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(alive(pid)).toBe(false);
+    },
+  );
 
   // KEEP LAST: the claim below freezes the one daemon this file shares —
   // by design a successful claim never expires — so every request a later

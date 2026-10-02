@@ -380,7 +380,12 @@ async function handleOperation(
   const cancelMatch = path.match(EXEC_CANCEL_RE);
   if (req.method === 'POST' && cancelMatch) {
     touch();
-    sendJson(res, 200, { killed: execManager.cancel(cancelMatch[1] ?? '') });
+    // `?leftovers=keep`: a rotation, which hands what the exec left outside
+    // its group to the exec that takes over (ExecManager.cancel).
+    const keepLeftovers = url.searchParams.get('leftovers') === 'keep';
+    sendJson(res, 200, {
+      killed: execManager.cancel(cancelMatch[1] ?? '', { keepLeftovers }),
+    });
     return;
   }
   const attachMatch = path.match(EXEC_ATTACH_RE);

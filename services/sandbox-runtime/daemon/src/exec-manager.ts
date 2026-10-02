@@ -8,7 +8,9 @@
 // reaches the whole tree (a shell that forked rg/node/etc., a backgrounded
 // server, a browser its driver spawned detached; process-reaper.ts). What an
 // exec leaves running ends with it, or — while another exec of the session
-// still runs and may be using it — once the session's last exec ends.
+// still runs and may be using it — once the session's last exec ends. A
+// cancel that hands the exec over (a steer's restart) ends only its own
+// group and holds the rest for the exec that takes over.
 
 import { spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
@@ -20,6 +22,7 @@ import {
   groupMembers,
   processesLeft,
   signalExecProcesses,
+  signalGroup,
   type GroupMember,
   type ReaperDeps,
   type ReapTarget,
@@ -57,8 +60,19 @@ interface Reaping extends ReapTarget {
   leaderRunning?: () => boolean;
 }
 
+/** What an exited or handed-over exec left, waiting to be ended. */
+interface Leftover extends ReapTarget {
+  /** Held for the exec that takes over from a cancelled one: how many execs
+   * had started when the hold began. An exec started after that ending
+   * lifts the hold; until then the session's last exec ending does not end
+   * these. */
+  heldSince?: number;
+}
+
 interface LiveExec {
   startedAtMs: number;
+  /** This exec's place in the order the session's execs started. */
+  ordinal: number;
   /** The exec's process group: the child's pid (spawned detached). */
   groupId: number | undefined;
   /** End every process of the exec now — SIGTERM, then SIGKILL once
@@ -68,9 +82,9 @@ interface LiveExec {
   terminated: boolean;
   /** The child itself exited (its 'exit' fired). */
   leaderExited: boolean;
-  /** What the exit left waiting for the session's last exec to end, while it
-   * still waits; a cancel or the deadline ends it at once. */
-  deferred: ReapTarget | null;
+  /** What the exit (or a hand-over) left waiting, while it still waits; a
+   * cancel or the deadline ends it at once. */
+  deferred: Leftover | null;
   /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for /attach replay. */
   ring: string[];
   ringBytes: number;
@@ -114,9 +128,13 @@ export class ExecManager {
   // real exit code (insertion-ordered; oldest evicted past cap).
   private readonly recent = new Map<string, RetainedExec>();
   // Execs that exited while another exec of the session ran: what they left
-  // running ends with the session's last live exec.
-  private readonly leftovers: ReapTarget[] = [];
+  // running ends with the session's last live exec. Execs handed over to a
+  // successor: what they left outside their group ends once the successor
+  // has, and with the session's last live exec.
+  private readonly leftovers: Leftover[] = [];
   private pruningLeftovers = false;
+  /** How many execs this session has started. */
+  private started = 0;
 
   constructor(
     private readonly envStore: EnvStore,
@@ -300,8 +318,10 @@ export class ExecManager {
       resolveDone = r;
     });
 
+    this.started += 1;
     const record: LiveExec = {
       startedAtMs,
+      ordinal: this.started,
       groupId: child.pid,
       exitCode: null,
       ring: [],
@@ -559,8 +579,9 @@ export class ExecManager {
           const othersLive = [...this.live.keys()].some(
             (id) => id !== req.execId,
           );
+          this.liftHolds(record.ordinal);
           if (othersLive) {
-            const waiting: ReapTarget = {
+            const waiting: Leftover = {
               ...self,
               members: this.recordGroup(req.execId, record.groupId),
             };
@@ -568,7 +589,7 @@ export class ExecManager {
             this.deferLeftovers(waiting);
           } else {
             void this.reap([
-              ...this.leftovers.splice(0),
+              ...this.takeUnheldLeftovers(),
               { ...self, groupKnown: true },
             ]);
           }
@@ -588,16 +609,48 @@ export class ExecManager {
     });
   }
 
-  /** SIGTERM→SIGKILL the exec's process group. Returns true if it was live.
-   * The ONLY platform-initiated kill (a user Stop) — distinct from the sliding
-   * orphan deadline. */
-  cancel(execId: string): boolean {
+  /** End a live exec at the platform's request — distinct from the sliding
+   * orphan deadline. A user's Stop ends every process of the exec. A
+   * rotation (`keepLeftovers`: a steer's restart, which continues the
+   * conversation in a new exec over the same workspace) ends only the exec's
+   * own group, and holds what it left outside the group (a dev server the
+   * turn started from a tool call) for the exec that takes over. Returns
+   * true if it was live. */
+  cancel(execId: string, opts: { keepLeftovers?: boolean } = {}): boolean {
     const rec = this.live.get(execId);
     if (!rec) return false;
     if (rec.timer) clearTimeout(rec.timer);
     rec.cancelRequested = true;
-    this.endNow(rec);
+    if (opts.keepLeftovers === true) this.handOver(execId, rec);
+    else this.endNow(rec);
     return true;
+  }
+
+  /** A rotation's cancel: SIGTERM to the exec's own group, SIGKILL to it
+   * while its leader still runs once the grace has passed, and what the exec
+   * left outside the group held until an exec started after this one ends.
+   * Ending those too would leave the restarted turn, which goes on where
+   * this one stopped, with the servers it started gone. */
+  private handOver(execId: string, rec: LiveExec): void {
+    const waiting = rec.deferred;
+    if (waiting !== null) {
+      // Its leader already exited: what it left waits on, for the
+      // successor as well.
+      waiting.heldSince = this.started;
+      return;
+    }
+    if (rec.terminated) return;
+    rec.terminated = true;
+    const group = rec.groupId;
+    signalGroup(group, 'SIGTERM', this.reaper);
+    setTimeout(() => {
+      if (!rec.leaderExited) signalGroup(group, 'SIGKILL', this.reaper);
+    }, SIGKILL_GRACE_MS).unref();
+    const held: Leftover = { execId, groupId: group, heldSince: this.started };
+    // Kept as the exec's deferred leftovers: its pipes stay open for them,
+    // and a user's Stop during the drain ends them at once.
+    rec.deferred = held;
+    this.deferLeftovers(held);
   }
 
   /** End an exec's processes now, on a cancel or at its deadline — what it
@@ -639,22 +692,42 @@ export class ExecManager {
     await this.reap(targets);
   }
 
-  /** How many exited execs' leftovers wait for the session's last exec. */
+  /** How many exited or handed-over execs' leftovers wait. */
   leftoverCount(): number {
     return this.leftovers.length;
   }
 
   /** Remove an exec from the live set; when it was the session's last, what
-   * earlier execs left waiting ends now. */
+   * earlier execs left waiting ends now — except what is still held for an
+   * exec that has not yet run. */
   private dropLive(execId: string): void {
+    const rec = this.live.get(execId);
     this.live.delete(execId);
-    if (this.live.size === 0 && this.leftovers.length > 0) {
-      void this.reap(this.leftovers.splice(0));
+    if (rec !== undefined) this.liftHolds(rec.ordinal);
+    if (this.live.size === 0) void this.reap(this.takeUnheldLeftovers());
+  }
+
+  /** The exec in place `ordinal` is ending: a hold that began before it
+   * started has had its successor. */
+  private liftHolds(ordinal: number): void {
+    for (const leftover of this.leftovers) {
+      if (leftover.heldSince !== undefined && ordinal > leftover.heldSince) {
+        leftover.heldSince = undefined;
+      }
     }
   }
 
+  /** Take the waiting leftovers no hold keeps. */
+  private takeUnheldLeftovers(): Leftover[] {
+    const due = this.leftovers.filter((t) => t.heldSince === undefined);
+    if (due.length === 0) return [];
+    const held = this.leftovers.filter((t) => t.heldSince !== undefined);
+    this.leftovers.splice(0, this.leftovers.length, ...held);
+    return due;
+  }
+
   /** Keep an exited exec's leftovers for the session's last exec to end. */
-  private deferLeftovers(target: ReapTarget): void {
+  private deferLeftovers(target: Leftover): void {
     this.leftovers.push(target);
     if (this.leftovers.length < LEFTOVER_PRUNE_AT || this.pruningLeftovers) {
       return;

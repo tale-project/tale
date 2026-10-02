@@ -552,6 +552,135 @@ describe('ExecManager', () => {
     expect(isAlive(pid)).toBe(false);
   });
 
+  test('a rotation’s cancel ends the exec’s group and holds what it left outside until the exec after it ends', async () => {
+    // A fake process table: a server the turn started in a session of its
+    // own, still tagged with the exec.
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    mkdirSync(`${procRoot}/99992`);
+    writeFileSync(`${procRoot}/99992/environ`, 'TALE_EXEC_ID=erot\0');
+    writeFileSync(
+      `${procRoot}/99992/stat`,
+      '99992 (server) S 1 99992 99992 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4343 0 0\n',
+    );
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
+      procRoot,
+      // Real groups are the test's own execs; the fake pid is only recorded.
+      kill: (pid, signal) => {
+        sent.push([pid, signal]);
+        if (pid < 0) process.kill(pid, signal);
+      },
+    });
+    try {
+      const { events, emit } = collect();
+      const done = mgr.run(
+        { ...base, execId: 'erot', shell: 'sleep 30', cwd: ROOT },
+        emit,
+      );
+      while (mgr.status('erot')?.state !== 'running') {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(mgr.cancel('erot', { keepLeftovers: true })).toBe(true);
+      await done;
+      expect(events[events.length - 1]).toMatchObject({
+        t: 'exit',
+        cancelled: true,
+      });
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.[0]).toBeLessThan(0);
+      // Its own drop, the session's last exec ending, does not end them.
+      await new Promise((r) => setTimeout(r, 200));
+      expect(sent.some(([pid]) => pid === 99992)).toBe(false);
+      expect(mgr.leftoverCount()).toBe(1);
+      // The exec that takes over ends: what the cancelled one held ends too.
+      await mgr.run(
+        { ...base, execId: 'erot-next', command: ['true'], cwd: ROOT },
+        () => {},
+      );
+      const until = Date.now() + 2_000;
+      while (!sent.some(([pid]) => pid === 99992) && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(sent).toContainEqual([99992, 'SIGTERM']);
+      expect(mgr.leftoverCount()).toBe(0);
+    } finally {
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('a hold outlasts an exec that started before it', async () => {
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    mkdirSync(`${procRoot}/99993`);
+    writeFileSync(`${procRoot}/99993/environ`, 'TALE_EXEC_ID=ehold\0');
+    writeFileSync(
+      `${procRoot}/99993/stat`,
+      '99993 (server) S 1 99993 99993 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4444 0 0\n',
+    );
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
+      procRoot,
+      kill: (pid, signal) => {
+        sent.push([pid, signal]);
+        if (pid < 0) process.kill(pid, signal);
+      },
+    });
+    try {
+      // Started before the hold: its end is no successor's.
+      const earlier = mgr.run(
+        { ...base, execId: 'ehold-earlier', shell: 'sleep 30', cwd: ROOT },
+        () => {},
+      );
+      const done = mgr.run(
+        { ...base, execId: 'ehold', shell: 'sleep 30', cwd: ROOT },
+        () => {},
+      );
+      while (mgr.status('ehold')?.state !== 'running') {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(mgr.cancel('ehold', { keepLeftovers: true })).toBe(true);
+      await done;
+      expect(mgr.cancel('ehold-earlier')).toBe(true);
+      await earlier;
+      await new Promise((r) => setTimeout(r, 200));
+      expect(sent.some(([pid]) => pid === 99993)).toBe(false);
+      expect(mgr.leftoverCount()).toBe(1);
+      // The daemon going down ends what is held too.
+      await mgr.terminateAll();
+      expect(sent).toContainEqual([99993, 'SIGTERM']);
+    } finally {
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!existsSync('/proc/self/environ'))(
+    'a server a turn started in a session of its own survives the turn’s rotation, until the next turn ends',
+    async () => {
+      const mgr = new ExecManager(new EnvStore(), () => {});
+      const { events, emit } = collect();
+      const done = mgr.run(
+        {
+          ...base,
+          execId: 'erotreal',
+          shell:
+            'setsid /bin/sleep 407 >/dev/null 2>&1 </dev/null & sleep 0.2; pgrep -n -f "^/bin/sleep 407$"; exec sleep 30',
+          cwd: ROOT,
+        },
+        emit,
+      );
+      const pid = await stdoutPid(events);
+      expect(mgr.cancel('erotreal', { keepLeftovers: true })).toBe(true);
+      await done;
+      await new Promise((r) => setTimeout(r, 300));
+      expect(isAlive(pid)).toBe(true);
+      await mgr.run(
+        { ...base, execId: 'erotreal-next', command: ['true'], cwd: ROOT },
+        () => {},
+      );
+      await waitGone(pid);
+      expect(isAlive(pid)).toBe(false);
+    },
+  );
+
   test('a daemon going down ends every live exec and what exited ones left', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
