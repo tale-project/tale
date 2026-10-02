@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   realpathSync,
   rmSync,
@@ -442,6 +443,190 @@ describe('ExecManager', () => {
     await waitGone(pid);
     expect(isAlive(pid)).toBe(false);
   });
+
+  test('a cancelled exec whose leader the scan cannot see still gets its SIGKILL', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    // A scrubbed environment carries no exec tag, and the leader ignores
+    // SIGTERM: only the group SIGKILL ends it.
+    const done = mgr.run(
+      {
+        ...base,
+        timeoutMs: 30_000,
+        execId: 'escrub',
+        command: [
+          'env',
+          '-i',
+          '/bin/sh',
+          '-c',
+          'trap "" TERM; echo up; exec sleep 30',
+        ],
+        cwd: ROOT,
+      },
+      emit,
+    );
+    const started = Date.now();
+    while (!decode(events, 'stdout').includes('up')) {
+      if (Date.now() - started > 5_000) throw new Error('escrub never started');
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(mgr.cancel('escrub')).toBe(true);
+    await done;
+    expect(Date.now() - started).toBeLessThan(9_000);
+    expect(events[events.length - 1]).toMatchObject({
+      t: 'exit',
+      cancelled: true,
+    });
+    expect(mgr.liveCount()).toBe(0);
+  }, 15_000);
+
+  test('a leftover that writes output keeps its pipes while another exec runs', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const long = collect();
+    const longDone = mgr.run(
+      { ...base, execId: 'ewlong', shell: 'sleep 30', cwd: ROOT },
+      long.emit,
+    );
+    const short = collect();
+    // A dev server logging to the stdout it inherited.
+    await mgr.run(
+      {
+        ...base,
+        execId: 'ewshort',
+        shell: '(while :; do echo tick; sleep 0.2; done) & echo $!',
+        cwd: ROOT,
+      },
+      short.emit,
+    );
+    const pid = Number(decode(short.events, 'stdout').split('\n')[0]);
+    expect(pid).toBeGreaterThan(1);
+    // Past the drain grace, its next lines must not hit a closed pipe.
+    await new Promise((r) => setTimeout(r, 1_000));
+    expect(isAlive(pid)).toBe(true);
+    expect(mgr.cancel('ewlong')).toBe(true);
+    await longDone;
+    await waitGone(pid);
+    expect(isAlive(pid)).toBe(false);
+  }, 15_000);
+
+  test('a cancel during the drain of an exec whose leftovers wait ends them at once', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const long = collect();
+    const longDone = mgr.run(
+      { ...base, execId: 'edlong', shell: 'sleep 30', cwd: ROOT },
+      long.emit,
+    );
+    const { events, emit } = collect();
+    // The background sleep holds stdout, so the exec drains after its shell
+    // exits, its leftovers waiting for the long exec.
+    const done = mgr.run(
+      { ...base, execId: 'edshort', shell: 'sleep 30 & echo $!', cwd: ROOT },
+      emit,
+    );
+    const pid = await stdoutPid(events);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(mgr.status('edshort')?.state).toBe('running');
+    const cancelledAt = Date.now();
+    expect(mgr.cancel('edshort')).toBe(true);
+    await waitGone(pid);
+    expect(isAlive(pid)).toBe(false);
+    await done;
+    expect(Date.now() - cancelledAt).toBeLessThan(1_500);
+    expect(events[events.length - 1]).toMatchObject({
+      t: 'exit',
+      cancelled: true,
+    });
+    expect(mgr.cancel('edlong')).toBe(true);
+    await longDone;
+  }, 15_000);
+
+  test('a daemon going down ends what exited execs left waiting, not only the live ones', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const long = collect();
+    // Shrugs off SIGTERM: what it holds up must not wait for its SIGKILL.
+    const longDone = mgr.run(
+      {
+        ...base,
+        timeoutMs: 30_000,
+        execId: 'etlong',
+        shell: "trap '' TERM; echo up; sleep 30",
+        cwd: ROOT,
+      },
+      long.emit,
+    );
+    const started = Date.now();
+    while (!decode(long.events, 'stdout').includes('up')) {
+      if (Date.now() - started > 5_000) throw new Error('etlong never started');
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    const short = collect();
+    await mgr.run(
+      {
+        ...base,
+        execId: 'etshort',
+        shell: 'sleep 30 >/dev/null 2>&1 & echo $!',
+        cwd: ROOT,
+      },
+      short.emit,
+    );
+    const pid = Number(decode(short.events, 'stdout').trim());
+    expect(mgr.leftoverCount()).toBe(1);
+    const downAt = Date.now();
+    await mgr.terminateAll();
+    await waitGone(pid);
+    expect(isAlive(pid)).toBe(false);
+    expect(Date.now() - downAt).toBeLessThan(2_500);
+    // The long exec gets its SIGKILL after the grace.
+    await longDone;
+  }, 15_000);
+
+  test('past 256 waiting leftovers, the ones with no process left are dropped', async () => {
+    // A fake process table: only the exec `prune-7` still has a process.
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    mkdirSync(`${procRoot}/99991`);
+    writeFileSync(`${procRoot}/99991/environ`, 'TALE_EXEC_ID=prune-7\0');
+    writeFileSync(`${procRoot}/99991/stat`, '99991 (dev) S 1 99991 99991 0\n');
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
+      procRoot,
+      // Real groups are the test's own execs; the fake pid is only recorded.
+      kill: (pid, signal) => {
+        sent.push([pid, signal]);
+        if (pid < 0) process.kill(pid, signal);
+      },
+    });
+    try {
+      const long = collect();
+      const longDone = mgr.run(
+        { ...base, execId: 'prune-long', shell: 'sleep 30', cwd: ROOT },
+        long.emit,
+      );
+      while (mgr.status('prune-long')?.state !== 'running') {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      for (let i = 0; i < 256; i += 1) {
+        await mgr.run(
+          { ...base, execId: `prune-${i}`, command: ['true'], cwd: ROOT },
+          () => {},
+        );
+      }
+      const started = Date.now();
+      while (mgr.leftoverCount() > 1 && Date.now() - started < 5_000) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(mgr.leftoverCount()).toBe(1);
+      // The one kept still gets its SIGTERM when the session's last exec ends.
+      expect(mgr.cancel('prune-long')).toBe(true);
+      await longDone;
+      const until = Date.now() + 2_000;
+      while (!sent.some(([pid]) => pid === 99991) && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(sent).toContainEqual([99991, 'SIGTERM']);
+    } finally {
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   test('a consumer that goes away stops following and settles its attach at once', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});

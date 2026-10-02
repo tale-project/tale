@@ -47,6 +47,14 @@ const LEFTOVER_PRUNE_AT = 256;
 
 type ExecSubscriber = (event: RunnerdExecEvent) => void;
 
+/** A reaping target, with whether its leader is still running: while it is,
+ * its pid — the group's number — cannot have been reused, so the delayed
+ * SIGKILL may go to the group even where no tagged process shows in it (a
+ * scrubbed environment, an unreadable one). */
+interface Reaping extends ReapTarget {
+  leaderRunning?: () => boolean;
+}
+
 interface LiveExec {
   startedAtMs: number;
   /** The exec's process group: the child's pid (spawned detached). */
@@ -56,6 +64,11 @@ interface LiveExec {
    * when the daemon goes down. Once per exec. */
   terminate: () => void;
   terminated: boolean;
+  /** The child itself exited (its 'exit' fired). */
+  leaderExited: boolean;
+  /** What the exit left waiting for the session's last exec to end, while it
+   * still waits; a cancel or the deadline ends it at once. */
+  deferred: ReapTarget | null;
   /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for /attach replay. */
   ring: string[];
   ringBytes: number;
@@ -172,7 +185,7 @@ export class ExecManager {
     if (rec.timer) clearTimeout(rec.timer);
     rec.timer = setTimeout(() => {
       rec.timedOut = true;
-      rec.terminate();
+      this.endNow(rec);
     }, rec.timeoutMs);
   }
 
@@ -300,12 +313,12 @@ export class ExecManager {
       timedOut: false,
       stdin: null,
       terminated: false,
+      leaderExited: false,
+      deferred: null,
       terminate: () => {
         if (record.terminated) return;
         record.terminated = true;
-        void this.reap([
-          { execId: req.execId, groupId: record.groupId, groupKnown: true },
-        ]);
+        void this.reap([this.liveTarget(req.execId, record)]);
       },
     };
     this.live.set(req.execId, record);
@@ -476,10 +489,13 @@ export class ExecManager {
         settled = true;
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
-        if (!closed) {
+        if (!closed && record.deferred === null) {
           // Forced past the drain grace: a process that outlived the exec
           // still holds the pipes. Close our ends, or every such exec keeps
-          // two descriptors of this daemon open for as long as it lives.
+          // two descriptors of this daemon open for as long as it lives. Not
+          // while its leftovers wait for the session's last exec: closing
+          // them would kill a dev server at its next line of output. Their
+          // output is read and dropped until they end.
           child.stdout.destroy();
           child.stderr.destroy();
         }
@@ -521,6 +537,7 @@ export class ExecManager {
         // 128 + signal number is the conventional shell exit for a signal.
         exitCode = code ?? (signal ? 128 + (SIGNAL_NUMBERS[signal] ?? 15) : -1);
         exited = true;
+        record.leaderExited = true;
         // The exec is over: whatever it left running (a `cmd &`, a `nohup`
         // worker, a browser) ends with it instead of holding memory and pids
         // in a session that reads idle — at once when no other exec of the
@@ -537,8 +554,10 @@ export class ExecManager {
           const othersLive = [...this.live.keys()].some(
             (id) => id !== req.execId,
           );
-          if (othersLive) this.deferLeftovers(self);
-          else {
+          if (othersLive) {
+            record.deferred = self;
+            this.deferLeftovers(self);
+          } else {
             void this.reap([
               ...this.leftovers.splice(0),
               { ...self, groupKnown: true },
@@ -568,20 +587,52 @@ export class ExecManager {
     if (!rec) return false;
     if (rec.timer) clearTimeout(rec.timer);
     rec.cancelRequested = true;
-    rec.terminate();
+    this.endNow(rec);
     return true;
+  }
+
+  /** End an exec's processes now, on a cancel or at its deadline — what it
+   * left waiting for the session's last exec too, when its own process has
+   * already exited and its drain is under way. */
+  private endNow(rec: LiveExec): void {
+    const waiting = rec.deferred;
+    if (waiting === null) {
+      rec.terminate();
+      return;
+    }
+    rec.deferred = null;
+    // Not in the list any more: a round already took it.
+    const at = this.leftovers.indexOf(waiting);
+    if (at === -1) return;
+    this.leftovers.splice(at, 1);
+    void this.reap([waiting]);
+  }
+
+  /** A live exec as a reaping target: its group is certainly its own. */
+  private liveTarget(execId: string, rec: LiveExec): Reaping {
+    return {
+      execId,
+      groupId: rec.groupId,
+      groupKnown: true,
+      leaderRunning: () => !rec.leaderExited,
+    };
   }
 
   /** The daemon is going down: every live exec, and what exited execs left
    * waiting, gets its SIGTERM. Resolves once the signals are sent. */
   async terminateAll(): Promise<void> {
-    const targets = this.leftovers.splice(0);
+    const targets: Reaping[] = this.leftovers.splice(0);
     for (const [execId, rec] of this.live) {
       if (rec.terminated) continue;
       rec.terminated = true;
-      targets.push({ execId, groupId: rec.groupId, groupKnown: true });
+      targets.push(this.liveTarget(execId, rec));
     }
     await this.reap(targets);
+  }
+
+  /** How many exited execs' leftovers wait for the session's last exec. */
+  leftoverCount(): number {
+    return this.leftovers.length;
   }
 
   /** Remove an exec from the live set; when it was the session's last, what
@@ -622,10 +673,10 @@ export class ExecManager {
   }
 
   /** One reaping round: SIGTERM now, SIGKILL to whatever is left once the
-   * grace has passed — by then a group counts as the exec's only while a
-   * process tagged with it is still in it. Resolves once the SIGTERM is
-   * sent. */
-  private async reap(targets: ReapTarget[]): Promise<void> {
+   * grace has passed — by then a group counts as the exec's while its leader
+   * still runs, else only while a process tagged with the exec is still in
+   * it. Resolves once the SIGTERM is sent. */
+  private async reap(targets: Reaping[]): Promise<void> {
     if (targets.length === 0) return;
     const round = (signal: NodeJS.Signals, of: ReapTarget[]) =>
       signalExecProcesses(of, signal, this.reaper).catch((error: unknown) => {
@@ -635,10 +686,21 @@ export class ExecManager {
     setTimeout(() => {
       void round(
         'SIGKILL',
-        targets.map(({ execId, groupId }) => ({ execId, groupId })),
+        targets.map(({ execId, groupId, leaderRunning }) => ({
+          execId,
+          groupId,
+          groupKnown: leaderRunning?.() === true,
+        })),
       );
     }, SIGKILL_GRACE_MS).unref();
-    await round('SIGTERM', targets);
+    await round(
+      'SIGTERM',
+      targets.map(({ execId, groupId, groupKnown }) => ({
+        execId,
+        groupId,
+        groupKnown,
+      })),
+    );
   }
 
   /** Per-exec status WITHOUT consuming the stream: `running` (live), `exited`
