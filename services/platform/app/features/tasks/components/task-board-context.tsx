@@ -2,11 +2,13 @@
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 
+import type { ResolvedActor } from '../hooks/use-actor-directory';
+import type { ContractAutomationEntry } from '../hooks/use-task-subject-contract';
 import {
   computeBlockedTaskIds,
   type DependencyEdge,
 } from '../lib/dependencies';
-import type { TaskDoc } from '../lib/display';
+import type { TaskCreatorType, TaskDoc } from '../lib/display';
 
 /** Board row — TaskDoc plus optional stamps from list queries. */
 type TaskRow = TaskDoc & {
@@ -21,6 +23,21 @@ export interface PendingReviewRef {
   /** The named reviewer the request waits on; undefined when the review was
    * minted with no resolvable reviewer. */
   requestedFor: string | undefined;
+}
+
+/** What a card needs to name the people and agents on it — the slice of
+ * {@link useActorDirectory} it reads. */
+export interface TaskActorNames {
+  resolveActor: (type: TaskCreatorType, id: string) => ResolvedActor;
+  currentUserId: string | undefined;
+}
+
+/** The board's own actor directory, for the one project it was built for. */
+export interface BoardActorDirectory extends TaskActorNames {
+  projectId: string;
+  /** The project's deployed automations, as the directory lists them —
+   * what a card's automation badge resolves its owner among. */
+  contractAutomations: ContractAutomationEntry[];
 }
 
 interface TaskBoardContextValue {
@@ -40,6 +57,9 @@ interface TaskBoardContextValue {
   /** The reviewer the task's review waits on — the pending approval's
    * `requestedFor`, else the task's own designation while at `in_review`. */
   reviewRequestedFor: (taskId: string) => string | undefined;
+  /** The board's actor directory, when it has one (a single project's
+   * board); read through {@link useBoardActorDirectory}. */
+  actors: BoardActorDirectory | undefined;
 }
 
 const EMPTY: TaskBoardContextValue = {
@@ -49,6 +69,7 @@ const EMPTY: TaskBoardContextValue = {
   isAgentAsking: () => false,
   needsReview: () => false,
   reviewRequestedFor: () => undefined,
+  actors: undefined,
 };
 
 const TaskBoardContext = createContext(EMPTY);
@@ -57,9 +78,11 @@ const TaskBoardContext = createContext(EMPTY);
  * Provides board/list/table cards with the cross-task facts they can't read
  * off their own row: whether the task is blocked (derived from dependency edges
  * + the sibling status set), how to resolve another task by id (used to
- * label a subtask's parent), and the live-run / review-gate indicator state.
- * Keeps those lookups out of the per-card props so the DnD-cloned overlay
- * cards see the same data for free.
+ * label a subtask's parent), the live-run / review-gate indicator state, and
+ * the board's actor directory, so a card names its assignee and reviewer
+ * without reading a directory of its own (on a 2,000-card board those reads
+ * cost seconds, #4062). Keeps those lookups out of the per-card props so the
+ * DnD-cloned overlay cards see the same data for free.
  */
 export function TaskBoardProvider({
   tasks,
@@ -67,6 +90,7 @@ export function TaskBoardProvider({
   runningTaskIds,
   askingTaskIds,
   pendingReviews,
+  actors,
   children,
 }: {
   tasks: readonly TaskRow[];
@@ -78,6 +102,9 @@ export function TaskBoardProvider({
   askingTaskIds?: readonly string[];
   /** Pending review-gate approvals (from `getTaskOpsIndicators`). */
   pendingReviews?: readonly PendingReviewRef[];
+  /** The board's `useActorDirectory(organizationId, projectId)`; absent where
+   * the board spans projects (each card then reads its own project's). */
+  actors?: BoardActorDirectory;
   children: ReactNode;
 }) {
   const value = useMemo<TaskBoardContextValue>(() => {
@@ -111,8 +138,16 @@ export function TaskBoardProvider({
         const task = byId.get(taskId);
         return task?.status === 'in_review' ? task.reviewerUserId : undefined;
       },
+      actors,
     };
-  }, [tasks, dependencyEdges, runningTaskIds, askingTaskIds, pendingReviews]);
+  }, [
+    tasks,
+    dependencyEdges,
+    runningTaskIds,
+    askingTaskIds,
+    pendingReviews,
+    actors,
+  ]);
 
   return (
     <TaskBoardContext.Provider value={value}>
@@ -123,4 +158,15 @@ export function TaskBoardProvider({
 
 export function useTaskBoardContext(): TaskBoardContextValue {
   return useContext(TaskBoardContext);
+}
+
+/** The board's actor directory when it covers `projectId`; otherwise
+ * undefined, and the caller reads a directory of its own. */
+export function useBoardActorDirectory(
+  projectId: string | undefined,
+): BoardActorDirectory | undefined {
+  const { actors } = useContext(TaskBoardContext);
+  return projectId !== undefined && actors?.projectId === projectId
+    ? actors
+    : undefined;
 }

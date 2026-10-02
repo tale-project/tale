@@ -76,6 +76,7 @@ vi.mock('@/app/features/tasks/hooks/use-actor-directory', () => ({
   useActorDirectory: () => ({
     members: [],
     agents: [],
+    contractAutomations: [],
     currentUserId: null,
     resolveActor: () => null,
   }),
@@ -107,6 +108,7 @@ vi.mock('@/app/features/tasks/hooks/use-task-status-choreography', () => ({
 }));
 vi.mock('@/app/features/tasks/hooks/use-task-subject-contract', () => ({
   useTaskSubjectContract: () => null,
+  useTaskSubjectContractAmong: () => null,
   useTaskContractAutomations: () => [],
   taskSubjectEntries: () => [],
 }));

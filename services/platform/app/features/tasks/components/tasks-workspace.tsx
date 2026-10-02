@@ -88,12 +88,23 @@ export function TasksWorkspace({
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
   const [needsMyReviewFilter, setNeedsMyReviewFilter] = useState(false);
-  const { members, agents, currentUserId } = useActorDirectory(
-    organizationId,
-    // Agents are project-scoped; in all-projects mode the filter still lists
-    // org members, and agent assignees resolve via the directory without a
-    // project agent catalog.
-    allProjects ? undefined : projectId,
+  const { members, agents, currentUserId, resolveActor, contractAutomations } =
+    useActorDirectory(
+      organizationId,
+      // Agents are project-scoped; in all-projects mode the filter still lists
+      // org members, and agent assignees resolve via the directory without a
+      // project agent catalog.
+      allProjects ? undefined : projectId,
+    );
+  // One directory names every card's assignee and reviewer, and resolves its
+  // automation owner, on a project's board; across projects each card reads
+  // its own project's.
+  const boardActors = useMemo(
+    () =>
+      allProjects
+        ? undefined
+        : { projectId, resolveActor, currentUserId, contractAutomations },
+    [allProjects, projectId, resolveActor, currentUserId, contractAutomations],
   );
   const assigneeQueryFilter = resolveAssigneeQueryFilter(
     assigneeFilter,
@@ -504,6 +515,7 @@ export function TasksWorkspace({
             runningTaskIds={runningTaskIds}
             askingTaskIds={askingTaskIds}
             pendingReviews={pendingReviewRefs}
+            actors={boardActors}
           >
             <div
               ref={boardRegionRef}

@@ -7,28 +7,16 @@ import { Workflow } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 import {
-  useTaskSubjectContract,
+  type ContractAutomationEntry,
+  type ResolvedTaskSubjectContract,
   type TaskOwnershipFields,
+  useTaskContractAutomations,
+  useTaskSubjectContractAmong,
 } from '../hooks/use-task-subject-contract';
 import { deriveSubjectState } from '../lib/subject-state';
+import { useBoardActorDirectory } from './task-board-context';
 
-/**
- * The ownership marker for an automation-owned task — the one always-visible
- * signal that this card does NOT behave like a plain task (its status verbs
- * run the owning workflow). Icon + automation name in the modal; on the dense
- * board card the icon carries a SHORT state chip when the subject has a next
- * step to tell ("Ready to start" / "Waiting for files"), so the board itself
- * says what the task is waiting for instead of leaving the choreography
- * implicit. Both render the explanatory tooltip. Renders nothing for unowned
- * tasks.
- */
-export function TaskAutomationBadge({
-  organizationId,
-  task,
-  showName = false,
-  runActive = false,
-  className,
-}: {
+interface TaskAutomationBadgeProps {
   organizationId: string;
   task: TaskOwnershipFields & {
     projectId: string;
@@ -44,10 +32,60 @@ export function TaskAutomationBadge({
    * already tells that story, so the chip stays quiet. */
   runActive?: boolean;
   className?: string;
-}) {
-  const { t } = useT('tasks');
-  const resolved = useTaskSubjectContract(organizationId, task);
+}
+
+/**
+ * The ownership marker for an automation-owned task — the one always-visible
+ * signal that this card does NOT behave like a plain task (its status verbs
+ * run the owning workflow). Icon + automation name in the modal; on the dense
+ * board card the icon carries a SHORT state chip when the subject has a next
+ * step to tell ("Ready to start" / "Waiting for files"), so the board itself
+ * says what the task is waiting for instead of leaving the choreography
+ * implicit. Both render the explanatory tooltip. Renders nothing for unowned
+ * tasks.
+ *
+ * On a project's board the owner is resolved among the board's own listing
+ * of the project's automations; anywhere else (the task dialog, the
+ * all-projects board) the badge lists them itself.
+ */
+export function TaskAutomationBadge(props: TaskAutomationBadgeProps) {
+  const board = useBoardActorDirectory(props.task.projectId);
+  return board !== undefined ? (
+    <TaskAutomationBadgeAmong
+      {...props}
+      automations={board.contractAutomations}
+    />
+  ) : (
+    <TaskAutomationBadgeWithOwnListing {...props} />
+  );
+}
+
+function TaskAutomationBadgeWithOwnListing(props: TaskAutomationBadgeProps) {
+  const automations = useTaskContractAutomations(
+    props.organizationId,
+    props.task.projectId,
+  );
+  return <TaskAutomationBadgeAmong {...props} automations={automations} />;
+}
+
+function TaskAutomationBadgeAmong({
+  automations,
+  ...props
+}: TaskAutomationBadgeProps & { automations: ContractAutomationEntry[] }) {
+  const resolved = useTaskSubjectContractAmong(props.task, automations);
+  // Most tasks have no automation owner: they mount no chip at all.
   if (!resolved) return null;
+  return <TaskAutomationChip {...props} resolved={resolved} />;
+}
+
+function TaskAutomationChip({
+  task,
+  showName = false,
+  runActive = false,
+  className,
+  resolved,
+}: TaskAutomationBadgeProps & { resolved: ResolvedTaskSubjectContract }) {
+  const { t } = useT('tasks');
 
   const name = resolved.displayName;
   const hint = t('automation.hint', { name });

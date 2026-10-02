@@ -14,7 +14,7 @@ import { Tooltip } from '@tale/ui/tooltip';
 import { toast } from '@tale/ui/use-toast';
 import { useTriggerTooltipGuard } from '@tale/ui/use-trigger-tooltip-guard';
 import { CircleHelp, Plus, UserX } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ProjectAgentCreateDialog } from '@/app/features/projects/components/project-agent-create-dialog';
@@ -23,7 +23,11 @@ import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useT } from '@/lib/i18n/client';
 
 import { useCancelTaskAgentRun } from '../hooks/mutations';
-import { useAssignableActors } from '../hooks/use-actor-directory';
+import {
+  useActorDirectory,
+  useAssignableActors,
+} from '../hooks/use-actor-directory';
+import { useDeferredPicker } from '../hooks/use-deferred-picker';
 import {
   taskSubjectEntries,
   useTaskContractAutomations,
@@ -31,6 +35,10 @@ import {
 import type { TaskActorType } from '../lib/display';
 import { taskRunErrorMessage } from '../lib/task-run-error';
 import { AssigneeAvatar } from './assignee-avatar';
+import {
+  type TaskActorNames,
+  useBoardActorDirectory,
+} from './task-board-context';
 
 /** The change a confirmed handoff performs. */
 type PendingAssign =
@@ -47,6 +55,27 @@ const CREATE_AGENT_ACTION = '__action:create-agent';
  * it creates the project's standard agent (`ensureStandardAgent`) and
  * assigns it. */
 const STANDARD_AGENT_ACTION = '__action:standard-agent';
+
+interface AssigneePickerProps {
+  organizationId: string;
+  projectId?: string;
+  /** Enables the ownership-transfer guard (confirm + cancel-then-reassign)
+   * and is required for it — pickers without a bound task keep the bare
+   * assign behavior. */
+  taskId?: string;
+  assigneeType?: TaskActorType;
+  assigneeId?: string;
+  onAssign: (type: TaskActorType, id: string) => void;
+  onUnassign: () => void;
+  size?: 'sm' | 'md';
+  align?: 'start' | 'center' | 'end';
+  disabled?: boolean;
+  /** Renders beside the avatar trigger (e.g. assignee name in the task modal). */
+  afterTrigger?: ReactNode;
+  /** How to name the assignee, when the caller already holds a directory
+   * (a board card) — saves the picker reading one of its own. */
+  actors?: TaskActorNames;
+}
 
 /**
  * Assignee control built on the same {@link SearchableSelect} as the chat model
@@ -71,8 +100,34 @@ const STANDARD_AGENT_ACTION = '__action:standard-agent';
  * refuses the reassign otherwise — `TASK_HAS_LIVE_RUN`).
  *
  * When `disabled` (no edit permission) it renders the bare avatar with no menu.
+ *
+ * The list, its candidate reads and the handoff and New agent dialogs mount
+ * on first use ({@link useDeferredPicker}); until then the picker is its
+ * avatar trigger, named from the caller's `actors`, else from the board's
+ * directory when it covers this project, else from a directory of its own.
  */
-export function AssigneePicker({
+export function AssigneePicker(props: AssigneePickerProps) {
+  const boardActors = useBoardActorDirectory(props.projectId);
+  const actors = props.actors ?? boardActors;
+  return actors !== undefined ? (
+    <AssigneeTrigger {...props} actors={actors} />
+  ) : (
+    <AssigneeTriggerWithOwnActors {...props} />
+  );
+}
+
+function AssigneeTriggerWithOwnActors(props: AssigneePickerProps) {
+  const { resolveActor, currentUserId } = useActorDirectory(
+    props.organizationId,
+    props.projectId,
+  );
+  return (
+    <AssigneeTrigger {...props} actors={{ resolveActor, currentUserId }} />
+  );
+}
+
+/** The always-mounted part: the avatar trigger and its name tip. */
+function AssigneeTrigger({
   organizationId,
   projectId,
   taskId,
@@ -84,86 +139,18 @@ export function AssigneePicker({
   align = 'start',
   disabled = false,
   afterTrigger,
-}: {
-  organizationId: string;
-  projectId?: string;
-  /** Enables the ownership-transfer guard (confirm + cancel-then-reassign)
-   * and is required for it — pickers without a bound task keep the bare
-   * assign behavior. */
-  taskId?: string;
-  assigneeType?: TaskActorType;
-  assigneeId?: string;
-  onAssign: (type: TaskActorType, id: string) => void;
-  onUnassign: () => void;
-  size?: 'sm' | 'md';
-  align?: 'start' | 'center' | 'end';
-  disabled?: boolean;
-  /** Renders beside the avatar trigger (e.g. assignee name in the task modal). */
-  afterTrigger?: ReactNode;
-}) {
+  actors,
+}: AssigneePickerProps & { actors: TaskActorNames }) {
   const { t } = useT('tasks');
-  const { t: tCommon } = useT('common');
-  const {
-    assignableMembers,
-    assignableAgents,
-    agentsLoading,
-    currentUserId,
-    resolveActor,
-    // Agents are the project editors' to add; everyone else reads them.
-    canAddAgents,
-    projectResolved,
-    standardAgentAvailable,
-  } = useAssignableActors(organizationId, projectId);
-  // Settled on "this project has no agent", so neither the create row nor
-  // the reader's note flashes over a list or a role that is still loading.
-  // A project the read could not return stays silent: who may add to it is
-  // unknown.
-  const projectHasNoAgents =
-    projectId !== undefined &&
-    !agentsLoading &&
-    projectResolved &&
-    assignableAgents.length === 0;
+  const { resolveActor, currentUserId } = actors;
+  const deferred = useDeferredPicker();
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
-  const offerStandardAgent = projectHasNoAgents && standardAgentAvailable;
-  const automations = useTaskContractAutomations(organizationId, projectId);
-  const { locale } = useLocale();
-  const subjectEntries = useMemo(
-    () => taskSubjectEntries(automations, locale),
-    [automations, locale],
-  );
-  const client = useBackendClient();
-  const cancelWorkflowRun = useBackendAction(
-    'tasks/public_actions:cancelTaskWorkflow',
-  );
-  const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
-  const [open, setOpen] = useState(false);
   // The trigger's name tip stays shut while its list or the New agent
   // dialog is open, and does not flash back when focus returns to it.
-  const tooltipGuard = useTriggerTooltipGuard(open || createAgentOpen);
-  const [pending, setPending] = useState<PendingAssign | null>(null);
-  const [pendingLiveRun, setPendingLiveRun] = useState<
-    'automation' | 'agent' | null
-  >(null);
-  const [handoffBusy, setHandoffBusy] = useState(false);
+  const tooltipGuard = useTriggerTooltipGuard(deferred.open || createAgentOpen);
 
   const resolved =
     assigneeType && assigneeId ? resolveActor(assigneeType, assigneeId) : null;
-
-  const sectionInfoButton = useCallback(
-    (content: string): ReactNode => (
-      <Tooltip content={content} side="right">
-        <button
-          type="button"
-          aria-label={tCommon('aria.moreInfo')}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <CircleHelp className="size-3.5" aria-hidden="true" />
-        </button>
-      </Tooltip>
-    ),
-    [tCommon],
-  );
 
   const label = resolved?.name ?? t('assignee.unassigned');
 
@@ -181,6 +168,169 @@ export function AssigneePicker({
       isCurrentUser={assignedToCurrentUser}
       size={size}
     />
+  );
+
+  if (disabled) {
+    // max-w-full on both trigger rows: an inline-flex box sizes to its
+    // content, so inside a narrow value cell (the task modal's side panel)
+    // it would push past the panel instead of letting the name truncate.
+    return (
+      <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
+        <Tooltip content={label}>
+          <span className="inline-flex">{avatar}</span>
+        </Tooltip>
+        {afterTrigger}
+      </span>
+    );
+  }
+
+  const trigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={t('actions.assign')}
+      className="h-auto w-auto rounded-full p-1"
+      {...deferred.triggerProps}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        deferred.engage();
+      }}
+    >
+      {avatar}
+    </Button>
+  );
+
+  return (
+    <Tooltip
+      content={label}
+      open={tooltipGuard.open}
+      onOpenChange={tooltipGuard.onOpenChange}
+    >
+      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
+      <span
+        className="inline-flex max-w-full min-w-0 items-center gap-1.5"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {deferred.engaged ? (
+          <AssigneeList
+            organizationId={organizationId}
+            projectId={projectId}
+            taskId={taskId}
+            assigneeType={assigneeType}
+            assigneeId={assigneeId}
+            onAssign={onAssign}
+            onUnassign={onUnassign}
+            align={align}
+            label={label}
+            trigger={trigger}
+            open={deferred.open}
+            onOpenChange={deferred.setOpen}
+            createAgentOpen={createAgentOpen}
+            onCreateAgentOpenChange={setCreateAgentOpen}
+            suppressTooltip={tooltipGuard.suppressNextOpen}
+          />
+        ) : (
+          trigger
+        )}
+        {afterTrigger}
+      </span>
+    </Tooltip>
+  );
+}
+
+/** The picker's list, handoff confirmation and New agent dialog — mounted
+ * on its first use, around the trigger it was given. */
+function AssigneeList({
+  organizationId,
+  projectId,
+  taskId,
+  assigneeType,
+  assigneeId,
+  onAssign,
+  onUnassign,
+  align,
+  label,
+  trigger,
+  open,
+  onOpenChange,
+  createAgentOpen,
+  onCreateAgentOpenChange,
+  suppressTooltip,
+}: {
+  organizationId: string;
+  projectId: string | undefined;
+  taskId: string | undefined;
+  assigneeType: TaskActorType | undefined;
+  assigneeId: string | undefined;
+  onAssign: (type: TaskActorType, id: string) => void;
+  onUnassign: () => void;
+  align: 'start' | 'center' | 'end';
+  /** The assignee's name, as the trigger's tip shows it. */
+  label: string;
+  trigger: ReactElement;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  createAgentOpen: boolean;
+  onCreateAgentOpenChange: (open: boolean) => void;
+  /** Arms the trigger tip's guard before focus returns to the trigger. */
+  suppressTooltip: () => void;
+}) {
+  const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  const {
+    assignableMembers,
+    assignableAgents,
+    agentsLoading,
+    currentUserId,
+    // Agents are the project editors' to add; everyone else reads them.
+    canAddAgents,
+    projectResolved,
+    standardAgentAvailable,
+  } = useAssignableActors(organizationId, projectId);
+  // Settled on "this project has no agent", so neither the create row nor
+  // the reader's note flashes over a list or a role that is still loading.
+  // A project the read could not return stays silent: who may add to it is
+  // unknown.
+  const projectHasNoAgents =
+    projectId !== undefined &&
+    !agentsLoading &&
+    projectResolved &&
+    assignableAgents.length === 0;
+  const offerStandardAgent = projectHasNoAgents && standardAgentAvailable;
+  const automations = useTaskContractAutomations(organizationId, projectId);
+  const { locale } = useLocale();
+  const subjectEntries = useMemo(
+    () => taskSubjectEntries(automations, locale),
+    [automations, locale],
+  );
+  const client = useBackendClient();
+  const cancelWorkflowRun = useBackendAction(
+    'tasks/public_actions:cancelTaskWorkflow',
+  );
+  const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
+  const [pending, setPending] = useState<PendingAssign | null>(null);
+  const [pendingLiveRun, setPendingLiveRun] = useState<
+    'automation' | 'agent' | null
+  >(null);
+  const [handoffBusy, setHandoffBusy] = useState(false);
+
+  const sectionInfoButton = useCallback(
+    (content: string): ReactNode => (
+      <Tooltip content={content} side="right">
+        <button
+          type="button"
+          aria-label={tCommon('aria.moreInfo')}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex rounded align-middle focus-visible:ring-1 focus-visible:outline-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <CircleHelp className="size-3.5" aria-hidden="true" />
+        </button>
+      </Tooltip>
+    ),
+    [tCommon],
   );
 
   const options = useMemo<SearchableSelectOption[]>(() => {
@@ -276,20 +426,6 @@ export function AssigneePicker({
     t,
     sectionInfoButton,
   ]);
-
-  if (disabled) {
-    // max-w-full on both trigger rows: an inline-flex box sizes to its
-    // content, so inside a narrow value cell (the task modal's side panel)
-    // it would push past the panel instead of letting the name truncate.
-    return (
-      <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
-        <Tooltip content={label}>
-          <span className="inline-flex">{avatar}</span>
-        </Tooltip>
-        {afterTrigger}
-      </span>
-    );
-  }
 
   const value =
     assigneeType && assigneeId ? `${assigneeType}:${assigneeId}` : null;
@@ -406,32 +542,18 @@ export function AssigneePicker({
   const handleSelect = (val: string) => {
     if (val.startsWith('__section:')) return;
     if (val === CREATE_AGENT_ACTION) {
-      setOpen(false);
-      setCreateAgentOpen(true);
+      onOpenChange(false);
+      onCreateAgentOpenChange(true);
       return;
     }
     if (val === STANDARD_AGENT_ACTION) {
-      setOpen(false);
+      onOpenChange(false);
       void assignStandardAgent();
       return;
     }
     const { type, id } = parseOptionValue(val);
     requestChange({ kind: 'assign', type, id });
   };
-
-  const trigger = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      aria-label={t('actions.assign')}
-      className="h-auto w-auto rounded-full p-1"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {avatar}
-    </Button>
-  );
 
   const select = (
     <SearchableSelect
@@ -440,8 +562,8 @@ export function AssigneePicker({
       options={options}
       open={open}
       onOpenChange={(next) => {
-        if (!next) tooltipGuard.suppressNextOpen();
-        setOpen(next);
+        if (!next) suppressTooltip();
+        onOpenChange(next);
       }}
       align={align}
       modal
@@ -504,7 +626,7 @@ export function AssigneePicker({
               icon={UserX}
               onClick={() => {
                 requestChange({ kind: 'unassign' });
-                setOpen(false);
+                onOpenChange(false);
               }}
             >
               {t('assignee.unassign')}
@@ -537,38 +659,26 @@ export function AssigneePicker({
   );
 
   return (
-    <Tooltip
-      content={label}
-      open={tooltipGuard.open}
-      onOpenChange={tooltipGuard.onOpenChange}
-    >
-      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
-      <span
-        className="inline-flex max-w-full min-w-0 items-center gap-1.5"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {select}
-        {afterTrigger}
-        {handoffDialog}
-        {/* Mounted only while open: the form's reads (runtimes, models,
-            skills) are its own, not this picker's. */}
-        {createAgentOpen && projectId !== undefined && (
-          <ProjectAgentCreateDialog
-            organizationId={organizationId}
-            projectId={projectId}
-            open={createAgentOpen}
-            onOpenChange={(next) => {
-              if (!next) tooltipGuard.suppressNextOpen();
-              setCreateAgentOpen(next);
-            }}
-            // The agent was created to take this task: assign it.
-            onCreated={(agentId) =>
-              requestChange({ kind: 'assign', type: 'agent', id: agentId })
-            }
-          />
-        )}
-      </span>
-    </Tooltip>
+    <>
+      {select}
+      {handoffDialog}
+      {/* Mounted only while open: the form's reads (runtimes, models,
+          skills) are its own, not this picker's. */}
+      {createAgentOpen && projectId !== undefined && (
+        <ProjectAgentCreateDialog
+          organizationId={organizationId}
+          projectId={projectId}
+          open={createAgentOpen}
+          onOpenChange={(next) => {
+            if (!next) suppressTooltip();
+            onCreateAgentOpenChange(next);
+          }}
+          // The agent was created to take this task: assign it.
+          onCreated={(agentId) =>
+            requestChange({ kind: 'assign', type: 'agent', id: agentId })
+          }
+        />
+      )}
+    </>
   );
 }

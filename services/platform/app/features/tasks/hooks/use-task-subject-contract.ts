@@ -58,7 +58,7 @@ export interface ResolvedTaskSubjectContract {
 }
 
 /** One listed automation, as the contract surfaces need it. */
-interface ContractAutomationEntry {
+export interface ContractAutomationEntry {
   name: string;
   deployedVersion?: number;
   taskContract?: unknown;
@@ -230,6 +230,15 @@ export function useTaskSubjectContract(
     organizationId,
     task?.projectId,
   );
+  return useTaskSubjectContractAmong(task, automations);
+}
+
+/** {@link useTaskSubjectContract} over automations the caller already holds
+ *  — a board card reads its board's copy instead of listing them itself. */
+export function useTaskSubjectContractAmong(
+  task: TaskOwnershipFields | null | undefined,
+  automations: ContractAutomationEntry[],
+): ResolvedTaskSubjectContract | null {
   const { locale } = useLocale();
   return useMemo(
     () => (task ? resolveTaskSubjectContract(task, automations, locale) : null),

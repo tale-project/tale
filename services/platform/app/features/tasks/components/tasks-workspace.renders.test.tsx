@@ -89,6 +89,7 @@ vi.mock('../hooks/use-actor-directory', () => {
   const directory = {
     members: [],
     agents: [],
+    contractAutomations: [],
     currentUserId: 'u-member',
     resolveActor: () => ({ name: 'Member' }),
   };

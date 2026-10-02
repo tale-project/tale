@@ -18,7 +18,11 @@ import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAutomationBadge } from './task-automation-badge';
-import { useTaskBoardContext } from './task-board-context';
+import {
+  type TaskActorNames,
+  useBoardActorDirectory,
+  useTaskBoardContext,
+} from './task-board-context';
 import {
   AgentNeedsAnswerIndicator,
   AgentWorkingIndicator,
@@ -44,14 +48,7 @@ export type TaskRow = TaskDoc & {
   projectKey?: string;
 };
 
-export function TaskCard({
-  task,
-  subtasks,
-  onOpen,
-  dragging,
-  projectKey,
-  canWorkTask = readOnlyBoard,
-}: {
+interface TaskCardProps {
   task: TaskRow;
   /** This task's subtasks, when known — drives the progress ring. */
   subtasks?: TaskRow[];
@@ -62,7 +59,37 @@ export function TaskCard({
   /** Whether the viewer may work the task (`useTaskAccess`) — gates drag
    * and the inline pickers. Absent, the card is read-only. */
   canWorkTask?: (task: TaskRow) => boolean;
-}) {
+}
+
+/** A board card. It names its assignee and reviewer from the board's actor
+ * directory when that covers the task's project, else from one of its own
+ * (the all-projects board), which it hands its assignee picker too. */
+export function TaskCard(props: TaskCardProps) {
+  const boardActors = useBoardActorDirectory(props.task.projectId);
+  return boardActors !== undefined ? (
+    <TaskCardView {...props} actors={boardActors} />
+  ) : (
+    <TaskCardWithOwnActors {...props} />
+  );
+}
+
+function TaskCardWithOwnActors(props: TaskCardProps) {
+  const { resolveActor, currentUserId } = useActorDirectory(
+    props.task.organizationId,
+    props.task.projectId,
+  );
+  return <TaskCardView {...props} actors={{ resolveActor, currentUserId }} />;
+}
+
+function TaskCardView({
+  task,
+  subtasks,
+  onOpen,
+  dragging,
+  projectKey,
+  canWorkTask = readOnlyBoard,
+  actors,
+}: TaskCardProps & { actors: TaskActorNames }) {
   const { t } = useT('tasks');
   const resolvedProjectKey = task.projectKey ?? projectKey;
   const identifier = formatTaskIdentifier(resolvedProjectKey, task.number);
@@ -81,9 +108,7 @@ export function TaskCard({
   const blocked = isBlocked(task._id);
   const { done, total } = subtaskProgress(subtasks);
   // Name the reviewer the review-gate chip waits on ("You" for the viewer).
-  const { resolveActor, currentUserId } = useActorDirectory(
-    task.organizationId,
-  );
+  const { resolveActor, currentUserId } = actors;
   const reviewerUserId = reviewRequestedFor(task._id);
   const reviewerIsMe =
     reviewerUserId !== undefined && reviewerUserId === currentUserId;
@@ -236,6 +261,7 @@ export function TaskCard({
             taskId={task._id}
             assigneeType={task.assigneeType}
             assigneeId={task.assigneeId}
+            actors={actors}
             disabled={!editable}
             onAssign={(assigneeType, assigneeId) =>
               assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })

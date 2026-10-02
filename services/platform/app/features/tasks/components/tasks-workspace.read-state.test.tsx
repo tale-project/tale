@@ -64,6 +64,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
   useActorDirectory: () => ({
     members: [],
     agents: [],
+    contractAutomations: [],
     currentUserId: 'u-me',
     resolveActor: () => null,
   }),

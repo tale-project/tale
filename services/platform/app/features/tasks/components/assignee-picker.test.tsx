@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@/tests/utils/render';
 
 import type { AssignableActor } from '../hooks/use-actor-directory';
+import {
+  useActorDirectory,
+  useAssignableActors,
+} from '../hooks/use-actor-directory';
 import { AssigneePicker } from './assignee-picker';
 
 vi.mock('@tale/ui/i18n/client', () => ({
@@ -32,25 +36,33 @@ const { mockMutation, mockToast } = vi.hoisted(() => ({
   mockToast: vi.fn(),
 }));
 
+const resolveAlex = () => ({
+  type: 'user',
+  id: 'user-1',
+  name: 'Alex',
+  isAgent: false,
+});
+
 vi.mock('../hooks/use-actor-directory', () => ({
-  useAssignableActors: (_organizationId: string, projectId?: string) => ({
+  // The trigger names the assignee; the list, mounted on first use, reads
+  // the project-scoped candidates.
+  useActorDirectory: vi.fn(() => ({
+    currentUserId: 'user-1',
+    resolveActor: resolveAlex,
+  })),
+  useAssignableActors: vi.fn((_organizationId: string, projectId?: string) => ({
     assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
     ],
     assignableAgents: projectId === undefined ? [] : mockDirectoryAgents,
     agentsLoading: mockAgentsLoading,
     currentUserId: 'user-1',
-    resolveActor: () => ({
-      type: 'user',
-      id: 'user-1',
-      name: 'Alex',
-      isAgent: false,
-    }),
+    resolveActor: resolveAlex,
     canAddAgents: projectId !== undefined && mockCanAddAgents,
     projectResolved: projectId !== undefined && mockProjectResolved,
     standardAgentAvailable:
       projectId !== undefined && mockStandardAgentAvailable,
-  }),
+  })),
 }));
 
 // The New agent form is its own component with its own reads; the picker
@@ -384,5 +396,56 @@ describe('AssigneePicker', () => {
     expect(
       screen.getByText('tasks.assignee.liveAgentsOnlyReader'),
     ).toBeInTheDocument();
+  });
+
+  // #4062: a board renders a picker on every card. A closed one reads no
+  // candidates and builds no list; its trigger still reads as the popup
+  // button it opens, and closing hands focus back to it.
+  it('reads no candidates and builds no list until first opened', async () => {
+    const { user, open } = renderPicker({
+      assigneeType: 'user',
+      assigneeId: 'user-1',
+    });
+    const trigger = screen.getByRole('button', {
+      name: 'tasks.actions.assign',
+    });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(useAssignableActors).not.toHaveBeenCalled();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+    await open();
+
+    expect(useAssignableActors).toHaveBeenCalledWith('org-1', 'project-1');
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('button', { name: 'tasks.actions.assign' }),
+    ).toHaveFocus();
+  });
+
+  it('names its assignee from the actors it is handed, reading no directory', () => {
+    renderPicker({
+      assigneeType: 'user',
+      assigneeId: 'user-9',
+      actors: {
+        currentUserId: 'user-1',
+        resolveActor: (type, id) => ({
+          type,
+          id,
+          name: 'Board Bo',
+          isAgent: false,
+        }),
+      },
+    });
+
+    expect(screen.getByRole('img', { name: 'Board Bo' })).toBeInTheDocument();
+    expect(useActorDirectory).not.toHaveBeenCalled();
+    expect(useAssignableActors).not.toHaveBeenCalled();
   });
 });
