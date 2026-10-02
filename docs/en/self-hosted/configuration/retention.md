@@ -33,11 +33,15 @@ Most categories use days; `userTempHours` and `agentTempHours` use hours. The to
 
 Environment overrides are declared explicitly by the file’s root `_metadata.envNames`, with an optional `_metadata.envPrefix`. The bundled file maps `TALE_RETENTION_AUDIT_MIN` to `auditLog.min`, for example. A minimum override can only raise the floor; a maximum override can only lower the ceiling. Restart the backend processes after changing their environment.
 
+Two floors are fixed: `auditLog.min` cannot be lower than 180 days, and `loginAttempt.min` cannot be lower than 90 days. Tale does not load a file that undercuts either. Until you correct it, the organization’s **Retention policy** shows no allowed ranges and cannot be saved, and the backend log names both floors. Scheduled cleanup keeps using the bounds applied last.
+
+The bundled file lets an organization keep audit logs for 180 to 3650 days. Upgrading Tale does not rewrite an organization’s file, so an organization created by an earlier release can still have `auditLog.min: 365`. Lower that value to allow a shorter audit retention, or raise it when a regulation or contract requires a longer audit history.
+
 ## Review and apply a change
 
 After editing bounds, ask the organization admin to review the proposed change in [Policies and limits](/platform/admin/governance/policies-and-limits). Cleanup uses the applied bounds snapshot; an operator’s file edit alone does not silently apply new bounds.
 
-Review enabled categories, the old and new durations, and any grace period before applying. A value such as `auditLogRetentionDays: 730` is a chosen duration, while `auditLog.min: 365` is a lower bound. Keep those meanings separate when reviewing a diff.
+Review enabled categories, the old and new durations, and any grace period before applying. A value such as `auditLogRetentionDays: 730` is a chosen duration, while `auditLog.min: 180` is a lower bound. Keep those meanings separate when reviewing a diff.
 
 <Tip>
 
