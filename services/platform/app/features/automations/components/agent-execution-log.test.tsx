@@ -125,9 +125,15 @@ describe('AgentExecutionLog', () => {
     (_label, data) => {
       state.data = data;
       render(
-        <AgentExecutionLog organizationId="org-1" runId={runId} waitingForRoom />,
+        <AgentExecutionLog
+          organizationId="org-1"
+          runId={runId}
+          waitingForRoom
+        />,
       );
-      expect(screen.getByText('Waiting for a sandbox slot')).toBeInTheDocument();
+      expect(
+        screen.getByText('Waiting for a sandbox slot'),
+      ).toBeInTheDocument();
       expect(
         screen.queryByText('The agent is starting up in the sandbox…'),
       ).not.toBeInTheDocument();

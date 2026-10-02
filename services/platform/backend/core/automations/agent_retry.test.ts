@@ -362,9 +362,14 @@ describe('planWorkflowAgentRetry', () => {
       ),
     ).toBeUndefined();
     expect(
-      workflowAgentRetryResume(refused, 'waiting for room', {}, {
-        resumable: false,
-      }),
+      workflowAgentRetryResume(
+        refused,
+        'waiting for room',
+        {},
+        {
+          resumable: false,
+        },
+      ),
     ).toBeUndefined();
   });
 

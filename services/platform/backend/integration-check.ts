@@ -41063,10 +41063,7 @@ async function checkTaskAgentRuns(
     execId,
   });
   const woken = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
-  const wokenAgain = await agentRuns.wakeOrganizationParkedAgentRun(
-    sql,
-    orgId,
-  );
+  const wokenAgain = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -55694,9 +55691,11 @@ async function checkWatchdogs(
     status: 'failed',
     collected: true,
   });
-  await refusedRenderShim(sql)['sandbox/session_mutations:setSessionStatus']?.(
-    { rowId: refusedRenderRowId, status: 'failed', collected: true },
-  );
+  await refusedRenderShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedRenderRowId,
+    status: 'failed',
+    collected: true,
+  });
   const refusedAsked: string[] = [];
   await sandboxWatchdogs.runSandboxWatchdog(sql, {
     collectBatch: 50,

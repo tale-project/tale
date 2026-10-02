@@ -91,10 +91,7 @@ describe('automation-agent broker account attribution', () => {
 describe('a start that waited for sandbox room launching', () => {
   it('turns the run’s room park into an agent park, and says so', async () => {
     const statements: { text: string; values: unknown[] }[] = [];
-    const sql = async (
-      strings: TemplateStringsArray,
-      ...values: unknown[]
-    ) => {
+    const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?').replaceAll(/\s+/g, ' ');
       statements.push({ text, values });
       if (text.includes('SELECT status, checkpoints, detail')) {

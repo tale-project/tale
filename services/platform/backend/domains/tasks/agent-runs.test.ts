@@ -644,9 +644,7 @@ describe('wakeParkedAgentRuns — the release edge reaches every organization', 
     await expect(wakeParkedAgentRuns(sql, 'org-1')).rejects.toThrow(
       'deadlock detected',
     );
-    expect(calls.filter((call) => call.text.startsWith(CLAIM))).toHaveLength(
-      2,
-    );
+    expect(calls.filter((call) => call.text.startsWith(CLAIM))).toHaveLength(2);
   });
 });
 

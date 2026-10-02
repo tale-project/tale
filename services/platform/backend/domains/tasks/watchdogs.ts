@@ -136,9 +136,7 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
   // runs of every organization that has one, not one run; a start that
   // still finds no room parks again at no cost beyond the refused create.
   let woken = 0;
-  for (const { organizationId } of await listParkedAgentRunOrganizations(
-    sql,
-  )) {
+  for (const { organizationId } of await listParkedAgentRunOrganizations(sql)) {
     for (let wake = 0; wake < PARKED_WAKES_PER_TICK; wake += 1) {
       const one = await wakeOrganizationParkedAgentRun(sql, organizationId);
       if (one === 0) break;
