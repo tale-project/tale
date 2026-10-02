@@ -522,6 +522,53 @@ describe('provisionToolchain bounds', () => {
     },
   );
 
+  it.skipIf(!ON_LINUX)(
+    'bounds the privileged install on its own side',
+    async () => {
+      const cacheDir = await warmCache();
+      const argv = join(scratch, 'sudo.argv');
+      const hidden = join(scratch, 'hidden.pid');
+      const aptPid = join(scratch, 'apt.pid');
+      await fakeOnPath(
+        'which',
+        'case "$1" in apt-get) echo /usr/bin/apt-get ;; *) exit 1 ;; esac',
+      );
+      // A STAND-IN for sudo across a privilege boundary — no root, no real
+      // sudo: it runs its command in a session of its own, re-parented away,
+      // as far out of this process's reach as the root child of a real sudo,
+      // and relays SIGTERM alone, as sudo does. Only a bound on that side can
+      // stop the command.
+      await fakeOnPath(
+        'sudo',
+        [
+          '[ "$1" = "-n" ] && shift',
+          `echo "$*" > '${argv}'`,
+          `( setsid "$@" < /dev/null & echo $! > '${hidden}' )`,
+          `trap 'kill -TERM "$(cat '${hidden}')" 2>/dev/null' TERM`,
+          'while :; do sleep 0.1; done',
+        ].join('\n'),
+      );
+      // A stalled apt-get that ignores SIGTERM.
+      await fakeOnPath(
+        'apt-get',
+        `trap '' TERM\necho $$ > '${aptPid}'\nexec sleep 30`,
+      );
+      const err = await provisionToolchain({
+        cacheDir,
+        deadlines: FAST,
+      }).catch((e: unknown) => e);
+      const apt = Number(await readFile(aptPid, 'utf8'));
+      strays.push(apt);
+      expect(await readFile(argv, 'utf8')).toBe(
+        'timeout -k 0.2s 2s apt-get install -y ffmpeg\n',
+      );
+      expect((err as Error).message).toMatch(
+        /^\[video-toolchain\] ffmpeg not found and could not be auto-installed \(\[video-toolchain\] ffmpeg install \(apt-get\): timed out after \d+ ms \(deadline 2000 ms\)\)/,
+      );
+      expect(await waitUntilGone([apt])).toEqual([]);
+    },
+  );
+
   it('returns the resolved toolchain when every stage answers (control)', async () => {
     const cacheDir = await warmCache();
     await fakeOnPath('which', 'echo /opt/fake/ffmpeg');

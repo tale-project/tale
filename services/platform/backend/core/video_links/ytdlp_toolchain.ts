@@ -305,13 +305,24 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
     // Best-effort: the runner may lack sudo or network. A failure just surfaces
     // as the "still missing" error below, with full context for the operator.
     // `sudo -n`: a password prompt is a wait with no deadline, and the bounded
-    // child runs without a terminal — it fails at once instead.
+    // child runs without a terminal — it fails at once instead. `timeout`
+    // holds apt-get to the same bound on the privileged side: this process can
+    // stop sudo, but not the root apt-get it starts, which only sudo's relayed
+    // SIGTERM reaches — and nothing once sudo itself is gone.
+    const deadline = clock.stage(install);
     try {
       await run(
         'ffmpeg install (apt-get)',
         'sudo',
-        ['-n', 'apt-get', 'install', '-y', 'ffmpeg'],
-        clock.stage(install),
+        [
+          '-n',
+          ...privilegedTimeout(deadline, clock.deadlines.killGraceMs),
+          'apt-get',
+          'install',
+          '-y',
+          'ffmpeg',
+        ],
+        deadline,
         clock,
       );
     } catch (err) {
@@ -335,6 +346,21 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
     );
   }
   return reResolved;
+}
+
+/**
+ * GNU `timeout` argv bounding a command that sudo runs as root: SIGTERM at the
+ * stage's `deadline`, SIGKILL `killGraceMs` later — the two steps
+ * `spawnBounded` takes from this side, sent from that one. `timeout` reads `0`
+ * as "no limit", so an exhausted budget still passes 1 ms.
+ */
+function privilegedTimeout(
+  deadline: StageDeadline,
+  killGraceMs: number,
+): string[] {
+  const seconds = (ms: number): string =>
+    `${Math.max(1, Math.ceil(ms)) / 1000}s`;
+  return ['timeout', '-k', seconds(killGraceMs), seconds(deadline.ms)];
 }
 
 /**
