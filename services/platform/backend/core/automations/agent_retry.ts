@@ -43,7 +43,13 @@ export type WorkflowAgentFailureCode =
    * the first account is back — for free when the refused attempt retried
    * one that ended on a 429, the rate limit that cooled the pool
    * ({@link planWorkflowAgentRetry}). */
-  | 'credential_cooldown';
+  | 'credential_cooldown'
+  /** The start found no sandbox room: the organization's session budget was
+   * spent, or the sandbox host was at capacity or short of memory. Nothing
+   * ran, and the room frees as other work settles: the re-kick waits out the
+   * refusal's retry hint and spends no attempt, bounded only by the node's
+   * execution guard ({@link planWorkflowAgentRetry}). */
+  | 'sandbox_capacity';
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
@@ -76,6 +82,14 @@ const NO_RESUME_FAILURE_CODES: ReadonlySet<string> = new Set([
   'session_gone',
   'start_failed',
   'credential_cooldown',
+  'sandbox_capacity',
+] satisfies WorkflowAgentFailureCode[]);
+
+/** Starts refused before anything launched: the conversation the refused
+ * attempt was to resume still stands, with the cut that ended it. */
+const NEVER_LAUNCHED_FAILURE_CODES: ReadonlySet<string> = new Set([
+  'credential_cooldown',
+  'sandbox_capacity',
 ] satisfies WorkflowAgentFailureCode[]);
 
 /**
@@ -95,7 +109,8 @@ export function workflowAgentRetryResume(
 ): WorkflowAgentRetryResume | undefined {
   if (!harness.resumable) return undefined;
   if (
-    settled.failureCode === 'credential_cooldown' &&
+    settled.failureCode !== undefined &&
+    NEVER_LAUNCHED_FAILURE_CODES.has(settled.failureCode) &&
     parked.resumedFrom !== undefined
   ) {
     return {
@@ -213,8 +228,8 @@ export function planWorkflowAgentRetry(
 ): WorkflowAgentRetryPlan {
   const attempt = parked.attempt ?? 0;
   if (
-    failureCode === 'credential_cooldown' &&
-    parked.retriedRateLimit === true
+    failureCode === 'sandbox_capacity' ||
+    (failureCode === 'credential_cooldown' && parked.retriedRateLimit === true)
   ) {
     return {
       retry: true,

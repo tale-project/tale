@@ -60,6 +60,7 @@ import {
 } from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import { sandboxCapacityRefusal } from '../node_only/sandbox/capacity_refusal';
 import {
   settleGatewayKey,
   settlementPending,
@@ -111,6 +112,7 @@ import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { isCredentialRotation } from '../tasks/task_auto_retry';
 import {
   retryResumePrompt,
+  type WorkflowAgentFailureCode,
   type WorkflowAgentRetryResume,
 } from './agent_retry';
 import {
@@ -1222,6 +1224,49 @@ export interface StartWorkflowAgentTurnArgs {
   };
 }
 
+/**
+ * How a workflow agent turn that could not START settles: the reason, the
+ * code the stepper's retry reads, and when the re-kick may start. A cap
+ * refusal is the org's decision, not a fault: named as such, and never
+ * retried (the cap only moves with the period or an admin). No sandbox room
+ * (the organization's session budget, or the host's capacity or memory)
+ * frees as other work settles: the re-kick waits out the refusal's retry
+ * hint and spends no attempt, instead of failing the run after three
+ * instant retries. A broker pool whose every account is cooling down says
+ * when the first is back: the stepper holds the re-kick's start until then
+ * instead of meeting the same refusal at once.
+ */
+export function classifyWorkflowStartFailure(
+  err: unknown,
+  now: number,
+): {
+  reason: string;
+  failureCode: WorkflowAgentFailureCode;
+  retryAtMs?: number;
+} {
+  if (isTurnBudgetExceededError(err)) {
+    return {
+      reason: `the agent turn was refused by the organization's spend cap: ${err.reason}`,
+      failureCode: 'budget_exceeded',
+    };
+  }
+  const noRoom = sandboxCapacityRefusal(err);
+  if (noRoom !== null) {
+    return {
+      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : "the organization's workflow sessions are all in use"}`,
+      failureCode: 'sandbox_capacity',
+      retryAtMs: now + noRoom.retryAfterMs,
+    };
+  }
+  const retryAtMs = credentialRetryAtMs(err);
+  return {
+    reason: `the agent turn could not start: ${runFailureMessage(err)}`,
+    failureCode:
+      retryAtMs !== undefined ? 'credential_cooldown' : 'start_failed',
+    ...(retryAtMs !== undefined ? { retryAtMs } : {}),
+  };
+}
+
 /** The start as a PLAIN exported function — the internalAction above wraps
  * it, and the 0.5 backend's `automation.agent_turn` job runs it on the ctx
  * shim (same pattern as the task-agent lane). */
@@ -1542,24 +1587,11 @@ export async function startWorkflowAgentTurnImpl(
       await continueOrSettle(ctx, args, window);
     } catch (err) {
       console.error('[agent-host] turn start failed:', err);
-      // A cap refusal is the org's decision, not a fault: named as such,
-      // and never retried (the cap only moves with the period or an admin).
-      // A broker pool whose every account is cooling down says when the
-      // first is back: the stepper holds the re-kick's start until then
-      // instead of meeting the same refusal at once.
-      const budgetRefused = isTurnBudgetExceededError(err);
-      const retryAtMs = credentialRetryAtMs(err);
+      // Refusals that are decisions or waits settle as such
+      // (`classifyWorkflowStartFailure`); the rest is `start_failed`.
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
-        reason: budgetRefused
-          ? `the agent turn was refused by the organization's spend cap: ${err.reason}`
-          : `the agent turn could not start: ${runFailureMessage(err)}`,
-        failureCode: budgetRefused
-          ? 'budget_exceeded'
-          : retryAtMs !== undefined
-            ? 'credential_cooldown'
-            : 'start_failed',
-        ...(retryAtMs !== undefined ? { retryAtMs } : {}),
+        ...classifyWorkflowStartFailure(err, Date.now()),
         text: '',
         files: [],
       });

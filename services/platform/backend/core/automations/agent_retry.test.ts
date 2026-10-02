@@ -262,6 +262,39 @@ describe('planWorkflowAgentRetry', () => {
     expect(retries).toEqual([true, true, true, false]);
   });
 
+  it('waits for sandbox room for free, however many attempts are spent', () => {
+    expect(isWorkflowAgentRetryable('sandbox_capacity')).toBe(true);
+    expect(
+      planWorkflowAgentRetry(
+        { attempt: AUTO_RETRY_MAX_ATTEMPTS, burnedBrokerTokenHashes: ['a'] },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toEqual({
+      retry: true,
+      attempt: AUTO_RETRY_MAX_ATTEMPTS,
+      burnedBrokerTokenHashes: ['a'],
+      credentialRotations: 0,
+    });
+    // Nothing launched: the conversation it was to resume still stands.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity' },
+        'waiting for room',
+        { resumedFrom: 'conv-7', resumeReason: 'the stream broke' },
+        RESUMES,
+      ),
+    ).toEqual({ agentSessionId: 'conv-7', reason: 'the stream broke' });
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity', agentSessionId: 'conv-new' },
+        'waiting for room',
+        {},
+        RESUMES,
+      ),
+    ).toBeUndefined();
+  });
+
   it('waits out the cooldown of the 429 it retried for free, and counts any other refused start', () => {
     expect(
       planWorkflowAgentRetry(

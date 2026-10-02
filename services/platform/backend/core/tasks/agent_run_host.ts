@@ -20,7 +20,6 @@ import { randomBytes } from 'node:crypto';
 import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
-import { AppError } from '../../../lib/shared/errors/app-error';
 import type { TaskCommentBodies } from '../../../lib/shared/schemas/task-comment';
 import {
   liveProgressSink,
@@ -53,6 +52,7 @@ import {
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import { sandboxCapacityRefusal } from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
@@ -1464,12 +1464,15 @@ export async function startTaskAgentTurnImpl(
       await progress.flush();
       await continueOrSettle(ctx, keys, window, resume);
     } catch (err) {
-      // A full session budget is not a failure — park the run and let the
-      // next slot release (or the watchdog backstop) restart it. Everything
-      // else settles as a failure with the REAL reason.
-      if (isQuotaExceededError(err)) {
+      // No room is not a failure: the organization's session budget is
+      // spent, or the sandbox host is at capacity or short of memory. Park
+      // the run and let the next slot release (or the watchdog backstop,
+      // every two minutes) restart it. Everything else settles as a failure
+      // with the REAL reason.
+      const noRoom = sandboxCapacityRefusal(err);
+      if (noRoom !== null) {
         console.warn(
-          `[task-agent] no session slot for ${args.execId} — parking the run until one frees`,
+          `[task-agent] no ${noRoom.scope === 'host' ? 'sandbox host capacity' : 'session slot'} for ${args.execId} — parking the run until one frees`,
         );
         await ctx.runMutation(
           internal.tasks.agent_runs.parkTaskAgentRunForCapacity,
@@ -1490,22 +1493,6 @@ export async function startTaskAgentTurnImpl(
     }
     return null;
   }
-}
-
-/** The `QUOTA_EXCEEDED` shape thrown by the slot reserve and the cap-checked
- * resume — the one start failure that parks instead of failing. */
-function isQuotaExceededError(err: unknown): boolean {
-  if (err instanceof AppError) {
-    const data: unknown = err.data;
-    return (
-      typeof data === 'object' &&
-      data !== null &&
-      (data as { code?: unknown }).code === 'QUOTA_EXCEEDED'
-    );
-  }
-  // A AppError thrown inside a sub-mutation reaches the action wrapped as
-  // a plain Error whose message carries the payload — match the code there.
-  return err instanceof Error && err.message.includes('QUOTA_EXCEEDED');
 }
 
 /** One drive window as a PLAIN exported function (see the start's twin). */

@@ -302,6 +302,26 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
     ]);
   });
 
+  it('a sandbox host at capacity is a wait for room, not a failed batch', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    const { SpawnerBusyError } = await import('./helpers/session_client');
+    spawner.sessionCreate.mockImplementation(async () => {
+      run.events.push('create');
+      throw new SpawnerBusyError(15_000);
+    });
+
+    await expect(run.render()).rejects.toBeInstanceOf(RenderCapacityError);
+    // The failed create is settled as any other: its leftovers destroyed
+    // while the row holds the slot, then the row reads failed.
+    expect(run.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'destroyIfIdle',
+      'setSessionStatus',
+    ]);
+  });
+
   it('hands a halt on with every page untouched instead of calling it a worker that never started', async () => {
     const run = renderRun('row_1');
     scriptSpawner(run.events);

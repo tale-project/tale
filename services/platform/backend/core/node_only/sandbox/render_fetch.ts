@@ -55,6 +55,7 @@ import {
   sessionDestroyIfIdle,
   sessionReadFile,
   sessionStageFiles,
+  SpawnerBusyError,
 } from './helpers/session_client';
 import { RENDERED_LAYOUT_SCRIPT } from './render_layout';
 import { runStepsInSession } from './session_exec';
@@ -235,6 +236,13 @@ export async function renderUrlsInSandbox(
       created = true;
     } catch (error) {
       await settleFailedCreate(ctx, { rowId, sessionId, error });
+      // A sandbox host at capacity or short of memory is a wait like a spent
+      // render budget: the scan polls for room instead of failing the batch.
+      if (error instanceof SpawnerBusyError) {
+        throw new RenderCapacityError(
+          'the sandbox host is busy; the render waits for room',
+        );
+      }
       throw error;
     }
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {

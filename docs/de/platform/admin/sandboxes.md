@@ -102,6 +102,8 @@ Jeden Arbeitsbereich, den Tale von selbst löscht, aus einem dieser Gründe oder
 
 ## Einen blockierten Start klären
 
+Ein Start ohne freien Platz wartet, und du musst nichts tun. Sind die Limits deiner Organisation belegt oder ist das Deployment voll oder knapp an Speicher, startet die Arbeit von selbst, sobald Platz frei wird: Ein Aufgabenlauf wartet in der Warteschlange, der Agent-Schritt einer Automatisierung versucht es nach einer kurzen Pause erneut, ohne seine Wiederholungen zu verbrauchen, und das Crawling setzt mit dem nächsten Stapel fort.
+
 Erhöhe ein Arbeitslimit nur, wenn seine Plätze belegt sind und die neue Summe in die gemeinsame Kapazität passt. Ist das Deployment voll, schafft ein höheres Organisationslimit keine Infrastruktur. Für eigene Kapazität [verbindest du ein Gerät](/de/platform/admin/sandbox-devices): Neue Arbeitsbereiche starten dann darauf. Andernfalls lass den Betreiber Kapazität und Host-Ressourcen prüfen. Ein freier Containerplatz garantiert noch nicht genügend CPU oder Speicher.
 
 Bei Zugangs- oder Modellproblemen hilft [KI-Provider](/de/platform/admin/providers), bei Ausgabengrenzen [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits). Self-Hosted-Betreiber finden die Deployment-Einstellung in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure).

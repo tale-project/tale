@@ -102,6 +102,8 @@ Chaque espace de travail que Tale supprime de lui-même, pour l’une de ces rai
 
 ## Résoudre un démarrage bloqué
 
+Un démarrage qui ne trouve pas de place attend, sans rien te demander. Quand les limites de ton organisation sont occupées, ou que le déploiement est plein ou manque de mémoire, le travail démarre de lui-même dès qu’une place se libère : une exécution de tâche attend dans la file, l’étape d’agent d’une automatisation réessaie après une courte pause sans consommer ses nouvelles tentatives, et l’exploration reprend avec son lot suivant.
+
 Augmente une limite uniquement lorsque ses allocations sont occupées et que le nouveau total tient dans la capacité partagée. Si le déploiement est plein, augmenter la limite de l’organisation ne crée pas d’infrastructure. Pour ajouter ta propre capacité, [connecte un appareil](/fr/platform/admin/sandbox-devices) : les nouveaux espaces de travail y démarrent. Sinon, demande à l’opérateur d’examiner la capacité et les ressources de l’hôte. Une place libre ne garantit pas assez de CPU ou de mémoire.
 
 Pour un refus d’identifiants ou de modèle, consulte [Fournisseurs IA](/fr/platform/admin/providers). Pour un refus de dépense, consulte [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Les opérateurs auto-hébergés trouveront le réglage du déploiement dans la [référence d’environnement](/fr/self-hosted/configuration/environment-reference#sandbox-infrastructure).

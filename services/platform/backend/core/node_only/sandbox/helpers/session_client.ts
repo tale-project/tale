@@ -88,11 +88,13 @@ export class SessionDuplicateError extends Error {
   }
 }
 
-/** The spawner is at its global host capacity (HTTP 429, `session_quota`).
- * Distinct from the platform's per-workload `QUOTA_EXCEEDED`: the host is
- * shared across organizations. The retry hint lets each workload apply its
- * own failure/retry policy; an earlier capacity read reserves no compute. */
-class SpawnerBusyError extends Error {
+/** The spawner is at its global host capacity (HTTP 429: `session_quota`,
+ * or `host_memory` when the host is short of memory), or a destroy of the id
+ * is still under way. Distinct from the platform's per-workload
+ * `QUOTA_EXCEEDED`: the host is shared across organizations. The retry hint
+ * lets each workload apply its own wait; an earlier capacity read reserves
+ * no compute. */
+export class SpawnerBusyError extends Error {
   readonly retryAfterMs: number | undefined;
   constructor(retryAfterMs: number | undefined) {
     super('sandbox spawner at host capacity (429)');
