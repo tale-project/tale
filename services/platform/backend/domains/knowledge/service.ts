@@ -671,6 +671,7 @@ const EMBEDDING_FAILURE_CODE = {
   credit: 'EMBEDDING_CREDIT_EXHAUSTED',
   credential: 'EMBEDDING_CREDENTIAL_REJECTED',
   unresolved: 'EMBEDDING_CREDENTIAL_REJECTED',
+  throttled: 'EMBEDDING_UPSTREAM_ERROR',
   upstream: 'EMBEDDING_UPSTREAM_ERROR',
 } as const;
 const EMBEDDING_FAILURE_PROSE = {
@@ -680,6 +681,8 @@ const EMBEDDING_FAILURE_PROSE = {
     "The organization's embedding provider rejected its credential or refused it the model — provider settings an admin must fix",
   unresolved:
     "The organization's embedding model has no usable provider credential — an admin must add or fix it",
+  throttled:
+    "The organization's embedding provider is rate-limiting its requests",
   upstream: "The organization's embedding provider could not serve the request",
 } as const;
 
@@ -1374,10 +1377,10 @@ export async function indexUploadedFile(
       orgSlug,
       error: error instanceof Error ? error.message : String(error),
     });
-    if (refusal === 'upstream') {
+    if (refusal === 'upstream' || refusal === 'throttled') {
       await recordIndexingFailure(sql, {
         ...failure,
-        ragError: `${EMBEDDING_FAILURE_PROSE.upstream}; indexing is retried automatically.`,
+        ragError: `${EMBEDDING_FAILURE_PROSE[refusal]}; indexing is retried automatically.`,
         ragErrorCode: RAG_ERROR_EMBEDDING_UPSTREAM,
       });
       throw error;
