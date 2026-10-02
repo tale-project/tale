@@ -40252,6 +40252,157 @@ async function checkSandboxSpawner(
       `stale=${staleRes.status}, retrying=${staleRetrying}, rows=${firstRowId === freshRowId ? 'same' : 'distinct'}, freshWhileStale=${freshWhileStale?.destroyState ?? 'none'}, staleSettled=${staleSettled}, freshKept=${freshKept}, fresh=${freshRes.status}, freshDestroyed=${freshDestroyed}`,
     );
 
+    // The first attempt failed, and before its retry a turn asks for the
+    // same row: a member's chat run, an agent's next task, an automation's
+    // next step — each through its lane's shim to the hosts' one admission
+    // (`ensureAgentSession`). A resume keeps the row id, the one thing the
+    // retry checks, so a turn let in here would be killed by the next
+    // attempt, its workspace deleted and its tokens revoked. It is refused
+    // before anything starts, the row keeps reading Destroying, and once the
+    // Destroy has finished the same start opens a fresh incarnation.
+    const { ensureAgentSession } =
+      await import('./core/node_only/sandbox/agent_session.ts');
+    const { agentTurnShimHandlers, taskAgentShimScheduler } =
+      await import('./domains/tasks/agent-turn-shim.ts');
+    const { automationShimHandlers, automationShimScheduler } =
+      await import('./domains/automations/shim.ts');
+    const { createCtxShim } = await import('./lib/ctx-shim.ts');
+    const naming = await import('./core/sandbox/session_naming.ts');
+    const taskShim = createCtxShim(agentTurnShimHandlers(sql), {
+      scheduler: taskAgentShimScheduler(sql),
+    });
+    const automationShim = createCtxShim(automationShimHandlers(sql), {
+      scheduler: automationShimScheduler(sql),
+    });
+    const resumeAgentId = `itest-resume-${randomUUID()}`;
+    const resumeRunId = `itest-resume-run-${randomUUID()}`;
+    const resumePaths = [
+      {
+        lane: "a member's chat run",
+        shim: taskShim,
+        sessionId: naming.memberSessionIdForProjectAgent(resumeAgentId, userId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an agent's next task",
+        shim: taskShim,
+        sessionId: naming.standingSessionIdForProjectAgent(resumeAgentId),
+        owner: { type: 'project_agent' as const, agentId: resumeAgentId },
+        ownerId: naming.projectAgentOwnerId(resumeAgentId),
+      },
+      {
+        lane: "an automation's next step",
+        shim: automationShim,
+        sessionId: naming.sessionIdForWorkflowExecution(resumeRunId),
+        owner: { type: 'workflow_run' as const, runId: resumeRunId },
+        ownerId: naming.workflowExecutionOwnerId(resumeRunId),
+      },
+    ];
+    for (const resumePath of resumePaths) {
+      const ownerType = resumePath.owner.type;
+      await provision(resumePath.sessionId, {
+        ownerType,
+        ownerId: resumePath.ownerId,
+      });
+      // Hibernated: the idle release stopped its compute, kept its files.
+      await sql`
+        UPDATE app.sandbox_sessions SET status = 'stopped'
+        WHERE org_id = ${orgId} AND session_id = ${resumePath.sessionId}
+      `;
+      live.delete(resumePath.sessionId);
+      const askedRowId = (
+        await sessions.getSessionBySessionId(sql, orgId, resumePath.sessionId)
+      )?.id;
+      failDeletes = true;
+      const askRes = await destroy(resumePath.sessionId);
+      const firstFailed = await waitFor(
+        async () =>
+          (await destroyJobStates(resumePath.sessionId)).includes('retry'),
+        15_000,
+      );
+      const start = () =>
+        ensureAgentSession(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hosts' admission on its lane's shim, as the job wires it
+          resumePath.shim as unknown as Parameters<
+            typeof ensureAgentSession
+          >[0],
+          {
+            organizationId: orgId,
+            sessionId: resumePath.sessionId,
+            owner: resumePath.owner,
+            agentKind: 'claude-code',
+          },
+        ).then(
+          (started) =>
+            started.liveCreatedAt === undefined ? 'fresh' : 'resumed',
+          (error: unknown) =>
+            String(error).includes('is deleting this sandbox workspace')
+              ? 'refused'
+              : `error: ${String(error)}`,
+        );
+      const asked = await start();
+      // What the turn would hold had it been let in: its session token.
+      if (asked === 'resumed') {
+        await sql`
+          INSERT INTO app.sandbox_session_tokens (
+            org_id, session_id, token_hash, scope, created_at_ms, expires_at_ms
+          ) VALUES (${orgId}, ${resumePath.sessionId}, ${randomUUID()}, '{}'::jsonb,
+            ${Date.now()}, ${Date.now() + 3_600_000})
+        `;
+      }
+      const containerAfterAsk = live.has(resumePath.sessionId);
+      const rowAfterAsk = await rowStatus(resumePath.sessionId);
+      const pageAfterAsk = (await viewRow(resumePath.sessionId))?.destroyState;
+      failDeletes = false;
+      await sql`
+        UPDATE pgboss.job SET start_after = now()
+        WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'rowId' = ${askedRowId ?? ''} AND state = 'retry'
+      `;
+      const resumeRetried = await waitFor(
+        async () =>
+          (await destroyJobStates(resumePath.sessionId)).every(
+            (state) => state === 'completed',
+          ) && (await rowStatus(resumePath.sessionId)) === 'destroyed',
+        15_000,
+      );
+      const containerAfterRetry = live.has(resumePath.sessionId);
+      const tokens = await sql<{ revoked: boolean }[]>`
+        SELECT revoked_at_ms IS NOT NULL AS revoked
+        FROM app.sandbox_session_tokens
+        WHERE org_id = ${orgId} AND session_id = ${resumePath.sessionId}
+      `;
+      const afterwards = await start();
+      const startedRowId = (
+        await sessions.getSessionBySessionId(sql, orgId, resumePath.sessionId)
+      )?.id;
+      record(
+        `sandbox Destroy retry never deletes work resumed after the request: ${resumePath.lane}`,
+        askRes.status === 202 &&
+          firstFailed &&
+          asked === 'refused' &&
+          !containerAfterAsk &&
+          rowAfterAsk === 'stopped' &&
+          pageAfterAsk === 'pending' &&
+          resumeRetried &&
+          tokens.length === 0 &&
+          afterwards === 'fresh' &&
+          startedRowId !== undefined &&
+          startedRowId !== askedRowId &&
+          live.has(resumePath.sessionId) &&
+          (await rowStatus(resumePath.sessionId)) === 'active',
+        `destroy=${askRes.status}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want fresh), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}`,
+      );
+      // The fresh session holds an agent slot; the lane's later checks need
+      // the organization's budget.
+      await sessions.markSessionDestroyed(sql, {
+        organizationId: orgId,
+        sessionId: resumePath.sessionId,
+      });
+      live.delete(resumePath.sessionId);
+    }
+
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
     const post = (route: string, body?: unknown): Promise<Response> =>
       fetch(`${base}${route}`, {
