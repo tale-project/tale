@@ -132,6 +132,8 @@ vi.mock('@/app/components/navigation/tab-navigation', () => ({
   ),
 }));
 
+import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
+
 import { Route } from './$projectId';
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- createFileRoute is mocked to return the config
@@ -413,5 +415,52 @@ describe('project shell — remembering only its own path', () => {
       ).toBe('"/dashboard/org-1/projects/proj-1"'),
     );
     unmount();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The Home panel folds away from a project's page as it does from a chat's or
+// a task's: the header's first control is the panel toggle. It renders only
+// inside a Home frame — `isPanelCollapsible` lets the panel fold on a
+// project's page because this toggle is there to bring it back.
+// ---------------------------------------------------------------------------
+describe('project shell — the Home panel toggle', () => {
+  it('leads the header inside a Home frame, and folds the panel', async () => {
+    mockUseProject.mockReturnValue({
+      project: { _id: 'proj-1', name: 'Apollo', canAdminister: false },
+      isLoading: false,
+    });
+    mockUseAutomations.mockReturnValue({ data: [] });
+    const { user } = render(
+      <HomePanelProvider organizationId="org-1">
+        <ProjectDetailLayout />
+      </HomePanelProvider>,
+    );
+
+    const toggle = screen.getByRole('button', { name: 'home.panel.hide' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    // First in the header: before the breadcrumb that names the project.
+    expect(
+      // oxlint-disable-next-line no-bitwise -- the DOM's position mask
+      toggle.compareDocumentPosition(screen.getByText('Apollo')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    await user.click(toggle);
+
+    expect(
+      screen.getByRole('button', { name: 'home.panel.show' }),
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(window.localStorage.getItem('chat-history-panel-open-org-1')).toBe(
+      'false',
+    );
+  });
+
+  it('offers no toggle outside a Home frame', () => {
+    setup([]);
+
+    expect(
+      screen.queryByRole('button', { name: 'home.panel.hide' }),
+    ).not.toBeInTheDocument();
   });
 });

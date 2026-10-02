@@ -31,6 +31,7 @@ import {
 } from '@/app/components/navigation/tab-navigation';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
+import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import {
   clearProjectMemory,
   isProjectAutomationsPath,
@@ -326,6 +327,10 @@ function ProjectDetailLayout() {
         header={
           <>
             <AdaptiveHeaderRoot standalone={false} className="gap-2">
+              {/* The Home panel folds away from here, as from a chat's or a
+                  task's header: the toggle sits first, in the same place on
+                  every page that offers it (`isPanelCollapsible`). */}
+              <HomePanelToggle />
               <HeaderBreadcrumbs
                 ariaLabel={tCommon('aria.breadcrumb')}
                 crumbs={[
