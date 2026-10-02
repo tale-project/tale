@@ -3157,24 +3157,22 @@ governance:
         sind, automatisch löschen. Schließt pro Ausführung gespeicherte
         Variablen-/Output-Blobs ein.
       placeholder: z. B. 30
-      helper: Automatisierungsläufe, die älter sind, werden gelöscht (1–365 Tage).
+      helper: Automatisierungsläufe, die älter sind, werden gelöscht.
     auditLogs:
       title: Audit-Logs
       description: Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Audit-Logs sind unveränderliche Aufzeichnungen — halte die Frist lang genug, um deine Compliance-Anforderungen zu erfüllen.
       placeholder: z. B. 90
-      helper: Audit-Log-Einträge, die älter sind, werden gelöscht (30–365 Tage).
+      helper: Audit-Log-Einträge, die älter sind, werden gelöscht.
     usageLedger:
       title: Nutzungsbuch
       description: Token-Verbrauchsdaten, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Eine kürzere Frist schneidet historische Auswertungen ab — Budgets und Berichte stützen sich auf diese Daten.
       placeholder: z. B. 365
-      helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht (30–3650 Tage).
+      helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht.
     loginAttempts:
       title: Anmeldeversuche
       description: Aufzeichnungen fehlgeschlagener Anmeldeversuche, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Diese Einstellung gilt deployment-weit — der kürzeste Wert aller Organisationen greift.
       placeholder: z. B. 90
-      helper:
-        Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht (7–365
-        Tage).
+      helper: Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht.
   passwordPolicy:
     title: Passwort-Richtlinie
     description: Mindestlänge, Zeichenklassen-Anforderungen und Rotation für

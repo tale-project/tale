@@ -3201,9 +3201,7 @@ governance:
         d'automatisation plus anciens que la période de rétention. Inclut les blobs de
         stockage de variables/sorties par exécution.
       placeholder: ex. 30
-      helper:
-        Les exécutions d'automatisation plus anciennes seront supprimées (1 à 365
-        jours).
+      helper: Les exécutions d'automatisation plus anciennes seront supprimées.
     auditLogs:
       title: Journaux d'audit
       description: "Supprime automatiquement les entrées du journal d'audit plus
@@ -3212,9 +3210,7 @@ governance:
         conformité ; garde une rétention suffisamment longue pour satisfaire tes
         exigences d'audit ou de conformité."
       placeholder: ex. 90
-      helper:
-        Les entrées du journal d'audit plus anciennes seront supprimées (30 à
-        365 jours).
+      helper: Les entrées du journal d'audit plus anciennes seront supprimées.
     usageLedger:
       title: Registre d'utilisation
       description:
@@ -3223,9 +3219,7 @@ governance:
         raccourcir cette rétention tronque les analyses historiques (les budgets
         et les rapports s'appuient sur ces lignes)."
       placeholder: ex. 365
-      helper:
-        Les lignes du registre d'utilisation plus anciennes seront supprimées
-        (30 à 3650 jours).
+      helper: Les lignes du registre d'utilisation plus anciennes seront supprimées.
     loginAttempts:
       title: Tentatives de connexion
       description: "Supprime automatiquement les enregistrements de suivi des
@@ -3234,8 +3228,7 @@ governance:
         à l'ensemble du déploiement — la valeur la plus stricte (la plus courte)
         parmi toutes les organisations est utilisée."
       placeholder: ex. 90
-      helper: Les enregistrements de tentatives de connexion plus anciens seront
-        supprimés (7 à 365 jours).
+      helper: Les enregistrements de tentatives de connexion plus anciens seront supprimés.
   passwordPolicy:
     title: Politique de mot de passe
     description:
