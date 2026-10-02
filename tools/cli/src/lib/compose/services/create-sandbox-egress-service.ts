@@ -76,8 +76,10 @@ export function createSandboxEgressService(
     ],
     // tinyproxy + tail = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
+    // tinyproxy runs a thread per connection (MaxClients 1000), and threads
+    // count against the pids limit.
     mem_limit: '512m',
-    pids_limit: 512,
+    pids_limit: 2048,
     ulimits: {
       nofile: { soft: 4096, hard: 8192 },
     },

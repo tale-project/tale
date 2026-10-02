@@ -685,6 +685,15 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # Mirrors the CLI compose generator (create-sandbox-egress-service.ts):
+    # tinyproxy runs a thread per connection (MaxClients 1000), and threads
+    # count against the pids limit.
+    mem_limit: 512m
+    pids_limit: 2048
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
     # IPv4-only proxy networks: disable current and future-interface IPv6 so
     # the fail-closed firewall also boots on kernels without ip6_tables.
     sysctls:

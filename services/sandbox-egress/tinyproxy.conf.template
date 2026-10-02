@@ -17,7 +17,11 @@ LogLevel Notice
 LogFile "/var/log/tinyproxy/tinyproxy.log"
 # entrypoint.sh supervises tinyproxy -d and tracks its child PID for shutdown.
 # Foreground operation needs no PID file or write access to /tmp.
-MaxClients 100
+# Concurrent connections for the WHOLE fleet: every session's package
+# installs, clones and page loads share this proxy, and 100 was saturated by a
+# handful of parallel installs. tinyproxy runs one thread (~50 KB) per
+# connection, so the container's pids limit is sized above this.
+MaxClients 1000
 ViaProxyName "tale-sandbox-egress"
 
 # CONNECT method (tunneling) restricted to the standard HTTP/HTTPS ports in
