@@ -121,21 +121,30 @@ async function stub(mode: 'no-headers' | 'stall-body' | 'ok' | 'not-found') {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}/asset`;
 }
 
-type Stall = 'plain' | 'ignores-term' | 'leaves-a-term-proof-child';
+type Stall =
+  | 'plain'
+  | 'ignores-term'
+  | 'leaves-a-term-proof-child'
+  | 'escapes-its-group';
 
 /**
  * A fake child that records its own pid and a background child's, then waits.
  * `ignores-term`: both shrug off SIGTERM, so only the SIGKILL escalation stops
  * them. `leaves-a-term-proof-child`: the child dies on SIGTERM but its own
  * child ignores it, so only a group kill after the child's exit stops that.
+ * `escapes-its-group`: that child also moves into a session of its own
+ * (`setsid`), so no signal to the group reaches it.
  */
 async function stallingScript(name: string, stall: Stall = 'plain') {
   const pidFile = join(scratch, `${name}.pids`);
   const script = join(scratch, name);
+  const termProof = `sh -c "trap '' TERM; exec sleep 30" &`;
   const background =
     stall === 'leaves-a-term-proof-child'
-      ? `sh -c "trap '' TERM; exec sleep 30" &`
-      : 'sleep 30 &';
+      ? termProof
+      : stall === 'escapes-its-group'
+        ? `setsid ${termProof}`
+        : 'sleep 30 &';
   await writeFile(
     script,
     [
@@ -289,6 +298,51 @@ describe('bounded children', () => {
     expect(bystanders.filter(isAlive)).toEqual(bystanders);
   });
 
+  it.skipIf(!ON_LINUX)(
+    'stops what the child started outside its process group',
+    async () => {
+      const { script, pids } = await stallingScript(
+        'escaping',
+        'escapes-its-group',
+      );
+      const clock = new ProvisioningClock(FAST);
+      const err = await run(
+        'deno unzip',
+        script,
+        [],
+        clock.stage(FAST.unzipMs),
+        clock,
+      ).catch((e: unknown) => e);
+      expect((err as Error).message).toMatch(
+        /^\[video-toolchain\] deno unzip: timed out after \d+ ms \(deadline 2000 ms\)$/,
+      );
+      expect(await waitUntilGone(await pids())).toEqual([]);
+    },
+  );
+
+  it.skipIf(!ON_LINUX)(
+    'leaves processes it did not start alone while it stops one outside the group',
+    async () => {
+      // One bystander shares this worker's process group; one has a session
+      // of its own, as the escaped child does, but this stage never started it.
+      const bystanders = [
+        spawn('sleep', ['30'], { stdio: 'ignore' }),
+        spawn('sleep', ['30'], { detached: true, stdio: 'ignore' }),
+      ].map((child) => child.pid as number);
+      strays.push(...bystanders);
+      const { script, pids } = await stallingScript(
+        'escaping',
+        'escapes-its-group',
+      );
+      const clock = new ProvisioningClock(FAST);
+      await expect(
+        run('deno unzip', script, [], clock.stage(FAST.unzipMs), clock),
+      ).rejects.toThrow(/timed out/);
+      expect(await waitUntilGone(await pids())).toEqual([]);
+      expect(bystanders.filter(isAlive)).toEqual(bystanders);
+    },
+  );
+
   it('resolves on exit 0 and reports a nonzero exit without a timeout (controls)', async () => {
     const clock = new ProvisioningClock(FAST);
     await expect(
@@ -407,6 +461,41 @@ describe('provisionToolchain bounds', () => {
     );
     expect(await waitUntilGone(await pids())).toEqual([]);
   });
+
+  it.skipIf(!ON_LINUX)(
+    'stops a lookup child holding its stdout outside the group, and keeps no handle open',
+    async () => {
+      const cacheDir = await warmCache();
+      const pidFile = join(scratch, 'lookup.pids');
+      // #4084's receipt: the lookup starts `setsid sleep` — a session of its
+      // own, holding the captured stdout — and waits on it.
+      await fakeOnPath(
+        'which',
+        `setsid sleep 30 &\necho "$$ $!" > '${pidFile}'\nwait`,
+      );
+      const handles = liveChildHandles();
+      const startedAt = performance.now();
+      const err = await provisionToolchain({
+        cacheDir,
+        deadlines: FAST,
+      }).catch((e: unknown) => e);
+      const settledMs = performance.now() - startedAt;
+      const ids = (await readFile(pidFile, 'utf8'))
+        .trim()
+        .split(' ')
+        .map(Number);
+      strays.push(...ids);
+      expect((err as Error).message).toMatch(
+        /^\[video-toolchain\] ffmpeg lookup: timed out after \d+ ms \(deadline 2000 ms\)$/,
+      );
+      // Within the deadline and its two kill graces, plus scheduling slack.
+      expect(settledMs).toBeLessThan(
+        FAST.lookupMs + 2 * FAST.killGraceMs + 2_000,
+      );
+      expect(await waitUntilGone(ids)).toEqual([]);
+      await expect.poll(liveChildHandles).toBeLessThanOrEqual(handles);
+    },
+  );
 
   it.skipIf(!ON_LINUX)(
     'reports a stdout holder it could not stop, and keeps no handle open',

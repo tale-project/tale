@@ -31,8 +31,10 @@
  * Every stage is BOUNDED (`VIDEO_TOOLCHAIN_DEADLINES`): neither `fetch` nor a
  * spawned child has a deadline of its own, and a caller's timeout (a Vitest
  * hook's) rejects without cancelling anything. A stall therefore aborts its
- * download or stops the child it started, and rejects with a
- * `VideoToolchainError` naming the stage, its elapsed time and its deadline.
+ * download or stops the child it started — with what that child started, in
+ * its process group and (through `/proc`) outside it — and rejects with a
+ * `VideoToolchainError` naming the stage, its elapsed time and its deadline,
+ * plus whatever the cleanup could not stop.
  *
  * `'use node'`: this file lives under `convex/` (so the convex bundler analyses
  * it) and uses `node:child_process`/`node:fs` — the same runtime pin as
@@ -41,7 +43,7 @@
  */
 
 import { spawn, type StdioOptions } from 'node:child_process';
-import { existsSync, promises as fs } from 'node:fs';
+import { existsSync, promises as fs, readdirSync, readFileSync } from 'node:fs';
 import { arch, homedir, platform } from 'node:os';
 import { join } from 'node:path';
 
@@ -508,18 +510,113 @@ interface BoundedChildResult {
   spawnError?: Error;
 }
 
+/** A process as `/proc/<pid>/stat` shows it. */
+interface ProcEntry {
+  pid: number;
+  /** Its executable's name (15 characters at most), never its arguments. */
+  comm: string;
+  ppid: number;
+  pgid: number;
+  sid: number;
+  /** Start time since boot: a recycled pid never repeats it. */
+  startTime: string;
+  zombie: boolean;
+}
+
+function errorCode(err: unknown): unknown {
+  return err instanceof Error && 'code' in err ? err.code : undefined;
+}
+
+/** `/proc/<pid>/stat`, or undefined once that process is gone. */
+function readProcEntry(pid: number | string): ProcEntry | undefined {
+  let stat: string;
+  try {
+    stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+  } catch (err) {
+    // ENOENT/ESRCH: it ended between the listing and this read.
+    const code = errorCode(err);
+    if (code !== 'ENOENT' && code !== 'ESRCH') {
+      console.warn(
+        `[video-toolchain] could not read /proc/${pid}/stat:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    return undefined;
+  }
+  // `comm` is parenthesised and may itself hold spaces or parentheses.
+  const close = stat.lastIndexOf(')');
+  const fields = stat.slice(close + 2).split(' ');
+  return {
+    pid: Number(stat.slice(0, stat.indexOf(' '))),
+    comm: stat.slice(stat.indexOf('(') + 1, close),
+    zombie: fields[0] === 'Z',
+    ppid: Number(fields[1]),
+    pgid: Number(fields[2]),
+    sid: Number(fields[3]),
+    startTime: fields[19] ?? '',
+  };
+}
+
+/** True while `entry`'s pid still names that same, unreaped process. */
+function stillRunning(entry: ProcEntry): boolean {
+  const now = readProcEntry(entry.pid);
+  return now !== undefined && !now.zombie && now.startTime === entry.startTime;
+}
+
+/**
+ * What `pid` started that a signal to its process group misses: members of
+ * its session in another group (`setpgid`: GNU `timeout`, a job-control
+ * shell) and descendants that left the session too (`setsid`; sudo's pty
+ * monitor) — found in `/proc` by session and parentage, never by name. Read
+ * only while `pid` is unreaped: until then no other process can carry its
+ * number as a parent, a group or a session, so nothing unrelated matches.
+ * Empty without `/proc` (macOS), where the group signal is all there is.
+ */
+function startedOutsideGroup(pid: number): ProcEntry[] {
+  if (!existsSync('/proc/self/stat')) return [];
+  const table: ProcEntry[] = [];
+  for (const name of readdirSync('/proc')) {
+    if (!/^\d+$/.test(name)) continue;
+    const entry = readProcEntry(name);
+    if (entry && !entry.zombie) table.push(entry);
+  }
+  const children = new Map<number, ProcEntry[]>();
+  for (const entry of table) {
+    const siblings = children.get(entry.ppid);
+    if (siblings) siblings.push(entry);
+    else children.set(entry.ppid, [entry]);
+  }
+  const found = new Map<number, ProcEntry>();
+  const queue = [pid];
+  for (const entry of table) {
+    if (entry.sid !== pid || entry.pid === pid) continue;
+    found.set(entry.pid, entry);
+    queue.push(entry.pid);
+  }
+  for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
+    for (const entry of children.get(next) ?? []) {
+      if (entry.pid === pid || found.has(entry.pid)) continue;
+      found.set(entry.pid, entry);
+      queue.push(entry.pid);
+    }
+  }
+  return [...found.values()].filter((entry) => entry.pgid !== pid);
+}
+
 /**
  * Run one child under `deadline` — the `ytdlp.ts:runYtdlp` shape. `detached`
  * gives the child its own process group, so a stop reaches it and everything
  * IT started, and nothing else: on expiry, SIGTERM the group, SIGKILL it after
  * `killGraceMs` (or as soon as the child itself exits, for anything it left
  * behind), and reject with the stage's timeout — only once the child has
- * closed, so a caller never races a still-running child. If even SIGKILL
- * brings no `close` within another grace, reject anyway and say what is left:
- * a child that did not exit, or one that did while a process it started still
- * holds its stdout. That pipe is then closed on this side and the child
- * unref'd, so no handle of the stage keeps the process alive: the run stays
- * bounded.
+ * closed, so a caller never races a still-running child. What the child
+ * started outside its group (`startedOutsideGroup`) gets the same two signals,
+ * each process only while its pid still names it, and the stage settles once
+ * that is gone too. If even SIGKILL brings no `close` within another grace,
+ * reject anyway and say what is left: a child that did not exit, a process
+ * outside its group still running, or a holder of its stdout no listing
+ * found. That pipe is then closed on this side and the child unref'd, so no
+ * handle of the stage keeps the process alive: the run stays bounded.
  */
 function spawnBounded(
   stage: string,
@@ -547,11 +644,19 @@ function spawnBounded(
     // stdout, and may never come.
     let exited: string | undefined;
     let closed = false;
+    // What the child started outside its group, listed while it lived:
+    // signalled beside the group, and named if it outlives the cleanup.
+    const outside = new Map<
+      number,
+      { entry: ProcEntry; unreachable: boolean }
+    >();
     const timers: NodeJS.Timeout[] = [];
+    let poll: NodeJS.Timeout | undefined;
     const settle = (fn: () => void): void => {
       if (settled) return;
       settled = true;
       for (const t of timers) clearTimeout(t);
+      clearInterval(poll);
       fn();
     };
     const killGroup = (signal: NodeJS.Signals): void => {
@@ -577,6 +682,40 @@ function spawnBounded(
       }
     };
 
+    const stop = (signal: NodeJS.Signals): void => {
+      if (exited === undefined && child.pid !== undefined) {
+        try {
+          for (const entry of startedOutsideGroup(child.pid)) {
+            if (!outside.has(entry.pid)) {
+              outside.set(entry.pid, { entry, unreachable: false });
+            }
+          }
+        } catch (err) {
+          console.warn(
+            `[video-toolchain] ${stage}: could not list what pid ${child.pid} started:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
+      killGroup(signal);
+      for (const [pid, held] of outside) {
+        if (!stillRunning(held.entry)) {
+          outside.delete(pid);
+          continue;
+        }
+        try {
+          // A leader of its own group (`setsid`) takes its group with it:
+          // every member descends from it, including any it starts late.
+          process.kill(held.entry.pgid === pid ? -pid : pid, signal);
+        } catch (err) {
+          // EPERM: another user's process — the root child sudo starts. The
+          // privileged side bounds that one; named below if it outlives this.
+          if (errorCode(err) === 'ESRCH') outside.delete(pid);
+          else held.unreachable = true;
+        }
+      }
+    };
+
     // Reject with the timeout, plus what the cleanup left behind — only what
     // was seen: the child's own `exit` tells a child that never exited from
     // one whose stdout something else still holds.
@@ -584,7 +723,14 @@ function spawnBounded(
       const left: string[] = [];
       if (exited === undefined) {
         left.push(`pid ${child.pid} did not exit after SIGKILL`);
-      } else if (!closed) {
+      }
+      for (const { entry, unreachable } of outside.values()) {
+        if (!stillRunning(entry)) continue;
+        left.push(
+          `pid ${entry.pid} (${entry.comm}), outside its process group, ${unreachable ? 'could not be signalled' : 'still runs after SIGKILL'}`,
+        );
+      }
+      if (exited !== undefined && !closed) {
         left.push(
           `pid ${child.pid} ${exited}, but a process it started still holds its stdout after the group SIGKILL`,
         );
@@ -607,10 +753,10 @@ function spawnBounded(
       setTimeout(() => {
         const detail = timeoutDetail(deadline, startedAt);
         timedOut = detail;
-        killGroup('SIGTERM');
+        stop('SIGTERM');
         timers.push(
           setTimeout(() => {
-            killGroup('SIGKILL');
+            stop('SIGKILL');
             timers.push(setTimeout(() => finish(detail), killGraceMs));
           }, killGraceMs),
         );
@@ -641,9 +787,18 @@ function spawnBounded(
       closed = true;
       if (settled) return;
       if (timedOut !== undefined) {
-        // The child is gone; stop whatever it left behind in its group.
-        killGroup('SIGKILL');
-        finish(timedOut);
+        // The child is gone; stop whatever it left behind, in its group or
+        // not, and settle once that is gone — the final grace still bounds it.
+        stop('SIGKILL');
+        const detail = timedOut;
+        const finishOnceStopped = (): void => {
+          for (const { entry } of outside.values()) {
+            if (stillRunning(entry)) return;
+          }
+          finish(detail);
+        };
+        finishOnceStopped();
+        if (!settled) poll = setInterval(finishOnceStopped, 25);
         return;
       }
       settle(() => resolve({ code, signal, stdout }));
