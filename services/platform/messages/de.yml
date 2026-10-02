@@ -8768,7 +8768,7 @@ sandboxes:
     destroy: Löschen
   destroyConfirm:
     title: Sandbox löschen?
-    description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Beim nächsten Lauf des Agenten entsteht eine neue Sandbox.
+    description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Sobald sie entfernt ist, entsteht beim nächsten Lauf des Agenten eine neue Sandbox.
     confirm: Löschen
   toast:
     stopped: Aufgabe gestoppt

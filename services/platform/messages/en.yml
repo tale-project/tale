@@ -8450,7 +8450,7 @@ sandboxes:
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description: This deletes the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
+    description: This deletes the sandbox and its workspace. Any running task is cancelled. Once it is gone, the agent's next run creates a fresh sandbox.
     confirm: Destroy
   toast:
     stopped: Task stopped

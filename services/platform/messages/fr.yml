@@ -8861,7 +8861,7 @@ sandboxes:
     destroy: Supprimer
   destroyConfirm:
     title: Supprimer la sandbox ?
-    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Le prochain lancement de l'agent crée une nouvelle sandbox.
+    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Une fois la sandbox supprimée, le prochain lancement de l'agent en crée une nouvelle.
     confirm: Supprimer
   toast:
     stopped: Tâche arrêtée
