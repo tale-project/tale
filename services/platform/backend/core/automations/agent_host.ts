@@ -1250,6 +1250,7 @@ export function classifyWorkflowStartFailure(
   failureCode: WorkflowAgentFailureCode;
   retryAtMs?: number;
   retryAfterMs?: number;
+  roomQueued?: true;
 } {
   if (isTurnBudgetExceededError(err)) {
     return {
@@ -1264,6 +1265,7 @@ export function classifyWorkflowStartFailure(
       failureCode: 'sandbox_capacity',
       retryAtMs: now + noRoom.retryAfterMs,
       retryAfterMs: noRoom.retryAfterMs,
+      ...(noRoom.queue !== undefined ? { roomQueued: true as const } : {}),
     };
   }
   const retryAtMs = credentialRetryAtMs(err);
@@ -2242,6 +2244,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           ...(roomWait?.retryAfterMs !== undefined
             ? { retryAfterMs: roomWait.retryAfterMs }
             : {}),
+          ...(roomWait?.roomQueued === true ? { roomQueued: true } : {}),
           // Refused for room before anything launched, the delivery leaves
           // the asking conversation as it was: the re-kick resumes it with
           // this answer instead of starting the node over.

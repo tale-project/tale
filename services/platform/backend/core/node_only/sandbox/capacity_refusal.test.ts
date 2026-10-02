@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
-import { sandboxCapacityRefusal } from './capacity_refusal';
+import { queuedWakeAfterMs, sandboxCapacityRefusal } from './capacity_refusal';
 import { SpawnerBusyError } from './helpers/session_client';
 
 describe('sandboxCapacityRefusal', () => {
@@ -14,6 +14,33 @@ describe('sandboxCapacityRefusal', () => {
       scope: 'host',
       retryAfterMs: 15_000,
     });
+  });
+
+  it("carries the start's place in the spawner's line", () => {
+    const refusal = sandboxCapacityRefusal(
+      new SpawnerBusyError(45_000, { position: 4, waiting: 9 }),
+    );
+    expect(refusal).toStrictEqual({
+      scope: 'host',
+      retryAfterMs: 45_000,
+      queue: { position: 4, waiting: 9 },
+    });
+    expect(
+      sandboxCapacityRefusal(new SpawnerBusyError(45_000)),
+    ).not.toHaveProperty('queue');
+  });
+
+  it('wakes a start at its place only when the host keeps a line', () => {
+    const queued = sandboxCapacityRefusal(
+      new SpawnerBusyError(35_000, { position: 6, waiting: 9 }),
+    );
+    const unqueued = sandboxCapacityRefusal(new SpawnerBusyError(10_000));
+    const organization = sandboxCapacityRefusal(
+      new AppError({ code: 'QUOTA_EXCEEDED', message: 'At most 2 sessions' }),
+    );
+    expect(queued && queuedWakeAfterMs(queued)).toBe(35_000);
+    expect(unqueued && queuedWakeAfterMs(unqueued)).toBeUndefined();
+    expect(organization && queuedWakeAfterMs(organization)).toBeUndefined();
   });
 
   it("reads the organization's spent session budget in every shape it arrives in", () => {

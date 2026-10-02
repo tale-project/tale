@@ -377,6 +377,35 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     expect(parkedCursor(suspended)).toMatchObject({ roomRefusals: 3 });
   });
 
+  it('comes back when its place in the spawner’s line comes up, without backing off', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    const { ctx, kicks } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 5 * 60_000,
+        roomRefusals: 6,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          retryAfterMs: 15_000,
+          roomQueued: true,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    // The hint, and at most a second more — not the doubled window.
+    expect(kicks[0]?.notBefore).toBeGreaterThanOrEqual(before + 15_000);
+    expect(kicks[0]?.notBefore).toBeLessThanOrEqual(Date.now() + 16_000);
+  });
+
   it('waits afresh for room when a turn that ran meets a refusal hours after its first wait', async () => {
     // The node waited for room, then got it and ran; the agent asked a
     // question, and the resume after a late answer found no room. That is

@@ -102,11 +102,11 @@ Chaque espace de travail que Tale supprime de lui-même, pour l’une de ces rai
 
 ## Résoudre un démarrage bloqué
 
-Un démarrage qui ne trouve pas de place attend, sans rien te demander. Quand les limites de ton organisation sont occupées, ou que le déploiement est plein ou manque de mémoire, le travail démarre de lui-même dès qu’une place se libère :
+Un démarrage qui ne trouve pas de place attend, sans rien te demander. Quand les limites de ton organisation sont occupées, ou que le déploiement est plein ou manque de mémoire, le travail démarre de lui-même dès qu’une place se libère. Quand le déploiement lui-même est plein, sa place va au travail qui attend depuis le plus longtemps, quelle que soit son organisation, et chaque démarrage en attente sait quand vient son tour :
 
-- Une exécution de tâche attend dans la file. Elle est relancée dès qu’une session se termine, dans ton organisation ou dans une autre du même déploiement. Toutes les deux minutes, Tale relance aussi quelques exécutions en attente de chaque organisation, en commençant par celles qui attendent depuis le plus longtemps.
-- L’étape d’agent d’une automatisation réessaie après une pause, sans consommer ses nouvelles tentatives. La pause s’allonge tant que l’étape attend, jusqu’à environ deux minutes, et l’exécution affiche entre-temps **En attente d’une place de sandbox**. Après deux heures sans place, l’exécution échoue avec cette raison.
-- L’exploration reprend avec son lot suivant.
+- Une exécution de tâche attend dans la file. Elle est relancée dès qu’une session se termine, dans ton organisation ou dans une autre du même déploiement. Quand le déploiement est plein, elle est aussi relancée quand vient son tour. Toutes les deux minutes, Tale relance aussi quelques exécutions en attente de chaque organisation, en commençant par celles qui attendent depuis le plus longtemps.
+- L’étape d’agent d’une automatisation réessaie sans consommer ses nouvelles tentatives : quand vient son tour si le déploiement est plein, sinon après une pause qui s’allonge tant que l’étape attend, jusqu’à environ deux minutes. L’exécution affiche entre-temps **En attente d’une place de sandbox**. Après deux heures sans place, l’exécution échoue avec cette raison.
+- L’exploration attend son tour, puis reprend avec son lot suivant.
 
 Augmente une limite uniquement lorsque ses allocations sont occupées et que le nouveau total tient dans la capacité partagée. Si le déploiement est plein, augmenter la limite de l’organisation ne crée pas d’infrastructure. Pour ajouter ta propre capacité, [connecte un appareil](/fr/platform/admin/sandbox-devices) : les nouveaux espaces de travail y démarrent. Sinon, demande à l’opérateur d’examiner la capacité et les ressources de l’hôte. Une place libre ne garantit pas assez de CPU ou de mémoire.
 

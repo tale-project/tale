@@ -26,6 +26,7 @@ import {
   parseRenderResults,
   RENDER_WORKER_SOURCE,
   RenderCapacityError,
+  renderCapacityPollMs,
   renderUrlsInSandbox,
 } from './render_fetch';
 
@@ -337,6 +338,38 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
       'destroy',
       'markSessionRowDestroyed',
     ]);
+  });
+
+  it('a waiting scan asks again at its place’s hint, within bounds, else at its own poll', () => {
+    const wait = (hint?: number) =>
+      renderCapacityPollMs(new RenderCapacityError('busy', hint), 15_000);
+    expect(wait()).toBe(15_000);
+    expect(wait(25_000)).toBe(25_000);
+    expect(wait(1_000)).toBe(5_000);
+    expect(wait(300_000)).toBe(60_000);
+  });
+
+  it('a host that keeps a line hands its place’s hint to the wait', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    const { SpawnerBusyError } = await import('./helpers/session_client');
+    spawner.sessionCreate.mockImplementationOnce(async () => {
+      throw new SpawnerBusyError(25_000, { position: 4, waiting: 6 });
+    });
+    const queued = await run.render().catch((error: unknown) => error);
+    expect(queued).toBeInstanceOf(RenderCapacityError);
+    expect(queued instanceof RenderCapacityError && queued.retryAfterMs).toBe(
+      25_000,
+    );
+    spawner.sessionCreate.mockImplementationOnce(async () => {
+      throw new SpawnerBusyError(15_000);
+    });
+    const unqueued = await renderRun('row_2')
+      .render()
+      .catch((error: unknown) => error);
+    expect(
+      unqueued instanceof RenderCapacityError && unqueued.retryAfterMs,
+    ).toBeUndefined();
   });
 
   it('a sandbox host at capacity is a wait for room, not a failed batch', async () => {

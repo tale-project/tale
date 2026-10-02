@@ -117,10 +117,32 @@ export interface RenderBatchArgs {
  * had fetched (2026-09-18 evaluation, J6-3).
  */
 export class RenderCapacityError extends Error {
-  constructor(message: string) {
+  /** When to ask again, from a sandbox host that keeps a first-come line
+   * and said when this render's place comes up; undefined otherwise. */
+  readonly retryAfterMs: number | undefined;
+  constructor(message: string, retryAfterMs?: number) {
     super(message);
     this.name = 'RenderCapacityError';
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+/** A sandbox host that keeps a first-come line says when the render's
+ * place comes up; a waiting scan asks again then, within these bounds. */
+const RENDER_QUEUED_POLL_MIN_MS = 5_000;
+const RENDER_QUEUED_POLL_MAX_MS = 60_000;
+
+/** How long a render refused for room waits before asking again: its
+ * place's hint when the host gave one, else the caller's own poll. */
+export function renderCapacityPollMs(
+  error: RenderCapacityError,
+  fallbackMs: number,
+): number {
+  if (error.retryAfterMs === undefined) return fallbackMs;
+  return Math.min(
+    Math.max(error.retryAfterMs, RENDER_QUEUED_POLL_MIN_MS),
+    RENDER_QUEUED_POLL_MAX_MS,
+  );
 }
 
 /** Whether a slot-reservation failure is the quota refusal (the sessions
@@ -242,6 +264,7 @@ export async function renderUrlsInSandbox(
       if (error instanceof SpawnerBusyError) {
         throw new RenderCapacityError(
           'the sandbox host is busy; the render waits for room',
+          error.queue !== undefined ? error.retryAfterMs : undefined,
         );
       }
       throw error;

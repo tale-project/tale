@@ -64,6 +64,7 @@ import {
   isStandardAgentRefusal,
   kickAgentRun,
   startedViaOfRun,
+  wakeParkedAgentRun,
 } from '../domains/tasks/agent-runs.ts';
 import {
   agentTurnShimHandlers,
@@ -1245,6 +1246,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         shim as unknown as Parameters<typeof steerTaskAgentTurnImpl>[0],
         input,
       );
+    },
+
+    'task.agent_park_wake': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          execId: z.string().min(1),
+        })
+        .parse(payload);
+      await wakeParkedAgentRun(deps.sql, input);
     },
 
     'task.agent_turn': async (payload) => {

@@ -377,7 +377,13 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:parkTaskAgentRunForCapacity': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; execId: string };
+      const args = raw as {
+        runId: string;
+        execId: string;
+        /** The sandbox host refused it and said when its place in line comes
+         * up: the run is woken then rather than at the watchdog's next tick. */
+        wakeAfterMs?: number;
+      };
       const parked = await sql.begin(async (tx) => {
         const rows = await tx<
           { organizationId: string; taskId: string; agentId: string }[]
@@ -397,6 +403,18 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             organizationId: row.organizationId,
             taskId: row.taskId,
           });
+          if (args.wakeAfterMs !== undefined && args.wakeAfterMs > 0) {
+            await addJobInTx(
+              tx,
+              'task.agent_park_wake',
+              {
+                organizationId: row.organizationId,
+                runId: args.runId,
+                execId: args.execId,
+              },
+              { startAfter: new Date(Date.now() + args.wakeAfterMs) },
+            );
+          }
         }
         return row;
       });

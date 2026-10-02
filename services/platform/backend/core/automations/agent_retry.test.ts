@@ -509,6 +509,22 @@ describe('sandboxRoomRetryAtMs', () => {
       random: () => draw,
     }) - NOW;
 
+  it('comes back at its place’s own hint, within a second, when the spawner keeps a line', () => {
+    const queued = (refusals: number, draw: number) =>
+      sandboxRoomRetryAtMs({
+        now: NOW,
+        retryAfterMs: 25_000,
+        refusals,
+        queued: true,
+        random: () => draw,
+      }) - NOW;
+    // No doubling however long the wait: the spawner paces its line.
+    for (const refusals of [1, 3, 40]) {
+      expect(queued(refusals, 0)).toBe(25_000);
+      expect(queued(refusals, 1)).toBe(26_000);
+    }
+  });
+
   it('never starts before the refusal’s retry hint', () => {
     for (const refusals of [1, 2, 5, 40]) expect(at(refusals, 0)).toBe(10_000);
   });

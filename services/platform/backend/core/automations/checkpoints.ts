@@ -80,6 +80,9 @@ export interface AgentTurnResult {
    * delay of the waiting node's next start grows from it
    * (`sandboxRoomRetryAtMs`). */
   retryAfterMs?: number;
+  /** The refusal named the start's place in the spawner's first-come line
+   * for host room: the next start comes back at the hint itself. */
+  roomQueued?: boolean;
   text: string;
   files: AgentTurnFile[];
   /** Outputs the harvest could not bring back (over a cap, unreadable,

@@ -102,11 +102,11 @@ Jeden Arbeitsbereich, den Tale von selbst löscht, aus einem dieser Gründe oder
 
 ## Einen blockierten Start klären
 
-Ein Start ohne freien Platz wartet, und du musst nichts tun. Sind die Limits deiner Organisation belegt oder ist das Deployment voll oder knapp an Speicher, startet die Arbeit von selbst, sobald Platz frei wird:
+Ein Start ohne freien Platz wartet, und du musst nichts tun. Sind die Limits deiner Organisation belegt oder ist das Deployment voll oder knapp an Speicher, startet die Arbeit von selbst, sobald Platz frei wird. Ist das Deployment selbst voll, geht sein Platz an die Arbeit, die am längsten wartet, egal aus welcher Organisation, und jeder wartende Start erfährt, wann er an der Reihe ist:
 
-- Ein Aufgabenlauf wartet in der Warteschlange. Er wird erneut versucht, sobald eine Sitzung endet, in deiner Organisation oder in einer anderen auf demselben Deployment. Zusätzlich versucht Tale alle zwei Minuten einige wartende Läufe jeder Organisation, die am längsten wartenden zuerst.
-- Der Agent-Schritt einer Automatisierung versucht es nach einer Pause erneut, ohne seine Wiederholungen zu verbrauchen. Die Pause wird länger, solange der Schritt weiter wartet, bis zu etwa zwei Minuten, und der Lauf zeigt währenddessen **Wartet auf einen Sandbox-Platz**. Findet er zwei Stunden lang keinen Platz, schlägt der Lauf mit diesem Grund fehl.
-- Das Crawling setzt mit dem nächsten Stapel fort.
+- Ein Aufgabenlauf wartet in der Warteschlange. Er wird erneut versucht, sobald eine Sitzung endet, in deiner Organisation oder in einer anderen auf demselben Deployment. Ist das Deployment voll, wird er auch versucht, wenn er an der Reihe ist. Zusätzlich versucht Tale alle zwei Minuten einige wartende Läufe jeder Organisation, die am längsten wartenden zuerst.
+- Der Agent-Schritt einer Automatisierung versucht es erneut, ohne seine Wiederholungen zu verbrauchen: wenn er an der Reihe ist, falls das Deployment voll ist, sonst nach einer Pause, die länger wird, solange der Schritt weiter wartet, bis zu etwa zwei Minuten. Der Lauf zeigt währenddessen **Wartet auf einen Sandbox-Platz**. Findet er zwei Stunden lang keinen Platz, schlägt der Lauf mit diesem Grund fehl.
+- Das Crawling wartet, bis es an der Reihe ist, und setzt dann mit dem nächsten Stapel fort.
 
 Erhöhe ein Arbeitslimit nur, wenn seine Plätze belegt sind und die neue Summe in die gemeinsame Kapazität passt. Ist das Deployment voll, schafft ein höheres Organisationslimit keine Infrastruktur. Für eigene Kapazität [verbindest du ein Gerät](/de/platform/admin/sandbox-devices): Neue Arbeitsbereiche starten dann darauf. Andernfalls lass den Betreiber Kapazität und Host-Ressourcen prüfen. Ein freier Containerplatz garantiert noch nicht genügend CPU oder Speicher.
 

@@ -9,7 +9,10 @@
  */
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
-import { SpawnerBusyError } from './helpers/session_client';
+import {
+  SpawnerBusyError,
+  type SpawnerQueuePlace,
+} from './helpers/session_client';
 
 /** How long a lane waits before asking again when the refusal names no
  * retry hint: the organization's own budget frees on a release edge, so a
@@ -20,6 +23,24 @@ export interface CapacityRefusal {
   /** Whose room ran out: the organization's budget, or the shared host. */
   scope: 'organization' | 'host';
   retryAfterMs: number;
+  /** The start's place in the spawner's first-come line for host room, when
+   * the spawner keeps one: `retryAfterMs` is then when that place comes up,
+   * and a lane comes back exactly then rather than after a backoff of its
+   * own — later, and the waiters behind it take the room. */
+  queue?: SpawnerQueuePlace;
+}
+
+/** When a refused start should be woken, or undefined to leave it to the
+ * release edges and the watchdog: only a host that keeps a first-come line
+ * says when the start's place comes up. An organization's own budget frees
+ * on its release edge, and an older host's fixed hint would only make every
+ * waiter ask in lockstep. */
+export function queuedWakeAfterMs(
+  refusal: CapacityRefusal,
+): number | undefined {
+  return refusal.scope === 'host' && refusal.queue !== undefined
+    ? refusal.retryAfterMs
+    : undefined;
 }
 
 /** The capacity refusal `err` is, or null when it is anything else. */
@@ -28,6 +49,7 @@ export function sandboxCapacityRefusal(err: unknown): CapacityRefusal | null {
     return {
       scope: 'host',
       retryAfterMs: err.retryAfterMs ?? DEFAULT_CAPACITY_RETRY_MS,
+      ...(err.queue !== undefined ? { queue: err.queue } : {}),
     };
   }
   if (isQuotaExceeded(err)) {

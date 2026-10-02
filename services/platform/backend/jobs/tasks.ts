@@ -117,6 +117,14 @@ export interface TaskPayloads {
   'automation.liveness': Record<string, never>;
   /** One project-agent turn against a task (driver lands with 25b). */
   'task.agent_turn': { organizationId: string; runId: string; execId: string };
+  /** Wake ONE run parked because the sandbox host refused its start, when
+   * the spawner said its place in line comes up: a no-op unless that run,
+   * under that exec, is still parked. */
+  'task.agent_park_wake': {
+    organizationId: string;
+    runId: string;
+    execId: string;
+  };
   /** One workflow-agent turn for an automation run's agent node. The payload
    * is the reused host's full start-args shape (validated by the handler). */
   'automation.agent_turn': Record<string, unknown>;
@@ -514,6 +522,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once LLM spend: the run ledger owns retries (auto-retry kicks a
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  // A wake claims its run or finds it gone: delivered twice, the second
+  // finds nothing parked. A lost one leaves the watchdog's wake.
+  'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   // Same posture as task.agent_drive: the window is long and a second drive
   // of the same exec would replay the ring buffer twice, so no pg-boss retry.

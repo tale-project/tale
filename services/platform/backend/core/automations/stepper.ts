@@ -1296,7 +1296,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       const resume = workflowAgentRetryResume(settled, reason, parked, {
         resumable: harnessResumesConversations(parked.harness),
       });
-      // A node waiting for sandbox room backs off past the refusal's hint,
+      // A node waiting for sandbox room comes back when its place in the
+      // spawner's line comes up, or else backs off past the refusal's hint,
       // more with each refusal in a row; any other refusal with a hint (a
       // broker pool cooling down) waits for exactly that.
       const now = Date.now();
@@ -1307,6 +1308,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
               settled.retryAfterMs ??
               Math.max((settled.retryAtMs ?? now) - now, 0),
             refusals: plan.roomRefusals ?? 1,
+            queued: settled.roomQueued === true,
           })
         : settled.retryAtMs;
       const kicked = await run.agent.kick({

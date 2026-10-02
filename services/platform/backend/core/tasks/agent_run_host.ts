@@ -52,7 +52,10 @@ import {
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
-import { sandboxCapacityRefusal } from '../node_only/sandbox/capacity_refusal';
+import {
+  queuedWakeAfterMs,
+  sandboxCapacityRefusal,
+} from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
@@ -1467,8 +1470,9 @@ export async function startTaskAgentTurnImpl(
       // No room is not a failure: the organization's session budget is
       // spent, or the sandbox host is at capacity or short of memory. Park
       // the run and let the next slot release (or the watchdog backstop,
-      // every two minutes) restart it. Everything else settles as a failure
-      // with the REAL reason.
+      // every two minutes) restart it — or, when the host keeps a line and
+      // said when the run's place comes up, a wake at that moment. Everything
+      // else settles as a failure with the REAL reason.
       const noRoom = sandboxCapacityRefusal(err);
       if (noRoom !== null) {
         console.warn(
@@ -1476,7 +1480,13 @@ export async function startTaskAgentTurnImpl(
         );
         await ctx.runMutation(
           internal.tasks.agent_runs.parkTaskAgentRunForCapacity,
-          { runId: args.runId, execId: args.execId },
+          {
+            runId: args.runId,
+            execId: args.execId,
+            ...(queuedWakeAfterMs(noRoom) !== undefined
+              ? { wakeAfterMs: queuedWakeAfterMs(noRoom) }
+              : {}),
+          },
         );
         return null;
       }

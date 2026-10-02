@@ -102,11 +102,11 @@ Every workspace Tale deletes on its own, for one of these reasons or for being u
 
 ## Resolve a blocked start
 
-A start that finds no room waits, and needs nothing from you. When your organization's limits are in use, or the deployment is full or short of memory, the work starts on its own once room frees:
+A start that finds no room waits, and needs nothing from you. When your organization's limits are in use, or the deployment is full or short of memory, the work starts on its own once room frees. When the deployment itself is full, its room goes to the work that has waited longest, whichever organization it belongs to, and each waiting start is told when its turn comes:
 
-- A task run waits in the queue. It is tried again as soon as a session ends, in your organization or in another one on the same deployment. Every two minutes, Tale also tries a few of each organization's waiting runs, the longest-waiting first.
-- An automation's agent step tries again after a pause without using up its retries. The pause grows while the step keeps waiting, up to about two minutes, and the run shows **Waiting for a sandbox slot** meanwhile. After two hours without room, the run fails with that reason.
-- Crawling continues with its next batch.
+- A task run waits in the queue. It is tried again as soon as a session ends, in your organization or in another one on the same deployment. When the deployment is full, it is also tried when its turn comes. Every two minutes, Tale also tries a few of each organization's waiting runs, the longest-waiting first.
+- An automation's agent step tries again without using up its retries: when its turn comes if the deployment is full, otherwise after a pause that grows while the step keeps waiting, up to about two minutes. The run shows **Waiting for a sandbox slot** meanwhile. After two hours without room, the run fails with that reason.
+- Crawling waits for its turn, then continues with its next batch.
 
 Raise a workload limit only when its allocations are full and the new total fits shared capacity. If the deployment itself is full, increasing an organization limit cannot create infrastructure. To add capacity of your own, [connect a device](/platform/admin/sandbox-devices): new workspaces start on it. Otherwise, ask the operator to inspect capacity and host resources; a free container slot alone does not guarantee enough CPU or memory.
 

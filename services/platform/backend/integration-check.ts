@@ -41123,6 +41123,59 @@ async function checkTaskAgentRuns(
       turnJobsAfterPark === turnJobsBeforePark,
     `slot=${parkedSlot?.status ?? 'MISSING'}/stopped parked=${String(parkedRun?.parked)}/true turnJobs=${turnJobsBeforePark}→${turnJobsAfterPark}`,
   );
+  // A host that keeps a first-come line says when the run's place comes up:
+  // the park schedules ONE wake for then, which restarts the run once — a
+  // second delivery finds it un-parked and does nothing.
+  const parkWakeJobs = async (): Promise<Array<{ startAfter: Date }>> =>
+    sql<{ startAfter: Date }[]>`
+      SELECT start_after AS "startAfter" FROM pgboss.job
+      WHERE name = 'task.agent_park_wake' AND data ->> 'runId' = ${runId}
+    `;
+  const parkedAtMs = Date.now();
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+    wakeAfterMs: 20_000,
+  });
+  const wakeJobs = await parkWakeJobs();
+  const turnJobsBeforeTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const parkWake = createTaskList({ sql })['task.agent_park_wake'];
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  await parkWake?.({ organizationId: orgId, runId, execId });
+  const [timedWoken] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterTimedWake = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  const wakeAt = wakeJobs[0]?.startAfter.getTime() ?? 0;
+  record(
+    'a host refusal that names its place in line wakes the parked run then, once',
+    wakeJobs.length === 1 &&
+      wakeAt >= parkedAtMs + 19_000 &&
+      wakeAt <= Date.now() + 21_000 &&
+      !(timedWoken?.parked ?? true) &&
+      turnJobsAfterTimedWake === turnJobsBeforeTimedWake + 1,
+    `wakeJobs=${wakeJobs.length}/1 at=+${wakeAt - parkedAtMs}ms(want ~20000) parked=${String(timedWoken?.parked)}/false turnJobs=${turnJobsBeforeTimedWake}→${turnJobsAfterTimedWake} (want +1)`,
+  );
+  // Parked again, for the release edge below.
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
   // Back to `active` for the release edge below.
   await sql`
     UPDATE app.sandbox_sessions SET status = 'active'

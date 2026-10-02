@@ -61,11 +61,18 @@ export const SANDBOX_ROOM_MAX_WAIT_MS = 2 * 60 * 60_000;
  * past it, a node still waiting asks about once a minute on average. */
 export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
 
+/** The most a start that holds a place in the spawner's line comes back
+ * after its hint: enough to keep waiters refused together apart. */
+const QUEUED_RETRY_JITTER_MS = 1_000;
+
 /**
  * When the next start of a node waiting for sandbox room may run. Never
- * before the refusal's retry hint; past the hint, at a moment drawn at
- * random from a window that doubles with each refusal in a row, up to
- * {@link SANDBOX_ROOM_RETRY_CEILING_MS}. A full host answers every waiter
+ * before the refusal's retry hint. A spawner that keeps a first-come line
+ * for host room gives the place's own hint (`queued`): the start comes back
+ * then, within a second — later, and the waiters behind it take the room.
+ * Otherwise, past the hint, at a moment drawn at random from a window that
+ * doubles with each refusal in a row, up to
+ * {@link SANDBOX_ROOM_RETRY_CEILING_MS}: such a host answers every waiter
  * with the same hint, so a fixed delay kept the waiters in lockstep — a
  * burst of creates the spawner refused together, every ten seconds for as
  * long as the wait lasted; the doubling thins a long wait's attempts, and
@@ -77,12 +84,18 @@ export function sandboxRoomRetryAtMs(args: {
   retryAfterMs: number;
   /** Refusals in a row of this wait, the one being answered included. */
   refusals: number;
+  /** The refusal named the start's place in the spawner's line. */
+  queued?: boolean;
   random?: () => number;
 }): number {
   const hint = Math.min(
     Math.max(args.retryAfterMs, 0),
     SANDBOX_ROOM_RETRY_CEILING_MS,
   );
+  if (args.queued === true) {
+    const jitter = (args.random ?? Math.random)() * QUEUED_RETRY_JITTER_MS;
+    return args.now + hint + Math.round(jitter);
+  }
   const window = Math.min(
     SANDBOX_ROOM_RETRY_CEILING_MS,
     hint * 2 ** Math.max(1, args.refusals),

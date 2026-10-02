@@ -222,6 +222,22 @@ describe('startWorkflowAgentTurnImpl', () => {
 describe('classifyWorkflowStartFailure', () => {
   const NOW = 1_800_000_000_000;
 
+  it('marks a refusal that names a place in the spawner’s line', () => {
+    expect(
+      classifyWorkflowStartFailure(
+        new SpawnerBusyError(20_000, { position: 3, waiting: 8 }),
+        NOW,
+      ),
+    ).toMatchObject({
+      failureCode: 'sandbox_capacity',
+      retryAfterMs: 20_000,
+      roomQueued: true,
+    });
+    expect(
+      classifyWorkflowStartFailure(new SpawnerBusyError(20_000), NOW),
+    ).not.toHaveProperty('roomQueued');
+  });
+
   it('waits for sandbox room, host or organization, until the refusal’s retry hint', () => {
     expect(
       classifyWorkflowStartFailure(new SpawnerBusyError(15_000), NOW),

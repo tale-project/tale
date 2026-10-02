@@ -783,9 +783,7 @@ async function wakeOldestParkedAgentRun(
     ? scope.organizationId
     : scope.outsideOrganizationId;
   return sql.begin(async (tx) => {
-    const parked = await tx<
-      { id: string; organizationId: string; execId: string; taskId: string }[]
-    >`
+    const parked = await tx<ParkedRun[]>`
       SELECT id, org_id AS "organizationId", exec_id AS "execId",
              task_id AS "taskId"
       FROM app.project_agent_runs
@@ -800,20 +798,64 @@ async function wakeOldestParkedAgentRun(
     `;
     const run = parked[0];
     if (!run) return 0;
-    await tx`
-      UPDATE app.project_agent_runs SET
-        waiting_for_capacity_at_ms = NULL, updated_at_ms = ${Date.now()}
-      WHERE id = ${run.id}
+    await restartParkedRun(tx, run);
+    return 1;
+  });
+}
+
+interface ParkedRun {
+  id: string;
+  organizationId: string;
+  execId: string;
+  taskId: string;
+}
+
+/** Un-park a claimed run and re-enqueue its turn, in the claim's
+ * transaction. */
+async function restartParkedRun(
+  tx: TransactionSql,
+  run: ParkedRun,
+): Promise<void> {
+  await tx`
+    UPDATE app.project_agent_runs SET
+      waiting_for_capacity_at_ms = NULL, updated_at_ms = ${Date.now()}
+    WHERE id = ${run.id}
+  `;
+  await addJobInTx(tx, 'task.agent_turn', {
+    organizationId: run.organizationId,
+    runId: run.id,
+    execId: run.execId,
+  });
+  await emitTaskRunHint(tx, {
+    organizationId: run.organizationId,
+    taskId: run.taskId,
+  });
+}
+
+/** Wake ONE run parked because the sandbox host refused its start, when
+ * the spawner said its place in line comes up (`task.agent_park_wake`).
+ * Claims the run only while it is still parked under that exec and inside
+ * its deadline: a wake delivered twice, or after a release edge or the
+ * watchdog already woke it, does nothing. */
+export async function wakeParkedAgentRun(
+  sql: Sql,
+  args: { organizationId: string; runId: string; execId: string },
+): Promise<number> {
+  return sql.begin(async (tx) => {
+    const parked = await tx<ParkedRun[]>`
+      SELECT id, org_id AS "organizationId", exec_id AS "execId",
+             task_id AS "taskId"
+      FROM app.project_agent_runs
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND exec_id = ${args.execId}
+        AND status = 'queued'
+        AND waiting_for_capacity_at_ms IS NOT NULL
+        AND deadline_at_ms > ${Date.now()}
+      FOR UPDATE SKIP LOCKED
     `;
-    await addJobInTx(tx, 'task.agent_turn', {
-      organizationId: run.organizationId,
-      runId: run.id,
-      execId: run.execId,
-    });
-    await emitTaskRunHint(tx, {
-      organizationId: run.organizationId,
-      taskId: run.taskId,
-    });
+    const run = parked[0];
+    if (!run) return 0;
+    await restartParkedRun(tx, run);
     return 1;
   });
 }
