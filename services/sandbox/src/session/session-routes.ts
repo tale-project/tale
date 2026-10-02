@@ -1373,7 +1373,15 @@ export class SessionRoutes {
     });
   }
 
-  async handleExecCancel(sessionId: string, execId: string): Promise<Response> {
+  /** POST /v1/sessions/:id/exec/:execId/cancel — end an exec. With
+   * `keepLeftovers` (`?leftovers=keep`: a steer's restart), runnerd ends only
+   * the exec's own process group and holds what it left outside it for the
+   * exec that takes over; without, everything the exec started ends. */
+  async handleExecCancel(
+    sessionId: string,
+    execId: string,
+    mode: { keepLeftovers?: boolean } = {},
+  ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (!session) return jsonResponse({ error: 'not_found' }, 404);
     // Local abort (ends the SSE proxy) + tell runnerd to kill the process group.
@@ -1383,6 +1391,7 @@ export class SessionRoutes {
       killed = await runnerdCancelExec(
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         execId,
+        mode,
       );
     } catch (err) {
       if (await this.evictIfBackendGone(sessionId)) {

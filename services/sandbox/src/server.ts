@@ -241,12 +241,14 @@ async function handleSessionRoutes(
   if (req.method === 'POST' && execMatch) {
     return getSessionRoutes().handleExec(req, execMatch[1] ?? '', body);
   }
-  // POST /v1/sessions/:id/exec/:execId/cancel
+  // POST /v1/sessions/:id/exec/:execId/cancel[?leftovers=keep]
   const cancelMatch = path.match(SESSION_EXEC_CANCEL_RE);
   if (req.method === 'POST' && cancelMatch) {
+    // The query string is HMAC-covered (authorize signs pathname + search).
     return getSessionRoutes().handleExecCancel(
       cancelMatch[1] ?? '',
       cancelMatch[2] ?? '',
+      { keepLeftovers: url.searchParams.get('leftovers') === 'keep' },
     );
   }
   // GET /v1/sessions/:id/exec/:execId/attach (SSE reconnect)
