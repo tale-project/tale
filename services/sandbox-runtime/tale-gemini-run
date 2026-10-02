@@ -180,6 +180,10 @@ class Cancelled(BaseException):
 
 
 def _cancel(signum: int, _frame: object) -> None:
+    # The cleanup this starts must not be cut short by a second signal (a
+    # group SIGTERM after a Ctrl-C, the session's stop after a cancel).
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, signal.SIG_IGN)
     raise Cancelled(signum)
 
 
