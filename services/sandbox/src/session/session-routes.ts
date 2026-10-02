@@ -49,6 +49,39 @@ const RECLAIM_PROBE_BACKOFF_MS = 30_000;
  * image answers not-found (the caller retries) rather than a client timeout. */
 const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
 
+/** Sessions one sweep probes at once: a pass is bounded by the slowest few
+ * daemons, not by the sum of every probe (5 s each when a daemon hangs). */
+const SWEEP_CONCURRENCY = 8;
+
+/** Consecutive sweeps (one a minute) a running session's runnerd may fail to
+ * answer before it is taken for wedged: its compute is stopped, the workspace
+ * kept, so a slot and its limits are not held for the rest of a day-long TTL
+ * by a container nothing can use. */
+const WEDGED_PROBE_FAILURES = 5;
+
+/** How long removing an ended container/Pod that failed waits to be tried
+ * again. */
+const ENDED_REAP_BACKOFF_MS = 10 * 60_000;
+
+/** Run `work` over `items`, at most `limit` at a time. */
+async function forEachLimited<T>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const item = items[next];
+      next += 1;
+      if (item !== undefined) await work(item);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, lane),
+  );
+}
+
 /** Longest a create waits for a destroy of the same id under way. A destroy
  * settles once the compute is gone and the workspace moved aside (Docker
  * deletes it in the background), so the wait is normally short; past this
@@ -133,6 +166,22 @@ export class SessionRoutes {
   // Both `null` when idle; at most two lists are ever in flight.
   private resolving: Promise<BackendSession[]> | null = null;
   private resolvingNext: Promise<BackendSession[]> | null = null;
+
+  // The maintenance pass in flight: a pass slower than its interval (hung
+  // daemons, a slow dockerd) must not stack copies of itself.
+  private maintaining: Promise<void> | null = null;
+  // The build-cache reconcile adoption started, which runs beside the API
+  // rather than ahead of it (one organization's helper recreate takes up to
+  // minutes); the sweep's own maintenance waits for it.
+  private reconciling: Promise<void> = Promise.resolve();
+  // Consecutive failed health probes of a session's incarnation.
+  private readonly probeFailures = new Map<
+    string,
+    { count: number; createdAtMs: number }
+  >();
+  // Ended compute whose removal failed, by failure time: retried after a
+  // back-off rather than on (and logged by) every sweep.
+  private readonly endedReapFailedAtMs = new Map<string, number>();
 
   /**
    * @param isDraining Read on every registry miss: a lingering (draining)
@@ -271,12 +320,22 @@ export class SessionRoutes {
     return decision;
   }
 
-  /** Reclaim the oldest released idle session, if any. Candidates that
-   * failed their last probe within the back-off window are skipped: a
-   * wedged daemon costs one health timeout per window, not one per create. */
+  /** Reclaim the released idle session that has been idle longest, if any.
+   * Candidates that failed their last probe within the back-off window are
+   * skipped: a wedged daemon costs one health timeout per window, not one per
+   * create. A candidate a concurrent create is already stopping frees that
+   * create's slot, so each create at capacity claims a session of its own and
+   * shares a sibling's stop only when nothing else is left. */
   private async reclaimOneIdle(): Promise<boolean> {
     const now = Date.now();
-    for (const session of this.registry.list()) {
+    const idleSince = (session: RegistrySession) =>
+      session.lastActivityAtMs ?? session.createdAtMs;
+    const candidates = this.registry
+      .list()
+      .filter((session) => !session.pinned && session.liveExecs.size === 0)
+      .sort((a, b) => idleSince(a) - idleSince(b));
+    for (const session of candidates) {
+      if (this.stopping.has(session.sessionId)) continue;
       const failedAt = this.probeFailedAtMs.get(session.sessionId);
       if (
         failedAt !== undefined &&
@@ -286,6 +345,10 @@ export class SessionRoutes {
         continue;
       }
       if (await this.reclaimIdle(session)) return true;
+    }
+    for (const session of candidates) {
+      const pending = this.stopping.get(session.sessionId);
+      if (pending !== undefined && (await pending)) return true;
     }
     return false;
   }
@@ -411,6 +474,7 @@ export class SessionRoutes {
   private forgetReclaimMarks(sessionId: string): void {
     this.reclaimClaims.delete(sessionId);
     this.probeFailedAtMs.delete(sessionId);
+    this.probeFailures.delete(sessionId);
   }
 
   /**
@@ -433,28 +497,115 @@ export class SessionRoutes {
       return;
     }
     const adopted: BackendSession[] = [];
+    const ended: BackendSession[] = [];
     for (const s of sessions) {
       // A create in flight on this replica registers itself when it completes;
       // adopting it early would race that registration.
       if (this.registry.has(s.sessionId) || this.creating.has(s.sessionId)) {
         continue;
       }
+      if (s.ended === true) {
+        ended.push(s);
+        continue;
+      }
       if (s.state !== 'ready') continue;
       const registered = await this.adoptSession(s);
       if (registered !== undefined) adopted.push(s);
     }
+    await this.reapEnded(ended);
 
-    // Heal the shared build cache for every org whose session was just adopted.
-    // The buildkitd outlives the spawner, so the same stack restart that bounced
-    // this spawner may have moved sandbox-egress to a new IP — leaving the
-    // daemon's egress fence stale. An adopted session that reuses it would build
-    // with no DNS/egress (the createSession heal never fires for it). Best-effort
-    // inside the backend; a no-op when there's no shared cache or nothing drifted.
-    if (adopted.length > 0) {
-      await this.backend.reconcileBuildCache(
-        adopted.map((s) => s.organizationId),
-      );
+    // Heal the shared build cache for every org whose agent session was just
+    // adopted (only agent sessions build). The buildkitd outlives the spawner,
+    // so the same stack restart that bounced this spawner may have moved
+    // sandbox-egress to a new IP — leaving the daemon's egress fence stale. An
+    // adopted session that reuses it would build with no DNS/egress (the
+    // createSession heal never fires for it). Best-effort inside the backend; a
+    // no-op when there's no shared cache or nothing drifted. It runs beside the
+    // API instead of ahead of it: a recreate per organization takes seconds to
+    // minutes, and the sessions are routable as soon as they are registered.
+    const builders = adopted
+      .filter((s) => s.profile === 'agent')
+      .map((s) => s.organizationId);
+    if (builders.length > 0) {
+      const previous = this.reconciling;
+      this.reconciling = previous
+        .then(() => this.backend.reconcileBuildCache(builders))
+        .catch((error: unknown) => {
+          console.warn(
+            '[sandbox.session] build-cache reconcile after adoption failed:',
+            error,
+          );
+        });
     }
+  }
+
+  /** Settles once the build-cache reconcile adoption started is done. */
+  buildCacheSettled(): Promise<void> {
+    return this.reconciling;
+  }
+
+  /** Containers/Pods whose process ended for good — a host reboot or daemon
+   * restart, an init killed by the OOM killer, an evicted Pod — are never
+   * adopted, and nothing but a resume or a destroy used to remove them: the
+   * container record stayed, and on Docker its inner image volume with it.
+   * Remove their compute as an idle stop does, fenced to that incarnation and
+   * keeping the workspace for the resume. */
+  private async reapEnded(ended: readonly BackendSession[]): Promise<void> {
+    const now = Date.now();
+    for (const s of ended) {
+      const id = s.sessionId;
+      const failedAt = this.endedReapFailedAtMs.get(id);
+      if (
+        this.registry.has(id) ||
+        this.creating.has(id) ||
+        this.stopping.has(id) ||
+        this.destroySettled.has(id) ||
+        (failedAt !== undefined && now - failedAt < ENDED_REAP_BACKOFF_MS)
+      ) {
+        continue;
+      }
+      const stop = this.backend
+        .stopSession(id, s.createdAtMs)
+        .then(
+          () => {
+            this.endedReapFailedAtMs.delete(id);
+            return true;
+          },
+          (error: unknown) => {
+            this.endedReapFailedAtMs.set(id, Date.now());
+            console.warn(
+              `[sandbox.session] removing the ended compute of ${id} failed (retried in ${ENDED_REAP_BACKOFF_MS / 60_000} min):`,
+              error,
+            );
+            return false;
+          },
+        )
+        .finally(() => {
+          this.stopping.delete(id);
+        });
+      this.stopping.set(id, stop);
+      if (await stop) {
+        console.log(
+          `[sandbox.session] removed the ended compute of ${id} (workspace preserved for resume)`,
+        );
+      }
+    }
+  }
+
+  /** One maintenance pass: adoption (never while draining — a lingering
+   * spawner must not adopt, and later linger-reap, the sessions its
+   * replacement is creating), then the reaper. A call while a pass is under
+   * way joins it instead of starting another. */
+  maintain(): Promise<void> {
+    if (this.maintaining !== null) return this.maintaining;
+    const pass = (async () => {
+      if (!this.isDraining()) await this.adoptExisting();
+      await this.sweepExpired();
+    })().finally(() => {
+      this.maintaining = null;
+    });
+    this.maintaining = pass;
+    return pass;
   }
 
   /** Register one backend-listed session in the cache, resolving its runnerd
@@ -582,113 +733,172 @@ export class SessionRoutes {
    */
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
-    for (const s of this.registry.list()) {
-      if (this.reclaimClaims.has(s.sessionId)) {
-        if (await this.reclaimIdle(s)) reaped += 1;
-        continue;
-      }
-      // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
-      if (s.pinned) continue;
-      // A session with a live exec is NEVER reaped — a long, QUIET tool (no
-      // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
-      // running task shouldn't be cut at the hard TTL either. The registry
-      // tracks in-flight execs on this replica; after a spawner restart its
-      // cache is cold, so the runnerd health.liveExecs check below is the
-      // backstop for a re-adopted busy session.
-      if (s.liveExecs.size > 0) continue;
-      let expired = nowMs > s.expiresAtMs;
-      // Local exec cache is cold (e.g. a spawner restart re-adopted this session
-      // with an empty liveExecs map), so consult runnerd's own clock. This probe
-      // gates BOTH the idle AND the TTL reap: a re-adopted exec that's been
-      // running past the hard TTL must not be stopped mid-task just because this
-      // replica's liveExecs map is empty. Run it unconditionally (not only when
-      // !expired) — that's the cold-cache backstop for a busy re-adopted session.
-      try {
-        const health = await runnerdHealth({
-          baseUrl: s.endpoint,
-          token: this.tokenFor(s.sessionId),
-        });
-        // Resume a frozen stop after a spawner restart through the same
-        // generation and backend-incarnation fences as pressure admission.
-        if (health.activity?.reclaiming) {
-          if (await this.reclaimIdle(s)) reaped += 1;
-          continue;
-        }
-        if (
-          health.liveExecs > 0 ||
-          (health.activity?.activeOperations ?? 0) > 0
-        )
-          continue;
-        if (!expired) {
-          expired = nowMs - health.lastActivityAtMs > s.idleTimeoutMs;
-        }
-      } catch (err) {
-        // runnerd unreachable. Distinguish a transient blip (leave for a
-        // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
-        // backend object is gone but the cache entry survived. Without
-        // this, a dead session lingers routable-but-unreachable until TTL.
-        console.warn(
-          `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
-          err,
-        );
-        if (await this.evictIfBackendGone(s.sessionId)) {
-          reaped += 1;
-          continue;
-        }
-        // Backend still present (transient blip): fall through to the TTL-only
-        // decision below — a not-yet-expired session is left for a later sweep.
-      }
-      if (expired) {
-        // A pressure claim may have begun while the health probe awaited.
-        // Its owner alone stops that incarnation, including retries.
-        if (
-          this.reclaimClaims.has(s.sessionId) ||
-          this.stopping.has(s.sessionId) ||
-          s.pinned ||
-          s.liveExecs.size > 0
-        )
-          continue;
-        // Stop, never destroy: idle/TTL release compute but keep the workspace
-        // so the session resumes with its data on the next turn. stopSession
-        // THROWS on a transient backend hiccup (its contract) — keep the
-        // registry entry so the next sweep retries, rather than dropping a
-        // still-running container from the cache and orphaning it until a
-        // restart re-adopts it.
-        // The shared handle settles to a boolean: an acquire or a create at
-        // capacity waiting on it must see a failed stop as `false`, never
-        // as a rejection it would answer with a 500.
-        const stop = this.backend
-          .stopSession(s.sessionId)
-          .then(
-            () => {
-              this.registry.delete(s.sessionId);
-              this.forgetReclaimMarks(s.sessionId);
-              return true;
-            },
-            (err: unknown) => {
-              console.warn(
-                '[sandbox.session] sweep stop failed (will retry next sweep):',
-                err,
-              );
-              return false;
-            },
-          )
-          .finally(() => {
-            this.stopping.delete(s.sessionId);
-          });
-        this.stopping.set(s.sessionId, stop);
-        if (await stop) reaped += 1;
-      }
-    }
+    await forEachLimited(
+      this.registry.list(),
+      SWEEP_CONCURRENCY,
+      async (session) => {
+        if (await this.sweepSession(session, nowMs)) reaped += 1;
+      },
+    );
     // No newly adopted session is required for maintenance: the last legacy
     // session may just have stopped, allowing its global build helpers to
     // retire. Empty orgIds performs cleanup without provisioning new builders.
     try {
+      await this.reconciling;
       await this.backend.reconcileBuildCache([]);
     } catch (error) {
       console.warn('[sandbox.session] build-cache maintenance failed:', error);
     }
     return reaped;
+  }
+
+  /** Does this session keep the full idle window once released? A
+   * Docker-in-sandbox session's resume starts its inner daemon on an empty
+   * image store, so stopping it early would cost every turn a re-pull. */
+  private keepsFullIdleWindow(session: RegistrySession): boolean {
+    return this.cfg.dockerInContainer && session.profile === 'agent';
+  }
+
+  /** Count a failed health probe of this incarnation; returns the streak. */
+  private noteProbeFailure(session: RegistrySession): number {
+    const previous = this.probeFailures.get(session.sessionId);
+    const count =
+      previous !== undefined && previous.createdAtMs === session.createdAtMs
+        ? previous.count + 1
+        : 1;
+    this.probeFailures.set(session.sessionId, {
+      count,
+      createdAtMs: session.createdAtMs,
+    });
+    return count;
+  }
+
+  /** The sweep's decision for one session: true when it stopped. */
+  private async sweepSession(
+    s: RegistrySession,
+    nowMs: number,
+  ): Promise<boolean> {
+    if (this.reclaimClaims.has(s.sessionId)) return this.reclaimIdle(s);
+    // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
+    if (s.pinned) return false;
+    // A session with a live exec is NEVER reaped — a long, QUIET tool (no
+    // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
+    // running task shouldn't be cut at the hard TTL either. The registry
+    // tracks in-flight execs on this replica; after a spawner restart its
+    // cache is cold, so the runnerd health.liveExecs check below is the
+    // backstop for a re-adopted busy session.
+    if (s.liveExecs.size > 0) return false;
+    let expired = nowMs > s.expiresAtMs;
+    let reason = expired ? 'lifetime' : 'idle';
+    // Local exec cache is cold (e.g. a spawner restart re-adopted this session
+    // with an empty liveExecs map), so consult runnerd's own clock. This probe
+    // gates BOTH the idle AND the TTL reap: a re-adopted exec that's been
+    // running past the hard TTL must not be stopped mid-task just because this
+    // replica's liveExecs map is empty. Run it unconditionally (not only when
+    // !expired) — that's the cold-cache backstop for a busy re-adopted session.
+    try {
+      const health = await runnerdHealth({
+        baseUrl: s.endpoint,
+        token: this.tokenFor(s.sessionId),
+      });
+      this.probeFailures.delete(s.sessionId);
+      s.lastActivityAtMs = health.lastActivityAtMs;
+      // Resume a frozen stop after a spawner restart through the same
+      // generation and backend-incarnation fences as pressure admission.
+      if (health.activity?.reclaiming) return this.reclaimIdle(s);
+      if (
+        health.liveExecs > 0 ||
+        (health.activity?.activeOperations ?? 0) > 0
+      ) {
+        return false;
+      }
+      const idleForMs = nowMs - health.lastActivityAtMs;
+      if (!expired) expired = idleForMs > s.idleTimeoutMs;
+      // Released by the platform (its turn or run settled, nothing holds it):
+      // a few idle minutes are enough. The stop goes through runnerd's
+      // claim, so a turn that acquires the session meanwhile keeps it.
+      if (
+        !expired &&
+        health.activity?.released === true &&
+        !this.keepsFullIdleWindow(s) &&
+        idleForMs > Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)
+      ) {
+        return this.reclaimIdle(s);
+      }
+    } catch (err) {
+      // runnerd unreachable. Distinguish a transient blip (leave for a
+      // later sweep; the TTL is the hard backstop) from a ZOMBIE — the
+      // backend object is gone but the cache entry survived. Without
+      // this, a dead session lingers routable-but-unreachable until TTL.
+      console.warn(
+        `[sandbox.session] sweep health probe failed for ${s.sessionId} (${s.endpoint}):`,
+        err,
+      );
+      if (await this.evictIfBackendGone(s.sessionId)) {
+        this.probeFailures.delete(s.sessionId);
+        return true;
+      }
+      // Backend still present: a blip, or a daemon that is never coming
+      // back. One that has not answered for several sweeps in a row holds a
+      // slot nothing can use; stop it (the workspace stays for the resume).
+      if (!expired && this.noteProbeFailure(s) >= WEDGED_PROBE_FAILURES) {
+        expired = true;
+        reason = 'unreachable';
+      }
+    }
+    if (!expired) return false;
+    // A pressure claim may have begun while the health probe awaited.
+    // Its owner alone stops that incarnation, including retries.
+    if (
+      this.reclaimClaims.has(s.sessionId) ||
+      this.stopping.has(s.sessionId) ||
+      s.pinned ||
+      s.liveExecs.size > 0
+    ) {
+      return false;
+    }
+    // Stop, never destroy: idle/TTL release compute but keep the workspace
+    // so the session resumes with its data on the next turn. stopSession
+    // THROWS on a transient backend hiccup (its contract) — keep the
+    // registry entry so the next sweep retries, rather than dropping a
+    // still-running container from the cache and orphaning it until a
+    // restart re-adopts it. The stop is fenced to the incarnation this
+    // entry describes: a replacement under the same id is never touched.
+    // The shared handle settles to a boolean: an acquire or a create at
+    // capacity waiting on it must see a failed stop as `false`, never as a
+    // rejection it would answer with a 500.
+    const stop = this.backend
+      .stopSession(s.sessionId, s.createdAtMs)
+      .then(
+        () => {
+          this.forgetReclaimed(s);
+          this.probeFailures.delete(s.sessionId);
+          if (reason === 'unreachable') {
+            console.warn(
+              `[sandbox.session] stopped ${s.sessionId}: runnerd did not answer ${WEDGED_PROBE_FAILURES} sweeps in a row (workspace preserved)`,
+            );
+          }
+          return true;
+        },
+        (err: unknown) => {
+          if (err instanceof SessionIncarnationChangedError) {
+            // A replacement now lives under the id; this entry is stale and
+            // the next adoption registers the replacement.
+            this.forgetReclaimed(s);
+            return false;
+          }
+          console.warn(
+            '[sandbox.session] sweep stop failed (will retry next sweep):',
+            err,
+          );
+          return false;
+        },
+      )
+      .finally(() => {
+        this.stopping.delete(s.sessionId);
+      });
+    this.stopping.set(s.sessionId, stop);
+    return stop;
   }
 
   private toInfo(sessionId: string): SessionInfo | null {
@@ -1359,6 +1569,9 @@ export class SessionRoutes {
           await this.evictIfBackendGone(sessionId);
         }
       } catch (err) {
+        // The caller hung up (the platform ends its stream at every drain
+        // window): nobody reads an error, and the backend is not suspect.
+        if (req.signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
@@ -1505,6 +1718,8 @@ export class SessionRoutes {
         );
         if (!found) send('error', { message: `exec ${execId} not found` });
       } catch (err) {
+        // The caller hung up: see handleExec.
+        if (req.signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });

@@ -129,6 +129,11 @@ export interface SessionConfig {
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */
   maxIdleMs: number;
+  /** Idle window for a session the platform has RELEASED (its turn or run
+   * settled, nothing holds it): stopped once idle this long instead of after
+   * the full {@link maxIdleMs}. Docker-in-sandbox sessions keep the full
+   * window, since their resume rebuilds an empty inner image store. */
+  releasedIdleMs: number;
   /** Max time the spawner will LINGER (keep serving its sessions) after a deploy
    * put it into drain mode before it reclaims that compute itself
    * (CLI-independent safety net). Workspaces are preserved for resume. See

@@ -86,6 +86,8 @@ let legacyDaemon = false;
 // probed, for the probe back-off assertions.
 const deadDaemons = new Set<string>();
 const healthProbes = new Map<string, number>();
+// Per-daemon activity clocks (by session token), over fakeHealth's shared one.
+const daemonLastActivity = new Map<string, number>();
 
 function ndjson(lines: object[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
@@ -110,7 +112,8 @@ beforeAll(() => {
         return Response.json({
           ok: true,
           bootedAtMs: 0,
-          lastActivityAtMs: fakeHealth.lastActivityAtMs,
+          lastActivityAtMs:
+            daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
@@ -242,6 +245,26 @@ beforeAll(() => {
         });
       }
       if (url.pathname.endsWith('/attach')) {
+        if (url.pathname.includes('/hang-')) {
+          // A live exec whose output is quiet: the attach stays open.
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    ndjson([
+                      {
+                        t: 'stdout',
+                        b64: Buffer.from('live').toString('base64'),
+                      },
+                    ]),
+                  ),
+                );
+              },
+            }),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         return new Response(
           ndjson([
             { t: 'stdout', b64: Buffer.from('replayed').toString('base64') },
@@ -378,6 +401,7 @@ beforeEach(() => {
   legacyDaemon = false;
   deadDaemons.clear();
   healthProbes.clear();
+  daemonLastActivity.clear();
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -1318,9 +1342,11 @@ describe('SessionRoutes (fake runnerd)', () => {
           reconciled.push([...orgIds]);
         },
       };
-      await new SessionRoutes(cfg, reconcileBackend).adoptExisting();
-      // Called once, with every running session's org (drift healing is keyed
-      // per org; the backend dedups to the single v1 daemon).
+      const routes = new SessionRoutes(cfg, reconcileBackend);
+      await routes.adoptExisting();
+      await routes.buildCacheSettled();
+      // Called once, with every running agent session's org (drift healing
+      // is keyed per org).
       expect(reconciled).toEqual([['org_a', 'org_b']]);
     });
 
@@ -2129,6 +2155,241 @@ describe('workspace cleanup routes', () => {
       error: 'destroy_failed',
       sessionId: 'stuck-1',
     });
+  });
+});
+
+describe('sweep and adoption hygiene', () => {
+  const tokenOf = (id: string) => deriveRunnerdToken(cfg.sandboxToken, id);
+  const create = (
+    routes: SessionRoutes,
+    id: string,
+    profile: 'agent' | 'default' = 'default',
+  ) =>
+    routes.handleCreate(
+      JSON.stringify({ sessionId: id, organizationId: 'org_hygiene', profile }),
+    );
+  const release = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return routes.handleActivity(id, 'release', JSON.stringify(ticket));
+  };
+
+  test('a maintenance pass still running is joined, not stacked', async () => {
+    const listing = Promise.withResolvers<BackendSession[]>();
+    let lists = 0;
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions() {
+        lists += 1;
+        return listing.promise;
+      },
+    });
+    const first = routes.maintain();
+    const second = routes.maintain();
+    listing.resolve([]);
+    await Promise.all([first, second]);
+    expect(lists).toBe(1);
+    await routes.maintain();
+    expect(lists).toBe(2);
+  });
+
+  test('ended compute is removed by its incarnation, the workspace kept, and a failure backs off', async () => {
+    const stops: Array<[string, number | undefined]> = [];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        return [
+          {
+            ...mkBackendSession('exited-1', 'org_a'),
+            createdAtMs: 5,
+            state: 'degraded',
+            ended: true,
+          },
+          {
+            ...mkBackendSession('exited-stuck', 'org_a'),
+            state: 'degraded',
+            ended: true,
+          },
+          {
+            ...mkBackendSession('starting-1', 'org_a'),
+            state: 'degraded',
+          },
+          mkBackendSession('running-1', 'org_a'),
+        ];
+      },
+      async stopSession(sessionId: string, expectedCreatedAtMs?: number) {
+        stops.push([sessionId, expectedCreatedAtMs]);
+        if (sessionId === 'exited-stuck')
+          throw new Error('docker rm timed out');
+        return true;
+      },
+    });
+    await routes.adoptExisting();
+    expect(stops).toEqual([
+      ['exited-1', 5],
+      ['exited-stuck', 1_000],
+    ]);
+    expect(destroyed.size).toBe(0);
+    expect((await routes.handleGet('running-1')).status).toBe(200);
+    // The failed removal waits out its back-off instead of retrying (and
+    // logging) on every sweep.
+    stops.length = 0;
+    await routes.adoptExisting();
+    expect(stops).toEqual([['exited-1', 5]]);
+  });
+
+  test('the build-cache reconcile after adoption covers agent sessions only and never holds adoption up', async () => {
+    const gate = Promise.withResolvers<void>();
+    const reconciled: string[][] = [];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        return [
+          mkBackendSession('builder-1', 'org_build'),
+          { ...mkBackendSession('render-1', 'org_render'), profile: 'default' },
+        ];
+      },
+      async reconcileBuildCache(orgIds: readonly string[]) {
+        await gate.promise;
+        reconciled.push([...orgIds]);
+      },
+    });
+    expect(await settlesWithin(routes.adoptExisting(), 1_000)).toBe(true);
+    expect((await routes.handleGet('builder-1')).status).toBe(200);
+    expect(reconciled).toEqual([]);
+    gate.resolve();
+    await routes.buildCacheSettled();
+    expect(reconciled).toEqual([['org_build']]);
+  });
+
+  test('a released session stops after the short window; one still held keeps the full idle window', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'released-1');
+    await create(routes, 'held-1');
+    expect(await (await release(routes, 'released-1')).json()).toEqual({
+      released: true,
+    });
+    const now = Date.now();
+    fakeHealth.lastActivityAtMs = now - 6 * 60_000;
+    expect(await routes.sweepExpired(now)).toBe(1);
+    expect(stopped.has('released-1')).toBe(true);
+    expect(stopped.has('held-1')).toBe(false);
+    expect(destroyed.size).toBe(0);
+    // Under the short window, nothing goes.
+    fakeHealth.lastActivityAtMs = now - 60_000;
+    await create(routes, 'released-2');
+    await release(routes, 'released-2');
+    expect(await routes.sweepExpired(now)).toBe(0);
+  });
+
+  test('a released Docker-in-sandbox agent session keeps the full idle window', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      fakeBackend,
+    );
+    await create(routes, 'dind-1', 'agent');
+    await release(routes, 'dind-1');
+    const now = Date.now();
+    fakeHealth.lastActivityAtMs = now - 6 * 60_000;
+    expect(await routes.sweepExpired(now)).toBe(0);
+    fakeHealth.lastActivityAtMs = now - 31 * 60_000;
+    expect(await routes.sweepExpired(now)).toBe(1);
+    expect(stopped.has('dind-1')).toBe(true);
+  });
+
+  test('a running session whose runnerd stays unreachable is stopped after five sweeps', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'wedged-1');
+    await create(routes, 'wedged-pinned');
+    await routes.handleSetPinned(
+      'wedged-pinned',
+      JSON.stringify({ pinned: true }),
+    );
+    deadDaemons.add(tokenOf('wedged-1'));
+    deadDaemons.add(tokenOf('wedged-pinned'));
+    fakeHealth.lastActivityAtMs = Date.now();
+    for (let sweep = 1; sweep < 5; sweep += 1) {
+      expect(await routes.sweepExpired()).toBe(0);
+    }
+    expect(stopped.size).toBe(0);
+    expect(await routes.sweepExpired()).toBe(1);
+    expect(stopped.has('wedged-1')).toBe(true);
+    expect(stopped.has('wedged-pinned')).toBe(false);
+    expect(destroyed.size).toBe(0);
+  });
+
+  test('an answer resets the unreachable streak', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'flaky-1');
+    fakeHealth.lastActivityAtMs = Date.now();
+    deadDaemons.add(tokenOf('flaky-1'));
+    for (let sweep = 0; sweep < 4; sweep += 1) await routes.sweepExpired();
+    deadDaemons.delete(tokenOf('flaky-1'));
+    await routes.sweepExpired();
+    deadDaemons.add(tokenOf('flaky-1'));
+    for (let sweep = 0; sweep < 4; sweep += 1) await routes.sweepExpired();
+    expect(stopped.size).toBe(0);
+  });
+
+  test('concurrent creates at capacity each reclaim a released session of their own', async () => {
+    const capped = { ...cfg, session: { ...cfg.session, maxSessions: 3 } };
+    const routes = new SessionRoutes(capped, fakeBackend);
+    for (const id of ['warm-a', 'warm-b', 'warm-c']) {
+      await create(routes, id);
+      await release(routes, id);
+    }
+    const responses = await Promise.all(
+      ['new-a', 'new-b', 'new-c'].map((id) => create(routes, id)),
+    );
+    expect(responses.map((response) => response.status)).toEqual([
+      201, 201, 201,
+    ]);
+    expect([...stopped].sort()).toEqual(['warm-a', 'warm-b', 'warm-c']);
+    expect(routes.sessionCount()).toBe(3);
+  });
+
+  test('pressure reclamation takes the session idle longest', async () => {
+    const capped = { ...cfg, session: { ...cfg.session, maxSessions: 2 } };
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'busy-lately');
+    await create(routes, 'long-idle');
+    await release(routes, 'busy-lately');
+    await release(routes, 'long-idle');
+    const now = Date.now();
+    daemonLastActivity.set(tokenOf('busy-lately'), now - 1_000);
+    daemonLastActivity.set(tokenOf('long-idle'), now - 120_000);
+    // The sweep reads each daemon's clock; neither is past a window yet.
+    expect(await routes.sweepExpired(now)).toBe(0);
+    expect((await create(routes, 'incoming')).status).toBe(201);
+    expect([...stopped]).toEqual(['long-idle']);
+  });
+
+  test('a caller that hangs up on an attach does not make the backend suspect', async () => {
+    let existsChecks = 0;
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async sessionExists(sessionId: string) {
+        existsChecks += 1;
+        return fakeBackend.sessionExists(sessionId);
+      },
+    });
+    await create(routes, 'attach-1');
+    existsChecks = 0;
+    const caller = new AbortController();
+    const response = await routes.handleExecAttach(
+      new Request('http://spawner/v1/sessions/attach-1/exec/hang-1/attach', {
+        signal: caller.signal,
+      }),
+      'attach-1',
+      'hang-1',
+    );
+    const reader = response.body?.getReader();
+    await reader?.read();
+    caller.abort();
+    await reader?.cancel().catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(existsChecks).toBe(0);
   });
 });
 

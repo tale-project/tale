@@ -455,6 +455,14 @@ export function loadConfig(): SpawnerConfig {
       maxIdleMs: numEnv('SANDBOX_SESSION_MAX_IDLE_MS', 30 * 60 * 1000, {
         min: 60_000,
       }),
+      // A released session (its turn or run settled) costs a slot and its
+      // processes' memory while warm, and resumes in well under a second, so
+      // it is stopped after a few idle minutes rather than the full window.
+      releasedIdleMs: numEnv(
+        'SANDBOX_SESSION_RELEASED_IDLE_MS',
+        5 * 60 * 1000,
+        { min: 60_000 },
+      ),
       // How long a drained (lingering) spawner keeps serving its sessions after
       // a deploy before reclaiming their compute itself. 30 min covers a typical
       // long agent turn; the deploy CLI normally tears the spawner down sooner

@@ -53,9 +53,30 @@ always verifies; there is no unsigned mode.
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions
-(`SessionRoutes.adoptExisting`); a periodic reaper (`sweepExpired`) **stops**
-sessions past their TTL (registry check) or idle timeout (runnerd `/healthz`
-`lastActivityAtMs`).
+(`SessionRoutes.adoptExisting`); a maintenance pass every minute
+(`SessionRoutes.maintain`: adoption, then the reaper `sweepExpired`; a pass
+still running is joined, never stacked) **stops**:
+
+- sessions past their TTL (registry check) or idle timeout (runnerd `/healthz`
+  `lastActivityAtMs`);
+- a **released** session — one the platform released after its turn or run
+  settled, with no work holding it — once it has been idle for
+  `SANDBOX_SESSION_RELEASED_IDLE_MS` (5 minutes by default), through runnerd's
+  atomic claim, so a turn that acquires it meanwhile keeps it. A resume costs
+  well under a second on a warm image, so holding the slot and the memory of an
+  idle session for the full idle window bought little. Agent sessions with
+  Docker inside keep the full window: their resume starts the inner daemon on
+  an empty image store;
+- a running session whose runnerd has not answered five sweeps in a row (a
+  wedged daemon used to hold its slot and limits until the 24 h TTL);
+- compute whose process ended for good — a container exited or dead after a
+  host reboot or an OOM-killed init, a Pod Failed or evicted — which adoption
+  never registers and which used to stay (with, on Docker, its inner image
+  volume) until a resume or a destroy.
+
+Every such stop is fenced to the incarnation the registry or listing
+describes, and keeps the workspace. The pass probes at most eight daemons at a
+time, so a few hung ones bound it rather than the sum of every probe.
 
 ### Capacity and idle reclamation
 
@@ -76,7 +97,9 @@ that belong to work before a reacquire.
 
 When admission reaches deployment capacity, runnerd can atomically freeze a
 released, unpinned session only if no request, file operation, staging operation
-or exec is in flight. The freeze blocks new work while the spawner removes
+or exec is in flight. The candidates are tried idle-longest first, and each
+create at capacity claims a session of its own: a burst of creates meeting a
+fleet of released sessions is admitted at once instead of one per retry. The freeze blocks new work while the spawner removes
 compute through `stopSession`, preserving the workspace. Busy, unresponsive and
 older daemons without this protocol are ineligible. The reclaim runs outside
 the admission lock — creates that still have room never queue behind a probe
@@ -113,7 +136,8 @@ continue (the platform keeps the same incarnation `createdAt`). Only
 (management page) and by the platform's [workspace cleanup](#workspace-cleanup);
 `evictIfBackendGone` evicts a stale registry entry without touching the
 workspace. Pinned ("always-on") and live-exec sessions are exempt from the
-reaper entirely.
+reaper entirely, except that compute which has already ended is removed (the
+pin's own reconcile recreates a pinned session).
 
 A destroy does not wait for the workspace's data to go. On Docker, once the
 container is confirmed gone, the `ses-<id>` dir is renamed into
