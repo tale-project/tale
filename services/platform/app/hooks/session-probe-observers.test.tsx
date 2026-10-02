@@ -46,6 +46,7 @@ import { useAutomationSettingsValues } from '@/app/features/automations/hooks/us
 
 import { useActionQuery } from './use-action-query';
 import { useBackendQuery } from './use-backend-query';
+import { useSessionProbeSignedIn } from './use-session-probe';
 import { useSessionUser } from './use-session-user';
 
 const ADAPTED_READ = 'fake:adapted' as QueryName;
@@ -84,6 +85,12 @@ function observers(client: QueryClient, queryKey: readonly unknown[]) {
       .find({ queryKey, exact: true })
       ?.getObserversCount() ?? 0
   );
+}
+
+/** Counts cache listeners from here on: a gate that listened per adapted read
+ *  would call every one of them on each of the board's cache events. */
+function spyCacheListeners(client: QueryClient) {
+  return vi.spyOn(client.getQueryCache(), 'subscribe');
 }
 
 function sharedObservers(client: QueryClient) {
@@ -141,6 +148,7 @@ function wrapperFor(client: QueryClient) {
 describe('session probe observers (#4062)', () => {
   it('adapted reads leave no observer on the probe or the Better Auth session, however many mount', () => {
     const client = newClient();
+    const listens = spyCacheListeners(client);
     const view = render(<Board client={client} cards={1} />);
     const oneCard = sharedObservers(client);
 
@@ -152,6 +160,7 @@ describe('session probe observers (#4062)', () => {
     // …and none of them to the two queries all of them share.
     expect(sharedObservers(client)).toEqual(oneCard);
     expect(oneCard).toEqual({ probe: 0, session: 0 });
+    expect(listens).not.toHaveBeenCalled();
 
     view.unmount();
     expect(observers(client, READ_KEY)).toBe(0);
@@ -159,11 +168,13 @@ describe('session probe observers (#4062)', () => {
 
   it('a read with no adapter row still waits for the probe, then refuses by name once it answers a user', async () => {
     const client = newClient(null);
+    const listens = spyCacheListeners(client);
     render(<GatedRead />, { wrapper: wrapperFor(client) });
 
     expect(screen.getByRole('status')).toHaveTextContent('idle · no error');
-    // The gate is a live subscription: the one read that reads the probe.
-    expect(sharedObservers(client)).toEqual({ probe: 1, session: 0 });
+    // The gate listens to the probe without joining its observers.
+    expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
+    expect(listens).toHaveBeenCalledTimes(1);
 
     act(() => {
       client.setQueryData(currentUserQuery().queryKey, USER);
@@ -180,9 +191,11 @@ describe('session probe observers (#4062)', () => {
     // Separate clients: both reads use the name's one `convex-retired` key, so
     // a shared cache would show the skipped read the other one's refusal.
     const open = newClient(null);
+    const openListens = spyCacheListeners(open);
     render(<GatedRead requireAuth={false} />, { wrapper: wrapperFor(open) });
 
     expect(sharedObservers(open)).toEqual({ probe: 0, session: 0 });
+    expect(openListens).not.toHaveBeenCalled();
     // requireAuth:false still runs while signed out, so it refuses at once.
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(
@@ -191,14 +204,16 @@ describe('session probe observers (#4062)', () => {
     });
 
     const skippedClient = newClient(null);
+    const skippedListens = spyCacheListeners(skippedClient);
     const skipped = renderHook(() => useBackendQuery(NO_ROW_READ, 'skip'), {
       wrapper: wrapperFor(skippedClient),
     });
     expect(skipped.result.current.fetchStatus).toBe('idle');
     expect(sharedObservers(skippedClient)).toEqual({ probe: 0, session: 0 });
+    expect(skippedListens).not.toHaveBeenCalled();
   });
 
-  it('an action read with no row gates on the probe; an adapted one does not subscribe', () => {
+  it('an action read with no row gates on the probe; an adapted one does not subscribe', async () => {
     const client = newClient(null);
     const gated = renderHook(
       () => useActionQuery(['items-walk'], NO_ROW_ACTION, {}),
@@ -206,40 +221,79 @@ describe('session probe observers (#4062)', () => {
     );
 
     expect(gated.result.current.fetchStatus).toBe('idle');
-    expect(sharedObservers(client)).toEqual({ probe: 1, session: 0 });
+    expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
+
+    act(() => {
+      client.setQueryData(currentUserQuery().queryKey, USER);
+    });
+    // The walk retries a plain error, so its first refusal shows as the
+    // failure reason before any final error.
+    await waitFor(() => {
+      expect(gated.result.current.failureReason?.message).toContain(
+        '"items:walk" has no 0.5 backend row',
+      );
+    });
 
     gated.unmount();
+    const listens = spyCacheListeners(client);
     renderHook(() => useActionQuery(ACTION_KEY, ADAPTED_ACTION, {}), {
       wrapper: wrapperFor(client),
     });
     expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
+    expect(listens).not.toHaveBeenCalled();
   });
 
   it('the automation settings read takes no probe subscription on its adapted lane', () => {
     const client = newClient(null);
+    const listens = spyCacheListeners(client);
     renderHook(
       () => useAutomationSettingsValues('org-1', 'project-1', null, null),
       { wrapper: wrapperFor(client) },
     );
 
     expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
+    expect(listens).not.toHaveBeenCalled();
   });
 
-  it('useSessionUser holds the probe alone, and reads it unsubscribed when asked', () => {
+  it('useSessionUser observes the probe alone, not the Better Auth session', () => {
     const client = newClient();
-    const wrapper = wrapperFor(client);
+    const held = renderHook(() => useSessionUser(), {
+      wrapper: wrapperFor(client),
+    });
 
-    const held = renderHook(() => useSessionUser(), { wrapper });
     expect(held.result.current).toEqual({
       isAuthenticated: true,
       isLoading: false,
     });
     expect(sharedObservers(client)).toEqual({ probe: 1, session: 0 });
+  });
 
-    const quiet = renderHook(() => useSessionUser({ subscribed: false }), {
-      wrapper,
+  it('useSessionProbeSignedIn follows the probe only when asked', () => {
+    const client = newClient(null);
+    const wrapper = wrapperFor(client);
+    let quietRenders = 0;
+    const quiet = renderHook(
+      () => {
+        quietRenders += 1;
+        return useSessionProbeSignedIn(false);
+      },
+      { wrapper },
+    );
+    const asked = renderHook(() => useSessionProbeSignedIn(true), { wrapper });
+    expect(asked.result.current).toBe(false);
+
+    act(() => {
+      client.setQueryData(currentUserQuery().queryKey, USER);
     });
-    expect(quiet.result.current.isAuthenticated).toBe(true);
-    expect(sharedObservers(client)).toEqual({ probe: 1, session: 0 });
+    expect(asked.result.current).toBe(true);
+    act(() => {
+      client.setQueryData(currentUserQuery().queryKey, null);
+    });
+    expect(asked.result.current).toBe(false);
+
+    // Not asked: it read nothing, and the probe's answers never re-rendered it.
+    expect(quiet.result.current).toBe(false);
+    expect(quietRenders).toBe(1);
+    expect(sharedObservers(client)).toEqual({ probe: 0, session: 0 });
   });
 });

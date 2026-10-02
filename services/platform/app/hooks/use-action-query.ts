@@ -16,7 +16,7 @@ import type {
 } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
-import { useSessionUser } from './use-session-user';
+import { useSessionProbeSignedIn } from './use-session-probe';
 
 interface ActionQueryOptions {
   enabled?: boolean;
@@ -68,11 +68,9 @@ export function useActionQuery<Name extends BackendName>(
   // Every shipped walk is served over HTTP (session cookie, no WebSocket-auth
   // gate) by its adapter row; a name without one has no server left.
   const adapter = ACTION_QUERY_ADAPTERS[name];
-  // Only a name without a row gates on the probe, so only it subscribes (see
+  // Only a name without a row gates on the probe, so only it listens (see
   // `useBackendQuery`).
-  const { isAuthenticated } = useSessionUser({
-    subscribed: adapter === undefined,
-  });
+  const isAuthenticated = useSessionProbeSignedIn(adapter === undefined);
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adaptedFetch =

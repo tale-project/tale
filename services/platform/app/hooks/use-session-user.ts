@@ -62,36 +62,19 @@ export function useAuth() {
   return useConvexAuthUser();
 }
 
-interface SessionUserOptions {
-  /**
-   * `false` reads the probe's cached answer without subscribing to it: no
-   * observer joins the probe's query, the caller does not re-render when the
-   * probe answers, and its mount never refetches the probe. For a hook that
-   * needs the answer on one branch only, and then read `isAuthenticated`
-   * alone: unsubscribed, `isLoading` reports the fetch a mount would start,
-   * which never comes. Every subscription is an observer on
-   * the probe's one shared query, and react-query removes an observer in time
-   * linear in that query's observer count, so a subscription per mounted read
-   * made unmounting a 2,000-card board take ~20 s (#4062).
-   */
-  subscribed?: boolean;
-}
-
 /**
  * The auth shape the app's hooks gate on. It used to be Convex's — the
  * WebSocket handshake's state — and is now the session probe's: the backend
  * answers `currentUser` on the session cookie alone, so there is nothing to
- * hand-shake and nothing to wait for beyond that one request. It reads that
- * probe alone; the Better Auth session `useAuth` also holds answers nothing
- * returned here.
+ * hand-shake and nothing to wait for beyond that one request. It observes
+ * that probe alone; the Better Auth session `useAuth` also holds answers
+ * nothing returned here. A hook mounted once per read gates through
+ * `useSessionProbeSignedIn` instead, which adds no observer (#4062).
  */
-export function useSessionUser(options?: SessionUserOptions): {
+export function useSessionUser(): {
   isLoading: boolean;
   isAuthenticated: boolean;
 } {
-  const { data: user, isLoading } = useQuery({
-    ...currentUserQuery(),
-    subscribed: options?.subscribed ?? true,
-  });
+  const { data: user, isLoading } = useQuery(currentUserQuery());
   return { isLoading, isAuthenticated: !!user };
 }

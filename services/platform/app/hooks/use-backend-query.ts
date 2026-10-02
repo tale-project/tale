@@ -10,7 +10,7 @@ import {
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
-import { useSessionUser } from './use-session-user';
+import { useSessionProbeSignedIn } from './use-session-probe';
 
 interface ConvexQueryOptions<TData = unknown> {
   staleTime?: number;
@@ -66,12 +66,12 @@ export function useBackendQuery<Name extends QueryName>(
   // options object every render never refetches.
   const adapter = READ_ADAPTERS[name];
   const skipped = args === 'skip';
-  // Only the no-row branch below reads the probe, so only it subscribes. One
-  // subscription per adapted read put an observer per mounted read on the
+  // Only the no-row branch below reads the probe, so only it listens. One
+  // probe observer per adapted read put an observer per mounted read on the
   // probe's shared query, and each removal scans all of them (#4062).
-  const { isAuthenticated } = useSessionUser({
-    subscribed: adapter === undefined && !skipped && requireAuth,
-  });
+  const isAuthenticated = useSessionProbeSignedIn(
+    adapter === undefined && !skipped && requireAuth,
+  );
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adapterCtx = organizationId !== undefined ? { organizationId } : {};
