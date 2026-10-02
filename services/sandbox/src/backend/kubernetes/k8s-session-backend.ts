@@ -11,7 +11,6 @@ import {
   setHeaderOptions,
   type V1Pod,
   type V1Secret,
-  type V1SecretList,
 } from '@kubernetes/client-node';
 
 import { waitForRunnerd } from '../../session/runnerd-client.ts';
@@ -128,16 +127,17 @@ export class KubernetesSessionBackend implements SessionBackend {
       try {
         await createSecret();
       } catch (err) {
-        // A Secret whose Pod is long gone (deleted under the spawner by a
-        // node drain or PodGC) would 409 every create of this session for
-        // good: remove that orphan and try once more.
-        if (
-          httpStatusCode(err) !== 409 ||
-          !(await this.removeOrphanSecret(spec.sessionId))
-        ) {
-          throw err;
+        if (httpStatusCode(err) !== 409) throw err;
+        // A first attempt that timed out client-side can still have been
+        // stored: the Secret under the name is then this create's own, and
+        // the create goes on to its Pod.
+        if (!(await this.isOwnSecret(spec.sessionId, spec.createdAtMs))) {
+          // A Secret whose Pod is long gone (deleted under the spawner by a
+          // node drain or PodGC) would 409 every create of this session for
+          // good: remove that orphan and try once more.
+          if (!(await this.removeOrphanSecret(spec.sessionId))) throw err;
+          await createSecret();
         }
-        await createSecret();
       }
     } catch (err) {
       // A 409 means the deterministic Secret name is TAKEN — a peer replica's
@@ -231,6 +231,45 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
   }
 
+  /** The session's Secret, read through `list`, which the Role grants (not
+   * `get`): undefined when there is none, null when it cannot be read. */
+  private async readSessionSecret(
+    sessionId: string,
+  ): Promise<V1Secret | undefined | null> {
+    const secretName = sessionSecretNameFor(sessionId);
+    try {
+      const secrets = await this.client.core.listNamespacedSecret(
+        {
+          namespace: this.cfg.k8s.namespace,
+          fieldSelector: `metadata.name=${secretName}`,
+        },
+        apiTimeout(),
+      );
+      return secrets.items.find((item) => item.metadata?.name === secretName);
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] cannot read ${sessionId}'s secret:`,
+        error,
+      );
+      return null;
+    }
+  }
+
+  /** Is the Secret under the session's name the one this create stored (its
+   * creation stamp, not being deleted)? A read that fails is "no". */
+  private async isOwnSecret(
+    sessionId: string,
+    createdAtMs: number,
+  ): Promise<boolean> {
+    const secret = await this.readSessionSecret(sessionId);
+    return (
+      secret != null &&
+      secret.metadata?.deletionTimestamp == null &&
+      secret.metadata?.annotations?.['tale.dev/created-at'] ===
+        String(createdAtMs)
+    );
+  }
+
   /** Remove the session's Secret when it is an orphan: no Pod holds the name,
    * and it is older than a whole create's budget, so no create — a peer
    * replica's included — can still be making it. Fenced by its UID. Read
@@ -250,25 +289,8 @@ export class KubernetesSessionBackend implements SessionBackend {
       }
     }
     const secretName = sessionSecretNameFor(sessionId);
-    let secrets: V1SecretList;
-    try {
-      secrets = await this.client.core.listNamespacedSecret(
-        {
-          namespace: this.cfg.k8s.namespace,
-          fieldSelector: `metadata.name=${secretName}`,
-        },
-        apiTimeout(),
-      );
-    } catch (error) {
-      console.warn(
-        `[sandbox.session] cannot read ${sessionId}'s secret to judge it:`,
-        error,
-      );
-      return false;
-    }
-    const secret = secrets.items.find(
-      (item) => item.metadata?.name === secretName,
-    );
+    const secret = await this.readSessionSecret(sessionId);
+    if (secret === null) return false;
     if (secret === undefined) return true;
     const uid = secret.metadata?.uid;
     const created = secret.metadata?.creationTimestamp;

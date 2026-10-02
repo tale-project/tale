@@ -311,7 +311,7 @@ function stub(
   createPod: () => Promise<unknown> = () => Promise.resolve({}),
   existing: {
     /** The Secret a `list` by name finds (none: an empty list). */
-    secret?: { uid: string; createdAt: Date };
+    secret?: { uid: string; createdAt: Date; createdAtMs?: number };
     /** What reading the Pod returns (none: 404). */
     pod?: object;
     /** The bodies Secret deletes were sent with. */
@@ -357,6 +357,15 @@ function stub(
                     name: request.fieldSelector?.replace('metadata.name=', ''),
                     uid: existing.secret.uid,
                     creationTimestamp: existing.secret.createdAt,
+                    ...(existing.secret.createdAtMs === undefined
+                      ? {}
+                      : {
+                          annotations: {
+                            'tale.dev/created-at': String(
+                              existing.secret.createdAtMs,
+                            ),
+                          },
+                        }),
                   },
                 },
               ],
@@ -576,6 +585,33 @@ describe('KubernetesSessionBackend.createSession — an orphaned Secret or a Pod
     expect(err?.message).toMatch(/session sess_c4 already exists/);
     expect(calls.secretDeleted).toBe(0);
     expect(calls.podDeleted).toBe(false);
+  });
+
+  test("a Secret 409 on this create's own Secret, stored by a timed-out first attempt, goes on to the Pod", async () => {
+    let podCreates = 0;
+    const { client, calls } = stub(
+      conflict,
+      () => {
+        podCreates += 1;
+        // Halt before the readiness wait (no runnerd in a unit test).
+        return Promise.reject(Object.assign(new Error('halt'), { code: 400 }));
+      },
+      {
+        secret: {
+          uid: 'own-uid',
+          createdAt: new Date(),
+          createdAtMs: spec.createdAtMs,
+        },
+      },
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err?.message).toBe('halt');
+    expect(podCreates).toBe(1);
+    expect(err?.message).not.toMatch(/already exists/);
+    // The failed Pod create cleans up what this create made, its Secret too.
+    expect(calls.secretDeleted).toBeGreaterThan(0);
   });
 
   test("a Pod 409 on this create's own Pod keeps its Secret and waits for readiness", async () => {
