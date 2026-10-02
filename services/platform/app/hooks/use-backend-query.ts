@@ -1,4 +1,4 @@
-import type { UseQueryResult } from '@tanstack/react-query';
+import type { Query, UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -6,6 +6,7 @@ import {
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
+  type AdaptedReadOptions,
 } from '@/app/lib/backend/adapters';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
@@ -50,6 +51,17 @@ type QueryArgs<Name extends QueryName> =
         options?: ConvexQueryOptions<ReturnsOf<Name>>,
       ];
 
+/** The row's poll for react-query: one the last answer decides reads the
+ * fetched body, before any `select`. */
+function adaptedRefetchInterval(
+  adapted: AdaptedReadOptions,
+): number | ((query: Query) => number | false) | undefined {
+  const interval = adapted.refetchInterval;
+  return typeof interval === 'function'
+    ? (query) => interval(query.state.data)
+    : interval;
+}
+
 /**
  * A backend read, addressed by its contract name. The adapter row keyed by
  * that same name serves it over HTTP; a name with no row has no server left
@@ -92,7 +104,7 @@ export function useBackendQuery<Name extends QueryName>(
               ? { staleTime: adapted.staleTime }
               : {}),
             ...(adapted.refetchInterval !== undefined
-              ? { refetchInterval: adapted.refetchInterval }
+              ? { refetchInterval: adaptedRefetchInterval(adapted) }
               : {}),
             ...(adapted.select !== undefined ? { select: adapted.select } : {}),
             retry: retryAdaptedRead,

@@ -112,7 +112,9 @@ export interface AdaptedReadOptions {
   queryKey: readonly unknown[];
   queryFn: () => Promise<unknown>;
   staleTime?: number;
-  refetchInterval?: number;
+  /** A fixed poll, or one the last answer decides (`false` stops it): a
+   * list polls faster while one of its rows is changing. */
+  refetchInterval?: number | ((data: unknown) => number | false);
   /**
    * The caller's view of a SHARED answer: reads whose args only narrow one
    * fetched body (a status picked out of a counts map) key on the fetch and
