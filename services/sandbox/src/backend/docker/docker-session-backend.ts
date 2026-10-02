@@ -574,7 +574,9 @@ export class DockerSessionBackend implements SessionBackend {
         [
           'inspect',
           '--format',
-          '{{.Id}}\t{{index .Config.Labels "tale.created"}}',
+          // `with`: a missing label prints nothing; a bare `index` prints
+          // `<no value>`.
+          '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
           containerName,
         ],
         { timeoutMs: 5_000 },
