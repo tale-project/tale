@@ -147,9 +147,51 @@ export function resolveDockerTimeoutMs(
   return Number.isFinite(budget) ? budget : null;
 }
 
+/** Docker CLI processes the spawner runs at once. Each one costs ~28 MB and a
+ * dozen threads inside the spawner's own small cgroup (512 MB, 512 pids by
+ * default): a burst of creates at a raised session capacity used to fork
+ * enough of them to exhaust it. Past this, calls wait their turn. */
+export const DOCKER_CLI_CONCURRENCY = 12;
+let dockerCliRunning = 0;
+const dockerCliWaiting: Array<() => void> = [];
+
+async function dockerCliSlot(): Promise<() => void> {
+  if (dockerCliRunning >= DOCKER_CLI_CONCURRENCY) {
+    await new Promise<void>((resolve) => dockerCliWaiting.push(resolve));
+  } else {
+    dockerCliRunning += 1;
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    // A waiter inherits the slot rather than racing a newcomer for it.
+    const next = dockerCliWaiting.shift();
+    if (next !== undefined) next();
+    else dockerCliRunning -= 1;
+  };
+}
+
+/** How many docker CLI calls are running, and waiting for a slot. */
+export function dockerCliLoad(): { running: number; waiting: number } {
+  return { running: dockerCliRunning, waiting: dockerCliWaiting.length };
+}
+
 export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
+): Promise<RunDockerResult> {
+  const release = await dockerCliSlot();
+  try {
+    return await runDockerNow(args, opts);
+  } finally {
+    release();
+  }
+}
+
+async function runDockerNow(
+  args: string[],
+  opts: RunDockerOptions,
 ): Promise<RunDockerResult> {
   const proc = Bun.spawn([dockerBin(), ...args], {
     stdin: 'ignore',

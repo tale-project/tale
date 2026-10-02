@@ -6,10 +6,15 @@
 // ReadableStream API drift along with the cap semantics.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
+  DOCKER_CLI_CONCURRENCY,
   IMAGE_PULL_TIMEOUT_MS,
   RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+  dockerCliLoad,
   ensureImage,
   resolveDockerTimeoutMs,
   runDocker,
@@ -159,5 +164,35 @@ describe('runDocker — default timeout', () => {
       { args: ['image', 'inspect', 'tale/runtime:test'], timeoutMs: undefined },
       { args: ['pull', 'tale/runtime:test'], timeoutMs: IMAGE_PULL_TIMEOUT_MS },
     ]);
+  });
+});
+
+describe('docker CLI concurrency', () => {
+  test('at most DOCKER_CLI_CONCURRENCY docker processes run at once; the rest wait their turn', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep 0.3\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      const calls = Array.from({ length: DOCKER_CLI_CONCURRENCY + 6 }, () =>
+        runDocker(['info']),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 6,
+      });
+      const results = await Promise.all(calls);
+      expect(results.every((result) => result.stdout.trim() === 'done')).toBe(
+        true,
+      );
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
