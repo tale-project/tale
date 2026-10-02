@@ -353,6 +353,32 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     expect(await backend.stopSession('rm-ok')).toBe(true);
   });
 
+  test('a failed removal of the inner image volume is reported, never silent', async () => {
+    // The fake CLI answers `volume rm` with a non-zero exit.
+    await fakeDocker({ present: true, rm: 'ok' });
+    const warn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      const backend = new DockerSessionBackend({
+        ...backendConfig(),
+        dockerInContainer: true,
+      });
+      expect(await backend.stopSession('dind-volume-kept')).toBe(true);
+    } finally {
+      console.warn = warn;
+    }
+    expect(
+      warnings.some((line) =>
+        line.includes(
+          'dind volume rm tale-dind-dind-volume-kept failed (exit 2)',
+        ),
+      ),
+    ).toBe(true);
+  });
+
   test('stopSession is idempotent: an already-gone container resolves false without throwing', async () => {
     await fakeDocker({ present: false, rm: 'nosuch' });
     const backend = new DockerSessionBackend(backendConfig());

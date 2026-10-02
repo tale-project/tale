@@ -470,15 +470,19 @@ export class DockerSessionBackend implements SessionBackend {
     containerName: string,
     opts: { baseUrl: string; token: string },
     deadlineMs: number,
-    pollIntervalMs = 500,
+    // runnerd answers ~0.3 s after `docker run`: a short poll keeps that
+    // from becoming half a second more per create, and the container is
+    // inspected for an early exit only every fifth miss.
+    pollIntervalMs = 100,
   ): Promise<void> {
     const start = Date.now();
-    for (;;) {
+    for (let miss = 1; ; miss += 1) {
       try {
         await runnerdHealth(opts);
         return;
       } catch {
-        const status = await this.containerStatus(containerName);
+        const status =
+          miss % 5 === 0 ? await this.containerStatus(containerName) : null;
         if (status !== null && isReapableContainerStatus(status)) {
           const logs = await runDocker(
             ['logs', '--tail', '10', containerName],
@@ -668,11 +672,19 @@ export class DockerSessionBackend implements SessionBackend {
 
   private async removeDindVolume(sessionId: string): Promise<void> {
     const name = this.dindStorageVolumeName(sessionId);
-    await runDocker(['volume', 'rm', '--force', name], {
+    // runDocker resolves on a failed command too: read the exit, or a refused
+    // or timed-out removal leaves a multi-GB inner image store unnoticed.
+    const removal = await runDocker(['volume', 'rm', '--force', name], {
       timeoutMs: 10_000,
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       console.warn(`[sandbox.session] dind volume rm ${name} failed:`, err);
+      return null;
     });
+    if (removal !== null && removal.exitCode !== 0) {
+      console.warn(
+        `[sandbox.session] dind volume rm ${name} failed (exit ${removal.exitCode}): ${removal.stderr.trim() || 'no output'}`,
+      );
+    }
   }
 
   async destroySession(sessionId: string): Promise<boolean> {
