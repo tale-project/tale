@@ -555,6 +555,10 @@ Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts un
 
 `task_update_metadata` ist eine optionale Freigabe für Projekt-Agenten (Vertrag 3.10.0), mit der sie Priorität und Agentenzuweisung bestehender Aufgaben ändern, ohne eine Ausführung zu starten. Die Anfrage nennt `taskId`, `priority` und/oder `agentId` sowie in `expected` den aktuellen Wert jedes betroffenen Felds. `null` hebt einen Wert auf, ausgelassene Felder bleiben unverändert. Bilde `expected.assignee` als `{type, id}` aus `assigneeType` und `assigneeId` der Antwort von `task_get`; ohne Zuweisung verwendest du `null`, ebenso bei fehlender Priorität. Ein veralteter Wert führt zur Ablehnung der gesamten Anfrage. Die [Anleitung zu Projekt-Agenten](/de/platform/projects/project-agents) beschreibt den Schutz laufender Arbeit und ausstehender Prüfungen. `task_upsert_by_external_ref` verwendet `priority` weiterhin nur beim Anlegen einer Aufgabe.
 
+`task_review` ergänzt mit Vertrag 3.11.0 eine optionale Freigabe für Projektagenten. Sie entscheidet nur ein ausstehendes natives Review, das dem aktiven Reviewer-Agenten zugewiesen ist, über einen abgeschlossenen Lauf eines anderen Agenten desselben Projekts. Übergib `taskId`, `expected: {approvalId, runId, evidenceRevision}` aus dem aktuellen `task_get.pendingReview`, `decision: "approve" | "request_changes"`, eine nicht leere `feedback`-Rückmeldung und `evidence: {checks, pullRequests}`. Jede Prüfung nennt ihr Ergebnis (`passed` oder `failed`) und Details; ein mitgegebener Pull Request auf GitHub nennt URL, exakten `headSha` und Prüfstatus. Für eine Freigabe müssen alle angegebenen Prüfungen bestanden sein. Die GitHub-Belege stammen vom Agenten; Tale verifiziert sie nicht beim externen Dienst.
+
+Das Tool prüft die aktuelle Freigabe, die Rechte des aktiven aufrufenden Laufs, den gespeicherten Reviewer, den Umsetzungslauf und die lokale Belegrevision erneut. Ein veraltetes Ergebnis muss neu gelesen werden; eine andere aktuelle Aufgabenzuweisung macht den Reviewer nicht unabhängig. Die Freigabe verschiebt die Aufgabe nach `done`, `request_changes` mit Rückmeldung nach `todo`, ohne einen Lauf zu starten, auch bei einer Erwähnung in der Rückmeldung. Menschliche Kompetenzanforderungen und Workflow-Genehmigungen bleiben außerhalb dieses Tools. Für eine Agentenentscheidung gibt es keinen öffentlichen REST-Endpunkt.
+
 Nur Inhaber und Admins der Organisation dürfen die Freigaben ändern. Ein Redakteur muss vorhandene Freigaben beim Speichern beibehalten.
 
 Projektleser dürfen die Agenten lesen; Änderungen verlangen Bearbeitungsrechte und ein aktives Projekt. Ein unsichtbares oder fehlendes Projekt sowie eine Agenten-ID aus einem anderen Projekt ergibt **404**. Bei Mitgliedschaft in mehreren Organisationen muss jede Lese- und Schreibanfrage `X-Organization-Slug` enthalten. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt die Arbeit an Aufgaben; der direkte Chat verwendet weiterhin den eingebauten Assistenten.
@@ -676,7 +680,7 @@ Listen antworten mit Zusammenfassungen — Identität, Geltungsbereich, Status u
 
 ## Für ein Mitglied handeln: Frage eines Laufs beantworten, Prüfung einer Aufgabe entscheiden
 
-Ein Lauf, der mit `waitingFor: "ask"` parkt, und eine Aufgabe in `in_review` warten beide auf eine Person. Arbeitet diese Person in einer anderen Anwendung — etwa einem Büroportal, das den Arbeitsplatz spiegelt —, reicht der Maschinenaufruf ihre Handlung weiter und nennt sie als `actor`. Tale hält dann die Person fest, nicht den Schlüssel. Beide Türen brauchen den API-Vertrag 1.16.0.
+Ein Lauf mit `waitingFor: "ask"` wartet auf eine Person; eine Aufgabe in `in_review` kann auf eine Person oder einen benannten Agenten warten. Diese beiden REST-Endpunkte reichen die Handlung einer Person aus einer anderen Anwendung weiter und nennen sie als `actor`. Tale hält die Person fest, nicht den Schlüssel. Beide Endpunkte brauchen API-Vertrag 1.16.0; Vertrag 3.11.0 ergänzt die ausdrückliche Ablehnung einer menschlichen Freigabe, solange das Review einem Agenten gehört.
 
 ### Die Frage beantworten, auf die ein Lauf wartet
 
@@ -704,7 +708,7 @@ Ein Projektlauf verlangt Schreibzugriff auf ein aktives Projekt, ein Organisatio
 
 ### Die Prüfung einer Aufgabe entscheiden
 
-`GET /api/v1/projects/{id}/tasks/{taskId}/review` liefert den Status der Aufgabe und ihre offene Prüfung als `TaskReview`, sonst `review: null`. Ein `POST` auf denselben Pfad entscheidet sie — hier ist `actor` Pflicht, denn eine Prüfung ist immer die Entscheidung einer Person:
+`GET /api/v1/projects/{id}/tasks/{taskId}/review` liefert den Aufgabenstatus und das ausstehende `TaskReview`, sonst `review: null`. Seit Vertrag 3.11.0 ist `reviewer` entweder `{kind: "user", userId}`, `{kind: "agent", agentId}` oder `null`. `implementationAgentId` benennt den tatsächlichen Agenten des Umsetzungslaufs, `evidenceRevision` den aktuellen lokalen Belegstand; beide können `null` sein. `requestedFor` bleibt das Kompatibilitätsfeld für Personen und ist bei einem Agenten `null`. `agentSlug` ist Anzeigetext, keine Identität des Umsetzungslaufs. Ein `POST` auf denselben Pfad reicht eine menschliche Entscheidung weiter und verlangt `actor`:
 
 ```bash
 curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
@@ -716,6 +720,8 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 ```
 
 `approve` entspricht dem Verschieben nach Erledigt auf dem Board: Es gelten das Recht des Mitglieds, die Aufgabe zu ändern (als Redakteur oder höher, oder weil es sie angelegt hat oder sie ihm zugewiesen ist), und die `review_policy` der Organisation genau wie dort (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` oder `REVIEW_COMPETENCE_REQUIRED`, wenn die Richtlinie die Person ablehnt), die Prüfung wird als vom Mitglied freigegeben festgehalten, und die Aufgabe wird `done`; eine Aufgabe mit offenen Teilaufgaben liefert **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` braucht `comment` und `workflowSlug`: Die Prüfung wird zurückgezogen, der Kommentar landet auf der Zeitleiste, und der Workflow startet erneut auf der Aufgabe und liest den Kommentar als Rückmeldung; die Antwort nennt die `runId` zum Pollen, mit `started: false`, wenn ein laufender Lauf weiterverwendet wurde. Eine Aufgabe, die nicht in Prüfung ist, liefert **409** `TASK_NOT_IN_REVIEW`. Jede Entscheidung wird als `task.review_relayed` protokolliert, mit dem Mitglied und dem Schlüssel, der für es gehandelt hat.
+
+Die Freigabe eines einem Agenten zugewiesenen Reviews antwortet mit **409**, `TASK_AGENT_REVIEW_REQUIRED`. Ein Redakteur muss das ausstehende Review zuerst ausdrücklich [an eine berechtigte Person übertragen](/de/platform/projects/tasks#transfer-review). Erst danach kann dieser Endpunkt die menschliche Freigabe annehmen. Gib nicht den Agenten als `actor` aus und behandle ein fehlendes menschliches `requestedFor` nicht als Review ohne Zuständigkeit.
 
 ### Das Mitglied benennen, für das gehandelt wird
 

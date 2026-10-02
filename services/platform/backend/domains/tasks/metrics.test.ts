@@ -1,3 +1,4 @@
+import type { TaskAgentReviewReceipt } from '@tale/shared/schemas/task-review';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -63,6 +64,37 @@ function created(taskId: string, at: number): MetricsActivityRow {
     toValue: 'todo',
     actorType: 'user',
     createdAt: at,
+  };
+}
+
+const agentChangesReceipt: TaskAgentReviewReceipt = {
+  taskId: 't-a',
+  approvalId: 'approval-1',
+  runId: 'implementation-run',
+  reviewer: { kind: 'agent', agentId: 'independent-reviewer' },
+  issuerRunId: 'reviewer-run',
+  evidenceRevision: 'a'.repeat(64),
+  decision: 'request_changes',
+  status: 'todo',
+  feedbackCommentId: 'feedback-1',
+  evidence: {
+    checks: [{ name: 'Focus', outcome: 'failed', details: 'Focus is lost.' }],
+    pullRequests: [],
+  },
+  decidedAt: T(9, 23, 12),
+};
+
+function agentChanges(
+  overrides: Partial<MetricsActivityRow> = {},
+): MetricsActivityRow {
+  return {
+    taskId: agentChangesReceipt.taskId,
+    action: 'review.responded',
+    fromValue: null,
+    toValue: JSON.stringify(agentChangesReceipt),
+    actorType: 'agent',
+    createdAt: agentChangesReceipt.decidedAt,
+    ...overrides,
   };
 }
 
@@ -224,6 +256,81 @@ describe('foldProjectTaskMetrics', () => {
     expect(day('2026-09-24').reviewsChangesRequested).toBe(0);
     expect(day('2026-09-25').reviewsPassed).toBe(1);
     expect(day('2026-09-24').escalations).toBe(1);
+  });
+
+  it('counts a native agent verdict once alongside a human send-back', () => {
+    const counted = foldProjectTaskMetrics(
+      {
+        ...week(),
+        activity: [
+          moved('t-b', 'in_review', 'in_progress', T(9, 23, 9)),
+          moved('t-a', 'in_review', 'todo', T(9, 23, 12), 'agent'),
+          agentChanges(),
+        ],
+      },
+      { periodDays: 7, now: NOW },
+    );
+    expect(
+      counted.daily.find((row) => row.dateKey === '2026-09-23')
+        ?.reviewsChangesRequested,
+    ).toBe(2);
+  });
+
+  it.each<[string, MetricsActivityRow]>([
+    [
+      'agent withdrawal to To do',
+      moved('t-a', 'in_review', 'todo', T(9, 23), 'agent'),
+    ],
+    [
+      'agent restart',
+      moved('t-a', 'in_review', 'in_progress', T(9, 23), 'agent'),
+    ],
+    [
+      'agent submission',
+      moved('t-a', 'in_progress', 'in_review', T(9, 23), 'agent'),
+    ],
+    ['human approval', moved('t-a', 'in_review', 'done', T(9, 23))],
+    ['human cancellation', moved('t-a', 'in_review', 'cancelled', T(9, 23))],
+    ['human no-op', moved('t-a', 'in_review', 'in_review', T(9, 23))],
+    ['other task receipt', agentChanges({ taskId: 't-b' })],
+    ['wrong action', agentChanges({ action: 'assignee.changed' })],
+    ['wrong actor', agentChanges({ actorType: 'user' })],
+    ['null receipt', agentChanges({ toValue: null })],
+    ['malformed JSON', agentChanges({ toValue: '{' })],
+    ['untyped prose', agentChanges({ toValue: 'Changes requested' })],
+    [
+      'incomplete receipt',
+      agentChanges({
+        toValue: JSON.stringify({ decision: 'request_changes' }),
+      }),
+    ],
+    [
+      'agent approval',
+      agentChanges({
+        toValue: JSON.stringify({
+          ...agentChangesReceipt,
+          decision: 'approve',
+          status: 'done',
+        }),
+      }),
+    ],
+    [
+      'mismatched status',
+      agentChanges({
+        toValue: JSON.stringify({ ...agentChangesReceipt, status: 'done' }),
+      }),
+    ],
+  ])('does not count %s as requested changes', (_description, activity) => {
+    const counted = foldProjectTaskMetrics(
+      { ...week(), activity: [activity] },
+      { periodDays: 7, now: NOW },
+    );
+    expect(
+      counted.daily.reduce(
+        (total, row) => total + row.reviewsChangesRequested,
+        0,
+      ),
+    ).toBe(0);
   });
 
   it('attributes runs and their spend to the start day, rounded to cents', () => {

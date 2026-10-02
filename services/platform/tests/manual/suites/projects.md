@@ -137,29 +137,10 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-F12` · **Board ↔ list** — Create/edit a task on `…/tasks/board`,
   then open `…/tasks/list` → The same task title is visible in the list view
   (edit reflected in both views)
-- [ ] `PROJ-F13` · **Review flow** — Reviewer designation is hermetic: task
-  sheet → **Reviewer** field (`tasks.fields.reviewer`) → pick an editor (only
-  editors are listed; the footer hint `tasks.reviewer.editorsOnly` explains) —
-  allowed even while a run is live; **Clear reviewer**
-  (`tasks.reviewer.clear`) unsets. The pending-review half stays **env-gated**
-  (a review is minted when a task-agent run settles into In review; needs a
-  stack with a live task-agent runner). With a pending review: the reviewer
-  gets a `task_review_requested` bell; the board card shows the **Waiting on
-  {name}** chip (`tasks.review.waitingOn`, or `tasks.review.waitingOnYou` for
-  yourself); the board's **Review** filter (`tasks.review.filterTitle`) option
-  **Needs my review** (`tasks.review.needsMyReview`) reduces the board to
-  tasks waiting on you. Decide by status — approve: sidebar **Status**
-  (`tasks.fields.status`) → **Done** (`tasks.status.done`), or drag the card
-  to **Done**; send back: comment with an **@-mention** of the assignee agent
-  → Approve: after reload the task status is **Done** (`tasks.status.done`),
-  the status change is attributed to the approving user in Activity, and the
-  **Waiting on** chip and the reviewer's bells clear. Send back: the feedback
-  appears as YOUR comment on the task, the agent driver re-runs with it, and
-  the task leaves In review when the rerun starts — the pending review is
-  withdrawn (chip + bells clear) and the next settle asks afresh. Dragging the
-  card to any other column also withdraws the request.
+- [ ] `PROJ-F13` · **Review a task as a person** — In a project whose **Default reviewer** (`projects.taskReview.defaultReviewer`) is **Person** (`projects.taskReview.humanDefault`), use **Reviewer** (`tasks.fields.reviewer`) to choose an eligible editor; **Project default · person** (`tasks.reviewer.projectDefaultHuman`) restores inheritance → the chosen value survives reload. For a pending human review, the reviewer receives **Review requested** (`inbox.taskReviewRequested`), the card names them with **Waiting on {name}** (`tasks.review.waitingOn`), and **Needs my review** (`tasks.review.needsMyReview`) keeps the task for them. Accept via **Status** → **Done** (`tasks.status.done`) → after reload, Activity attributes the status change to the person and the pending chip and unread request clear. In a separate pending review, post feedback with an authorized **@mention** of the assigned agent → the person's feedback appears, a rework run starts, and the old pending review is withdrawn; the next settled run asks afresh. The live rework half requires a configured local runner.
 - [ ] `PROJ-F32` · **Hand a waiting review to someone else** — Two sessions,
-  A and B, both project editors. As the OWNER, set a task's **Reviewer**
+  A and B, both project editors; the project default is **Person**
+  (`projects.taskReview.humanDefault`). As the OWNER, set a task's **Reviewer**
   (`tasks.fields.reviewer`) to A and move it to **In review**
   (`tasks.status.in_review`) — reaching the column opens the review, no agent
   run needed — then, while A's **Review requested**
@@ -170,19 +151,20 @@ projects-list row ⋯ menu.
   chip reads **Waiting on you** (`tasks.review.waitingOnYou`) on B's board
   and **Waiting on {name}** naming B (`tasks.review.waitingOn`) on A's, and
   **Needs my review** (`tasks.review.needsMyReview`) keeps the card for B and
-  drops it for A — both boards follow without a reload. **Clear reviewer**
-  (`tasks.reviewer.clear`) → the chip names the task creator (you: **Waiting
-  on you**) and B's request bell clears. Before this, the open review stayed
-  with A until someone moved the card.
+  drops it for A — both boards follow without a reload. Choose **Project
+  default · person** (`tasks.reviewer.projectDefaultHuman`) → the chip names the task creator (you: **Waiting
+  on you**) and B's request bell clears.
 - [ ] `PROJ-F33` · **Change the reviewer before review** — Two sessions, A
-  and B, both project editors. As the OWNER, on a task in **To do**
+  and B, both project editors, with the project default set to **Person**
+  (`projects.taskReview.humanDefault`). As the OWNER, on a task in **To do**
   (`tasks.status.todo`) set **Reviewer** (`tasks.fields.reviewer`) to A → A's
   bell shows an unread **You're the reviewer** (`inbox.taskReviewerAssigned`);
   pick B as **Reviewer** → A's heads-up turns read and A's unread count drops
-  without a reload, while B's bell shows the heads-up unread; **Clear
-  reviewer** (`tasks.reviewer.clear`) → B's heads-up turns read too.
+  without a reload, while B's bell shows the heads-up unread; **Project
+  default · person** (`tasks.reviewer.projectDefaultHuman`) → B's heads-up turns read too.
 - [ ] `PROJ-F34` · **An erased reviewer's waiting review moves on** — As the
-  OWNER, create a task (you are its creator), set **Reviewer**
+  OWNER, with the project default set to **Person**
+  (`projects.taskReview.humanDefault`), create a task (you are its creator), set **Reviewer**
   (`tasks.fields.reviewer`) to editor A and move the task to **In review**
   (`tasks.status.in_review`); then at
   `/dashboard/{org}/settings/governance/data-subject-requests` with a zero
@@ -191,7 +173,8 @@ projects-list row ⋯ menu.
   for the receipt to complete → On the board the card's chip reads **Waiting
   on you** (`tasks.review.waitingOnYou`), never an unknown name, **Needs my
   review** (`tasks.review.needsMyReview`) keeps the card for you, the task's
-  **Reviewer** reads **No reviewer** (`tasks.reviewer.none`), and your bell
+  **Reviewer** reads **Project default · person**
+  (`tasks.reviewer.projectDefaultHuman`), and your bell
   holds **Review requested** (`inbox.taskReviewRequested`) reading
   "… is ready for your review" (`inbox.taskReviewRequestedBodyHuman`).
 - [ ] `PROJ-F14` · **Archive** — Projects list → row ⋯
@@ -467,23 +450,7 @@ projects-list row ⋯ menu.
   **Add variable** → NAME + value → **Save** is refused with the
   archived-project sentence (backend `PROJECT_ARCHIVED` 403) and nothing
   lands; **Restore** → the same save goes through.
-- [ ] `PROJ-B9` · **Only an editor can be the reviewer** — On an org-wide
-  project with a member whose role is Member, and on a
-  team-restricted project with an editor outside its teams, open a task's
-  **Reviewer** (`tasks.fields.reviewer`) → neither is listed, and the footer
-  reads **Only members who can edit this project can be the reviewer.**
-  (`tasks.reviewer.editorsOnly`). Stale list: in session 1 open a task on
-  the team-restricted project with editor E (in its team) listed under
-  **Reviewer**; in session 2 remove E from that team; in session 1 pick E →
-  a toast reads the same sentence (`tasks.reviewer.editorsOnly`), never
-  **Something went wrong** (`common.errors.generic`), and **Reviewer** keeps
-  its previous value. Hand-built: in DevTools → Network copy the `orgId` of
-  any `…?orgId=` request and the Member's `userId` from the
-  `/api/app/members?orgId=…` response, then in the console run
-  `fetch('/api/app/tasks/{taskId}?orgId={orgId}', {method: 'POST', headers:
-  {'content-type': 'application/json'}, body: JSON.stringify({reviewerUserId:
-  '{userId}'})})` → 400 `TASK_REVIEWER_NO_EDIT_ACCESS`, and after reload
-  **Reviewer** still names the previous reviewer and the Member has no bell.
+- [ ] `PROJ-B9` · **Only eligible people can be human reviewers** — On an org-wide project with a Member, and on a team-restricted project with an editor outside its teams, open **Reviewer** (`tasks.fields.reviewer`) → neither person is offered, and the footer explains human edit access and independent agent permission (`tasks.reviewer.routingHint`). In one session keep eligible editor E in the open picker; in another remove E from the project's team, then choose E in the first session → one localized refusal (`tasks.reviewer.invalid`) appears, the existing reviewer survives reload, and E receives no review request. The typed route's authorization and forged identifiers are covered by the automated review-routing suite.
 - [ ] `PROJ-B10` · **A folder read that fails keeps the files** — On a
   project with a root file, a folder and a file inside it, block
   `*/api/app/folders?projectId=*` in DevTools and reload its Files tab →
@@ -564,3 +531,8 @@ projects-list row ⋯ menu.
   mock stack, local backend)
 - [ ] `PROJ-P2` · **Task board render** → < 1.5 s with a seeded project of ≤
   20 tasks (mock stack)
+
+## Default task reviewer
+
+- [ ] `PROJ-F39` · **Save a default without taking over waiting reviews** — As an editor, open `/dashboard/{org}/projects/{projectId}/overview` → **Task reviews** (`projects.taskReview.title`) → **Default reviewer** (`projects.taskReview.defaultReviewer`), choose project agent B, save, and reload → B remains selected. An existing pending review keeps the person named in **Current review** (`tasks.reviewer.pendingFor`); a later review on a task using **Project default** (`tasks.reviewer.projectDefaultLabel`) names B. Neither saving nor reloading starts B or grants **Review other agents’ task results** (`projects.agents.tool.task_review`).
+- [ ] `PROJ-B12` · **Keep the review default safe across concurrent saves** — Open the project's General tab in two editor sessions, edit the default in both, and save B in the first → the second save refuses with the localized stale-draft message (`projects.taskReview.stale`), and reloading still shows B. Discard the stale draft, choose another default and save; then make and save a second change after the first save's live update → both deliberate later choices persist, without an unexpected stale warning or lost draft.

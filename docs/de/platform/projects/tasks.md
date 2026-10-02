@@ -41,15 +41,15 @@ Eine hilfreiche Beschreibung nennt Ausgangsmaterial, gewünschtes Ergebnis und A
 
 ## Wer Aufgaben erstellen und ändern darf
 
-Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. Redakteure und höhere Rollen dürfen jede Aufgabe im Projekt ändern. Mitglieder ändern die Aufgaben, die sie selbst erstellt haben oder die ihnen zugewiesen sind, und haben dort dieselben Möglichkeiten wie ein Redakteur:
+Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. Redakteure und höhere Rollen dürfen jede Aufgabe im Projekt ändern. Auf Aufgaben, die sie selbst erstellt haben oder die ihnen zugewiesen sind, können Mitglieder:
 
-- Titel, Beschreibung, Anhänge, Teilaufgaben, Termine, Priorität, Labels, Reviewer und Wiederholung bearbeiten.
+- Titel, Beschreibung, Anhänge, Teilaufgaben, Termine, Priorität, Labels und Wiederholung bearbeiten.
 - Die Aufgabe sich selbst, einem anderen Mitglied des Projekts, einem seiner Agenten oder einer für Aufgaben gebauten Automatisierung zuweisen.
 - Den Agenten starten, lenken oder stoppen, auch mit einer @-Erwähnung in einem Kommentar.
 - Den Status ändern und ein Ergebnis annehmen, indem sie die Aufgabe auf **Erledigt** setzen.
 - Die Aufgabe archivieren oder wiederherstellen.
 
-Das gilt auch für die Teilaufgaben unter einer solchen Aufgabe, egal wer sie angelegt hat, etwa ein Agent, der die Arbeit aufgeteilt hat. Sie hindern ein Mitglied also nie daran, seine Aufgabe abzuschließen.
+Das gilt auch für die Teilaufgaben unter einer solchen Aufgabe, egal wer sie angelegt hat, etwa ein Agent, der die Arbeit aufgeteilt hat. Sie hindern ein Mitglied also nie daran, seine Aufgabe abzuschließen. Um **Reviewer** zu ändern, brauchst du Bearbeitungsrechte für das Projekt, auch auf einer selbst erstellten oder dir zugewiesenen Aufgabe.
 
 Aufgaben anderer können Mitglieder lesen und kommentieren. Erwähnen sie dort einen Agenten, bleibt das eine gewöhnliche Erwähnung, die nichts startet. Eigene Kommentare kann jede Person auf jeder Aufgabe bearbeiten und löschen, die sie lesen darf; Inhaber und Admins können auch Kommentare anderer löschen.
 
@@ -72,7 +72,7 @@ Der Lauf kann weiterhin die Aufgaben und das Wissen des Projekts lesen und behä
 
 ## Zuständigkeit und Prüfung festlegen
 
-**Zuständig** bestimmt, wer die Arbeit übernimmt: eine Person, ein Projektagent oder eine im Projekt verfügbare Automation. **Reviewer** benennt die Person, die bei einem prüfbereiten Agentenergebnis benachrichtigt wird. Reviewer können nur Mitglieder mit Bearbeitungszugriff auf das Projekt sein.
+**Zuständig** bestimmt, wer die Arbeit übernimmt: eine Person, ein Projektagent oder eine im Projekt verfügbare Automatisierung. Unter **Reviewer** wählst du eine Person, einen Projektagenten oder den **Projektstandard** für die Prüfung des Ergebnisses. Diese Auswahl ändern darf nur, wer das Projekt bearbeiten kann. Auch ein menschlicher Reviewer braucht Bearbeitungszugriff. Ein Reviewer-Agent muss zum selben Projekt gehören und ein anderer Agent sein als der, der das Ergebnis erstellt hat.
 
 Einen Agenten zuweisen und seinen Lauf starten sind zwei Entscheidungen. Klicke nach der Zuweisung auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Lies [Aufgaben automatisieren](/de/platform/projects/task-automation), bevor du Arbeit mit verbundenen Diensten oder Dateiergebnissen startest.
 
@@ -84,7 +84,19 @@ Hat das Projekt keinen eigenen Agenten, bietet **Zuständig** die Option **Stand
 
 </Frame>
 
-Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, kann allerdings die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt das Ergebnis nicht aus einem Agentenlauf, gilt das für die Person, die die Aufgabe erstellt hat. Einen Lauf, den ein Mitglied auf seiner eigenen Aufgabe gestartet hat, muss dann ein Redakteur oder eine höhere Rolle annehmen, während das Mitglied einen Lauf, den ein Redakteur dort gestartet hat, weiterhin selbst annehmen kann.
+Ist das Review einer Person zugewiesen, erhält sie die Anfrage, ohne allein über das Ergebnis entscheiden zu dürfen. Auch alle anderen, die die Aufgabe ändern dürfen, können es annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, darf die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt es nicht aus einem Agentenlauf, gilt das für den Ersteller der Aufgabe. Erforderliche menschliche Kompetenzen gelten weiterhin. Ein Review, das einem Agenten zugewiesen ist, braucht dessen Entscheidung oder eine ausdrückliche Übertragung an eine berechtigte Person, bevor ein Mensch es freigeben kann.
+
+### Den Standard-Reviewer des Projekts festlegen {#review-default}
+
+Öffne im Tab **Allgemein** den Abschnitt **Aufgabenreviews**, wähle unter **Standard-Reviewer** die gewünschte Option und speichere die Projektänderungen. Anfangs ist **Person** ausgewählt: Zuerst kommt der Aufgabenersteller, dann der Projektersteller zum Zug, sofern die jeweilige Person das Projekt bearbeiten darf. Wähle einen unabhängigen Projektagenten, um ihm neue Reviews zuzuweisen. Das startet den Agenten nicht und erteilt ihm keine Review-Berechtigung; [Einen unabhängigen Reviewer einrichten](/de/platform/projects/task-automation#agent-review) erklärt die weiteren Schritte.
+
+Aufgaben mit **Projektstandard** übernehmen diese Auswahl, wenn ein neues Review beginnt. Eine ausdrücklich benannte Person oder ein Agent bleibt für die jeweilige Aufgabe ausgewählt. Bereits ausstehende Reviews behalten ihren gespeicherten Reviewer, auch wenn sich der Projektstandard ändert. Hat jemand den Standard während deiner Bearbeitung geändert, verwirf deinen veralteten Entwurf und wähle erneut.
+
+### Ein ausstehendes Review übertragen {#transfer-review}
+
+Öffne die Aufgabe und lies **Aktuelles Review** unter **Reviewer**. Dort steht, wer die ausstehende Prüfung übernommen hat; das kann vom aktuellen Projektstandard abweichen. Wählst du einen anderen Reviewer, überträgst du auch dieses Review, ohne die Zuständigkeit für die Arbeit zu ändern oder einen Lauf zu starten. Mit **Projektstandard** überträgst du es an die aktuelle Standardauswahl des Projekts. Haben sich Reviewer oder Ergebnis seit dem Laden geändert, wird die Übertragung abgelehnt. Prüfe den aktualisierten Stand, bevor du erneut wählst.
+
+Ein Agent darf nur ein abgeschlossenes Ergebnis eines anderen Projektagenten prüfen. Eine neue Aufgabenzuweisung ändert nicht, welcher Agent das Ergebnis erstellt hat. Ein laufender Prozess oder eine offene Frage kann die Übertragung an einen Agenten verhindern. Gibt es keinen unterstützten abgeschlossenen Agentenlauf oder verlangt das Review menschliche Kompetenzen, wähle eine berechtigte Person. Ist ein Agent nicht verfügbar oder fehlt ihm die Review-Berechtigung, zeigt die Aufgabe den Grund an; die Prüfung geht nicht stillschweigend an dich zurück.
 
 ## Fortschritt mit dem Status zeigen
 
@@ -95,8 +107,8 @@ Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheid
 | **Backlog** | Vorgeschlagene Arbeit, die noch nicht beschlossen ist. |
 | **Zu erledigen** | Arbeit, die begonnen werden kann. |
 | **In Bearbeitung** | Die Arbeit läuft. Bei einer Agentenaufgabe startet der Wechsel hierhin den Lauf. |
-| **In Prüfung** | Ein Ergebnis wartet auf die Prüfung durch eine Person. |
-| **Erledigt** | Eine Person hat die abgeschlossene Arbeit angenommen. |
+| **In Prüfung** | Ein Ergebnis wartet auf seinen menschlichen Reviewer oder Reviewer-Agenten. |
+| **Erledigt** | Die abgeschlossene Arbeit wurde angenommen. |
 | **Abgebrochen** | Die Arbeit wird nicht weitergeführt. |
 
 Bei Agentenaufgaben kann ein Statuswechsel die Ausführung starten oder abbrechen. Lies deshalb den Aktionshinweis vor dem Verschieben. Ein Agent liefert sein Ergebnis unter **In Prüfung** ab; auf **Erledigt** darf er es nicht selbst setzen.
@@ -172,7 +184,7 @@ Zeige auf **Wiederholen** oder setze den Tastaturfokus darauf, um zu lesen, waru
 
 ## Das Ergebnis vor dem Abschluss prüfen
 
-Vergleiche bei menschlicher Arbeit das Ergebnis mit dem Abschlusskriterium in der Beschreibung. Lies bei Agentenarbeit den Bericht in den Kommentaren und prüfe die erzeugten Dateien. Ein beendeter Lauf bedeutet, dass der Agent nicht mehr arbeitet; die menschliche Abnahme steht noch aus.
+Vergleiche bei menschlicher Arbeit das Ergebnis mit dem Abschlusskriterium in der Beschreibung. Lies bei Agentenarbeit den Bericht in den Kommentaren und prüfe die erzeugten Dateien. Ein beendeter Lauf zeigt, dass der Agent nicht mehr arbeitet. Ob das Ergebnis angenommen wurde, siehst du an der erfassten Review-Entscheidung.
 
 Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ein Agent nacharbeiten, beschreibe die nötige Änderung in einem Kommentar und erwähne ihn darin. [Aufgaben automatisieren](/de/platform/projects/task-automation) erklärt Wiederholungen, Nacharbeit und Abbruch.
 

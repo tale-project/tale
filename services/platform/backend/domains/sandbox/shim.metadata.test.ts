@@ -2,7 +2,12 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
+import { reviewAgentTask } from '../tasks/agent-review.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
+
+vi.mock('../tasks/agent-review.ts', () => ({
+  reviewAgentTask: vi.fn().mockResolvedValue({ decision: 'approve' }),
+}));
 
 vi.mock('../tasks/agent-metadata.ts', () => ({
   updateAgentTaskMetadata: vi.fn().mockResolvedValue({ changed: true }),
@@ -23,6 +28,7 @@ function fixture(
     starter?: string;
     revokedSchedule?: boolean;
   } = {},
+  lane: 'metadata' | 'review' = 'metadata',
 ) {
   let inTransaction = false;
   const reads: { text: string; values: unknown[]; inTransaction: boolean }[] =
@@ -86,7 +92,9 @@ function fixture(
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the handler uses only this serializable begin stand-in
   const handler = sandboxToolShimHandlers(runner as unknown as Sql)[
-    'tasks/internal_mutations:agentUpdateTaskMetadata'
+    lane === 'metadata'
+      ? 'tasks/internal_mutations:agentUpdateTaskMetadata'
+      : 'tasks/internal_mutations:agentReviewTask'
   ];
   if (handler === undefined) throw new Error('Missing metadata handler');
   const patch = {
@@ -103,7 +111,7 @@ function fixture(
         organizationId: 'org',
         sessionId,
         ...(exec === undefined ? {} : { taskRunExecId: exec }),
-        patch,
+        ...(lane === 'metadata' ? { patch } : { review: patch }),
       }),
   };
 }
@@ -175,4 +183,45 @@ describe('metadata session authority', () => {
     ).rejects.toMatchObject({ data: { code: 'TASK_METADATA_FORBIDDEN' } });
     expect(updateAgentTaskMetadata).not.toHaveBeenCalled();
   });
+});
+
+describe('review session authority', () => {
+  it('derives the project, reviewer and exec from the live session, never review input', async () => {
+    const f = fixture({}, 'review');
+    expect(await f.call()).toEqual({ decision: 'approve' });
+    expect(reviewAgentTask).toHaveBeenCalledWith(
+      f.tx,
+      {
+        organizationId: 'org',
+        projectId: 'project',
+        agentId: 'manager',
+        sessionId: 'pa-manager',
+        execId: 'issuer-exec',
+      },
+      f.patch,
+    );
+    expect(f.reads.every((row) => row.inTransaction)).toBe(true);
+  });
+  it.each([
+    { ownerType: 'workflow_run' },
+    { ownerType: 'user' },
+    { missingAgent: true },
+    { missingProject: true },
+    { ended: true },
+    { runAgent: 'other-agent' },
+    { runProject: 'other-project' },
+    { memberWorkspace: true },
+    { role: 'member' },
+    { role: 'disabled' },
+    { role: null },
+    { starter: 'trigger:schedule', revokedSchedule: true },
+  ])(
+    'refuses unrelated or revoked authority before decision/replay %j',
+    async (options) => {
+      await expect(fixture(options, 'review').call()).rejects.toMatchObject({
+        data: { code: 'TASK_REVIEW_FORBIDDEN' },
+      });
+      expect(reviewAgentTask).not.toHaveBeenCalled();
+    },
+  );
 });

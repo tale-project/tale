@@ -2219,6 +2219,12 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
       // Each reason carries its own next step, never the generic fallback.
       expect(String(output.guidance)).not.toBe('');
       expect(output.guidance).not.toBe('Nothing started.');
+      if (outcome === 'in_review') {
+        expect(output.guidance).toContain('leave the decision to its reviewer');
+      }
+      if (outcome === 'stale_question') {
+        expect(output.guidance).toContain('the task was decided');
+      }
     },
   );
 
@@ -2369,6 +2375,7 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     }[];
     expect(tools[0]?.name).toBe('task_start_agent');
     expect(tools[0]?.readOnly).toBe(false);
+    expect(tools[0]?.description).toContain('the task was decided');
     for (const word of [
       'agent_busy',
       'blocked',
@@ -2552,6 +2559,88 @@ describe('dispatchWorkspaceToolImpl — task_update_metadata', () => {
   it('refuses metadata writes by a member-confined run', async () => {
     const { result, mutations } = await call(metadata, true);
     expect(result.status).toBe('unavailable');
+    expect(mutations).toEqual([]);
+  });
+});
+
+describe('dispatchWorkspaceToolImpl — task_review', () => {
+  const review = {
+    taskId: 'target',
+    expected: {
+      approvalId: 'approval',
+      runId: 'source',
+      evidenceRevision: 'a'.repeat(64),
+    },
+    decision: 'approve',
+    feedback: 'Exact source and local check passed.',
+    evidence: {
+      checks: [
+        { name: 'Regression', outcome: 'passed', details: '12 tests passed.' },
+      ],
+      pullRequests: [],
+    },
+  };
+  async function call(
+    callArgs: Record<string, unknown>,
+    options: { confined?: boolean; orgScope?: boolean; noExec?: boolean } = {},
+  ) {
+    const { dispatch } = await getActions();
+    const mutations: unknown[] = [];
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'reviewer',
+        scope: options.orgScope
+          ? { kind: 'org' }
+          : { kind: 'project', projectId: 'project_1' },
+        ...(options.confined ? { confinedToTaskId: 'own-task' } : {}),
+      },
+      runMutation: vi.fn(async (ref, args) => {
+        if (fnName(ref) === 'tasks/internal_mutations:agentReviewTask') {
+          mutations.push(args);
+          return { decision: 'approve', status: 'done' };
+        }
+        return null;
+      }),
+    });
+    return {
+      result: await dispatch(ctx, {
+        ...BASE,
+        ...(options.noExec ? {} : { taskRunExecId: 'issuer-exec' }),
+        tool: 'task_review',
+        callArgs,
+      }),
+      mutations,
+    };
+  }
+  it('forwards only token authority and the complete strict review', async () => {
+    const { result, mutations } = await call(review);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer-exec',
+        review,
+      },
+    ]);
+  });
+  it.each([{ confined: true }, { orgScope: true }, { noExec: true }])(
+    'rejects unsupported authority before decision %j',
+    async (options) => {
+      const { result, mutations } = await call(review, options);
+      expect(result.status).toBe('unavailable');
+      expect(mutations).toEqual([]);
+    },
+  );
+  it.each([
+    { ...review, agentId: 'forged' },
+    { ...review, expected: { approvalId: 'approval', runId: 'source' } },
+    { ...review, evidence: { checks: [], pullRequests: [] } },
+    { ...review, decision: 'approve', feedback: ' ' },
+  ])('rejects widened or incomplete reviews %j', async (body) => {
+    const { result, mutations } = await call(body);
+    expect(result.status).toBe('invalid_args');
     expect(mutations).toEqual([]);
   });
 });

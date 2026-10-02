@@ -3,7 +3,7 @@ title: Comprendre les agents de projet
 description: Définis la responsabilité d’un agent et le rôle de son environnement, de son modèle, de ses instructions et de son équipement.
 ---
 
-Un agent de projet travaille sur les tâches d’un projet précis. Tu définis son mode d’exécution et ses accès, puis tu lui confies une tâche dont le résultat peut être vérifié. Il peut modifier des fichiers et lancer des commandes dans une sandbox. Une personne examine son travail avant de terminer la tâche.
+Un agent de projet travaille sur les tâches d’un projet précis. Tu définis son mode d’exécution et ses accès, puis tu lui confies une tâche dont le résultat peut être vérifié. Il peut modifier des fichiers et lancer des commandes dans une sandbox. Le [relecteur configuré](/fr/platform/projects/tasks#review-default), une personne ou un agent de projet indépendant, examine le résultat avant de terminer la tâche. Les revues qui exigent des justificatifs de compétences humaines restent confiées à une personne habilitée.
 
 ## Choisir la forme de travail
 

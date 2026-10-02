@@ -46,10 +46,14 @@ export function taskAwaitsMyReview(
     currentUserId?: string;
     /** `requestedFor` of the task's pending review approval, when one exists. */
     pendingReviewRequestedFor?: string;
+    /** Captured agent/unresolved reviews never fall back to a human field. */
+    hasPendingReview?: boolean;
   },
 ): boolean {
   if (!args.currentUserId) return false;
-  if (args.pendingReviewRequestedFor === args.currentUserId) return true;
+  if (args.hasPendingReview || args.pendingReviewRequestedFor !== undefined) {
+    return args.pendingReviewRequestedFor === args.currentUserId;
+  }
   return (
     task.status === 'in_review' && task.reviewerUserId === args.currentUserId
   );
@@ -85,6 +89,7 @@ export function filterTasksByFacets(
       !taskAwaitsMyReview(task, {
         currentUserId: filters.currentUserId,
         pendingReviewRequestedFor: filters.reviewRequestedFor?.get(task._id),
+        hasPendingReview: filters.reviewRequestedFor?.has(task._id),
       })
     ) {
       return false;

@@ -16,13 +16,13 @@ describe('reviewerRefusalMessage', () => {
     ).toBe('tasks.reviewer.editorsOnly');
   });
 
-  it('explains a designee who is no longer a member the same way', () => {
+  it('explains a designee who is no longer eligible', () => {
     expect(
       reviewerRefusalMessage(
         new AppError({ code: 'TASK_REVIEWER_INVALID' }),
         t,
       ),
-    ).toBe('tasks.reviewer.editorsOnly');
+    ).toBe('tasks.reviewer.invalid');
   });
 
   it('leaves every other failure to the caller', () => {

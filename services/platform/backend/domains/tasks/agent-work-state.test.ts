@@ -175,7 +175,10 @@ describe('readTaskWorkState', () => {
       taskId: 't-1',
       round: 2,
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
       agentSlug: 'agent-1',
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
       runId: 'run-2',
       createdAt: 30,
     });
@@ -185,6 +188,9 @@ describe('readTaskWorkState', () => {
       round: 2,
       runId: 'run-2',
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
       createdAt: 30,
     });
   });

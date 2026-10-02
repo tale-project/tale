@@ -3,7 +3,7 @@ title: Understand project agents
 description: Decide what an agent should own and how its runtime, model, instructions and equipment fit together.
 ---
 
-A project agent is a named worker for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. It can work on files and commands in a sandbox; a person reviews the result before completing the task.
+A project agent is a named worker for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. It can work on files and commands in a sandbox. The [configured reviewer](/platform/projects/tasks#review-default), a person or an independent project agent, checks the result before completing the task. Reviews that require human competence records stay with an eligible person.
 
 ## Choose the right working mode
 
@@ -40,7 +40,7 @@ flowchart LR
     H[Harness and model] --> A
     I[Standing instructions] --> A
     E[Skills, connectors, tools and secrets] --> A
-    A --> R[Report and files for human review]
+    A --> R[Report and files for review]
 ```
 
 ## Check readiness before assigning work

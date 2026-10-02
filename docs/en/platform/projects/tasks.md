@@ -41,15 +41,15 @@ A useful description states the input, the requested output, and a check for com
 
 ## Who can create and change tasks
 
-Every member who can open a project can create tasks in it. Editors and higher roles can change every task in the project. A Member can change the tasks they created and the tasks assigned to them, with the same controls an Editor has there:
+Every member who can open a project can create tasks in it. Editors and higher roles can change every task in the project. On tasks they created or that are assigned to them, a Member can:
 
-- Edit the title, description, attachments, subtasks, dates, priority, labels, reviewer, and repeat.
+- Edit the title, description, attachments, subtasks, dates, priority, labels, and repeat.
 - Assign the task to themselves, to another member of the project, to one of its agents, or to an automation built for tasks.
 - Start, guide, or stop the agent, including with an @mention in a comment.
 - Move the status, including accepting a result by moving the task to **Done**.
 - Archive the task, or restore it.
 
-The same goes for the subtasks under such a task, whoever added them, for example an agent that split up the work, so they never keep the Member from closing their task.
+The same goes for the subtasks under such a task, whoever added them, for example an agent that split up the work, so they never keep the Member from closing their task. Changing **Reviewer** requires project edit access, including on a task you created or own.
 
 On other people's tasks, a Member reads and comments; mentioning an agent there leaves an ordinary mention that starts nothing. Everyone can edit and delete their own comments on any task they can read, and Owners and Admins can also delete other people's comments.
 
@@ -72,7 +72,7 @@ The run can still read the project's tasks and knowledge, and it keeps these lim
 
 ## Choose an owner and a reviewer
 
-**Assignee** identifies who does the work: a person, a project agent, or an automation available to the project. **Reviewer** identifies the person to notify when an agent’s result needs review. Only members who can edit the project can be reviewers.
+**Assignee** identifies who does the work: a person, a project agent, or an automation available to the project. **Reviewer** chooses a person, a project agent, or the **Project default** for checking the result. Changing that choice requires project edit access. A human reviewer also needs project edit access; an agent reviewer belongs to this project and must be different from the agent that produced the result.
 
 Assigning an agent and starting its run are separate choices. After assigning it, click **Start agent**, or move the task to **In progress**. Read [Task automation](/platform/projects/task-automation) before starting work that can use connected services or produce files.
 
@@ -84,7 +84,19 @@ If the project has no agent of its own, **Assignee** offers **Standard agent**, 
 
 </Frame>
 
-The reviewer receives the review request, but the designation does not reserve the decision exclusively to that person. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to. When your organization requires an independent reviewer, though, the person who started the agent run under review can't accept its result, and when no agent run produced the result, the task's creator can't. A run a Member started on their own task then waits for an Editor or higher, while the Member can still accept a run an Editor started there.
+For a review assigned to a person, the named reviewer receives the request without being the only person allowed to accept it. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to. When your organization requires an independent reviewer, the person who started the agent run under review cannot accept its result; when no agent run produced the result, the task's creator cannot. Required human competences still apply. A review assigned to an agent needs that agent's decision, or an explicit transfer to an eligible person before a human can approve it.
+
+### Set a project review default {#review-default}
+
+On the project's **General** tab, open **Task reviews** and choose **Default reviewer**, then save the project changes. The initial **Person** choice uses the task creator, then the project creator, if they can edit the project. Choose an independent project agent to route new reviews to it. This setting neither starts the agent nor grants its review permission; [Set up an independent reviewer](/platform/projects/task-automation#agent-review) covers those steps.
+
+Tasks with **Project default** follow this choice when a new review starts. A task with an explicitly named person or agent keeps that choice. Reviews already waiting retain their recorded reviewer even if the project default changes. If someone changes the default while you are editing, discard the stale draft and choose again.
+
+### Transfer a pending review {#transfer-review}
+
+Open the task and read **Current review** below **Reviewer**: it names who owns the waiting review, which can differ from the current project default. Choosing another reviewer also transfers that pending review, without changing the assignee or starting a run. Choose **Project default** to hand it to the project's current default. If the reviewer or result changed since the task was read, the transfer is refused; check the refreshed review before choosing again.
+
+An agent can review only a completed project-agent result from a different implementation agent. Changing the task's assignee does not change who produced that result. A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human competences, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
 
 ## Use statuses to communicate progress
 
@@ -95,8 +107,8 @@ Change **Status** in the task details, or drag a card to another column on **Boa
 | **Backlog** | Proposed work that has not been committed to. |
 | **To do** | Work ready to be picked up. |
 | **In progress** | Work is underway. Moving an agent-owned task here starts its run. |
-| **In review** | A result is waiting for a person to check it. |
-| **Done** | A person has accepted the completed work. |
+| **In review** | A result is waiting for its human or agent reviewer. |
+| **Done** | The completed work has been accepted. |
 | **Cancelled** | The work is no longer going ahead. |
 
 For an agent-owned task, changing status can start or cancel execution. Read the action hint before moving it. An agent reports back at **In review**; it cannot mark its own work **Done**.
@@ -172,7 +184,7 @@ Point at **Repeat**, or move the keyboard focus to it, to read why it is locked:
 
 ## Review the result before closing
 
-For a human-owned task, compare the work with the description’s completion check. For agent work, read the report in the task’s comments and inspect any produced files. A finished run means the agent has stopped working, not that a person has accepted the result.
+For a human-owned task, compare the work with the description’s completion check. For agent work, read the report in the task’s comments and inspect any produced files. A finished run records that the agent has stopped working. Check the recorded review decision to see whether the result was accepted.
 
 Move the task to **Done** when the result meets the requirement. If an agent needs to revise it, add specific feedback and mention that agent. [Task automation](/platform/projects/task-automation) explains retries, rework, and cancellation.
 

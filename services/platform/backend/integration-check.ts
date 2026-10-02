@@ -100,6 +100,8 @@ import { checkSandboxDevices } from './domains/sandbox_devices/devices.integrati
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integration.ts';
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
+import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
+import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
@@ -57541,6 +57543,21 @@ async function main(): Promise<void> {
       [
         'checkAgentTaskReadTools',
         () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReviewRouting',
+        () => checkAgentTaskReviewRouting(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskReviews',
+        () =>
+          checkAgentTaskReviews(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+            record,
+          ),
       ],
       [
         'checkAgentTaskMetadata',

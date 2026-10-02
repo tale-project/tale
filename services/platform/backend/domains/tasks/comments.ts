@@ -208,10 +208,43 @@ export function addTaskComment(
   );
 }
 
+/** The native review decision owns authorization and the task queue before
+ * calling. Persist ordinary visible feedback with its normal notifications,
+ * but neither mentions nor platform events may admit another run. */
+export function addTaskReviewFeedback(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    taskId: string;
+    agentId: string;
+    body: string;
+  },
+): Promise<AddedTaskComment> {
+  const auth: ProjectAuthContext = {
+    organizationId: args.organizationId,
+    userId: args.agentId,
+    role: 'admin',
+    teamIds: [],
+  };
+  return queuedCommentWrite(tx, args.organizationId, args.taskId, () =>
+    appendTaskComment(
+      tx,
+      auth,
+      {
+        taskId: args.taskId,
+        body: args.body,
+        author: { actorType: 'agent', actorId: args.agentId },
+      },
+      false,
+    ),
+  );
+}
+
 async function appendTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: AddTaskCommentArgs,
+  dispatch = true,
 ): Promise<AddedTaskComment> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
@@ -272,18 +305,20 @@ async function appendTaskComment(
   // @-ing the automation that OWNS this task starts its task workflow — the
   // counterpart of the agent lane's steer. Runs before the steer check so a
   // task can only ever have one engine start per comment.
-  const automationStarted = await maybeTriggerOwningAutomation(tx, {
-    auth,
-    task,
-    mentions,
-    authorType: author.actorType,
-  });
+  const automationStarted =
+    dispatch &&
+    (await maybeTriggerOwningAutomation(tx, {
+      auth,
+      task,
+      mentions,
+      authorType: author.actorType,
+    }));
   // A comment that @-mentions one of the project's agent INSTANCES puts it
   // to work: steering its RUNNING turn, or — when the task is idle —
   // (re)assigning the task to it and kicking a fresh 'mention' run with
   // this comment as feedback (the 0.4 wire). Runs after the automation
   // check so a task can only ever have one engine start per comment.
-  if (!automationStarted) {
+  if (dispatch && !automationStarted) {
     await dispatchMentionedProjectAgent(tx, {
       auth,
       task,
@@ -331,11 +366,13 @@ async function appendTaskComment(
     taskId: args.taskId,
     mentions,
   };
-  await emitEvent(tx, {
-    organizationId: auth.organizationId,
-    eventType: 'comment.created',
-    eventData: { comment },
-  });
+  if (dispatch) {
+    await emitEvent(tx, {
+      organizationId: auth.organizationId,
+      eventType: 'comment.created',
+      eventData: { comment },
+    });
+  }
   await emitHintInTx(tx, {
     orgId: auth.organizationId,
     entity: 'task',

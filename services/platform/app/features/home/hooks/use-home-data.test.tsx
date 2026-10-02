@@ -114,6 +114,31 @@ beforeEach(() => {
 });
 
 describe('useHomeData', () => {
+  it('uses the captured server review recipient instead of a stale task designation', () => {
+    reads.tasks.mockImplementation(
+      (options: { assigneeId?: string; reviewerId?: string }) => ({
+        tasks:
+          options.reviewerId === 'me'
+            ? [task({ _id: 'captured-me', reviewerUserId: undefined })]
+            : [
+                task({
+                  _id: 'captured-agent',
+                  assigneeId: 'me',
+                  reviewerUserId: 'me',
+                }),
+              ],
+        isLoading: false,
+      }),
+    );
+    const { result } = renderHook(() => useHomeData('org-1'));
+    expect(
+      result.current.items.find((item) => item.id === 'captured-me'),
+    ).toMatchObject({ awaitingMyReview: true, unread: true });
+    expect(
+      result.current.items.find((item) => item.id === 'captured-agent'),
+    ).toMatchObject({ awaitingMyReview: false, unread: false });
+  });
+
   it('reads archived rows only when requested and keeps live summaries on duplicate ids', () => {
     const archived = {
       id: 'archived-chat',

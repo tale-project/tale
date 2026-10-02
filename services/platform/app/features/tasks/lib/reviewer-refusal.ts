@@ -1,18 +1,25 @@
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
-/**
- * Localized copy for a refused **Reviewer** designation: the server takes
- * only a live member who can edit the project — the rule the review gate
- * resolves by — and the picker offers only those, so a refusal means the
- * list went stale (someone lost access while it was open). Says what the
- * picker's own hint says instead of the generic error toast.
- */
+/** Explain typed reviewer routing refusals at the edit surface. */
 export function reviewerRefusalMessage(
   error: unknown,
   t: (key: string) => string,
 ): string | undefined {
   switch (backendErrorCode(error)) {
+    case 'TASK_REVIEWER_STALE':
+      return t('reviewer.stale');
+    case 'TASK_REVIEWER_HANDOFF_REQUIRED':
+      return t('reviewer.handoffRequired');
+    case 'TASK_REVIEWER_BUSY':
+      return t('reviewer.busy');
+    case 'TASK_REVIEW_SOURCE_REQUIRED':
+      return t('reviewer.sourceRequired');
+    case 'TASK_REVIEWER_NOT_INDEPENDENT':
+      return t('reviewer.notIndependent');
+    case 'TASK_AGENT_REVIEW_REQUIRED':
+      return t('reviewer.agentRequired');
     case 'TASK_REVIEWER_INVALID':
+      return t('reviewer.invalid');
     case 'TASK_REVIEWER_NO_EDIT_ACCESS':
       return t('reviewer.editorsOnly');
     default:

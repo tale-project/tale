@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  taskAgentReviewReceiptSchema,
+  taskReviewerSchema,
+} from '@tale/shared/schemas/task-review';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -231,6 +235,40 @@ export function TaskTimelineEntry({
       }
       case 'person':
         return resolveAssigneeId(value);
+      case 'reviewer': {
+        // Legacy rows stored a bare user id; new rows preserve actor kind.
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(value);
+        } catch {
+          return resolveAssigneeId(value);
+        }
+        const reviewer = taskReviewerSchema.safeParse(parsed);
+        if (!reviewer.success) return value;
+        if (reviewer.data.kind === 'inherit')
+          return t('reviewer.projectDefaultLabel');
+        return resolveActor(
+          reviewer.data.kind,
+          reviewer.data.kind === 'user'
+            ? reviewer.data.userId
+            : reviewer.data.agentId,
+        ).name;
+      }
+      case 'reviewDecision': {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(value);
+        } catch {
+          return t('review.decisionUnavailable');
+        }
+        const receipt = taskAgentReviewReceiptSchema.safeParse(parsed);
+        if (!receipt.success) return t('review.decisionUnavailable');
+        return t(
+          receipt.data.decision === 'approve'
+            ? 'review.decisionApproved'
+            : 'review.decisionChangesRequested',
+        );
+      }
       case 'date': {
         const parsed = Number(value);
         if (!Number.isFinite(parsed)) return value;

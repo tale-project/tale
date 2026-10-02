@@ -755,6 +755,9 @@ describe('task_get reads what a manager decides with', () => {
         round: 2,
         runId: 'run-2',
         requestedFor: 'user-9',
+        reviewer: { kind: 'user', userId: 'user-9' },
+        implementationAgentId: 'agent-1',
+        evidenceRevision: 'a'.repeat(64),
         createdAt: 1_790_000_600_000,
       },
     });
@@ -763,6 +766,9 @@ describe('task_get reads what a manager decides with', () => {
       round: 2,
       runId: 'run-2',
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
       since: '2026-09-21T14:23:20.000Z',
     });
   });

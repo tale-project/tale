@@ -424,6 +424,7 @@ interface CopySource {
   assigneeType: TaskAssigneeType | null;
   assigneeId: string | null;
   reviewerUserId: string | null;
+  reviewerAgentId: string | null;
   createdBy: string;
   createdByType: string;
 }
@@ -616,7 +617,7 @@ async function insertTaskCopy(
       label_ids, assignee_type, assignee_id, reviewer_user_id, parent_task_id,
       start_date_ms, due_date_ms, repeat_rule, rank, number, created_by,
       created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms,
-      repeat_series_id, repeat_series_position
+      repeat_series_id, repeat_series_position, reviewer_agent_id
     ) VALUES (
       ${source.organizationId}, ${source.projectId}, ${source.title},
       ${source.description},
@@ -627,7 +628,8 @@ async function insertTaskCopy(
       ${args.parentTaskId}, ${args.startDate}, ${args.dueDate},
       ${args.repeat !== null ? tx.json(toJson(args.repeat)) : null}, ${rank},
       ${number}, ${source.createdBy}, ${source.createdByType}, ${now}, ${now},
-      ${now}, ${args.series?.id ?? null}, ${args.series?.position ?? null}
+      ${now}, ${args.series?.id ?? null}, ${args.series?.position ?? null},
+      ${source.reviewerAgentId ?? null}
     )
     RETURNING id
   `;
@@ -761,6 +763,7 @@ async function copySubtree(
            t.attachments, t.priority, t.label_ids AS "labelIds",
            t.assignee_type AS "assigneeType", t.assignee_id AS "assigneeId",
            t.reviewer_user_id AS "reviewerUserId",
+           t.reviewer_agent_id AS "reviewerAgentId",
            t.start_date_ms::float8 AS "startDate",
            t.due_date_ms::float8 AS "dueDate", t.created_by AS "createdBy",
            t.created_by_type AS "createdByType"

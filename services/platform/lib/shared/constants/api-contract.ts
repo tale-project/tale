@@ -317,5 +317,13 @@
  * 3.10.0 — 2026-10-01: the project agent tools vocabulary gains
  * `task_update_metadata`, an explicit priority and agent-assignment grant
  * that starts no work. Existing agents keep their saved grants.
+ *
+ * 3.11.0 — 2026-10-02: the project-agent tools vocabulary gains
+ * `task_review`, an explicit independent native review grant. TaskReview
+ * reads carry a typed `reviewer`, the exact `implementationAgentId` and a
+ * local `evidenceRevision`; `requestedFor` remains the nullable person
+ * compatibility field. A relayed human approval of an agent-owned review
+ * answers 409 `TASK_AGENT_REVIEW_REQUIRED` until an eligible person takes
+ * it through an explicit handoff. No public agent-verdict endpoint is added.
  */
-export const API_CONTRACT_VERSION = '3.10.0';
+export const API_CONTRACT_VERSION = '3.11.0';

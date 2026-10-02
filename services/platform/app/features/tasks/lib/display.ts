@@ -92,6 +92,7 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   'repeat.changed': 'activity.repeatChanged',
   'repeat.next': 'activity.repeatNext',
   'reviewer.changed': 'activity.reviewerChanged',
+  'review.responded': 'activity.reviewResponded',
   'comment.added': 'activity.commentAdded',
   'dependency.added': 'activity.dependencyAdded',
   'dependency.removed': 'activity.dependencyRemoved',
@@ -117,6 +118,10 @@ export type TaskActivityValueKind =
   | 'repeat'
   /** A run-admission refusal code. */
   | 'refusal'
+  /** A reviewer choice with its actor kind, or a legacy member id. */
+  | 'reviewer'
+  /** A durable agent review decision, summarized without exposing its payload. */
+  | 'reviewDecision'
   /** What someone typed or named, shown exactly as stored. */
   | 'text';
 
@@ -154,7 +159,8 @@ export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
     emptyKey: 'assignee.unassigned',
     absentIsEmpty: true,
   },
-  'reviewer.changed': { kind: 'person', emptyKey: 'reviewer.none' },
+  'reviewer.changed': { kind: 'reviewer', emptyKey: 'reviewer.none' },
+  'review.responded': { kind: 'reviewDecision' },
   'startDate.changed': { kind: 'date', emptyKey: 'activity.empty.startDate' },
   'dueDate.changed': { kind: 'date', emptyKey: 'activity.empty.dueDate' },
   'repeat.changed': { kind: 'repeat', absentIsEmpty: true },

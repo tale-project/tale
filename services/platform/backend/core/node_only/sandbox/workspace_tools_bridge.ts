@@ -194,8 +194,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "feedback: the first 500 characters of the start's message; " +
     'agentRunsPage pages them with runCursor. A run with live true is still ' +
     'working, and the task starts no other run until it ends. ' +
-    'workflowRun.waitingFor "ask" or "approval", and pendingReview, wait on ' +
-    'a person.',
+    'workflowRun.waitingFor "ask" or "approval" waits on a person. ' +
+    'pendingReview.reviewer names its captured user or agent recipient; ' +
+    'implementationAgentId and evidenceRevision bind an agent decision to ' +
+    'the source. A null source or revision cannot be decided by task_review.',
   task_create:
     `Create a task. Args: {title: string (${atMost(TASK_TITLE_MAX)}), ` +
     `description?: string (${atMost(TASK_DESCRIPTION_MAX)}), projectId?: ` +
@@ -215,7 +217,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   task_update_status:
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
-    'set done — finished work parks at in_review for a human.',
+    'set done through this tool — finished work parks at in_review for its reviewer.',
   task_start_agent:
     'Put a project agent of this project to work on a task: its agent ' +
     'assignee, or first assign it to agentId. Args: {taskId: string, ' +
@@ -223,14 +225,14 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     `your answer to its question, or its brief; ${atMost(TASK_COMMENT_MAX)}), ` +
     'moveToInProgress?: boolean (default true: the card moves to ' +
     'in_progress, withdrawing a pending review, and the result waits at ' +
-    'in_review for a human; false leaves the card where it is, only under ' +
+    'in_review for its reviewer; false leaves the card where it is, only under ' +
     'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} ' +
     '(when you resume an agent with the answer to its question: the run ' +
     'that asked and its pending review, as you read them — without agentId ' +
     'it resumes that run’s agent, and only while that is still the task’s ' +
     'open question)}. Answers ' +
     '{started, runId, reason?}: reason stale_question (that question is no ' +
-    'longer open — a person decided, a newer run or review exists, or the ' +
+    'longer open — the task was decided, a newer run or review exists, or the ' +
     'assignee changed; nothing changed), already_running (the task is being ' +
     'worked), in_review or ' +
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
@@ -253,9 +255,27 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'change field is required; no other fields are accepted. A stale value ' +
     'refuses the whole request: read again before deciding. Ownership changes ' +
     'require backlog, todo or in_progress with no live agent/automation run ' +
-    'and no pending human review or question. Priority alone preserves those ' +
+    'and no pending review or question. Priority alone preserves those ' +
     'handoffs. Answers {taskId, priority, assigneeType, assigneeId, changed}. ' +
     'Does not change status, reviewer, questions, budgets, or start any run.',
+  task_review:
+    'Decide an independent native task review assigned to this project agent. ' +
+    'Read task_get first and copy pendingReview.approvalId, runId and evidenceRevision. ' +
+    'Args: {taskId, expected: {approvalId, runId, evidenceRevision}, ' +
+    'decision: "approve"|"request_changes", feedback: string (1–8000 characters), ' +
+    'evidence: {checks: [{name, outcome: "passed"|"failed", details}], ' +
+    'pullRequests: [{url: "https://github.com/owner/repo/pull/123", headSha, ' +
+    'checks: "passed"|"failed"|"pending"}]}}. Supply 1–20 concrete checks and ' +
+    '0–10 PRs with exact 40- or 64-character lowercase hexadecimal heads. ' +
+    'Approve only with all supplied checks passed. Evidence is your attestation; ' +
+    'the server validates the local task and source, not GitHub. Another agent ' +
+    'must have produced the latest settled run. Stale evidence refuses without ' +
+    'changing anything: read again before deciding. Approve moves the task to ' +
+    'done; request_changes posts feedback and moves it to todo, preserving its ' +
+    'implementation agent. Feedback never starts an agent, even with @mentions. ' +
+    'No workflow approval or human competence requirement can be bypassed. ' +
+    'The identical request may be retried by this same live issuer; it returns ' +
+    'the original receipt without repeating effects.',
   task_upsert_by_external_ref:
     'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
     'task, keyed by (externalSystem, externalId) — a re-run updates the ' +

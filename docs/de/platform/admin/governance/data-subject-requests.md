@@ -20,7 +20,7 @@ Als Admin oder Inhaber bearbeitest du unter **Einstellungen > Richtlinien > Anfr
 
 Die Löschung entfernt betroffene Daten endgültig; sie verschiebt sie nicht in den Papierkorb. Der Beleg erfasst Kategorien und Anzahlen, darunter Chats, Dokumente und Uploads, Einstellungen, Feedback, Benachrichtigungen, Nutzung und das Bereinigen von Personenkennungen im Audit-Protokoll. Die Löschung entfernt außerdem die getrennten Sandbox-Arbeitsbereiche der [Agentenläufe, die die Person gestartet hat](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet), auch wenn darin noch Arbeit läuft; der Beleg zählt sie unter **Sandbox-Arbeitsbereiche**.
 
-Aufgaben, die die Person als **Reviewer** nennen, verlieren diese Zuweisung. Eine Prüfanfrage, die noch auf sie wartet, geht wie bei **Reviewer entfernen** an den Ersteller der Aufgabe oder des Projekts, und diese Person wird benachrichtigt. Bei einer archivierten Aufgabe geht die Prüfanfrage ohne Benachrichtigung weiter. Prüfentscheidungen, die die Person bereits getroffen hat, bleiben ohne ihren Namen erhalten.
+Aufgaben, die die Person als **Reviewer** nennen, verlieren diese Zuweisung. Eine Prüfanfrage, die noch auf sie wartet, geht an die erste berechtigte Person der Ersatzfolge: den Ersteller der Aufgabe oder des Projekts. Diese Person wird benachrichtigt. Bei einer archivierten Aufgabe geht die Prüfanfrage ohne Benachrichtigung weiter. Prüfentscheidungen, die die Person bereits getroffen hat, bleiben ohne ihren Namen erhalten.
 
 ## Vorher die Richtlinie prüfen
 

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.10.0",
+    "version": "3.11.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -19526,7 +19526,7 @@
       "get": {
         "tags": ["Tasks"],
         "summary": "Read a task’s open review",
-        "description": "The task’s status beside the review a person still has to decide — `review: null` when none is pending. Read access, like the task itself. A task reaches `in_review` when its workflow parks there; the decision is made with a POST to this path, or on the board.",
+        "description": "The task’s status beside its ordinary pending review, with the captured typed reviewer and native source evidence when available. `review: null` means no ordinary review is pending; workflow-owned approvals keep their own decision gate. Read access, like the task itself. A person decides a human-owned review with a POST to this path or on the board. An agent-owned review requires its independent native reviewer or an explicit handoff to an eligible person before human approval.",
         "operationId": "getTaskReview",
         "security": [
           {
@@ -20045,7 +20045,7 @@
             }
           },
           "409": {
-            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)",
+            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)",
             "content": {
               "application/json": {
                 "schema": {
@@ -38236,7 +38236,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.10.0"
+          "example": "3.11.0"
         }
       },
       "Location": {
@@ -38509,6 +38509,7 @@
                   "SKILL_TEAM_UNKNOWN",
                   "STANDARD_AGENT_OFF",
                   "STANDARD_AGENT_UNAVAILABLE",
+                  "TASK_AGENT_REVIEW_REQUIRED",
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
@@ -38731,6 +38732,7 @@
                   "SKILL_TEAM_UNKNOWN",
                   "STANDARD_AGENT_OFF",
                   "STANDARD_AGENT_UNAVAILABLE",
+                  "TASK_AGENT_REVIEW_REQUIRED",
                   "TASK_ARCHIVED",
                   "TASK_AUTOMATION_DISABLED",
                   "TASK_AUTOMATION_UNAVAILABLE",
@@ -38944,6 +38946,7 @@
               "SKILL_TEAM_UNKNOWN",
               "STANDARD_AGENT_OFF",
               "STANDARD_AGENT_UNAVAILABLE",
+              "TASK_AGENT_REVIEW_REQUIRED",
               "TASK_ARCHIVED",
               "TASK_AUTOMATION_DISABLED",
               "TASK_AUTOMATION_UNAVAILABLE",
@@ -41243,11 +41246,14 @@
           "taskId",
           "round",
           "requestedFor",
+          "reviewer",
           "agentSlug",
           "runId",
+          "implementationAgentId",
+          "evidenceRevision",
           "createdAt"
         ],
-        "description": "A task’s open review: the gate a person decides at `POST …/tasks/{taskId}/review` or on the board.",
+        "description": "A task’s ordinary pending review, owned by the captured person or agent. Native agent verdicts use task_review; the public review POST relays a person’s decision.",
         "properties": {
           "approvalId": {
             "type": "string"
@@ -41262,17 +41268,63 @@
           "requestedFor": {
             "type": "string",
             "nullable": true,
-            "description": "The reviewer the request named, if any"
+            "description": "Human reviewer compatibility field; null for an agent or absent recipient. Use reviewer for typed ownership."
+          },
+          "reviewer": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "userId"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["user"]
+                  },
+                  "userId": {
+                    "type": "string"
+                  }
+                },
+                "nullable": true
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "agentId"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["agent"]
+                  },
+                  "agentId": {
+                    "type": "string"
+                  }
+                },
+                "nullable": true
+              }
+            ],
+            "description": "The recipient captured by this pending review."
           },
           "agentSlug": {
             "type": "string",
             "nullable": true,
-            "description": "The agent whose work is under review, if the park named one"
+            "description": "Compatibility display text for the implementation driver, not its identity; use implementationAgentId for the actual native source agent."
           },
           "runId": {
             "type": "string",
             "nullable": true,
             "description": "The run whose settle parked the task in review, if any"
+          },
+          "implementationAgentId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The exact source run’s agent in this organization, project and task; null without a matching native source."
+          },
+          "evidenceRevision": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Opaque compare-and-set digest of local task, source result and discussion evidence. Null without a settled native source. It does not verify external pull-request heads or checks."
           },
           "createdAt": {
             "type": "integer",
@@ -42664,6 +42716,7 @@
                 "task_comment",
                 "task_update_status",
                 "task_update_metadata",
+                "task_review",
                 "task_start_agent",
                 "task_upsert_by_external_ref",
                 "document_find",
@@ -42744,6 +42797,7 @@
                 "task_comment",
                 "task_update_status",
                 "task_update_metadata",
+                "task_review",
                 "task_start_agent",
                 "task_upsert_by_external_ref",
                 "document_find",

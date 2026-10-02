@@ -1,3 +1,7 @@
+import {
+  taskAgentReviewInputSchema,
+  type TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 /**
  * First-party DOMAIN handlers of the workspace-tool bridge: the task family
  * and `document_create`. The dispatch (`workspace_tools_bridge.ts`) resolves
@@ -56,6 +60,7 @@ export const WORKSPACE_TASK_TOOLS = [
   'task_comment',
   'task_update_status',
   'task_update_metadata',
+  'task_review',
   'task_start_agent',
   'task_upsert_by_external_ref',
 ] as const;
@@ -267,6 +272,9 @@ interface PendingReviewAnswer {
   round: number;
   runId: string | null;
   requestedFor: string | null;
+  reviewer: TaskReviewRecipient | null;
+  implementationAgentId: string | null;
+  evidenceRevision: string | null;
   createdAt: number;
 }
 
@@ -357,7 +365,7 @@ function workflowRunView(
   };
 }
 
-/** The review a person decides: the task moves to done only by their hand. */
+/** Captured recipient distinguishes a human response from opt-in agent review. */
 function pendingReviewView(
   review: PendingReviewAnswer | null,
 ): Record<string, unknown> | null {
@@ -366,6 +374,9 @@ function pendingReviewView(
   return {
     approvalId: review.approvalId,
     round: review.round,
+    reviewer: review.reviewer,
+    implementationAgentId: review.implementationAgentId ?? null,
+    evidenceRevision: review.evidenceRevision ?? null,
     ...(review.runId !== null ? { runId: review.runId } : {}),
     ...(review.requestedFor !== null
       ? { requestedFor: review.requestedFor }
@@ -712,12 +723,12 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'The task already has a live run carrying the work; nothing new started. ' +
     'Leave it to that run.',
   in_review:
-    'The task waits for a person to review its earlier work; nothing ' +
+    'The task waits for its reviewer to judge the earlier work; nothing ' +
     'started. Start it without moveToInProgress: false to withdraw that ' +
-    'review and resume the task, or leave the decision to the person.',
+    'review and resume the task, or leave the decision to its reviewer.',
   stale_question:
     'The question you answered is no longer the task’s open question ' +
-    '(staleBecause: a person decided, a newer run or review exists, the ' +
+    '(staleBecause: the task was decided, a newer run or review exists, the ' +
     'assignee changed, or the task is being worked); nothing started and ' +
     'nothing changed. Read the task again before acting.',
   closed:
@@ -1057,7 +1068,7 @@ export async function runTaskTool(
           message: 'No task with that id in this organization.',
         };
       }
-      // What works on the task and what waits on a person. A read that fails
+      // What works on the task and who reviews it. A read that fails
       // fails the call — never a task that reads as idle for want of runs.
       const work: TaskWorkStateAnswer | null = await ctx.runQuery(
         internal.tasks.internal_queries.getTaskWorkStateForAgent,
@@ -1346,7 +1357,7 @@ export async function runTaskTool(
               guidance:
                 moved.reason === 'AGENTS_CANNOT_COMPLETE'
                   ? 'Agents never set done — move finished work to ' +
-                    'in_review; a human review completes it.'
+                    'in_review; its reviewer decides completion.'
                   : moved.reason === 'TASK_HAS_OPEN_SUBTASKS'
                     ? 'Close or cancel the open subtasks first.'
                     : 'The status change was refused.',
@@ -1393,6 +1404,43 @@ export async function runTaskTool(
           sessionId: args.session.sessionId,
           taskRunExecId: args.session.taskRunExecId,
           patch: parsed.data,
+        },
+      );
+      return { status: 'ok', output };
+    }
+
+    if (args.tool === 'task_review') {
+      if (
+        confinedTo !== undefined ||
+        authority.scope.kind !== 'project' ||
+        args.session?.taskRunExecId === undefined
+      ) {
+        return {
+          status: 'unavailable',
+          blockers: [
+            {
+              code: 'not_a_project_agent_run',
+              guidance:
+                'Only a live project agent run with project-wide authority can decide an independent task review.',
+            },
+          ],
+        };
+      }
+      const parsed = taskAgentReviewInputSchema.safeParse(callArgs);
+      if (!parsed.success) {
+        return {
+          status: 'invalid_args',
+          message:
+            'task_review needs {taskId, expected: {approvalId, runId, evidenceRevision}, decision: approve|request_changes, feedback, evidence: {checks, pullRequests}}. Read the exact pending review first; provide concrete checks. No other fields are accepted.',
+        };
+      }
+      const output = await ctx.runMutation(
+        internal.tasks.internal_mutations.agentReviewTask,
+        {
+          organizationId,
+          sessionId: args.session.sessionId,
+          taskRunExecId: args.session.taskRunExecId,
+          review: parsed.data,
         },
       );
       return { status: 'ok', output };

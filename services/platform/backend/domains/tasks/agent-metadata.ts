@@ -88,7 +88,7 @@ export async function updateAgentTaskMetadata(
     ) {
       throw new TaskError(
         'TASK_METADATA_OWNER_PROTECTED',
-        'The task is closed or awaiting human review; preserve its current owner',
+        'The task is closed or awaiting review; preserve its current owner',
         409,
       );
     }

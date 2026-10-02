@@ -26,6 +26,12 @@ export function useUpdateProjectInstructions() {
   });
 }
 
+export function useSetProjectTaskReviewer() {
+  return useBackendMutation('projects/mutations:setProjectTaskReviewer', {
+    errorToast: false,
+  });
+}
+
 export function useUpdateProjectSharing() {
   return useBackendMutation('projects/mutations:updateProjectSharing', {
     errorToast: false,

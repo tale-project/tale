@@ -3,7 +3,7 @@ title: Delegate a task to an agent
 description: Start an agent on a project task, review its result, request changes, and recover or cancel a run.
 ---
 
-A project agent works on a task and returns a result for a person to review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need to be able to change the task: an Editor or higher can on every task in the project, and a Member on the tasks they created or that are assigned to them. The organization also needs a working provider, compatible harness, and available sandbox capacity.
+A project agent works on a task and returns a result for review. Choose its assignment, start the work, and keep feedback on the task so the agent and reviewer have the same context. You need to be able to change the task: an Editor or higher can on every task in the project, and a Member on the tasks they created or that are assigned to them. The organization also needs a working provider, compatible harness, and available sandbox capacity.
 
 <Frame caption="Agent work uses the same board as human work: start at In progress and review the result at In review.">
 
@@ -15,7 +15,7 @@ A project agent works on a task and returns a result for a person to review. Cho
 
 1. Create a [task](/platform/projects/tasks) with the desired result, completion criteria, and input files.
 2. Choose a [project agent](/platform/projects/project-agents) under **Assignee**.
-3. Set **Reviewer** to the person who should check the result. Without a named reviewer, the request falls back to the task creator or project creator. Reviewers need project edit access, so a Member who created the task is not sent the review request; they follow the task and hear when it reaches **In review**, and they can accept the result themselves unless your organization requires an independent reviewer and they started the run.
+3. If you can edit the project, choose a person or independent agent under **Reviewer**, or keep **Project default**. The initial project default routes reviews to an eligible task creator or project creator. [Choose an owner and a reviewer](/platform/projects/tasks#choose-an-owner-and-a-reviewer) explains the default, permissions, and pending handoffs.
 4. Click **Start agent**, or move the task to **In progress**. When you assign the agent while creating the task, **Create and start agent** in **Create task** does this in the same step.
 
 Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed; until someone starts it, whoever can start the agent sees **Start agent** on the task with the note **The agent waits until you start it.** When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working. A run a Member starts keeps to its task and goes without the agent's secrets; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
@@ -26,15 +26,26 @@ Workflow progress comments can carry translations for each supported interface l
 
 ## Read and accept the result
 
-The agent posts its report as a task comment and adds produced files as deliverables. It then moves the task to **In review**. The reviewer receives a notification and, when email delivery is configured, an email.
+The agent posts its report as a task comment and adds produced files as deliverables. It then moves the task to **In review**. A human reviewer receives a notification and, when email delivery is configured, an email. An agent reviewer reads the pending review from its own task; routing a review to it does not start it automatically.
 
 Tale lists delivered or skipped files in a separate system comment that follows your interface language. A missing or shortened report is noted there too, so the report keeps the task's language.
 
-Read the report, open the deliverables, and compare them with the completion criteria. Move the task to **Done** only when you accept the work. Tale records the human decision; the agent cannot mark its own task Done.
+For a human review, read the report, open the deliverables, and compare them with the completion criteria. Move the task to **Done** only when you accept the work. Tale records the decision; the implementation agent cannot approve its own result.
 
-**Reviewer** routes the notification and review queue. It does not exclude anyone else who can change the task, an Editor or higher or the Member the task belongs to, from accepting the result, and changing the reviewer does not reassign the work away from the agent. When your organization requires an independent reviewer, whoever started the run can't accept its result, so a run a Member started on their own task waits for an Editor or higher; [Choose an owner and a reviewer](/platform/projects/tasks#choose-an-owner-and-a-reviewer) has the details.
+For a review assigned to a person, **Reviewer** routes the notification and review queue without reserving the decision to that person. Other people who can change the task may accept it, subject to the organization's independent-review and competence rules. A pending review assigned to an agent must be explicitly transferred to an eligible person before a human can approve it. Changing the reviewer does not reassign the implementation work; [Choose an owner and a reviewer](/platform/projects/tasks#choose-an-owner-and-a-reviewer) has the details.
 
-Changing **Reviewer** while the task waits in **In review** hands the pending request to the new reviewer: it leaves the previous reviewer's queue, and the new reviewer receives the notification and, when email delivery is configured, an email. **Clear reviewer** returns the request to the task creator or project creator.
+Changing **Reviewer** while the task waits in **In review** transfers the recorded request. The previous human reviewer's notification clears; a new human reviewer receives the request, while an agent-owned review waits for that agent. **Project default** uses the current project choice. A concurrent change to the review or result refuses the handoff, so read the refreshed state before trying again.
+
+## Set up an independent reviewer {#agent-review}
+
+1. Create a separate [project agent](/platform/projects/project-agents) for review. Under **Skills, connectors & tools**, grant **Find tasks**, **Read a task**, and **Review other agents’ task results**. The review grant is off initially and is not available to automation agent nodes.
+2. Select that agent as the project's [default reviewer](/platform/projects/tasks#review-default), or explicitly under **Reviewer** on a task. For a review already waiting, use the task's reviewer control to transfer it; changing the project default alone does not.
+3. Give the reviewer its own task and instructions to inspect only reviews assigned to it. Start that task directly or through an existing [schedule](/platform/automations/triggers#start-a-project-agent-on-a-schedule). Do not start a new implementation run on the task being judged.
+4. Require the reviewer to read the current review, examine the actual report and deliverables, and record concrete check results and feedback. It must decide against the same completed run and evidence it read; a changed result requires another read and review.
+
+Approval moves the reviewed task to **Done**. A request for changes records the feedback and moves it to **To do**, preserving its assignment. Neither verdict starts another run. Even an agent mention inside review feedback does not dispatch work: an authorized person, manager, or schedule must start the next attempt separately. The activity identifies the reviewer agent and its decision.
+
+The reviewer must be different from the agent that actually produced the result, for either verdict. It needs a live run with project-wide authority and the review grant still enabled; a run started by a Member cannot decide reviews. Required human competences, workflow approvals, and questions addressed to a person keep their own human gates. If GitHub work is involved, the reviewer must check the referenced commit and checks itself: Tale records its evidence but does not independently verify GitHub's current state or merge a pull request as part of the verdict.
 
 ## Ask for changes
 
@@ -66,7 +77,7 @@ A pass can outlast one run. Before its run ends, the manager saves a checkpoint 
 
 - A run with `live: true` is queued or running, and nothing else starts on the task until it ends.
 - A run that has settled, failed or been cancelled is finished; `settledAt` says when.
-- A `workflowRun` waiting for an `ask` or an `approval`, and a `pendingReview`, wait on a person.
+- A `workflowRun` waiting for an `ask` or an `approval` waits on a person. A `pendingReview` records its human or agent reviewer; a manager leaves the decision to that reviewer unless it is itself the assigned independent reviewer with the review grant.
 
 The answer leaves out transcripts, error texts and results, and anything from another project.
 
@@ -75,14 +86,14 @@ The answer leaves out transcripts, error texts and results, and anything from an
 A routine question is one the manager can answer from what the project already records. Write the same protocol into the instructions of the working agents and of the manager:
 
 1. The working agent posts the question as a task comment with a stable question key, its evidence and the question. It names the comment's ID and its own run ID in its result (**Read a task** on its task shows that run as the live one) and finishes the run instead of waiting inside it. Mentioning the manager in that comment starts nothing: a comment by an agent never starts an agent.
-2. On its next pass, the manager answers only while the task still waits on that question: the run that asked is the task's newest run and has finished, nothing is live on the task, and the task waits in review of that run (`pendingReview.runId`). It keeps that run's ID and `pendingReview.approvalId` from this read. If a person has since moved the task on, by accepting or cancelling it or asking for changes, the question is no longer the manager's to answer, and it reports the question instead.
+2. On its next pass, the manager answers only while the task still waits on that question: the run that asked is the task's newest run and has finished, nothing is live on the task, and the task waits in review of that run (`pendingReview.runId`). It keeps that run's ID and `pendingReview.approvalId` from this read. If someone has since moved the task on, by accepting or cancelling it or asking for changes, the question is no longer the manager's to answer, and it reports the question instead.
 3. It posts its answer as a comment that names the question's comment ID; the answer stays on the task whatever happens next. It then resumes the agent with **Start other agents on tasks**, passing `resumeFrom: {runId, approvalId}` with the two IDs it kept, and a message that opens with the question's key, the run's ID and the answer's comment ID: a later **Read a task** shows only the first 500 characters of a start's message. The start checks, as it happens, that this is still the task's open question. Only then does it withdraw the pending review, without approving it, and resume the agent.
-4. If the start answers `stale_question`, the question was overtaken between the manager's read and the start: a person decided, a newer run or review exists, or the assignee changed. Nothing was changed. The manager reads the task again and drops the outdated question. It does not start again, and never without `resumeFrom`.
+4. If the start answers `stale_question`, the question was overtaken between the manager's read and the start: a decision was made, a newer run or review exists, or the assignee changed. Nothing was changed. The manager reads the task again and drops the outdated question. It does not start again, and never without `resumeFrom`.
 5. If the start's response is lost, the manager reads the task again before trying anything else: a newer run whose message opens with that question's key, run ID and answer comment ID means the start went through. If the same start is sent again, it answers `stale_question` and changes nothing.
 
 A question from a standing task, one a schedule starts with `moveToInProgress: false`, waits for no review. The manager only posts its answer there, and the run at the schedule's next occurrence reads it. Neither the manager nor anyone else starts the task early to deliver the answer.
 
-Accepting a result, answering an automation's question and deciding an approval stay with people. The manager sees them in **Read a task** so that it can leave them to the person concerned and report them.
+Answering an automation's question and deciding a workflow approval stay with people. A manager may decide a project-agent task review only through the independent-review flow above, when that review is assigned to it; reading or resuming a task does not approve it.
 
 ## Handle waiting and failed runs
 
@@ -124,7 +135,7 @@ A project agent can also be put to work without anyone pressing **Start agent**:
 
 The run answers to whoever the requesting run answers to: the person who started it, or nobody for a schedule's chain, whose spend counts as automation spend. That person, or the schedule, has to be able to act in the project when the run starts; a lost Editor role, a paused schedule, or an automation removed from the project stops the next start. An agent another agent started cannot start further agents, and a run a Member started cannot start any. Such a start also checks what a person might forget: a task an open task blocks does not start, and an agent already working another task is not started twice. An automatic retry of such a run keeps to that rule: while its agent works on another task in the same workspace, the retry waits, checks again every five minutes and starts once the agent is free, without using an attempt. Each check reads the task afresh, so a move out of **In progress**, a reassignment, an archived task or project, or a lost role ends the wait. If the agent is still busy two hours after the failure, the retry does not start, and the timeline says **Run refused: agent is working on another task**.
 
-The review gate stays a person's. A delegated run parks its result at **In review** like any other, and resuming a task that waits there withdraws its pending review without approving it. A start that leaves the card where it is (`moveToInProgress: false`) is refused under a card waiting for review, or a **Done** or **Cancelled** one, so earlier work is never presented for judgment while new work runs under it. A manager that answers an agent's question resumes it naming the run that asked and the review it waits at. The resumption happens only while that is still the task's open question. If a person decided in the meantime (Done, Cancelled or another move), a newer run or review exists, or the assignee changed, the agent answers `stale_question` and nothing is assigned, withdrawn, moved or started. When your organization requires an independent reviewer, the person the run answers to cannot accept its result.
+A delegated run parks its result at **In review** for its recorded reviewer. Resuming a task that waits there withdraws its pending review without approving it. A start that leaves the card where it is (`moveToInProgress: false`) is refused under a card waiting for review, or a **Done** or **Cancelled** one, so earlier work is never presented for judgment while new work runs under it. A manager that answers an agent's question resumes it naming the run that asked and the review it waits at. The resumption happens only while that is still the task's open question. If a decision was made in the meantime (Done, Cancelled or another move), a newer run or review exists, or the assignee changed, the agent answers `stale_question` and nothing is assigned, withdrawn, moved or started. When your organization requires an independent human reviewer, the person the run answers to cannot accept its result.
 
 ## Cancel or pause work
 

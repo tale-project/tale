@@ -144,6 +144,35 @@ describe('needsMyReview facet', () => {
     expect(filtered.map((row) => row._id)).toEqual(['mine']);
   });
 
+  it('never falls back to a human field when a pending review is agent-owned or unresolved', () => {
+    const rows = [
+      task({
+        _id: 'captured-agent',
+        status: 'in_review',
+        reviewerUserId: 'user-1',
+      }),
+    ];
+    expect(
+      filterTasksByFacets(rows, {
+        assignee: ALL_ASSIGNEE_FILTER,
+        priority: ALL_PRIORITY_FILTER,
+        currentUserId: 'user-1',
+        needsMyReview: true,
+        reviewRequestedFor: new Map([['captured-agent', undefined]]),
+      }),
+    ).toEqual([]);
+    expect(
+      taskAwaitsMyReview(
+        task({ status: 'in_review', reviewerUserId: 'user-1' }),
+        {
+          currentUserId: 'user-1',
+          pendingReviewRequestedFor: 'user-2',
+          hasPendingReview: true,
+        },
+      ),
+    ).toBe(false);
+  });
+
   it('matches nobody without a current user (no-op, mirrors assignee me)', () => {
     expect(
       taskAwaitsMyReview(task({ status: 'in_review', reviewerUserId: 'u' }), {

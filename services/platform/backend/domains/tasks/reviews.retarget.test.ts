@@ -62,6 +62,7 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
     assigneeType: 'agent',
     assigneeId: 'agent-1',
     reviewerUserId: 'u-bob',
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',
@@ -181,7 +182,15 @@ describe('retargetPendingTaskReview', () => {
     // Only the routing key changes — the run link, round and driver stay,
     // and a decided row can never be rewritten.
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: 'u-bob' } }, 'apv-1'],
+      [
+        {
+          json: {
+            requestedFor: 'u-bob',
+            reviewer: { kind: 'user', userId: 'u-bob' },
+          },
+        },
+        'apv-1',
+      ],
     ]);
     expect(
       statements.find((statement) =>
@@ -226,7 +235,15 @@ describe('retargetPendingTaskReview', () => {
 
     expect(waitsOn).toBe('u-carol');
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: 'u-carol' } }, 'apv-1'],
+      [
+        {
+          json: {
+            requestedFor: 'u-carol',
+            reviewer: { kind: 'user', userId: 'u-carol' },
+          },
+        },
+        'apv-1',
+      ],
     ]);
     expect(notifyTaskReviewRequested).toHaveBeenCalledWith(
       tx,
@@ -251,7 +268,15 @@ describe('retargetPendingTaskReview', () => {
 
     expect(waitsOn).toBe('u-lead');
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: 'u-lead' } }, 'apv-1'],
+      [
+        {
+          json: {
+            requestedFor: 'u-lead',
+            reviewer: { kind: 'user', userId: 'u-lead' },
+          },
+        },
+        'apv-1',
+      ],
     ]);
   });
 
@@ -270,7 +295,7 @@ describe('retargetPendingTaskReview', () => {
 
     expect(waitsOn).toBeUndefined();
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: null } }, 'apv-1'],
+      [{ json: { requestedFor: null, reviewer: null } }, 'apv-1'],
     ]);
     // Alice is no longer on the hook, so her bell still clears.
     expect(dismissReviewRequestNotifications).toHaveBeenCalledTimes(1);
@@ -288,7 +313,15 @@ describe('retargetPendingTaskReview', () => {
 
     expect(waitsOn).toBe('u-carol');
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: 'u-carol' } }, 'apv-1'],
+      [
+        {
+          json: {
+            requestedFor: 'u-carol',
+            reviewer: { kind: 'user', userId: 'u-carol' },
+          },
+        },
+        'apv-1',
+      ],
     ]);
   });
 
@@ -351,7 +384,15 @@ describe('retargetPendingTaskReview — moving a review off an erased subject', 
 
     expect(waitsOn).toBe('u-lead');
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: 'u-lead' } }, 'apv-1'],
+      [
+        {
+          json: {
+            requestedFor: 'u-lead',
+            reviewer: { kind: 'user', userId: 'u-lead' },
+          },
+        },
+        'apv-1',
+      ],
     ]);
     expect(findOrganizationMember).not.toHaveBeenCalledWith(
       tx,
@@ -389,7 +430,15 @@ describe('retargetPendingTaskReview — moving a review off an erased subject', 
 
     expect(waitsOn).toBe('u-lead');
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: 'u-lead' } }, 'apv-1'],
+      [
+        {
+          json: {
+            requestedFor: 'u-lead',
+            reviewer: { kind: 'user', userId: 'u-lead' },
+          },
+        },
+        'apv-1',
+      ],
     ]);
     // The subject's request bell still goes and the new reviewer follows
     // the task (a restore brings the card back waiting on them), but no
@@ -415,7 +464,7 @@ describe('retargetPendingTaskReview — moving a review off an erased subject', 
 
     expect(waitsOn).toBeUndefined();
     expect(approvalWrites(statements)).toEqual([
-      [{ json: { requestedFor: null } }, 'apv-1'],
+      [{ json: { requestedFor: null, reviewer: null } }, 'apv-1'],
     ]);
     expect(notifyTaskReviewRequested).not.toHaveBeenCalled();
   });

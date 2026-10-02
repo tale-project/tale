@@ -528,6 +528,10 @@ A project holds at most 50 agents. Names are unique within the project without r
 
 `task_update_metadata` is an optional project-agent grant (contract 3.10.0) for changing an existing task’s priority and agent assignment without execution. Its request names `taskId`, `priority` and/or `agentId`, plus the current value of each touched field in `expected`; `null` clears a value and omitted fields stay untouched. Build `expected.assignee` as `{type, id}` from `task_get`’s `assigneeType` and `assigneeId`, or use `null` when unassigned; an absent priority is `null`. A stale value refuses the whole request. The [project-agent guide](/platform/projects/project-agents) explains the protected review and live-run states. `task_upsert_by_external_ref` still uses `priority` only when creating a task.
 
+`task_review` adds an optional project-agent grant in contract 3.11.0. It decides only a pending native review assigned to the live reviewer agent, for a completed run by a different agent in the same project. Pass `taskId`, `expected: {approvalId, runId, evidenceRevision}` from the current `task_get.pendingReview`, `decision: "approve" | "request_changes"`, nonempty `feedback`, and `evidence: {checks, pullRequests}`. Each check names its outcome (`passed` or `failed`) and details; a supplied GitHub pull request names its URL, exact `headSha`, and check state. Approval requires every supplied check to have passed. GitHub evidence is the agent's attestation, not a remote verification by Tale.
+
+The tool rechecks the current grant, live issuer authority, recorded reviewer, implementation run, and local evidence revision. A stale result requires another read; changing the current assignee does not establish independence. Approval moves the task to `done`; `request_changes` moves it to `todo` with feedback and no execution, even if the feedback contains a mention. Human competence requirements and workflow approval gates remain outside this tool. There is no public REST endpoint for an agent verdict.
+
 Only organization Owners and Admins may change secret grants, so an editor's full save must preserve existing grants.
 
 Project readers can read the roster; writes require project edit access and an active project. An invisible or missing project, or an agent ID from another project, returns **404**. A multi-organization key must include `X-Organization-Slug` on reads and writes. [Project agents](/platform/projects/project-agents) explains how these agents work on tasks; direct chat keeps using the built-in assistant.
@@ -649,7 +653,7 @@ Listings answer summaries — identity, scope, status and timing, each row namin
 
 ## Act for a member: answer a run’s question, decide a task’s review
 
-A run parked on `waitingFor: "ask"` and a task parked in `in_review` both wait on a person. When that person works in another application — an office portal that mirrors the desk, say — the machine caller relays their gesture and names them as the `actor`, so Tale records the person and not the key. Both doors need API contract 1.16.0.
+A run parked on `waitingFor: "ask"` waits on a person; a task in `in_review` can wait on a person or a designated agent. These two REST doors relay a person's gesture from another application and name that person as `actor`, so Tale records the person rather than the key. Both doors need API contract 1.16.0; contract 3.11.0 adds the explicit refusal of human approval while a task review belongs to an agent.
 
 ### Answer the question a run is waiting on
 
@@ -677,7 +681,7 @@ A project run needs write access to an active project; an organization run needs
 
 ### Decide a task’s review
 
-`GET /api/v1/projects/{id}/tasks/{taskId}/review` answers the task’s status and its pending `TaskReview`, or `review: null`. `POST` on the same path decides it — here `actor` is required, because a review is always a person’s decision:
+`GET /api/v1/projects/{id}/tasks/{taskId}/review` answers the task's status and its pending `TaskReview`, or `review: null`. Since contract 3.11.0, `reviewer` is `{kind: "user", userId}`, `{kind: "agent", agentId}`, or `null`; `implementationAgentId` identifies the actual source agent and `evidenceRevision` identifies the current local review evidence, both nullable. `requestedFor` remains the human compatibility field and is `null` for an agent; `agentSlug` is display text, never source identity. A `POST` on this path relays a human decision and requires `actor`:
 
 ```bash
 curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
@@ -689,6 +693,8 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 ```
 
 `approve` is the board’s move to Done: the member’s own right to change the task (an Editor or higher, or the member who created it or is its person assignee) and the organization’s `review_policy` apply exactly as there (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them), the review is recorded as approved by the member, and the task becomes `done`; a task with open subtasks returns **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` needs `comment` and `workflowSlug`: it withdraws the review, puts the comment on the timeline and starts the workflow again on the task, which reads the comment as feedback; the answer carries the `runId` to poll, with `started: false` when a live run was reused. A task that is not in review returns **409** `TASK_NOT_IN_REVIEW`. Every decision is audited as `task.review_relayed`, naming the member and the key that relayed for them.
+
+Approving a review assigned to an agent returns **409**, `TASK_AGENT_REVIEW_REQUIRED`. An Editor must explicitly [transfer the pending review](/platform/projects/tasks#transfer-review) to an eligible person before this human approval endpoint can accept it. Do not impersonate the agent in `actor` or treat a missing human `requestedFor` as an unowned review.
 
 ### Name the member the gesture is for
 

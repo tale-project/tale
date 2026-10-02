@@ -1,7 +1,9 @@
+import type { TaskReviewRecipient } from '@tale/shared/schemas/task-review';
 import type { TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { taskReviewRecipientOf } from './reviews.ts';
 
 /**
  * The provenance ledger: one IMMUTABLE audit-chain entry per settled agent
@@ -180,9 +182,9 @@ export async function recordTaskAgentRunLedgerEntry(
   }
 
   // Reviewer linkage: the settle minted this run's `task_review` earlier in
-  // the same choreography; its `requestedFor` names the human the work now
+  // the same choreography; its typed recipient names the reviewer the work now
   // waits on. Absent for failed/cancelled runs and refused parks.
-  let reviewerUserId: string | undefined;
+  let reviewer: TaskReviewRecipient | null = null;
   if (args.finalStatus === 'settled') {
     const reviews = await tx<{ metadata: unknown }[]>`
       SELECT metadata FROM app.approvals
@@ -193,9 +195,7 @@ export async function recordTaskAgentRunLedgerEntry(
     for (const review of reviews) {
       const metadata = asRecord(review.metadata);
       if (metadata === null || metadata.runId !== run.id) continue;
-      if (typeof metadata.requestedFor === 'string') {
-        reviewerUserId = metadata.requestedFor;
-      }
+      reviewer = taskReviewRecipientOf(metadata);
       break;
     }
   }
@@ -281,7 +281,16 @@ export async function recordTaskAgentRunLedgerEntry(
       ...(knowledgeReads.size > 0
         ? { knowledgeReads: [...knowledgeReads] }
         : {}),
-      ...(reviewerUserId !== undefined ? { review: { reviewerUserId } } : {}),
+      ...(reviewer !== null
+        ? {
+            review: {
+              reviewer,
+              ...(reviewer.kind === 'user'
+                ? { reviewerUserId: reviewer.userId }
+                : {}),
+            },
+          }
+        : {}),
     },
   });
 }

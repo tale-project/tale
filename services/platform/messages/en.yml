@@ -5251,6 +5251,19 @@ skills:
     bodyHelp: Markdown the model reads when it loads the skill — playbooks,
       conventions, reference material. Never executed.
 projects:
+  taskReview:
+    title: "Task reviews"
+    description: "Choose who reviews completed agent work in this project."
+    defaultReviewer: "Default reviewer"
+    humanDefault: "Person"
+    humanDefaultHint: "The task creator, then the project creator, if they can edit the project."
+    agentHint: "Reviews completed work independently."
+    existingReviews: "Applies when a new review starts. Reviews already waiting keep their recorded reviewer."
+    permissionRequired: "This agent needs the task review permission before it can decide."
+    unavailable: "The selected reviewer agent is unavailable. Choose another reviewer."
+    stale: "The project reviewer changed while you were editing. Discard this draft and choose again."
+    search: "Search reviewer agents"
+
   title: Projects
   entityLabel: projects
   entityLabelOne: project
@@ -5490,6 +5503,7 @@ projects:
       task_comment: Comment on tasks
       task_update_status: Move tasks between columns
       task_update_metadata: Change task priority and agent assignment
+      task_review: "Review other agents’ task results"
       task_start_agent: Start other agents on tasks
       task_upsert_by_external_ref: Sync an external item to a task
       document_find: Find documents
@@ -7764,6 +7778,7 @@ tasks:
     standardAgentHint: The organization's agent for projects without their own
     standardAgentFooter: Until this project has agents of its own, the organization's standard agent takes its tasks.
   activity:
+    reviewResponded: "Review decided"
     created: Created
     updated: Updated
     claimed: Claimed
@@ -7793,6 +7808,9 @@ tasks:
       labels: No labels
       attachments: No attachments
   review:
+    decisionApproved: "Approved"
+    decisionChangesRequested: "Changes requested"
+    decisionUnavailable: "Review decision unavailable"
     needsReview: Needs review
     waitingOn: 'Waiting on {name}'
     waitingOnYou: Waiting on you
@@ -7805,9 +7823,27 @@ tasks:
   reviewer:
     none: No reviewer
     assignToMe: Review it myself
-    search: Search people
-    clear: Clear reviewer
+    search: "Search people and agents"
     editorsOnly: Only members who can edit this project can be the reviewer.
+    projectDefaultLabel: "Project default"
+    projectDefault: "Project default · {reviewer}"
+    projectDefaultHuman: "Project default · person"
+    independentAgent: "Choose a different agent from the one that did the work."
+    agentReview: "Reviews the result from its own review task."
+    routingHint: "People need edit access. Agents need the task review permission and must not review their own work."
+    pendingFor: "Current review: {reviewer}"
+    transferHint: "Choosing a reviewer also transfers this pending review."
+    agentUnavailable: "This reviewer agent is unavailable. Choose another reviewer."
+    agentPermissionRequired: "This agent needs the task review permission before it can decide."
+    saveError: "Couldn't change the reviewer"
+    loadError: "Couldn't load the current review. Try again before changing it."
+    stale: "The reviewer or result changed. Check the current review and choose again."
+    handoffRequired: "Transfer the pending review explicitly before changing its owner."
+    busy: "Wait for the active run or open question to finish before transferring review."
+    sourceRequired: "This result has no supported implementation run to review."
+    notIndependent: "Choose an agent that did not produce this result."
+    agentRequired: "The assigned reviewer agent must decide this review."
+    invalid: "Choose an eligible project member or an agent in this project."
   watch:
     watch: Watch
     unwatch: Unwatch
