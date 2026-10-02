@@ -50,6 +50,24 @@ function isAlive(pid: number): boolean {
   }
 }
 
+/** The pid an exec printed first (`cmd & echo $!`), once it has. */
+async function stdoutPid(events: RunnerdExecEvent[]): Promise<number> {
+  const started = Date.now();
+  while (Date.now() - started < 5_000) {
+    const pid = Number(decode(events, 'stdout').trim());
+    if (pid > 1) return pid;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  throw new Error('the exec never printed its pid');
+}
+
+async function waitGone(pid: number): Promise<void> {
+  const deadline = Date.now() + 3_000;
+  while (isAlive(pid) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
 function decode(
   events: RunnerdExecEvent[],
   stream: 'stdout' | 'stderr',
@@ -344,6 +362,84 @@ describe('ExecManager', () => {
     while (isAlive(pid) && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 20));
     }
+    expect(isAlive(pid)).toBe(false);
+  });
+
+  test('a cancel signals each process of the exec once', async () => {
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
+      kill: (pid, signal) => {
+        sent.push([pid, signal]);
+        process.kill(pid, signal);
+      },
+    });
+    const { events, emit } = collect();
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'eonce',
+        shell: 'sleep 30 & echo $!; wait',
+        cwd: ROOT,
+      },
+      emit,
+    );
+    const pid = await stdoutPid(events);
+    expect(mgr.cancel('eonce')).toBe(true);
+    await done;
+    await waitGone(pid);
+    // The shell and its sleep share the exec's group: one signal reaches
+    // both. A second SIGTERM would land inside whatever cleanup the first
+    // started (a wrapper's, a harness writing its transcript).
+    expect(sent.filter(([, signal]) => signal === 'SIGTERM')).toHaveLength(1);
+    expect(sent[0]?.[0]).toBeLessThan(0);
+  });
+
+  test('what an exec left running waits while another exec of the session runs', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const long = collect();
+    const longDone = mgr.run(
+      { ...base, execId: 'elong', shell: 'sleep 30', cwd: ROOT },
+      long.emit,
+    );
+    const short = collect();
+    // A dev server the next exec may still use: it outlives its own exec.
+    await mgr.run(
+      {
+        ...base,
+        execId: 'eshort',
+        shell: 'sleep 30 >/dev/null 2>&1 & echo $!',
+        cwd: ROOT,
+      },
+      short.emit,
+    );
+    const pid = Number(decode(short.events, 'stdout').trim());
+    expect(pid).toBeGreaterThan(1);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(isAlive(pid)).toBe(true);
+    // The session's last exec ends: what the earlier one left ends with it.
+    expect(mgr.cancel('elong')).toBe(true);
+    await longDone;
+    await waitGone(pid);
+    expect(isAlive(pid)).toBe(false);
+  });
+
+  test('a daemon going down ends every live exec and what exited ones left', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'edown',
+        shell: 'sleep 30 & echo $!; wait',
+        cwd: ROOT,
+      },
+      emit,
+    );
+    const pid = await stdoutPid(events);
+    await mgr.terminateAll();
+    await done;
+    expect(events[events.length - 1]).toMatchObject({ t: 'exit' });
+    await waitGone(pid);
     expect(isAlive(pid)).toBe(false);
   });
 

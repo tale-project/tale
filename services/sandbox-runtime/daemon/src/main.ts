@@ -519,9 +519,13 @@ if (
   // transcript and a wrapper to remove what it staged before the teardown.
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     process.on(sig, () => {
-      execManager.terminateAll();
-      server.close(() => process.exit(0));
       setTimeout(() => process.exit(0), 2_000);
+      void execManager
+        .terminateAll()
+        .catch((error: unknown) => {
+          console.warn('[runnerd] passing the stop on failed:', error);
+        })
+        .finally(() => server.close(() => process.exit(0)));
     });
   }
 

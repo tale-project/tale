@@ -42,18 +42,24 @@ over plain HTTP on `:8200`:
   is replaced by the first 16 hex digits of its SHA-1, as the K8s backend does.
 - K8s: the Pod IP (read from `status.podIP`).
 
-**An exec's processes end with the exec.** runnerd starts each exec in a
+**An exec's leftover processes are ended.** runnerd starts each exec in a
 process group of its own and puts the exec id in its environment
 (`TALE_EXEC_ID`), which every descendant inherits. When the exec's command
-exits — and on a cancel or at its deadline — runnerd sends SIGTERM to that
-group and to every process carrying the id (one that moved to a group or
-session of its own, such as a browser its driver started detached), then
-SIGKILL five seconds later. A backgrounded server, a `nohup` worker or a
-browser therefore never outlives the turn that started it; before, they ran
-on in a session that read idle until the container stopped. Daemons the
-entrypoint starts (redsocks, the inner dockerd) and the containers an exec
-runs under the inner dockerd are not the exec's and keep running. On
-SIGTERM, runnerd passes the signal on to every live exec before it exits.
+exits, runnerd sends SIGTERM to what it left running — the group as a whole,
+and on its own each process carrying the id that moved to a group or session
+of its own (such as a browser its driver started detached) — then SIGKILL
+five seconds later. While another exec of the session still runs, the
+leftovers wait: that exec may be using what the earlier one started (a dev
+server, a build daemon), so they end when the session's last running exec
+ends. A cancel or the deadline ends the exec's processes at once. A
+backgrounded server, a `nohup` worker or a browser therefore no longer runs on
+in a session that reads idle until the container stops. Each process gets one
+SIGTERM, so a second signal never cuts short the cleanup the first one started.
+Out of reach: a process that both left the exec's group and replaced its
+environment, the daemons the entrypoint starts (redsocks, the inner dockerd),
+and the containers an exec runs under the inner dockerd. On SIGTERM, runnerd
+passes the signal on to every live exec, and to what exited execs left
+waiting, before it exits.
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token
