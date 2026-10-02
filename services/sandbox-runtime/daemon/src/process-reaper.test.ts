@@ -75,7 +75,8 @@ function stallEnviron(root: string, pid: string, pgrp: number): string {
   writeStat(root, pid, { env: null, pgrp });
   const fifo = `${root}/${pid}/environ`;
   const made = spawnSync('mkfifo', [fifo]);
-  if (made.status !== 0) throw new Error(`mkfifo failed: ${String(made.stderr)}`);
+  if (made.status !== 0)
+    throw new Error(`mkfifo failed: ${String(made.stderr)}`);
   return fifo;
 }
 
@@ -149,9 +150,7 @@ describe('groupMembers', () => {
         procRoot,
         scanDeadlineMs: 2_000,
       });
-      expect(
-        members.sort((a, b) => a.pid - b.pid),
-      ).toEqual([
+      expect(members.sort((a, b) => a.pid - b.pid)).toEqual([
         { pid: 40, startTime: '1040' },
         { pid: 41, startTime: '7' },
         { pid: 42, startTime: '1042' },

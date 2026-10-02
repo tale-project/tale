@@ -317,9 +317,7 @@ function memberStillIn(
   return table.some(
     (proc) =>
       proc.pgrp === group &&
-      members.some(
-        (m) => m.pid === proc.pid && m.startTime === proc.startTime,
-      ),
+      members.some((m) => m.pid === proc.pid && m.startTime === proc.startTime),
   );
 }
 

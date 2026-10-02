@@ -132,8 +132,11 @@ vi.mock('../node_only/sandbox/turn_equipment', () => ({
   resolveTurnEquipmentEnv: async () => ({}),
 }));
 
-const { driveTaskAgentTurnImpl, startTaskAgentTurnImpl, steerTaskAgentTurnImpl } =
-  await import('./agent_run_host');
+const {
+  driveTaskAgentTurnImpl,
+  startTaskAgentTurnImpl,
+  steerTaskAgentTurnImpl,
+} = await import('./agent_run_host');
 
 interface RunState {
   status: string;

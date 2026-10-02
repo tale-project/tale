@@ -404,7 +404,7 @@ describe('ExecManager', () => {
           execId: 'euterm',
           // Ignores SIGTERM and carries no tag; the exec waits for its trap.
           shell:
-            "rm -f ready; env -i /bin/bash -c \"trap '' TERM; : > ready; exec /bin/sleep 403\" >/dev/null 2>&1 & while [ ! -e ready ]; do sleep 0.02; done; echo $!",
+            'rm -f ready; env -i /bin/bash -c "trap \'\' TERM; : > ready; exec /bin/sleep 403" >/dev/null 2>&1 & while [ ! -e ready ]; do sleep 0.02; done; echo $!',
           cwd: ROOT,
         },
         emit,
