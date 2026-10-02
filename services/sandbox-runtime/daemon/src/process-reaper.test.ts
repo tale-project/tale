@@ -335,6 +335,29 @@ describe('signalExecProcesses', () => {
     }
   });
 
+  test('scans that run at once share one read of a stuck process', async () => {
+    const procRoot = procTable({ '42': tagged('e7', 42) });
+    const fifo = stallEnviron(procRoot, '41', 41);
+    const deps = { procRoot, scanDeadlineMs: 300 };
+    try {
+      const both = Promise.all([
+        taggedPids('e7', deps),
+        taggedPids('e7', deps),
+        groupMembers(41, deps),
+      ]);
+      await new Promise((r) => setTimeout(r, 100));
+      expect(pendingProcReads()).toBe(1);
+      expect(await both).toEqual([
+        [42],
+        [42],
+        [{ pid: 41, startTime: '1041' }],
+      ]);
+      expect(pendingProcReads()).toBe(1);
+    } finally {
+      await release(fifo);
+    }
+  });
+
   test('a process whose read did not come back is skipped until the read returns or the pid is someone else’s', async () => {
     const procRoot = procTable({ '42': tagged('e6', 42) });
     const fifo = stallEnviron(procRoot, '41', 41);

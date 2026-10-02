@@ -111,6 +111,9 @@ interface StalledRead {
 
 /** Per process table: the pids whose read is still out. */
 const stalledByRoot = new Map<string, Map<number, StalledRead>>();
+/** The environment reads out now, by process: scans that run at once share
+ * one, so a stuck process holds one thread of the pool, not one per scan. */
+const environReads = new Map<string, Promise<string>>();
 let readsInFlight = 0;
 
 /** How many reads of the process table have not come back. Each holds one
@@ -136,11 +139,34 @@ async function readProcessTable(
   deps: ReaperDeps,
   withTags = true,
 ): Promise<ProcessEntry[] | null> {
+  const deadlineMs = deps.scanDeadlineMs ?? SCAN_DEADLINE_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<'cut'>((resolve) => {
+    timer = setTimeout(() => resolve('cut'), deadlineMs);
+  });
+  try {
+    return await scanProcessTable(deps, withTags, deadline, deadlineMs);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function scanProcessTable(
+  deps: ReaperDeps,
+  withTags: boolean,
+  deadline: Promise<'cut'>,
+  deadlineMs: number,
+): Promise<ProcessEntry[] | null> {
   const root = deps.procRoot ?? '/proc';
   const selfPid = deps.selfPid ?? process.pid;
   let entries: string[];
   try {
-    entries = await tracked(readdir(root));
+    const listing = await Promise.race([tracked(readdir(root)), deadline]);
+    if (listing === 'cut') {
+      console.warn(`[runnerd] listing ${root} took over ${deadlineMs} ms`);
+      return [];
+    }
+    entries = listing;
   } catch (err) {
     if (errorCode(err) !== 'ENOENT') {
       console.warn('[runnerd] cannot read the process table:', err);
@@ -196,9 +222,17 @@ async function readProcessTable(
         known.delete(pid);
       }
       unsettled.set(pid, { startTime: parsed.startTime });
+      const key = `${root}/${name}@${parsed.startTime}`;
+      let read = environReads.get(key);
+      if (read === undefined) {
+        read = tracked(readFile(`${root}/${name}/environ`, 'latin1')).finally(
+          () => environReads.delete(key),
+        );
+        environReads.set(key, read);
+      }
       let environ: string;
       try {
-        environ = await tracked(readFile(`${root}/${name}/environ`, 'latin1'));
+        environ = await read;
       } catch (err) {
         if (!VANISHED.has(errorCode(err) ?? '')) {
           console.warn(`[runnerd] cannot read process ${pid}:`, err);
@@ -215,15 +249,10 @@ async function readProcessTable(
     }
   };
   const reads = Promise.all(entries.map((name) => readOne(name, stalled)));
-  const deadlineMs = deps.scanDeadlineMs ?? SCAN_DEADLINE_MS;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   const cut = await Promise.race([
     reads.then(() => false),
-    new Promise<boolean>((resolve) => {
-      timer = setTimeout(() => resolve(true), deadlineMs);
-    }),
+    deadline.then(() => true),
   ]);
-  clearTimeout(timer);
   for (const pid of stalled.keys()) {
     if (!listed.has(pid)) stalled.delete(pid);
   }
