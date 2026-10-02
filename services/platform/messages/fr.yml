@@ -8238,6 +8238,13 @@ websites:
     failed: Échec
     skipped: Ignorée
     failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
+    filter:
+      label: Pages à afficher
+      all: Toutes
+      failed: 'En échec ({count})'
+      skipped: 'Ignorées ({count})'
+    noFailedPages: Aucune page en échec
+    noSkippedPages: Aucune page ignorée
     errorKind:
       dnsFailed: Impossible de résoudre l'hôte.
       timeout: La page n'a pas répondu à temps.

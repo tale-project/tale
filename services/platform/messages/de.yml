@@ -8131,6 +8131,13 @@ websites:
     failed: Fehlgeschlagen
     skipped: Übersprungen
     failedPages: '{count, plural, one {{count} Seite fehlgeschlagen} other {{count} Seiten fehlgeschlagen}}'
+    filter:
+      label: Welche Seiten angezeigt werden
+      all: Alle
+      failed: 'Fehlgeschlagen ({count})'
+      skipped: 'Übersprungen ({count})'
+    noFailedPages: Keine Seite ist fehlgeschlagen
+    noSkippedPages: Keine Seite wurde übersprungen
     errorKind:
       dnsFailed: Host konnte nicht aufgelöst werden.
       timeout: Die Seite hat nicht rechtzeitig geantwortet.

@@ -13,6 +13,7 @@ import {
 import { Heading } from '@tale/ui/heading';
 import { Row, Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
+import { SegmentedControl } from '@tale/ui/segmented-control';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Spinner } from '@tale/ui/spinner';
@@ -65,6 +66,20 @@ import { WebsiteEditDialog } from './website-edit-dialog';
 
 const PAGE_SIZE = 20;
 
+/** What the page list shows: every page, or only the ones in one state. */
+type PageStateFilter = 'all' | 'failed' | 'skipped';
+
+function isPageStateFilter(value: string): value is PageStateFilter {
+  return value === 'all' || value === 'failed' || value === 'skipped';
+}
+
+/** The `state` argument a filter sends the pages read: none for all. */
+function pageStateArg(filter: PageStateFilter): {
+  state?: 'failed' | 'skipped';
+} {
+  return filter === 'all' ? {} : { state: filter };
+}
+
 const FAILURE_KIND_KEYS = {
   dns_failed: 'pagesDialog.errorKind.dnsFailed',
   timeout: 'pagesDialog.errorKind.timeout',
@@ -98,7 +113,9 @@ function pageFailureCaption(
   page: CrawlerPage,
   t: (key: string, values?: Record<string, unknown>) => string,
 ): string | null {
-  if (page.fail_count <= 0) return null;
+  // A reason without a strike — a failure charged to the render lane, not
+  // the page — still says why the page is not indexed; it is counted among
+  // the failed pages, so it reads as one.
   if (page.last_error === null && page.last_error_kind === null) return null;
   const kind = page.last_error_kind;
   const reason =
@@ -338,6 +355,15 @@ export function WebsiteViewDialog({
   const [activeQuery, setActiveQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CrawlerSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  // The list narrowed to the failed or the skipped pages: a reader reaches
+  // the five that failed without walking the five hundred that did not.
+  // The counts come with every pages answer, whichever state is open.
+  const [pageState, setPageState] = useState<PageStateFilter>('all');
+  const pageStateRef = useRef<PageStateFilter>('all');
+  const [pageCounts, setPageCounts] = useState<{
+    failed: number;
+    skipped: number;
+  } | null>(null);
 
   const isSearchMode = activeQuery.length > 0;
 
@@ -351,6 +377,9 @@ export function WebsiteViewDialog({
     {
       errorToast: false,
       onSuccess: (data) => {
+        setPageCounts(data.counts);
+        // An answer for another state arrived after the reader moved on.
+        if ((data.state ?? 'all') !== pageStateRef.current) return;
         if (data.offset === 0) {
           shownPages.current = data.pages.length;
           setPages(data.pages);
@@ -395,6 +424,9 @@ export function WebsiteViewDialog({
       setSearchQuery('');
       setActiveQuery('');
       setSearchResults([]);
+      setPageState('all');
+      pageStateRef.current = 'all';
+      setPageCounts(null);
       fetchPages({ websiteId: website._id, offset: 0, limit: PAGE_SIZE });
     }
   }, [isOpen, website._id, fetchPages]);
@@ -420,8 +452,9 @@ export function WebsiteViewDialog({
       websiteId: website._id,
       offset: 0,
       limit: offset + PAGE_SIZE,
+      ...pageStateArg(pageState),
     });
-  }, [isOpen, scanProgress, offset, website._id, fetchPages]);
+  }, [isOpen, scanProgress, offset, pageState, website._id, fetchPages]);
 
   const triggerSearch = useCallback(() => {
     const query = searchQuery.trim();
@@ -438,8 +471,30 @@ export function WebsiteViewDialog({
       websiteId: website._id,
       offset: nextOffset,
       limit: PAGE_SIZE,
+      ...pageStateArg(pageState),
     });
-  }, [offset, website._id, fetchPages]);
+  }, [offset, pageState, website._id, fetchPages]);
+
+  // Another state: the list starts over from its first window.
+  const selectPageState = useCallback(
+    (next: PageStateFilter) => {
+      if (next === pageStateRef.current) return;
+      pageStateRef.current = next;
+      setPageState(next);
+      shownPages.current = 0;
+      setPages([]);
+      setOffset(0);
+      setHasMore(false);
+      setIsFirstLoad(true);
+      fetchPages({
+        websiteId: website._id,
+        offset: 0,
+        limit: PAGE_SIZE,
+        ...pageStateArg(next),
+      });
+    },
+    [website._id, fetchPages],
+  );
 
   const handleSearchChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -666,8 +721,20 @@ export function WebsiteViewDialog({
           meta={
             <>
               {indexedPageCount(website)} {t('indexed').toLowerCase()}
-              {failedPageCount > 0 &&
-                ` · ${t('pagesDialog.failedPages', { count: failedPageCount })}`}
+              {failedPageCount > 0 ? (
+                <>
+                  {' · '}
+                  {/* The count is the door to the pages it counts. */}
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto py-0 text-xs"
+                    onClick={() => selectPageState('failed')}
+                  >
+                    {t('pagesDialog.failedPages', { count: failedPageCount })}
+                  </Button>
+                </>
+              ) : null}
             </>
           }
         >
@@ -723,8 +790,43 @@ export function WebsiteViewDialog({
             </Stack>
           ) : (
             <Stack gap={2}>
+              {pageState !== 'all' ||
+              (pageCounts !== null &&
+                pageCounts.failed + pageCounts.skipped > 0) ? (
+                <SegmentedControl
+                  aria-label={t('pagesDialog.filter.label')}
+                  value={pageState}
+                  onValueChange={(next) => {
+                    if (isPageStateFilter(next)) selectPageState(next);
+                  }}
+                  options={[
+                    { value: 'all', label: t('pagesDialog.filter.all') },
+                    {
+                      value: 'failed',
+                      label: t('pagesDialog.filter.failed', {
+                        count: pageCounts?.failed ?? 0,
+                      }),
+                    },
+                    {
+                      value: 'skipped',
+                      label: t('pagesDialog.filter.skipped', {
+                        count: pageCounts?.skipped ?? 0,
+                      }),
+                    },
+                  ]}
+                />
+              ) : null}
               {!isFirstLoad && pages.length === 0 && (
-                <EmptyState icon={FileText} title={t('pagesDialog.noPages')} />
+                <EmptyState
+                  icon={FileText}
+                  title={
+                    pageState === 'failed'
+                      ? t('pagesDialog.noFailedPages')
+                      : pageState === 'skipped'
+                        ? t('pagesDialog.noSkippedPages')
+                        : t('pagesDialog.noPages')
+                  }
+                />
               )}
 
               <Skeletonize loading={isFirstLoad && isPending}>

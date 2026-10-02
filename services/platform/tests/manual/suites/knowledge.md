@@ -484,6 +484,23 @@ records and delete them after.
   more while it still scans → the same again. Then stop the backend without
   warning (`kill -9`, or `docker kill` on the backend worker) → the same,
   a couple of minutes later.
+- [ ] `KNOW-F36` · **Failed and skipped pages have a door** — Websites → open
+  a site with indexed pages beside failed and skipped ones (a URL list with a
+  `noindex` page and a 404 page next to working ones) → the pages header
+  reads `websites.indexed` and `websites.pagesDialog.failedPages`, and that
+  count is a link-styled button; above the list a segmented control
+  (`websites.pagesDialog.filter.label`) offers
+  `websites.pagesDialog.filter.all`, `websites.pagesDialog.filter.failed` and
+  `websites.pagesDialog.filter.skipped` with their counts, and is absent while
+  no page failed or was skipped. Click the count → the **Failed** segment is
+  checked and the list holds only rows labelled `websites.pagesDialog.failed`,
+  from the top, with its own **Load more**; **Skipped** holds only
+  `websites.pagesDialog.skipped` rows; a segment at 0 shows
+  `websites.pagesDialog.noFailedPages` or
+  `websites.pagesDialog.noSkippedPages`; **All** restores the whole list. A
+  scan that moves the row while **Failed** is open re-reads the failed pages,
+  not all of them; the content search ignores the filter. Keyboard: Tab
+  reaches the segments and the arrow keys switch them.
 
 ## Boundary & error tests
 

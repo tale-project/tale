@@ -8237,6 +8237,13 @@ websites:
     failed: Failed
     skipped: Skipped
     failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
+    filter:
+      label: Which pages to show
+      all: All
+      failed: 'Failed ({count})'
+      skipped: 'Skipped ({count})'
+    noFailedPages: No page failed
+    noSkippedPages: No page was skipped
     errorKind:
       dnsFailed: Couldn't resolve the host.
       timeout: The page didn't answer in time.
