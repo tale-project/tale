@@ -14,7 +14,9 @@
  * `/de/verwaltung` is the German label of the `platform/admin` group, which
  * no page carries as a title. The navigation's group labels, in every
  * locale, therefore name their section's front page, and count as the
- * folders of the pages under them (`/de/verwaltung/rollen`).
+ * folders of the pages under them (`/de/verwaltung/rollen`). A qualified
+ * label must match the section's context. When added label context makes
+ * fuzzy candidates ambiguous, a clear title/route match remains usable.
  *
  * Deliberately conservative: an exact alias (the page's last segment, a
  * slugified title, a section's label, a generic `overview` under a section)
@@ -401,6 +403,7 @@ function parseQuery(query: string): ParsedQuery | null {
 function scorePage(
   parsed: ParsedQuery,
   page: IndexedPage,
+  includeSectionContext = true,
 ): { score: number; leafCredit: number } {
   let leafCredit = 0;
   for (const word of parsed.leafWords) {
@@ -411,7 +414,7 @@ function scorePage(
   for (const word of parsed.folderWords) {
     folderCredit += Math.max(
       wordCredit(word, page.tokens),
-      wordCredit(word, page.context),
+      includeSectionContext ? wordCredit(word, page.context) : 0,
     );
   }
   const weight = 2 * parsed.leafWords.length + parsed.folderWords.length;
@@ -501,12 +504,44 @@ function labelledSection(
       bestOverlap = overlap;
     }
   }
+  // A label alone may use reading order. A qualified guess must actually
+  // name this section's context; `self-hosted/genehmigungen` must not be
+  // captured by the platform's Approvals group.
+  if (parsed.folderWords.length > 0 && bestOverlap <= 0) return null;
   return best?.route ?? null;
 }
 
 /** Minimum fuzzy score a guess needs, and its lead over the runner-up. */
 const MIN_SCORE = 0.6;
 const MIN_MARGIN = 0.15;
+
+/** A fuzzy winner, with the same confidence floor with or without labels. */
+function scoredPage(
+  parsed: ParsedQuery,
+  index: NearMissIndex,
+  includeSectionContext: boolean,
+): string | null {
+  let best: { route: string; score: number } | null = null;
+  let runnerUp = 0;
+  for (const page of index.pages) {
+    const { score, leafCredit } = scorePage(
+      parsed,
+      page,
+      includeSectionContext,
+    );
+    if (leafCredit === 0) continue;
+    if (!best || score > best.score) {
+      runnerUp = best?.score ?? runnerUp;
+      best = { route: page.route, score };
+    } else if (score > runnerUp) {
+      runnerUp = score;
+    }
+  }
+  if (!best || best.score < MIN_SCORE || best.score - runnerUp < MIN_MARGIN) {
+    return null;
+  }
+  return best.route;
+}
 
 /**
  * The page a guessed route unambiguously means, or null when no page clearly
@@ -552,22 +587,13 @@ export function resolveNearMiss(
   if (section !== null) return section;
 
   if (parsed.leafWords.length === 0) return null;
-  let best: { route: string; score: number } | null = null;
-  let runnerUp = 0;
-  for (const page of index.pages) {
-    const { score, leafCredit } = scorePage(parsed, page);
-    if (leafCredit === 0) continue;
-    if (!best || score > best.score) {
-      runnerUp = best?.score ?? runnerUp;
-      best = { route: page.route, score };
-    } else if (score > runnerUp) {
-      runnerUp = score;
-    }
-  }
-  if (!best || best.score < MIN_SCORE || best.score - runnerUp < MIN_MARGIN) {
-    return null;
-  }
-  return best.route;
+  // Group labels add context, but can also boost several unrelated pages
+  // until a previously clear title/route match loses its margin. Keep that
+  // original evidence as a fallback, with the same confidence requirements.
+  return (
+    scoredPage(parsed, index, true) ??
+    (parsed.folderWords.length > 0 ? scoredPage(parsed, index, false) : null)
+  );
 }
 
 /** Extensions an address can carry and still name a page. */

@@ -3,8 +3,9 @@
  * close they are to the path a reader asked for. Slugs, not routes — a
  * locale or mount prefix would otherwise make every page look equally
  * similar. The ranking is the near-miss scorer's (`./near-miss`), the same
- * one a docs server uses to redirect a guessed address, so the list and the
- * redirect never disagree about which page is closest.
+ * one a docs server uses for fuzzy guesses. The server also resolves exact
+ * page and section aliases before scoring; a suggestion need not be an
+ * unambiguous redirect target.
  */
 
 import {

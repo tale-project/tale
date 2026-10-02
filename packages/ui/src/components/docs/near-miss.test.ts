@@ -258,6 +258,63 @@ describe('resolveNearMiss', () => {
     expect(resolveNearMiss('plattform', INDEX)).toBe('platform');
   });
 
+  it('does not replace a named folder with a section elsewhere', () => {
+    const pages = [
+      {
+        route: 'self-hosted/configuration/approvals',
+        titles: ['Genehmigungen festlegen'],
+      },
+      {
+        route: 'platform/approvals/concepts',
+        titles: ['Approval concepts'],
+      },
+    ];
+    const groups = [
+      {
+        labels: ['Platform'],
+        entries: [
+          {
+            labels: ['Approvals', 'Genehmigungen'],
+            entries: ['platform/approvals/concepts'],
+          },
+        ],
+      },
+    ];
+    const index = buildNearMissIndex(pages, groups);
+    expect(resolveNearMiss('self-hosted/genehmigungen', index)).toBe(
+      'self-hosted/configuration/approvals',
+    );
+    expect(resolveNearMiss('platform/genehmigungen', index)).toBe(
+      'platform/approvals/concepts',
+    );
+  });
+
+  it('does not lose a clear page match when another section gains label context', () => {
+    const pages = [
+      { route: 'platform/automations/catalog', titles: ['Create automation'] },
+      { route: 'self-hosted/install/first-admin', titles: ['Create admin'] },
+    ];
+    const groups = [
+      {
+        labels: ['Automations'],
+        entries: ['platform/automations/catalog'],
+      },
+      {
+        labels: ['Auto-hébergé'],
+        entries: ['self-hosted/install/first-admin'],
+      },
+    ];
+    for (const index of [
+      buildNearMissIndex(pages),
+      buildNearMissIndex(pages, groups),
+    ]) {
+      expect(resolveNearMiss('automations/create', index)).toBe(
+        'platform/automations/catalog',
+      );
+      expect(resolveNearMiss('create', index)).toBeNull();
+    }
+  });
+
   it('answers a real page with itself', () => {
     expect(resolveNearMiss('platform/admin/teams', INDEX)).toBe(
       'platform/admin/teams',
