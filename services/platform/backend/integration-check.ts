@@ -19558,6 +19558,109 @@ async function checkTurnReattach(
     `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind}/${createdOp[0]?.harness} (want harness pi) runCard=${recoveredCard?.op?.execId ?? 'null'}`,
   );
 
+  // A turn whose op reads silent can still have a live chain: its next
+  // drive window waits for a worker slot, and the op's heartbeat moves only
+  // when a window ends. Re-attaching it would start a second chain beside
+  // the first. A queued window and a window that started inside the
+  // staleness window fence the re-attach; a window that started long ago
+  // with the op silent since belongs to a worker that died with it, and the
+  // turn re-attaches.
+  const fencedQueued = await mkRun('fence-queued', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const fencedRunning = await mkRun('fence-running', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const deadWorker = await mkRun('fence-dead-worker', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const { addJobInTx: enqueueDrive } = await import('./jobs/enqueue.ts');
+  const parkDrive = async (
+    turn: { runId: string; sessionId: string; execId: string },
+    startedAgo: number | null,
+  ): Promise<string | null> => {
+    // Held far in the future, so the harness's worker never takes it.
+    const jobId = await enqueueDrive(
+      sql,
+      'task.agent_drive',
+      {
+        organizationId: orgId,
+        runId: turn.runId,
+        taskId: 'itest-fence-task',
+        agentId,
+        execId: turn.execId,
+        sessionId: turn.sessionId,
+        harness: 'claude-code',
+        deadlineAt: now + 3_600_000,
+      },
+      { startAfter: new Date(now + 24 * 3_600_000) },
+    );
+    if (startedAgo !== null && jobId !== null) {
+      await sql`
+        UPDATE pgboss.job SET state = 'active',
+          started_on = now() - make_interval(secs => ${startedAgo / 1000})
+        WHERE id = ${jobId}
+      `;
+    }
+    return jobId;
+  };
+  const fenceJobIds = [
+    await parkDrive(fencedQueued, null),
+    await parkDrive(fencedRunning, 30_000),
+    await parkDrive(deadWorker, 30 * 60_000),
+  ];
+  const drivesFor = async (execId: string): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'task.agent_drive' AND data ->> 'execId' = ${execId}
+        `
+      )[0]?.count ?? '0',
+    );
+  const fenced = await recoverStalledTaskAgentTurns(sql, {
+    probe: () => Promise.resolve({ state: 'running' as const }),
+  });
+  const fenceDrives = {
+    queued: await drivesFor(fencedQueued.execId),
+    running: await drivesFor(fencedRunning.execId),
+    deadWorker: await drivesFor(deadWorker.execId),
+  };
+  record(
+    're-attach: a silent turn whose drive window is queued or running keeps its one chain; a window a dead worker held does not fence',
+    fenceDrives.queued === 1 &&
+      fenceDrives.running === 1 &&
+      fenceDrives.deadWorker === 2 &&
+      fenced.resumed >= 1,
+    `drives per exec queued=${fenceDrives.queued}/1 running=${fenceDrives.running}/1 deadWorker=${fenceDrives.deadWorker}/2 resumed=${fenced.resumed}`,
+  );
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'task.agent_drive'
+      AND (id = ANY(${fenceJobIds.filter((id) => id !== null)})
+        OR data ->> 'execId' = ${deadWorker.execId})
+  `;
+  // The fence's turns are this check's alone: the backfill check below
+  // reads every op of the lane's sessions.
+  const fenceSessions = [fencedQueued, fencedRunning, deadWorker].map(
+    (turn) => turn.sessionId,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE session_id = ANY(${fenceSessions}) AND status IN ('queued', 'running')
+  `;
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fenceSessions})
+  `;
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed',
+                                    destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ANY(${fenceSessions})
+  `;
+
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
   // session stamped `claude-code`; an op that already records one keeps it.

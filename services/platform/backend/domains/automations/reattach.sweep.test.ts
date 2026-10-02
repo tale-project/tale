@@ -62,3 +62,48 @@ describe('listStalledWorkflowAgentTurns', () => {
     expect(staleBefore as number).toBeLessThanOrEqual(Date.now() - 60_000);
   });
 });
+
+describe('recoverStalledWorkflowAgentTurns — the drive-chain fence', () => {
+  it('leaves a silent turn whose drive window is queued to that chain', async () => {
+    const statements: Statement[] = [];
+    const script: unknown[][] = [
+      [
+        {
+          runId: 'run_1',
+          organizationId: 'org_1',
+          cursor: {
+            node: 'agent',
+            agent: {
+              execId: 'exec_1',
+              sessionId: 'wf-run_1',
+              harness: 'claude-code',
+              gatewayModel: 'anthropic/claude-sonnet',
+              deadlineAt: Date.now() + 3_600_000,
+            },
+          },
+        },
+      ],
+      [{ pending: true }],
+    ];
+    const fn = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<unknown[]> => {
+      statements.push({ text: strings.join('?'), values });
+      return Promise.resolve(script[statements.length - 1] ?? []);
+    };
+
+    const result = await recoverStalledWorkflowAgentTurns(
+      fn as unknown as Sql,
+      { probe: () => Promise.resolve({ state: 'running' as const }) },
+    );
+
+    expect(result).toEqual({ examined: 1, resumed: 0 });
+    expect(statements).toHaveLength(2);
+    expect(statements[1]?.text).toContain('FROM pgboss.job');
+    expect(statements[1]?.values.slice(0, 2)).toEqual([
+      'automation.agent_drive',
+      'exec_1',
+    ]);
+  });
+});
