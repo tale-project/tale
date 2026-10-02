@@ -8210,8 +8210,15 @@ websites:
       dns: Nothing was indexed. Change the URL if the host is wrong.
       notInCorpus: Nothing was indexed. Delete the URL list and add it again.
       notInCorpusSite: Nothing was indexed. The next scan adds the site again.
-      embedding: Nothing was indexed. An admin can check the embedding model under Settings → Data residency.
       generic: Nothing was indexed.
+    scanDetail:
+      credential: The provider rejected the embedding model's credential. An admin can repair it under Settings → AI providers.
+      credit: The provider refused the request over the account's balance or plan. An admin can check the account at the provider.
+      unresolved: The embedding model's credential can't be used. An admin can check it under Settings → AI providers.
+      dimension: The model's vectors don't fit this knowledge database. An admin can check the embedding model under Settings → Data residency.
+      upstream: The provider failed or couldn't be reached. Choose Scan now once it's back.
+      generic: An admin can check the embedding model under Settings → Data residency.
+    technicalDetails: Technical details
   scanPausedBadge: Paused
   resumeScanning: Resume scanning
   scanNow: Scan now
