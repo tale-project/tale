@@ -266,6 +266,15 @@ export interface TaskPayloads {
    * spawner-side, under its id, then re-pin it — queued by the sweep and the
    * Sandboxes page probe so neither waits for a create. */
   'sandbox.recreate_pinned': { organizationId: string; sessionId: string };
+  /** An administrator's Destroy from the Sandboxes page: delete the session's
+   * sandbox and workspace and settle its rows. `rowId` is the incarnation it
+   * was asked for; a newer one under the reused id is left alone. The page
+   * answers at once and reads the job back as that row's destroy state. */
+  'sandbox.destroy_session': {
+    organizationId: string;
+    sessionId: string;
+    rowId: string;
+  };
   /** Delete the workspaces of deleted project agents (standing and every
    * member's), or a departed member's workspaces with every agent —
    * enqueued in the deleting transaction. Throws while one is busy, offline
@@ -582,6 +591,22 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     policy: 'exclusive',
     retryLimit: 0,
     expireInSeconds: 300,
+  },
+  // One queued-or-running Destroy per incarnation (`exclusive`, keyed by
+  // organization, session and row), so a second click while one is under way
+  // adds nothing, and a Destroy of a newer incarnation is never absorbed by
+  // an older one still retrying. Every step of the teardown is idempotent, so
+  // a retry is safe; the ladder (30 s doubling with jitter, six tries over a
+  // quarter to half an hour) waits out a spawner restart or a device
+  // reconnecting, then the row reads that the Destroy failed and the
+  // administrator can ask again. The expiry covers a wait behind a pinned
+  // recreate holding the session's lock, plus the unpin and the delete.
+  'sandbox.destroy_session': {
+    policy: 'exclusive',
+    retryLimit: 5,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 900,
   },
   // Every decision is re-read and every spawner call is idempotent, so a
   // retry is always safe. The ladder (1 min doubling, eleven tries) waits

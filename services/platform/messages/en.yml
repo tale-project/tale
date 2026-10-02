@@ -8457,6 +8457,8 @@ sandboxes:
     pausedBudget: Paused (budget)
     pinned: Pinned
     deletesOn: Deleted on {date} unless used again
+    destroying: Destroying
+    destroyFailed: Destroy failed
   task:
     none: No active task
     project: '{count, plural, one {Project task} other {# project tasks}}'
@@ -8469,13 +8471,14 @@ sandboxes:
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description: This deletes the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
+    description: This deletes the sandbox and its workspace. Any running task is cancelled. Once it is gone, the agent's next run creates a fresh sandbox.
     confirm: Destroy
   toast:
     stopped: Task stopped
     pinned: Sandbox pinned
     unpinned: Sandbox unpinned
-    destroyed: Sandbox destroyed
+    destroying: Destroying sandbox
+    destroyingDescription: It leaves the list once its workspace is deleted.
     error: Action failed
   empty:
     title: No workspaces yet

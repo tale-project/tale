@@ -621,7 +621,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
             orgId,
           },
         ).then((body) => body.sessions),
-      refetchInterval: 15_000,
+      refetchInterval: sandboxListPollInterval,
     };
   },
   'sandbox_devices/queries:list': (args, ctx) => {
@@ -1091,6 +1091,21 @@ function invalidateConnectorCredentials(
  */
 function credentialGone(error: unknown): boolean {
   return backendErrorCode(error) === 'CREDENTIAL_NOT_FOUND';
+}
+
+/** The Sandboxes list polls every 15 s, and every 2 s while a row's
+ * Destroy is under way: the row leaves soon after its job settles. */
+function sandboxListPollInterval(sessions: unknown): number {
+  const rows: unknown[] = Array.isArray(sessions) ? sessions : [];
+  return rows.some(
+    (row) =>
+      typeof row === 'object' &&
+      row !== null &&
+      'destroyState' in row &&
+      row.destroyState === 'pending',
+  )
+    ? 2_000
+    : 15_000;
 }
 
 function invalidateSandboxSessions(
@@ -1682,7 +1697,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
   },
   'node_only/sandbox/session_admin_actions:destroySandbox': {
     run: (args, ctx) =>
-      backendFetch<{ ok: boolean }>(
+      backendFetch<{ scheduled: boolean }>(
         `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/destroy`,
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),

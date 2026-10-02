@@ -8775,6 +8775,8 @@ sandboxes:
     pausedBudget: Pausiert (Budget)
     pinned: Angepinnt
     deletesOn: Wird am {date} gelöscht, falls weiterhin ungenutzt
+    destroying: Wird gelöscht
+    destroyFailed: Nicht gelöscht
   task:
     none: Keine aktive Aufgabe
     project: '{count, plural, one {Projektaufgabe} other {# Projektaufgaben}}'
@@ -8787,13 +8789,14 @@ sandboxes:
     destroy: Löschen
   destroyConfirm:
     title: Sandbox löschen?
-    description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Beim nächsten Lauf des Agenten entsteht eine neue Sandbox.
+    description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Sobald sie entfernt ist, entsteht beim nächsten Lauf des Agenten eine neue Sandbox.
     confirm: Löschen
   toast:
     stopped: Aufgabe gestoppt
     pinned: Sandbox angepinnt
     unpinned: Sandbox gelöst
-    destroyed: Sandbox gelöscht
+    destroying: Sandbox wird gelöscht
+    destroyingDescription: Sie verschwindet aus der Liste, sobald ihr Arbeitsbereich gelöscht ist.
     error: Aktion fehlgeschlagen
   empty:
     title: Noch keine Arbeitsbereiche

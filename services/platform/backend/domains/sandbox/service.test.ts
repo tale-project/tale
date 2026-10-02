@@ -366,6 +366,62 @@ describe('teardownSession ownership and confirmed deletion', () => {
   });
 });
 
+// A queued Destroy names the row it was asked for. Its retry can run long
+// after the request, when that row was settled another way and a turn opened
+// a fresh incarnation under the same deterministic id.
+describe('teardownSession of a queued Destroy', () => {
+  const ARGS = { organizationId: 'org-a', sessionId: 'session-a' };
+
+  it('destroys the row it was asked for, under the session lock', async () => {
+    const { sql, locks, stored, end } = fakeSql(OWNED_SESSION);
+
+    await expect(
+      teardownSession(sql, { ...ARGS, rowId: OWNED_SESSION.id }),
+    ).resolves.toBe(true);
+
+    expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
+    expect(stored?.status).toBe('destroyed');
+    // The lock key is the session's, whichever row the Destroy names.
+    expectLockedOnce(locks, end, 'wait');
+  });
+
+  it('leaves a newer incarnation under the reused id alone', async () => {
+    const { sql, data, stored } = fakeSql({
+      ...OWNED_SESSION,
+      id: 'row-fresh',
+      createdAt: 5000,
+    });
+
+    await expect(
+      teardownSession(sql, { ...ARGS, rowId: OWNED_SESSION.id }),
+    ).resolves.toBe(false);
+
+    expect(sessionSetPinned).not.toHaveBeenCalled();
+    expect(sessionDestroy).not.toHaveBeenCalled();
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    expect(
+      data.filter((statement) => !statement.text.startsWith('SELECT')),
+    ).toEqual([]);
+    expect(stored?.status).toBe('active');
+  });
+
+  it('does nothing once the row it was asked for is settled', async () => {
+    const { sql, stored } = fakeSql({
+      ...OWNED_SESSION,
+      status: 'destroyed',
+      destroyedAt: 3000,
+    });
+
+    await expect(
+      teardownSession(sql, { ...ARGS, rowId: OWNED_SESSION.id }),
+    ).resolves.toBe(false);
+
+    expect(sessionSetPinned).not.toHaveBeenCalled();
+    expect(sessionDestroy).not.toHaveBeenCalled();
+    expect(stored?.status).toBe('destroyed');
+  });
+});
+
 describe('pinSession serializes with the other lifecycle transitions', () => {
   it.each([true, false])(
     'writes the row (pinned=%s) on the dedicated connection under the lock, then patches the spawner',
