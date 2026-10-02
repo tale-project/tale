@@ -448,7 +448,12 @@ describe('DockerSessionBackend.destroySession hands the workspace to the trash',
       Bun.sleep(2_000).then(() => null),
     ]);
     expect(answered?.status).toBe(200);
-    expect(await answered?.json()).toEqual({ destroyed: true, busy: false });
+    // Out of use, not yet deleted — and the answer says which.
+    expect(await answered?.json()).toEqual({
+      destroyed: true,
+      busy: false,
+      deletion: 'pending',
+    });
     // Gone under its name, every file still on disk in the trash.
     expect(await exists(workspace)).toBe(false);
     const entries = await trashEntries(held.trash);
@@ -536,6 +541,129 @@ describe('DockerSessionBackend.destroySession hands the workspace to the trash',
 
     expect(await readdir(workspace)).toEqual(['fresh.txt']);
     expect(await backend.hasWorkspace('kept')).toBe(true);
+  });
+
+  test('a destroy that awaits its deletion answers done once the bytes are gone', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const root = await freshRoot();
+    const trash = new WorkspaceTrash(root);
+    await plantWorkspace(join(root, 'ses-awaited'), 2, 5);
+    const backend = new DockerSessionBackend(rootedConfig(root), trash);
+    const routes = new SessionRoutes(rootedConfig(root), backend);
+
+    const res = await routes.handleDestroy('awaited', { awaitDeletion: true });
+    expect(await res.json()).toEqual({
+      destroyed: true,
+      busy: false,
+      deletion: 'done',
+    });
+    expect(await trashEntries(trash)).toEqual([]);
+  });
+
+  test('a destroy awaiting its deletion holds nothing else of the id: the next request under it goes ahead', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const root = await freshRoot();
+    const held = heldTrash(root);
+    await plantWorkspace(join(root, 'ses-free'), 1, 2);
+    const backend = new DockerSessionBackend(rootedConfig(root), held.trash);
+    const routes = new SessionRoutes(rootedConfig(root), backend);
+
+    const awaiting = routes.handleDestroy('free', { awaitDeletion: true });
+    await eventually(
+      async () => (await readdir(held.trash.dir).catch(() => [])).length === 1,
+    );
+    // The id is free once the workspace is out of use: what comes next under
+    // it (a fresh session's create, another destroy) never queues behind the
+    // bytes still being deleted.
+    const next = await Promise.race([
+      routes.handleDestroy('free'),
+      Bun.sleep(2_000).then(() => null),
+    ]);
+    expect(await next?.json()).toEqual({
+      destroyed: false,
+      busy: false,
+      deletion: 'pending',
+    });
+    held.release();
+    expect(await (await awaiting).json()).toEqual({
+      destroyed: true,
+      busy: false,
+      deletion: 'done',
+    });
+  });
+
+  test('a deletion that keeps failing answers failed, keeps the bytes, and a later destroy has it tried again', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const root = await freshRoot();
+    let failing = true;
+    let attempts = 0;
+    const trash = new WorkspaceTrash(root, async (path) => {
+      attempts += 1;
+      if (failing) throw new Error('EIO: i/o error, rmdir');
+      await rm(path, { recursive: true, force: true });
+    });
+    const planted = await plantWorkspace(join(root, 'ses-eio'), 2, 5);
+    const backend = new DockerSessionBackend(rootedConfig(root), trash);
+    const routes = new SessionRoutes(rootedConfig(root), backend);
+
+    const first = await routes.handleDestroy('eio', { awaitDeletion: true });
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({
+      destroyed: true,
+      busy: false,
+      deletion: 'failed',
+    });
+    const [entry = ''] = await trashEntries(trash);
+    expect(await countFiles(join(trash.dir, entry))).toBe(planted);
+
+    // An erasure's Retry: nothing is under the id, and the stuck deletion is
+    // tried again rather than read as nothing to do.
+    const tried = attempts;
+    const retry = await routes.handleDestroy('eio', { awaitDeletion: true });
+    expect(await retry.json()).toEqual({
+      destroyed: false,
+      busy: false,
+      deletion: 'failed',
+    });
+    expect(attempts).toBeGreaterThan(tried);
+
+    failing = false;
+    const recovered = await routes.handleDestroy('eio', {
+      awaitDeletion: true,
+    });
+    expect(await recovered.json()).toEqual({
+      destroyed: false,
+      busy: false,
+      deletion: 'done',
+    });
+    expect(await trashEntries(trash)).toEqual([]);
+  });
+
+  test('after a restart, a destroy that awaits the deletion finishes what the last process left, and a fresh workspace under the id never counts', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    const root = await freshRoot();
+    // What a crash left: the destroyed workspace of `restarted` in the trash,
+    // and a fresh workspace a later session laid out under the same id.
+    await plantWorkspace(
+      join(root, '.trash', `ses-restarted.${randomUUID()}`),
+      2,
+      5,
+    );
+    await mkdir(join(root, 'ses-restarted'));
+    await writeFile(
+      join(root, 'ses-restarted', 'fresh.txt'),
+      'the new session',
+    );
+    const held = heldTrash(root);
+    const backend = new DockerSessionBackend(rootedConfig(root), held.trash);
+
+    // Never `done` while those bytes are on disk, whatever the new process
+    // remembers.
+    expect(await backend.workspaceDeletion('restarted')).toBe('pending');
+    expect(await backend.workspaceDeletion('restarted', 100)).toBe('pending');
+    held.release();
+    expect(await backend.workspaceDeletion('restarted', 4_000)).toBe('done');
+    expect(await readdir(join(root, 'ses-restarted'))).toEqual(['fresh.txt']);
   });
 
   test('a workspace the trash cannot take is deleted in place before the answer', async () => {

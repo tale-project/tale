@@ -8,6 +8,7 @@ import {
   type BackendSession,
   type CreateSessionResult,
   type SessionBackend,
+  type WorkspaceDeletion,
 } from '../backend/types.ts';
 import { jsonResponse } from '../http-util.ts';
 import { sseResponse } from '../sse.ts';
@@ -55,6 +56,11 @@ const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
  * the destroy is taken for wedged (a hung daemon or filesystem) and the
  * create answers busy. */
 const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
+
+/** How long a destroy asked to await its deletion (`?await_deletion=1`)
+ * waits for the workspace's bytes before answering how far they came: well
+ * inside the 30 s the platform gives a destroy, and enough for most. */
+export const DESTROY_AWAITS_DELETION_MS = 10_000;
 
 /** Whether `promise` settles, either way, within `ms`. */
 export async function settlesWithin(
@@ -1086,7 +1092,11 @@ export class SessionRoutes {
 
   async handleDestroy(
     sessionId: string,
-    opts: { ifIdle?: boolean; ifStopped?: boolean } = {},
+    opts: {
+      ifIdle?: boolean;
+      ifStopped?: boolean;
+      awaitDeletion?: boolean;
+    } = {},
   ): Promise<Response> {
     // Conditional destroy (`?if_idle=1`): a janitor caller (the end-of-turn
     // thread-session teardown) must never destroy a session another turn is
@@ -1111,6 +1121,7 @@ export class SessionRoutes {
     const settled = Promise.withResolvers<void>();
     const previous = this.destroySettled.get(sessionId);
     this.destroySettled.set(sessionId, settled);
+    let destroyed: boolean;
     try {
       await previous?.promise;
       if (opts.ifIdle || opts.ifStopped) {
@@ -1122,13 +1133,31 @@ export class SessionRoutes {
           this.creating.has(sessionId);
         if (busy) return jsonResponse({ destroyed: false, busy: true }, 200);
       }
-      return await this.destroyNow(sessionId);
+      const outcome = await this.destroyNow(sessionId);
+      if (outcome instanceof Response) return outcome;
+      destroyed = outcome.destroyed;
     } finally {
       settled.resolve();
       if (this.destroySettled.get(sessionId) === settled) {
         this.destroySettled.delete(sessionId);
       }
     }
+    // Out of use is not deleted: `deletion` says how far the workspace's
+    // bytes came, and an erasure or retirement settles only on `done`. The
+    // wait comes after the destroy settled — the id is free once the
+    // workspace is out of use, so a create of it never waits for the bytes.
+    const deletion = await this.deletionOf(
+      sessionId,
+      opts.awaitDeletion === true,
+    );
+    return jsonResponse(
+      {
+        destroyed,
+        busy: false,
+        ...(deletion === undefined ? {} : { deletion }),
+      },
+      200,
+    );
   }
 
   /** Is there compute under the id — a registered session, a stop still
@@ -1153,7 +1182,11 @@ export class SessionRoutes {
     }
   }
 
-  private async destroyNow(sessionId: string): Promise<Response> {
+  /** The destroy itself: whether it reached anything under the id, or the
+   * 502 a failed backend destroy answers. */
+  private async destroyNow(
+    sessionId: string,
+  ): Promise<Response | { destroyed: boolean }> {
     // Delete from the registry BEFORE awaiting the backend so a concurrent
     // destroy of the same id sees an empty cache and can't double-call
     // destroySession. The backend destroy then runs exactly once; its return
@@ -1166,10 +1199,7 @@ export class SessionRoutes {
     this.forgetReclaimMarks(sessionId);
     try {
       const backendExisted = await this.backend.destroySession(sessionId);
-      return jsonResponse(
-        { destroyed: had || backendExisted, busy: false },
-        200,
-      );
+      return { destroyed: had || backendExisted };
     } catch (err) {
       // The backend destroy FAILED (a wedged dockerd, an apiserver blip). Do
       // NOT report success: the container/workspace may survive, and laundering
@@ -1183,6 +1213,28 @@ export class SessionRoutes {
         { destroyed: false, busy: false, error: 'backend destroy failed' },
         502,
       );
+    }
+  }
+
+  /** How far deleting the destroyed workspace has come, waited for up to
+   * {@link DESTROY_AWAITS_DELETION_MS} when the caller asked. Unknown reads
+   * `pending`, never `done`; `undefined` from a backend that reports none. */
+  private async deletionOf(
+    sessionId: string,
+    awaitDeletion: boolean,
+  ): Promise<WorkspaceDeletion | undefined> {
+    if (this.backend.workspaceDeletion === undefined) return undefined;
+    try {
+      return await this.backend.workspaceDeletion(
+        sessionId,
+        awaitDeletion ? DESTROY_AWAITS_DELETION_MS : 0,
+      );
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] deletion of ${sessionId}'s workspace unknown:`,
+        error,
+      );
+      return 'pending';
     }
   }
 

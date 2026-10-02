@@ -325,10 +325,13 @@ async function handleSessionRoutes(
       // `?if_idle=1` — conditional destroy for janitor callers: no-op with
       // {busy:true} while the session still has a live exec. `?if_stopped=1`
       // — the workspace cleanup's: no-op while ANY compute runs under the id.
+      // `?await_deletion=1` — the cleanup's too: wait a bounded time for the
+      // workspace's bytes, and answer how far their deletion came.
       // The query string is HMAC-covered (authorize signs pathname + search).
       return getSessionRoutes().handleDestroy(id, {
         ifIdle: url.searchParams.get('if_idle') === '1',
         ifStopped: url.searchParams.get('if_stopped') === '1',
+        awaitDeletion: url.searchParams.get('await_deletion') === '1',
       });
     }
   }

@@ -148,6 +148,11 @@ export interface CreateSessionResult {
   resumed: boolean;
 }
 
+/** How far deleting a destroyed workspace's bytes has come: `done` — nothing
+ * of it is left; `pending` — it waits in the trash or is being deleted;
+ * `failed` — the last attempt at it failed, and the next one tries again. */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed';
+
 export interface SessionBackend {
   readonly kind: 'docker' | 'kubernetes';
   /**
@@ -182,6 +187,18 @@ export interface SessionBackend {
    * that rename cannot happen; the PVC delete hands the volume to its
    * provisioner. Idempotent; returns false when nothing existed. */
   destroySession(sessionId: string): Promise<boolean>;
+  /**
+   * How far deleting the workspaces destroyed under the id has come — what
+   * an erasure or a retirement waits for, since a destroy answers once the
+   * workspace is out of use. With `waitMs`, what is left is attempted now (a
+   * failed removal again) and waited for that long. Optional: a backend
+   * without it reports nothing, and its destroy is complete when it answers
+   * (Kubernetes: the PVC delete hands the volume to its provisioner).
+   */
+  workspaceDeletion?(
+    sessionId: string,
+    waitMs?: number,
+  ): Promise<WorkspaceDeletion>;
   /**
    * Stop the container/Pod (+ Secret on K8s) to release compute, but PRESERVE
    * the workspace (host dir / PVC) so a later createSession with the same

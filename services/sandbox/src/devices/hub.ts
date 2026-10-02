@@ -492,21 +492,25 @@ export class DeviceHub {
     if (!res.ok) return res;
     const text = await res.text();
     let busy = false;
+    let deleting = false;
     try {
       const parsed: unknown = JSON.parse(text);
-      busy =
-        parsed !== null &&
-        typeof parsed === 'object' &&
-        Reflect.get(parsed, 'busy') === true;
+      if (parsed !== null && typeof parsed === 'object') {
+        busy = Reflect.get(parsed, 'busy') === true;
+        const deletion: unknown = Reflect.get(parsed, 'deletion');
+        deleting = deletion === 'pending' || deletion === 'failed';
+      }
     } catch (err) {
       console.warn('[sandbox.devices] unreadable destroy answer:', err);
       busy = true;
     }
     // `?if_idle=1` on a busy session destroyed nothing; anything else leaves
     // no workspace behind on the device — unless a create for the same id
-    // was forwarded while the destroy ran, which made the session anew there.
+    // was forwarded while the destroy ran, which made the session anew there,
+    // or the device is still deleting the workspace's bytes: the placement
+    // stays, so the destroy that asks again reaches the device holding them.
     const recreated = (this.creates.get(sessionId) ?? 0) !== createsBefore;
-    if (!busy && !recreated) {
+    if (!busy && !deleting && !recreated) {
       await this.placements.delete(sessionId);
       this.creates.delete(sessionId);
     }

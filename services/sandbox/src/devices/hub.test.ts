@@ -413,6 +413,46 @@ describe('DeviceHub placement', () => {
     ]);
   });
 
+  test("a device still deleting a destroyed workspace's bytes keeps it placed until they are gone", async () => {
+    const { hub } = await makeHub();
+    const deletions = ['pending', 'failed', 'done'];
+    const d1 = connectDevice(hub, 'dev-1', (s) => {
+      if (s.head.method === 'DELETE') {
+        const deletion = deletions.shift();
+        s.respond(
+          { status: 200, headers: [['content-type', 'application/json']] },
+          new Response(
+            JSON.stringify({ destroyed: true, busy: false, deletion }),
+          ).body,
+        );
+        return;
+      }
+      s.respond(
+        { status: 201, headers: [['content-type', 'application/json']] },
+        new Response('{}').body,
+      );
+    });
+    await d1.hello();
+    const create = createRequest('pa-erased', 'device');
+    await hub.maybeForward(create.req, create.url, create.body);
+    const destroy = async () => {
+      const call = callRequest(
+        'DELETE',
+        '/v1/sessions/pa-erased?await_deletion=1',
+      );
+      return (await hub.maybeForward(call.req, call.url, ''))?.json();
+    };
+    // The bytes are still on the device: the retry that asks again must
+    // reach it, not the hub's own backend, which would answer done.
+    expect(await destroy()).toMatchObject({ deletion: 'pending' });
+    expect(await destroy()).toMatchObject({ deletion: 'failed' });
+    expect(hub.capacityOverlay(ORG).placements).toEqual([
+      { sessionId: 'pa-erased', deviceId: 'dev-1' },
+    ]);
+    expect(await destroy()).toMatchObject({ deletion: 'done' });
+    expect(hub.capacityOverlay(ORG).placements).toEqual([]);
+  });
+
   test('removing a device forgets where its sessions were', async () => {
     const { hub } = await makeHub();
     const d1 = connectDevice(hub, 'dev-1');
