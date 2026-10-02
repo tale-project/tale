@@ -50,6 +50,10 @@ import {
 import { sessionDindEnabled } from '../../session/session-profile.ts';
 import { listWorkspaceDirs } from '../../session/workspace-inventory.ts';
 import {
+  workspaceTrash,
+  type WorkspaceTrash,
+} from '../../session/workspace-trash.ts';
+import {
   dockerRm,
   dockerRmSucceeded,
   isDockerNoSuchObject,
@@ -98,7 +102,14 @@ export function isReapableContainerStatus(status: string): boolean {
 export class DockerSessionBackend implements SessionBackend {
   readonly kind = 'docker' as const;
 
-  constructor(private readonly cfg: SpawnerConfig) {}
+  /** @param trash Where a destroyed workspace goes to be deleted in the
+   * background; the host session root's own unless a test hands in one. */
+  constructor(
+    private readonly cfg: SpawnerConfig,
+    private readonly trash: WorkspaceTrash = workspaceTrash(
+      cfg.hostSessionRoot,
+    ),
+  ) {}
 
   /** runnerd token: derived from SANDBOX_TOKEN (always set — loadConfig fails
    * closed without it). Matches SessionRoutes.tokenFor. */
@@ -166,7 +177,8 @@ export class DockerSessionBackend implements SessionBackend {
     }
     for (const e of entries) {
       if (!e.isDirectory() || isSessionWorkspaceDirName(e.name)) continue;
-      // Spawner bookkeeping (`.pins/`) is not a colour root.
+      // Spawner bookkeeping (`.pins/`, `.owners/`) and the trash of destroyed
+      // workspaces (`.trash/`) are not colour roots.
       if (e.name.startsWith('.')) continue;
       const legacy = join(this.cfg.hostSessionRoot, e.name, dirName);
       if (await this.workspaceDirExists(legacy)) {
@@ -685,15 +697,20 @@ export class DockerSessionBackend implements SessionBackend {
     }
     if (this.cfg.dockerInContainer) await this.removeDindVolume(sessionId);
     await this.clearPinMarker(sessionId);
-    // The data-deleting half of the ONLY data-deleting verb: a failure here
-    // (EBUSY/EACCES on the bind dir) must PROPAGATE. Swallowing it would let
-    // the route answer destroyed:true — the platform flips its row and releases
-    // the id — while the user's data survives on the host with nothing left to
-    // reclaim it. force:true already tolerates an already-gone dir, so the
-    // retry the throw provokes is idempotent (the container is gone by now,
-    // and removeContainer/clearPinMarker are no-ops on a second pass).
+    // The data-deleting half of the ONLY data-deleting verb. The workspace is
+    // renamed into the session root's trash, which a background pass empties:
+    // one rename whatever the workspace holds, so the answer never waits on
+    // deleting tens of GB (the platform gives a destroy 30 s), and the id is
+    // free for a fresh workspace at once. A workspace the trash cannot take
+    // is deleted in place, and a failure there (EBUSY/EACCES on the bind dir)
+    // must PROPAGATE. Swallowing it would let the route answer destroyed:true
+    // — the platform flips its row and releases the id — while the user's
+    // data survives under the session's name with nothing left to reclaim
+    // it. A workspace already gone is nothing to move, so the retry the throw
+    // provokes is idempotent (the container is gone by now, and
+    // removeContainer/clearPinMarker are no-ops on a second pass).
     try {
-      await rm(workspaceHostDir, { recursive: true, force: true });
+      await this.trash.discard(workspaceHostDir);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(

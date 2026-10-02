@@ -6,11 +6,14 @@
 //      workspaces, in either layout, are never touched — see
 //      sweepHostSessionDirs). The dead "volume sweep" that the original code
 //      shipped is gone — workspaces are host bind mounts (no volume), and the
-//      cache volumes carry a different label and MUST NOT be reaped.
+//      cache volumes carry a different label and MUST NOT be reaped. It also
+//      empties, in the background, the trash of destroyed workspaces that the
+//      previous process left (session/workspace-trash.ts).
 //   2. Periodic sweep: every 5 min, kill any tale-sbx-* container whose
 //      `tale.started=<ms>` label is older than 2× max_timeout AND whose
 //      session id isn't in the live in-flight set. Same host-dir sweep
-//      for orphan one-shot dirs.
+//      for orphan one-shot dirs, and another pass over the workspace trash
+//      for what an earlier one could not remove.
 //   3. SIGTERM handler (in server.ts after refactor): stop accepting new
 //      requests, wait for in-flight count to drop, then exit.
 
@@ -21,6 +24,7 @@ import { join } from 'node:path';
 
 import type { HostBackend } from './backend/types.ts';
 import { isSessionWorkspaceDirName } from './session/session-naming.ts';
+import { workspaceTrash } from './session/workspace-trash.ts';
 import { dockerRm, dockerRmSucceeded, runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import { ID_ALPHABET_RE } from './wire.ts';
@@ -263,6 +267,8 @@ const LEGACY_ROOT_MAX_DEPTH = 1;
  *   <root>/<execId>            legacy one-shot exec dir (its name was the raw
  *   <root>/<colour>/<execId>   executionId, ID_ALPHABET_RE) → removed once its
  *                              mtime is past `staleThreshold` and it's not live
+ *   <root>/.trash/<entry>      a destroyed workspace awaiting deletion → the
+ *                              workspace trash's alone (workspace-trash.ts)
  *   anything else              files, dot-dirs, names outside the id alphabet,
  *                              unreadable dirs → never touched
  *
@@ -365,6 +371,10 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
       cfg.hostSessionRoot,
       Date.now() - 2 * cfg.maxTimeoutMs,
     );
+    // Destroyed workspaces whose deletion a restart or crash cut short. In
+    // the background: a leftover of a million files must not hold the boot
+    // (and the healthcheck behind it) for as long as deleting it takes.
+    void workspaceTrash(cfg.hostSessionRoot).empty();
   }
   if (containers.length > 0 || dirsRemoved > 0) {
     console.log(
@@ -426,6 +436,10 @@ export async function dockerSweepOrphans(
   } catch (err) {
     console.warn(`[sandbox.periodic] container sweep error:`, err);
   }
+  // Retry what an earlier pass over the workspace trash could not remove. Not
+  // awaited, and not gated on the daemon: the trash needs no Docker, and a
+  // long deletion must not make the sweep's overlap guard skip ticks.
+  void workspaceTrash(cfg.hostSessionRoot).empty();
   // Host-dir sweep: legacy one-shot exec dirs that lived past the stale
   // threshold without an active in-flight entry are orphaned (session
   // workspaces are never touched — see sweepHostSessionDirs). Replaces the

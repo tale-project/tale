@@ -175,8 +175,12 @@ export interface SessionBackend {
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
    * (host dir / PVC). The ONLY data-deleting verb — reached through the
    * DELETE route (the explicit Destroy, and the platform's workspace cleanup)
-   * and a deleted organization's teardown. Idempotent; returns false when
-   * nothing existed. */
+   * and a deleted organization's teardown. Resolves without waiting for the
+   * data itself to go, so a large workspace answers as fast as a small one:
+   * Docker renames the dir into the session root's trash, emptied in the
+   * background (session/workspace-trash.ts), and deletes in place only where
+   * that rename cannot happen; the PVC delete hands the volume to its
+   * provisioner. Idempotent; returns false when nothing existed. */
   destroySession(sessionId: string): Promise<boolean>;
   /**
    * Stop the container/Pod (+ Secret on K8s) to release compute, but PRESERVE

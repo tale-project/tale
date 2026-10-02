@@ -95,6 +95,11 @@ removes what is left of a deleted organization. All three use the same HMAC
 authentication as the session routes. See the
 [workspace cleanup contract](docs/sessions.md#workspace-cleanup).
 
+On Docker a destroy moves the workspace into the session root's `.trash/` and
+deletes it in the background, so it answers at once however much the workspace
+holds; the next start empties whatever a restart or crash left there. See
+[stop vs destroy](docs/sessions.md#stop-vs-destroy--the-data-preservation-contract).
+
 Docker admission serializes creates through the host's single spawner.
 Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
 basis; use ResourceQuota for hard namespace resource bounds.
