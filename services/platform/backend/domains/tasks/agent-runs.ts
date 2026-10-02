@@ -778,6 +778,10 @@ async function wakeOldestParkedAgentRun(
   sql: Sql,
   scope: { organizationId: string } | { outsideOrganizationId: string },
 ): Promise<number> {
+  const inside = 'organizationId' in scope;
+  const organizationId = inside
+    ? scope.organizationId
+    : scope.outsideOrganizationId;
   return sql.begin(async (tx) => {
     const parked = await tx<
       { id: string; organizationId: string; execId: string; taskId: string }[]
@@ -785,11 +789,8 @@ async function wakeOldestParkedAgentRun(
       SELECT id, org_id AS "organizationId", exec_id AS "execId",
              task_id AS "taskId"
       FROM app.project_agent_runs
-      WHERE ${
-        'organizationId' in scope
-          ? tx`org_id = ${scope.organizationId}`
-          : tx`org_id <> ${scope.outsideOrganizationId}`
-      }
+      WHERE CASE WHEN ${inside} THEN org_id = ${organizationId}
+              ELSE org_id <> ${organizationId} END
         AND status = 'queued'
         AND waiting_for_capacity_at_ms IS NOT NULL
         AND deadline_at_ms > ${Date.now()}
