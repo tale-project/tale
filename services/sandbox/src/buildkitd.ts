@@ -181,6 +181,9 @@ const mirrorInFlight = new Map<string, Promise<void>>();
 const organizationOperations = new Map<string, Promise<void>>();
 const createLeases = new Map<string, number>();
 const idleSince = new Map<string, number>();
+// The prune before an idle stop in flight, by organization: a create that
+// needs the builder cuts it short instead of waiting for it.
+const idlePrunes = new Map<string, AbortController>();
 let idleSweepInFlight: Promise<BuildkitIdleSweepResult> | undefined;
 
 interface BuildkitIdleSweepResult {
@@ -195,6 +198,9 @@ export function retainBuildkitd(organizationId: string): () => void {
   assertOrg(organizationId);
   createLeases.set(organizationId, (createLeases.get(organizationId) ?? 0) + 1);
   idleSince.delete(organizationId);
+  // The helpers are wanted again: an idle stop under way gives up, and its
+  // prune does not hold the create behind the organization's lock.
+  idlePrunes.get(organizationId)?.abort();
   let released = false;
   return () => {
     if (released) return;
@@ -407,30 +413,45 @@ const IDLE_PRUNE_TIMEOUT_MS = 120_000;
  * build — so a builder stopped for want of sessions kept its whole cache, up
  * to the policy's cap, for as long as its organization did not build again,
  * however full the disk it shares with every session got. Best effort: a
- * prune that fails or runs out of time is logged and the stop goes on. */
+ * prune that fails or runs out of time is logged and the stop goes on; one a
+ * create cuts short (retainBuildkitd) is left to the builder, which keeps
+ * running. */
 async function pruneIdleBuilderCache(
   cfg: SpawnerConfig,
   organizationId: string,
   builderId: string,
 ): Promise<void> {
   const keepBytes = cfg.buildkitdIdleCacheBytes ?? DEFAULT_IDLE_CACHE_BYTES;
-  const pruned = await runDocker(
-    [
-      'exec',
-      builderId,
-      'buildctl',
-      'prune',
-      '--all',
-      // buildctl counts storage in MB of 10^6 bytes.
-      '--keep-storage',
-      String(Math.floor(keepBytes / 1e6)),
-    ],
-    { timeoutMs: IDLE_PRUNE_TIMEOUT_MS, stdoutMaxBytes: 64 * 1024 },
-  );
-  if (pruned.exitCode !== 0) {
-    console.warn(
-      `[sandbox.buildkitd] could not prune the idle build cache of ${organizationId} (exit ${pruned.exitCode}; stopping its builder anyway): ${pruned.stderr.trim() || 'no output'}`,
+  const cut = new AbortController();
+  idlePrunes.set(organizationId, cut);
+  try {
+    const pruned = await runDocker(
+      [
+        'exec',
+        builderId,
+        'buildctl',
+        'prune',
+        '--all',
+        // buildctl counts storage in MB of 10^6 bytes.
+        '--keep-storage',
+        String(Math.floor(keepBytes / 1e6)),
+      ],
+      {
+        timeoutMs: IDLE_PRUNE_TIMEOUT_MS,
+        stdoutMaxBytes: 64 * 1024,
+        signal: cut.signal,
+      },
     );
+    if (cut.signal.aborted) return;
+    if (pruned.exitCode !== 0) {
+      console.warn(
+        `[sandbox.buildkitd] could not prune the idle build cache of ${organizationId} (exit ${pruned.exitCode}; stopping its builder anyway): ${pruned.stderr.trim() || 'no output'}`,
+      );
+    }
+  } finally {
+    if (idlePrunes.get(organizationId) === cut) {
+      idlePrunes.delete(organizationId);
+    }
   }
 }
 
@@ -576,17 +597,23 @@ async function sweepIdleBuildkitdUnlocked(
           runningIds.push(id);
       }
       const builderId = names.get(buildkitdContainerName(org));
+      // Inventory is complete and fresh immediately before each mutation;
+      // a late visible session from any spawner also cancels idle-stop.
+      const wanted = async () => {
+        const latestLive = await liveBuildkitOrganizations(org);
+        if (!latestLive.has(org) && !createLeases.has(org)) return false;
+        idleSince.delete(org);
+        return true;
+      };
       let stoppedCount = 0;
       for (const id of runningIds) {
-        // Inventory is complete and fresh immediately before each mutation;
-        // a late visible session from any spawner also cancels idle-stop.
-        const latestLive = await liveBuildkitOrganizations(org);
-        if (latestLive.has(org) || createLeases.has(org)) {
-          idleSince.delete(org);
-          return stoppedCount;
+        if (await wanted()) return stoppedCount;
+        if (id === builderId) {
+          // The last moment the builder can collect its own garbage. The
+          // prune takes a while, so the helpers are judged again after it.
+          await pruneIdleBuilderCache(cfg, org, id);
+          if (await wanted()) return stoppedCount;
         }
-        // The last moment the builder can collect its own garbage.
-        if (id === builderId) await pruneIdleBuilderCache(cfg, org, id);
         const stopResult = await runDocker(['stop', '--time', '30', id], {
           timeoutMs: 35_000,
         });

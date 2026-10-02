@@ -77,7 +77,14 @@ if (a[0] === 'exec') {
   if (a[2] === 'test') done();
   if (a[2] === 'cat') done('[dns]\n nameservers = ["172.22.0.2"]');
   if (a[2] === 'getent') done('172.22.0.2 tale-buildkit-egress');
-  if (a[2] === 'buildctl' && a[3] === 'prune') { if (s.pruneFails) fail('buildctl: failed to dial the daemon'); done('Total:\t0B'); }
+  if (a[2] === 'buildctl' && a[3] === 'prune') {
+    if (s.pruneFails) fail('buildctl: failed to dial the daemon');
+    if (s.pruneGate) {
+      writeFileSync(join(dir, 'pruning'), a[1]);
+      while (!existsSync(join(dir, 'release-prune'))) await Bun.sleep(5);
+    }
+    done('Total:\t0B');
+  }
   if (a[2] === 'buildctl') done(s.buildRunning ? 'COMPLETE\nSTARTED\n' : 'COMPLETE\n');
 }
 if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); done(); }
@@ -135,6 +142,8 @@ interface FakeState {
   buildRunning?: boolean;
   /** `buildctl prune` inside the builder fails. */
   pruneFails?: boolean;
+  /** `buildctl prune` runs until a `release-prune` file appears. */
+  pruneGate?: boolean;
   /** What `docker image inspect` answers per reference (none: no such image). */
   imageIds?: Record<string, string>;
 }
@@ -525,6 +534,37 @@ describe('organization build-cache lifecycle', () => {
     expect(
       Object.values((await state()).containers).every(
         (container) => !container.running,
+      ),
+    ).toBe(true);
+  });
+
+  test('a create that needs the builder cuts its idle prune short and keeps every helper running', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.pruneGate = true;
+    const now = Date.now();
+    await rm(join(root, 'pruning'), { force: true });
+    await rm(join(root, 'release-prune'), { force: true });
+    await save(initial);
+
+    await sweepIdleBuildkitd(cfg, now);
+    const sweep = sweepIdleBuildkitd(cfg, now + 1000);
+    for (let i = 0; i < 400; i += 1) {
+      if (await Bun.file(join(root, 'pruning')).exists()) break;
+      await Bun.sleep(5);
+    }
+    // A session create of the organization takes its lease meanwhile.
+    const release = retainBuildkitd(org);
+    try {
+      expect(await sweep).toEqual({ stopped: 0, organizations: 0 });
+    } finally {
+      release();
+      await writeFile(join(root, 'release-prune'), '');
+    }
+    expect((await calls()).some((args) => args[0] === 'stop')).toBe(false);
+    expect(
+      Object.values((await state()).containers).every(
+        (container) => container.running,
       ),
     ).toBe(true);
   });
