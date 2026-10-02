@@ -746,6 +746,75 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
     });
   });
 
+  it.each([
+    ['anthropic', 'rate_limit_error'],
+    ['anthropic', 'invalid_request_error'],
+    ['openai', 'rate_limit_exceeded'],
+    ['openai', 'insufficient_quota'],
+  ] as const)(
+    'books nothing for a pre-answer %s %s refusal after a keep-alive',
+    async (adapter, code) => {
+      const failure =
+        adapter === 'anthropic'
+          ? { type: 'error', error: { type: code, message: 'Request refused' } }
+          : { error: { code, message: 'Request refused' } };
+      const { outcome, booked, settled } = await turnOver(
+        providerModel(() => rawSse(frames({ type: 'ping' }, failure)), adapter),
+      );
+      expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+      expect(booked).toEqual([]);
+      expect(settled).not.toHaveProperty('usage');
+    },
+  );
+
+  it('books nothing for slow_down even when a broader error type is present', async () => {
+    const { outcome, booked, settled } = await turnOver(
+      providerModel(
+        () =>
+          rawSse(
+            frames(
+              { type: 'ping' },
+              {
+                error: {
+                  code: 'slow_down',
+                  type: 'rate_limit_error',
+                  message: 'Request refused',
+                },
+              },
+            ),
+          ),
+        'openai',
+      ),
+    );
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(booked).toEqual([]);
+    expect(settled).not.toHaveProperty('usage');
+  });
+
+  it.each(['rate_limit_exceeded', 'slow_down'])(
+    'keeps positive usage billable through a later %s request refusal',
+    async (code) => {
+      const { outcome, booked } = await turnOver(
+        providerModel(
+          () =>
+            rawSse(
+              frames(USAGE, {
+                error: {
+                  code,
+                  message: 'Request refused',
+                },
+              }),
+            ),
+          'openai',
+        ),
+      );
+      expect(outcome.status).toBe('refused');
+      expect(booked).toMatchObject([
+        { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+      ]);
+    },
+  );
+
   it('books nothing when zero-count metadata precedes a pre-answer rate limit', async () => {
     const { outcome, booked, settled } = await turnOver(
       providerModel(() => rawSse(frames(ZERO_USAGE, RATE_LIMITED)), 'openai'),

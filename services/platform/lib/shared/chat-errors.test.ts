@@ -8,8 +8,38 @@ import {
   describeChatError,
   encodeChatError,
   isChatErrorCode,
+  isProviderRequestRefusal,
 } from './chat-errors';
 import { AppError } from './errors/app-error';
+
+describe('isProviderRequestRefusal', () => {
+  it.each([
+    { status: 429 },
+    { statusCode: 400 },
+    { code: 'rate_limit_error' },
+    { code: 'slow_down' },
+    { code: 'invalid_request_error' },
+    { error: { code: 'rate_limit_exceeded' } },
+    { data: { code: 'insufficient_quota' } },
+  ])('recognizes a structured request refusal: %j', (error) => {
+    expect(isProviderRequestRefusal(error)).toBe(true);
+  });
+
+  it.each([
+    null,
+    'Rate limit exceeded',
+    { message: 'Rate limit exceeded' },
+    { message: '{"code":"rate_limit_exceeded"}' },
+    { code: 'server_error' },
+    { code: 'api_error' },
+    { code: 'overloaded_error' },
+    { code: 'unknown_refusal' },
+    { status: 503, code: 'rate_limit_exceeded' },
+    { status: 200, code: 'insufficient_quota' },
+  ])('does not waive usage from an ambiguous failure: %j', (error) => {
+    expect(isProviderRequestRefusal(error)).toBe(false);
+  });
+});
 
 describe('classifyChatErrorCode', () => {
   it('classifies funds errors by status and by message', () => {

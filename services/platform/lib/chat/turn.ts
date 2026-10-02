@@ -32,6 +32,7 @@ import {
   classifyChatErrorCode,
   describeChatError,
   encodeChatError,
+  isProviderRequestRefusal,
 } from '../shared/chat-errors';
 import {
   resolveExecution,
@@ -1114,15 +1115,6 @@ function roundUsage(
   };
 }
 
-/** The HTTP status a failure stands for, when it carries one — an HTTP
- * answer's, or the one a provider named for a failure on its stream. */
-function failureStatus(error: unknown): number | undefined {
-  if (error === null || typeof error !== 'object' || !('status' in error)) {
-    return undefined;
-  }
-  return typeof error.status === 'number' ? error.status : undefined;
-}
-
 /** The rounds' counts summed — see `summed` in `runTurn`. */
 interface RoundSum {
   input: number;
@@ -1799,7 +1791,7 @@ export async function runTurn(
     // them, estimated where it did not). A round the provider refused adds
     // nothing: one refused before its stream opened (an HTTP status, an
     // unreachable provider), and one whose stream reports a refusal — a
-    // 4xx status: a rate limit, a refused key or payment, a request too
+    // 4xx status or documented code: a rate limit, a refused key or payment, a request too
     // large — before any of the answer, which is the same refusal from a
     // provider that commits its 200 early (OpenRouter, while it waits on the
     // upstream). A turn with no consumed round books no row at all. Booked
@@ -1807,12 +1799,8 @@ export async function runTurn(
     // tell one story.
     let consumed: TurnUsage | undefined;
     if (!usageBooked) {
-      const status = failureStatus(err);
       const refusedOnStream =
-        inFlight?.observed.answered === false &&
-        status !== undefined &&
-        status >= 400 &&
-        status < 500;
+        inFlight?.observed.answered === false && isProviderRequestRefusal(err);
       if (inFlight?.observed.accepted === true && !refusedOnStream) {
         addRound(
           roundUsage(

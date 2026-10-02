@@ -11284,6 +11284,8 @@ async function checkChat(
           providerSlug: 'itestchat',
         },
       );
+      // Finish the response before reading final accounting or closing the server.
+      await res.text();
       const after = await chatLedger();
       const rows = await sql<
         { status: string; usage: unknown; error: string | null }[]
