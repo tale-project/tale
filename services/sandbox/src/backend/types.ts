@@ -10,7 +10,13 @@ import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
 export type HealthResult =
   | { ok: true; detail: string }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /** The probe could not ask the backend at all (no docker CLI slot came
+       * free in time): answered as unhealthy, never cached. */
+      transient?: boolean;
+    };
 
 /** A fenced stop found a DIFFERENT incarnation under the session's
  * deterministic name than the one it was asked to stop (`expectedCreatedAtMs`

@@ -512,7 +512,7 @@ export class DockerSessionBackend implements SessionBackend {
     const containerName = sessionContainerName(sessionId);
     const inspect = await runDocker(
       ['inspect', '--format', '{{.State.Running}}', containerName],
-      { timeoutMs: 5_000 },
+      { timeoutMs: 5_000, priority: true },
     );
     if (inspect.exitCode === 0) return inspect.stdout.trim() === 'true';
     // Only a definitive "the object is gone" answer may return false; any
@@ -579,7 +579,9 @@ export class DockerSessionBackend implements SessionBackend {
           '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
           containerName,
         ],
-        { timeoutMs: 5_000 },
+        // Short calls: a stop must not miss its fence behind a burst of
+        // creates holding every shared docker CLI slot.
+        { timeoutMs: 5_000, priority: true },
       );
       if (observed.exitCode !== 0) {
         if (isDockerNoSuchObject(observed.stderr)) return false;
@@ -608,7 +610,7 @@ export class DockerSessionBackend implements SessionBackend {
     try {
       const inspect = await runDocker(
         ['inspect', '--format', '{{.Id}}', containerName],
-        { timeoutMs: 5_000 },
+        { timeoutMs: 5_000, priority: true },
       );
       existed = inspect.exitCode === 0;
     } catch {

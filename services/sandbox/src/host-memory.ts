@@ -114,8 +114,11 @@ export class HostMemoryProbe {
   private ticker: ReturnType<typeof setInterval> | null = null;
 
   constructor(deps: HostMemoryDeps = {}) {
+    // Short calls: a burst of creates holding every shared docker CLI slot
+    // must not switch the memory guard off.
     this.docker =
-      deps.docker ?? ((args) => runDocker(args, { timeoutMs: 5_000 }));
+      deps.docker ??
+      ((args) => runDocker(args, { timeoutMs: 5_000, priority: true }));
     this.readFile = deps.readFile ?? ((path) => Bun.file(path).text());
     this.kernelRelease = deps.kernelRelease ?? release;
     this.now = deps.now ?? Date.now;

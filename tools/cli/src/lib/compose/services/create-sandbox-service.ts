@@ -47,8 +47,9 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     // generator overlays `127.0.0.1:8003:8003` so that `bun dev` with the backend
     // running on the host can reach the spawner.
     // Per-container resource caps. The spawner is a thin Bun HTTP server
-    // that issues `docker` subprocess calls, at most 12 at once (~28 MB and
-    // a dozen threads each, spawn-util.ts); the caps exclude the runtime
+    // that issues `docker` subprocess calls, at most 16 at once (12 shared
+    // and 4 kept for short calls, ~28 MB and a dozen threads each,
+    // spawn-util.ts); the caps exclude the runtime
     // containers it spawns (those get their own). pids_limit bounds the
     // docker-CLI fanout under a fork-bomb regression; the nofile bump leaves
     // room for many in-flight SSE streams.

@@ -58,8 +58,11 @@ export async function readDockerMetadata(
   return result;
 }
 
-async function inspect(args: string[]): Promise<string | null> {
-  const result = await readDockerMetadata(args);
+async function inspect(
+  args: string[],
+  options: Parameters<typeof runDocker>[1] = {},
+): Promise<string | null> {
+  const result = await readDockerMetadata(args, options);
   if (result.exitCode === 0) return result.stdout.trim();
   if (
     /no such (?:network|volume|object|container)|not found/i.test(result.stderr)
@@ -248,12 +251,17 @@ export async function inspectBuildkitHelper(
   stamp: string | undefined;
   image: string | undefined;
 } | null> {
-  const raw = await inspect([
-    'inspect',
-    '--format',
-    '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}},"image":{{json .Image}}}',
-    name,
-  ]);
+  // A short call: a create must not lose its build cache to a burst of
+  // creates holding every shared docker CLI slot.
+  const raw = await inspect(
+    [
+      'inspect',
+      '--format',
+      '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}},"image":{{json .Image}}}',
+      name,
+    ],
+    { priority: true },
+  );
   if (raw === null) return null;
   const data = parsedObject(raw);
   assertOwner(data.labels, organizationId, name);

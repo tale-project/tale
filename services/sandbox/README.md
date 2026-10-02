@@ -48,7 +48,11 @@ the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
 session or answers 429 `host_memory`. At most 12 Docker CLI processes run at
-once, each within its own time budget, the wait for a slot included. Platform adds an organization's three
+once, each within its own time budget, the wait for a slot included; short
+calls (the health probe's `docker version`, the identity and liveness
+inspects, the build helper and host memory checks) take a free one of those
+or one of 4 more kept for them, and never queue behind long calls. A health
+probe that found no slot in time answers unhealthy without caching it. Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
 There is no independently configured organization runtime ceiling. With

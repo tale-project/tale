@@ -20,13 +20,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SessionRoutes } from '../../session/session-routes.ts';
+import { DOCKER_CLI_CONCURRENCY, runDocker } from '../../spawn-util.ts';
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import {
   WorkspaceTrash,
   workspaceTrash,
 } from '../../session/workspace-trash.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { DockerBackend } from './docker-backend.ts';
+import { DockerBackend, dockerHealth } from './docker-backend.ts';
 import {
   DockerSessionBackend,
   isDockerNameConflict,
@@ -130,6 +131,12 @@ case "$cmd" in
     fi
     echo "Error response from daemon: No such object: $name" >&2
     exit 1 ;;
+  pull)
+    sleep "$1"
+    exit 0 ;;
+  version)
+    echo "29.0.0"
+    exit 0 ;;
   rm)
     printf '%s\\n' "$@" > "$here/last-rm"
     case "$rm_mode" in
@@ -305,6 +312,50 @@ async function eventually(
 async function trashEntries(trash: WorkspaceTrash): Promise<string[]> {
   return (await readdir(trash.dir)).sort();
 }
+
+describe('short docker calls beside a burst', () => {
+  test('the health probe and an identity check answer while long calls hold every shared slot', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+      runDocker(['pull', '1.5'], { timeoutMs: 10_000 }),
+    );
+    const startedAtMs = Date.now();
+    expect(await new DockerBackend(backendConfig()).health()).toEqual({
+      ok: true,
+      detail: '29.0.0',
+    });
+    expect(
+      await new DockerSessionBackend(backendConfig()).sessionExists('burst-1'),
+    ).toBe(true);
+    expect(Date.now() - startedAtMs).toBeLessThan(1_000);
+    await Promise.all(holders);
+  });
+
+  test('a health probe that found no docker CLI slot reads as transient', () => {
+    const answer = {
+      exitCode: 124,
+      stdout: '',
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    };
+    expect(
+      dockerHealth({
+        ...answer,
+        stderr: 'docker version: no docker CLI slot came free within 5000 ms',
+        noSlot: true,
+      }),
+    ).toEqual({
+      ok: false,
+      error: 'docker version: no docker CLI slot came free within 5000 ms',
+      transient: true,
+    });
+    // A daemon that answered (or timed out) is judged as before.
+    expect(dockerHealth({ ...answer, stderr: 'Cannot connect' })).toEqual({
+      ok: false,
+      error: 'Cannot connect',
+    });
+  });
+});
 
 describe('DockerSessionBackend stop/destroy honour the rm result', () => {
   test('pressure stops the observed immutable container and preserves its workspace', async () => {

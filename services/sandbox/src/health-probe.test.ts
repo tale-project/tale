@@ -64,6 +64,29 @@ describe('makeHealthProbe', () => {
     expect(calls).toBe(1);
   });
 
+  test('a transient failure (the probe never reached the backend) is answered, not cached', async () => {
+    let calls = 0;
+    let clock = 0;
+    const probe = makeHealthProbe(
+      async () => {
+        calls += 1;
+        return calls === 1
+          ? {
+              ok: false,
+              error: 'docker version: no docker CLI slot came free within 5000 ms',
+              transient: true,
+            }
+          : { ok: true, detail: '29.0' };
+      },
+      60_000,
+      () => clock,
+    );
+    expect((await probe()).ok).toBe(false);
+    clock += 10_000;
+    expect(await probe()).toEqual({ ok: true, detail: '29.0' });
+    expect(calls).toBe(2);
+  });
+
   test('a rejecting probe rejects every sharer and releases the in-flight slot', async () => {
     let calls = 0;
     const probe = makeHealthProbe(async () => {
