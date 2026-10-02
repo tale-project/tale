@@ -55,6 +55,10 @@ export interface SpawnerConfig {
   // agent sessions (env SANDBOX_BUILDKITD_IDLE_CACHE): unset, 5 GiB
   // (buildkitd.ts DEFAULT_IDLE_CACHE_BYTES).
   buildkitdIdleCacheBytes?: number;
+  // How long an organization's stopped build helpers keep their caches
+  // (env SANDBOX_BUILDKITD_CACHE_RETENTION): unset, 14 days; 0 keeps them
+  // until the organization is deleted (buildkitd.ts sweepIdleBuildkitd).
+  buildkitdCacheRetentionMs?: number;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
   // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client

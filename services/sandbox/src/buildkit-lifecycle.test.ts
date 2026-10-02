@@ -49,7 +49,11 @@ function fail(message) { console.error(message); process.exit(1); }
 const find = key => Object.values(s.containers).find(c => c.id === key || c.name === key);
 if (s.daemonError) fail('Cannot connect to the Docker daemon');
 if (a[0] === 'ps') {
-  if (a.includes('label=tale.buildkitd=1')) done(Object.values(s.containers).map(c => [c.id, c.name, c.labels['tale.org'] ?? ''].join('\t')).join('\n'), 'helpers');
+  if (a.includes('label=tale.buildkitd=1')) {
+    const helperOrg = flags('--filter').find(value => value.startsWith('label=tale.org='))?.slice('label=tale.org='.length);
+    const withOrg = flag('--format').includes('tale.org');
+    done(Object.values(s.containers).filter(c => !helperOrg || c.labels['tale.org'] === helperOrg).map(c => [c.id, c.name, ...(withOrg ? [c.labels['tale.org'] ?? ''] : [])].join('\t')).join('\n'), 'helpers');
+  }
   s.sessionReads++;
   if (s.lateSession && s.sessionReads >= s.lateSession.afterRead) s.sessions = [s.lateSession.session];
   const orgFilter = flags('--filter').find(value => value.startsWith('label=tale.org='))?.slice('label=tale.org='.length);
@@ -67,11 +71,14 @@ if (a[0] === 'network') {
     const name = a.at(-1);
     if (name === 'tale-sandbox-net') done({ [s.egressId]: { Name: 'egress' } });
     if (!s.networks[name]) fail('Error: No such network: ' + name);
+    if (flag('--format').includes('"containers"')) done({ id: 'a'.repeat(64), labels: s.networks[name].Labels, containers: null });
     done(s.networks[name]);
   }
   if (a[1] === 'connect') done();
+  if (a[1] === 'rm') { const gone = Object.keys(s.networks).find(n => n.length > 0); for (const n of Object.keys(s.networks)) if (s.networks[n] && a.at(-1) === 'a'.repeat(64)) delete s.networks[n]; done(gone ?? ''); }
 }
-if (a[0] === 'volume' && a[1] === 'inspect') done(s.volumes[a.at(-1)].labels);
+if (a[0] === 'volume' && a[1] === 'inspect') { if (!s.volumes[a.at(-1)]) fail('Error: No such volume: ' + a.at(-1)); done(s.volumes[a.at(-1)].labels); }
+if (a[0] === 'volume' && a[1] === 'rm') { if (!s.volumes[a.at(-1)]) fail('Error: No such volume'); delete s.volumes[a.at(-1)]; done(a.at(-1)); }
 if (a[0] === 'exec') {
   if (a[2] === 'iptables') done('-P FORWARD ACCEPT\n-A FORWARD -j DROP\n');
   if (a[2] === 'test') done();
@@ -104,7 +111,7 @@ if (a[0] === 'stop') {
   }
   c.running = false; done();
 }
-if (a[0] === 'rm') { delete s.containers[a.at(-1)]; done(); }
+if (a[0] === 'rm') { const c = find(a.at(-1)); if (c) delete s.containers[c.name]; done(); }
 fail('Unhandled fake Docker call: ' + JSON.stringify(a));
 `;
 
@@ -126,6 +133,7 @@ interface FakeState {
       ports: Record<string, object> | null;
       running: boolean;
       image?: string;
+      finishedAt?: string;
     }
   >;
   networks: Record<string, object>;
@@ -411,6 +419,60 @@ describe('organization build-cache lifecycle', () => {
     const final = await state();
     expect(final.containers[builder]?.image).toBe('sha256:this-release');
     expect(final.volumes).toEqual(initial.volumes);
+  });
+
+  describe('an organization that has not built for a long time', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    /** Seed `org` with every helper stopped `stoppedForMs` ago. */
+    async function stoppedFor(org: string, stoppedForMs: number, now: number) {
+      const initial = seed(org);
+      for (const container of Object.values(initial.containers)) {
+        container.running = false;
+        container.finishedAt = new Date(now - stoppedForMs).toISOString();
+      }
+      await save(initial);
+      return initial;
+    }
+    /** Two sweeps a full idle grace apart: the second may act. */
+    async function sweepTwice(config: SpawnerConfig, now: number) {
+      await sweepIdleBuildkitd(config, now);
+      await sweepIdleBuildkitd(config, now + config.session.maxIdleMs + 1);
+    }
+
+    test('gives its helpers and caches back past the retention', async () => {
+      const org = nextOrg();
+      const now = Date.now();
+      await stoppedFor(org, 15 * DAY, now);
+      await sweepTwice(cfg, now);
+      const after = await state();
+      expect(Object.keys(after.containers)).toEqual([]);
+      expect(Object.keys(after.volumes)).toEqual([]);
+      expect(Object.keys(after.networks)).toEqual([]);
+    });
+
+    test('keeps them within the retention, or with the retention off', async () => {
+      const now = Date.now();
+      const recent = nextOrg();
+      const initial = await stoppedFor(recent, 2 * DAY, now);
+      await sweepTwice(cfg, now);
+      expect((await state()).volumes).toEqual(initial.volumes);
+
+      const kept = nextOrg();
+      const old = await stoppedFor(kept, 60 * DAY, now);
+      await sweepTwice({ ...cfg, buildkitdCacheRetentionMs: 0 }, now);
+      expect((await state()).volumes).toEqual(old.volumes);
+      expect(Object.keys((await state()).containers).length).toBe(4);
+    });
+
+    test('keeps them while a session of the organization may build', async () => {
+      const org = nextOrg();
+      const now = Date.now();
+      const initial = await stoppedFor(org, 30 * DAY, now);
+      initial.sessions = [{ id: 'd'.repeat(64), org, status: 'running' }];
+      await save(initial);
+      await sweepTwice(cfg, now);
+      expect((await state()).volumes).toEqual(initial.volumes);
+    });
   });
 
   test('idle-stop releases all four helpers after the existing grace, preserving caches and network for resume', async () => {

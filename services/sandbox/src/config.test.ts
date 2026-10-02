@@ -27,6 +27,7 @@ const KEYS = [
   'SANDBOX_BUILDKITD_CPUS',
   'SANDBOX_BUILDKITD_MEMORY',
   'SANDBOX_BUILDKITD_IDLE_CACHE',
+  'SANDBOX_BUILDKITD_CACHE_RETENTION',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -110,6 +111,21 @@ test("an idle builder's cache budget is optional and validated", () => {
   expect(loadConfig().buildkitdIdleCacheBytes).toBe(0);
   process.env.SANDBOX_BUILDKITD_IDLE_CACHE = 'small';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_IDLE_CACHE/);
+});
+
+test('how long stopped build caches are kept is optional and validated', () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdCacheRetentionMs');
+  const hour = 60 * 60 * 1000;
+  process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = '14d';
+  expect(loadConfig().buildkitdCacheRetentionMs).toBe(14 * 24 * hour);
+  process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = '36h';
+  expect(loadConfig().buildkitdCacheRetentionMs).toBe(36 * hour);
+  for (const off of ['0', 'off', 'OFF']) {
+    process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = off;
+    expect(loadConfig().buildkitdCacheRetentionMs).toBe(0);
+  }
+  process.env.SANDBOX_BUILDKITD_CACHE_RETENTION = 'two weeks';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CACHE_RETENTION/);
 });
 
 describe('loadConfig — runtime tier', () => {

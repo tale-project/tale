@@ -78,10 +78,14 @@ that stop it prunes the builder's cache down to `SANDBOX_BUILDKITD_IDLE_CACHE`
 (5 GB by default) with `buildctl prune --all --keep-storage`, least recently
 used records first; the prune is bounded to two minutes, and one that fails is
 logged and the stop goes on. A session create of the organization that arrives
-meanwhile cuts the prune short, and the helpers keep running for it. What stays open: there is no host-wide budget
-across stopped organizations, so their caches add up to the idle budget times
-their number, and their volumes go only with the organization (its teardown
-through `DELETE /v1/organizations/:id`).
+meanwhile cuts the prune short, and the helpers keep running for it. Stopped
+caches add up to the idle budget times the number of organizations, so they
+are kept only so long: once an organization's builder has been stopped for
+`SANDBOX_BUILDKITD_CACHE_RETENTION` (14 days by default; `off` keeps them) and
+no session of it may build, the idle sweep removes its helpers, network and
+cache volumes the way its teardown through `DELETE /v1/organizations/:id`
+does, and its next build starts cold. What stays open: no budget reacts to the
+free disk itself.
 
 The builder is shared by all of its organization's agent sessions and runs
 under their CPU limit and twice their memory limit (its RUN steps execute

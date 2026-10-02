@@ -227,6 +227,14 @@ export async function listBuildkitOrganizations(): Promise<string[]> {
   return [...organizations];
 }
 
+/** A container's `State.FinishedAt` as a time, or undefined for one that
+ * never stopped (Docker reports the zero time `0001-01-01T00:00:00Z`). */
+function stoppedAtMs(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && ms > 0 ? ms : undefined;
+}
+
 /** A daemon/mirror may listen only on its own organization network, without
  * published ports. A name match alone is insufficient evidence of ownership. */
 export async function inspectBuildkitContainer(
@@ -250,6 +258,8 @@ export async function inspectBuildkitHelper(
   running: boolean;
   stamp: string | undefined;
   image: string | undefined;
+  /** When it last stopped; undefined when it never has, or cannot tell. */
+  finishedAtMs: number | undefined;
 } | null> {
   // A short call: a create must not lose its build cache to a burst of
   // creates holding every shared docker CLI slot.
@@ -257,7 +267,7 @@ export async function inspectBuildkitHelper(
     [
       'inspect',
       '--format',
-      '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}},"image":{{json .Image}}}',
+      '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}},"image":{{json .Image}},"finishedAt":{{json .State.FinishedAt}}}',
       name,
     ],
     { priority: true },
@@ -281,6 +291,7 @@ export async function inspectBuildkitHelper(
     running: data.running,
     stamp: typeof stamp === 'string' ? stamp : undefined,
     image: typeof data.image === 'string' ? data.image : undefined,
+    finishedAtMs: stoppedAtMs(data.finishedAt),
   };
 }
 

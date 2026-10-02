@@ -504,6 +504,42 @@ function organizationHelperNames(organizationId: string): string[] {
   ];
 }
 
+/** How long an organization's stopped helpers keep their caches, unless
+ * SANDBOX_BUILDKITD_CACHE_RETENTION says otherwise. */
+const DEFAULT_CACHE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Remove an organization's helpers and caches when its builder has been
+ * stopped for longer than the retention and nothing may use them now. */
+async function expireStoppedBuildCache(
+  cfg: SpawnerConfig,
+  org: string,
+  builderId: string,
+  nowMs: number,
+  wanted: () => Promise<boolean>,
+): Promise<void> {
+  const retentionMs =
+    cfg.buildkitdCacheRetentionMs ?? DEFAULT_CACHE_RETENTION_MS;
+  if (retentionMs <= 0) return;
+  const builder = await inspectBuildkitHelper(
+    builderId,
+    org,
+    buildkitdNetworkName(org),
+  );
+  if (
+    builder === null ||
+    builder.running ||
+    builder.finishedAtMs === undefined ||
+    nowMs - builder.finishedAtMs < retentionMs
+  ) {
+    return;
+  }
+  if (await wanted()) return;
+  const removed = await removeOrganizationBuildkitUnlocked(org);
+  console.log(
+    `[sandbox.buildkitd] removed ${org}'s build helpers and caches, stopped since ${new Date(builder.finishedAtMs).toISOString()} (${removed.containers} containers, ${removed.volumes} volumes); the next build starts cold`,
+  );
+}
+
 /** Release only compute after an org has had no live session for the normal
  * session idle grace. A fresh spawner observes a full grace before reclaiming
  * anything. Persistent volumes, private networks and container configuration
@@ -605,6 +641,13 @@ async function sweepIdleBuildkitdUnlocked(
         idleSince.delete(org);
         return true;
       };
+      // Helpers stopped long ago keep their caches only so long: past the
+      // retention, an organization that has not built since gives back the
+      // disk its caches hold, and its next build starts cold.
+      if (runningIds.length === 0 && builderId !== undefined) {
+        await expireStoppedBuildCache(cfg, org, builderId, nowMs, wanted);
+        return 0;
+      }
       let stoppedCount = 0;
       for (const id of runningIds) {
         if (await wanted()) return stoppedCount;
@@ -658,61 +701,68 @@ export async function removeOrganizationBuildkit(
         `buildkitd: a session create of ${organizationId} still holds its build helpers`,
       );
     }
-    const result = { containers: 0, volumes: 0, networks: 0 };
-    const listed = await readDockerMetadata([
-      'ps',
-      '--all',
-      '--no-trunc',
-      '--filter',
-      'label=tale.buildkitd=1',
-      '--filter',
-      `label=tale.org=${organizationId}`,
-      '--format',
-      '{{.ID}}\t{{.Names}}',
-    ]);
-    if (listed.exitCode !== 0) {
-      throw new Error('buildkitd: cannot inventory the organization helpers');
-    }
-    const helperNames = organizationHelperNames(organizationId);
-    for (const line of listed.stdout.split('\n').filter(Boolean)) {
-      const [id, name, extra] = line.split('\t');
-      if (!id || !DOCKER_ID_RE.test(id) || !name || extra !== undefined) {
-        throw new Error('buildkitd: invalid helper inventory during teardown');
-      }
-      if (!helperNames.includes(name)) {
-        console.warn(
-          `[sandbox.buildkitd] leaving ${name}: labelled for ${organizationId} but not one of its helpers`,
-        );
-        continue;
-      }
-      const removed = await runDocker(['rm', '--force', id], {
-        timeoutMs: 35_000,
-      });
-      if (removed.exitCode !== 0 && !/no such container/i.test(removed.stderr))
-        throw new Error(`buildkitd: failed to remove helper ${name}`);
-      result.containers++;
-    }
-    if (
-      await removeBuildkitNetwork(
-        buildkitdNetworkName(organizationId),
-        organizationId,
-      )
-    ) {
-      result.networks++;
-    }
-    for (const volume of [
-      buildkitdCacheVolumeName(organizationId),
-      ...MIRROR_REGISTRIES.map((registry) =>
-        buildkitdMirrorVolumeName(organizationId, registry),
-      ),
-    ]) {
-      if (await removeBuildkitVolume(volume, organizationId)) {
-        result.volumes++;
-      }
-    }
-    idleSince.delete(organizationId);
-    return result;
+    return removeOrganizationBuildkitUnlocked(organizationId);
   });
+}
+
+/** {@link removeOrganizationBuildkit} inside the organization's operation. */
+async function removeOrganizationBuildkitUnlocked(
+  organizationId: string,
+): Promise<{ containers: number; volumes: number; networks: number }> {
+  const result = { containers: 0, volumes: 0, networks: 0 };
+  const listed = await readDockerMetadata([
+    'ps',
+    '--all',
+    '--no-trunc',
+    '--filter',
+    'label=tale.buildkitd=1',
+    '--filter',
+    `label=tale.org=${organizationId}`,
+    '--format',
+    '{{.ID}}\t{{.Names}}',
+  ]);
+  if (listed.exitCode !== 0) {
+    throw new Error('buildkitd: cannot inventory the organization helpers');
+  }
+  const helperNames = organizationHelperNames(organizationId);
+  for (const line of listed.stdout.split('\n').filter(Boolean)) {
+    const [id, name, extra] = line.split('\t');
+    if (!id || !DOCKER_ID_RE.test(id) || !name || extra !== undefined) {
+      throw new Error('buildkitd: invalid helper inventory during teardown');
+    }
+    if (!helperNames.includes(name)) {
+      console.warn(
+        `[sandbox.buildkitd] leaving ${name}: labelled for ${organizationId} but not one of its helpers`,
+      );
+      continue;
+    }
+    const removed = await runDocker(['rm', '--force', id], {
+      timeoutMs: 35_000,
+    });
+    if (removed.exitCode !== 0 && !/no such container/i.test(removed.stderr))
+      throw new Error(`buildkitd: failed to remove helper ${name}`);
+    result.containers++;
+  }
+  if (
+    await removeBuildkitNetwork(
+      buildkitdNetworkName(organizationId),
+      organizationId,
+    )
+  ) {
+    result.networks++;
+  }
+  for (const volume of [
+    buildkitdCacheVolumeName(organizationId),
+    ...MIRROR_REGISTRIES.map((registry) =>
+      buildkitdMirrorVolumeName(organizationId, registry),
+    ),
+  ]) {
+    if (await removeBuildkitVolume(volume, organizationId)) {
+      result.volumes++;
+    }
+  }
+  idleSince.delete(organizationId);
+  return result;
 }
 
 /**

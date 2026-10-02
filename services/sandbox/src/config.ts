@@ -137,6 +137,23 @@ function sizeEnv(name: string): number | undefined {
   return Number(m[1]) * (unit ?? 1);
 }
 
+/** A duration in whole days or hours from the environment (`14d`, `336h`),
+ * `0` or `off` for none: undefined when unset, refused at boot when it is
+ * neither. */
+function retentionEnv(name: string): number | undefined {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (value === undefined || value === '') return undefined;
+  if (value === '0' || value === 'off') return 0;
+  const m = /^(\d+)([dh])$/.exec(value);
+  if (!m) {
+    throw new Error(
+      `Env var ${name} is not a duration such as 14d or 336h (or off): ${JSON.stringify(value)}`,
+    );
+  }
+  const hours = m[2] === 'd' ? Number(m[1]) * 24 : Number(m[1]);
+  return hours * 60 * 60 * 1000;
+}
+
 function numEnv(
   name: string,
   fallback: number,
@@ -236,6 +253,9 @@ export function loadConfig(): SpawnerConfig {
   const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
   const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');
   const buildkitdIdleCacheBytes = sizeEnv('SANDBOX_BUILDKITD_IDLE_CACHE');
+  const buildkitdCacheRetentionMs = retentionEnv(
+    'SANDBOX_BUILDKITD_CACHE_RETENTION',
+  );
   const buildkitdCpus = process.env.SANDBOX_BUILDKITD_CPUS?.trim()
     ? numEnv('SANDBOX_BUILDKITD_CPUS', 0, { min: 0.1 })
     : undefined;
@@ -470,6 +490,9 @@ export function loadConfig(): SpawnerConfig {
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
     ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),
+    ...(buildkitdCacheRetentionMs !== undefined
+      ? { buildkitdCacheRetentionMs }
+      : {}),
     ...(buildkitdIdleCacheBytes !== undefined
       ? { buildkitdIdleCacheBytes }
       : {}),
