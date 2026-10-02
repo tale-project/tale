@@ -113,6 +113,7 @@ import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { isCredentialRotation } from '../tasks/task_auto_retry';
 import {
   retryResumePrompt,
+  SANDBOX_ROOM_RETRY_CEILING_MS,
   type WorkflowAgentFailureCode,
   type WorkflowAgentRetryResume,
 } from './agent_retry';
@@ -440,15 +441,19 @@ export function automationAgentHost(
           : null;
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
-      // A cooldown ends a minute after its 429 at the latest, so a held
-      // start stays far inside the stalled-turn sweep's window for the op
-      // row written below.
+      // A cooldown ends a minute after its 429 at the latest, and a wait
+      // for sandbox room holds a start two minutes at most, so a held start
+      // stays far inside the stalled-turn sweep's window for the op row
+      // written below.
       const startDelayMs =
         notBefore === undefined
           ? 0
           : Math.min(
               Math.max(0, notBefore - Date.now()),
-              BROKER_RATE_LIMIT_COOLDOWN_MS,
+              Math.max(
+                BROKER_RATE_LIMIT_COOLDOWN_MS,
+                SANDBOX_ROOM_RETRY_CEILING_MS,
+              ),
             );
       const deadlineAt = Date.now() + startDelayMs + agentWorkTurnDeadlineMs();
       // The op row exists BEFORE the start action is scheduled (the chat

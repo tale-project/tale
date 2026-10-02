@@ -547,11 +547,13 @@ describe('an automation agent turn', () => {
 
       const now = await host.kick(kick);
       const held = await host.kick({ ...kick, notBefore: NOW + 42_000 });
+      await host.kick({ ...kick, notBefore: NOW + 100_000 });
       await host.kick({ ...kick, notBefore: NOW + 10 * 60_000 });
       await host.kick({ ...kick, notBefore: NOW - 1 });
 
-      // Never past a cooldown's length, nor for one already over.
-      expect(delays).toEqual([0, 42_000, 60_000, 0]);
+      // A wait for sandbox room holds its start up to two minutes; never
+      // longer, nor for a hold already over.
+      expect(delays).toEqual([0, 42_000, 100_000, 120_000, 0]);
       // The turn's time limit counts from its start, not from the kick.
       expect(held.deadlineAt - now.deadlineAt).toBe(42_000);
     } finally {
