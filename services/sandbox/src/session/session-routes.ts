@@ -213,6 +213,9 @@ export class SessionRoutes {
   // Ended compute whose removal failed, by failure time: retried after a
   // back-off rather than on (and logged by) every sweep.
   private readonly endedReapFailedAtMs = new Map<string, number>();
+  // The removal of ended compute in flight, which runs beside the API: after
+  // a host reboot every session container has ended.
+  private reapingEnded: Promise<void> | null = null;
 
   /**
    * @param isDraining Read on every registry miss: a lingering (draining)
@@ -612,7 +615,22 @@ export class SessionRoutes {
       const registered = await this.adoptSession(s);
       if (registered !== undefined) adopted.push(s);
     }
-    await this.reapEnded(ended);
+    // The removal runs beside the API: after a host reboot every session
+    // container has ended, and removing each takes up to seconds (with its
+    // inner image volume). A pass still under way covers what it listed; the
+    // next sweep takes the rest.
+    if (ended.length > 0 && this.reapingEnded === null) {
+      this.reapingEnded = this.reapEnded(ended)
+        .catch((error: unknown) => {
+          console.warn(
+            '[sandbox.session] removing ended compute failed:',
+            error,
+          );
+        })
+        .finally(() => {
+          this.reapingEnded = null;
+        });
+    }
 
     // Heal the shared build cache for every org whose agent session was just
     // adopted (only agent sessions build). The buildkitd outlives the spawner,
@@ -644,6 +662,11 @@ export class SessionRoutes {
     return this.reconciling;
   }
 
+  /** Settles once the removal of ended compute adoption started is done. */
+  endedReapSettled(): Promise<void> {
+    return this.reapingEnded ?? Promise.resolve();
+  }
+
   /** Containers/Pods whose process ended for good — a host reboot or daemon
    * restart, an init killed by the OOM killer, an evicted Pod — are never
    * adopted, and nothing but a resume or a destroy used to remove them: the
@@ -652,7 +675,7 @@ export class SessionRoutes {
    * keeping the workspace for the resume. */
   private async reapEnded(ended: readonly BackendSession[]): Promise<void> {
     const now = Date.now();
-    for (const s of ended) {
+    await forEachLimited(ended, SWEEP_CONCURRENCY, async (s) => {
       const id = s.sessionId;
       const failedAt = this.endedReapFailedAtMs.get(id);
       if (
@@ -662,7 +685,7 @@ export class SessionRoutes {
         this.destroySettled.has(id) ||
         (failedAt !== undefined && now - failedAt < ENDED_REAP_BACKOFF_MS)
       ) {
-        continue;
+        return;
       }
       const stop = this.backend
         .stopSession(id, s.createdAtMs)
@@ -689,7 +712,7 @@ export class SessionRoutes {
           `[sandbox.session] removed the ended compute of ${id} (workspace preserved for resume)`,
         );
       }
-    }
+    });
   }
 
   /** One maintenance pass: adoption (never while draining — a lingering
@@ -880,14 +903,23 @@ export class SessionRoutes {
   ): Promise<boolean> {
     if (this.reclaimClaims.has(s.sessionId)) return this.reclaimIdle(s);
     // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
-    if (s.pinned) return false;
+    // Unprobed, a streak of failed probes from before no longer describes
+    // the daemon, so it starts over.
+    if (s.pinned) {
+      this.probeFailures.delete(s.sessionId);
+      return false;
+    }
     // A session with a live exec is NEVER reaped — a long, QUIET tool (no
     // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
     // running task shouldn't be cut at the hard TTL either. The registry
     // tracks in-flight execs on this replica; after a spawner restart its
     // cache is cold, so the runnerd health.liveExecs check below is the
-    // backstop for a re-adopted busy session.
-    if (s.liveExecs.size > 0) return false;
+    // backstop for a re-adopted busy session. An exec running through this
+    // replica shows its runnerd answers: any streak of failed probes ends.
+    if (s.liveExecs.size > 0) {
+      this.probeFailures.delete(s.sessionId);
+      return false;
+    }
     let expired = nowMs > s.expiresAtMs;
     let reason = expired ? 'lifetime' : 'idle';
     // Local exec cache is cold (e.g. a spawner restart re-adopted this session

@@ -69,11 +69,14 @@ still running is joined, never stacked) **stops**:
   Docker inside keep the full window: their resume starts the inner daemon on
   an empty image store;
 - a running session whose runnerd has not answered five sweeps in a row (a
-  wedged daemon used to hold its slot and limits until the 24 h TTL);
+  wedged daemon used to hold its slot and limits until the 24 h TTL); a sweep
+  that cannot probe it — pinned, or an exec running through this spawner —
+  starts the count over;
 - compute whose process ended for good — a container exited or dead after a
   host reboot or an OOM-killed init, a Pod Failed or evicted — which adoption
   never registers and which used to stay (with, on Docker, its inner image
-  volume) until a resume or a destroy.
+  volume) until a resume or a destroy. Their removal runs beside the API,
+  eight at a time: after a host reboot every session container has ended.
 
 Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a

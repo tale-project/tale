@@ -2226,6 +2226,7 @@ describe('sweep and adoption hygiene', () => {
       },
     });
     await routes.adoptExisting();
+    await routes.endedReapSettled();
     expect(stops).toEqual([
       ['exited-1', 5],
       ['exited-stuck', 1_000],
@@ -2236,7 +2237,40 @@ describe('sweep and adoption hygiene', () => {
     // logging) on every sweep.
     stops.length = 0;
     await routes.adoptExisting();
+    await routes.endedReapSettled();
     expect(stops).toEqual([['exited-1', 5]]);
+  });
+
+  test('ended compute is removed beside the API, several at a time', async () => {
+    const ended = Array.from({ length: 20 }, (_, i) => ({
+      ...mkBackendSession(`exited-${i}`, 'org_a'),
+      state: 'degraded' as const,
+      ended: true,
+    }));
+    let inFlight = 0;
+    let most = 0;
+    const gate = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        return [...ended, mkBackendSession('running-1', 'org_a')];
+      },
+      async stopSession() {
+        inFlight += 1;
+        most = Math.max(most, inFlight);
+        await gate.promise;
+        inFlight -= 1;
+        return true;
+      },
+    });
+    // After a host reboot every session container has ended: the API (and
+    // the running sessions) must not wait for twenty removals.
+    expect(await settlesWithin(routes.adoptExisting(), 1_000)).toBe(true);
+    expect((await routes.handleGet('running-1')).status).toBe(200);
+    gate.resolve();
+    await routes.endedReapSettled();
+    expect(most).toBeGreaterThan(1);
+    expect(most).toBeLessThanOrEqual(8);
   });
 
   test('the build-cache reconcile after adoption covers agent sessions only and never holds adoption up', async () => {
@@ -2330,6 +2364,26 @@ describe('sweep and adoption hygiene', () => {
     deadDaemons.add(tokenOf('flaky-1'));
     for (let sweep = 0; sweep < 4; sweep += 1) await routes.sweepExpired();
     expect(stopped.size).toBe(0);
+  });
+
+  test('a sweep that cannot probe (pinned, or an exec running) starts the streak over', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'paused-1');
+    fakeHealth.lastActivityAtMs = Date.now();
+    deadDaemons.add(tokenOf('paused-1'));
+    for (let sweep = 0; sweep < 4; sweep += 1) await routes.sweepExpired();
+    // The pin itself goes through runnerd; the sweeps never reach it.
+    const pin = async (pinned: boolean) => {
+      deadDaemons.delete(tokenOf('paused-1'));
+      await routes.handleSetPinned('paused-1', JSON.stringify({ pinned }));
+      deadDaemons.add(tokenOf('paused-1'));
+    };
+    await pin(true);
+    await routes.sweepExpired();
+    await pin(false);
+    // One more failure is a new streak of one, not the fifth in a row.
+    await routes.sweepExpired();
+    expect(stopped.has('paused-1')).toBe(false);
   });
 
   test('concurrent creates at capacity each reclaim a released session of their own', async () => {
