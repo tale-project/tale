@@ -685,15 +685,20 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    environment:
+      # Connections the proxy serves at once for the whole fleet (tinyproxy
+      # MaxClients). Mirrors the CLI compose generator.
+      SANDBOX_EGRESS_MAX_CLIENTS: ${SANDBOX_EGRESS_MAX_CLIENTS:-2000}
     # Mirrors the CLI compose generator (create-sandbox-egress-service.ts):
-    # tinyproxy runs a thread per connection (MaxClients 1000), and threads
-    # count against the pids limit.
+    # tinyproxy runs a thread and holds two descriptors per connection
+    # (SANDBOX_EGRESS_MAX_CLIENTS, 2000 by default), and threads count
+    # against the pids limit. A raised connection limit needs these raised.
     mem_limit: 512m
-    pids_limit: 2048
+    pids_limit: 4096
     ulimits:
       nofile:
-        soft: 4096
-        hard: 8192
+        soft: 8192
+        hard: 16384
     # IPv4-only proxy networks: disable current and future-interface IPv6 so
     # the fail-closed firewall also boots on kernels without ip6_tables.
     sysctls:

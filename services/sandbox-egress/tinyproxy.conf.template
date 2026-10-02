@@ -1,8 +1,8 @@
 # Tale Sandbox Egress — tinyproxy config
 # Rendered at startup by entrypoint.sh, which substitutes the FILTER_BLOCK
-# placeholder below via envsubst (explicit SHELL-FORMAT — no other
-# variables are expanded, and this header must never spell the placeholder
-# in dollar-brace form or envsubst would expand it here too).
+# and MAX_CLIENTS placeholders below via envsubst (explicit SHELL-FORMAT —
+# no other variables are expanded, and this header must never spell a
+# placeholder in dollar-brace form or envsubst would expand it here too).
 
 User nobody
 Group nobody
@@ -18,10 +18,13 @@ LogFile "/var/log/tinyproxy/tinyproxy.log"
 # entrypoint.sh supervises tinyproxy -d and tracks its child PID for shutdown.
 # Foreground operation needs no PID file or write access to /tmp.
 # Concurrent connections for the WHOLE fleet: every session's package
-# installs, clones and page loads share this proxy, and 100 was saturated by a
-# handful of parallel installs. tinyproxy runs one thread (~50 KB) per
-# connection, so the container's pids limit is sized above this.
-MaxClients 1000
+# installs, clones and page loads share this proxy (with transparent egress,
+# every outbound TCP connection of a session), and 100 was saturated by a
+# handful of parallel installs. Rendered from SANDBOX_EGRESS_MAX_CLIENTS
+# (default 2000). tinyproxy runs one thread (~50 KB) and two descriptors per
+# connection, so the container's pids and open-file limits are sized above
+# the default.
+MaxClients ${MAX_CLIENTS}
 ViaProxyName "tale-sandbox-egress"
 
 # CONNECT method (tunneling) restricted to the standard HTTP/HTTPS ports in

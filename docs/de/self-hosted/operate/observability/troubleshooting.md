@@ -75,6 +75,8 @@ Prüfe `sandbox-egress` und die Ziel-URL. Eine konfigurierte `SANDBOX_EGRESS_ALL
 
 Ein gesunder Egress-Prozess belegt nicht die Verfügbarkeit von Gegenstelle, DNS, Zertifikat oder Konto. Bewahre den konkreten Anfragefehler im Störungsbericht auf.
 
+Wenn viele Sessions gleichzeitig Pakete installieren oder Seiten laden und Verbindungen mit Resets abbrechen, während der Proxy gesund bleibt, hat er womöglich `SANDBOX_EGRESS_MAX_CLIENTS` erreicht, die Verbindungen, die er für alle Sessions zusammen gleichzeitig bedient. Sein Log meldet dann, dass die Höchstzahl an Verbindungen erreicht ist. Erhöhe den Wert zusammen mit den Prozess- und Dateigrenzen des Egress-Containers und erstelle den Egress-Dienst neu.
+
 ## Schreibzugriffe scheitern oder Speicher läuft voll
 
 Prüfe Datenbankverbindung, freien Platz, Verbindungsbelegung und Sperren. Stoppe vermeidbares Wachstum und stelle Kapazität nach deinem Datenbankverfahren wieder her. Lösche keine Volume-Inhalte, setze keine Verschlüsselungsschlüssel zurück und erwarte keine automatische Wiederholung fehlgeschlagener Schreibzugriffe. Prüfe vor einem erneuten Versuch, ob die ursprüngliche Operation bereits gespeichert wurde.

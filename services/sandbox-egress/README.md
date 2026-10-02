@@ -34,6 +34,16 @@ Pod sysctls or extra capabilities; configure the prerequisite through the
 cluster's permitted settings. See the
 [Kubernetes contract](../sandbox/docs/kubernetes.md#egress-ipv6-prerequisite).
 
+The proxy serves `SANDBOX_EGRESS_MAX_CLIENTS` connections at once (tinyproxy
+`MaxClients`, 2000 by default) for every session together: with transparent
+egress, each outbound connection of a session, its builds and its package
+installs is one of them. The entrypoint refuses to start on a value that is no
+whole number above 0 and warns when the container's open-file limit cannot
+hold two descriptors per connection. Both compose pipelines pass the same
+default and size the container's pids (4096) and open files (8192/16384) for
+it; a higher value needs those raised with it. The idle tunnel `Timeout` stays
+at 600 s.
+
 ```bash
 bun run --filter @tale/sandbox-egress serve         # docker compose up sandbox-egress
 bun run --filter @tale/sandbox-egress docker:build
