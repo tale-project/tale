@@ -1,13 +1,16 @@
 /**
- * Process hygiene around a failed drain and a retry: the REAL drive and start
- * hosts with only external I/O replaced.
+ * Process hygiene around a failed drain, a retry and a steer: the REAL
+ * drive, start and steer hosts with only external I/O replaced.
  *
  *  - a drive window whose drain dies (an exhausted re-attach budget, a 502
  *    storm) settles the run failed — and must cancel the exec first, since
  *    the CLI is typically still alive and would keep working unobserved;
  *  - a start with a predecessor exec — here a Claude→Codex switch, so no
  *    resume — reaps it and waits until runnerd reports it gone BEFORE the
- *    new CLI launches on the same workspace and delivery box.
+ *    new CLI launches on the same workspace and delivery box;
+ *  - a steer's restart cancels the old exec as a rotation, keeping what the
+ *    turn started outside its own processes for the restarted turn, while
+ *    every other cancel (a Stop, a crash) ends everything.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,6 +19,8 @@ import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 
 const io = vi.hoisted(() => ({
   cancels: [] as string[],
+  /** The mode of each cancel, in order. */
+  cancelModes: [] as Array<{ keepLeftovers?: boolean }>,
   statusPolls: [] as string[],
   starts: [] as Array<{ execId: string; argv: string[]; stdin?: string }>,
   released: [] as Array<{ execId: string; status: string }>,
@@ -81,8 +86,13 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     >();
   return {
     ...actual,
-    sessionCancelExec: async (_sessionId: string, execId: string) => {
+    sessionCancelExec: async (
+      _sessionId: string,
+      execId: string,
+      mode: { keepLeftovers?: boolean } = {},
+    ) => {
       io.cancels.push(execId);
+      io.cancelModes.push(mode);
       return true;
     },
     sessionExecStatus: async (_sessionId: string, execId: string) => {
@@ -122,7 +132,7 @@ vi.mock('../node_only/sandbox/turn_equipment', () => ({
   resolveTurnEquipmentEnv: async () => ({}),
 }));
 
-const { driveTaskAgentTurnImpl, startTaskAgentTurnImpl } =
+const { driveTaskAgentTurnImpl, startTaskAgentTurnImpl, steerTaskAgentTurnImpl } =
   await import('./agent_run_host');
 
 interface RunState {
@@ -161,6 +171,14 @@ function makeCtx(run: RunState) {
       if (name === 'tasks/agent_runs:getTaskAgentRunAuthority') {
         return { confined: false };
       }
+      // A live turn that still reads input: a steer may restart it.
+      if (name === 'sandbox/session_queries:getOpSteerState') {
+        return { status: 'running', finalized: false };
+      }
+      if (name === 'sandbox/session_queries:getSessionOpAttribution') {
+        return { userId: 'user-starter' };
+      }
+      if (name === 'governance/queries:getContextCapInternal') return null;
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
@@ -175,6 +193,10 @@ function makeCtx(run: RunState) {
       }
       if (name === 'sandbox/session_mutations:reserveTurnBudget') {
         return { allowed: true, budgetCents: 500 };
+      }
+      if (name === 'tasks/agent_runs:rotateTaskAgentRunExec') {
+        run.execId = 'exec-rotated';
+        return { execId: 'exec-rotated' };
       }
       return null;
     },
@@ -201,6 +223,7 @@ const KEYS = {
 
 beforeEach(() => {
   io.cancels = [];
+  io.cancelModes = [];
   io.statusPolls = [];
   io.starts = [];
   io.released = [];
@@ -221,6 +244,8 @@ describe('drive window failure', () => {
     await driveTaskAgentTurnImpl(ctx, KEYS as never);
     expect(run.status).toBe('cancelled');
     expect(io.cancels).toEqual(['exec-old']);
+    // A Stop ends everything the turn started.
+    expect(io.cancelModes).toEqual([{}]);
     expect(io.released).toEqual([{ execId: 'exec-old', status: 'cancelled' }]);
     expect(
       mutations.some(
@@ -241,6 +266,7 @@ describe('drive window failure', () => {
     await driveTaskAgentTurnImpl(ctx, KEYS as never);
 
     expect(io.cancels).toEqual(['exec-old']);
+    expect(io.cancelModes).toEqual([{}]);
     expect(run.status).toBe('failed');
     const failed = mutations.find((m) =>
       m.name.endsWith(':markTaskAgentRunFailed'),
@@ -310,5 +336,32 @@ describe('start after a harness switch', () => {
     expect(io.cancels).toEqual([]);
     expect(io.statusPolls).toEqual([]);
     expect(io.starts.map((s) => s.execId)).toEqual(['exec-first']);
+  });
+});
+
+describe('steer restart', () => {
+  it('cancels the old exec as a rotation, keeping the turn’s servers for the restarted turn', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      // A harness without live steering: the comment restarts the turn.
+      harness: 'codex',
+      model: 'gpt-5',
+      modelProvider: 'openai',
+      skills: [],
+      connectors: [],
+      tools: [],
+      secrets: [],
+      feedback: 'Check the staging site too.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.cancelModes).toEqual([{ keepLeftovers: true }]);
+    expect(io.starts.map((s) => s.execId)).toEqual(['exec-rotated']);
   });
 });

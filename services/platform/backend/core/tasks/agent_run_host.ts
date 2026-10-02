@@ -2339,7 +2339,12 @@ export async function steerTaskAgentTurnImpl(
   );
   if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer
   const execId = rotated.execId;
-  await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
+  // A rotation, not a Stop: the old exec's own processes end, while what the
+  // turn started outside them (a dev server it is testing against) stays up
+  // for the restarted turn, which goes on where this one stopped.
+  await sessionCancelExec(args.sessionId, args.execId, {
+    keepLeftovers: true,
+  }).catch((err) =>
     console.warn('[task-agent] steer kill of the old exec failed:', err),
   );
   try {

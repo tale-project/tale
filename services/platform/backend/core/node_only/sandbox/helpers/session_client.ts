@@ -712,14 +712,23 @@ export async function sessionSetPinned(
 }
 
 /** POST /v1/sessions/:id/exec/:execId/cancel — SIGTERM→SIGKILL the exec's
- * process group in the sandbox. Idempotent (false if the exec/session is gone).
+ * processes in the sandbox. Idempotent (false if the exec/session is gone).
  * The Stop-button path for external-agent turns; the run's own finalize then
- * persists the partial timeline + marks the message failed. */
+ * persists the partial timeline + marks the message failed.
+ *
+ * `keepLeftovers` is a rotation's cancel (a steer's restart, which continues
+ * the conversation in a new exec over the same workspace): only the exec's
+ * own process group ends, and what the turn started outside it — a dev
+ * server its shell tool backgrounded — is kept for the exec that takes over.
+ * A spawner or runtime that predates the flag ignores it and ends
+ * everything. */
 export async function sessionCancelExec(
   sessionId: string,
   execId: string,
+  opts: { keepLeftovers?: boolean } = {},
 ): Promise<boolean> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel`;
+  const query = opts.keepLeftovers === true ? '?leftovers=keep' : '';
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel${query}`;
   const res = await spawnerFetch('POST', path, {
     body: '',
     signal: AbortSignal.timeout(30_000),
