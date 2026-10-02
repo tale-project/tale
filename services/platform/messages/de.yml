@@ -3157,24 +3157,22 @@ governance:
         sind, automatisch löschen. Schließt pro Ausführung gespeicherte
         Variablen-/Output-Blobs ein.
       placeholder: z. B. 30
-      helper: Automatisierungsläufe, die älter sind, werden gelöscht (1–365 Tage).
+      helper: Automatisierungsläufe, die älter sind, werden gelöscht.
     auditLogs:
       title: Audit-Logs
       description: Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Audit-Logs sind unveränderliche Aufzeichnungen — halte die Frist lang genug, um deine Compliance-Anforderungen zu erfüllen.
       placeholder: z. B. 90
-      helper: Audit-Log-Einträge, die älter sind, werden gelöscht (30–365 Tage).
+      helper: Audit-Log-Einträge, die älter sind, werden gelöscht.
     usageLedger:
       title: Nutzungsbuch
       description: Token-Verbrauchsdaten, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Eine kürzere Frist schneidet historische Auswertungen ab — Budgets und Berichte stützen sich auf diese Daten.
       placeholder: z. B. 365
-      helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht (30–3650 Tage).
+      helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht.
     loginAttempts:
       title: Anmeldeversuche
       description: Aufzeichnungen fehlgeschlagener Anmeldeversuche, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Diese Einstellung gilt deployment-weit — der kürzeste Wert aller Organisationen greift.
       placeholder: z. B. 90
-      helper:
-        Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht (7–365
-        Tage).
+      helper: Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht.
   passwordPolicy:
     title: Passwort-Richtlinie
     description: Mindestlänge, Zeichenklassen-Anforderungen und Rotation für
@@ -7270,6 +7268,7 @@ inbox:
   agentRunFailedBody: 'Der Agent konnte "{title}" nicht fertigstellen. In der Aufgabe siehst du, warum, und kannst ihn erneut starten.'
   agentRunFailedBudgetBody: 'Ein Nutzungslimit hat den Agenten bei "{title}" gestoppt. Sobald ein Admin es anhebt, starte den Agenten erneut.'
   agentRunFailedSetupBody: 'Dem Agenten für "{title}" fehlt etwas, das er braucht. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+  agentRunFailedInputBody: 'Ein Anhang von "{title}" ist nicht mehr im Speicher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
   email:
     cta: In Tale öffnen
     footer:
@@ -7385,6 +7384,7 @@ tasks:
     failure:
       budget: Ein Nutzungslimit hat diesen Lauf gestoppt. Bitte einen Admin, es anzuheben, und starte den Agenten dann erneut.
       setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
+      input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — unter "Details" steht, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
       time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
       capacity: Der Lauf hat zu lange auf eine freie Sandbox gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
       model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
@@ -8136,6 +8136,7 @@ websites:
       unresolved: Die Zugangsdaten des Embedding-Modells lassen sich nicht verwenden. Ein Admin kann sie unter Einstellungen → KI-Anbieter prüfen.
       dimension: Die Vektoren des Modells passen nicht zu dieser Wissensdatenbank. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       upstream: Der Anbieter ist ausgefallen oder nicht erreichbar. Wähle Jetzt scannen, sobald er wieder da ist.
+      throttled: Das Ratenlimit des Anbieters hielt über alle Wiederholungen an. Der nächste Scan macht von selbst weiter; ein Admin kann die Anfragen unter Einstellungen → Datenresidenz drosseln.
       generic: Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
     technicalDetails: Technische Details
   scanPausedBadge: Pausiert

@@ -42,6 +42,12 @@ export type TaskRunFailureCode =
    * run's scope — configuration, not a fault: nothing about a retry
    * changes it (2026-09-26 evaluation, C-09). */
   | 'equipment_missing'
+  /** An attachment the task lists is no longer in the object store (a
+   * deleted file row, a purge, a cleanup outside Tale): the sandbox daemon
+   * met the store's 404 while staging it. Nothing about a retry brings the
+   * bytes back — whoever can change the task removes the attachment or
+   * uploads it again. */
+  | 'input_missing'
   /** The org's spend cap refused the start — the cap only moves with the
    * period or an admin, so a retry would only be refused again. */
   | 'budget_exceeded'
@@ -71,6 +77,7 @@ const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'agent_deleted',
   'agent_model_missing',
   'equipment_missing',
+  'input_missing',
   'budget_exceeded',
 ] satisfies TaskRunFailureCode[]);
 

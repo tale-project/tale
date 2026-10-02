@@ -4,7 +4,7 @@
  *
  * Round-2 v14 finding: login-attempt failures write `actorEmail` and
  * `ipAddress` as plaintext into the audit chain. The chain is retained
- * for 365–3650 days under audit retention, i.e. roughly 10× longer than
+ * for 180–3650 days under audit retention, i.e. at least 6× longer than
  * the new 30-day TTL on `loginAttempts` itself — the inverse of the
  * GDPR-data-minimization intent of the phase-11 reframe. A leaked DB
  * snapshot exposes raw email + IP for every failed sign-in over years.

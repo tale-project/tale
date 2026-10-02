@@ -626,8 +626,22 @@ describe('HomePanel', () => {
     );
   });
 
-  it('ignores ⌘\\ where the panel stays open', () => {
+  it("folds with ⌘\\ on a project's page, whose header carries the toggle", () => {
     location.current = { pathname: '/dashboard/org-1/projects/p1', search: {} };
+    render(
+      <HomePanelProvider organizationId="org-1">
+        <HomePanel organizationId="org-1" />
+      </HomePanelProvider>,
+    );
+    backslash();
+    expect(window.localStorage.getItem('chat-history-panel-open-org-1')).toBe(
+      'false',
+    );
+  });
+
+  it('ignores ⌘\\ where the panel stays open', () => {
+    // The projects list has no toggle to bring the panel back.
+    location.current = { pathname: '/dashboard/org-1/projects', search: {} };
     render(
       <HomePanelProvider organizationId="org-1">
         <HomePanel organizationId="org-1" />

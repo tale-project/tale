@@ -105,8 +105,9 @@
          `boot-home-panel-open` gates the Home panel skeleton
          (HomePanelPlaceholder) on every Home route — chat, a task, a
          project, the inbox, or an org root (which redirects to chat) — and
-         stays off only on a conversation-shaped page (a chat, a task, an
-         open inbox conversation) whose panel the persisted
+         stays off only on a page whose header can bring the panel back (a
+         chat, a task, an open inbox conversation, a project's page) whose
+         panel the persisted
          `chat-history-panel-open-<orgId>` state has folded (org-scoped
          precisely so this script can read it pre-auth; the live HomePanel
          keeps the class in step). `boot-chat` gates the composer stand-in
@@ -151,14 +152,19 @@
           }
           var root = document.documentElement;
           var chat = section === undefined || section === 'chat';
-          var collapsible =
+          // A conversation-shaped page brings its own phone header, so the
+          // shell's bar stand-in hides there (see DashboardShellFrame and
+          // hasOwnPhoneHeader).
+          var threadPage =
             chat ||
             section === 'tasks' ||
             (section === 'conversations' &&
               /[?&]conversation=/.test(window.location.search));
-          // A conversation-shaped page brings its own phone header, so the
-          // shell's bar stand-in hides there (see DashboardShellFrame).
-          if (collapsible) root.classList.add('boot-thread-page');
+          if (threadPage) root.classList.add('boot-thread-page');
+          // The panel folds only where the header can bring it back: those
+          // pages and a project's own page (see isPanelCollapsible).
+          var collapsible =
+            threadPage || (section === 'projects' && match[3] !== undefined);
           var stored = localStorage.getItem('chat-history-panel-open-' + org);
           if (!collapsible || stored !== 'false') {
             root.classList.add('boot-home-panel-open');

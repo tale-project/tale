@@ -272,6 +272,28 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
     );
   });
 
+  // The provider's per-minute limit, outlasting every retry: its own class,
+  // so the site says the next scan continues instead of blaming the account.
+  it('names the model and the rate limit when the provider throttled the pages', async () => {
+    const limited = OpenAI.APIError.generate(
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message:
+            'Allocated quota exceeded, please increase your quota limit.',
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+    await expect(indexWith(() => Promise.reject(limited))).rejects.toThrow(
+      new RegExp(
+        `^${WEBSITE_EMBEDDING_FAILED_PREFIX} \\[throttled\\]: .*Allocated quota exceeded`,
+      ),
+    );
+  });
+
   it('leaves an unrelated failure as it is', async () => {
     const unrelated = new Error('relation "chunks" does not exist');
     await expect(indexWith(() => Promise.reject(unrelated))).rejects.toBe(

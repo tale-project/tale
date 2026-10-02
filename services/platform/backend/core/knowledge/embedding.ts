@@ -63,6 +63,70 @@ export const MAX_BATCH = 64;
 const RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 
+/** A provider's per-minute limit clears on the minute, not in seconds: a
+ * batch refused with 429 pauses its whole lane — every slot, every waiting
+ * batch, or the other slots keep hitting the same limit — and comes back on
+ * a minute scale (10 s, 20 s, 40 s, then 60 s), for more attempts than the
+ * connection-class retry gets. A search query a person waits on keeps the
+ * short schedule and skips the lane pause: it is more use answered as a
+ * refusal in seconds than as a vector after a minute. */
+const RATE_LIMIT_RETRIES = 6;
+const RATE_LIMIT_BASE_MS = 10_000;
+const RATE_LIMIT_MAX_PAUSE_MS = 60_000;
+
+/** The window `maxTokensPerMinute` and `maxRequestsPerMinute` count in. */
+const PACE_WINDOW_MS = 60_000;
+/** A provider that states a per-minute figure enforces it per second as
+ * well — the figure divided by sixty (Alibaba Cloud support, 2026-10-02):
+ * a minute's worth sent in one second is refused although the minute is
+ * nearly empty. So each limit is kept over a second too. */
+const PACE_SECOND_MS = 1_000;
+const SECONDS_PER_WINDOW = PACE_WINDOW_MS / PACE_SECOND_MS;
+
+/** The most estimated tokens one request may carry under a per-minute
+ * limit: a second's share of it, so no single request can be the burst
+ * the per-second rule refuses. Undefined without the limit. */
+function tokensPerRequestUnder(
+  limits: Pick<EmbeddingModel, 'maxTokensPerMinute'>,
+): number | undefined {
+  return limits.maxTokensPerMinute === undefined
+    ? undefined
+    : Math.floor(limits.maxTokensPerMinute / SECONDS_PER_WINDOW);
+}
+
+/**
+ * Texts in request-sized batches: at most `cap` texts each, and — under a
+ * per-minute token limit — at most a second's share of estimated tokens
+ * each, a text that alone exceeds it going by itself.
+ */
+function splitBatches(
+  texts: readonly string[],
+  cap: number,
+  tokenBudget: number | undefined,
+): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let batchTokens = 0;
+  for (const text of texts) {
+    const tokens =
+      tokenBudget === undefined ? 0 : estimateEmbeddingTokens([text]);
+    const full =
+      batch.length >= cap ||
+      (tokenBudget !== undefined &&
+        batch.length > 0 &&
+        batchTokens + tokens > tokenBudget);
+    if (full) {
+      batches.push(batch);
+      batch = [];
+      batchTokens = 0;
+    }
+    batch.push(text);
+    batchTokens += tokens;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
+
 /** The longest pause a busy server may ask for (`Retry-After`) that a request
  * waits out while holding its slot. A server that asks for more is left
  * alone: the request fails, and its caller's own slower retry — the
@@ -222,6 +286,142 @@ interface Lane {
   readonly queue: PQueue;
   /** How many live requests were made under each bound. */
   readonly bounds: Map<number, number>;
+}
+
+/**
+ * What a lane remembers between its requests, kept apart from the queue —
+ * which is forgotten the moment no caller holds it, while a crawl goes
+ * quiet for seconds between pages: the moment until which the provider's
+ * rate limit has the lane paused, and the requests of the last minute, by
+ * which the pacing limits (`maxTokensPerMinute`, `maxRequestsPerMinute`)
+ * are counted. Forgotten once the minute has aged out and the pause is
+ * over.
+ */
+interface LanePace {
+  pausedUntil: number;
+  readonly sent: { at: number; tokens: number }[];
+}
+
+const lanePaces = new Map<string, LanePace>();
+
+function lanePace(key: string): LanePace {
+  let pace = lanePaces.get(key);
+  if (pace === undefined) {
+    pace = { pausedUntil: 0, sent: [] };
+    lanePaces.set(key, pace);
+  }
+  return pace;
+}
+
+/** Hold every batch of the lane until `until` — the later of what is
+ * already held and this. */
+function pauseLane(key: string, until: number): void {
+  const pace = lanePace(key);
+  if (until > pace.pausedUntil) pace.pausedUntil = until;
+}
+
+function forgetAgedSends(pace: LanePace, now: number): void {
+  while (
+    pace.sent.length > 0 &&
+    (pace.sent[0]?.at ?? now) <= now - PACE_WINDOW_MS
+  ) {
+    pace.sent.shift();
+  }
+}
+
+/**
+ * How long a request of `tokens` has to wait for the requests sent within
+ * `windowMs` to make room for it under `requests` and `tokens` limits:
+ * until the oldest of them has aged out, then the next, until the counts
+ * fit. A request that could never fit — larger than the token limit by
+ * itself — goes once the window is empty, and the provider is the one to
+ * refuse it. Zero when it may go now.
+ */
+function windowWaitMs(
+  sent: readonly { at: number; tokens: number }[],
+  windowMs: number,
+  tokens: number,
+  limits: { readonly tokens?: number; readonly requests?: number },
+  now: number,
+): number {
+  const inWindow = sent.filter((entry) => entry.at > now - windowMs);
+  const oldest = inWindow[0];
+  if (oldest === undefined) return 0;
+  let wait = 0;
+  if (limits.requests !== undefined && inWindow.length >= limits.requests) {
+    wait = oldest.at + windowMs - now;
+  }
+  if (limits.tokens !== undefined) {
+    let used = 0;
+    for (const entry of inWindow) used += entry.tokens;
+    let freedAt = now;
+    let index = 0;
+    while (used + tokens > limits.tokens && index < inWindow.length) {
+      const entry = inWindow[index];
+      if (entry === undefined) break;
+      used -= entry.tokens;
+      freedAt = entry.at + windowMs;
+      index += 1;
+    }
+    if (index > 0) wait = Math.max(wait, freedAt - now);
+  }
+  return wait;
+}
+
+/**
+ * How long a batch of `tokens` has to wait before the lane admits it: the
+ * rest of a rate-limit pause, then room under the per-minute limits, then
+ * room under their per-second share. Zero when it may go now.
+ */
+function paceWaitMs(
+  pace: LanePace,
+  tokens: number,
+  limits: Pick<EmbeddingModel, 'maxTokensPerMinute' | 'maxRequestsPerMinute'>,
+  now: number,
+): number {
+  forgetAgedSends(pace, now);
+  let wait = Math.max(0, pace.pausedUntil - now);
+  const { maxTokensPerMinute, maxRequestsPerMinute } = limits;
+  if (maxTokensPerMinute === undefined && maxRequestsPerMinute === undefined) {
+    return wait;
+  }
+  wait = Math.max(
+    wait,
+    windowWaitMs(
+      pace.sent,
+      PACE_WINDOW_MS,
+      tokens,
+      { tokens: maxTokensPerMinute, requests: maxRequestsPerMinute },
+      now,
+    ),
+  );
+  return Math.max(
+    wait,
+    windowWaitMs(
+      pace.sent,
+      PACE_SECOND_MS,
+      tokens,
+      {
+        tokens: tokensPerRequestUnder(limits),
+        requests:
+          maxRequestsPerMinute === undefined
+            ? undefined
+            : Math.max(
+                1,
+                Math.floor(maxRequestsPerMinute / SECONDS_PER_WINDOW),
+              ),
+      },
+      now,
+    ),
+  );
+}
+
+/** Drop a lane's pace once nothing in it matters any more. */
+function forgetIdlePace(key: string, now: number): void {
+  const pace = lanePaces.get(key);
+  if (pace === undefined) return;
+  forgetAgedSends(pace, now);
+  if (pace.sent.length === 0 && pace.pausedUntil <= now) lanePaces.delete(key);
 }
 
 /**
@@ -419,11 +619,11 @@ export class Embedder implements QueryEmbedder {
   ): Promise<number[][]> {
     options.signal?.throwIfAborted();
     if (texts.length === 0) return [];
-    const batches: string[][] = [];
-    const cap = laneBatchCap(this.lane);
-    for (let i = 0; i < texts.length; i += cap) {
-      batches.push(texts.slice(i, i + cap));
-    }
+    const batches = splitBatches(
+      texts,
+      laneBatchCap(this.lane),
+      tokensPerRequestUnder(this.model),
+    );
     const stop = new AbortController();
     const signal =
       options.signal === undefined
@@ -550,20 +750,37 @@ export class Embedder implements QueryEmbedder {
     return filled;
   }
 
+  /**
+   * Wait for the lane to admit a batch: out of a rate-limit pause, and under
+   * the pacing limits for the minute. A search query skips both — it is
+   * answered sooner as a refusal than as a vector after the minute.
+   */
+  private async admit(
+    tokens: number,
+    signal: AbortSignal,
+    kind: EmbedKind,
+  ): Promise<void> {
+    if (kind === 'query') return;
+    const pace = lanePace(this.lane);
+    for (;;) {
+      const wait = paceWaitMs(pace, tokens, this.model, Date.now());
+      if (wait <= 0) break;
+      await sleep(wait, signal);
+    }
+    pace.sent.push({ at: Date.now(), tokens });
+  }
+
   /** One provider call, retried on the failures that are worth retrying. */
   private async request(
     texts: readonly string[],
     signal: AbortSignal,
     kind: EmbedKind,
   ): Promise<number[][]> {
-    const timeout = embeddingRequestTimeoutMs(
-      estimateEmbeddingTokens(texts),
-      this.model,
-      kind,
-    );
-    let lastError: unknown;
-    for (let attempt = 0; attempt < RETRIES; attempt++) {
+    const tokens = estimateEmbeddingTokens(texts);
+    const timeout = embeddingRequestTimeoutMs(tokens, this.model, kind);
+    for (let attempt = 0; ; attempt++) {
       signal.throwIfAborted();
+      await this.admit(tokens, signal, kind);
       try {
         const response = await this.client.embeddings.create(
           {
@@ -584,25 +801,29 @@ export class Embedder implements QueryEmbedder {
         );
         const vectors: number[][] = [];
         for (const item of response.data) vectors.push(item.embedding);
+        forgetIdlePace(this.lane, Date.now());
         return vectors;
       } catch (err) {
-        lastError = err;
-        if (signal.aborted || !isRetryable(err) || attempt === RETRIES - 1) {
-          throw err;
-        }
+        if (signal.aborted || !isRetryable(err)) throw err;
+        // A rate limit on a batch is waited out on the minute scale, and
+        // the whole lane with it; anything else keeps the seconds schedule.
+        const limited =
+          kind === 'batch' && err instanceof OpenAI.RateLimitError;
+        const attempts = limited ? RATE_LIMIT_RETRIES : RETRIES;
+        if (attempt >= attempts - 1) throw err;
         const asked = serverAskedPauseMs(err);
         if (asked !== undefined && asked > MAX_SERVER_ASKED_PAUSE_MS) throw err;
-        const delay = Math.max(
-          RETRY_BASE_MS * 2 ** attempt + Math.random() * 500,
-          asked ?? 0,
-        );
+        const backoff = limited
+          ? Math.min(RATE_LIMIT_BASE_MS * 2 ** attempt, RATE_LIMIT_MAX_PAUSE_MS)
+          : RETRY_BASE_MS * 2 ** attempt;
+        const delay = Math.max(backoff + Math.random() * 500, asked ?? 0);
+        if (limited) pauseLane(this.lane, Date.now() + delay);
         logger.warn(
-          `the embedding request failed (attempt ${attempt + 1} of ${RETRIES}), retrying`,
+          `the embedding request ${limited ? 'was rate-limited' : 'failed'} (attempt ${attempt + 1} of ${attempts}), retrying${limited ? ` in ${Math.round(delay / 1000)} s` : ''}`,
         );
         await sleep(delay, signal);
       }
     }
-    throw lastError;
   }
 
   private zeros(): number[] {
@@ -696,6 +917,12 @@ export async function embedderForOrg(
       ...(args.config.minTokensPerSecond !== undefined && {
         minTokensPerSecond: args.config.minTokensPerSecond,
       }),
+      ...(args.config.maxTokensPerMinute !== undefined && {
+        maxTokensPerMinute: args.config.maxTokensPerMinute,
+      }),
+      ...(args.config.maxRequestsPerMinute !== undefined && {
+        maxRequestsPerMinute: args.config.maxRequestsPerMinute,
+      }),
     },
     credential.secret,
     { organizationId: args.organizationId },
@@ -728,10 +955,16 @@ async function connectorBaseUrl(
  * subscription plan does not include the model), and OpenAI's billing and
  * spend-limit codes. Every one arrives as HTTP 429 or 402 — which reads as
  * "wait and retry" when no wait helps. */
+/** Codes that name the ACCOUNT. `insufficient_quota` is deliberately not
+ * among them: OpenAI sends it for a spent balance ("You exceeded your
+ * current quota, please check your plan and billing details" — which the
+ * wording below catches), but DashScope's compatible mode sends the same
+ * code for its per-minute token limit (`Throttling.AllocationQuota`,
+ * "Allocated quota exceeded, please increase your quota limit"), which a
+ * wait does lift. The code alone cannot tell the two apart; the words can. */
 const CREDIT_REFUSAL_CODES: ReadonlySet<string> = new Set([
   '1113',
   '1311',
-  'insufficient_quota',
   'billing_hard_limit_reached',
   'billing_not_active',
   'credit_balance_exhausted',
@@ -773,13 +1006,15 @@ function isCredentialRefusal(err: unknown): boolean {
  * serve direct embeddings, or the provider rejected it; `unresolved` — the
  * credential the settings select does not resolve at all (none configured,
  * deleted, of another provider, disabled, a secret that cannot be read), so
- * no call reached the provider; `upstream` — anything else (a rate limit, a
- * 5xx, unreachable, a timeout), worth a later retry. The first three hold
- * until an admin acts. */
+ * no call reached the provider; `throttled` — the provider's rate limit
+ * held through every retry, so pacing the requests is the fix; `upstream`
+ * — anything else (a 5xx, unreachable, a timeout), worth a later retry.
+ * The first three hold until an admin acts. */
 export type EmbeddingFailure =
   | 'credit'
   | 'credential'
   | 'unresolved'
+  | 'throttled'
   | 'upstream';
 
 /** Classify a credential refusal or provider error for the callers that turn
@@ -794,6 +1029,7 @@ export function classifyEmbeddingFailure(
   if (!(err instanceof OpenAI.APIError)) return null;
   if (isCreditRefusal(err)) return 'credit';
   if (isCredentialRefusal(err)) return 'credential';
+  if (err instanceof OpenAI.RateLimitError) return 'throttled';
   return 'upstream';
 }
 

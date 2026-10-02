@@ -15,8 +15,10 @@ const mockUseConvexAuth = vi.fn(() => ({
   isAuthenticated: true,
   isLoading: false,
 }));
-vi.mock('./use-session-user', () => ({
-  useSessionUser: () => mockUseConvexAuth(),
+// The gate's probe read, answering only for the branch that asks for it.
+vi.mock('./use-session-probe', () => ({
+  useSessionProbeSignedIn: (when: boolean) =>
+    when && mockUseConvexAuth().isAuthenticated,
 }));
 
 // The adapter seam resolves the function name on every call; the plain mock

@@ -10,18 +10,19 @@ import {
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
-import { useSessionUser } from './use-session-user';
+import { useSessionProbeSignedIn } from './use-session-probe';
 
 interface ConvexQueryOptions<TData = unknown> {
   staleTime?: number;
   gcTime?: number;
   enabled?: boolean;
   /**
-   * Gate the query on the session probe having resolved. Defaults to `true`,
+   * Gate the query on the session probe holding a user. Defaults to `true`,
    * so authenticated queries never fire during the cold-load auth gap. Set
    * `false` only for queries that MUST run before auth — the `getCurrentUser`
    * probe and genuinely public reads. Adapted reads ignore this gate entirely:
-   * they authenticate with the session cookie, which the browser sends anyway.
+   * they authenticate with the session cookie, which the browser sends anyway,
+   * and do not subscribe to the probe.
    */
   requireAuth?: boolean;
   /**
@@ -58,7 +59,6 @@ export function useBackendQuery<Name extends QueryName>(
   name: Name,
   ...[args, options]: QueryArgs<Name>
 ): UseQueryResult<ReturnsOf<Name>> {
-  const { isAuthenticated } = useSessionUser();
   // `requireAuth` is our own gate, not a react-query option — peel it off.
   const { requireAuth = true, ...queryOpts } = options ?? {};
 
@@ -66,6 +66,12 @@ export function useBackendQuery<Name extends QueryName>(
   // options object every render never refetches.
   const adapter = READ_ADAPTERS[name];
   const skipped = args === 'skip';
+  // Only the no-row branch below reads the probe, so only it listens. One
+  // probe observer per adapted read put an observer per mounted read on the
+  // probe's shared query, and each removal scans all of them (#4062).
+  const isAuthenticated = useSessionProbeSignedIn(
+    adapter === undefined && !skipped && requireAuth,
+  );
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adapterCtx = organizationId !== undefined ? { organizationId } : {};

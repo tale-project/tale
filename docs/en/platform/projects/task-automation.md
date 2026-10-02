@@ -131,6 +131,7 @@ When a run fails and nothing retries it, because its automatic retries are used 
 | --- | --- |
 | A usage limit stopped the run | An Admin raises the limit; then start the agent again. |
 | Something the agent needs is missing: its model, one of its skills, or the agent itself | An Editor or Admin fixes the agent on the project's **Agents** tab. |
+| An attachment on this task is no longer in storage | Whoever can change the task removes the attachment or uploads it again; **Details** beside the run names the file. Then start the agent again. |
 | The run reached its time limit | Start the agent again, or split the task into smaller ones. |
 | The run waited too long for a free sandbox | Start the agent again when fewer agents are busy. |
 | The AI model failed, or the run couldn't start or was interrupted | Start the agent again. If it fails again, show an Admin what the run reported under **Details**. |

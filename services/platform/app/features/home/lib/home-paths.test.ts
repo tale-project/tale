@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  hasOwnPhoneHeader,
   isHomePath,
   isPanelCollapsible,
   readHomeLocation,
@@ -107,6 +108,30 @@ describe('readHomeLocation', () => {
   });
 });
 
+describe('hasOwnPhoneHeader', () => {
+  it('names the conversation-shaped pages, which carry their own header on a phone', () => {
+    expect(hasOwnPhoneHeader({ kind: 'chat' })).toBe(true);
+    expect(hasOwnPhoneHeader({ kind: 'chat', threadId: 't' })).toBe(true);
+    expect(hasOwnPhoneHeader({ kind: 'task', taskId: 't' })).toBe(true);
+    expect(
+      hasOwnPhoneHeader({
+        kind: 'conversation',
+        status: 'open',
+        conversationId: 'c',
+      }),
+    ).toBe(true);
+  });
+
+  it('leaves the pages that keep the shell bar — a project among them', () => {
+    expect(hasOwnPhoneHeader({ kind: 'conversation', status: 'open' })).toBe(
+      false,
+    );
+    expect(hasOwnPhoneHeader({ kind: 'project', projectId: 'p' })).toBe(false);
+    expect(hasOwnPhoneHeader({ kind: 'project' })).toBe(false);
+    expect(hasOwnPhoneHeader({ kind: 'other' })).toBe(false);
+  });
+});
+
 describe('isPanelCollapsible', () => {
   it('lets the panel fold only where the header can unfold it', () => {
     expect(isPanelCollapsible({ kind: 'chat' })).toBe(true);
@@ -118,9 +143,15 @@ describe('isPanelCollapsible', () => {
         conversationId: 'c',
       }),
     ).toBe(true);
+    // A project's own page carries the toggle in its header too.
+    expect(isPanelCollapsible({ kind: 'project', projectId: 'p' })).toBe(true);
+  });
+
+  it('keeps the panel on the lists, whose headers have no toggle', () => {
     expect(isPanelCollapsible({ kind: 'conversation', status: 'open' })).toBe(
       false,
     );
-    expect(isPanelCollapsible({ kind: 'project', projectId: 'p' })).toBe(false);
+    expect(isPanelCollapsible({ kind: 'project' })).toBe(false);
+    expect(isPanelCollapsible({ kind: 'other' })).toBe(false);
   });
 });

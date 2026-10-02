@@ -101,6 +101,19 @@ export function createSandboxBlobRoutes(deps: { sql: Sql }): Hono {
       );
       return c.text('Upstream fetch failed', 502);
     }
+    if (upstream.status === 404) {
+      // The store holds no object behind the key: whatever names the ref
+      // outlived its bytes (a deleted file row, a purge, a cleanup outside
+      // Tale). Passed through as 404, so the daemon reports `http_404` and
+      // the task host can tell "the file is gone" from "the store failed"
+      // (`core/tasks/agent_run_host.ts`, `partitionTaskInputSkips`); every
+      // other store answer stays the 502 below.
+      await upstream.body?.cancel().catch(() => undefined);
+      console.warn(
+        `[sandbox-blob] no object behind ${parsed.key} for org ${org}`,
+      );
+      return c.text('File not found', 404);
+    }
     if (!upstream.ok || upstream.body === null) {
       console.warn(
         `[sandbox-blob] upstream returned ${upstream.status} for org ${org}`,

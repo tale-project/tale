@@ -183,6 +183,9 @@ describe('embeddingFailureClass', () => {
     expect(embeddingHintKey('dimension')).toBe(
       'viewDialog.scanDetail.dimension',
     );
+    expect(embeddingHintKey('throttled')).toBe(
+      'viewDialog.scanDetail.throttled',
+    );
     expect(embeddingHintKey('upstream')).toBe('viewDialog.scanDetail.upstream');
     expect(embeddingHintKey(null)).toBe('viewDialog.scanDetail.generic');
   });

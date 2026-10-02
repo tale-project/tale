@@ -20,8 +20,10 @@ import {
 import {
   buildObjectKey,
   resolveObjectStore,
+  s3HeadObject,
   s3PutObject,
 } from '../../lib/object-store.ts';
+import { deleteFile } from '../files/service.ts';
 import { ensureDefaultObjectStore } from '../object_storage/bootstrap.ts';
 
 type Body = Record<string, unknown>;
@@ -215,6 +217,67 @@ export async function checkAgentReviewFiles(args: {
         output(replay).path === output(delivered).path &&
         checksum(await readFile(localFile(replay))) === checksum(bytes),
       `status=${String(replay.status)}`,
+    );
+
+    // A task holds the production storage-ref form even after its upload
+    // row goes. Retaining those bytes does not recreate metadata authority
+    // for the review tool, including a trusted size and document bindings.
+    const heldKey = buildObjectKey(store, args.orgSlug);
+    const heldRef = `s3:${heldKey}`;
+    const heldFileId = randomUUID();
+    const heldTask = await args.submit(
+      'Review a task-held file after deletion',
+    );
+    await s3PutObject(store, heldKey, bytes, 'application/octet-stream');
+    await sql`INSERT INTO app.file_metadata (id, org_id, storage_ref, file_name, content_type, size, created_at_ms)
+      VALUES (${heldFileId}, ${orgId}, ${heldRef}, 'held.bin', 'application/octet-stream', ${bytes.length}, ${Date.now()})`;
+    await sql`UPDATE app.tasks SET outputs = ${sql.json([{ ...entry, fileId: heldRef, fileName: 'held.bin', runId: heldTask.runId }])}
+      WHERE id = ${heldTask.taskId}`;
+    const heldInput = await args.inputFor(heldTask.taskId);
+    const heldSnapshot = await args.snapshot(heldTask.taskId);
+    const heldStage = await stage(heldInput, heldRef);
+    record(
+      'agent review files: a listed storage ref with current metadata stages through the native door',
+      heldStage.status === 'ok' &&
+        checksum(await readFile(localFile(heldStage))) === checksum(bytes),
+      `status=${String(heldStage.status)}`,
+    );
+    await sql.begin((tx) =>
+      deleteFile(sql, tx, { organizationId: orgId }, heldFileId),
+    );
+    const heldRows = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref = ${heldRef}
+    `;
+    record(
+      'agent review files: deleting metadata preserves a task-held object without changing the captured review',
+      heldRows[0]?.count === 0 &&
+        (await s3HeadObject(store, heldKey)) !== null &&
+        isDeepStrictEqual(heldSnapshot, await args.snapshot(heldTask.taskId)),
+      `metadataRows=${heldRows[0]?.count ?? -1}`,
+    );
+    const heldRead = await dispatch(
+      token,
+      { taskId: heldTask.taskId },
+      'task_get',
+    );
+    const heldManifest = output(heldRead).reviewFiles;
+    const callsBeforeMissingMetadata = stageCalls;
+    const heldRefusal = await stage(heldInput, heldRef);
+    record(
+      'agent review files: retained bytes with no metadata stay explicitly unavailable and transfer no bytes',
+      heldRead.status === 'ok' &&
+        isRecord(heldManifest) &&
+        Array.isArray(heldManifest.files) &&
+        isRecord(heldManifest.files[0]) &&
+        heldManifest.files[0].unavailableReason === 'metadata_missing' &&
+        heldRefusal.status === 'invalid_args' &&
+        String(heldRefusal.message).startsWith(
+          'TASK_REVIEW_FILE_UNAVAILABLE:',
+        ) &&
+        stageCalls === callsBeforeMissingMetadata &&
+        isDeepStrictEqual(heldSnapshot, await args.snapshot(heldTask.taskId)),
+      `status=${String(heldRefusal.status)} newStages=${stageCalls - callsBeforeMissingMetadata}`,
     );
 
     const callsBeforeArchive = stageCalls;

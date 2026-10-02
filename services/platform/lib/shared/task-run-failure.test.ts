@@ -14,6 +14,7 @@ describe('taskRunFailureClass', () => {
     ['agent_deleted', 'setup'],
     ['agent_model_missing', 'setup'],
     ['equipment_missing', 'setup'],
+    ['input_missing', 'input'],
     ['deadline', 'time_limit'],
     ['park_deadline', 'capacity'],
     ['harness_error', 'model'],

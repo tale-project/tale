@@ -4,6 +4,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { classifyStartFailure } from './start_failure';
 import { isAutoRetryableFailure } from './task_auto_retry';
+import { TaskInputMissingError } from './task_input_missing_error';
 
 describe('classifyStartFailure', () => {
   it('settles a skill the run cannot reach as equipment_missing, named, and not retried', () => {
@@ -11,6 +12,17 @@ describe('classifyStartFailure', () => {
     expect(settled.failureCode).toBe('equipment_missing');
     expect(settled.reason).toBe(
       'the agent run could not start: the skill "docx" is not available to this run — it does not exist or is not shared with the run\'s scope',
+    );
+    expect(isAutoRetryableFailure(settled.failureCode)).toBe(false);
+  });
+
+  it('settles an attachment the store no longer holds as input_missing, named, and not retried', () => {
+    const settled = classifyStartFailure(
+      new TaskInputMissingError(['Afos.xlsx', 'ks.xlsx']),
+    );
+    expect(settled.failureCode).toBe('input_missing');
+    expect(settled.reason).toBe(
+      'the agent run could not start: the attachments "Afos.xlsx" and "ks.xlsx" are no longer in storage — remove them from the task or upload them again',
     );
     expect(isAutoRetryableFailure(settled.failureCode)).toBe(false);
   });
