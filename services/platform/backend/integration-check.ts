@@ -45102,7 +45102,7 @@ async function checkRetention(
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
   // Every category must be declared (the env-tightening walk throws on a
-  // gap), and the compliance floors bind (auditLog ≥ 365, loginAttempt ≥ 90).
+  // gap), and the compliance floors bind (auditLog ≥ 180, loginAttempt ≥ 90).
   const bound = (min: number, unit = 'days') =>
     [
       `  min: ${min}`,
