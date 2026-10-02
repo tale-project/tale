@@ -21,7 +21,10 @@ import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
-import type { SandboxDestroyState } from './destroy-schedule.ts';
+import {
+  sessionDestroyPending,
+  type SandboxDestroyState,
+} from './destroy-schedule.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import {
   captureIdleReleaseTickets,
@@ -56,6 +59,26 @@ export class SandboxQuotaError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SandboxQuotaError';
+  }
+}
+
+/**
+ * The session's workspace is being deleted: an administrator's Destroy of
+ * its live row is queued, retrying or running (`destroy-schedule.ts`). A
+ * turn let in now would work in files the next attempt deletes, and lose
+ * its tokens and gateway keys with them, so the admission verbs refuse it
+ * before it starts. A quota refusal on purpose: a task's run parks on it as
+ * on a full budget and is woken when the Destroy settles
+ * (`markSessionDestroyed` is a release edge) or by the watchdog's next
+ * tick, then starts in a fresh workspace, or in this one once every attempt
+ * has failed; an automation step fails with this reason instead.
+ */
+export class SandboxDestroyPendingError extends SandboxQuotaError {
+  constructor() {
+    super(
+      'An administrator is deleting this sandbox workspace. No new work starts in it until the deletion has finished.',
+    );
+    this.name = 'SandboxDestroyPendingError';
   }
 }
 
@@ -128,7 +151,10 @@ export interface ReserveSessionArgs {
  * serialized transaction per org, so the slot count and the claim can never
  * race. Throws {@link SandboxQuotaError} on a conflict (the owner already
  * holds a live session, or the budget's cap is reached) — the task-agent
- * host parks its run on that code.
+ * host parks its run on that code — and {@link SandboxDestroyPendingError}
+ * while a live row under the id is being destroyed: a fresh incarnation
+ * beside it would be the newest row, which the Destroy's retry leaves alone
+ * and whose files the spawner still holds.
  */
 export async function reserveSessionSlot(
   sql: Sql,
@@ -136,6 +162,9 @@ export async function reserveSessionSlot(
 ): Promise<string> {
   return sql.begin(async (tx) => {
     await lockOrgAdmission(tx, args.organizationId);
+    if (await sessionDestroyPending(tx, args)) {
+      throw new SandboxDestroyPendingError();
+    }
     const now = Date.now();
 
     // One live session per workspace. A project agent owns several — its
@@ -356,7 +385,10 @@ export async function releaseProjectAgentSessionSlot(
  * reset the TTL window — preserving `createdAt` (same incarnation). A
  * `stopped` row freed its slot, so flipping it back RE-ADMITS through the
  * same cap check as a fresh reserve; already-active rows are an idempotent
- * refresh that never re-counts.
+ * refresh that never re-counts. A row an administrator's Destroy is
+ * removing is refused before anything changes
+ * ({@link SandboxDestroyPendingError}): the row id is all the Destroy's
+ * retry checks, and a resume keeps it.
  */
 export async function resumeSessionSlot(
   sql: Sql,
@@ -377,6 +409,9 @@ export async function resumeSessionSlot(
     `;
     const row = rows[0];
     if (!row) return false;
+    if (await sessionDestroyPending(tx, { ...args, rowId: row.id })) {
+      throw new SandboxDestroyPendingError();
+    }
     if (row.status === 'stopped' && !row.pinned) {
       const budget = requireSessionBudgetForOwnerType(row.ownerType);
       const quota = await readQuota(tx, args.organizationId);

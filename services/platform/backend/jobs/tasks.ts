@@ -599,8 +599,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // a retry is safe; the ladder (30 s doubling with jitter, six tries over a
   // quarter to half an hour) waits out a spawner restart or a device
   // reconnecting, then the row reads that the Destroy failed and the
-  // administrator can ask again. The expiry covers a wait behind a pinned
-  // recreate holding the session's lock, plus the unpin and the delete.
+  // administrator can ask again. While the ladder lasts, the row admits no
+  // new turn (`sessionDestroyPending`). The expiry covers a wait behind a
+  // pinned recreate holding the session's lock, plus the unpin and the
+  // delete.
   'sandbox.destroy_session': {
     policy: 'exclusive',
     retryLimit: 5,
