@@ -18,6 +18,7 @@
         "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
         "$TURBO_ROOT$/packages/ui/tailwind-preset.ts",
+        "$TURBO_ROOT$/patches/**",
         "$TURBO_ROOT$/scripts/ensure-sandbox-runtime-image.ts",
         "$TURBO_ROOT$/services/db/init-scripts/*.sql",
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",

@@ -97,6 +97,12 @@ const OUTSIDE_READS = [
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
   {
+    // Not read as text: the suite runs the postgres.js these patches change
+    // (the root `patchedDependencies`), so a patch edit alone must re-run it.
+    path: 'patches',
+    readers: 'backend/db/connection-loss.test.ts',
+  },
+  {
     // Read as text, not imported: the guard that holds the accent palette's
     // `THEME_BACKGROUND` to the stylesheet's `--background`.
     path: 'packages/ui/src/globals.css',

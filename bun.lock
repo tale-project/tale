@@ -546,6 +546,9 @@
     "esbuild",
     "core-js-pure",
   ],
+  "patchedDependencies": {
+    "postgres@3.4.7": "patches/postgres@3.4.7.patch",
+  },
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
     "axios": "1.20.0",

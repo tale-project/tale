@@ -12,6 +12,9 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+# The root package.json's `patchedDependencies` (patches/README.md): `bun install`
+# refuses to run without the patch files, and they must reach the installed packages.
+COPY patches/ ./patches/
 # `bun install` resolves the WHOLE workspace, not just this service: the root
 # manifest names `services/sandbox-runtime/daemon` explicitly and every
 # `workspace:*` dependency has to resolve, so every workspace manifest is
