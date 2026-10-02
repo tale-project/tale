@@ -58,11 +58,42 @@ process still runs even if no process there shows the id. A
 backgrounded server, a `nohup` worker or a browser therefore no longer runs on
 in a session that reads idle until the container stops. Each process gets one
 SIGTERM, so a second signal never cuts short the cleanup the first one started.
+A group's number can be reused once the group is gone, so a signal that comes
+after the exec's end reaches the group only while the group is provably still
+the exec's: a process carrying the id is in it, or a process runnerd recorded
+in it (pid and start time, from `/proc/<pid>/stat`) still is. The record is
+taken when the exec ends while its leftovers wait, and by each SIGTERM round
+for the SIGKILL that follows, so a leftover that stayed in the group without
+the id (started with `env -i`, or a server that rewrote its environment) is
+ended too.
 Out of reach: a process that both left the exec's group and replaced its
 environment, the daemons the entrypoint starts (redsocks, the inner dockerd),
 and the containers an exec runs under the inner dockerd. On SIGTERM, runnerd
 passes the signal on to every live exec, and to what exited execs left
 waiting, before it exits.
+
+Reading another process's environment waits on that process's memory lock,
+which a process stuck under memory pressure can hold for minutes. So runnerd
+signals a group it knows is the exec's (a live exec, one whose own process
+just exited) before it reads the process table, a scan answers with what it
+read after two seconds, and a process whose read did not come back is skipped
+until the read returns or the process is gone. While such a read is still out,
+runnerd ends itself by SIGKILL when it exits: `process.exit` would wait for
+the read.
+
+**A rotation keeps what the turn started.** A steer's restart cancels a
+running turn and continues the conversation in a new exec over the same
+workspace, so the platform sends that cancel as a rotation:
+`POST /v1/sessions/:id/exec/:execId/cancel?leftovers=keep`, which the spawner
+forwards to runnerd's `POST /execs/:id/cancel?leftovers=keep`. runnerd then
+ends only the exec's own process group (SIGTERM, then SIGKILL five seconds
+later while its own process still runs) and holds what it left outside the
+group, such as a dev server a harness's tool call started in a session of its
+own, for the exec that takes over. The hold lifts when an exec started after
+the cancel ends; the leftovers then end with the session's last running exec,
+as above, or when runnerd stops. A plain cancel (a person's Stop) ends
+everything; a spawner or runnerd that predates the flag ignores it and does
+the same.
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token
