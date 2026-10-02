@@ -55,7 +55,7 @@ Owners and Admins can inspect **Workspaces**. A row identifies its agent or work
 
 **Spend** adds the metered cost of finished turns. A turn still running is included when it ends. Temporary crawler environments appear in capacity counts even without a standing workspace row.
 
-When deployment capacity is full, Tale may reclaim an unpinned idle environment whose allocation is released and which confirms it has no ongoing work. Its persistent workspace files remain for the next start. Busy, pinned or unresponsive environments are not candidates. If there is no safe candidate, new work must wait for capacity. An environment whose task or run has finished stops after a few idle minutes, so its room frees soon after the work ends.
+When deployment capacity is full, Tale may reclaim an unpinned idle environment whose allocation is released and which confirms it has no ongoing work. Its persistent workspace files remain for the next start. Busy, pinned or unresponsive environments are not candidates. If there is no safe candidate, new work must wait for capacity. An environment whose task or run has finished stops after a few idle minutes, so its room frees soon after the work ends. An agent environment that runs Docker inside keeps its full idle time, so the next turn does not have to pull its images again.
 
 ## Manage an existing workspace
 
