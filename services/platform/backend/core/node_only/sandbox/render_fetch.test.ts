@@ -35,6 +35,7 @@ const spawner = vi.hoisted(() => ({
   sessionCreate: vi.fn(),
   sessionDestroy: vi.fn(),
   sessionDestroyIfIdle: vi.fn(),
+  sessionIsAlive: vi.fn(),
   sessionStageFiles: vi.fn(),
   sessionReadFile: vi.fn(),
   runStepsInSession: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('./helpers/session_client', async (importOriginal) => ({
   sessionCreate: spawner.sessionCreate,
   sessionDestroy: spawner.sessionDestroy,
   sessionDestroyIfIdle: spawner.sessionDestroyIfIdle,
+  sessionIsAlive: spawner.sessionIsAlive,
   sessionStageFiles: spawner.sessionStageFiles,
   sessionReadFile: spawner.sessionReadFile,
 }));
@@ -312,11 +314,29 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
       run.events.push('destroy');
       throw new Error('spawner unreachable');
     });
+    spawner.sessionIsAlive.mockRejectedValue(new Error('spawner unreachable'));
 
     await run.render();
 
     expect(run.events.at(-1)).toBe('destroy');
     expect(run.events).not.toContain('markSessionRowDestroyed');
+  });
+
+  it('a failed destroy whose session is gone after all frees the render slot at once', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    spawner.sessionDestroy.mockImplementation(async () => {
+      run.events.push('destroy');
+      throw new Error('sandbox session destroy failed (504)');
+    });
+    spawner.sessionIsAlive.mockResolvedValue(false);
+
+    await run.render();
+
+    expect(run.events.slice(-2)).toEqual([
+      'destroy',
+      'markSessionRowDestroyed',
+    ]);
   });
 
   it('a sandbox host at capacity is a wait for room, not a failed batch', async () => {

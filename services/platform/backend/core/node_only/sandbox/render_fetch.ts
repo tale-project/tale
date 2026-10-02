@@ -53,6 +53,7 @@ import {
   sessionCreate,
   sessionDestroy,
   sessionDestroyIfIdle,
+  sessionIsAlive,
   sessionReadFile,
   sessionStageFiles,
   SpawnerBusyError,
@@ -338,6 +339,20 @@ export async function renderUrlsInSandbox(
         console.warn(
           `[render] session ${sessionId} destroy failed (the watchdog's release pass reaps it):`,
           error instanceof Error ? error.message : error,
+        );
+        // A destroy that answered badly (a timed-out request whose removal
+        // still finished, a passing 502) may still have taken the session:
+        // a definitive "gone" frees the org's render slot now, rather than
+        // after the release pass's ten-minute horizon.
+        destroyed = await sessionIsAlive(sessionId).then(
+          (alive) => !alive,
+          (probeError: unknown) => {
+            console.warn(
+              `[render] session ${sessionId} liveness after a failed destroy unknown:`,
+              probeError instanceof Error ? probeError.message : probeError,
+            );
+            return false;
+          },
         );
       }
       // A session whose destroy failed may still run: its row stays live,
