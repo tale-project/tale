@@ -148,19 +148,16 @@ export function resolveDockerTimeoutMs(
 }
 
 /** Docker CLI processes the spawner runs at once. Each one costs ~28 MB and a
- * dozen threads inside the spawner's own small cgroup (512 MB, 512 pids by
- * default): a burst of creates at a raised session capacity used to fork
- * enough of them to exhaust it. Past this, calls wait their turn. */
+ * dozen threads inside the spawner's own cgroup (1 GB and 1024 pids in the
+ * shipped compose file): a burst of creates at a raised session capacity
+ * used to fork enough of them to exhaust it. Past this, calls wait their
+ * turn — within their own budget, so a cheap probe queued behind long pulls
+ * still answers (as a timeout) when its time is up. */
 export const DOCKER_CLI_CONCURRENCY = 12;
 let dockerCliRunning = 0;
 const dockerCliWaiting: Array<() => void> = [];
 
-async function dockerCliSlot(): Promise<() => void> {
-  if (dockerCliRunning >= DOCKER_CLI_CONCURRENCY) {
-    await new Promise<void>((resolve) => dockerCliWaiting.push(resolve));
-  } else {
-    dockerCliRunning += 1;
-  }
+function dockerCliRelease(): () => void {
   let released = false;
   return () => {
     if (released) return;
@@ -172,6 +169,30 @@ async function dockerCliSlot(): Promise<() => void> {
   };
 }
 
+/** A docker CLI slot, or null when none came free within `waitMs`. */
+function dockerCliSlot(waitMs: number | null): Promise<(() => void) | null> {
+  if (dockerCliRunning < DOCKER_CLI_CONCURRENCY) {
+    dockerCliRunning += 1;
+    return Promise.resolve(dockerCliRelease());
+  }
+  return new Promise((resolve) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const granted = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      resolve(dockerCliRelease());
+    };
+    dockerCliWaiting.push(granted);
+    if (waitMs !== null) {
+      timer = setTimeout(() => {
+        const at = dockerCliWaiting.indexOf(granted);
+        if (at === -1) return;
+        dockerCliWaiting.splice(at, 1);
+        resolve(null);
+      }, waitMs);
+    }
+  });
+}
+
 /** How many docker CLI calls are running, and waiting for a slot. */
 export function dockerCliLoad(): { running: number; waiting: number } {
   return { running: dockerCliRunning, waiting: dockerCliWaiting.length };
@@ -181,9 +202,24 @@ export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
 ): Promise<RunDockerResult> {
-  const release = await dockerCliSlot();
+  const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
+  const queuedAtMs = Date.now();
+  const release = await dockerCliSlot(budgetMs);
+  if (release === null) {
+    return {
+      exitCode: 124,
+      stdout: '',
+      stderr: `docker ${args[0] ?? ''}: no docker CLI slot came free within ${budgetMs} ms`,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    };
+  }
   try {
-    return await runDockerNow(args, opts);
+    const leftMs =
+      budgetMs === null
+        ? opts.timeoutMs
+        : Math.max(1, budgetMs - (Date.now() - queuedAtMs));
+    return await runDockerNow(args, { ...opts, timeoutMs: leftMs });
   } finally {
     release();
   }

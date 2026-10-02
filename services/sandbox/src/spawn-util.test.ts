@@ -195,4 +195,34 @@ describe('docker CLI concurrency', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  test('a call that waits past its budget for a slot answers as a timeout', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep "$2"\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      // Long pulls hold every slot.
+      const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+        runDocker(['pull', '1.5'], { timeoutMs: 10_000 }),
+      );
+      const startedAtMs = Date.now();
+      const probe = await runDocker(['inspect', '0'], { timeoutMs: 300 });
+      expect(probe.exitCode).toBe(124);
+      expect(Date.now() - startedAtMs).toBeLessThan(1_000);
+      expect(dockerCliLoad().waiting).toBe(0);
+      // A call whose wait used part of its budget runs on what is left.
+      const late = runDocker(['inspect', '1'], { timeoutMs: 1_800 });
+      expect((await late).exitCode).toBe(124);
+      const results = await Promise.all(holders);
+      expect(results.every((result) => result.exitCode === 0)).toBe(true);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
