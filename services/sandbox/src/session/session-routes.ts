@@ -504,7 +504,10 @@ export class SessionRoutes {
         if (this.stopping.has(sessionId)) continue;
         if (!this.reclaimClaims.has(sessionId)) {
           const failedAt = this.probeFailedAtMs.get(sessionId);
-          if (failedAt !== undefined && now - failedAt < RECLAIM_PROBE_BACKOFF_MS)
+          if (
+            failedAt !== undefined &&
+            now - failedAt < RECLAIM_PROBE_BACKOFF_MS
+          )
             continue;
           const busyAt = this.busyAtMs.get(sessionId);
           if (busyAt !== undefined && now - busyAt < RECLAIM_BUSY_FOR_MS)
@@ -519,7 +522,8 @@ export class SessionRoutes {
       const pending = this.stopping.get(session.sessionId);
       if (pending !== undefined && (await pending)) return true;
     }
-    if (walk) this.nothingToReclaimUntilMs = Date.now() + RECLAIM_NOTHING_FOR_MS;
+    if (walk)
+      this.nothingToReclaimUntilMs = Date.now() + RECLAIM_NOTHING_FOR_MS;
     return false;
   }
 

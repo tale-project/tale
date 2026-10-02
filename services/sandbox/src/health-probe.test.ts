@@ -73,7 +73,8 @@ describe('makeHealthProbe', () => {
         return calls === 1
           ? {
               ok: false,
-              error: 'docker version: no docker CLI slot came free within 5000 ms',
+              error:
+                'docker version: no docker CLI slot came free within 5000 ms',
               transient: true,
             }
           : { ok: true, detail: '29.0' };

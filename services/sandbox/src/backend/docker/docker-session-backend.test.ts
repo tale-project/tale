@@ -20,12 +20,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SessionRoutes } from '../../session/session-routes.ts';
-import { DOCKER_CLI_CONCURRENCY, runDocker } from '../../spawn-util.ts';
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import {
   WorkspaceTrash,
   workspaceTrash,
 } from '../../session/workspace-trash.ts';
+import { DOCKER_CLI_CONCURRENCY, runDocker } from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { DockerBackend, dockerHealth } from './docker-backend.ts';
 import {

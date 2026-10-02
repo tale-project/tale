@@ -519,9 +519,9 @@ describe('organization build-cache lifecycle', () => {
     );
     expect(stopped).toBe(4);
     expect(warnings).toContain('could not prune the idle build cache');
-    expect(
-      (await calls()).find((args) => args[3] === 'prune')?.at(-1),
-    ).toBe(String(Math.floor((2 * 1024 ** 3) / 1e6)));
+    expect((await calls()).find((args) => args[3] === 'prune')?.at(-1)).toBe(
+      String(Math.floor((2 * 1024 ** 3) / 1e6)),
+    );
     expect(
       Object.values((await state()).containers).every(
         (container) => !container.running,

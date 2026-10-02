@@ -265,9 +265,7 @@ describe('egress connection capacity parity', () => {
     expect(compose.services['sandbox-egress']?.pids_limit).toBe(
       egress.pids_limit,
     );
-    expect(compose.services['sandbox-egress']?.ulimits).toEqual(
-      egress.ulimits,
-    );
+    expect(compose.services['sandbox-egress']?.ulimits).toEqual(egress.ulimits);
     // tinyproxy runs a thread and holds two descriptors (client and
     // upstream) per connection, beside its own few.
     expect(egress.pids_limit).toBeGreaterThan(connections + 64);

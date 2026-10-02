@@ -272,7 +272,8 @@ describe('docker CLI concurrency', () => {
     try {
       const calls = Array.from(
         { length: DOCKER_CLI_CONCURRENCY + DOCKER_CLI_PRIORITY_CONCURRENCY },
-        () => runDocker(['inspect', '1'], { timeoutMs: 10_000, priority: true }),
+        () =>
+          runDocker(['inspect', '1'], { timeoutMs: 10_000, priority: true }),
       );
       expect(dockerCliLoad()).toEqual({
         running: DOCKER_CLI_CONCURRENCY,
