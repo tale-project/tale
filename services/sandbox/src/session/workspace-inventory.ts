@@ -8,8 +8,9 @@
 //   <root>/ses-<id>            flat session workspace
 //   <root>/<colour>/ses-<id>   legacy colour-rooted workspace (one level)
 //
-// Anything else — files, dot-dirs (`.pins/`, the spawner lock), names outside
-// the id alphabet — is not a workspace and is not reported.
+// Anything else — files, dot-dirs (`.pins/`, `.owners/`, the `.trash/` of
+// destroyed workspaces), the spawner lock, names outside the id alphabet — is
+// not a workspace and is not reported.
 //
 // Leaving a workspace OUT is always safe: the platform only ever destroys a
 // workspace this list names and its records disown. So a dir that cannot be

@@ -50,8 +50,10 @@ const RECLAIM_PROBE_BACKOFF_MS = 30_000;
 const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
 
 /** Longest a create waits for a destroy of the same id under way. A destroy
- * deletes the whole workspace, which a large one takes a while for; past
- * this the destroy is taken for wedged and the create answers busy. */
+ * settles once the compute is gone and the workspace moved aside (Docker
+ * deletes it in the background), so the wait is normally short; past this
+ * the destroy is taken for wedged (a hung daemon or filesystem) and the
+ * create answers busy. */
 const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
 
 /** Whether `promise` settles, either way, within `ms`. */
@@ -768,10 +770,10 @@ export class SessionRoutes {
     if (refused !== null) return refused;
     try {
       // A destroy of this id already under way finishes first, so the create
-      // lays out its workspace on a settled slate instead of beside an
-      // `rm -rf` of the old one. Bounded: one wedged on a stuck filesystem
-      // must not hold this create, and its capacity slot, for ever — the
-      // caller retries on the busy answer.
+      // lays out its workspace on a settled slate instead of racing the old
+      // one's removal. Bounded: one wedged on a stuck filesystem must not
+      // hold this create, and its capacity slot, for ever — the caller
+      // retries on the busy answer.
       const destroying = this.destroySettled.get(req.sessionId);
       if (
         destroying !== undefined &&
