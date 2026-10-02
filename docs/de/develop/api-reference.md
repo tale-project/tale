@@ -559,6 +559,12 @@ Ein Projekt fasst höchstens 50 Agenten. Namen müssen innerhalb des Projekts un
 
 Das Tool prüft die aktuelle Freigabe, die Rechte des aktiven aufrufenden Laufs, den gespeicherten Reviewer, den Umsetzungslauf und die lokale Belegrevision erneut. Ein veraltetes Ergebnis muss neu gelesen werden; eine andere aktuelle Aufgabenzuweisung macht den Reviewer nicht unabhängig. Die Freigabe verschiebt die Aufgabe nach `done`, `request_changes` mit Rückmeldung nach `todo`, ohne einen Lauf zu starten, auch bei einer Erwähnung in der Rückmeldung. Menschliche Kompetenzanforderungen und Workflow-Genehmigungen bleiben außerhalb dieses Tools. Für eine Agentenentscheidung gibt es keinen öffentlichen REST-Endpunkt.
 
+Vertrag 3.12.0 erweitert auch die nativen Aufgabentools. `task_find` akzeptiert `reviewerAgentId` und liefert je Aufgabe `pendingReview: null` oder `{approvalId, runId, reviewer}`. Der Filter gilt für den gespeicherten Agenten des ausstehenden Reviews und gehört zur Abfrageidentität des signierten Cursors; beim Blättern muss er gleich bleiben. Er filtert nicht nach dem Umsetzungsagenten.
+
+Für ein gespeichertes Agentenreview mit nutzbarem Umsetzungslauf liefert `task_get.reviewFiles` die Form `{expected, files, page, maxStageBytes}`. Eine Seite enthält bis zu 50 Anhänge und Ergebnisdateien. Solange `page.isDone` falsch ist, gib `page.continueCursor` als `reviewFileCursor` zurück. Der Cursor ist an Aufgabe, Reviewer, Review-Anfrage, Umsetzungslauf und Belegrevision gebunden. Einträge enthalten ihre gespeicherten Metadaten und `unavailableReason`; fehlt eine sichere Dateiidentität, nennen sie ausdrücklich ungültige Metadaten als Grund. Eine nicht gespeicherte `runId` wird nicht hergeleitet.
+
+Dieselbe `task_review`-Berechtigung akzeptiert `{operation: "stage_file", taskId, expected: {approvalId, runId, evidenceRevision}, fileId}`, um eine aufgeführte, verfügbare Datei von höchstens 20 MiB bereitzustellen. Eigene Pfade, Speicherreferenzen oder URLs werden nicht angenommen. Die Antwort nennt den vom Server gewählten lokalen `path` und `bytes`; der Agent muss die Datei lesen, bevor er ihren Inhalt als Beleg anführt. Aufgabenzugehörigkeit, gespeicherter Reviewer, aktiver aufrufender Lauf, Berechtigung und Richtlinie werden vor der Übertragung und vor der Erfolgsmeldung geprüft. Geschützte Dokumentzuordnungen behalten ihre Zugriffsregeln; nicht unterstützte oder nicht verfügbare Dateien werden abgelehnt. Bei einem gleichzeitigen Entzug der Berechtigung oder einer Übergabe können zuvor berechtigt übertragene Bytes im Arbeitsbereich bleiben, während Erfolg und veraltete Entscheidung abgelehnt werden. Dies ist eine native Tool-Operation, kein neuer öffentlicher REST-Endpunkt für Dateien oder Entscheidungen.
+
 Nur Inhaber und Admins der Organisation dürfen die Freigaben ändern. Ein Redakteur muss vorhandene Freigaben beim Speichern beibehalten.
 
 Projektleser dürfen die Agenten lesen; Änderungen verlangen Bearbeitungsrechte und ein aktives Projekt. Ein unsichtbares oder fehlendes Projekt sowie eine Agenten-ID aus einem anderen Projekt ergibt **404**. Bei Mitgliedschaft in mehreren Organisationen muss jede Lese- und Schreibanfrage `X-Organization-Slug` enthalten. [Projekt-Agenten](/de/platform/projects/project-agents) erklärt die Arbeit an Aufgaben; der direkte Chat verwendet weiterhin den eingebauten Assistenten.
@@ -710,6 +716,8 @@ Ein Projektlauf verlangt Schreibzugriff auf ein aktives Projekt, ein Organisatio
 
 `GET /api/v1/projects/{id}/tasks/{taskId}/review` liefert den Aufgabenstatus und das ausstehende `TaskReview`, sonst `review: null`. Seit Vertrag 3.11.0 ist `reviewer` entweder `{kind: "user", userId}`, `{kind: "agent", agentId}` oder `null`. `implementationAgentId` benennt den tatsächlichen Agenten des Umsetzungslaufs, `evidenceRevision` den aktuellen lokalen Belegstand; beide können `null` sein. `requestedFor` bleibt das Kompatibilitätsfeld für Personen und ist bei einem Agenten `null`. `agentSlug` ist Anzeigetext, keine Identität des Umsetzungslaufs. Ein `POST` auf denselben Pfad reicht eine menschliche Entscheidung weiter und verlangt `actor`:
 
+Vertrag 3.12.0 ergänzt `agentReviewBlockedReason`: `null`, `reviewer_unavailable`, `permission_missing`, `source_required`, `source_changed`, `self_review`, `human_policy` oder `policy_unavailable`. Dieselbe Diagnose steht im nativen `task_get.pendingReview`. Sie folgt aus der aktuellen Berechtigung und Quelle, ist kein eigener Review-Status und überträgt keine Prüfung automatisch. Einreichungen ohne nativen Quelllauf und neue Reviews unter einer Richtlinie für menschliche Unabhängigkeit oder Kompetenzen folgen der menschlichen Prüferkette; bereits einem Agenten zugewiesene Reviews erfordern eine ausdrückliche Übergabe.
+
 ```bash
 curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
   -H "Authorization: Bearer $TALE_API_KEY" \
@@ -720,6 +728,8 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 ```
 
 `approve` entspricht dem Verschieben nach Erledigt auf dem Board: Es gelten das Recht des Mitglieds, die Aufgabe zu ändern (als Redakteur oder höher, oder weil es sie angelegt hat oder sie ihm zugewiesen ist), und die `review_policy` der Organisation genau wie dort (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` oder `REVIEW_COMPETENCE_REQUIRED`, wenn die Richtlinie die Person ablehnt), die Prüfung wird als vom Mitglied freigegeben festgehalten, und die Aufgabe wird `done`; eine Aufgabe mit offenen Teilaufgaben liefert **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` braucht `comment` und `workflowSlug`: Die Prüfung wird zurückgezogen, der Kommentar landet auf der Zeitleiste, und der Workflow startet erneut auf der Aufgabe und liest den Kommentar als Rückmeldung; die Antwort nennt die `runId` zum Pollen, mit `started: false`, wenn ein laufender Lauf weiterverwendet wurde. Eine Aufgabe, die nicht in Prüfung ist, liefert **409** `TASK_NOT_IN_REVIEW`. Jede Entscheidung wird als `task.review_relayed` protokolliert, mit dem Mitglied und dem Schlüssel, der für es gehandelt hat.
+
+Auch ein menschliches `approve` liest die aktuelle Richtlinie strikt. Eine ungültige oder nicht lesbare `review_policy` liefert **409** `TASK_REVIEW_POLICY_UNAVAILABLE`, selbst nach einer ausdrücklichen Übergabe vom Agenten an eine Person. Es wird weder eine Freigabe noch ein Abschluss gespeichert. Stelle eine gültige Konfiguration wieder her und lies das Review erneut. Eine tatsächlich nicht vorhandene optionale Richtlinie bleibt zulässig. Diese Ablehnung ergänzt keine Richtlinienfreigabe für `request_changes` oder das Zurückziehen eines Reviews.
 
 Die Freigabe eines einem Agenten zugewiesenen Reviews antwortet mit **409**, `TASK_AGENT_REVIEW_REQUIRED`. Ein Redakteur muss das ausstehende Review zuerst ausdrücklich [an eine berechtigte Person übertragen](/de/platform/projects/tasks#transfer-review). Erst danach kann dieser Endpunkt die menschliche Freigabe annehmen. Gib nicht den Agenten als `actor` aus und behandle ein fehlendes menschliches `requestedFor` nicht als Review ohne Zuständigkeit.
 
@@ -1206,6 +1216,8 @@ Für andere Quellsysteme übernimmt `externalState` den Zustand des Quelldatensa
 - `open` setzt eine zuvor durch diese Spiegelung geschlossene Aufgabe aus `in_review` oder `done` zurück auf `backlog`.
 - Hat eine Person oder ein Agent den Zustand geändert, überschreibt `open` diese Entscheidung nicht. Eine Statusänderung über das Board beendet die Zuständigkeit der Spiegelung für den zuvor gesetzten Status.
 - Abgebrochene Aufgaben bleiben abgebrochen.
+
+Ein ausstehendes Review eines Agenten behält seinen Status und Reviewer. Die Synchronisierung einer solchen Quelle erfasst Schließen und Wiederöffnen getrennt davon, ohne das Review freizugeben oder zurückzuziehen.
 
 ```bash
 curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks" \

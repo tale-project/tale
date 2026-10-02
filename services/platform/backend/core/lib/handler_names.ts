@@ -331,6 +331,9 @@ interface HandlerNames {
     };
   };
   tasks: FunctionRef & {
+    internal_actions: FunctionRef & {
+      stageAgentReviewFile: FunctionRef;
+    };
     agent_run_host: FunctionRef & {
       driveTaskAgentTurn: FunctionRef;
       steerTaskAgentTurn: FunctionRef;
@@ -362,6 +365,7 @@ interface HandlerNames {
       getTaskByIdInternal: FunctionRef;
       getTaskContextForAgent: FunctionRef;
       getTaskWorkStateForAgent: FunctionRef;
+      getTaskReviewFilesForAgent: FunctionRef;
       listTasksForAgent: FunctionRef;
     };
     mutations: FunctionRef & {

@@ -1,5 +1,8 @@
 import {
   taskAgentReviewInputSchema,
+  taskAgentReviewStageFileSchema,
+  type AgentReviewBlockedReason,
+  type PendingReviewIdentity,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 /**
@@ -177,7 +180,7 @@ type ProjectLabel = { name: string; key?: string };
  * position, the external-sync key, and the schedule and repeat rule when the
  * row carries them; `description` only on `task_get`. */
 function compactTask(
-  task: Doc<'tasks'>,
+  task: Doc<'tasks'> & { pendingReview?: PendingReviewIdentity | null },
   project?: ProjectLabel | null,
 ): Record<string, unknown> {
   return {
@@ -208,6 +211,9 @@ function compactTask(
       ? { externalUrl: task.externalUrl }
       : {}),
     commentCount: task.commentCount ?? 0,
+    ...(task.pendingReview !== undefined
+      ? { pendingReview: task.pendingReview }
+      : {}),
     // ISO 8601 UTC, not epoch milliseconds: the agent reading this result gets
     // the same date format the chat tools answer with, and the same format its
     // own `Current time:` directive carries.
@@ -275,6 +281,7 @@ interface PendingReviewAnswer {
   reviewer: TaskReviewRecipient | null;
   implementationAgentId: string | null;
   evidenceRevision: string | null;
+  agentReviewBlockedReason: AgentReviewBlockedReason | null;
   createdAt: number;
 }
 
@@ -377,6 +384,7 @@ function pendingReviewView(
     reviewer: review.reviewer,
     implementationAgentId: review.implementationAgentId ?? null,
     evidenceRevision: review.evidenceRevision ?? null,
+    agentReviewBlockedReason: review.agentReviewBlockedReason ?? null,
     ...(review.runId !== null ? { runId: review.runId } : {}),
     ...(review.requestedFor !== null
       ? { requestedFor: review.requestedFor }
@@ -441,6 +449,7 @@ export function taskFindListing(args: {
   target: { projectId?: string; allowedProjectIds?: string[] };
   status?: string;
   assigneeId?: string;
+  reviewerAgentId?: string;
   includeArchived: boolean;
 }): string {
   const scope =
@@ -455,6 +464,7 @@ export function taskFindListing(args: {
     scope,
     status: args.status ?? null,
     assigneeId: args.assigneeId ?? null,
+    reviewerAgentId: args.reviewerAgentId ?? null,
     includeArchived: args.includeArchived,
   })}`;
 }
@@ -911,6 +921,17 @@ export async function runTaskTool(
         };
       }
       const assigneeId = readString(callArgs.assigneeId);
+      const reviewerAgentId = readString(callArgs.reviewerAgentId);
+      if (
+        callArgs.reviewerAgentId !== undefined &&
+        (reviewerAgentId === undefined || reviewerAgentId.length > 200)
+      ) {
+        return {
+          status: 'invalid_args',
+          message:
+            '"reviewerAgentId" must be a nonempty string of at most 200 characters.',
+        };
+      }
       const includeArchived = readBoolean(callArgs.includeArchived) === true;
       const limit = readLimit(callArgs.limit, TASK_FIND_PAGE_MAX);
       const listing = taskFindListing({
@@ -918,6 +939,7 @@ export async function runTaskTool(
         target,
         ...(status !== undefined ? { status } : {}),
         ...(assigneeId !== undefined ? { assigneeId } : {}),
+        ...(reviewerAgentId !== undefined ? { reviewerAgentId } : {}),
         includeArchived,
       });
       const cursor = readContinuation(organizationId, listing, callArgs.cursor);
@@ -954,6 +976,7 @@ export async function runTaskTool(
             : {}),
           ...(status !== undefined ? { status } : {}),
           ...(assigneeId !== undefined ? { assigneeId } : {}),
+          ...(reviewerAgentId !== undefined ? { reviewerAgentId } : {}),
           ...(includeArchived ? { includeArchived: true } : {}),
           order,
           ...(after !== undefined ? { after } : {}),
@@ -1092,6 +1115,40 @@ export async function runTaskTool(
         };
       }
       const oldestRun = work.agentRuns.at(-1);
+      const review = work.pendingReview;
+      const hasReviewFiles =
+        review?.reviewer?.kind === 'agent' &&
+        typeof review.runId === 'string' &&
+        typeof review.evidenceRevision === 'string';
+      if (
+        !hasReviewFiles &&
+        callArgs.reviewFileCursor != null &&
+        callArgs.reviewFileCursor !== ''
+      ) {
+        return cursorRefusal(
+          'reviewFileCursor',
+          'reviewFiles.page.continueCursor',
+          'read the current review',
+        );
+      }
+      const reviewFiles =
+        hasReviewFiles && review.reviewer?.kind === 'agent'
+          ? await ctx.runQuery(
+              internal.tasks.internal_queries.getTaskReviewFilesForAgent,
+              {
+                organizationId,
+                projectId: String(scoped.task.projectId),
+                taskId,
+                expected: {
+                  approvalId: review.approvalId,
+                  runId: review.runId,
+                  evidenceRevision: review.evidenceRevision,
+                },
+                reviewerAgentId: review.reviewer.agentId,
+                cursor: callArgs.reviewFileCursor,
+              },
+            )
+          : null;
       return {
         status: 'ok',
         output: {
@@ -1133,6 +1190,7 @@ export async function runTaskTool(
           ),
           workflowRun: workflowRunView(work.workflowRun),
           pendingReview: pendingReviewView(work.pendingReview),
+          reviewFiles,
         },
       };
     }
@@ -1425,6 +1483,26 @@ export async function runTaskTool(
             },
           ],
         };
+      }
+      if (callArgs.operation === 'stage_file') {
+        const stage = taskAgentReviewStageFileSchema.safeParse(callArgs);
+        if (!stage.success) {
+          return {
+            status: 'invalid_args',
+            message:
+              'task_review stage_file needs only {operation: "stage_file", taskId, expected: {approvalId, runId, evidenceRevision}, fileId}. Select a fileId from task_get reviewFiles; paths, URLs and blob references are not accepted.',
+          };
+        }
+        const output = await ctx.runAction(
+          internal.tasks.internal_actions.stageAgentReviewFile,
+          {
+            organizationId,
+            sessionId: args.session.sessionId,
+            taskRunExecId: args.session.taskRunExecId,
+            request: stage.data,
+          },
+        );
+        return { status: 'ok', output };
       }
       const parsed = taskAgentReviewInputSchema.safeParse(callArgs);
       if (!parsed.success) {

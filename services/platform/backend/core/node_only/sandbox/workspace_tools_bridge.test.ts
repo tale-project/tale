@@ -84,6 +84,7 @@ function createCtx(
     actionContext?: Record<string, unknown>;
     readQuery?: QueryMock;
     runMutation?: QueryMock;
+    runAction?: QueryMock;
   } = {},
 ) {
   const readQuery =
@@ -119,6 +120,7 @@ function createCtx(
     ctx: {
       runQuery,
       runMutation: overrides.runMutation ?? vi.fn(() => Promise.resolve(null)),
+      runAction: overrides.runAction ?? vi.fn(() => Promise.resolve(null)),
     },
     accessQuery,
     scopeQuery,
@@ -2586,6 +2588,7 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
   ) {
     const { dispatch } = await getActions();
     const mutations: unknown[] = [];
+    const actions: unknown[] = [];
     const { ctx } = createCtx({
       actionContext: {
         allowed: true,
@@ -2602,6 +2605,13 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
         }
         return null;
       }),
+      runAction: vi.fn(async (ref, args) => {
+        if (fnName(ref) === 'tasks/internal_actions:stageAgentReviewFile') {
+          actions.push(args);
+          return { path: '/agent/inputs/reviews/selected.bin', bytes: 4 };
+        }
+        return null;
+      }),
     });
     return {
       result: await dispatch(ctx, {
@@ -2611,8 +2621,46 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
         callArgs,
       }),
       mutations,
+      actions,
     };
   }
+  it('stages a selected review file with only token authority and no verdict mutation', async () => {
+    const request = {
+      operation: 'stage_file',
+      taskId: review.taskId,
+      expected: review.expected,
+      fileId: 'file',
+    };
+    const { result, mutations, actions } = await call(request);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([]);
+    expect(actions).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer-exec',
+        request,
+      },
+    ]);
+  });
+  it.each([
+    { path: '/agent/arbitrary' },
+    { url: 'https://other.test' },
+    { storageRef: 's3:other/file' },
+    { agentId: 'other' },
+    { fileId: '' },
+  ])('refuses widened stage_file fields %j', async (extra) => {
+    const { result, mutations, actions } = await call({
+      operation: 'stage_file',
+      taskId: review.taskId,
+      expected: review.expected,
+      fileId: 'file',
+      ...extra,
+    });
+    expect(result.status).toBe('invalid_args');
+    expect(mutations).toEqual([]);
+    expect(actions).toEqual([]);
+  });
   it('forwards only token authority and the complete strict review', async () => {
     const { result, mutations } = await call(review);
     expect(result.status).toBe('ok');

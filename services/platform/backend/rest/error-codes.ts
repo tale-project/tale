@@ -208,6 +208,7 @@ export const REST_ERROR_CODES = [
   'TASK_LABEL_UNKNOWN',
   'TASK_NOT_FOUND',
   'TASK_NOT_IN_REVIEW',
+  'TASK_REVIEW_POLICY_UNAVAILABLE',
   'TEAM_ACCESS_DENIED',
   // A hub document inside a team folder takes the folder's audience; a
   // request naming a team outside it is refused.

@@ -604,6 +604,12 @@ Choisis `model` dans le catalogue de l’organisation et précise `modelProvider
 
 L’outil vérifie à nouveau la permission actuelle, les droits de l’exécution active qui l’appelle, le relecteur enregistré, l’exécution de réalisation et la révision des éléments locaux. Un résultat périmé exige une nouvelle lecture ; changer l’assignation actuelle ne rend pas le relecteur indépendant. L’approbation passe la tâche à `done` ; `request_changes` la passe à `todo` avec un retour, sans démarrer d’exécution, même si ce retour contient une mention. Les compétences humaines requises et les approbations de workflows restent hors de cet outil. Il n’existe aucun point d’entrée REST public pour une décision d’agent.
 
+Le contrat 3.12.0 étend aussi les outils natifs de tâches. `task_find` accepte `reviewerAgentId` et renvoie, pour chaque tâche, `pendingReview: null` ou `{approvalId, runId, reviewer}`. Le filtre porte sur l’agent enregistré pour la relecture en attente et fait partie de l’identité de requête du curseur signé ; conserve-le lors du parcours des pages. Il ne filtre pas sur l’agent chargé de la réalisation.
+
+Pour une relecture d’agent enregistrée avec une source exploitable, `task_get.reviewFiles` renvoie `{expected, files, page, maxStageBytes}`. Il liste jusqu’à 50 pièces jointes et livrables par page. Passe `page.continueCursor` comme `reviewFileCursor` tant que `page.isDone` vaut false. Le curseur est lié à la tâche, au relecteur, à la demande de relecture, à l’exécution source et à la révision des éléments examinés. Chaque entrée contient ses métadonnées enregistrées et `unavailableReason`, ou une raison explicite de métadonnées invalides lorsqu’aucune identité de fichier sûre n’existe. Une `runId` absente des données n’est pas déduite.
+
+La même permission `task_review` accepte `{operation: "stage_file", taskId, expected: {approvalId, runId, evidenceRevision}, fileId}` pour copier un fichier listé et disponible de 20 Mio au plus. Aucun chemin, référence de stockage ou URL fourni par l’appelant n’est accepté. La réponse indique le `path` local choisi par le serveur et le nombre d’octets `bytes` ; l’agent doit lire le fichier avant d’attester de son contenu. L’appartenance à la tâche, la relecture enregistrée, l’exécution appelante active, les droits et la politique sont vérifiés avant le transfert, puis avant le succès. Les liens avec des documents protégés conservent leurs règles d’accès ; les fichiers indisponibles ou non pris en charge sont refusés. Une révocation ou un transfert simultané peut laisser des octets précédemment autorisés dans l’espace de travail tout en refusant le succès et une décision obsolète. Il s’agit d’une opération d’outil natif, pas d’un nouveau point d’entrée REST public pour les fichiers ou les décisions.
+
 `secrets` contient des noms de secrets de l’organisation, jamais leurs valeurs. Un nom inconnu donne **400**, `PROJECT_AGENT_SECRET_UNKNOWN`, et figure dans `data.secrets`. Le formulaire de l’application filtre les noms inconnus ; l’API les refuse explicitement.
 
 Seuls les Propriétaires et Admins peuvent modifier les autorisations de secrets. Un Éditeur qui enregistre la configuration complète doit conserver celles qui existent déjà.
@@ -821,6 +827,8 @@ Une exécution de projet demande l’accès en écriture à un projet actif ; u
 
 `GET /api/v1/projects/{id}/tasks/{taskId}/review` renvoie l’état de la tâche et sa relecture en attente sous la forme `TaskReview`, sinon `review: null`. Depuis le contrat 3.11.0, `reviewer` vaut `{kind: "user", userId}`, `{kind: "agent", agentId}` ou `null`. `implementationAgentId` identifie l’agent qui a réellement produit le résultat et `evidenceRevision` la révision actuelle des éléments locaux ; ces deux champs peuvent valoir `null`. `requestedFor` reste le champ de compatibilité pour une personne et vaut `null` pour un agent ; `agentSlug` est un texte d’affichage, jamais l’identité de l’agent source. Un `POST` sur ce chemin relaie une décision humaine et exige `actor` :
 
+Le contrat 3.12.0 ajoute `agentReviewBlockedReason` : `null`, `reviewer_unavailable`, `permission_missing`, `source_required`, `source_changed`, `self_review`, `human_policy` ou `policy_unavailable`. Le même diagnostic figure dans le champ natif `task_get.pendingReview`. Il découle des droits et de la source actuels, sans créer un nouvel état de relecture ni transférer automatiquement la responsabilité. Les soumissions sans exécution native source et les nouvelles relectures soumises à une politique d’indépendance humaine ou de compétences suivent la chaîne humaine ; les relectures déjà attribuées à un agent exigent un transfert explicite.
+
 ```bash
 curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
   -H "Authorization: Bearer $TALE_API_KEY" \
@@ -831,6 +839,8 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 ```
 
 `approve` correspond au passage en Terminé sur le tableau : le droit du membre de modifier la tâche (en tant qu’Éditeur ou rôle supérieur, ou parce qu’il l’a créée ou qu’elle lui est attribuée) et la `review_policy` de l’organisation s’appliquent exactement comme là (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` ou `REVIEW_COMPETENCE_REQUIRED` si la politique refuse la personne), la relecture est enregistrée comme approuvée par le membre et la tâche passe à `done` ; une tâche avec des sous-tâches ouvertes donne **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` exige `comment` et `workflowSlug` : la relecture est retirée, le commentaire est déposé sur la chronologie et le workflow redémarre sur la tâche en lisant ce commentaire comme retour ; la réponse contient le `runId` à suivre, avec `started: false` si une exécution en cours a été réutilisée. Une tâche qui n’est pas en relecture donne **409** `TASK_NOT_IN_REVIEW`. Chaque décision est auditée sous `task.review_relayed`, avec le membre et la clé qui a relayé pour lui.
+
+Un `approve` humain lit lui aussi strictement la politique actuelle. Une configuration `review_policy` invalide ou illisible renvoie **409** `TASK_REVIEW_POLICY_UNAVAILABLE`, même après un transfert explicite d’un agent à une personne ; aucune approbation ni clôture n’est enregistrée. Rétablis une configuration valide et relis la relecture. L’absence réelle de cette politique facultative reste acceptée. Ce refus n’ajoute pas de contrôle d’approbation de politique à `request_changes` ni au retrait d’une relecture.
 
 Approuver une relecture attribuée à un agent renvoie **409**, `TASK_AGENT_REVIEW_REQUIRED`. Un Éditeur doit d’abord [transférer explicitement la relecture en attente](/fr/platform/projects/tasks#transfer-review) à une personne autorisée avant que ce point d’entrée accepte son approbation humaine. Ne présente pas l’agent comme `actor` et ne traite pas l’absence d’un `requestedFor` humain comme une relecture sans responsable.
 
@@ -1435,6 +1445,8 @@ Pour les autres systèmes sources, `externalState` synchronise l’état de l’
 
 - `closed` place la tâche en `in_review` pour qu’une personne puisse la terminer. Dans ce parcours de synchronisation, seul un appel du moteur de workflow lui-même peut directement la placer en `done`.
 - `open` ramène en `backlog` une tâche que la synchronisation avait placée en `in_review`, ou une tâche en `done`.
+
+Une relecture en attente attribuée à un agent conserve son statut et son relecteur. La synchronisation d’une telle source enregistre séparément la fermeture ou la réouverture, sans approuver ni retirer cette relecture.
 
 Une mise en revue décidée par une personne ou un agent reste inchangée. Dès qu’un déplacement est effectué depuis le tableau, la synchronisation ne peut plus annuler sa propre mise en revue en envoyant `open`.
 

@@ -3,7 +3,7 @@ import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { reviewAgentTask } from './agent-review.ts';
+import { readAgentTaskReviewAccess, reviewAgentTask } from './agent-review.ts';
 import { addTaskReviewFeedback } from './comments.ts';
 import { readTaskReviewSource } from './review-evidence.ts';
 import {
@@ -32,6 +32,7 @@ vi.mock('./review-evidence.ts', () => ({ readTaskReviewSource: vi.fn() }));
 vi.mock('./service.ts', () => ({
   applyAgentTaskReviewStatusTrusted: vi.fn(),
   assertTaskCreatable: vi.fn(),
+  assertTaskNotArchived: vi.fn(),
   loadTaskOrThrow: vi.fn(),
   recordActivity: vi.fn(),
 }));
@@ -382,15 +383,46 @@ describe('independent source-bound task decision', () => {
     });
     expect(applyAgentTaskReviewStatusTrusted).not.toHaveBeenCalled();
   });
-  it('fails closed when governance cannot be read', async () => {
-    vi.mocked(readGovernancePolicyForOrg).mockRejectedValue(
-      new Error('Unavailable'),
-    );
-    await expect(fixture().call()).rejects.toMatchObject({
-      code: 'TASK_REVIEW_POLICY_UNAVAILABLE',
+  it.each(['approve', 'request_changes'] as const)(
+    'keeps a policy requiring an independent person at its human gate for %s',
+    async (decision) => {
+      vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+        requireIndependentReviewer: true,
+      });
+      const f = fixture();
+      await expect(f.call({ ...input, decision })).rejects.toMatchObject({
+        code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
+        status: 403,
+      });
+      expect(applyAgentTaskReviewStatusTrusted).not.toHaveBeenCalled();
+      expect(addTaskReviewFeedback).not.toHaveBeenCalled();
+      expect(f.approval.status).toBe('pending');
+      expect(
+        f.writes.some((write) => write.text.startsWith('UPDATE app.approvals')),
+      ).toBe(false);
+    },
+  );
+  it('permits independent agents when the human independence policy is off', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+      requireIndependentReviewer: false,
     });
-    expect(applyAgentTaskReviewStatusTrusted).not.toHaveBeenCalled();
+    expect((await fixture().call()).status).toBe('done');
   });
+  it.each(['approve', 'request_changes'] as const)(
+    'fails closed for %s when governance cannot be read',
+    async (decision) => {
+      vi.mocked(readGovernancePolicyForOrg).mockRejectedValue(
+        new Error('Unavailable'),
+      );
+      await expect(
+        fixture().call({ ...input, decision }),
+      ).rejects.toMatchObject({
+        code: 'TASK_REVIEW_POLICY_UNAVAILABLE',
+      });
+      expect(applyAgentTaskReviewStatusTrusted).not.toHaveBeenCalled();
+      expect(addTaskReviewFeedback).not.toHaveBeenCalled();
+    },
+  );
   it('does not add feedback when shared completion preconditions refuse', async () => {
     vi.mocked(applyAgentTaskReviewStatusTrusted).mockRejectedValue(
       Object.assign(new Error('Live question'), { code: 'TASK_REVIEW_BUSY' }),
@@ -407,4 +439,57 @@ describe('independent source-bound task decision', () => {
     );
     expect(f.reads).toEqual([]);
   });
+});
+
+describe('read-only review authority for staging', () => {
+  it('checks the same captured source without status, lock or feedback writes', async () => {
+    const f = fixture();
+    expect(await readAgentTaskReviewAccess(f.tx, auth, input)).toMatchObject({
+      issuerRunId: 'issuer',
+      source: { runId: 'source' },
+    });
+    expect(f.writes).toEqual([]);
+    expect(f.reads.every((sql) => !sql.includes('FOR UPDATE'))).toBe(true);
+    expect(applyAgentTaskReviewStatusTrusted).not.toHaveBeenCalled();
+    expect(addTaskReviewFeedback).not.toHaveBeenCalled();
+  });
+  it.each([
+    [{ noIssuer: true }, 'TASK_REVIEW_FORBIDDEN'],
+    [{ noGrant: true }, 'TASK_REVIEW_FORBIDDEN'],
+    [{ noApproval: true }, 'TASK_REVIEW_STALE'],
+    [{ recipient: 'other' }, 'TASK_REVIEW_FORBIDDEN'],
+    [{ latest: 'newer' }, 'TASK_REVIEW_STALE'],
+    [{ extraPending: true }, 'TASK_REVIEW_STALE'],
+    [{ wf: true }, 'TASK_REVIEW_STALE'],
+  ] as const)(
+    'refuses unsupported live or captured access %j',
+    async (options, code) => {
+      const f = fixture(options);
+      await expect(
+        readAgentTaskReviewAccess(f.tx, auth, input),
+      ).rejects.toMatchObject({ code });
+      expect(f.writes).toEqual([]);
+    },
+  );
+  it('does not replay an already completed decision as file access', async () => {
+    const f = fixture();
+    f.approval.status = 'completed';
+    await expect(
+      readAgentTaskReviewAccess(f.tx, auth, input),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEW_STALE' });
+  });
+  it.each([
+    { requireIndependentReviewer: true },
+    { requiredCompetences: ['review'] },
+  ])(
+    'retains human governance requirements for file staging %j',
+    async (policy) => {
+      vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(policy);
+      const f = fixture();
+      await expect(
+        readAgentTaskReviewAccess(f.tx, auth, input),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(f.writes).toEqual([]);
+    },
+  );
 });

@@ -165,6 +165,32 @@ beforeEach(() => {
 });
 
 describe('updateTask — the open review follows the reviewer', () => {
+  it.each([null, 'u-bob'])(
+    'refuses a member changing the reviewer on their own task to %s',
+    async (reviewerUserId) => {
+      const tx = fakeTx(taskRow({ createdBy: auth.userId }));
+      await expect(
+        updateTask(
+          tx,
+          { ...auth, role: 'member' },
+          { taskId: 't-1', reviewerUserId },
+        ),
+      ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN', status: 403 });
+      expect(retargetPendingTaskReview).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps ordinary member edits with an unchanged reviewer working', async () => {
+    const tx = fakeTx(taskRow({ createdBy: auth.userId }));
+    await expect(
+      updateTask(
+        tx,
+        { ...auth, role: 'member' },
+        { taskId: 't-1', reviewerUserId: 'u-alice', title: 'Member edit' },
+      ),
+    ).resolves.toBeUndefined();
+    expect(retargetPendingTaskReview).not.toHaveBeenCalled();
+  });
   it('hands the open review to the new designee in the same transaction, without the heads-up', async () => {
     vi.mocked(retargetPendingTaskReview).mockResolvedValue('u-bob');
     const tx = fakeTx(taskRow());
@@ -356,6 +382,7 @@ describe('legacy reviewer edits preserve delegated ownership', () => {
       agentSlug: null,
       implementationAgentId: null,
       evidenceRevision: null,
+      agentReviewBlockedReason: 'source_required',
       createdAt: 1,
     });
     const tx = fakeTx(taskRow());

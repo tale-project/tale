@@ -86,17 +86,23 @@ If the project has no agent of its own, **Assignee** offers **Standard agent**, 
 
 For a review assigned to a person, the named reviewer receives the request without being the only person allowed to accept it. Anyone else who can change the task can also accept the result: an Editor or higher, or the Member the task belongs to. When your organization requires an independent reviewer, the person who started the agent run under review cannot accept its result; when no agent run produced the result, the task's creator cannot. Required human competences still apply. A review assigned to an agent needs that agent's decision, or an explicit transfer to an eligible person before a human can approve it.
 
+If the organization’s review policy cannot be read or is invalid, human approval is refused, including after a review is transferred from an agent to a person. An organization administrator must restore valid policy configuration before approval can succeed. Asking for changes or withdrawing a review keeps its existing behavior.
+
 ### Set a project review default {#review-default}
 
 On the project's **General** tab, open **Task reviews** and choose **Default reviewer**, then save the project changes. The initial **Person** choice uses the task creator, then the project creator, if they can edit the project. Choose an independent project agent to route new reviews to it. This setting neither starts the agent nor grants its review permission; [Set up an independent reviewer](/platform/projects/task-automation#agent-review) covers those steps.
 
 Tasks with **Project default** follow this choice when a new review starts. A task with an explicitly named person or agent keeps that choice. Reviews already waiting retain their recorded reviewer even if the project default changes. If someone changes the default while you are editing, discard the stale draft and choose again.
 
+An agent default applies only when a native project-agent run produced the result and the organization does not require human independence or competence records. A person or automation submitting work without such a run uses the human review chain. Saving an agent choice requires its task review permission; a task cannot select its own implementation agent. A captured review never changes owner automatically after a grant, assignment or policy changes.
+
 ### Transfer a pending review {#transfer-review}
 
 Open the task and read **Current review** below **Reviewer**: it names who owns the waiting review, which can differ from the current project default. Choosing another reviewer also transfers that pending review, without changing the assignee or starting a run. Choose **Project default** to hand it to the project's current default. If the reviewer or result changed since the task was read, the transfer is refused; check the refreshed review before choosing again.
 
-An agent can review only a completed project-agent result from a different implementation agent. Changing the task's assignee does not change who produced that result. A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human competences, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
+An agent can review only a completed project-agent result from a different implementation agent. Changing the task's assignee does not change who produced that result. A live run or open question can prevent a transfer to an agent. For work without a supported completed agent run, or a review requiring human independence or competence records, choose an eligible person. If an agent is unavailable or lacks the review permission, the task shows that reason; it does not silently send the review to you.
+
+The current review also explains self-review, changed implementation ownership, and unavailable policy. Restore the indicated condition or transfer it explicitly; settlement still records the result. A repeated task retains an explicit agent reviewer even if that agent was deleted or lost its grant, so repair that choice instead of silently inheriting a different reviewer.
 
 ## Use statuses to communicate progress
 

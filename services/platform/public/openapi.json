@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.11.0",
+    "version": "3.12.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -20045,7 +20045,7 @@
             }
           },
           "409": {
-            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)",
+            "description": "The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); approval cannot read a valid current review policy (`TASK_REVIEW_POLICY_UNAVAILABLE`, including after a human handoff); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)",
             "content": {
               "application/json": {
                 "schema": {
@@ -38236,7 +38236,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.11.0"
+          "example": "3.12.0"
         }
       },
       "Location": {
@@ -38518,6 +38518,7 @@
                   "TASK_LABEL_UNKNOWN",
                   "TASK_NOT_FOUND",
                   "TASK_NOT_IN_REVIEW",
+                  "TASK_REVIEW_POLICY_UNAVAILABLE",
                   "TEAM_ACCESS_DENIED",
                   "TEAM_INHERITED_FROM_FOLDER",
                   "TEAM_NOT_IN_ORG",
@@ -38741,6 +38742,7 @@
                   "TASK_LABEL_UNKNOWN",
                   "TASK_NOT_FOUND",
                   "TASK_NOT_IN_REVIEW",
+                  "TASK_REVIEW_POLICY_UNAVAILABLE",
                   "TEAM_ACCESS_DENIED",
                   "TEAM_INHERITED_FROM_FOLDER",
                   "TEAM_NOT_IN_ORG",
@@ -38955,6 +38957,7 @@
               "TASK_LABEL_UNKNOWN",
               "TASK_NOT_FOUND",
               "TASK_NOT_IN_REVIEW",
+              "TASK_REVIEW_POLICY_UNAVAILABLE",
               "TEAM_ACCESS_DENIED",
               "TEAM_INHERITED_FROM_FOLDER",
               "TEAM_NOT_IN_ORG",
@@ -41251,6 +41254,7 @@
           "runId",
           "implementationAgentId",
           "evidenceRevision",
+          "agentReviewBlockedReason",
           "createdAt"
         ],
         "description": "A task’s ordinary pending review, owned by the captured person or agent. Native agent verdicts use task_review; the public review POST relays a person’s decision.",
@@ -41325,6 +41329,21 @@
             "nullable": true,
             "pattern": "^[a-f0-9]{64}$",
             "description": "Opaque compare-and-set digest of local task, source result and discussion evidence. Null without a settled native source. It does not verify external pull-request heads or checks."
+          },
+          "agentReviewBlockedReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "reviewer_unavailable",
+              "permission_missing",
+              "source_required",
+              "source_changed",
+              "self_review",
+              "human_policy",
+              "policy_unavailable",
+              null
+            ],
+            "description": "Current reason a captured agent cannot decide; null for a human review or an eligible agent. Derived from current project scope, permission, policy and source; it never changes review ownership. Restore the indicated condition or explicitly transfer to an eligible reviewer."
           },
           "createdAt": {
             "type": "integer",

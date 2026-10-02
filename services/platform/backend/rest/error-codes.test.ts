@@ -252,14 +252,17 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'PROJECT_REVIEWER_STALE',
   'TASK_REVIEWER_BUSY',
   'TASK_REVIEWER_HANDOFF_REQUIRED',
+  'TASK_REVIEWER_HUMAN_REQUIRED',
   'TASK_REVIEWER_NOT_INDEPENDENT',
   'TASK_REVIEWER_STALE',
   'TASK_REVIEW_SOURCE_REQUIRED',
+  'TASK_REVIEW_SOURCE_CHANGED',
   // The trusted agent verdict status seam is reached only by task_review
   // through a native project-agent token, never the human REST review door.
   'TASK_REVIEW_BLOCKED',
   'TASK_REVIEW_BUSY',
   'TASK_REVIEW_STALE',
+  'TASK_REVIEW_FILE_UNAVAILABLE',
   'TASK_SCHEDULE_INVALID',
   'TASK_SOURCE_THREAD_NOT_FOUND',
   // The organization's standard agent is set up only through the app's

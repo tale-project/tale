@@ -24,6 +24,16 @@ export const taskReviewRecipientSchema = z.discriminatedUnion('kind', [
 ]);
 export type TaskReviewRecipient = z.infer<typeof taskReviewRecipientSchema>;
 
+/** Why a captured agent review currently needs an explicit recovery. */
+export type AgentReviewBlockedReason =
+  | 'reviewer_unavailable'
+  | 'permission_missing'
+  | 'source_required'
+  | 'source_changed'
+  | 'self_review'
+  | 'human_policy'
+  | 'policy_unavailable';
+
 export const pendingReviewIdentitySchema = z
   .object({
     approvalId: reviewerIdSchema,
@@ -57,6 +67,26 @@ export type SetProjectTaskReviewerInput = z.infer<
 >;
 
 const evidenceRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const taskReviewExpectedSchema = z
+  .object({
+    approvalId: reviewerIdSchema,
+    runId: reviewerIdSchema,
+    evidenceRevision: evidenceRevisionSchema,
+  })
+  .strict();
+
+/** Stages one listed source file into the current reviewer's workspace. */
+export const taskAgentReviewStageFileSchema = z
+  .object({
+    operation: z.literal('stage_file'),
+    taskId: reviewerIdSchema,
+    expected: taskReviewExpectedSchema,
+    fileId: z.string().min(1).max(4096),
+  })
+  .strict();
+export type TaskAgentReviewStageFileInput = z.infer<
+  typeof taskAgentReviewStageFileSchema
+>;
 
 /** External checks and heads are the reviewer's attestation. The native
  * decision validates its own task/run snapshot, not GitHub's current state. */
@@ -98,13 +128,7 @@ export type TaskReviewEvidence = z.infer<typeof taskReviewEvidenceSchema>;
 export const taskAgentReviewInputSchema = z
   .object({
     taskId: reviewerIdSchema,
-    expected: z
-      .object({
-        approvalId: reviewerIdSchema,
-        runId: reviewerIdSchema,
-        evidenceRevision: evidenceRevisionSchema,
-      })
-      .strict(),
+    expected: taskReviewExpectedSchema,
     decision: z.enum(['approve', 'request_changes']),
     feedback: z.string().trim().min(1).max(8000),
     evidence: taskReviewEvidenceSchema,

@@ -9,6 +9,7 @@ import {
   findOrganizationMember,
   getUserTeamIds,
 } from '../../auth/membership.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   autoSubscribe,
@@ -119,6 +120,8 @@ function fixture(
     approvals?: ApprovalRow[];
     projectAgent?: string | null;
     source?: { id: string; agentId: string; status: string } | null;
+    agentTools?: string[] | null;
+    currentTask?: Partial<TaskRow>;
   } = {},
 ) {
   const rows = [...(options.approvals ?? [])];
@@ -146,9 +149,32 @@ function fixture(
       ]);
     }
     if (text.includes('FROM app.project_agent_runs'))
-      return Promise.resolve(source === null ? [] : [source]);
+      return Promise.resolve(
+        source === null
+          ? []
+          : [
+              {
+                ...source,
+                runId: source.id,
+                implementationAgentId: source.agentId,
+                settledAt: 1,
+                evidenceRevision: 'a'.repeat(64),
+              },
+            ],
+      );
     if (text.includes('FROM app.project_agents'))
-      return Promise.resolve([{ name: 'Implementation agent' }]);
+      return Promise.resolve(
+        options.agentTools === null
+          ? []
+          : [
+              {
+                name: 'Implementation agent',
+                tools: options.agentTools ?? ['task_review'],
+              },
+            ],
+      );
+    if (text.includes('FROM app.tasks'))
+      return Promise.resolve([task(options.currentTask)]);
     if (text.startsWith('INSERT INTO app.approvals')) {
       writes.push(text);
       const parsed = values[2];
@@ -235,6 +261,55 @@ describe('captured independent-agent review routing', () => {
   });
 
   it.each([
+    { kind: 'human' as const, actorId: 'creator' },
+    { kind: 'automation' as const, slug: 'scheduled-work' },
+  ])(
+    'keeps source-less $kind submissions on the human chain',
+    async (trigger) => {
+      for (const reviewerAgentId of [null, 'reviewer']) {
+        const { tx, rows } = fixture({
+          projectAgent: 'reviewer',
+          source: null,
+        });
+        await requestTaskReview(tx, {
+          task: task({ reviewerAgentId }),
+          trigger,
+        });
+        expect(taskReviewRecipientOf(rows[0]?.metadata ?? null)).toEqual({
+          kind: 'user',
+          userId: 'creator',
+        });
+        expect(rows[0]?.metadata?.runId).toBeUndefined();
+        expect(notifyTaskReviewRequested).toHaveBeenCalledWith(
+          tx,
+          expect.objectContaining({ reviewerUserId: 'creator' }),
+        );
+      }
+    },
+  );
+
+  it.each([
+    { requireIndependentReviewer: true, requiredCompetences: [] },
+    { requireIndependentReviewer: false, requiredCompetences: ['review'] },
+  ])(
+    'routes a new governed native review through the human chain %j',
+    async (policy) => {
+      vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(policy);
+      const { tx, rows } = fixture({ projectAgent: 'reviewer' });
+      await requestTaskReview(tx, {
+        task: task(),
+        trigger: { kind: 'agent_run', runId: 'run' },
+      });
+      expect(taskReviewRecipientOf(rows[0]?.metadata ?? null)).toEqual({
+        kind: 'user',
+        userId: 'creator',
+      });
+      expect(rows[0]?.metadata?.runId).toBe('run');
+      expect(notifyTaskReviewRequested).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([
     { projectAgent: 'reviewer', reviewerAgentId: null },
     { projectAgent: null, reviewerAgentId: 'reviewer' },
     { projectAgent: 'other', reviewerAgentId: 'deleted-agent' },
@@ -271,6 +346,101 @@ describe('captured independent-agent review routing', () => {
       }),
     ).toEqual({ approvalId: 'old', minted: false });
     expect(rows).toHaveLength(1);
+  });
+
+  it.each([
+    { agentTools: null, reason: 'reviewer_unavailable' },
+    { agentTools: [], reason: 'permission_missing' },
+    { source: null, reason: 'source_required' },
+    {
+      source: { id: 'run', agentId: 'reviewer', status: 'settled' },
+      reason: 'self_review',
+    },
+    { currentTask: { assigneeId: 'other' }, reason: 'source_changed' },
+  ])(
+    'keeps a captured agent and exposes $reason without a human bell',
+    async ({ reason, ...options }) => {
+      const { tx, rows, writes } = fixture({
+        ...options,
+        approvals: [approval({ kind: 'agent', agentId: 'reviewer' })],
+      });
+      const review = await getPendingReviewForTask(tx, 'org', 'task');
+      expect(review?.reviewer).toEqual({ kind: 'agent', agentId: 'reviewer' });
+      expect(review?.agentReviewBlockedReason).toBe(reason);
+      expect(rows).toHaveLength(1);
+      expect(writes).toEqual([]);
+      expect(notifyTaskReviewRequested).not.toHaveBeenCalled();
+    },
+  );
+
+  it('settles with its configured agent if policy is unreadable and exposes recovery', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockRejectedValue(
+      new ConfigurationError('GOVERNANCE_POLICY_INVALID', 'Invalid policy'),
+    );
+    const { tx, rows } = fixture({ projectAgent: 'reviewer' });
+    await requestTaskReview(tx, {
+      task: task(),
+      trigger: { kind: 'agent_run', runId: 'run' },
+    });
+    expect(rows[0]?.metadata?.reviewer).toEqual({
+      kind: 'agent',
+      agentId: 'reviewer',
+    });
+    expect(
+      (await getPendingReviewForTask(tx, 'org', 'task'))
+        ?.agentReviewBlockedReason,
+    ).toBe('policy_unavailable');
+    expect(notifyTaskReviewRequested).not.toHaveBeenCalled();
+  });
+
+  it('reports a policy added after capture without silently handing the review to a person', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+      requireIndependentReviewer: true,
+    });
+    const { tx, writes } = fixture({
+      approvals: [approval({ kind: 'agent', agentId: 'reviewer' })],
+    });
+    expect(await getPendingReviewForTask(tx, 'org', 'task')).toMatchObject({
+      reviewer: { kind: 'agent', agentId: 'reviewer' },
+      agentReviewBlockedReason: 'human_policy',
+    });
+    expect(writes).toEqual([]);
+  });
+
+  it.each([
+    { agentTools: [], code: 'TASK_REVIEWER_INVALID' },
+    {
+      currentTask: { assigneeId: 'other' },
+      code: 'TASK_REVIEW_SOURCE_CHANGED',
+    },
+  ])(
+    'refuses an invalid explicit handoff with no history writes: $code',
+    async ({ code, ...options }) => {
+      const { tx, writes } = fixture({ ...options, approvals: [approval()] });
+      await expect(
+        replacePendingTaskReviewer(tx, {
+          task: task({ reviewerAgentId: 'reviewer' }),
+          expected,
+          actorUserId: 'editor',
+        }),
+      ).rejects.toMatchObject({ code });
+      expect(writes).toEqual([]);
+    },
+  );
+
+  it('refuses explicit agent transfer under human policy instead of rerouting it', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({
+      requiredCompetences: ['review'],
+    });
+    const { tx, writes } = fixture({ approvals: [approval()] });
+    await expect(
+      replacePendingTaskReviewer(tx, {
+        task: task({ reviewerAgentId: 'reviewer' }),
+        expected,
+        actorUserId: 'editor',
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_HUMAN_REQUIRED' });
+    expect(writes).toEqual([]);
   });
 
   it('supersedes a human review, retains exact source history, and replays settle to its successor', async () => {

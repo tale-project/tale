@@ -54,6 +54,7 @@ import {
 } from '../legal_holds/service.ts';
 import { scheduleAgentWorkspaceRetirement } from '../sandbox/retirement-schedule.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
+import { agentReviewerEligibility } from '../tasks/reviews.ts';
 import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import {
   AGENT_TOOL_GRANT_NAMES,
@@ -955,21 +956,22 @@ export async function setProjectTaskReviewer(
     );
   }
   const agentId = args.reviewer.kind === 'agent' ? args.reviewer.agentId : null;
-  if (agentId === expectedId)
-    return { reviewer: projectTaskReviewerFromId(agentId) };
   if (agentId !== null) {
-    const agents = await tx<{ id: string }[]>`
-      SELECT id FROM app.project_agents
-      WHERE id = ${agentId} AND org_id = ${auth.organizationId}
-        AND project_id = ${projectId}
-    `;
-    if (agents.length === 0) {
+    if (
+      (await agentReviewerEligibility(tx, {
+        organizationId: auth.organizationId,
+        projectId,
+        agentId,
+      })) !== 'eligible'
+    ) {
       throw new ProjectError(
         'PROJECT_REVIEWER_INVALID',
-        'Choose an agent belonging to this project',
+        'Choose an agent in this project with permission to review tasks',
       );
     }
   }
+  if (agentId === expectedId)
+    return { reviewer: projectTaskReviewerFromId(agentId) };
   await tx`
     UPDATE app.projects SET default_task_reviewer_agent_id = ${agentId},
       updated_at_ms = ${Date.now()}

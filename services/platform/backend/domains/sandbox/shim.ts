@@ -12,6 +12,10 @@ import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
+import {
+  authorizeAgentReviewFile,
+  stageAgentReviewFile,
+} from '../tasks/agent-review-files.ts';
 import { reviewAgentTask } from '../tasks/agent-review.ts';
 import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
@@ -609,6 +613,36 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             patch: args.patch,
           });
         }),
+      );
+    },
+
+    'tasks/internal_actions:stageAgentReviewFile': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the complete operation is validated by the domain
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        request: unknown;
+      };
+      return coded(() =>
+        stageAgentReviewFile(args.sessionId, args.request, (request) =>
+          transactSerializable(sql, async (tx) => {
+            const authority = await requireProjectTaskRun(
+              tx,
+              args,
+              'TASK_REVIEW_FORBIDDEN',
+            );
+            return authorizeAgentReviewFile(
+              tx,
+              {
+                organizationId: args.organizationId,
+                sessionId: args.sessionId,
+                ...authority,
+              },
+              request,
+            );
+          }),
+        ),
       );
     },
 

@@ -532,6 +532,12 @@ A project holds at most 50 agents. Names are unique within the project without r
 
 The tool rechecks the current grant, live issuer authority, recorded reviewer, implementation run, and local evidence revision. A stale result requires another read; changing the current assignee does not establish independence. Approval moves the task to `done`; `request_changes` moves it to `todo` with feedback and no execution, even if the feedback contains a mention. Human competence requirements and workflow approval gates remain outside this tool. There is no public REST endpoint for an agent verdict.
 
+Contract 3.12.0 also extends the native task tools. `task_find` accepts `reviewerAgentId` and returns `pendingReview: null` or `{approvalId, runId, reviewer}` per task. The filter matches the captured pending agent reviewer and is part of the signed cursor’s query identity; keep it unchanged when paging. It does not filter by the implementation assignee.
+
+For a captured agent review with a usable source, `task_get.reviewFiles` returns `{expected, files, page, maxStageBytes}`. It lists up to 50 attachments and outputs; pass `page.continueCursor` back as `reviewFileCursor` while `page.isDone` is false. The cursor is bound to the task, reviewer, approval, source run and evidence revision. Entries carry their stored metadata and `unavailableReason`, or an explicit invalid-metadata reason when no safe file identity exists. An absent stored `runId` is not inferred.
+
+The same `task_review` grant accepts `{operation: "stage_file", taskId, expected: {approvalId, runId, evidenceRevision}, fileId}` to stage one listed, available file of at most 20 MiB. It accepts no caller path, storage reference or URL. The response names the server-selected local `path` and `bytes`; the agent must read that file before attesting to its contents. Current task membership, captured review, live issuer, grant and policy are checked before transfer and again before success. Protected document bindings keep their document access rules; unsupported or unavailable files are refused. A concurrent revocation or handoff can leave previously authorized bytes in the workspace while refusing success and any stale verdict. This is a native tool operation, not a new public REST file or verdict endpoint.
+
 Only organization Owners and Admins may change secret grants, so an editor's full save must preserve existing grants.
 
 Project readers can read the roster; writes require project edit access and an active project. An invisible or missing project, or an agent ID from another project, returns **404**. A multi-organization key must include `X-Organization-Slug` on reads and writes. [Project agents](/platform/projects/project-agents) explains how these agents work on tasks; direct chat keeps using the built-in assistant.
@@ -683,6 +689,8 @@ A project run needs write access to an active project; an organization run needs
 
 `GET /api/v1/projects/{id}/tasks/{taskId}/review` answers the task's status and its pending `TaskReview`, or `review: null`. Since contract 3.11.0, `reviewer` is `{kind: "user", userId}`, `{kind: "agent", agentId}`, or `null`; `implementationAgentId` identifies the actual source agent and `evidenceRevision` identifies the current local review evidence, both nullable. `requestedFor` remains the human compatibility field and is `null` for an agent; `agentSlug` is display text, never source identity. A `POST` on this path relays a human decision and requires `actor`:
 
+Contract 3.12.0 adds `agentReviewBlockedReason`: `null`, `reviewer_unavailable`, `permission_missing`, `source_required`, `source_changed`, `self_review`, `human_policy`, or `policy_unavailable`. The same diagnosis appears in native `task_get.pendingReview`. It is derived from current authority and source, never a new review state or an automatic transfer. Source-less submissions and new reviews under a human independence or competence policy use the human chain; already captured agent reviews require explicit handoff.
+
 ```bash
 curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>/review" \
   -H "Authorization: Bearer $TALE_API_KEY" \
@@ -693,6 +701,8 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 ```
 
 `approve` is the board’s move to Done: the member’s own right to change the task (an Editor or higher, or the member who created it or is its person assignee) and the organization’s `review_policy` apply exactly as there (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them), the review is recorded as approved by the member, and the task becomes `done`; a task with open subtasks returns **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` needs `comment` and `workflowSlug`: it withdraws the review, puts the comment on the timeline and starts the workflow again on the task, which reads the comment as feedback; the answer carries the `runId` to poll, with `started: false` when a live run was reused. A task that is not in review returns **409** `TASK_NOT_IN_REVIEW`. Every decision is audited as `task.review_relayed`, naming the member and the key that relayed for them.
+
+Human `approve` also reads the current policy strictly. Invalid or unreadable `review_policy` configuration returns **409** `TASK_REVIEW_POLICY_UNAVAILABLE`, even after an explicit agent-to-person transfer; no approval or completion is recorded. Restore valid configuration and read the review again. A genuinely absent optional policy remains supported. This refusal does not add a policy-approval gate to `request_changes` or withdrawal.
 
 Approving a review assigned to an agent returns **409**, `TASK_AGENT_REVIEW_REQUIRED`. An Editor must explicitly [transfer the pending review](/platform/projects/tasks#transfer-review) to an eligible person before this human approval endpoint can accept it. Do not impersonate the agent in `actor` or treat a missing human `requestedFor` as an unowned review.
 
@@ -1152,7 +1162,7 @@ Task creation is idempotent per `(projectId, externalSystem, externalId)`: the f
 
 For `externalSystem: "github"` or `"glitchtip"`, `externalState` never changes the Tale task's status. New tasks enter `backlog`; closing, resolving or reopening the upstream issue leaves local progress unchanged. The issue import automations display source status separately on the task.
 
-For other source systems, `externalState` mirrors the source item's lifecycle: `closed` parks the task at `in_review` for a person to complete (only the workflow engine itself lands a close at `done`), and `open` reopens a task the mirror closed — one it parked at `in_review`, or a `done` one — back to `backlog`; a park a person or an agent made is theirs, `open` leaves it, and any move through the board ends the mirror's claim on a park it made. A cancelled task stays cancelled either way.
+For other source systems, `externalState` mirrors the source item's lifecycle: `closed` parks the task at `in_review` for a person to complete (only the workflow engine itself lands a close at `done`), and `open` reopens a task the mirror closed — one it parked at `in_review`, or a `done` one — back to `backlog`; a park a person or an agent made is theirs, `open` leaves it, and any move through the board ends the mirror's claim on a park it made. A cancelled task stays cancelled either way. A pending review owned by an agent keeps its status and reviewer. A custom-source sync records an upstream close or reopen separately, without approving or withdrawing that review.
 
 ```bash
 curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<projectId>/tasks" \

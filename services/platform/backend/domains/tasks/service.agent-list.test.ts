@@ -66,6 +66,27 @@ const lastStatement = (statements: { text: string; values: unknown[] }[]) => {
 };
 
 describe('listTasksForAgent — the task_find page', () => {
+  it('filters the newest captured workflow-free agent review, not the configured reviewer', async () => {
+    const { sql, statements } = recordingSql();
+    await listTasksForAgent(sql, {
+      organizationId: 'org-1',
+      projectId: 'p-1',
+      reviewerAgentId: 'reviewer-1',
+    });
+    const { text, values } = lastStatement(statements);
+    expect(text).toContain('a.resource_id = t.id');
+    expect(text).toContain('a.org_id = t.org_id');
+    expect(text).toContain("a.resource_type = 'task_review'");
+    expect(text).toContain("a.status = 'pending'");
+    expect(text).toContain('a.wf_execution_id IS NULL');
+    expect(text).toContain('ORDER BY a.seq DESC LIMIT 1');
+    expect(text).toContain("SELECT a.metadata -> 'reviewer'");
+    expect(text).toContain(
+      "jsonb_build_object('kind', 'agent', 'agentId', ?::text)",
+    );
+    expect(values).toContain('reviewer-1');
+  });
+
   it('reads the board order, ending on the task id, with no position on page one', async () => {
     const { sql, statements } = recordingSql();
     await listTasksForAgent(sql, {

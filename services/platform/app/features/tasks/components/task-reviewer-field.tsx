@@ -1,12 +1,16 @@
 'use client';
 
-import { taskReviewerFromIds } from '@tale/shared/schemas/task-review';
+import {
+  taskReviewerFromIds,
+  type SetTaskReviewerInput,
+} from '@tale/shared/schemas/task-review';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
+import { useRef } from 'react';
 
 import { useProjectAgents } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
@@ -17,7 +21,10 @@ import { useT } from '@/lib/i18n/client';
 import { useSetTaskReviewer } from '../hooks/mutations';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
-import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
+import {
+  reviewerBlockedMessage,
+  reviewerRefusalMessage,
+} from '../lib/reviewer-refusal';
 import { ReviewerPicker } from './reviewer-picker';
 
 /** The task-specific read keeps the pending review identity and its configured
@@ -45,6 +52,10 @@ export function TaskReviewerField({
     taskId: task._id,
   });
   const mutation = useSetTaskReviewer();
+  const selection = useRef<{
+    taskId: string;
+    expected: SetTaskReviewerInput['expected'];
+  } | null>(null);
   const { resolveActor } = useActorDirectory(
     task.organizationId,
     task.projectId,
@@ -74,6 +85,10 @@ export function TaskReviewerField({
   const unavailable = agentId !== undefined && !agentsLoading && !agent;
   const missingPermission =
     agent !== undefined && !agent.tools?.includes('task_review');
+  const blockedMessage = reviewerBlockedMessage(
+    pending?.agentReviewBlockedReason ?? null,
+    t,
+  );
 
   return (
     <Stack gap={2}>
@@ -99,22 +114,30 @@ export function TaskReviewerField({
                   !state || !canEdit || mutation.isPending || query.isError
                 }
                 align="end"
+                onOpenChange={(open) => {
+                  if (!open || !state) return;
+                  selection.current = {
+                    taskId: task._id,
+                    expected: {
+                      reviewer: state.reviewer,
+                      pendingReview: pending
+                        ? {
+                            approvalId: pending.approvalId,
+                            runId: pending.runId,
+                            reviewer: pending.reviewer,
+                          }
+                        : null,
+                    },
+                  };
+                }}
                 onChange={(reviewer) => {
-                  if (!state) return;
+                  const observed = selection.current;
+                  if (!state || observed?.taskId !== task._id) return;
                   void mutation
                     .mutateAsync({
                       taskId: task._id,
                       reviewer,
-                      expected: {
-                        reviewer: state.reviewer,
-                        pendingReview: pending
-                          ? {
-                              approvalId: pending.approvalId,
-                              runId: pending.runId,
-                              reviewer: pending.reviewer,
-                            }
-                          : null,
-                      },
+                      expected: observed.expected,
                     })
                     .catch((error: unknown) => {
                       const refusal = reviewerRefusalMessage(error, t);
@@ -141,10 +164,15 @@ export function TaskReviewerField({
       {pending && canEdit && (
         <Text variant="caption">{t('reviewer.transferHint')}</Text>
       )}
-      {unavailable && (
+      {blockedMessage && (
+        <Text variant="caption" role="status">
+          {blockedMessage}
+        </Text>
+      )}
+      {!pending && unavailable && (
         <Text variant="caption">{t('reviewer.agentUnavailable')}</Text>
       )}
-      {missingPermission && (
+      {!pending && missingPermission && (
         <Text variant="caption">{t('reviewer.agentPermissionRequired')}</Text>
       )}
       {query.isError && (

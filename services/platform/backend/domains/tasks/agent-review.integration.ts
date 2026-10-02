@@ -15,6 +15,7 @@ import { AGENT_TOOL_CATALOG } from '../../core/sandbox/tool_names.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
+import { checkAgentReviewFiles } from './agent-review-files.integration.ts';
 import { reviewAgentTask } from './agent-review.ts';
 import { addTaskComment } from './comments.ts';
 import {
@@ -29,6 +30,7 @@ import {
   agentUpdateTaskStatusTrusted,
   loadTaskOrThrow,
   setTaskReviewer,
+  updateTaskStatus,
 } from './service.ts';
 
 type Body = Record<string, unknown>;
@@ -248,6 +250,16 @@ export async function checkAgentTaskReviews(
         (SELECT count(*)::int FROM pgboss.job WHERE name IN ('task.agent_turn', 'task.agent_retry') AND data ->> 'runId' IN (SELECT id FROM app.project_agent_runs WHERE task_id = ${taskId})) AS jobs
     `;
     return rows[0];
+  };
+  const governanceEffects = async (taskId: string) => {
+    const rows = await sql<
+      { audit: number; notifications: number; realtime: number }[]
+    >`
+      SELECT (SELECT count(*)::int FROM app.audit_logs WHERE org_id = ${orgId} AND resource_id = ${taskId}) AS audit,
+        (SELECT count(*)::int FROM app.user_notifications WHERE org_id = ${orgId} AND task_id = ${taskId}) AS notifications,
+        (SELECT count(*)::int FROM app_realtime.outbox WHERE org_id = ${orgId} AND entity = 'task' AND entity_id = ${taskId}) AS realtime
+    `;
+    return { ...rows[0], ...(await counts(taskId)) };
   };
   try {
     await fx.insertUser(editor, 'editor');
@@ -620,6 +632,86 @@ export async function checkAgentTaskReviews(
       refused(blockedResult, 'TASK_REVIEW_BLOCKED'),
       String(blockedResult.message),
     );
+    for (const starterMatches of [true, false]) {
+      for (const decision of ['approve', 'request_changes'] as const) {
+        const independent = await submitted(
+          `Independent person policy: ${starterMatches ? 'same' : 'different'} starter ${decision}`,
+        );
+        if (!starterMatches)
+          await sql`UPDATE app.project_agent_runs SET started_by = ${ctx.userId} WHERE id = ${independent.runId}`;
+        const independentInput = {
+          ...(await inputFor(independent.taskId)),
+          decision,
+        };
+        const before = await governanceEffects(independent.taskId);
+        await setPolicy('requireIndependentReviewer: true\n');
+        const response = await dispatch(token, independentInput);
+        const current = await getPendingReviewForTask(
+          sql,
+          orgId,
+          independent.taskId,
+        );
+        record(
+          `agent review: independent-human policy refuses ${decision} with ${starterMatches ? 'the same' : 'a different'} starter without effects`,
+          refused(response, 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED') &&
+            (await state(independent.taskId)).status === 'in_review' &&
+            current?.approvalId === independentInput.expected.approvalId &&
+            current.reviewer?.kind === 'agent' &&
+            current.reviewer.agentId === reviewer &&
+            isDeepStrictEqual(
+              await governanceEffects(independent.taskId),
+              before,
+            ),
+          String(response.message),
+        );
+        await setPolicy('{}\n');
+      }
+    }
+    const humanRecovery = await submitted('Independent person handoff');
+    const recoveryInput = await inputFor(humanRecovery.taskId);
+    const recoveryPending = await getPendingReviewForTask(
+      sql,
+      orgId,
+      humanRecovery.taskId,
+    );
+    if (recoveryPending === null)
+      throw new Error('Governance recovery lost its captured review');
+    await setPolicy('requireIndependentReviewer: true\n');
+    await transactSerializable(sql, (tx) =>
+      setTaskReviewer(tx, auth, humanRecovery.taskId, {
+        reviewer: { kind: 'user', userId: ctx.userId },
+        expected: {
+          reviewer: { kind: 'agent', agentId: reviewer },
+          pendingReview: {
+            approvalId: recoveryPending.approvalId,
+            runId: recoveryPending.runId,
+            reviewer: recoveryPending.reviewer,
+          },
+        },
+      }),
+    );
+    const starterAuth = await getProjectAuthContext(sql, {
+      organizationId: orgId,
+      userId: editor,
+      role: 'editor',
+    });
+    const starterDone = await refusal(() =>
+      transactSerializable(sql, (tx) =>
+        updateTaskStatus(tx, starterAuth, humanRecovery.taskId, 'done'),
+      ),
+    );
+    const staleAgent = await dispatch(token, recoveryInput);
+    await transactSerializable(sql, (tx) =>
+      updateTaskStatus(tx, auth, humanRecovery.taskId, 'done'),
+    );
+    record(
+      'agent review: explicit human handoff preserves the independent-person gate and refuses the stale agent',
+      starterDone === 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED' &&
+        refused(staleAgent, 'TASK_REVIEW_STALE') &&
+        (await state(humanRecovery.taskId)).status === 'done',
+      `starter=${starterDone}; staleAgent=${String(staleAgent.message)}`,
+    );
+    await setPolicy('{}\n');
     const governed = await submitted('Governed sign-off');
     const governedInput = await inputFor(governed.taskId);
     await setPolicy('requiredCompetences: [release]\n');
@@ -631,12 +723,19 @@ export async function checkAgentTaskReviews(
       String(governedResult.message),
     );
     await setPolicy('requiredCompetences: [\n');
-    const malformedPolicy = await dispatch(token, governedInput);
-    record(
-      'agent review: unreadable policy refuses without a decision',
-      refused(malformedPolicy, 'TASK_REVIEW_POLICY_UNAVAILABLE'),
-      String(malformedPolicy.message),
-    );
+    for (const decision of ['approve', 'request_changes'] as const) {
+      const before = await governanceEffects(governed.taskId);
+      const malformedPolicy = await dispatch(token, {
+        ...governedInput,
+        decision,
+      });
+      record(
+        `agent review: unreadable policy refuses ${decision} without effects`,
+        refused(malformedPolicy, 'TASK_REVIEW_POLICY_UNAVAILABLE') &&
+          isDeepStrictEqual(await governanceEffects(governed.taskId), before),
+        String(malformedPolicy.message),
+      );
+    }
     await setPolicy('{}\n');
     const rolledBack = await submitted('Rollback after verdict');
     const rollbackInput = await inputFor(rolledBack.taskId);
@@ -714,6 +813,41 @@ export async function checkAgentTaskReviews(
         `loser=${results[1]} status=${final.status}`,
       );
     }
+    await checkAgentReviewFiles({
+      sql,
+      base,
+      orgId,
+      orgSlug,
+      reviewerId: reviewer,
+      sessionId: issuer.sessionId,
+      token,
+      record,
+      submit: submitted,
+      inputFor,
+      dispatch,
+      snapshot: async (taskId) => ({
+        task: await state(taskId),
+        effects: await governanceEffects(taskId),
+        pending: await getPendingReviewForTask(sql, orgId, taskId),
+      }),
+      transferToHuman: async (taskId) => {
+        const captured = await getPendingReviewForTask(sql, orgId, taskId);
+        if (captured === null) throw new Error('File fixture lost its review');
+        return transactSerializable(sql, (tx) =>
+          setTaskReviewer(tx, auth, taskId, {
+            reviewer: { kind: 'user', userId: ctx.userId },
+            expected: {
+              reviewer: { kind: 'agent', agentId: reviewer },
+              pendingReview: {
+                approvalId: captured.approvalId,
+                runId: captured.runId,
+                reviewer: captured.reviewer,
+              },
+            },
+          }),
+        );
+      },
+    });
     await sql`UPDATE app.project_agent_runs SET status = 'cancelled', settled_at_ms = ${Date.now()} WHERE id = ${issuer.id}`;
     const ended = await dispatch(token, untouchedInput);
     record(

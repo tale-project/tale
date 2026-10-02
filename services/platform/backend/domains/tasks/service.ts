@@ -88,6 +88,7 @@ import {
 } from './repeat.ts';
 import { releaseUnlistedTaskBlobRefs, retireTasksInTx } from './retire.ts';
 import {
+  agentReviewerEligibility,
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
   getPendingReviewForTask,
@@ -1568,6 +1569,15 @@ async function updateTaskFields(
   await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
 
+  // Working one's own task does not confer project review administration.
+  // An unchanged field sent with an ordinary edit remains a no-op.
+  if (
+    args.reviewerUserId !== undefined &&
+    args.reviewerUserId !== task.reviewerUserId
+  ) {
+    assertTaskLabelsEditable(project, auth);
+  }
+
   const previousState: Record<string, unknown> = {};
   const newState: Record<string, unknown> = {};
 
@@ -1997,20 +2007,30 @@ export async function setTaskReviewer(
       );
     }
   }
-  if (reviewerAgentId !== null && reviewerAgentId !== task.reviewerAgentId) {
-    const agents = await tx<{ id: string }[]>`
-      SELECT id FROM app.project_agents WHERE id = ${reviewerAgentId}
-        AND org_id = ${auth.organizationId} AND project_id = ${task.projectId}
-    `;
-    if (agents.length === 0)
+  const effectiveAgentId =
+    reviewerAgentId ??
+    (reviewerUserId === null ? project.defaultTaskReviewerAgentId : null);
+  if (effectiveAgentId != null) {
+    if (
+      (await agentReviewerEligibility(tx, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        agentId: effectiveAgentId,
+      })) !== 'eligible'
+    )
       throw new TaskError(
         'TASK_REVIEWER_INVALID',
-        'Choose an agent belonging to this project',
+        'Choose an agent in this project with permission to review tasks',
       );
+    if (task.assigneeType === 'agent' && task.assigneeId === effectiveAgentId) {
+      throw new TaskError(
+        'TASK_REVIEWER_NOT_INDEPENDENT',
+        'Choose an agent other than the implementation agent',
+        409,
+      );
+    }
   }
-  const resolvesToAgent =
-    reviewerAgentId !== null ||
-    (reviewerUserId === null && project.defaultTaskReviewerAgentId != null);
+  const resolvesToAgent = effectiveAgentId != null;
   if (
     resolvesToAgent &&
     args.expected.pendingReview !== null &&
@@ -3485,6 +3505,7 @@ export async function listTasksForAgent(
     projectIds?: string[];
     status?: TaskStatus;
     assigneeId?: string;
+    reviewerAgentId?: string;
     includeArchived?: boolean;
     order?: AgentTaskListOrder;
     after?: AgentTaskListPosition;
@@ -3513,6 +3534,17 @@ export async function listTasksForAgent(
     WHERE org_id = ${args.organizationId}
       AND (${scoped === null} OR project_id = ANY(${scoped ?? []}))
       AND ${boardFilterClause(sql, filters)}
+      AND ${
+        args.reviewerAgentId === undefined
+          ? sql`TRUE`
+          : sql`(
+              SELECT a.metadata -> 'reviewer' FROM app.approvals a
+              WHERE a.resource_id = t.id AND a.org_id = t.org_id
+                AND a.resource_type = 'task_review' AND a.status = 'pending'
+                AND a.wf_execution_id IS NULL
+              ORDER BY a.seq DESC LIMIT 1
+            ) = jsonb_build_object('kind', 'agent', 'agentId', ${args.reviewerAgentId}::text)`
+      }
       AND ${
         after === undefined
           ? sql`TRUE`

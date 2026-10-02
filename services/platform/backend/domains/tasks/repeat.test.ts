@@ -13,7 +13,7 @@ import {
   REPEAT_OPEN_COPIES_MAX,
   repeatCopyDueAt,
 } from './repeat.ts';
-import { reviewerEligibility } from './reviews.ts';
+import { agentReviewerEligibility, reviewerEligibility } from './reviews.ts';
 import {
   agentUpdateTaskStatusTrusted,
   assignTask,
@@ -38,6 +38,7 @@ vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember: vi.fn(),
 }));
 vi.mock('./reviews.ts', () => ({
+  agentReviewerEligibility: vi.fn(),
   reviewerEligibility: vi.fn(),
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
@@ -271,7 +272,7 @@ function namedInsert(insert: Statement): Record<string, unknown> {
     assigneeType: v[7],
     assigneeId: v[8],
     reviewerUserId: v[9],
-    reviewerAgentId: null,
+    reviewerAgentId: v[23],
     parentTaskId: v[10],
     startDate: v[11],
     dueDate: v[12],
@@ -791,6 +792,28 @@ describe('the people and the parent carry over while they still hold', () => {
     await updateTaskStatus(tx, auth, 't-1', 'done');
     expect(copyInsert(statements)?.reviewerUserId).toBe('u-rev');
   });
+
+  it.each(['reviewer_unavailable', 'permission_missing'] as const)(
+    'retains explicit agent review intent for repair after %s',
+    async (eligibility) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.mocked(agentReviewerEligibility).mockResolvedValue(eligibility);
+      const { tx, statements } = fakeTx(
+        taskRow({ reviewerAgentId: 'reviewer-lost' }),
+      );
+      await updateTaskStatus(tx, auth, 't-1', 'done');
+      expect(copyInsert(statements)).toMatchObject({
+        reviewerUserId: null,
+        reviewerAgentId: 'reviewer-lost',
+      });
+      expect(agentReviewerEligibility).toHaveBeenCalledWith(tx, {
+        organizationId: 'org-1',
+        projectId: 'p-1',
+        agentId: 'reviewer-lost',
+      });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(eligibility));
+    },
+  );
 
   /** The series author's own watch on the task, as the watcher read
    * answers it. */

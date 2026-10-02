@@ -85,12 +85,86 @@ beforeEach(() => {
       agentSlug: 'Worker display label',
       implementationAgentId: 'worker',
       evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason: null,
       createdAt: 1,
     },
   };
 });
 
 describe('TaskReviewerField', () => {
+  it('keeps the identity observed when the picker opened across a newer review arriving', async () => {
+    const { user, rerender } = render(
+      <TaskReviewerField task={task} canEdit />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Reviewer' }));
+    if (!mocks.data?.pendingReview) throw new Error('Missing review fixture');
+    mocks.data = {
+      ...mocks.data,
+      pendingReview: {
+        ...mocks.data.pendingReview,
+        approvalId: 'newer-approval',
+        runId: 'newer-run',
+      },
+    };
+    rerender(<TaskReviewerField task={task} canEdit />);
+    await user.click(screen.getByRole('option', { name: /^Review agent/ }));
+    await waitFor(() =>
+      expect(mocks.mutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expected: {
+            reviewer: { kind: 'inherit' },
+            pendingReview: {
+              approvalId: 'approval-1',
+              runId: 'run-1',
+              reviewer: { kind: 'user', userId: 'alice' },
+            },
+          },
+        }),
+      ),
+    );
+  });
+  it.each([
+    ['self_review', 'Choose an agent that did not produce this result.'],
+    [
+      'human_policy',
+      'Organization policy requires a person for this review. Transfer it to an eligible member.',
+    ],
+    [
+      'policy_unavailable',
+      'Review policy could not be read. Restore valid organization policy before deciding.',
+    ],
+  ] as const)(
+    'explains the captured %s block without granting permission or retrying',
+    (reason, message) => {
+      if (!mocks.data?.pendingReview) throw new Error('Missing review fixture');
+      mocks.data.pendingReview.reviewer = {
+        kind: 'agent',
+        agentId: 'reviewer',
+      };
+      mocks.data.pendingReview.agentReviewBlockedReason = reason;
+      render(<TaskReviewerField task={task} canEdit />);
+      expect(screen.getByRole('status')).toHaveTextContent(message);
+      expect(
+        screen.getByText('Current review: Review agent'),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          'This agent needs the task review permission before it can decide.',
+        ),
+      ).not.toBeInTheDocument();
+      expect(mocks.mutate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not describe a future agent permission as a block on the captured human review', () => {
+    render(<TaskReviewerField task={task} canEdit />);
+    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        'This agent needs the task review permission before it can decide.',
+      ),
+    ).not.toBeInTheDocument();
+  });
   it('keeps the current review distinct from the project default and transfers its exact identity', async () => {
     const { user } = render(<TaskReviewerField task={task} canEdit />);
     expect(screen.getByText('Current review: Alice')).toBeInTheDocument();

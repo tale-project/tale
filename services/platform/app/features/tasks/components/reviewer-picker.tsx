@@ -30,6 +30,7 @@ export function ReviewerPicker({
   projectReviewer,
   implementationAgentId,
   onChange,
+  onOpenChange,
   disabled = false,
   align = 'start',
 }: {
@@ -39,6 +40,7 @@ export function ReviewerPicker({
   projectReviewer: ProjectTaskReviewer;
   implementationAgentId?: string;
   onChange: (reviewer: TaskReviewer) => void;
+  onOpenChange?: (open: boolean) => void;
   disabled?: boolean;
   align?: 'start' | 'center' | 'end';
 }) {
@@ -183,7 +185,10 @@ export function ReviewerPicker({
         }}
         options={options}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          onOpenChange?.(next);
+          setOpen(next);
+        }}
         align={align}
         modal
         trigger={

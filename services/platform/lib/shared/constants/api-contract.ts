@@ -325,5 +325,10 @@
  * compatibility field. A relayed human approval of an agent-owned review
  * answers 409 `TASK_AGENT_REVIEW_REQUIRED` until an eligible person takes
  * it through an explicit handoff. No public agent-verdict endpoint is added.
+ *
+ * 3.12.0 — 2026-10-02: TaskReview reads add nullable
+ * `agentReviewBlockedReason`, a current diagnosis for a captured agent review.
+ * Source-less submissions and new human-policy reviews use the existing human
+ * chain; existing captured ownership changes only through explicit handoff.
  */
-export const API_CONTRACT_VERSION = '3.11.0';
+export const API_CONTRACT_VERSION = '3.12.0';

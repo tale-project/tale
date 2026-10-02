@@ -4393,7 +4393,7 @@ export function buildSpec(): Json {
           'The project is missing or invisible (`PROJECT_NOT_FOUND`), the task is missing or outside this project (`TASK_NOT_FOUND`), no member carries the actor’s e-mail (`ACTOR_NOT_FOUND`), or `workflowSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',
         ),
         '409': errorResponse(
-          'The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)',
+          'The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); approval cannot read a valid current review policy (`TASK_REVIEW_POLICY_UNAVAILABLE`, including after a human handoff); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)',
         ),
         ...standardErrors,
         '400': withDoorRefusal(
@@ -8813,6 +8813,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'runId',
             'implementationAgentId',
             'evidenceRevision',
+            'agentReviewBlockedReason',
             'createdAt',
           ],
           description:
@@ -8878,6 +8879,22 @@ curl -H "Authorization: Bearer <api-key>" \\
               pattern: '^[a-f0-9]{64}$',
               description:
                 'Opaque compare-and-set digest of local task, source result and discussion evidence. Null without a settled native source. It does not verify external pull-request heads or checks.',
+            },
+            agentReviewBlockedReason: {
+              type: 'string',
+              nullable: true,
+              enum: [
+                'reviewer_unavailable',
+                'permission_missing',
+                'source_required',
+                'source_changed',
+                'self_review',
+                'human_policy',
+                'policy_unavailable',
+                null,
+              ],
+              description:
+                'Current reason a captured agent cannot decide; null for a human review or an eligible agent. Derived from current project scope, permission, policy and source; it never changes review ownership. Restore the indicated condition or explicitly transfer to an eligible reviewer.',
             },
             createdAt: epochMs,
           },

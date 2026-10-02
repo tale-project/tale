@@ -1335,6 +1335,7 @@ describe('native review ownership in the public read contract', () => {
     runId: 'source-run',
     implementationAgentId: 'implementation-a',
     evidenceRevision: 'a'.repeat(64),
+    agentReviewBlockedReason: null,
     createdAt: 1_700_000_000_000,
   };
   const answer = (pending: Json | null) => ({
@@ -1377,6 +1378,26 @@ describe('native review ownership in the public read contract', () => {
     ).toBe(false);
     expect(
       validate(answer({ ...review, implementationAgentId: undefined })),
+    ).toBe(false);
+  });
+  it('accepts known recovery reasons and refuses unknown diagnoses', () => {
+    for (const reason of [
+      'reviewer_unavailable',
+      'permission_missing',
+      'source_required',
+      'source_changed',
+      'self_review',
+      'human_policy',
+      'policy_unavailable',
+    ]) {
+      expect(
+        validate(answer({ ...review, agentReviewBlockedReason: reason })),
+      ).toBe(true);
+    }
+    expect(
+      validate(
+        answer({ ...review, agentReviewBlockedReason: 'try_again_somehow' }),
+      ),
     ).toBe(false);
   });
 });

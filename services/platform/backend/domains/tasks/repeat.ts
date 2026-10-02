@@ -31,7 +31,7 @@ import {
 } from '../projects/service.ts';
 import { TaskError } from './errors.ts';
 import { retireTasksInTx } from './retire.ts';
-import { reviewerEligibility } from './reviews.ts';
+import { agentReviewerEligibility, reviewerEligibility } from './reviews.ts';
 import {
   applyTaskCountTransition,
   type AssigneeRef,
@@ -608,6 +608,21 @@ async function insertTaskCopy(
   },
 ): Promise<{ id: string; number: number }> {
   const { source, now } = args;
+  // Unlike a lost human designation, an agent choice must not disappear into
+  // a different project default. Retain it for explicit repair; the reviewer
+  // field and the next native review read its current eligibility again.
+  if (source.reviewerAgentId != null) {
+    const eligibility = await agentReviewerEligibility(tx, {
+      organizationId: source.organizationId,
+      projectId: source.projectId,
+      agentId: source.reviewerAgentId,
+    });
+    if (eligibility !== 'eligible') {
+      console.warn(
+        `[tasks] task ${source.id}: next repeating copy retains an agent reviewer requiring repair (${eligibility})`,
+      );
+    }
+  }
   const attachments = parseTaskAttachments(source.attachments);
   const rank = await computeEndRank(tx, source.projectId, 'todo');
   const number = await nextTaskNumber(tx, source.projectId);

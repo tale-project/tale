@@ -1,5 +1,6 @@
 import {
   taskReviewRecipientSchema,
+  type AgentReviewBlockedReason,
   type PendingReviewIdentity,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
@@ -10,6 +11,7 @@ import {
   findOrganizationMember,
 } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
+import { ConfigurationError } from '../../core/lib/config_store/precondition.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
@@ -20,7 +22,10 @@ import {
   notifyTaskReviewRequested,
 } from '../collab/service.ts';
 import { holdsAllCompetences } from '../governance/competence.ts';
-import { readTaskReviewSource } from './review-evidence.ts';
+import {
+  readTaskReviewSource,
+  type TaskReviewSource,
+} from './review-evidence.ts';
 import type { TaskRow } from './service.ts';
 
 /**
@@ -131,6 +136,99 @@ export async function reviewerEligibility(
     member.role,
   );
   return access.canEdit ? 'eligible' : 'cannot_edit';
+}
+
+/** Agent review is an explicit project-scoped grant, not an agent role. */
+export async function agentReviewerEligibility(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; projectId: string; agentId: string },
+): Promise<'eligible' | 'reviewer_unavailable' | 'permission_missing'> {
+  const agents = await sql<{ tools: string[] }[]>`
+    SELECT tools FROM app.project_agents
+    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
+      AND project_id = ${args.projectId}
+  `;
+  const agent = agents[0];
+  if (agent === undefined) return 'reviewer_unavailable';
+  return agent.tools.includes('task_review')
+    ? 'eligible'
+    : 'permission_missing';
+}
+
+/** Settlement must retain a recoverable review if policy cannot be read. */
+async function agentReviewPolicyBlock(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<'human_policy' | 'policy_unavailable' | null> {
+  try {
+    const policy = await readGovernancePolicyForOrg(
+      sql,
+      organizationId,
+      'review_policy',
+      { strict: true },
+    );
+    return policy?.requireIndependentReviewer === true ||
+      (policy?.requiredCompetences?.length ?? 0) > 0
+      ? 'human_policy'
+      : null;
+  } catch (error) {
+    if (error instanceof ConfigurationError) return 'policy_unavailable';
+    throw error;
+  }
+}
+
+/** Derived from the same live authority and exact source that a verdict needs.
+ * It never changes captured ownership or grants permission to another actor. */
+async function agentReviewBlockedReason(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    taskId: string;
+    reviewerAgentId: string;
+    source: TaskReviewSource | null;
+  },
+): Promise<AgentReviewBlockedReason | null> {
+  const policyBlock = await agentReviewPolicyBlock(sql, args.organizationId);
+  if (policyBlock !== null) return policyBlock;
+  const tasks = await sql<
+    {
+      projectId: string;
+      assigneeType: string | null;
+      assigneeId: string | null;
+    }[]
+  >`
+    SELECT project_id AS "projectId", assignee_type AS "assigneeType", assignee_id AS "assigneeId"
+    FROM app.tasks WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
+  `;
+  const task = tasks[0];
+  if (task === undefined) return 'source_required';
+  const eligibility = await agentReviewerEligibility(sql, {
+    organizationId: args.organizationId,
+    projectId: task.projectId,
+    agentId: args.reviewerAgentId,
+  });
+  if (eligibility !== 'eligible') return eligibility;
+  const source = args.source;
+  if (
+    source === null ||
+    source.status !== 'settled' ||
+    source.settledAt === null
+  )
+    return 'source_required';
+  if (source.implementationAgentId === args.reviewerAgentId)
+    return 'self_review';
+  const latest = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs WHERE org_id = ${args.organizationId}
+      AND project_id = ${task.projectId} AND task_id = ${args.taskId}
+    ORDER BY seq DESC LIMIT 1
+  `;
+  if (
+    latest[0]?.id !== source.runId ||
+    task.assigneeType !== 'agent' ||
+    task.assigneeId !== source.implementationAgentId
+  )
+    return 'source_changed';
+  return null;
 }
 
 /**
@@ -269,11 +367,26 @@ async function mintTaskReview(
     trigger: TaskReviewTrigger;
     prior: ApprovalRow[];
     requestedByUserId?: string;
+    /** Explicit handoffs validate the captured source and do not reroute. */
+    reviewer?: TaskReviewRecipient | null;
   },
 ): Promise<{ approvalId: string; minted: boolean }> {
   const { task, trigger, prior } = args;
   const runKey = trigger.kind === 'agent_run' ? trigger.runId : undefined;
-  const reviewer = await resolveReviewer(tx, task);
+  let reviewer =
+    args.reviewer === undefined
+      ? await resolveReviewer(tx, task)
+      : args.reviewer;
+  if (
+    args.reviewer === undefined &&
+    reviewer?.kind === 'agent' &&
+    (trigger.kind !== 'agent_run' ||
+      (await agentReviewPolicyBlock(tx, task.organizationId)) ===
+        'human_policy')
+  ) {
+    const userId = await resolveHumanReviewer(tx, task);
+    reviewer = userId === undefined ? null : { kind: 'user', userId };
+  }
   const driverName = await resolveDriverDisplayName(tx, task);
   const metadata = {
     taskId: task.id,
@@ -446,7 +559,15 @@ async function checkReviewPolicyForResponder(
     tx,
     args.task.organizationId,
     'review_policy',
-  );
+    { strict: true },
+  ).catch((error: unknown) => {
+    if (!(error instanceof ConfigurationError)) throw error;
+    throw new TaskReviewError(
+      'TASK_REVIEW_POLICY_UNAVAILABLE',
+      'The review policy is unavailable; restore valid configuration before deciding',
+      409,
+    );
+  });
   let independentReviewer: boolean | undefined;
   if (policy?.requireIndependentReviewer === true) {
     const runKey = approvalRunId(args.approval);
@@ -653,7 +774,6 @@ export async function replacePendingTaskReviewer(
     );
   }
   const reviewer = await resolveReviewer(tx, args.task);
-  if (sameRecipient(taskReviewRecipientOf(current.metadata), reviewer)) return;
   const runId = approvalRunId(current);
   if (reviewer?.kind === 'agent') {
     const runs = await tx<{ id: string; agentId: string; status: string }[]>`
@@ -681,9 +801,36 @@ export async function replacePendingTaskReviewer(
         409,
       );
     }
+    const block = await agentReviewBlockedReason(tx, {
+      organizationId: args.task.organizationId,
+      taskId: args.task.id,
+      reviewerAgentId: reviewer.agentId,
+      source: await readTaskReviewSource(tx, {
+        organizationId: args.task.organizationId,
+        taskId: args.task.id,
+        runId: source.id,
+      }),
+    });
+    if (block !== null) {
+      throw new TaskReviewError(
+        block === 'policy_unavailable'
+          ? 'GOVERNANCE_POLICY_UNAVAILABLE'
+          : block === 'human_policy'
+            ? 'TASK_REVIEWER_HUMAN_REQUIRED'
+            : block === 'source_changed'
+              ? 'TASK_REVIEW_SOURCE_CHANGED'
+              : block === 'source_required'
+                ? 'TASK_REVIEW_SOURCE_REQUIRED'
+                : 'TASK_REVIEWER_INVALID',
+        'Agent review is blocked; restore its source and permission or hand the review to an eligible person',
+        409,
+      );
+    }
   }
+  if (sameRecipient(taskReviewRecipientOf(current.metadata), reviewer)) return;
   const minted = await mintTaskReview(tx, {
     task: args.task,
+    reviewer,
     prior,
     requestedByUserId: args.actorUserId,
     trigger:
@@ -722,6 +869,8 @@ export interface PendingTaskReview {
   implementationAgentId: string | null;
   /** Local task/source/discussion snapshot; external heads are not verified here. */
   evidenceRevision: string | null;
+  /** Live recovery guidance; null for a human review or an eligible agent. */
+  agentReviewBlockedReason: AgentReviewBlockedReason | null;
   runId: string | null;
   createdAt: number;
 }
@@ -769,6 +918,15 @@ export async function getPendingReviewForTask(
     evidenceRevision:
       source?.status === 'settled' && source.settledAt !== null
         ? source.evidenceRevision
+        : null,
+    agentReviewBlockedReason:
+      reviewer?.kind === 'agent'
+        ? await agentReviewBlockedReason(sql, {
+            organizationId,
+            taskId,
+            reviewerAgentId: reviewer.agentId,
+            source,
+          })
         : null,
     runId,
     createdAt: row.createdAt,

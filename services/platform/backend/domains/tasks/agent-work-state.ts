@@ -1,4 +1,7 @@
-import type { TaskReviewRecipient } from '@tale/shared/schemas/task-review';
+import type {
+  AgentReviewBlockedReason,
+  TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 import type { Sql } from 'postgres';
 
 import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
@@ -65,6 +68,7 @@ export interface TaskWorkState {
     reviewer: TaskReviewRecipient | null;
     implementationAgentId: string | null;
     evidenceRevision: string | null;
+    agentReviewBlockedReason: AgentReviewBlockedReason | null;
     createdAt: number;
   } | null;
 }
@@ -151,6 +155,7 @@ export async function readTaskWorkState(
             reviewer: review.reviewer,
             implementationAgentId: review.implementationAgentId,
             evidenceRevision: review.evidenceRevision,
+            agentReviewBlockedReason: review.agentReviewBlockedReason,
             createdAt: review.createdAt,
           },
   };

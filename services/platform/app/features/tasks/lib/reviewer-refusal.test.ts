@@ -2,11 +2,25 @@ import { describe, expect, it } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
 
-import { reviewerRefusalMessage } from './reviewer-refusal';
+import {
+  reviewerBlockedMessage,
+  reviewerRefusalMessage,
+} from './reviewer-refusal';
 
 const t = (key: string) => `tasks.${key}`;
 
 describe('reviewerRefusalMessage', () => {
+  it.each([
+    ['reviewer_unavailable', 'agentUnavailable'],
+    ['permission_missing', 'agentPermissionRequired'],
+    ['source_required', 'sourceRequired'],
+    ['source_changed', 'sourceChanged'],
+    ['self_review', 'notIndependent'],
+    ['human_policy', 'humanPolicy'],
+    ['policy_unavailable', 'policyUnavailable'],
+  ] as const)('explains the server diagnosis %s', (reason, key) => {
+    expect(reviewerBlockedMessage(reason, t)).toBe(`tasks.reviewer.${key}`);
+  });
   it('explains a designee who cannot edit the project with the picker hint', () => {
     expect(
       reviewerRefusalMessage(
