@@ -58,11 +58,10 @@ import {
   classifyScanError,
   isHollowSiteScan,
   isSiteLevelScanError,
-  scanEmptyMessageKey,
-  scanErrorMessageKey,
 } from '../lib/scan-error';
 import { isScanPaused } from '../lib/scan-paused';
 import { WebsiteEditDialog } from './website-edit-dialog';
+import { WebsiteScanFailureAlert } from './website-scan-failure-alert';
 
 const PAGE_SIZE = 20;
 
@@ -703,18 +702,12 @@ export function WebsiteViewDialog({
       restoreFocusRef={restoreFocusRef}
     >
       {hollowScan ? (
-        <Stack
-          gap={1}
-          className="bg-muted/50 rounded-lg p-3"
-          title={lastSyncError ?? undefined}
-        >
-          <Heading level={3} size="sm" weight="medium">
-            {t(scanErrorMessageKey(scanErrorKind, website.kind))}
-          </Heading>
-          <Text variant="muted">
-            {t(scanEmptyMessageKey(scanErrorKind, website.kind))}
-          </Text>
-        </Stack>
+        <WebsiteScanFailureAlert
+          kind={scanErrorKind}
+          reason={lastSyncError}
+          sourceKind={website.kind}
+          empty
+        />
       ) : (
         <EntityViewSection
           title={t('pagesDialog.title')}
@@ -740,18 +733,16 @@ export function WebsiteViewDialog({
         >
           {/* The pages' own failures explain a scan that stored nothing;
               they do not explain one the embedding model or the crawler's
-              browser stopped, which says so beside them. */}
+              browser stopped, which says so above them. */}
           {lastSyncError !== null &&
           !paused &&
           (isSiteLevelScanError(scanErrorKind) ||
             !pages.some((page) => pageFailureCaption(page, t) !== null)) ? (
-            <Text
-              variant="caption"
-              className="text-muted-foreground"
-              title={lastSyncError}
-            >
-              {t(scanErrorMessageKey(scanErrorKind, website.kind))}
-            </Text>
+            <WebsiteScanFailureAlert
+              kind={scanErrorKind}
+              reason={lastSyncError}
+              sourceKind={website.kind}
+            />
           ) : null}
           {indexedPageCount(website) > 0 ? (
             <SearchInput

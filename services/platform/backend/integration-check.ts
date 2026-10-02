@@ -56449,6 +56449,40 @@ function errorText(error: unknown): string {
 /** Does the suite's shared session still resolve to its user? Better Auth's
  * own door, outside every org-scoped gate, so a policy probe (2FA
  * enforcement, idle windows) cannot false-alarm it. */
+/** The longest a single lane may run — the slowest lanes take well under
+ * two minutes, and a lane that passes this is not slow but stuck. */
+const LANE_DEADLINE_MS = 10 * 60_000;
+/** The post-lane probes are one request and one query each. */
+const PROBE_DEADLINE_MS = 2 * 60_000;
+
+/**
+ * Settles `work`, or rejects naming `what` once `ms` have passed — so a
+ * lane (or a probe between lanes) that never settles truncates the run
+ * under its own name instead of holding the job until CI's wall clock
+ * kills it 30 minutes later, with nothing in the log to say which lane.
+ */
+async function withinDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  what: string,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new Error(
+          `${what} did not settle within ${Math.round(ms / 60_000)} min`,
+        ),
+      );
+    }, ms);
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sharedSessionAlive(
   base: string,
   ctx: { cookie: string; userId: string },
@@ -56577,9 +56611,15 @@ async function runLanes(
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
     const envBefore = new Map(Object.entries(process.env));
-    const membershipsBefore = await sharedMemberships(sql, ctx.userId);
+    const membershipsBefore = await withinDeadline(
+      sharedMemberships(sql, ctx.userId),
+      PROBE_DEADLINE_MS,
+      `the membership probe before ${position}`,
+    );
     try {
-      await run();
+      // A lane that never settles used to hold the job until CI's 30-minute
+      // wall, which names no lane; the deadline truncates the run with it.
+      await withinDeadline(run(), LANE_DEADLINE_MS, position);
     } catch (error) {
       record(
         `harness: ${name} runs to completion`,
@@ -56614,7 +56654,11 @@ async function runLanes(
       );
       globalThis.fetch = boundary;
     }
-    const membershipsAfter = await sharedMemberships(sql, ctx.userId);
+    const membershipsAfter = await withinDeadline(
+      sharedMemberships(sql, ctx.userId),
+      PROBE_DEADLINE_MS,
+      `the membership probe after ${position}`,
+    );
     if (membershipsAfter !== membershipsBefore) {
       record(
         `harness: ${name} leaves the shared user's organizations as it found them`,
@@ -56625,7 +56669,13 @@ async function runLanes(
           `owner of its own.`,
       );
     }
-    if (!(await sharedSessionAlive(base, ctx))) {
+    if (
+      !(await withinDeadline(
+        sharedSessionAlive(base, ctx),
+        PROBE_DEADLINE_MS,
+        `the shared-session probe after ${position}`,
+      ))
+    ) {
       record(
         `harness: the shared session survives ${name}`,
         false,

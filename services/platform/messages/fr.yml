@@ -8211,8 +8211,15 @@ websites:
         nouveau.
       notInCorpusSite: Rien n'a été indexé. La prochaine analyse ajoutera le site
         à nouveau.
-      embedding: Rien n'a été indexé. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
       generic: Rien n'a été indexé.
+    scanDetail:
+      credential: Le fournisseur a rejeté les identifiants du modèle d'embedding. Un administrateur peut les réparer sous Paramètres → Fournisseurs IA.
+      credit: Le fournisseur a refusé la requête à cause du solde ou du forfait du compte. Un administrateur peut vérifier le compte chez le fournisseur.
+      unresolved: Les identifiants du modèle d'embedding ne peuvent pas être utilisés. Un administrateur peut les vérifier sous Paramètres → Fournisseurs IA.
+      dimension: Les vecteurs du modèle ne correspondent pas à cette base de connaissances. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+      upstream: Le fournisseur est en panne ou injoignable. Choisis Analyser maintenant dès qu'il est de retour.
+      generic: Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+    technicalDetails: Détails techniques
   scanPausedBadge: Suspendu
   resumeScanning: Reprendre l'analyse
   scanNow: Analyser maintenant

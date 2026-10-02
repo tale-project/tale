@@ -8104,8 +8104,15 @@ websites:
         erneut hinzu.
       notInCorpusSite: Nichts wurde indexiert. Der nächste Scan fügt die Website
         wieder hinzu.
-      embedding: Nichts wurde indexiert. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       generic: Nichts wurde indexiert.
+    scanDetail:
+      credential: Der Anbieter hat die Zugangsdaten des Embedding-Modells abgelehnt. Ein Admin kann sie unter Einstellungen → KI-Anbieter reparieren.
+      credit: Der Anbieter hat die Anfrage wegen Guthaben oder Tarif des Kontos abgelehnt. Ein Admin kann das Konto beim Anbieter prüfen.
+      unresolved: Die Zugangsdaten des Embedding-Modells lassen sich nicht verwenden. Ein Admin kann sie unter Einstellungen → KI-Anbieter prüfen.
+      dimension: Die Vektoren des Modells passen nicht zu dieser Wissensdatenbank. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
+      upstream: Der Anbieter ist ausgefallen oder nicht erreichbar. Wähle Jetzt scannen, sobald er wieder da ist.
+      generic: Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
+    technicalDetails: Technische Details
   scanPausedBadge: Pausiert
   resumeScanning: Scans fortsetzen
   scanNow: Jetzt scannen

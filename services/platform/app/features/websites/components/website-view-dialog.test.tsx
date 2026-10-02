@@ -285,8 +285,17 @@ describe('WebsiteViewDialog', () => {
         "Nothing was indexed. The URL isn't the problem.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/tale-sandbox-runtime/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/create_failed/)).not.toBeInTheDocument();
+    // A red banner, not a muted box: the dump is folded under Technical
+    // details, where a reader finds it, instead of sitting on `title`.
+    const alert = within(dialog).getByRole('alert');
+    expect(alert).toHaveAttribute('data-variant', 'destructive');
+    expect(alert).not.toHaveAttribute('title');
+    const details = within(alert)
+      .getByText('Technical details')
+      .closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(within(alert).getByText(/tale-sandbox-runtime/)).toBeInTheDocument();
     expect(screen.queryByText(/0 indexed/)).not.toBeInTheDocument();
     expect(
       screen.queryByPlaceholderText('Search website content'),
@@ -298,7 +307,8 @@ describe('WebsiteViewDialog', () => {
   });
 
   // A rejected embedding key: the site said only that the last scan did not
-  // finish, over a bare "401 User not found." on hover.
+  // finish, over a bare "401 User not found." on hover. The banner now leads
+  // with the model, says whom to ask, and shows the provider's sentence.
   it('names the embedding model when it could not embed the pages', () => {
     render(
       <WebsiteViewDialog
@@ -310,6 +320,7 @@ describe('WebsiteViewDialog', () => {
           crawledPageCount: 0,
           failedPageCount: 0,
           metadata: {
+            // A reason from before the class was recorded.
             lastSyncError:
               'The embedding model could not embed the pages: 401 User not found.',
           },
@@ -318,17 +329,56 @@ describe('WebsiteViewDialog', () => {
     );
 
     const dialog = screen.getByRole('dialog', { name: 'Website details' });
+    const alert = within(dialog).getByRole('alert');
+    expect(alert).toHaveAttribute('data-variant', 'destructive');
     expect(
-      within(dialog).getByRole('heading', {
+      within(alert).getByRole('heading', {
         name: "The embedding model couldn't process the pages.",
       }),
     ).toBeInTheDocument();
+    expect(within(alert).getByText('Nothing was indexed.')).toBeInTheDocument();
     expect(
-      within(dialog).getByText(
-        'Nothing was indexed. An admin can check the embedding model under Settings → Data residency.',
+      within(alert).getByText(
+        'An admin can check the embedding model under Settings → Data residency.',
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/User not found/)).not.toBeInTheDocument();
+    expect(within(alert).getByText('401 User not found.')).toBeVisible();
+    expect(within(alert).queryByText('Technical details')).toBeNull();
+    expect(
+      within(alert).queryByText(/could not embed the pages/),
+    ).not.toBeInTheDocument();
+  });
+
+  // The class the crawl action records picks the hint: a rejected
+  // credential sends an admin to AI providers, not to the model's setting.
+  it("tells the embedding failure's class and whom to ask", () => {
+    render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{
+          ...WEBSITE,
+          status: 'error',
+          crawledPageCount: 0,
+          failedPageCount: 0,
+          metadata: {
+            lastSyncError:
+              'The embedding model could not embed the pages [credential]: 401 User not found.',
+          },
+        }}
+      />,
+    );
+
+    const alert = within(
+      screen.getByRole('dialog', { name: 'Website details' }),
+    ).getByRole('alert');
+    expect(
+      within(alert).getByText(
+        "The provider rejected the embedding model's credential. An admin can repair it under Settings → AI providers.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(alert).getByText('401 User not found.')).toBeVisible();
+    expect(within(alert).queryByText(/\[credential\]/)).toBeNull();
   });
 
   // A whole site missing from the crawler is registered again by its next
@@ -513,10 +563,16 @@ describe('WebsiteViewDialog', () => {
         screen.getByText('The page answered with an error.'),
       ).toBeInTheDocument();
     });
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveAttribute('data-variant', 'destructive');
     expect(
-      screen.getByText("The embedding model couldn't process the pages."),
+      within(alert).getByRole('heading', {
+        name: "The embedding model couldn't process the pages.",
+      }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/User not found/)).not.toBeInTheDocument();
+    expect(within(alert).getByText('401 User not found.')).toBeVisible();
+    expect(within(alert).queryByText('Nothing was indexed.')).toBeNull();
+    expect(alert).not.toHaveAttribute('title');
   });
 
   // "5 pages failed" used to be a number beside a list that hid them twenty

@@ -103,8 +103,8 @@ import {
 import { runFailureMessage } from '../provider_credentials/resolve_credential';
 import {
   isDueForScan,
-  WEBSITE_EMBEDDING_FAILED_PREFIX,
   WEBSITE_NOT_IN_CORPUS_MESSAGE,
+  websiteEmbeddingFailureReason,
 } from '../websites/scan_scheduling';
 import { type PageFailureKind, PAGE_SKIP_KINDS_SQL } from '../websites/types';
 import { readOrgEmbeddingConfig } from './connection';
@@ -1636,19 +1636,20 @@ async function recordPageFailure(
 /**
  * A failure of the organization's embedding model — a rejected credential,
  * an exhausted balance, an outage, a model whose vectors the corpus cannot
- * hold — ends the scan as any error does, but under a reason that says so:
- * the row used to carry the provider's bare words ("401 User not found.")
- * and the page could only answer that the last scan did not finish. Any
- * other error is handed back as it is.
+ * hold — ends the scan as any error does, but under a reason that says so
+ * and names its class: the row used to carry the provider's bare words
+ * ("401 User not found.") and the page could only answer that the last scan
+ * did not finish. Any other error is handed back as it is.
  */
 function embeddingScanFailure(error: unknown): unknown {
-  const modelFailed =
-    error instanceof EmbeddingDimensionMismatch ||
-    classifyEmbeddingFailure(error) !== null;
-  if (!modelFailed) return error;
+  const failureClass =
+    error instanceof EmbeddingDimensionMismatch
+      ? 'dimension'
+      : classifyEmbeddingFailure(error);
+  if (failureClass === null) return error;
   // A credential refusal's own sentence, not its serialized payload.
   return new Error(
-    `${WEBSITE_EMBEDDING_FAILED_PREFIX}: ${runFailureMessage(error)}`,
+    websiteEmbeddingFailureReason(failureClass, runFailureMessage(error)),
     { cause: error },
   );
 }
