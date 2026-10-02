@@ -55523,6 +55523,93 @@ async function checkWatchdogs(
     `passes=${collectPasses} asked=${[...new Set(collectAsked)].join(',')} rows=${collectRows.map((r) => `${r.sessionId}=${r.status}/${r.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} token=${reusedTokenRows[0]?.revokedAt === null ? 'live' : 'revoked'} collected=${collectedTotal}`,
   );
 
+  // Lane 3e: a create the sandbox host refused (429) made nothing, so its
+  // row is settled as collected and the COLLECT pass never destroys its id.
+  // A standing workspace whose last row the reconcile healed to destroyed
+  // keeps its files spawner-side; a destroy of its id, once the refused
+  // row's grace had passed, deleted them. Both the turn hosts' and the
+  // render lane's settles, through their real shim handlers, with no grace
+  // left; the spy spawner answers busy for everything, so other lanes' rows
+  // are left alone.
+  const { agentTurnShimHandlers: refusedTaskShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const { crawlHandlers: refusedRenderShim } =
+    await import('./domains/websites/service.ts');
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, last_activity_at_ms, destroyed_at_ms
+    ) VALUES (
+      ${orgId}, 'pa-wd-refused', 'destroyed', 'project_agent',
+      'itest-wd-refused-agent', 'itest:wd', ${now - 3 * 3_600_000},
+      ${now + 21 * 3_600_000}, ${now - 3 * 3_600_000}, ${now - 2 * 3_600_000}
+    )
+  `;
+  const reserveRefused = async (
+    sessionId: string,
+    ownerType: string,
+  ): Promise<string> => {
+    const [row] = await sql<{ id: string }[]>`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        created_at_ms, expires_at_ms, last_activity_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'creating', ${ownerType}, ${sessionId},
+        'itest:wd', ${now - 60_000}, ${now + 24 * 3_600_000}, ${now - 60_000}
+      ) RETURNING id
+    `;
+    return row?.id ?? '';
+  };
+  const refusedAgentRowId = await reserveRefused(
+    'pa-wd-refused',
+    'project_agent',
+  );
+  const refusedRenderRowId = await reserveRefused(
+    'render-wd-refused',
+    'render',
+  );
+  await refusedTaskShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
+    rowId: refusedAgentRowId,
+    status: 'failed',
+    collected: true,
+  });
+  await refusedRenderShim(sql)['sandbox/session_mutations:setSessionStatus']?.(
+    { rowId: refusedRenderRowId, status: 'failed', collected: true },
+  );
+  const refusedAsked: string[] = [];
+  await sandboxWatchdogs.runSandboxWatchdog(sql, {
+    collectBatch: 50,
+    collectGraceMs: 0,
+    spawner: {
+      isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<unknown> => Promise.resolve(undefined),
+      destroyIfIdle: (
+        sessionId: string,
+      ): Promise<{ destroyed: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ destroyed: false, busy: true });
+      },
+    },
+  });
+  const refusedAfter = await sql<
+    { id: string; status: string; destroyedAt: number | null }[]
+  >`
+    SELECT id, status, destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions
+    WHERE id = ANY(${[refusedAgentRowId, refusedRenderRowId]})
+  `;
+  record(
+    'a create the sandbox host refused leaves its row collected, and the COLLECT pass never destroys its id',
+    refusedAfter.length === 2 &&
+      refusedAfter.every(
+        (row) => row.status === 'failed' && row.destroyedAt !== null,
+      ) &&
+      !refusedAsked.includes('pa-wd-refused') &&
+      !refusedAsked.includes('render-wd-refused'),
+    `rows=${refusedAfter.map((row) => `${row.status}/${row.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} asked=${refusedAsked.filter((id) => id.endsWith('-wd-refused')).join(',') || 'none'} (want both failed/stamped, neither asked)`,
+  );
+
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
   // settles idle and the pending placeholder fails.
   const thread = await sql<{ id: string }[]>`

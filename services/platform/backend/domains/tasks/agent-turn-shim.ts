@@ -781,12 +781,21 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'sandbox/session_mutations:setSessionStatus': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { rowId: string; status: string };
+      const args = raw as {
+        rowId: string;
+        status: string;
+        /** The spawner holds nothing under the row's id (it refused the
+         * create): the row is settled as collected, so the watchdog's
+         * COLLECT pass never destroys the id — whose preserved workspace
+         * may be another incarnation's. */
+        collected?: boolean;
+      };
       const now = Date.now();
       await sql`
         UPDATE app.sandbox_sessions SET
           status = ${args.status}, last_activity_at_ms = ${now},
-          destroyed_at_ms = CASE WHEN ${args.status} = 'destroyed'
+          destroyed_at_ms = CASE
+            WHEN ${args.status} = 'destroyed' OR ${args.collected === true}
             THEN ${now}::bigint ELSE destroyed_at_ms END
         WHERE id = ${args.rowId}
       `;

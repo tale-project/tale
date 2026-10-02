@@ -379,7 +379,10 @@ export async function renderUrlsInSandbox(
  * Settle the reserved row of a render create that failed: it reads `failed`
  * with `destroyed_at_ms` unset, which frees the batch's slot and leaves the
  * row to the sandbox watchdog's COLLECT pass — the only pass that reaches a
- * `failed` row. A create cut short between Docker's create and start leaves a
+ * `failed` row. A create the spawner refused for want of room (429) made
+ * nothing, so it destroys nothing and its row is settled as collected: a
+ * host that stays full refuses each of a scan's polls, and each would
+ * otherwise cost a destroy round trip now and a COLLECT visit later. A create cut short between Docker's create and start leaves a
  * container in state `created` that the spawner never adopts, and it pins its
  * runtime image through every later deploy until something destroys it.
  *
@@ -407,6 +410,14 @@ async function settleFailedCreate(
   args: { rowId: string; sessionId: string; error: unknown },
 ): Promise<void> {
   const { rowId, sessionId } = args;
+  if (args.error instanceof SpawnerBusyError) {
+    await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
+      rowId,
+      status: 'failed',
+      collected: true,
+    });
+    return;
+  }
   if (args.error instanceof SessionDuplicateError) {
     console.warn(
       `[render] session ${sessionId} already exists spawner-side; this batch destroys nothing and the watchdog collects its failed row`,

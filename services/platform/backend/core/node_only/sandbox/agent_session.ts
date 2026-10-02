@@ -144,11 +144,13 @@ export async function ensureAgentSession(
     // that never started runs no exec, so it is idle. A spawner that refused
     // the create for want of room (429) made nothing to destroy — and a
     // destroy of an id with no compute deletes its preserved workspace, which
-    // a stopped standing session's id still names.
+    // a stopped standing session's id still names. Its row is settled as
+    // collected, too: the watchdog's COLLECT pass would otherwise run that
+    // very destroy once the row's grace had passed.
     if (error instanceof SpawnerBusyError) {
       await ctx.runMutation(
         internal.sandbox.session_mutations.setSessionStatus,
-        { rowId, status: 'failed' },
+        { rowId, status: 'failed', collected: true },
       );
       throw error;
     }

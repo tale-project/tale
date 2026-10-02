@@ -305,9 +305,12 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
       'create',
       'setSessionStatus',
     ]);
+    // Settled as collected: the COLLECT pass would otherwise run the very
+    // destroy this skipped once the row's grace had passed.
     expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
       rowId: 'row_1',
       status: 'failed',
+      collected: true,
     });
   });
 

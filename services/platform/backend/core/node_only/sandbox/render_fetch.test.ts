@@ -349,13 +349,15 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
     });
 
     await expect(run.render()).rejects.toBeInstanceOf(RenderCapacityError);
-    // The failed create is settled as any other: its leftovers destroyed
-    // while the row holds the slot, then the row reads failed.
+    // A refused create made nothing: no destroy, and its row reads failed
+    // and already collected, so the watchdog's COLLECT pass never visits it.
     expect(run.events).toEqual([
       'reserveSessionSlotAndInsert',
       'create',
-      'destroyIfIdle',
       'setSessionStatus',
+    ]);
+    expect(run.mutationArgs('setSessionStatus')).toEqual([
+      { rowId: 'row_1', status: 'failed', collected: true },
     ]);
   });
 
