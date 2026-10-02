@@ -40959,8 +40959,11 @@ async function checkTaskAgentRuns(
     runId,
     execId,
   });
-  const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
-  const wokenAgain = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  const woken = await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
+  const wokenAgain = await agentRuns.wakeOrganizationParkedAgentRun(
+    sql,
+    orgId,
+  );
   const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // The release EDGE itself: a project-agent turn ending frees the agent's
@@ -41044,6 +41047,34 @@ async function checkTaskAgentRuns(
         `
       )[0]?.count ?? '0',
     );
+  // The sandbox host is shared: the same release wakes the oldest parked
+  // run of another organization too, one that runs nothing of its own and
+  // so has no release edge that would ever wake it. Parked first of all
+  // (stamp 1), so no other lane's leftover park is older; its agent is a
+  // phantom, so the turn job it gets is skipped.
+  const quietOrgId = `${orgId}-quiet-${randomUUID()}`;
+  const [quietTask] = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Quiet organization work', 'todo', 'a0',
+      'itest:ledger', 'user', ${Date.now()}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const [quietRun] = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, waiting_for_capacity_at_ms,
+      deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${quietOrgId}, ${projectId}, ${quietTask?.id ?? ''},
+      ${`itest-quiet-agent-${randomUUID()}`}, 'exec-quiet-1', 'pa-quiet',
+      'queued', 'claude-code', 'itest-model', 'itest:ledger', ${Date.now()},
+      1, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const quietRunId = quietRun?.id ?? '';
   const parkedBeforeRelease = await countParked();
   const turnJobsBeforeRelease = await countTurnJobs();
   const sessionsApi = await import('./domains/sandbox/sessions.ts');
@@ -41053,6 +41084,28 @@ async function checkTaskAgentRuns(
   });
   const parkedAfterRelease = await countParked();
   const turnJobsAfterRelease = await countTurnJobs();
+  const [quietAfterRelease] = await sql<
+    { parked: boolean; turnJobs: string }[]
+  >`
+    SELECT r.waiting_for_capacity_at_ms IS NOT NULL AS parked,
+           (SELECT count(*) FROM pgboss.job j
+            WHERE j.name = 'task.agent_turn'
+              AND j.data ->> 'organizationId' = ${quietOrgId}
+              AND j.data ->> 'runId' = ${quietRunId})::text AS "turnJobs"
+    FROM app.project_agent_runs r WHERE r.id = ${quietRunId}
+  `;
+  record(
+    'a release edge also wakes the oldest parked run of another organization',
+    released &&
+      !(quietAfterRelease?.parked ?? true) &&
+      quietAfterRelease?.turnJobs === '1',
+    `released=${released} quiet parked=${String(quietAfterRelease?.parked)}/false turnJobs=${quietAfterRelease?.turnJobs ?? 'MISSING'}/1`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ${quietRunId}
+  `;
   const releasedSlot = await sql<{ status: string }[]>`
     SELECT status FROM app.sandbox_sessions
     WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
@@ -41069,7 +41122,7 @@ async function checkTaskAgentRuns(
   // instead: the wake claims the org's oldest parked run, ours included
   // (`claimParkedAgentRun` is gone — one live run per task is the schema's
   // rule and the wake is the one un-park door).
-  await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  await agentRuns.wakeOrganizationParkedAgentRun(sql, orgId);
 
   // Launch (the host's running flip) + exactly-once settle through the
   // host's mark; `launchedAt` distinct from kick time. A late failure must
@@ -54742,6 +54795,46 @@ async function checkWatchdogs(
   `;
   const parkedId = parked[0]?.id ?? '';
 
+  // Lane 2b: an organization whose one run parked for host room behind
+  // another organization's backlog of sixty older parks. The tick wakes
+  // runs of every organization that has a parked one, so the quiet
+  // organization is tried this tick, not once the backlog's oldest fifty
+  // have drained. A third organization's even older park takes the
+  // cross-organization wake of the deadline lane's slot release, which
+  // would otherwise reach the quiet run without the tick. Phantom agents:
+  // the turn jobs the wakes enqueue are skipped.
+  const backlogTasks = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    )
+    SELECT ${orgId}, ${projectId}, 'Watchdog backlog ' || n, 'todo', 'a0',
+           'itest:wd', 'user', ${now}, ${now}
+    FROM generate_series(1, 62) AS n
+    RETURNING id
+  `;
+  const backlogRunIds: string[] = [];
+  for (const [index, row] of backlogTasks.entries()) {
+    const quiet = index === backlogTasks.length - 1;
+    const decoy = index === backlogTasks.length - 2;
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms,
+        waiting_for_capacity_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${quiet ? `${orgId}-wd-quiet` : decoy ? `${orgId}-wd-decoy` : orgId},
+        ${projectId}, ${row.id}, ${`wd-phantom-${randomUUID()}`},
+        ${`exec-wd-backlog-${index}`}, ${`pa-wd-backlog-${index}`}, 'queued',
+        'claude-code', 'itest-model', 'itest:wd', ${now - 3 * 3_600_000},
+        ${quiet ? now - 3_600_000 : decoy ? 2 : now - 2 * 3_600_000 + index},
+        ${now + 3_600_000}, ${now}
+      ) RETURNING id
+    `;
+    backlogRunIds.push(inserted?.id ?? '');
+  }
+  const quietParkedId = backlogRunIds.at(-1) ?? '';
+
   // The deadline sweep must stop the exec itself, not only its ledger row:
   // a fake spawner records the cancel the sweep sends for the overdue run.
   const { createServer } = await import('node:http');
@@ -54810,6 +54903,26 @@ async function checkWatchdogs(
       slotAfter[0]?.status === 'stopped',
     `overdue=${overdueAfter?.status} parked=${parkedAfter?.status} op=${opAfter[0]?.status} slot=${slotAfter[0]?.status}`,
   );
+  const [quietAfterTick] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${quietParkedId}
+  `;
+  const [backlogAfterTick] = await sql<{ parked: string }[]>`
+    SELECT count(*)::text AS parked FROM app.project_agent_runs
+    WHERE id = ANY(${backlogRunIds.slice(0, -2)})
+      AND waiting_for_capacity_at_ms IS NOT NULL
+  `;
+  const backlogStillParked = Number(backlogAfterTick?.parked ?? '60');
+  record(
+    'task-agent watchdog wakes a parked run of every organization, not only of the oldest fifty parks',
+    !(quietAfterTick?.parked ?? true) && backlogStillParked <= 56,
+    `quiet parked=${String(quietAfterTick?.parked)}/false backlog still parked=${backlogStillParked}/≤56 (four woken a tick, one more by the slot release)`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+      waiting_for_capacity_at_ms = NULL, settled_at_ms = ${Date.now()}
+    WHERE id = ANY(${backlogRunIds})
+  `;
   record(
     'task-agent watchdog stops the sandbox exec of a deadline-failed run',
     cancels.length === 1 &&

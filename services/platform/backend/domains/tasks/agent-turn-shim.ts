@@ -807,7 +807,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; agentId: string };
       // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the org's oldest parked run on the freed slot.
+      // and wake the oldest parked runs on the freed slot.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 

@@ -322,8 +322,10 @@ export async function setSessionPinned(
  * row is pinned. The guard is the agent's, not the workspace's: a live turn
  * of the agent holds every workspace it owns — its standing one and one per
  * member who starts its runs — until the agent's last turn ends. A freed slot is a release edge: the org's oldest parked
- * run is woken at once instead of idling until the 2-minute watchdog tick.
- * Best-effort — a wake failure must never fail the release.
+ * run, and the oldest parked run of the other organizations (the sandbox
+ * host is shared), are woken at once instead of idling until the 2-minute
+ * watchdog tick (`wakeParkedAgentRuns`). Best-effort — a wake failure must
+ * never fail the release.
  */
 export async function releaseProjectAgentSessionSlot(
   sql: Sql,
