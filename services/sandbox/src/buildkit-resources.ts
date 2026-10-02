@@ -237,16 +237,21 @@ export async function inspectBuildkitContainer(
 }
 
 /** {@link inspectBuildkitContainer}, with the stamp of how the helper was
- * launched (its `tale.helper-config` label; absent on one from before it). */
+ * launched (its `tale.helper-config` label; absent on one from before it) and
+ * the id of the image it runs. */
 export async function inspectBuildkitHelper(
   name: string,
   organizationId: string,
   network: string,
-): Promise<{ running: boolean; stamp: string | undefined } | null> {
+): Promise<{
+  running: boolean;
+  stamp: string | undefined;
+  image: string | undefined;
+} | null> {
   const raw = await inspect([
     'inspect',
     '--format',
-    '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}}}',
+    '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}},"image":{{json .Image}}}',
     name,
   ]);
   if (raw === null) return null;
@@ -267,6 +272,7 @@ export async function inspectBuildkitHelper(
   return {
     running: data.running,
     stamp: typeof stamp === 'string' ? stamp : undefined,
+    image: typeof data.image === 'string' ? data.image : undefined,
   };
 }
 

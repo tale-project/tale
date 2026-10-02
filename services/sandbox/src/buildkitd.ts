@@ -307,20 +307,17 @@ export function helperStamp(image: string, limits: readonly string[]): string {
     .slice(0, 16);
 }
 
-/** The bounds `docker update` applies to a running container. */
-const LIVE_LIMIT_FLAGS = [
-  '--cpus=',
-  '--memory=',
-  '--memory-swap=',
-  '--pids-limit=',
-];
+/** The bounds a busy helper takes in place. Never its memory: on cgroup v2 a
+ * limit below what the helper uses OOM-kills its running builds there and
+ * then, so memory waits for the recreate once the helper is idle. */
+const LIVE_LIMIT_FLAGS = ['--cpus=', '--pids-limit='];
 // Running helpers whose bounds were updated in place, with the stamp they were
 // updated to: done once per stamp, not on every ensure.
 const limitsUpdated = new Map<string, string>();
 
-/** Bring a running helper's cgroup bounds up to date without a restart (its
- * image and log options stay as they were). Best effort: a helper using more
- * than the new limit keeps its old one until it is recreated. */
+/** Bring a busy helper's CPU and process bounds up to date without a restart
+ * (its memory, image and log options stay as they were until it is
+ * recreated). Best effort. */
 async function updateHelperLimits(
   name: string,
   stamp: string,
@@ -342,6 +339,41 @@ async function updateHelperLimits(
   limitsUpdated.set(name, stamp);
 }
 
+// The image id a reference names, briefly remembered: `tale deploy` re-tags
+// `:latest` in place, so a release changes the id, not the reference.
+const IMAGE_ID_TTL_MS = 30_000;
+const imageIds = new Map<string, { id: string; atMs: number }>();
+
+/** The id of the image `reference` names here, or null when there is none. */
+async function currentImageId(reference: string): Promise<string | null> {
+  const known = imageIds.get(reference);
+  if (known !== undefined && Date.now() - known.atMs < IMAGE_ID_TTL_MS) {
+    return known.id;
+  }
+  const result = await runDocker(
+    ['image', 'inspect', '--format', '{{.Id}}', reference],
+    { timeoutMs: 5_000 },
+  );
+  const id = result.exitCode === 0 ? result.stdout.trim() : '';
+  if (id === '') return null;
+  imageIds.set(reference, { id, atMs: Date.now() });
+  return id;
+}
+
+/** Was this running helper launched otherwise than it would be now: other
+ * bounds or another image reference (its stamp), or an image its reference no
+ * longer names? An id that cannot be read is no drift. */
+async function helperDrifted(
+  helper: { stamp: string | undefined; image: string | undefined },
+  stamp: string,
+  imageReference: string,
+): Promise<boolean> {
+  if (helper.stamp !== stamp) return true;
+  if (helper.image === undefined) return false;
+  const id = await currentImageId(imageReference);
+  return id !== null && id !== helper.image;
+}
+
 /** Is no build running in this builder? A record still `STARTED` is a build
  * under way; an answer that cannot be read counts as busy. */
 async function builderIdle(name: string): Promise<boolean> {
@@ -352,6 +384,15 @@ async function builderIdle(name: string): Promise<boolean> {
   if (result.exitCode !== 0) return false;
   return !result.stdout.split('\n').some((line) => line.trim() === 'STARTED');
 }
+
+/** {@link builderIdle}, asked at most once. */
+function idleOnce(name: string): () => Promise<boolean> {
+  let answer: Promise<boolean> | null = null;
+  return () => (answer ??= builderIdle(name));
+}
+
+/** No builder runs, so nothing builds. */
+const NOTHING_BUILDS = () => Promise.resolve(true);
 
 async function liveBuildkitOrganizations(
   organizationId?: string,
@@ -614,11 +655,14 @@ export async function removeOrganizationBuildkit(
 async function ensureBuildkitdMirrors(
   cfg: SpawnerConfig,
   organizationId: string,
+  /** Is the organization's builder idle? A drifted mirror is recreated only
+   * then: the pulls through it come from that builder's builds. */
+  idle: () => Promise<boolean>,
 ): Promise<string> {
   const pairs: string[] = [];
   for (const registry of MIRROR_REGISTRIES) {
     try {
-      await ensureOneMirror(cfg, organizationId, registry);
+      await ensureOneMirror(cfg, organizationId, registry, idle);
       pairs.push(`${registry}=${buildkitdMirrorRef(organizationId, registry)}`);
     } catch (err) {
       console.warn(
@@ -635,6 +679,7 @@ async function ensureOneMirror(
   cfg: SpawnerConfig,
   organizationId: string,
   registry: string,
+  idle: () => Promise<boolean>,
 ): Promise<void> {
   const name = buildkitdMirrorContainerName(organizationId, registry);
   const existing = mirrorInFlight.get(name);
@@ -644,6 +689,7 @@ async function ensureOneMirror(
     organizationId,
     registry,
     name,
+    idle,
   ).finally(() => {
     mirrorInFlight.delete(name);
   });
@@ -656,6 +702,7 @@ async function ensureOneMirrorUnlocked(
   organizationId: string,
   registry: string,
   name: string,
+  idle: () => Promise<boolean>,
 ): Promise<void> {
   const limits = buildkitHelperLimits(cfg, 'mirror');
   const stamp = helperStamp(cfg.buildkitdMirrorImage, limits);
@@ -666,17 +713,22 @@ async function ensureOneMirrorUnlocked(
   );
   if (helper !== null) {
     if (helper.running) {
-      // A mirror from before this release keeps serving (a recreate would
-      // cut off the pulls going through it); its bounds apply in place.
-      if (helper.stamp !== stamp) {
-        await updateHelperLimits(name, stamp, limits);
+      if (!(await helperDrifted(helper, stamp, cfg.buildkitdMirrorImage))) {
+        return;
       }
-      return;
+      // A mirror launched otherwise than now keeps serving while a build
+      // may pull through it, with the bounds that apply in place.
+      if (!(await idle())) {
+        if (helper.stamp !== stamp) {
+          await updateHelperLimits(name, stamp, limits);
+        }
+        return;
+      }
     }
     const rm = await runDocker(['rm', '-f', name]);
     if (rm.exitCode !== 0) {
       console.warn(
-        `[sandbox.buildkitd] could not reap dead mirror ${name}: ${rm.stderr.trim()}`,
+        `[sandbox.buildkitd] could not reap mirror ${name}: ${rm.stderr.trim()}`,
       );
     }
   }
@@ -868,14 +920,18 @@ async function ensureBuildkitdOnNetwork(
       if (await buildkitdEgressHealthy(cfg, name)) {
         // A builder launched by an earlier release or with other bounds runs
         // its old image (and with it the old cache policy): it is recreated
-        // once no build is under way, and meanwhile gets the bounds in place.
-        const current = helper.stamp === stamp;
-        if (current || !(await builderIdle(name))) {
-          if (!current) await updateHelperLimits(name, stamp, limits);
+        // once no build is under way, and meanwhile gets the bounds that
+        // apply in place.
+        const idle = idleOnce(name);
+        const drifted = await helperDrifted(helper, stamp, cfg.buildkitdImage);
+        if (!drifted || !(await idle())) {
+          if (helper.stamp !== stamp) {
+            await updateHelperLimits(name, stamp, limits);
+          }
           // A partial idle-stop/crash may have stopped mirrors while the
           // builder stayed healthy. Reusing the builder must revive those
           // caches too.
-          await ensureBuildkitdMirrors(cfg, organizationId);
+          await ensureBuildkitdMirrors(cfg, organizationId, idle);
           return endpoint;
         }
         console.log(
@@ -910,7 +966,11 @@ async function ensureBuildkitdOnNetwork(
 
   // Bring up the pull-through mirrors first (buildkit pulls base images from them
   // by name, sidestepping its broken external-name DNS — see MIRROR_REGISTRIES).
-  const mirrors = await ensureBuildkitdMirrors(cfg, organizationId);
+  const mirrors = await ensureBuildkitdMirrors(
+    cfg,
+    organizationId,
+    NOTHING_BUILDS,
+  );
 
   const run = await runDocker(
     [

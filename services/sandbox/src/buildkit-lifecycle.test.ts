@@ -80,9 +80,10 @@ if (a[0] === 'exec') {
   if (a[2] === 'buildctl') done(s.buildRunning ? 'COMPLETE\nSTARTED\n' : 'COMPLETE\n');
 }
 if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); done(); }
+if (a[0] === 'image' && a[1] === 'inspect') { const id = (s.imageIds ?? {})[a.at(-1)]; if (!id) fail('Error: No such image: ' + a.at(-1)); done(id); }
 if (a[0] === 'run') {
   const name = flag('--name');
-  s.containers[name] = { id: (++s.nextId).toString(16).padStart(64, '0'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true };
+  s.containers[name] = { id: (++s.nextId).toString(16).padStart(64, '0'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true, image: (s.imageIds ?? {})[a.at(-1)] ?? 'sha256:' + a.at(-1) };
   done(s.containers[name].id);
 }
 if (a[0] === 'stop') {
@@ -116,6 +117,7 @@ interface FakeState {
       networks: Record<string, object>;
       ports: Record<string, object> | null;
       running: boolean;
+      image?: string;
     }
   >;
   networks: Record<string, object>;
@@ -130,6 +132,8 @@ interface FakeState {
   stopFails: string | null;
   stopGate: boolean;
   buildRunning?: boolean;
+  /** What `docker image inspect` answers per reference (none: no such image). */
+  imageIds?: Record<string, string>;
 }
 
 const cfg: SpawnerConfig = {
@@ -314,8 +318,9 @@ describe('organization build-cache lifecycle', () => {
     initial.buildRunning = true;
     await save(initial);
 
-    // A build is under way: the builder keeps serving, its bounds and the
-    // mirrors' applied in place.
+    // A build is under way: the builder and its mirrors keep serving, with
+    // the CPU and process bounds applied in place — never a memory cut, which
+    // on cgroup v2 OOM-kills the running build.
     expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
     let log = await calls();
     expect(log.filter((args) => args[0] === 'run')).toHaveLength(0);
@@ -324,15 +329,18 @@ describe('organization build-cache lifecycle', () => {
     expect(updates.map((args) => args.at(-1) ?? '').sort(byName)).toEqual(
       Object.keys(initial.containers).sort(byName),
     );
-    expect(updates.find((args) => args.at(-1) === builder)).toContain(
-      '--memory=8192m',
+    expect(updates.find((args) => args.at(-1) === builder)).toEqual(
+      expect.arrayContaining(['--cpus=2', '--pids-limit=16384']),
+    );
+    expect(updates.flat().some((arg) => arg.startsWith('--memory'))).toBe(
+      false,
     );
     expect((await state()).containers[builder]?.id).toBe(
       initial.containers[builder]?.id,
     );
 
-    // The build is done: the next ensure recreates the builder on the current
-    // image and bounds, keeping the cache volume; the mirrors keep serving.
+    // The build is done: the next ensure recreates the builder and its
+    // mirrors on the current image and bounds, keeping every volume.
     const busy = await state();
     busy.buildRunning = false;
     await save(busy);
@@ -340,8 +348,13 @@ describe('organization build-cache lifecycle', () => {
     expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
     log = await calls();
     const launches = log.filter((args) => args[0] === 'run');
-    expect(launches).toHaveLength(1);
-    expect(launches[0]).toContain(cfg.buildkitdImage);
+    expect(launches).toHaveLength(4);
+    expect(
+      launches.filter((args) => args.includes(cfg.buildkitdImage)),
+    ).toHaveLength(1);
+    expect(
+      launches.find((args) => args.includes(cfg.buildkitdImage)),
+    ).toContain('--memory=8192m');
     const final = await state();
     expect(final.containers[builder]?.id).not.toBe(
       initial.containers[builder]?.id,
@@ -352,6 +365,40 @@ describe('organization build-cache lifecycle', () => {
     expect(final.volumes).toEqual(initial.volumes);
     // Bounds already applied are not applied again.
     expect(log.filter((args) => args[0] === 'update')).toHaveLength(0);
+  });
+
+  test('a release that re-tags the builder image in place recreates the builder once idle', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const builder = buildkitdContainerName(org);
+    for (const container of Object.values(initial.containers)) {
+      container.image = 'sha256:previous-release';
+    }
+    // `tale deploy` re-tags the same reference to the new release's image;
+    // the mirror image's reference resolves to nothing new here.
+    initial.imageIds = { [cfg.buildkitdImage]: 'sha256:this-release' };
+    initial.buildRunning = true;
+    await save(initial);
+
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    let log = await calls();
+    // Same stamp: nothing to update in place, and a build is under way.
+    expect(
+      log.filter((args) => args[0] === 'run' || args[0] === 'update'),
+    ).toEqual([]);
+
+    const busy = await state();
+    busy.buildRunning = false;
+    await save(busy);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    log = await calls();
+    const launches = log.filter((args) => args[0] === 'run');
+    expect(launches).toHaveLength(1);
+    expect(launches[0]).toContain(builder);
+    const final = await state();
+    expect(final.containers[builder]?.image).toBe('sha256:this-release');
+    expect(final.volumes).toEqual(initial.volumes);
   });
 
   test('idle-stop releases all four helpers after the existing grace, preserving caches and network for resume', async () => {

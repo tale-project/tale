@@ -76,9 +76,12 @@ under their CPU limit and twice their memory limit (its RUN steps execute
 there, outside every session's cgroup), or `SANDBOX_BUILDKITD_CPUS` and
 `SANDBOX_BUILDKITD_MEMORY`; each mirror runs under 512 MB and one CPU, and
 every helper's logs are capped like a session's. Each helper carries a stamp of
-its image and bounds: one launched by an earlier release or with other
-settings gets the new bounds in place, and the builder is recreated on the
-current image once no build is running (the cache volume is kept).
+its image reference and bounds, and the spawner compares the image it runs
+with the one its reference names now (a release re-tags `:latest` in place).
+A helper launched otherwise gets its CPU and process bounds in place at once;
+the builder and its mirrors are recreated on the current image and bounds,
+memory included, once no build is running, keeping their volumes. A memory
+cut is never applied to a busy helper: on cgroup v2 it OOM-kills the build.
 
 Keep Docker's outer network allocation within RFC1918 and separate from the
 inner Docker pool. Current runtimes select a non-overlapping private `/16` at

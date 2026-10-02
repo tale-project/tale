@@ -220,8 +220,9 @@ while the shared disk has less than 5% free; registry mirror storage is
 separate. The builder is bounded too, since builds run in it rather than in
 the session: an agent session's CPUs and twice its memory unless
 `SANDBOX_BUILDKITD_CPUS` / `SANDBOX_BUILDKITD_MEMORY` say otherwise. A helper
-launched by an earlier release gets the new bounds in place and is recreated
-on the current image once no build runs. See
+launched by an earlier release or with other bounds gets its CPU and process
+bounds in place at once and is recreated on the current image and memory
+bound once no build runs. See
 [the BuildKit reference](../../sandbox-buildkitd/README.md) for the resource
 boundary and upgrade requirements.
 
