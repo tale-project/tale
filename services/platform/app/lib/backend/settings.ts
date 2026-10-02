@@ -1079,7 +1079,7 @@ function credentialGone(error: unknown): boolean {
 
 /** The Sandboxes list polls every 15 s, and every 2 s while a row's
  * Destroy is under way: the row leaves soon after its job settles. */
-export function sandboxListPollInterval(sessions: unknown): number {
+function sandboxListPollInterval(sessions: unknown): number {
   const rows: unknown[] = Array.isArray(sessions) ? sessions : [];
   return rows.some(
     (row) =>
