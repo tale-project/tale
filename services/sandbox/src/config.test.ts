@@ -26,6 +26,7 @@ const KEYS = [
   'SANDBOX_K8S_MEMORY_REQUEST',
   'SANDBOX_BUILDKITD_CPUS',
   'SANDBOX_BUILDKITD_MEMORY',
+  'SANDBOX_BUILDKITD_IDLE_CACHE',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -99,6 +100,16 @@ test('the builder bounds are optional and validated', () => {
   process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
   process.env.SANDBOX_BUILDKITD_CPUS = 'many';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CPUS/);
+});
+
+test("an idle builder's cache budget is optional and validated", () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdIdleCacheBytes');
+  process.env.SANDBOX_BUILDKITD_IDLE_CACHE = '2g';
+  expect(loadConfig().buildkitdIdleCacheBytes).toBe(2 * 1024 ** 3);
+  process.env.SANDBOX_BUILDKITD_IDLE_CACHE = '0';
+  expect(loadConfig().buildkitdIdleCacheBytes).toBe(0);
+  process.env.SANDBOX_BUILDKITD_IDLE_CACHE = 'small';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_IDLE_CACHE/);
 });
 
 describe('loadConfig — runtime tier', () => {

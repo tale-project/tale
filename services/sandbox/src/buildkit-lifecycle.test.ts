@@ -77,6 +77,7 @@ if (a[0] === 'exec') {
   if (a[2] === 'test') done();
   if (a[2] === 'cat') done('[dns]\n nameservers = ["172.22.0.2"]');
   if (a[2] === 'getent') done('172.22.0.2 tale-buildkit-egress');
+  if (a[2] === 'buildctl' && a[3] === 'prune') { if (s.pruneFails) fail('buildctl: failed to dial the daemon'); done('Total:\t0B'); }
   if (a[2] === 'buildctl') done(s.buildRunning ? 'COMPLETE\nSTARTED\n' : 'COMPLETE\n');
 }
 if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); done(); }
@@ -132,6 +133,8 @@ interface FakeState {
   stopFails: string | null;
   stopGate: boolean;
   buildRunning?: boolean;
+  /** `buildctl prune` inside the builder fails. */
+  pruneFails?: boolean;
   /** What `docker image inspect` answers per reference (none: no such image). */
   imageIds?: Record<string, string>;
 }
@@ -467,6 +470,63 @@ describe('organization build-cache lifecycle', () => {
       expect(args).toContain('--oom-score-adj=500');
       expect(args).toContain('max-size=10m');
     }
+  });
+
+  test("an idle organization's builder prunes its cache to the idle budget right before it stops", async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const builderId = initial.containers[buildkitdContainerName(org)]?.id;
+    const now = Date.now();
+    await save(initial);
+
+    await sweepIdleBuildkitd(cfg, now);
+    expect(await sweepIdleBuildkitd(cfg, now + 1000)).toEqual({
+      stopped: 4,
+      organizations: 1,
+    });
+    const log = await calls();
+    const prunes = log.filter((args) => args[3] === 'prune');
+    // The builder alone: the mirrors' storage is no BuildKit cache.
+    expect(prunes).toEqual([
+      [
+        'exec',
+        builderId ?? '',
+        'buildctl',
+        'prune',
+        '--all',
+        '--keep-storage',
+        String(Math.floor((5 * 1024 ** 3) / 1e6)),
+      ],
+    ]);
+    const firstStop = log.findIndex((args) => args[0] === 'stop');
+    expect(log.findIndex((args) => args[3] === 'prune')).toBeLessThan(
+      firstStop,
+    );
+    expect(log[firstStop]).toEqual(['stop', '--time', '30', builderId ?? '']);
+  });
+
+  test('a configured idle budget is used, and a prune that fails still lets the helpers stop', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.pruneFails = true;
+    const now = Date.now();
+    await save(initial);
+    const budgeted = { ...cfg, buildkitdIdleCacheBytes: 2 * 1024 ** 3 };
+
+    await sweepIdleBuildkitd(budgeted, now);
+    const { stopped, warnings } = await sweepWarning(
+      sweepIdleBuildkitd(budgeted, now + 1000),
+    );
+    expect(stopped).toBe(4);
+    expect(warnings).toContain('could not prune the idle build cache');
+    expect(
+      (await calls()).find((args) => args[3] === 'prune')?.at(-1),
+    ).toBe(String(Math.floor((2 * 1024 ** 3) / 1e6)));
+    expect(
+      Object.values((await state()).containers).every(
+        (container) => !container.running,
+      ),
+    ).toBe(true);
   });
 
   test.each([

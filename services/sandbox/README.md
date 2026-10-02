@@ -144,8 +144,9 @@ sessions build locally.
 
 After no agent session may still depend on an organization's cache helpers
 (only agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
-minutes by default) starts. The helpers then stop; their network and volumes remain intact and the next build restarts
-them. Legacy global cache helpers retire once their remaining sessions drain,
+minutes by default) starts. The helpers then stop, the builder pruning its cache
+to `SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first; their network and
+volumes remain intact and the next build restarts them. Legacy global cache helpers retire once their remaining sessions drain,
 with their cache volumes retained.
 
 Kubernetes sessions use their inner Docker builder. The Kubernetes backend

@@ -394,6 +394,46 @@ function idleOnce(name: string): () => Promise<boolean> {
 /** No builder runs, so nothing builds. */
 const NOTHING_BUILDS = () => Promise.resolve(true);
 
+/** The build cache an organization's builder keeps when it stops for want of
+ * agent sessions, unless SANDBOX_BUILDKITD_IDLE_CACHE says otherwise. */
+export const DEFAULT_IDLE_CACHE_BYTES = 5 * 1024 ** 3;
+
+/** Bound on the prune before an idle stop: deleting tens of GB of snapshots
+ * takes a while, and the stop goes on either way. */
+const IDLE_PRUNE_TIMEOUT_MS = 120_000;
+
+/** Shrink an idle builder's cache to the idle budget, least recently used
+ * first. BuildKit collects garbage only while it runs — at start and after a
+ * build — so a builder stopped for want of sessions kept its whole cache, up
+ * to the policy's cap, for as long as its organization did not build again,
+ * however full the disk it shares with every session got. Best effort: a
+ * prune that fails or runs out of time is logged and the stop goes on. */
+async function pruneIdleBuilderCache(
+  cfg: SpawnerConfig,
+  organizationId: string,
+  builderId: string,
+): Promise<void> {
+  const keepBytes = cfg.buildkitdIdleCacheBytes ?? DEFAULT_IDLE_CACHE_BYTES;
+  const pruned = await runDocker(
+    [
+      'exec',
+      builderId,
+      'buildctl',
+      'prune',
+      '--all',
+      // buildctl counts storage in MB of 10^6 bytes.
+      '--keep-storage',
+      String(Math.floor(keepBytes / 1e6)),
+    ],
+    { timeoutMs: IDLE_PRUNE_TIMEOUT_MS, stdoutMaxBytes: 64 * 1024 },
+  );
+  if (pruned.exitCode !== 0) {
+    console.warn(
+      `[sandbox.buildkitd] could not prune the idle build cache of ${organizationId} (exit ${pruned.exitCode}; stopping its builder anyway): ${pruned.stderr.trim() || 'no output'}`,
+    );
+  }
+}
+
 async function liveBuildkitOrganizations(
   organizationId?: string,
 ): Promise<Set<string>> {
@@ -535,6 +575,7 @@ async function sweepIdleBuildkitdUnlocked(
         )
           runningIds.push(id);
       }
+      const builderId = names.get(buildkitdContainerName(org));
       let stoppedCount = 0;
       for (const id of runningIds) {
         // Inventory is complete and fresh immediately before each mutation;
@@ -544,6 +585,8 @@ async function sweepIdleBuildkitdUnlocked(
           idleSince.delete(org);
           return stoppedCount;
         }
+        // The last moment the builder can collect its own garbage.
+        if (id === builderId) await pruneIdleBuilderCache(cfg, org, id);
         const stopResult = await runDocker(['stop', '--time', '30', id], {
           timeoutMs: 35_000,
         });

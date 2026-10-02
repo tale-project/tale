@@ -63,13 +63,24 @@ for the operator to review.
 The builder runs privileged for its mount and namespace operations. Its private
 bridge and the egress firewall are required boundaries; the API has no separate
 client authentication. The GC policy in [buildkitd.toml](buildkitd.toml) caps
-each organization's cache at 20 GB (least recently used records go first) and
-prunes it further while the disk it shares with every session has less than
-5% free, but never below 2 GB: each builder prunes its own cache by the whole
-shortfall, so without that floor a disk other data filled would wipe every
-building organization's cache. Cache mounts, build contexts and git checkouts
-unused for two days go first. GC runs at start and about a minute after a
-build. Registry mirror storage is separate from the BuildKit cache.
+each organization's cache at 20 GB (least recently used records go first) and,
+while the builder runs, prunes it further while the disk it shares with every
+session has less than 5% free, but never below 2 GB: each builder prunes its
+own cache by the whole shortfall, so without that floor a disk other data
+filled would wipe every building organization's cache. Cache mounts, build
+contexts and git checkouts unused for two days go first. GC runs at start and
+about a minute after a build. Registry mirror storage is separate from the
+BuildKit cache.
+
+GC runs only in a running builder, and the spawner stops an organization's
+helpers once no agent session of it has run for the idle window. Right before
+that stop it prunes the builder's cache down to `SANDBOX_BUILDKITD_IDLE_CACHE`
+(5 GB by default) with `buildctl prune --all --keep-storage`, least recently
+used records first; the prune is bounded to two minutes, and one that fails is
+logged and the stop goes on. What stays open: there is no host-wide budget
+across stopped organizations, so their caches add up to the idle budget times
+their number, and their volumes go only with the organization (its teardown
+through `DELETE /v1/organizations/:id`).
 
 The builder is shared by all of its organization's agent sessions and runs
 under their CPU limit and twice their memory limit (its RUN steps execute
