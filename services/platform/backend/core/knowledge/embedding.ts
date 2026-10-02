@@ -76,6 +76,56 @@ const RATE_LIMIT_MAX_PAUSE_MS = 60_000;
 
 /** The window `maxTokensPerMinute` and `maxRequestsPerMinute` count in. */
 const PACE_WINDOW_MS = 60_000;
+/** A provider that states a per-minute figure enforces it per second as
+ * well — the figure divided by sixty (Alibaba Cloud support, 2026-10-02):
+ * a minute's worth sent in one second is refused although the minute is
+ * nearly empty. So each limit is kept over a second too. */
+const PACE_SECOND_MS = 1_000;
+const SECONDS_PER_WINDOW = PACE_WINDOW_MS / PACE_SECOND_MS;
+
+/** The most estimated tokens one request may carry under a per-minute
+ * limit: a second's share of it, so no single request can be the burst
+ * the per-second rule refuses. Undefined without the limit. */
+function tokensPerRequestUnder(
+  limits: Pick<EmbeddingModel, 'maxTokensPerMinute'>,
+): number | undefined {
+  return limits.maxTokensPerMinute === undefined
+    ? undefined
+    : Math.floor(limits.maxTokensPerMinute / SECONDS_PER_WINDOW);
+}
+
+/**
+ * Texts in request-sized batches: at most `cap` texts each, and — under a
+ * per-minute token limit — at most a second's share of estimated tokens
+ * each, a text that alone exceeds it going by itself.
+ */
+function splitBatches(
+  texts: readonly string[],
+  cap: number,
+  tokenBudget: number | undefined,
+): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let batchTokens = 0;
+  for (const text of texts) {
+    const tokens =
+      tokenBudget === undefined ? 0 : estimateEmbeddingTokens([text]);
+    const full =
+      batch.length >= cap ||
+      (tokenBudget !== undefined &&
+        batch.length > 0 &&
+        batchTokens + tokens > tokenBudget);
+    if (full) {
+      batches.push(batch);
+      batch = [];
+      batchTokens = 0;
+    }
+    batch.push(text);
+    batchTokens += tokens;
+  }
+  if (batch.length > 0) batches.push(batch);
+  return batches;
+}
 
 /** The longest pause a busy server may ask for (`Retry-After`) that a request
  * waits out while holding its slot. A server that asks for more is left
@@ -280,12 +330,48 @@ function forgetAgedSends(pace: LanePace, now: number): void {
 }
 
 /**
+ * How long a request of `tokens` has to wait for the requests sent within
+ * `windowMs` to make room for it under `requests` and `tokens` limits:
+ * until the oldest of them has aged out, then the next, until the counts
+ * fit. A request that could never fit — larger than the token limit by
+ * itself — goes once the window is empty, and the provider is the one to
+ * refuse it. Zero when it may go now.
+ */
+function windowWaitMs(
+  sent: readonly { at: number; tokens: number }[],
+  windowMs: number,
+  tokens: number,
+  limits: { readonly tokens?: number; readonly requests?: number },
+  now: number,
+): number {
+  const inWindow = sent.filter((entry) => entry.at > now - windowMs);
+  const oldest = inWindow[0];
+  if (oldest === undefined) return 0;
+  let wait = 0;
+  if (limits.requests !== undefined && inWindow.length >= limits.requests) {
+    wait = oldest.at + windowMs - now;
+  }
+  if (limits.tokens !== undefined) {
+    let used = 0;
+    for (const entry of inWindow) used += entry.tokens;
+    let freedAt = now;
+    let index = 0;
+    while (used + tokens > limits.tokens && index < inWindow.length) {
+      const entry = inWindow[index];
+      if (entry === undefined) break;
+      used -= entry.tokens;
+      freedAt = entry.at + windowMs;
+      index += 1;
+    }
+    if (index > 0) wait = Math.max(wait, freedAt - now);
+  }
+  return wait;
+}
+
+/**
  * How long a batch of `tokens` has to wait before the lane admits it: the
- * rest of a rate-limit pause, then until enough of the last minute's
- * requests have aged out for the request count and the token count to fit
- * under the limits. A single request larger than the token limit goes when
- * the minute is empty — it could never fit otherwise, and the provider is
- * the one to refuse it. Zero when it may go now.
+ * rest of a rate-limit pause, then room under the per-minute limits, then
+ * room under their per-second share. Zero when it may go now.
  */
 function paceWaitMs(
   pace: LanePace,
@@ -295,32 +381,39 @@ function paceWaitMs(
 ): number {
   forgetAgedSends(pace, now);
   let wait = Math.max(0, pace.pausedUntil - now);
-  const oldest = pace.sent[0];
-  if (
-    limits.maxRequestsPerMinute !== undefined &&
-    oldest !== undefined &&
-    pace.sent.length >= limits.maxRequestsPerMinute
-  ) {
-    wait = Math.max(wait, oldest.at + PACE_WINDOW_MS - now);
+  const { maxTokensPerMinute, maxRequestsPerMinute } = limits;
+  if (maxTokensPerMinute === undefined && maxRequestsPerMinute === undefined) {
+    return wait;
   }
-  if (limits.maxTokensPerMinute !== undefined && oldest !== undefined) {
-    let used = 0;
-    for (const entry of pace.sent) used += entry.tokens;
-    let freedAt = now;
-    let index = 0;
-    while (
-      used + tokens > limits.maxTokensPerMinute &&
-      index < pace.sent.length
-    ) {
-      const entry = pace.sent[index];
-      if (entry === undefined) break;
-      used -= entry.tokens;
-      freedAt = entry.at + PACE_WINDOW_MS;
-      index += 1;
-    }
-    if (index > 0) wait = Math.max(wait, freedAt - now);
-  }
-  return wait;
+  wait = Math.max(
+    wait,
+    windowWaitMs(
+      pace.sent,
+      PACE_WINDOW_MS,
+      tokens,
+      { tokens: maxTokensPerMinute, requests: maxRequestsPerMinute },
+      now,
+    ),
+  );
+  return Math.max(
+    wait,
+    windowWaitMs(
+      pace.sent,
+      PACE_SECOND_MS,
+      tokens,
+      {
+        tokens: tokensPerRequestUnder(limits),
+        requests:
+          maxRequestsPerMinute === undefined
+            ? undefined
+            : Math.max(
+                1,
+                Math.floor(maxRequestsPerMinute / SECONDS_PER_WINDOW),
+              ),
+      },
+      now,
+    ),
+  );
 }
 
 /** Drop a lane's pace once nothing in it matters any more. */
@@ -526,11 +619,11 @@ export class Embedder implements QueryEmbedder {
   ): Promise<number[][]> {
     options.signal?.throwIfAborted();
     if (texts.length === 0) return [];
-    const batches: string[][] = [];
-    const cap = laneBatchCap(this.lane);
-    for (let i = 0; i < texts.length; i += cap) {
-      batches.push(texts.slice(i, i + cap));
-    }
+    const batches = splitBatches(
+      texts,
+      laneBatchCap(this.lane),
+      tokensPerRequestUnder(this.model),
+    );
     const stop = new AbortController();
     const signal =
       options.signal === undefined

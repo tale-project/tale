@@ -175,9 +175,12 @@ export const knowledgeEmbeddingSchema = z.object({
    * organization's requests in each Tale process together, estimated from
    * their characters (a conservative count, 1.2–1.5 times the real one for
    * prose). A batch that would cross it waits until the oldest minute's
-   * worth has aged out. Set it to the provider's tokens-per-minute limit
-   * (DashScope's text-embedding-v4 allows 1,000,000) so a crawl of hundreds
-   * of pages is paced instead of refused with 429s. Absent means unpaced.
+   * worth has aged out; a sixtieth of it is kept per second as well, and
+   * no single request carries more than that, because a provider enforces
+   * its per-minute figure per second too. Set it to the provider's
+   * tokens-per-minute limit (DashScope's text-embedding-v4 allows
+   * 1,000,000) so a crawl of hundreds of pages is paced instead of refused
+   * with 429s. Absent means unpaced.
    */
   maxTokensPerMinute: z.number().int().positive().optional(),
   /**

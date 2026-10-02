@@ -451,14 +451,75 @@ describe("pacing under the provider's per-minute limits", () => {
     const b = embedder.embedAll(['b']);
     const c = embedder.embedAll(['c']);
     await vi.advanceTimersByTimeAsync(1);
+    // A sixtieth of two a minute is one a second: the second waits a second.
+    expect(create).toHaveBeenCalledTimes(1);
+    await expect(a).resolves.toEqual([[1, 2, 3]]);
+    await vi.advanceTimersByTimeAsync(1_100);
+    expect(create).toHaveBeenCalledTimes(2);
+    await expect(b).resolves.toEqual([[1, 2, 3]]);
+    // The third is the minute's: it waits until the first has aged out.
+    await vi.advanceTimersByTimeAsync(57_000);
+    expect(create).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(create).toHaveBeenCalledTimes(3);
+    await expect(c).resolves.toEqual([[1, 2, 3]]);
+  });
+
+  // The provider enforces its per-minute figure per second as well — the
+  // figure divided by sixty — so a minute's worth sent in one second is
+  // refused although the minute is nearly empty (Alibaba Cloud support).
+  it('keeps a sixtieth of maxTokensPerMinute within any one second', async () => {
+    vi.useFakeTimers();
+    create.mockImplementation((args) =>
+      Promise.resolve(vectorsFor(args.input)),
+    );
+    // 600 a minute is 10 a second; each text here counts 4.
+    const embedder = new Embedder(
+      {
+        ...MODEL,
+        model: 'embedding-tps',
+        maxConcurrentRequests: 3,
+        maxTokensPerMinute: 600,
+      },
+      'sk-test',
+    );
+    const a = embedder.embedAll(['abcd']);
+    const b = embedder.embedAll(['efgh']);
+    const c = embedder.embedAll(['ijkl']);
+    await vi.advanceTimersByTimeAsync(1);
     expect(create).toHaveBeenCalledTimes(2);
     await expect(a).resolves.toEqual([[1, 2, 3]]);
     await expect(b).resolves.toEqual([[1, 2, 3]]);
-    await vi.advanceTimersByTimeAsync(59_000);
+    await vi.advanceTimersByTimeAsync(900);
     expect(create).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(200);
     expect(create).toHaveBeenCalledTimes(3);
     await expect(c).resolves.toEqual([[1, 2, 3]]);
+  });
+
+  it('sizes each request to a second of maxTokensPerMinute', async () => {
+    vi.useFakeTimers();
+    create.mockImplementation((args) =>
+      Promise.resolve(vectorsFor(args.input)),
+    );
+    const embedder = new Embedder(
+      { ...MODEL, model: 'embedding-tps-batch', maxTokensPerMinute: 600 },
+      'sk-test',
+    );
+    // Four texts of 4 tokens: two fit a second's 10, the rest follow.
+    const all = embedder.embedAll(['abcd', 'efgh', 'ijkl', 'mnop']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0]?.[0].input).toEqual(['abcd', 'efgh']);
+    await vi.advanceTimersByTimeAsync(1_100);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[1]?.[0].input).toEqual(['ijkl', 'mnop']);
+    await expect(all).resolves.toEqual([
+      [1, 2, 3],
+      [1, 2, 3],
+      [1, 2, 3],
+      [1, 2, 3],
+    ]);
   });
 
   it('holds the batch that would cross maxTokensPerMinute, and sends one alone that never could fit', async () => {
