@@ -149,6 +149,7 @@ describe('session probe observers (#4062)', () => {
   it('adapted reads leave no observer on the probe or the Better Auth session, however many mount', () => {
     const client = newClient();
     const listens = spyCacheListeners(client);
+    const prefetches = vi.spyOn(client, 'prefetchQuery');
     const view = render(<Board client={client} cards={1} />);
     const oneCard = sharedObservers(client);
 
@@ -161,6 +162,7 @@ describe('session probe observers (#4062)', () => {
     expect(sharedObservers(client)).toEqual(oneCard);
     expect(oneCard).toEqual({ probe: 0, session: 0 });
     expect(listens).not.toHaveBeenCalled();
+    expect(prefetches).not.toHaveBeenCalled();
 
     view.unmount();
     expect(observers(client, READ_KEY)).toBe(0);
@@ -185,6 +187,23 @@ describe('session probe observers (#4062)', () => {
         '"items:list" has no 0.5 backend row',
       );
     });
+  });
+
+  it('a gated read asks for a probe nothing has fetched yet', () => {
+    // No seeded answer: the gate itself asks for the probe, as a mounting
+    // observer would, instead of waiting on whoever else might.
+    const client = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+    });
+    const prefetches = vi
+      .spyOn(client, 'prefetchQuery')
+      .mockResolvedValue(undefined);
+    render(<GatedRead />, { wrapper: wrapperFor(client) });
+
+    expect(prefetches).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: currentUserQuery().queryKey }),
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('idle · no error');
   });
 
   it('requireAuth:false and a skipped read take no probe subscription', async () => {

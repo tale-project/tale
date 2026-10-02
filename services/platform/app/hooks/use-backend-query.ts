@@ -17,7 +17,7 @@ interface ConvexQueryOptions<TData = unknown> {
   gcTime?: number;
   enabled?: boolean;
   /**
-   * Gate the query on the session probe having resolved. Defaults to `true`,
+   * Gate the query on the session probe holding a user. Defaults to `true`,
    * so authenticated queries never fire during the cold-load auth gap. Set
    * `false` only for queries that MUST run before auth — the `getCurrentUser`
    * probe and genuinely public reads. Adapted reads ignore this gate entirely:
