@@ -74,6 +74,11 @@ describe('ui-docs near misses', () => {
     ['/DE/docs/components/button', '/docs/components/button', true],
     ['/docs/Components/Button.md', '/docs/components/button.md', true],
     ['/docs/foundations/colours', '/docs/foundations/colors', false],
+    // A sidebar group by the label the chrome shows it under.
+    ['/docs/komponenten', '/docs/components/button', false],
+    ['/docs/grundlagen', '/docs/foundations/colors', false],
+    ['/docs/demarrer', '/docs/getting-started/introduction', false],
+    ['/docs/marketing-ui', '/docs/marketing-ui/overview', true],
   ])('sends %s to %s', (address, location, permanent) => {
     expect(resolveMissingUiDocsPath(address)).toEqual({ location, permanent });
   });

@@ -26,7 +26,11 @@ import type {
 } from './adapters';
 import { backendFetch } from './api-client';
 import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
-import { backendEntityPrefix, backendKey } from './query-keys';
+import {
+  backendEntityPrefix,
+  backendKey,
+  orgApiKeyListKey,
+} from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
 type TeamMemberItem = ItemOf<'team_members/queries:listByTeam'>;
@@ -679,11 +683,23 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list'),
+      queryKey: orgApiKeyListKey(orgId),
+      // One list for the editor: every live key (what the picker offers),
+      // then the keys the saved rules still name. A backend from before
+      // `ruleKeys` answers the live keys alone.
       queryFn: () =>
-        backendFetch<{ keys: OrgApiKeyItem[] }>('/governance/api-keys', {
-          orgId,
-        }).then((body) => body.keys),
+        backendFetch<{
+          keys: Omit<OrgApiKeyItem, 'status'>[];
+          ruleKeys?: Omit<OrgApiKeyItem, 'createdAt'>[];
+        }>('/governance/api-keys', { orgId }).then((body): OrgApiKeyItem[] => [
+          // The parsed rows are this read's own: stamp them in place.
+          ...body.keys.map((key) =>
+            Object.assign(key, { status: 'active' as const }),
+          ),
+          ...(body.ruleKeys ?? []).map((key) =>
+            Object.assign(key, { createdAt: null }),
+          ),
+        ]),
     };
   },
   'governance/competences:listCompetences': (args, ctx) => {
@@ -1558,6 +1574,10 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       void client.invalidateQueries({
         queryKey: backendEntityPrefix(orgId, 'governance_policy'),
       });
+      // The key listing describes the keys the budget rules name.
+      if (args.policyType === 'budgets') {
+        void client.invalidateQueries({ queryKey: orgApiKeyListKey(orgId) });
+      }
       // The policy settles once its own read, which the invalidation above
       // is fetching again, shows this write.
       if (typeof args.policyType === 'string') {

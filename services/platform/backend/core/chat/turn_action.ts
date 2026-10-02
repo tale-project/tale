@@ -78,7 +78,9 @@ import {
 import { resolveProjectContext } from './project_context';
 import {
   readEvent,
+  readStreamFailure,
   type StreamDecodeState,
+  type StreamFailure,
   type ToolCallDraft,
 } from './stream_decode';
 import { createStallGuard, type StallGuard } from './stream_stall';
@@ -198,11 +200,38 @@ function rejectOnAbort(signal: AbortSignal): Promise<never> {
   return rejection;
 }
 
+/**
+ * The error a failure reported INSIDE an opened stream ends the round with:
+ * the provider's own sentence, secret-redacted, under the status and code it
+ * stands for — so the chat-error classifier buckets an upstream rate limit
+ * or overload exactly as it does the same failure sent as an HTTP status.
+ */
+function streamFailureError(failure: StreamFailure): Error {
+  const named =
+    failure.code !== undefined && !failure.message.includes(failure.code)
+      ? `(${failure.code})`
+      : '';
+  const detail = [failure.message, named].filter(Boolean).join(' ');
+  return Object.assign(
+    new Error(
+      detail.length > 0
+        ? `The model provider ended the reply with an error: ${sanitizeError(detail, ERROR_EXCERPT)}`
+        : 'The model provider ended the reply with an error and gave no reason.',
+    ),
+    {
+      ...(failure.status !== undefined ? { status: failure.status } : {}),
+      ...(failure.code !== undefined ? { code: failure.code } : {}),
+    },
+  );
+}
+
 /** Read a provider's Server-Sent Events stream line by line, yielding each
  * `data:` payload as a chunk of cleared text (and the final usage when it
  * arrives). With a stall guard, every byte restarts its silence clock and
  * every read races it, so a provider that stops sending ends the round with
- * the guard's error even where the runtime would leave the read pending. */
+ * the guard's error even where the runtime would leave the read pending. A
+ * failure the provider reports on the stream itself ends the round with its
+ * words ({@link streamFailureError}), whatever had streamed before it. */
 export async function* streamSse(
   response: Response,
   apiFormat: ApiFormat,
@@ -265,6 +294,26 @@ export async function* streamSse(
         continue;
       }
       if (!event) continue;
+      const failure = readStreamFailure(apiFormat, event);
+      if (failure !== undefined) {
+        // Usage the failure event itself reports is what the round had
+        // consumed: hand it on before the round ends, so it is booked. A
+        // count of nothing is no evidence of consumption, and stays behind.
+        const { usage } = readEvent(apiFormat, event, state);
+        if (
+          usage !== undefined &&
+          (usage.inputTokens > 0 || usage.outputTokens > 0)
+        ) {
+          yield { text: '', usage };
+        }
+        // Nothing the provider sends after its own error belongs to the
+        // reply; leave the connection rather than drain it.
+        void reader.cancel().then(
+          () => undefined,
+          () => undefined,
+        );
+        throw streamFailureError(failure);
+      }
       const { text, reasoning, usage, finishReason } = readEvent(
         apiFormat,
         event,
@@ -507,26 +556,50 @@ function createDirectModelCall(
         { cause: error },
       );
     }
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      stall.dispose();
-      // The HTTP status rides on the error so the chat-error classifier can
-      // bucket it precisely (401/402/429…) instead of regexing the text.
-      throw Object.assign(
-        new Error(
-          `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
-        ),
-        { status: response.status },
-      );
-    }
-    // Headers count as the first sign of life; the body's bytes take over.
-    stall.touch();
     try {
-      yield* streamSse(response, wire.apiFormat, stall);
+      yield* streamProviderAnswer(
+        response,
+        wire.apiFormat,
+        stall,
+        request.onAccepted,
+      );
     } finally {
       stall.dispose();
     }
   };
+}
+
+/**
+ * The provider's answer to one round's request, read as the round's stream.
+ * A refusal answered as an HTTP status throws before anything streams: the
+ * provider turned the request away, and the round consumed nothing. A
+ * success status means it accepted the prompt — `onAccepted` tells the
+ * pipeline so before the first byte is read, and a failure from there on
+ * (an error event on the stream, a stall, a dropped connection) still books
+ * what the round used, unless the stream's first word is a refusal of its
+ * own (`runTurn`).
+ */
+export async function* streamProviderAnswer(
+  response: Response,
+  apiFormat: ApiFormat,
+  stall: StallGuard,
+  onAccepted?: () => void,
+): AsyncGenerator<ModelStreamChunk> {
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    // The HTTP status rides on the error so the chat-error classifier can
+    // bucket it precisely (401/402/429…) instead of regexing the text.
+    throw Object.assign(
+      new Error(
+        `The model provider answered ${response.status}: ${sanitizeError(detail, ERROR_EXCERPT)}`,
+      ),
+      { status: response.status },
+    );
+  }
+  // Headers count as the first sign of life; the body's bytes take over.
+  stall.touch();
+  onAccepted?.();
+  yield* streamSse(response, apiFormat, stall);
 }
 
 // ----------------------------------------------------------------- the turn

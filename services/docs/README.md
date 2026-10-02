@@ -26,7 +26,7 @@ bun run --filter @tale/docs build:search-index
 | Page content | [`docs/en`](../../docs/en), with German and French siblings |
 | Sidebar order and groups | [`docs/nav.json`](../../docs/nav.json) |
 | Redirects for moved pages | [`docs/redirects.json`](../../docs/redirects.json); section folders without a page redirect to their first page in `nav.json`; every published slug stays in [`docs/published.json`](../../docs/published.json) and must keep answering |
-| Answers for guessed addresses | [`lib/near-miss.ts`](lib/near-miss.ts): retired `/de-CH/…` trees and title-shaped guesses land on a page before the 404 |
+| Answers for guessed addresses | [`lib/near-miss.ts`](lib/near-miss.ts): retired `/de-CH/…` trees, title-shaped guesses and sidebar group labels (`/de/verwaltung`) land on a page before the 404 |
 | Site labels | `services/docs/messages/{en,de,fr,de-CH}.yml`, merged over shared `packages/ui/src/i18n/messages/` |
 | Supported Markdown components | [`registry.tsx`](../../packages/ui/src/markdown/components/registry.tsx) |
 | Screenshots and demo data | [`docs-screenshots`](../platform/tests/docs-screenshots/README.md) |

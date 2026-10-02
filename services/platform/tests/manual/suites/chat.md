@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 97 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 99 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -29,8 +29,9 @@ message / enabling sharing — there is no static URL for them.)
 
 Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock). In **mode A** any prompt returns the canned reply and the
-keyword triggers (`e2e:reasoning` / `e2e:error`) drive CHAT-F16, CHAT-F17
-and CHAT-F19. Rows marked **mode B** need a live provider; CHAT-F25
+keyword triggers (`e2e:reasoning` / `e2e:error` / `e2e:empty` /
+`e2e:length` / `e2e:stream-error`) drive CHAT-F16, CHAT-F17, CHAT-F19,
+CHAT-F57 and CHAT-F58. Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
@@ -147,6 +148,28 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   details** disclosure (`chat.errorDetailsSummary`) and **Try again**
   (`chat.retryGeneration`) renders — the app does not crash (the console's
   induced-provider-error line is expected)
+- [ ] `CHAT-F57` · **Reply without an answer** — Mode A: in a new chat send
+  `e2e:empty`, then `e2e:length` → Each reply settles at once: no thinking
+  dots and no ticking **Thinking** seconds (`chat.thinking.label`) stay
+  behind. In the answer's place a warning line explains it — **The model
+  returned no answer. Try again, or choose another model.**
+  (`chat.generationIncomplete`) for `e2e:empty`; **The model used up its
+  output token limit before it wrote an answer.**
+  (`chat.generationIncompleteLength`) under a settled **Thought for
+  {seconds}s** header (`chat.thinking.done`) for `e2e:length` — with
+  **Try again** (`chat.retryGeneration`) on the conversation's last reply, and
+  the reply toolbar under it at once. Reload: the same line and no dots. (A
+  provider's content filter reads `chat.generationIncompleteFiltered`, mode B
+  only.)
+- [ ] `CHAT-F58` · **Provider error inside the stream** — Mode A: send
+  `e2e:stream-error` (the mock opens the stream with a `200`, then reports a
+  `502` on it) → The reply fails like CHAT-F19: **Couldn't generate a reply.
+  Try again.** (`chat.errorGenerating`), the provider hint
+  (`chat.errorHintProviderError`) and **Try again**
+  (`chat.retryGeneration`); **Technical details**
+  (`chat.errorDetailsSummary`) reads **The model provider ended the reply with
+  an error: E2E induced provider error inside the stream (502)** — never a
+  completed, empty reply with thinking dots.
 - [ ] `CHAT-F20` · **Export** — Thread header **Conversation actions**
   (`chat.aria.threadActions`) → **Export** (`chat.export.button`) → The
   **Export chat** dialog (`chat.export.title`) opens; **Deselect all**
