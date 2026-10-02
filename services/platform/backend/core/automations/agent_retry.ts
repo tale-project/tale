@@ -276,7 +276,16 @@ export function planWorkflowAgentRetry(
 ): WorkflowAgentRetryPlan {
   const attempt = parked.attempt ?? 0;
   if (failureCode === 'sandbox_capacity') {
-    const since = parked.waitingForRoomSince ?? now;
+    // A start that launched after the wait began ended that wait: a later
+    // refusal — the resume of an answered question, hours on — begins a
+    // new one instead of inheriting the old one's clock.
+    const waitingSince =
+      parked.waitingForRoomSince !== undefined &&
+      (parked.launchedAt === undefined ||
+        parked.waitingForRoomSince >= parked.launchedAt)
+        ? parked.waitingForRoomSince
+        : undefined;
+    const since = waitingSince ?? now;
     return {
       retry: now - since < SANDBOX_ROOM_MAX_WAIT_MS,
       attempt,
@@ -284,9 +293,7 @@ export function planWorkflowAgentRetry(
       credentialRotations: 0,
       waitingForRoomSince: since,
       roomRefusals:
-        (parked.waitingForRoomSince !== undefined
-          ? (parked.roomRefusals ?? 0)
-          : 0) + 1,
+        (waitingSince !== undefined ? (parked.roomRefusals ?? 0) : 0) + 1,
     };
   }
   if (

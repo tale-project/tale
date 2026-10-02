@@ -315,6 +315,42 @@ describe('planWorkflowAgentRetry', () => {
     ).toBeUndefined();
   });
 
+  it('begins a new room wait once a start launched after the last one began', () => {
+    // The wait ended with a start that ran; the refusal of a later start —
+    // an answered question's resume, hours on — waits on its own clock.
+    expect(
+      planWorkflowAgentRetry(
+        {
+          launchedAt: NOW - 60 * 60_000,
+          waitingForRoomSince: NOW - SANDBOX_ROOM_MAX_WAIT_MS - 30 * 60_000,
+          roomRefusals: 7,
+        },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toMatchObject({
+      retry: true,
+      waitingForRoomSince: NOW,
+      roomRefusals: 1,
+    });
+    // A wait that began after the last launch goes on.
+    expect(
+      planWorkflowAgentRetry(
+        {
+          launchedAt: NOW - 60 * 60_000,
+          waitingForRoomSince: NOW - 30 * 60_000,
+          roomRefusals: 7,
+        },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toMatchObject({
+      retry: true,
+      waitingForRoomSince: NOW - 30 * 60_000,
+      roomRefusals: 8,
+    });
+  });
+
   it('counts the refusals of a room wait in a row, and starts the count with a new wait', () => {
     expect(
       planWorkflowAgentRetry(

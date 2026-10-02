@@ -373,6 +373,37 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     expect(parkedCursor(suspended)).toMatchObject({ roomRefusals: 3 });
   });
 
+  it('waits afresh for room when a turn that ran meets a refusal hours after its first wait', async () => {
+    // The node waited for room, then got it and ran; the agent asked a
+    // question, and the resume after a late answer found no room. That is
+    // a new wait, not the old one past its two hours.
+    const { ctx, kicks, suspended, finished } = harness(
+      parkedAttempt({
+        launchedAt: Date.now() - 3 * 60 * 60_000 + 60_000,
+        waitingForRoomSince: Date.now() - 3 * 60 * 60_000,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          retryAfterMs: 15_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(finished).toEqual([]);
+    expect(kicks).toHaveLength(1);
+    expect(parkedCursor(suspended)?.waitingForRoomSince).toBeGreaterThanOrEqual(
+      before,
+    );
+  });
+
   it('gives up on sandbox room after two hours, saying so', async () => {
     const { ctx, kicks, finished } = harness(
       parkedAttempt({

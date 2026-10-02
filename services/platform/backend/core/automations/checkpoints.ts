@@ -139,7 +139,9 @@ export interface AgentCursor {
   /** When this node began waiting for sandbox room: the first start of a
    * streak refused for want of it (`sandbox_capacity`). Re-kicks while it
    * waits spend no execution of the run's guard; the wait itself ends after
-   * `SANDBOX_ROOM_MAX_WAIT_MS` (`planWorkflowAgentRetry`). */
+   * `SANDBOX_ROOM_MAX_WAIT_MS`, or with a start that launches — a stamp
+   * older than `launchedAt` belongs to a wait that is over
+   * (`planWorkflowAgentRetry`). */
   waitingForRoomSince?: number;
   /** The refusals in a row of that wait: the next start's delay grows with
    * them (`sandboxRoomRetryAtMs`). */
