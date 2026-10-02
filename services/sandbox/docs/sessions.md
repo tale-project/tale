@@ -158,10 +158,25 @@ of it a linear decay leaves (its turn is still growing into it while
 MemAvailable shows only the idle footprint), the host must keep
 `SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB). Short of it,
 the create reclaims a released idle session like one at capacity, then
-answers 429 `host_memory` (`retry-after: 15`). The decision is taken under the
+answers 429 `host_memory`. The decision is taken under the
 admission lock from a reading the probe refreshes every second, so a burst
 sees each create admitted before it. Unknown memory never refuses a create,
 and the check cannot stop sessions already running from growing past it.
+
+**Room goes first come, first served.** A create refused for room (429
+`session_quota` or `host_memory`) waits in a line, by session id, in the
+order of its first refusal; asking again keeps its place. Room that frees
+next is the oldest waiters': a create gets in ahead of them only where there
+is a free slot for each of them as well, and memory for their planned
+working sets beside its own. The refusal says where the create stands —
+`queue: { position, waiting }` in the body — and when that place comes up:
+`retry-after` is 5 s for the front and 5 s more per place behind it, up to
+60 s, so a waiter that comes back when told is first when room frees, and
+one that asks rarely no longer loses to every one that asks often. A waiter
+that stops asking (twice its hint and 15 s more without a word) gives its
+place up, a destroy of the id takes it out, and the line keeps at most
+10,000 waiters. It lives in the spawner's memory: a restart starts it
+afresh, and each Kubernetes replica keeps its own.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
 enforce the shared namespace count on a best-effort basis; use ResourceQuota

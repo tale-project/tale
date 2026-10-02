@@ -47,7 +47,10 @@ such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
 the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
-session or answers 429 `host_memory`. At most 12 Docker CLI processes run at
+session or answers 429 `host_memory`. Creates refused for room wait in a
+first-come line: freed room goes to the oldest waiter still asking, and each
+429 names the create's place (`queue: { position, waiting }`) with a
+`retry-after` for when it comes up (docs/sessions.md). At most 12 Docker CLI processes run at
 once, each within its own time budget, the wait for a slot included; short
 calls (the health probe's `docker version`, the identity and liveness
 inspects, the build helper and host memory checks) take a free one of those

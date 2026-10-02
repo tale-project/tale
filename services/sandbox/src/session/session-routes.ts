@@ -107,6 +107,34 @@ const ENDED_REAP_BACKOFF_MS = 10 * 60_000;
  * linearly to nothing over this window. */
 const YOUNG_SESSION_RESERVE_MS = 90_000;
 
+/** The first-come line for host room. A create refused for want of room
+ * waits its turn: the room that frees next goes to the oldest waiter still
+ * asking, not to whichever create happens to arrive first — a waiter that
+ * asks rarely (a task run woken every two minutes) would otherwise lose to
+ * every one that asks often. Each refusal tells the waiter when its place
+ * comes up: the front asks again in QUEUE_FRONT_HINT_MS, each place behind
+ * it QUEUE_STEP_HINT_MS later, up to QUEUE_MAX_HINT_MS. */
+const QUEUE_FRONT_HINT_MS = 5_000;
+const QUEUE_STEP_HINT_MS = 5_000;
+const QUEUE_MAX_HINT_MS = 60_000;
+/** A waiter holds its place while it asks again within twice its hint and
+ * this much more; one that stopped asking (its run was cancelled, its
+ * worker died) gives its place up after that. */
+const QUEUE_LIVE_SLACK_MS = 15_000;
+/** The most waiters the line keeps; past it the one that asked longest ago
+ * goes. */
+const QUEUE_CAP = 10_000;
+
+/** A create refused for want of room, waiting its turn. */
+interface RoomWaiter {
+  /** When it last asked. */
+  lastAtMs: number;
+  /** The hint the last refusal gave it. */
+  hintMs: number;
+  /** The working set it is planned with, held for it while it is ahead. */
+  workingSetBytes: number;
+}
+
 /** Run `work` over `items`, at most `limit` at a time. */
 async function forEachLimited<T>(
   items: readonly T[],
@@ -192,6 +220,10 @@ export class SessionRoutes {
     string,
     { bytes: number; sinceMs: number }
   >();
+  // The first-come line for host room, by session id, in the order of first
+  // refusal — the map's own order (QUEUE_FRONT_HINT_MS). Memory only: a
+  // restart starts it afresh.
+  private readonly waiters = new Map<string, RoomWaiter>();
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
   // of answering a false not-found that the caller would turn into a
@@ -392,8 +424,22 @@ export class SessionRoutes {
         409,
       );
     }
+    // Room that frees is the oldest waiters' first: a create gets in ahead
+    // of them only where there is room for them as well.
+    const ahead = this.waitersAhead(sessionId, Date.now());
+    if (ahead.length > 0) {
+      const free =
+        this.cfg.session.maxSessions -
+        this.registry.size() -
+        this.creating.size;
+      if (free <= ahead.length) return 'full';
+      let held = 0;
+      for (const waiter of ahead) held += waiter.workingSetBytes;
+      if (this.memoryShort(workingSetBytes + held)) return 'short';
+    }
     if (this.atCapacity()) return 'full';
     if (this.memoryShort(workingSetBytes)) return 'short';
+    this.waiters.delete(sessionId);
     this.creating.set(sessionId, organizationId);
     this.creatingBytes.set(sessionId, workingSetBytes);
     this.createSettled.set(sessionId, Promise.withResolvers<void>());
@@ -455,25 +501,98 @@ export class SessionRoutes {
         this.admit(sessionId, organizationId, workingSet),
       );
     }
-    if (decision === 'full') {
-      return jsonResponse(
-        { error: 'session_quota', message: 'spawner session cap reached' },
-        429,
-        { 'retry-after': '10' },
-      );
-    }
-    if (decision === 'short') {
+    if (decision === 'full' || decision === 'short') {
+      const place = this.waitInLine(sessionId, workingSet, Date.now());
+      const retryAfter = String(Math.ceil(place.hintMs / 1000));
+      const queue = { position: place.position, waiting: place.waiting };
+      if (decision === 'full') {
+        return jsonResponse(
+          {
+            error: 'session_quota',
+            message: 'spawner session cap reached',
+            queue,
+          },
+          429,
+          { 'retry-after': retryAfter },
+        );
+      }
       return jsonResponse(
         {
           error: 'host_memory',
           message:
             'the sandbox host is short of memory; the session starts once running sessions free some',
+          queue,
         },
         429,
-        { 'retry-after': '15' },
+        { 'retry-after': retryAfter },
       );
     }
+    // Any other answer (admitted, a duplicate) ends the wait.
+    this.waiters.delete(sessionId);
     return decision;
+  }
+
+  /** The live waiters refused before `sessionId` (all of them, for a create
+   * not yet in line), oldest first: the line keeps the order of first
+   * refusal, which a repeat never changes. Waiters that stopped asking
+   * leave. */
+  private waitersAhead(sessionId: string, now: number): RoomWaiter[] {
+    const ahead: RoomWaiter[] = [];
+    let reachedOwn = false;
+    for (const [id, waiter] of this.waiters) {
+      if (now - waiter.lastAtMs > 2 * waiter.hintMs + QUEUE_LIVE_SLACK_MS) {
+        this.waiters.delete(id);
+        continue;
+      }
+      if (id === sessionId) reachedOwn = true;
+      else if (!reachedOwn) ahead.push(waiter);
+    }
+    return ahead;
+  }
+
+  /** Put a refused create in line (keeping its place when it was in line
+   * already) and say where it stands and when to ask again. */
+  private waitInLine(
+    sessionId: string,
+    workingSetBytes: number,
+    now: number,
+  ): { position: number; waiting: number; hintMs: number } {
+    const position = this.waitersAhead(sessionId, now).length;
+    const hintMs = Math.min(
+      QUEUE_FRONT_HINT_MS + position * QUEUE_STEP_HINT_MS,
+      QUEUE_MAX_HINT_MS,
+    );
+    const known = this.waiters.get(sessionId);
+    if (known !== undefined) {
+      known.lastAtMs = now;
+      known.hintMs = hintMs;
+      known.workingSetBytes = workingSetBytes;
+    } else {
+      if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
+      this.waiters.set(sessionId, {
+        lastAtMs: now,
+        hintMs,
+        workingSetBytes,
+      });
+    }
+    return { position, waiting: this.waiters.size, hintMs };
+  }
+
+  private dropStalestWaiter(): void {
+    let stalest: string | undefined;
+    let stalestAtMs = Infinity;
+    for (const [id, waiter] of this.waiters) {
+      if (waiter.lastAtMs < stalestAtMs) {
+        stalest = id;
+        stalestAtMs = waiter.lastAtMs;
+      }
+    }
+    if (stalest !== undefined) this.waiters.delete(stalest);
+  }
+
+  /** How many creates wait in the line for host room. */
+  roomQueueLength(): number {
+    return this.waiters.size;
   }
 
   /** A fresh reading of the host's memory, for the next admission. */
@@ -1594,6 +1713,8 @@ export class SessionRoutes {
     sessionId: string,
     opts: { ifIdle?: boolean; ifStopped?: boolean } = {},
   ): Promise<Response> {
+    // A destroyed session asks for no room any more.
+    this.waiters.delete(sessionId);
     // Conditional destroy (`?if_idle=1`): a janitor caller (the end-of-turn
     // thread-session teardown) must never destroy a session another turn is
     // actively executing in — two turns can share one thread session (e.g.

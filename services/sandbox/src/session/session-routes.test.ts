@@ -1733,7 +1733,8 @@ describe('capacity pressure reclamation', () => {
     ).toBe(503);
     failStop = false;
     expect(await routes.sweepExpired()).toBe(1);
-    expect((await create(routes, 'after-retry')).status).toBe(201);
+    // The refused create, first in line, gets the room on its retry.
+    expect((await create(routes, 'after-failure')).status).toBe(201);
     expect(destroyed.size).toBe(0);
   });
 
@@ -1825,7 +1826,7 @@ describe('capacity pressure reclamation', () => {
     expect((await routes.handleActivity('frozen', 'acquire')).status).toBe(404);
     expect(stopped.has('frozen')).toBe(true);
     expect(routes.sessionCount()).toBe(0);
-    expect((await create(routes, 'after-frozen')).status).toBe(201);
+    expect((await create(routes, 'pressure')).status).toBe(201);
   });
 
   test('a claimed container whose daemon died is still removed by its immutable id', async () => {
@@ -1848,7 +1849,7 @@ describe('capacity pressure reclamation', () => {
     expect(await routes.sweepExpired()).toBe(1);
     expect(stopped.has('dying')).toBe(true);
     expect(destroyed.size).toBe(0);
-    expect((await create(routes, 'after-dying')).status).toBe(201);
+    expect((await create(routes, 'pressure')).status).toBe(201);
   });
 
   test('a daemon that does not answer the reclaim probe is not re-probed by every create at capacity', async () => {
@@ -1896,7 +1897,8 @@ describe('capacity pressure reclamation', () => {
       // A release ends the wait and puts its session first, ahead of the
       // busy ones the walk has not asked yet, however many there are.
       await release(routes, 'held-11');
-      expect((await create(routes, 'admitted')).status).toBe(201);
+      // The room goes to the front of the line, on its retry.
+      expect((await create(routes, 'refused-1')).status).toBe(201);
       expect(stopped.has('held-11')).toBe(true);
       expect(probes()).toBe(9);
       expect(probed('held-11')).toBe(1);
@@ -2661,6 +2663,124 @@ describe('sweep and adoption hygiene', () => {
   });
 });
 
+describe('the first-come line for host room', () => {
+  const GIB = 1024 ** 3;
+  const capped = { ...cfg, session: { ...cfg.session, maxSessions: 2 } };
+  const create = (routes: SessionRoutes, id: string) =>
+    routes.handleCreate(
+      JSON.stringify({
+        sessionId: id,
+        organizationId: 'org_line',
+        profile: 'agent',
+      }),
+    );
+  const place = async (response: Response) => {
+    const body: unknown = await response.json();
+    return {
+      status: response.status,
+      retryAfter: response.headers.get('retry-after'),
+      queue:
+        body !== null && typeof body === 'object' && 'queue' in body
+          ? body.queue
+          : undefined,
+    };
+  };
+
+  test('freed room goes to the oldest waiter, not to the create that arrives first', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'line-a');
+    await create(routes, 'line-b');
+    // Refused, and in line: told where it stands and when to come back.
+    expect(await place(await create(routes, 'waiter-old'))).toEqual({
+      status: 429,
+      retryAfter: '5',
+      queue: { position: 0, waiting: 1 },
+    });
+    await routes.handleDestroy('line-a');
+    // Room is free, but it is the waiter's: a newcomer gets in line behind.
+    expect(await place(await create(routes, 'newcomer'))).toEqual({
+      status: 429,
+      retryAfter: '10',
+      queue: { position: 1, waiting: 2 },
+    });
+    expect((await create(routes, 'waiter-old')).status).toBe(201);
+    expect(routes.roomQueueLength()).toBe(1);
+  });
+
+  test('places and hints grow down the line, up to a minute', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      fakeBackend,
+    );
+    await create(routes, 'only');
+    const hints: Array<string | null> = [];
+    for (let i = 0; i < 14; i += 1) {
+      hints.push(
+        (await create(routes, `wait-${i}`)).headers.get('retry-after'),
+      );
+    }
+    expect(hints.slice(0, 3)).toEqual(['5', '10', '15']);
+    expect(hints.at(-1)).toBe('60');
+    // Asking again keeps a waiter's place.
+    expect((await place(await create(routes, 'wait-1'))).queue).toEqual({
+      position: 1,
+      waiting: 14,
+    });
+  });
+
+  test('a waiter that stops asking gives its place up', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'busy-a');
+    await create(routes, 'busy-b');
+    expect((await create(routes, 'gave-up')).status).toBe(429);
+    await routes.handleDestroy('busy-a');
+    expect((await create(routes, 'next')).status).toBe(429);
+    // Twice its 5 s hint and the slack later, it no longer holds the room.
+    setSystemTime(new Date(Date.now() + 26_000));
+    try {
+      expect((await create(routes, 'next')).status).toBe(201);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('a destroyed session leaves the line', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'held-a');
+    await create(routes, 'held-b');
+    expect((await create(routes, 'cancelled')).status).toBe(429);
+    await routes.handleDestroy('cancelled');
+    await routes.handleDestroy('held-a');
+    expect((await create(routes, 'after')).status).toBe(201);
+  });
+
+  test('short of memory, the room an older waiter needs is not given to a newer create', async () => {
+    let available = 2;
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: available * GIB,
+    });
+    const routes = new SessionRoutes(cfg, fakeBackend, undefined, {
+      latest: reading,
+      read: () => Promise.resolve(reading()),
+    });
+    expect((await create(routes, 'mem-old')).status).toBe(429);
+    // Enough for one more session, not for the waiter and a newcomer.
+    available = 2.5;
+    expect((await create(routes, 'mem-new')).status).toBe(429);
+    expect((await create(routes, 'mem-old')).status).toBe(201);
+  });
+
+  test('a restarted spawner starts with no line', async () => {
+    const first = new SessionRoutes(capped, fakeBackend);
+    await create(first, 'r-a');
+    await create(first, 'r-b');
+    expect((await create(first, 'r-wait')).status).toBe(429);
+    const second = new SessionRoutes(capped, fakeBackend);
+    expect(second.roomQueueLength()).toBe(0);
+  });
+});
+
 describe('memory-aware admission', () => {
   const GIB = 1024 ** 3;
   const create = (routes: SessionRoutes, id: string) =>
@@ -2691,8 +2811,12 @@ describe('memory-aware admission', () => {
     );
     const refused = await create(routes, 'tight-1');
     expect(refused.status).toBe(429);
-    expect(refused.headers.get('retry-after')).toBe('15');
-    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    // First in line: asked back soon.
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toMatchObject({
+      error: 'host_memory',
+      queue: { position: 0, waiting: 1 },
+    });
     expect(created.has('tight-1')).toBe(false);
     expect(routes.pendingCreates().size).toBe(0);
   });
