@@ -1883,7 +1883,7 @@ describe('capacity pressure reclamation', () => {
       }
     };
 
-    test('a walk probes a bounded few, idle-longest first, and the refusals after it wait', async () => {
+    test('a walk probes a bounded few, released sessions first, and the refusals after it wait', async () => {
       const routes = new SessionRoutes(full, fakeBackend);
       await fill(routes);
       // Every session is held by a turn; none can be reclaimed.
@@ -1893,13 +1893,21 @@ describe('capacity pressure reclamation', () => {
       // Refused at once: the walk a moment ago found nothing.
       expect((await create(routes, 'refused-2')).status).toBe(429);
       expect(probes()).toBe(8);
-      // A release puts its session back on the list and ends the wait; the
-      // sessions found busy a moment ago are not probed again.
+      // A release ends the wait and puts its session first, ahead of the
+      // busy ones the walk has not asked yet, however many there are.
       await release(routes, 'held-11');
       expect((await create(routes, 'admitted')).status).toBe(201);
       expect(stopped.has('held-11')).toBe(true);
-      expect(probes()).toBe(12);
+      expect(probes()).toBe(9);
+      expect(probed('held-11')).toBe(1);
       expect(fleet.slice(0, 8).every((id) => probed(id) === 1)).toBe(true);
+      // A session a turn acquired again is no candidate, without a probe.
+      await release(routes, 'held-10');
+      expect((await routes.handleActivity('held-10', 'acquire')).status).toBe(
+        200,
+      );
+      expect((await create(routes, 'refused-3')).status).toBe(429);
+      expect(probed('held-10')).toBe(0);
     });
 
     test('what the sweep saw spares the walk its probes, for a while', async () => {

@@ -130,10 +130,12 @@ every running turn is a candidate by the spawner's own count (the platform
 ends each exec stream at its drain window and follows the turn by attach), so
 the walk spares the busy ones: a daemon that answered, to a reclaim probe or
 to the sweep's, that its session cannot be reclaimed (held by a turn, working,
-pinned, or too old for the claim) is not asked again for 15 seconds unless the
-platform releases that session through this spawner; a walk probes at most
-eight daemons, idle-longest first; and for three seconds after a walk that
-found nothing, the creates refused at capacity are answered at once. A stop
+pinned, or too old for the claim), or whose session a turn acquired through
+this spawner, is not asked again for 15 seconds unless the platform releases
+that session through this spawner; a walk probes at most eight daemons, the
+sessions last seen released first, then idle-longest first; and for three
+seconds after a walk that found nothing, the creates refused at capacity are
+answered at once. A stop
 failure retains occupied capacity and the frozen gate until a retry succeeds;
 it does not unfreeze work under a pending stop. Once runnerd has acknowledged
 the claim, the retry (the next sweep, or the next acquire for that session,
