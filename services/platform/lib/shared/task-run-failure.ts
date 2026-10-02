@@ -24,6 +24,9 @@ export const TASK_RUN_FAILURE_CLASSES = [
   'budget',
   /** The agent's own configuration cannot run: a project editor fixes it. */
   'setup',
+  /** An attachment's bytes left the object store: whoever can change the
+   * task removes it or uploads it again. */
+  'input',
   /** The run used up its time window. */
   'time_limit',
   /** No sandbox became free while the run waited for one. */
@@ -45,6 +48,7 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   agent_deleted: 'setup',
   agent_model_missing: 'setup',
   equipment_missing: 'setup',
+  input_missing: 'input',
   deadline: 'time_limit',
   park_deadline: 'capacity',
   harness_error: 'model',

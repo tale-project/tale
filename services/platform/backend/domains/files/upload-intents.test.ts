@@ -196,6 +196,10 @@ describe('sweepUploadIntents', () => {
     expect(heldDrop?.text).toContain(
       '(i.bound_at_ms IS NOT NULL OR EXISTS ( SELECT 1 FROM app.file_metadata m',
     );
+    // A task that lists the ref holds the blob too (tasks/blob-holders.ts).
+    expect(heldDrop?.text).toContain(
+      "OR EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', i.s3_ref::text)) ))",
+    );
     // Only a ref nobody holds is a reclaim candidate.
     const candidates = issued[2];
     expect(candidates?.text).toContain(
@@ -205,6 +209,9 @@ describe('sweepUploadIntents', () => {
     expect(candidates?.text).toContain('NOT (i.bound_at_ms IS NOT NULL)');
     expect(candidates?.text).toContain(
       'NOT EXISTS ( SELECT 1 FROM app.file_metadata m',
+    );
+    expect(candidates?.text).toContain(
+      "AND NOT EXISTS ( SELECT 1 FROM app.tasks held WHERE held.org_id = ? AND (coalesce(held.attachments, '[]'::jsonb) || coalesce(held.outputs, '[]'::jsonb)) @> jsonb_build_array(jsonb_build_object('fileId', i.s3_ref::text)) ) ORDER BY",
     );
     expect(candidates?.text).toContain('ORDER BY i.expires_at_ms LIMIT ?');
     // The row goes only after its bytes did.

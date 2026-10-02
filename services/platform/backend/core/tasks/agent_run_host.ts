@@ -105,6 +105,10 @@ import {
   isCredentialRotation,
   type TaskRunFailureCode,
 } from './task_auto_retry';
+import {
+  isTaskInputMissingError,
+  TaskInputMissingError,
+} from './task_input_missing_error';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
@@ -236,15 +240,77 @@ export interface StagedTaskInputs {
   outputs: string[];
 }
 
+/** One planned input, keyed by the path the daemon's skip report names:
+ * which box it belongs to, the name it got on disk (the prompt's and
+ * `StagedTaskInputs`' spelling) and the name the task shows the person. */
+export interface PlannedTaskInput {
+  kind: 'attachments' | 'outputs';
+  stagedName: string;
+  fileName: string;
+}
+
+type TaskInputSkipVerdict =
+  | { kind: 'staged'; droppedOutputs: string[] }
+  | { kind: 'inputs_missing'; fileNames: string[]; droppedOutputs: string[] }
+  | { kind: 'failed'; message: string };
+
+/**
+ * What `sessionStageFiles` could not land, read for what it means to the
+ * run. `http_404` is the blob door passing the store's own 404 through
+ * (`domains/files/sandbox-blob-routes.ts`): the bytes behind a listed input
+ * are gone — a deleted file row, a purge, a cleanup outside Tale. A missing
+ * ATTACHMENT fails the run by the file's name: it is the person's input, a
+ * run that quietly worked without it would deliver the wrong thing, and no
+ * retry brings the bytes back (`TaskInputMissingError` → `input_missing`,
+ * never auto-retried; whoever can change the task removes the attachment or
+ * uploads it again). A missing OUTPUT — an earlier run's deliverable — is
+ * dropped from the brief instead: the agent can produce it again, and nobody
+ * can put the old bytes back. Any other reason (a dead staging route, a
+ * refused fetch, a timeout) is an infra fault and keeps the generic failure,
+ * every skip listed with its reason — the run error is the only diagnostic
+ * a failed staging leaves behind, and a bare path list reads as "file gone"
+ * when the real cause is the route. Exported for its unit test.
+ */
+export function partitionTaskInputSkips(
+  skipped: ReadonlyArray<{ path: string; reason: string }>,
+  planned: ReadonlyMap<string, PlannedTaskInput>,
+): TaskInputSkipVerdict {
+  const missingAttachments: string[] = [];
+  const droppedOutputs: string[] = [];
+  for (const skip of skipped) {
+    const input = planned.get(skip.path);
+    if (skip.reason !== 'http_404' || input === undefined) {
+      return {
+        kind: 'failed',
+        message: `staging task inputs failed: ${skipped
+          .map((entry) => `${entry.path} (${entry.reason})`)
+          .join(', ')}`,
+      };
+    }
+    if (input.kind === 'attachments') missingAttachments.push(input.fileName);
+    else droppedOutputs.push(input.stagedName);
+  }
+  if (missingAttachments.length > 0) {
+    return {
+      kind: 'inputs_missing',
+      fileNames: missingAttachments,
+      droppedOutputs,
+    };
+  }
+  return { kind: 'staged', droppedOutputs };
+}
+
 /**
  * Mirror the task's inputs into the standing session: the user's attachments
  * under `<dir>/attachments/`, the task's current deliverables (earlier runs'
  * harvested outputs) under `<dir>/outputs/`. Re-mirrored from scratch every
  * turn — attachments and outputs may have changed since the last run, and a
- * stale mirror would mislead worse than none. A purged blob under a live row
- * skips that file (mirroring `stageWorkflowFiles`); a staging failure throws
- * so the run fails with the real reason instead of quietly proceeding
- * blind.
+ * stale mirror would mislead worse than none. A ref of the retired `_storage`
+ * backend skips that file (mirroring `stageWorkflowFiles`); what the store
+ * no longer holds and what failed to stage is sorted by
+ * `partitionTaskInputSkips` — a gone attachment fails the run by name, a
+ * gone deliverable leaves the brief, an infra fault throws with the real
+ * reason instead of quietly proceeding blind.
  */
 async function stageTaskInputs(
   ctx: ActionCtx,
@@ -264,6 +330,7 @@ async function stageTaskInputs(
     console.warn('[task-agent] inputs pre-clear failed (continuing):', err);
   }
   const toStage: SessionStageFile[] = [];
+  const planned = new Map<string, PlannedTaskInput>();
   for (const [kind, files] of [
     ['attachments', args.attachments],
     ['outputs', args.outputs],
@@ -271,23 +338,31 @@ async function stageTaskInputs(
     const taken = new Set<string>();
     for (const file of files) {
       const url = await stageUrlForBlobRef(file.fileId, args.organizationId);
-      if (url === null) continue; // blob purged under a live row — skip, don't fail
+      if (url === null) continue; // a retired backend's ref — skip, don't fail
       const name = safeInputFileName(file.fileName, taken);
-      toStage.push({ path: `${dir}/${kind}/${name}`, url });
+      const path = `${dir}/${kind}/${name}`;
+      toStage.push({ path, url });
+      planned.set(path, {
+        kind,
+        stagedName: name,
+        fileName: file.fileName === '' ? name : file.fileName,
+      });
       staged[kind].push(name);
     }
   }
   if (toStage.length === 0) return staged;
   const result = await sessionStageFiles(args.sessionId, toStage);
-  if (result.skipped.length > 0) {
-    // Carry each file's skip REASON: the run error is the only diagnostic a
-    // failed staging leaves behind, and a bare path list reads as "file
-    // gone" when the real cause is a dead staging route or a refused fetch.
-    throw new Error(
-      `staging task inputs failed: ${result.skipped
-        .map((skip) => `${skip.path} (${skip.reason})`)
-        .join(', ')}`,
+  const verdict = partitionTaskInputSkips(result.skipped, planned);
+  if (verdict.kind === 'failed') throw new Error(verdict.message);
+  if (verdict.droppedOutputs.length > 0) {
+    console.warn(
+      `[task-agent] earlier deliverables of task ${args.taskId} are no longer in storage and were left out of the brief: ${verdict.droppedOutputs.join(', ')}`,
     );
+    const dropped = new Set(verdict.droppedOutputs);
+    staged.outputs = staged.outputs.filter((name) => !dropped.has(name));
+  }
+  if (verdict.kind === 'inputs_missing') {
+    throw new TaskInputMissingError(verdict.fileNames);
   }
   return staged;
 }
@@ -2514,7 +2589,11 @@ export async function steerTaskAgentTurnImpl(
         text: '',
         // Retryable: the retry run's resume prompt carries the comment via
         // the discussion delta, so the steer is not lost with the restart.
-        failureCode: 'steer_restart_failed',
+        // Except for an attachment the store no longer holds — the restart
+        // re-stages the brief, and a retry would meet the same 404.
+        failureCode: isTaskInputMissingError(err)
+          ? 'input_missing'
+          : 'steer_restart_failed',
         ...(retryAtMs !== undefined ? { retryAtMs } : {}),
       },
     );
