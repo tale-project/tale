@@ -860,7 +860,7 @@ export async function wakeParkedAgentRuns(
 }
 
 /** The organizations a watchdog tick wakes parked runs of, at most. */
-export const PARKED_ORGANIZATIONS_PER_TICK = 500;
+const PARKED_ORGANIZATIONS_PER_TICK = 500;
 
 /**
  * The watchdog's parked-run work list: every organization with a run
