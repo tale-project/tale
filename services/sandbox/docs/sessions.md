@@ -91,9 +91,11 @@ later while its own process still runs) and holds what it left outside the
 group, such as a dev server a harness's tool call started in a session of its
 own, for the exec that takes over. The hold lifts when an exec started after
 the cancel ends; the leftovers then end with the session's last running exec,
-as above, or when runnerd stops. A plain cancel (a person's Stop) ends
-everything; a spawner or runnerd that predates the flag ignores it and does
-the same.
+as above, or when runnerd stops. A later cancel of the handed-over exec (the
+platform's superseded drive still reaps the exec it no longer owns) ends none
+of what it holds; a person's Stop goes to the exec that took over, and its
+end ends them. A plain cancel ends everything; a spawner or runnerd that
+predates the flag ignores it and does the same.
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token

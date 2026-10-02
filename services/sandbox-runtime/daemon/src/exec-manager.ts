@@ -82,6 +82,9 @@ interface LiveExec {
   terminated: boolean;
   /** The child itself exited (its 'exit' fired). */
   leaderExited: boolean;
+  /** A rotation's cancel handed what the exec left to the exec that takes
+   * over: a later cancel or deadline of this one ends none of it. */
+  handedOver: boolean;
   /** What the exit (or a hand-over) left waiting, while it still waits; a
    * cancel or the deadline ends it at once. */
   deferred: Leftover | null;
@@ -336,6 +339,7 @@ export class ExecManager {
       stdin: null,
       terminated: false,
       leaderExited: false,
+      handedOver: false,
       deferred: null,
       terminate: () => {
         if (record.terminated) return;
@@ -636,19 +640,21 @@ export class ExecManager {
     if (waiting !== null) {
       // Its leader already exited: what it left waits on, for the
       // successor as well.
+      rec.handedOver = true;
       waiting.heldSince = this.started;
       return;
     }
     if (rec.terminated) return;
     rec.terminated = true;
+    rec.handedOver = true;
     const group = rec.groupId;
     signalGroup(group, 'SIGTERM', this.reaper);
     setTimeout(() => {
       if (!rec.leaderExited) signalGroup(group, 'SIGKILL', this.reaper);
     }, SIGKILL_GRACE_MS).unref();
     const held: Leftover = { execId, groupId: group, heldSince: this.started };
-    // Kept as the exec's deferred leftovers: its pipes stay open for them,
-    // and a user's Stop during the drain ends them at once.
+    // Kept as the exec's deferred leftovers, so its pipes stay open for
+    // them while it drains.
     rec.deferred = held;
     this.deferLeftovers(held);
   }
@@ -662,6 +668,10 @@ export class ExecManager {
       rec.terminate();
       return;
     }
+    // What it left is the successor's now. The platform's superseded drive
+    // still reaps the exec it no longer owns, and may do so while it drains;
+    // a person's Stop goes to the successor, whose end ends these too.
+    if (rec.handedOver) return;
     rec.deferred = null;
     // Not in the list any more: a round already took it.
     const at = this.leftovers.indexOf(waiting);

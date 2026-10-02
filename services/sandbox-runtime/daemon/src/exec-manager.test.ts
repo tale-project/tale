@@ -608,6 +608,60 @@ describe('ExecManager', () => {
     }
   });
 
+  test('a later cancel of an exec already handed over leaves what it holds to the successor', async () => {
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    mkdirSync(`${procRoot}/99994`);
+    writeFileSync(`${procRoot}/99994/environ`, 'TALE_EXEC_ID=elate\0');
+    writeFileSync(
+      `${procRoot}/99994/stat`,
+      '99994 (server) S 1 99994 99994 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4545 0 0\n',
+    );
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
+      procRoot,
+      kill: (pid, signal) => {
+        sent.push([pid, signal]);
+        if (pid < 0) process.kill(pid, signal);
+      },
+    });
+    let holder = 0;
+    try {
+      const { events, emit } = collect();
+      // A child that shrugs off SIGTERM keeps the exec's pipes, so the exec
+      // drains for a while after its leader exits.
+      const done = mgr.run(
+        {
+          ...base,
+          execId: 'elate',
+          shell: "(trap '' TERM; exec sleep 30) & echo $!; exec sleep 30",
+          cwd: ROOT,
+        },
+        emit,
+      );
+      holder = await stdoutPid(events);
+      expect(mgr.cancel('elate', { keepLeftovers: true })).toBe(true);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(mgr.status('elate')?.state).toBe('running');
+      // The superseded drive reaps the exec it no longer owns.
+      expect(mgr.cancel('elate')).toBe(true);
+      await new Promise((r) => setTimeout(r, 200));
+      expect(sent.some(([pid]) => pid === 99994)).toBe(false);
+      await done;
+      await mgr.run(
+        { ...base, execId: 'elate-next', command: ['true'], cwd: ROOT },
+        () => {},
+      );
+      const until = Date.now() + 2_000;
+      while (!sent.some(([pid]) => pid === 99994) && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(sent).toContainEqual([99994, 'SIGTERM']);
+    } finally {
+      if (holder > 1 && isAlive(holder)) process.kill(holder, 'SIGKILL');
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   test('a hold outlasts an exec that started before it', async () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
     mkdirSync(`${procRoot}/99993`);
