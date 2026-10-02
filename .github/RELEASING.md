@@ -114,7 +114,7 @@ To be `eligible`, the candidate must pass all of these:
 - **Its place on `main`.** The candidate is on `main`, contains and advances beyond the latest
   release's source, and the version is newer than that release. An existing version allocation
   still returns `allocated` for recovery; this rule does not ask you to replace its tag.
-- **Its newest validation.** The newest `Release candidate <sha>` attempt dispatched from `main`
+- **Its newest validation.** The newest `Release candidate <sha>` attempt was dispatched from `main`,
   used the trusted Build workflow and succeeded, with every required job successful and a complete,
   unexpired current-attempt receipt. Earlier distinct candidate runs stay in the report; each entry describes
   that run's current attempt. Each run records its attempt number, creation and current attempt
@@ -133,13 +133,25 @@ older run after a newer success makes that rerun the deciding evidence: its fail
 unfinished attempt waits, and a later success can recover. A first attempt without a start time
 uses its creation time; a rerun missing its start time is refused because its order is unknown.
 
-The gate reads every page of each candidate-event list and the candidate's workflow-run list
-before selecting attempts. It verifies the reported total, page lengths and unique run ids;
-missing pages, repeated records or a changing total answer `blocked`, never an approval based on
-the partial list. Retry a read that changed. Each list has a ten-page bound of 100 runs per page.
-Because GitHub caps these filtered searches at 1,000 results, a total of 1,000 or more also answers
-`blocked`: completeness cannot be proved at that boundary. Do not tag from that result; the
-release lane must obtain complete evidence through a reviewed change to its query strategy.
+The gate reads every page of each workflow's candidate-event list and the candidate's
+workflow-run list before selecting attempts. The event lists carry no branch filter: an attempt
+from another branch is refused when it is the newest, never skipped. It verifies the reported
+total, page lengths and unique run ids; missing pages, repeated records or a changing total answer
+`blocked`, never an approval based on the partial list. Retry a read that changed. Each list has a
+ten-page bound of 100 runs per page. Because GitHub caps these filtered searches at 1,000 results,
+a total of 1,000 or more also answers `blocked`: completeness cannot be proved at that boundary.
+Do not tag from that result; the release lane must obtain complete evidence through a reviewed
+change to its query strategy.
+
+A complete list is still not proof on its own. On 2026-10-01 GitHub answered filtered lists whose
+totals matched their pages, yet the newest runs were missing, or every run was (#4055). So the gate
+also walks the repository's unfiltered run list, newest first, back past the candidate commit's
+date (or past the oldest run a list returned, if that is earlier), and holds every list to it. A
+run that one read lists and the other lacks, or that the two reads describe as different attempts
+or outcomes, answers `blocked` with the run named, and the gate judges nothing from that list.
+So does a walk that is out of order, ends early or does not get back that far within 3,000 runs
+(about six days of this repository's runs in 2026-10). Read again; do not tag from any of these
+results. A run still going in either read is judged as still going.
 
 Job and artifact metadata must be complete, with unique ids and totals matching the returned
 records (at most 100 per list). Each receipt archive is limited to 1 MiB compressed and one

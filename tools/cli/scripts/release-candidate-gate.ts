@@ -174,6 +174,11 @@ const RUNS_MAX_PAGES = 10;
 // Filtered Actions searches return at most 1,000 results. At that boundary,
 // even a reported total of 1,000 cannot establish that no run was omitted.
 const RUNS_SEARCH_CEILING = RUNS_PAGE_SIZE * RUNS_MAX_PAGES;
+// The unfiltered run list has no search ceiling. 3,000 runs were about six
+// days of this repository's runs in 2026-10.
+const WALK_MAX_PAGES = 30;
+// Commit dates come from the committer's clock, not GitHub's.
+const WALK_SLACK_MS = 60 * 60 * 1000;
 
 const SHA = /^[a-f0-9]{40}$/;
 const VERSION = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -248,6 +253,9 @@ const receiptSchema = z.object({
       digest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
     }),
   ),
+});
+const commitSchema = z.object({
+  committer: z.object({ date: z.iso.datetime({ offset: true }) }),
 });
 const compareSchema = z.object({ status: z.string() });
 const refSchema = z.object({
@@ -364,6 +372,212 @@ async function readRuns(
   return refuse('the page limit was reached before the list was complete');
 }
 
+/** The repository's run list without any search filter, newest first, until
+ * a page ends before `since`. Its total is not exact, and runs created while
+ * it is read push earlier ones down a page: those repeats are skipped. A new
+ * run out of id order, a short page before the list ends or a walk past its
+ * page bound refuses it. */
+async function walkRuns(
+  api: GitHubApi,
+  repo: string,
+  since: number,
+  blocked: string[],
+): Promise<Run[] | null> {
+  const path = `${repo}/actions/runs?per_page=${RUNS_PAGE_SIZE}`;
+  const runs: Run[] = [];
+  const seen = new Set<number>();
+  const refuse = (detail: string) => {
+    blocked.push(`incomplete workflow run evidence from ${path}: ${detail}`);
+    return null;
+  };
+  for (let page = 1; page <= WALK_MAX_PAGES; page++) {
+    const parsed = runsSchema.safeParse(await api(`${path}&page=${page}`));
+    if (!parsed.success) {
+      return refuse(
+        `page ${page} is missing or invalid (${parsed.error.issues[0]?.message})`,
+      );
+    }
+    const listed = parsed.data.workflow_runs;
+    let repeating = true;
+    for (const run of listed) {
+      if (seen.has(run.id)) {
+        if (repeating) continue;
+        return refuse(`page ${page} repeats run ${run.id}`);
+      }
+      repeating = false;
+      if (runs.length > 0 && run.id >= runs.at(-1)!.id) {
+        return refuse(`page ${page} lists run ${run.id} out of order`);
+      }
+      seen.add(run.id);
+      runs.push(run);
+    }
+    if (listed.length < RUNS_PAGE_SIZE) {
+      if (seen.size < parsed.data.total_count) {
+        return refuse(`page ${page} ends before the list does`);
+      }
+      return runs;
+    }
+    if (Date.parse(listed.at(-1)!.created_at) < since) return runs;
+  }
+  return refuse(
+    `it did not reach ${new Date(since).toISOString()} within ${(WALK_MAX_PAGES * RUNS_PAGE_SIZE).toLocaleString('en-US')} runs`,
+  );
+}
+
+type Listing = {
+  workflow: string | null;
+  path: string;
+  /** Whether a run belongs in this listing; the walk is held to it too. */
+  lists: (run: Run) => boolean;
+  runs: Run[] | null;
+};
+
+/** Two reads of one run agree when they describe the same attempt. A run
+ * still going may move on between them, so its status and conclusion only
+ * have to match once both reads saw it complete. */
+function sameAttempt(a: Run, b: Run) {
+  const attempt = ({
+    status: _status,
+    conclusion: _conclusion,
+    ...rest
+  }: Run) => JSON.stringify(rest);
+  return (
+    attempt(a) === attempt(b) &&
+    (a.status !== 'completed' ||
+      b.status !== 'completed' ||
+      a.conclusion === b.conclusion)
+  );
+}
+
+/** GitHub's filtered run listings have answered self-consistent subsets,
+ * every total matching its pages, that left out the newest runs or all of
+ * them (#4055). A complete filtered answer is therefore never proof alone:
+ * each one is held to the unfiltered run list, walked back past the
+ * candidate commit's own date (no run for it is older) or the oldest run a
+ * listing returned. A run one read has and the other lacks, or describes
+ * differently, sets that listing aside as incomplete. A run that either
+ * read saw still going is judged as still going. */
+async function crossCheck(
+  api: GitHubApi,
+  repo: string,
+  sha: string,
+  listings: Listing[],
+  blocked: string[],
+) {
+  const complete = listings.filter((listing) => listing.runs !== null);
+  if (complete.length === 0) return;
+  const commit = commitSchema.safeParse(
+    await api(`${repo}/git/commits/${sha}`),
+  );
+  const since = commit.success
+    ? Math.min(
+        Date.parse(commit.data.committer.date),
+        ...complete.flatMap((listing) =>
+          listing
+            .runs!.filter(listing.lists)
+            .map((run) => Date.parse(run.created_at)),
+        ),
+      ) - WALK_SLACK_MS
+    : null;
+  if (since === null) {
+    blocked.push(
+      `cannot read the date of ${sha}, which bounds the unfiltered run list the listings are checked against`,
+    );
+  }
+  const walked =
+    since === null ? null : await walkRuns(api, repo, since, blocked);
+  const walkedById = new Map(walked?.map((run) => [run.id, run]));
+  for (const listing of complete) {
+    if (walked === null) {
+      listing.runs = null;
+      continue;
+    }
+    const listed = new Map(
+      listing.runs!.filter(listing.lists).map((run) => [run.id, run]),
+    );
+    const disagreements = [
+      ...walked
+        .filter((run) => listing.lists(run) && !listed.has(run.id))
+        .map((run) => `${listing.path} omits ${run.html_url}`),
+      ...[...listed.values()].flatMap((run) => {
+        const other = walkedById.get(run.id);
+        if (!other) return [`the unfiltered run list omits ${run.html_url}`];
+        if (!sameAttempt(run, other))
+          return [
+            `${listing.path} and the unfiltered run list describe ${run.html_url} differently`,
+          ];
+        return [];
+      }),
+    ];
+    if (disagreements.length > 0) {
+      blocked.push(
+        ...disagreements.map(
+          (detail) => `the run listings disagree: ${detail}; read again`,
+        ),
+      );
+      listing.runs = null;
+      continue;
+    }
+    listing.runs = listing.runs!.map((run) => {
+      const other = listed.has(run.id) ? walkedById.get(run.id) : undefined;
+      return other && other.status !== 'completed' ? other : run;
+    });
+  }
+}
+
+/** Every run the gate may judge: each workflow's candidate-event listings,
+ * and the runs of the candidate commit itself. The listings carry no branch
+ * filter; a newest attempt from another branch is refused when judged. */
+async function runEvidence(
+  api: GitHubApi,
+  repo: string,
+  sha: string,
+  blocked: string[],
+) {
+  const title = `Release candidate ${sha}`;
+  const listings: Listing[] = [];
+  for (const workflow of [CANDIDATE_WORKFLOW_PATH, ...REQUIRED_WORKFLOWS]) {
+    for (const event of workflow === CANDIDATE_WORKFLOW_PATH
+      ? CANDIDATE_EVENTS
+      : ['repository_dispatch']) {
+      const path = `${repo}/actions/workflows/${stemOf(workflow)}.yml/runs?event=${event}&per_page=${RUNS_PAGE_SIZE}`;
+      listings.push({
+        workflow,
+        path,
+        lists: (run) =>
+          run.path === workflow &&
+          run.event === event &&
+          run.display_title === title,
+        runs: await readRuns(api, path, blocked),
+      });
+    }
+  }
+  const commitPath = `${repo}/actions/runs?head_sha=${sha}&per_page=${RUNS_PAGE_SIZE}`;
+  const onCommit: Listing = {
+    workflow: null,
+    path: commitPath,
+    lists: (run) => run.head_sha === sha,
+    runs: await readRuns(api, commitPath, blocked),
+  };
+  listings.push(onCommit);
+  await crossCheck(api, repo, sha, listings, blocked);
+  return {
+    candidates(workflow: string) {
+      const own = listings.filter((listing) => listing.workflow === workflow);
+      return {
+        runs: own
+          .flatMap(
+            (listing) =>
+              listing.runs?.filter((run) => run.display_title === title) ?? [],
+          )
+          .sort(newestFirst),
+        complete: own.every((listing) => listing.runs !== null),
+      };
+    },
+    onCommit: onCommit.runs,
+  };
+}
+
 /** The commit a tag names (annotated tags dereferenced), or null. */
 async function tagCommit(
   api: GitHubApi,
@@ -432,34 +646,6 @@ export const candidateArtifactName = (
   sha: string,
   attempt: number,
 ) => `release-candidate-${stemOf(workflow)}-${sha}-attempt-${attempt}`;
-
-async function candidateRuns(
-  api: GitHubApi,
-  repo: string,
-  workflow: string,
-  sha: string,
-  blocked: string[],
-) {
-  const runs: Run[] = [];
-  let complete = true;
-  for (const event of workflow === CANDIDATE_WORKFLOW_PATH
-    ? CANDIDATE_EVENTS
-    : ['repository_dispatch']) {
-    const page = await readRuns(
-      api,
-      `${repo}/actions/workflows/${stemOf(workflow)}.yml/runs?branch=main&event=${event}&per_page=${RUNS_PAGE_SIZE}`,
-      blocked,
-    );
-    if (page === null) complete = false;
-    else
-      runs.push(
-        ...page.filter(
-          (run) => run.display_title === `Release candidate ${sha}`,
-        ),
-      );
-  }
-  return { runs: runs.sort(newestFirst), complete };
-}
 
 /** The workflows contain fewer than 100 jobs/artifacts per attempt. Refuse a
  * larger/incomplete response rather than silently treating page one as proof. */
@@ -744,13 +930,8 @@ export async function gate({
 
   // Candidate dispatches run trusted workflow H against source C. Their
   // GitHub head_sha is H, so exact-C push listings cannot discover them.
-  const candidates = await candidateRuns(
-    api,
-    repo,
-    CANDIDATE_WORKFLOW_PATH,
-    sha,
-    reasons.blocked,
-  );
+  const evidence = await runEvidence(api, repo, sha, reasons.blocked);
+  const candidates = evidence.candidates(CANDIDATE_WORKFLOW_PATH);
   report.validation = candidates.runs.map(summary);
   const validation = candidates.runs[0];
   if (!validation) {
@@ -772,19 +953,9 @@ export async function gate({
     );
   }
 
-  const onCommit = await readRuns(
-    api,
-    `${repo}/actions/runs?head_sha=${sha}&per_page=${RUNS_PAGE_SIZE}`,
-    reasons.blocked,
-  );
+  const { onCommit } = evidence;
   for (const workflow of REQUIRED_WORKFLOWS) {
-    const dispatched = await candidateRuns(
-      api,
-      repo,
-      workflow,
-      sha,
-      reasons.blocked,
-    );
+    const dispatched = evidence.candidates(workflow);
     // A dispatch for another source may happen to have head_sha=C. It is
     // never normal-source evidence for C; only its candidate receipt binds it.
     // CLI manual dispatch checks out release_tag, whose source may differ

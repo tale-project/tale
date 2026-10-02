@@ -83,6 +83,8 @@ type Scenario = {
   commitRuns: Run[];
   /** Runs of other branches and commits, which no filtered listing returns. */
   otherRuns?: Run[];
+  /** The candidate commit's committer date; null answers 404. */
+  commitDate?: string | null;
   /** GitHub's filtered listings leave these runs out, with totals that still
    * match their pages (#4055); direct reads still return them. */
   listingOmits?: number[];
@@ -203,6 +205,8 @@ function pagedRerunScenario(
         {
           event: lane === 'candidate' ? 'workflow_dispatch' : 'push',
           display_title: `Release candidate ${ELSEWHERE}`,
+          // A dispatch's GitHub head is its workflow source, not C.
+          head_sha: lane === 'candidate' ? WORKFLOW_SOURCE : CANDIDATE,
         },
       ),
     );
@@ -213,16 +217,33 @@ function pagedRerunScenario(
 
 function runListPath(lane: 'candidate' | 'checks') {
   return lane === 'candidate'
-    ? 'actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100'
+    ? 'actions/workflows/build.yml/runs?event=workflow_dispatch&per_page=100'
     : `actions/runs?head_sha=${CANDIDATE}&per_page=100`;
+}
+
+const WALK_PATH = 'actions/runs?per_page=100';
+
+/** The repository's unfiltered run list: every run, newest id first. */
+function allRuns(scenario: Scenario) {
+  const rows = new Map<number, Run>();
+  for (const entry of [
+    ...scenario.candidateRuns,
+    ...scenario.commitRuns,
+    ...(scenario.otherRuns ?? []),
+  ])
+    if (!rows.has(entry.id)) rows.set(entry.id, entry);
+  return [...rows.values()].sort((a, b) => b.id - a.id);
 }
 
 /** A filtered listing's answer: self-consistent, but possibly incomplete or
  * stale (#4055). */
 function filteredView(scenario: Scenario, rows: Run[]) {
+  // A copy: the unfiltered list and direct reads keep the true record.
   return rows
     .filter((entry) => !scenario.listingOmits?.includes(entry.id))
-    .map((entry) => ({ ...entry, ...scenario.listingStale?.[entry.id] }));
+    .map((entry) =>
+      Object.assign({}, entry, scenario.listingStale?.[entry.id]),
+    );
 }
 
 function fakeApi(scenario: Scenario) {
@@ -261,9 +282,26 @@ function fakeApi(scenario: Scenario) {
       const status = scenario.compare[match[1]!];
       return status ? { status } : null;
     }
+    if (rest === `git/commits/${CANDIDATE}`) {
+      const date =
+        scenario.commitDate === undefined
+          ? '2026-09-29T00:00:00Z'
+          : scenario.commitDate;
+      return date === null
+        ? null
+        : { sha: CANDIDATE, committer: { name: 'GitHub', date } };
+    }
+    if ((match = rest.match(/^actions\/runs\?per_page=100&page=(\d+)$/))) {
+      const rows = allRuns(scenario);
+      const page = Number(match[1]);
+      return {
+        total_count: rows.length,
+        workflow_runs: rows.slice((page - 1) * 100, page * 100),
+      };
+    }
     if (
       (match = rest.match(
-        /^actions\/workflows\/(\w+)\.yml\/runs\?branch=main&event=(\w+)&per_page=100(?:&page=(\d+))?$/,
+        /^actions\/workflows\/(\w+)\.yml\/runs\?event=(\w+)&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
       const rows = filteredView(
@@ -693,7 +731,7 @@ describe('complete candidate event and receipt provenance', () => {
     const { report, calls } = await judge(scenario);
     expect(report.state).toBe('blocked');
     expect(calls).toContain(
-      `${API_ROOT}actions/workflows/e2e.yml/runs?branch=main&event=repository_dispatch&per_page=100&page=2`,
+      `${API_ROOT}actions/workflows/e2e.yml/runs?event=repository_dispatch&per_page=100&page=2`,
     );
   });
 
@@ -841,6 +879,212 @@ describe('a run listing GitHub answered incompletely', () => {
     const { report } = await judge(scenario);
     expect(report.state).toBe('blocked');
     expect(report.reasons.join(' ')).toContain(retried.html_url);
+  });
+});
+
+describe('the unfiltered run list the listings are held to', () => {
+  const walkCalls = (calls: string[]) =>
+    calls.filter((call) => call.startsWith(`${API_ROOT}${WALK_PATH}&`));
+  const elsewhere = (count: number, extra: Partial<Run> = {}) =>
+    Array.from({ length: count }, () =>
+      run('.github/workflows/checks.yml', 'success', {
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at: '2026-09-29T23:00:00Z',
+        ...extra,
+      }),
+    );
+
+  test('listings carry no branch filter, and the walk stops at the first page that ends before the candidate commit', async () => {
+    const scenario = passing();
+    scenario.otherRuns = Array.from({ length: 150 }, (_unused, index) =>
+      run('.github/workflows/checks.yml', 'success', {
+        id: index + 1,
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at: '2026-09-20T12:00:00Z',
+      }),
+    );
+    const { report, calls } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(calls.some((call) => call.includes('branch='))).toBe(false);
+    expect(calls).toContain(`${API_ROOT}git/commits/${CANDIDATE}`);
+    expect(walkCalls(calls)).toEqual([`${API_ROOT}${WALK_PATH}&page=1`]);
+  });
+
+  test('a listed run older than the candidate commit takes the walk back to it', async () => {
+    const scenario = passing();
+    scenario.commitDate = '2026-09-30T00:00:00Z';
+    scenario.otherRuns = elsewhere(100, {
+      created_at: '2026-09-29T22:30:00Z',
+    });
+    const { report, calls } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(walkCalls(calls)).toHaveLength(2);
+  });
+
+  test('a run the unfiltered list lacks is refused, never trusted from the filtered listing alone', async () => {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    const rows = allRuns(scenario).filter(
+      (entry) => entry.id !== validation.id,
+    );
+    scenario.runPageOverrides = {
+      [`${WALK_PATH}&page=1`]: {
+        total_count: rows.length,
+        workflow_runs: rows,
+      },
+    };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons).toEqual([
+      `the run listings disagree: the unfiltered run list omits ${validation.html_url}; read again`,
+    ]);
+  });
+
+  test("runs created during the walk repeat the previous page's tail without refusing it", async () => {
+    const scenario = passing();
+    scenario.otherRuns = [
+      ...elsewhere(150),
+      // Older than the candidate commit: the walk ends on them.
+      ...Array.from({ length: 100 }, (_unused, index) =>
+        run('.github/workflows/checks.yml', 'success', {
+          id: index + 1,
+          event: 'pull_request',
+          head_branch: 'fix/elsewhere',
+          head_sha: ELSEWHERE,
+          created_at: '2026-09-20T12:00:00Z',
+        }),
+      ),
+    ];
+    const rows = allRuns(scenario);
+    // Two runs were created after page one was read.
+    scenario.runPageOverrides = {
+      [`${WALK_PATH}&page=2`]: {
+        total_count: rows.length + 2,
+        workflow_runs: rows.slice(98, 198),
+      },
+    };
+    const { report, calls } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(walkCalls(calls)).toHaveLength(2);
+  });
+
+  test.each([
+    ['missing', 'page 2 is missing or invalid'],
+    ['without total', 'page 2 is missing or invalid'],
+    ['out of order', 'page 2 lists run'],
+    ['repeated', 'page 2 repeats run'],
+    ['short', 'page 2 ends before the list does'],
+  ])(
+    'a %s page of the unfiltered list refuses every listing',
+    async (kind, detail) => {
+      const scenario = passing();
+      scenario.otherRuns = elsewhere(200);
+      const rows = allRuns(scenario);
+      const second = rows.slice(100, 200);
+      scenario.runPageOverrides = {
+        [`${WALK_PATH}&page=2`]:
+          kind === 'missing'
+            ? null
+            : kind === 'without total'
+              ? { workflow_runs: second }
+              : {
+                  total_count: rows.length,
+                  workflow_runs:
+                    kind === 'out of order'
+                      ? [{ ...second[0]!, id: rows[0]!.id + 1 }, ...second]
+                      : kind === 'repeated'
+                        ? [second[0]!, rows[0]!, ...second.slice(1)]
+                        : second.slice(0, 50),
+                },
+      };
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.receipt).toBeNull();
+      expect(report.reasons).toEqual([
+        expect.stringContaining(
+          `incomplete workflow run evidence from repos/${REPOSITORY}/${WALK_PATH}: ${detail}`,
+        ),
+      ]);
+    },
+  );
+
+  test('a walk that cannot reach the candidate commit within 3,000 runs refuses every listing', async () => {
+    const scenario = passing();
+    scenario.otherRuns = elsewhere(3000);
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([
+      `incomplete workflow run evidence from repos/${REPOSITORY}/${WALK_PATH}: it did not reach 2026-09-28T23:00:00.000Z within 3,000 runs`,
+    ]);
+    expect(walkCalls(calls)).toHaveLength(30);
+  });
+
+  test('without the candidate commit date the listings stay unverified', async () => {
+    const scenario = passing();
+    scenario.commitDate = null;
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([
+      `cannot read the date of ${CANDIDATE}, which bounds the unfiltered run list the listings are checked against`,
+    ]);
+    expect(walkCalls(calls)).toEqual([]);
+  });
+
+  test.each(['the listing', 'the unfiltered list'])(
+    'a validation that %s still saw running is pending, not refused',
+    async (reader) => {
+      const scenario = passing();
+      const validation = scenario.candidateRuns[0]!;
+      const running = { status: 'in_progress', conclusion: null };
+      if (reader === 'the listing')
+        scenario.listingStale = { [validation.id]: running };
+      else {
+        Object.assign(validation, running);
+        scenario.listingStale = {
+          [validation.id]: { status: 'completed', conclusion: 'success' },
+        };
+      }
+      const { report } = await judge(scenario);
+      expect(report.reasons).toEqual([
+        `the candidate validation ${validation.html_url} is in_progress`,
+      ]);
+      expect(report.state).toBe('pending');
+    },
+  );
+
+  test('two reads that saw one finished attempt end differently refuse it', async () => {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    validation.conclusion = 'failure';
+    scenario.listingStale = { [validation.id]: { conclusion: 'success' } };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([
+      `the run listings disagree: repos/${REPOSITORY}/${runListPath('candidate')} and the unfiltered run list describe ${validation.html_url} differently; read again`,
+    ]);
+  });
+
+  test('a newer Build attempt dispatched from another branch is refused, not skipped', async () => {
+    const scenario = passing();
+    scenario.candidateRuns[0]!.created_at = '2026-09-29T20:00:00Z';
+    const branch = candidateRun('success', {
+      head_branch: 'ci/unmerged-workflow',
+      created_at: '2026-09-29T21:00:00Z',
+    });
+    scenario.candidateRuns.push(branch);
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([
+      `${branch.html_url} is not a candidate validation from the main Build workflow at a full source SHA`,
+    ]);
   });
 });
 
@@ -1038,8 +1282,8 @@ describe('release candidate gate', () => {
       expect(
         calls.filter((call) => call.includes('/workflows/build.yml/runs?')),
       ).toEqual([
-        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100&page=1`,
-        `${API_ROOT}actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100&page=1`,
+        `${API_ROOT}actions/workflows/build.yml/runs?event=workflow_dispatch&per_page=100&page=1`,
+        `${API_ROOT}actions/workflows/build.yml/runs?event=repository_dispatch&per_page=100&page=1`,
       ]);
     },
   );
@@ -1558,8 +1802,8 @@ describe('release candidate gate command', () => {
         `git/ref/tags/v0.5.63`,
         `compare/${PREVIOUS}...${CANDIDATE}?per_page=1`,
         `compare/${WORKFLOW_SOURCE}...main?per_page=1`,
-        `actions/workflows/build.yml/runs?branch=main&event=workflow_dispatch&per_page=100`,
-        `actions/workflows/build.yml/runs?branch=main&event=repository_dispatch&per_page=100`,
+        `actions/workflows/build.yml/runs?event=workflow_dispatch&per_page=100`,
+        `actions/workflows/build.yml/runs?event=repository_dispatch&per_page=100`,
         ...['workflow_dispatch', 'repository_dispatch'].flatMap((event) =>
           Array.from(
             {
@@ -1573,12 +1817,17 @@ describe('release candidate gate command', () => {
               ),
             },
             (_unused, page) =>
-              `actions/workflows/build.yml/runs?branch=main&event=${event}&per_page=100&page=${page + 1}`,
+              `actions/workflows/build.yml/runs?event=${event}&per_page=100&page=${page + 1}`,
           ),
         ),
         ...REQUIRED_WORKFLOWS.map(
           (workflow) =>
-            `actions/workflows/${workflow.split('/').at(-1)}/runs?branch=main&event=repository_dispatch&per_page=100&page=1`,
+            `actions/workflows/${workflow.split('/').at(-1)}/runs?event=repository_dispatch&per_page=100&page=1`,
+        ),
+        `git/commits/${CANDIDATE}`,
+        ...Array.from(
+          { length: Math.floor(allRuns(scenario).length / 100) + 1 },
+          (_unused, page) => `${WALK_PATH}&page=${page + 1}`,
         ),
         ...scenario.candidateRuns.flatMap((entry) => [
           `actions/runs/${entry.id}`,
