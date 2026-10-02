@@ -1,6 +1,6 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 27 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 28 boxes
 
 Exercise every way a reader moves through the docs — the navigation rail
 (`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
@@ -27,7 +27,7 @@ guide ([search.md](search.md)).
 ## Preconditions
 
 Bring the site up per [SETUP.md](../setup.md) — either mode for
-NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16/NAV-F17) and the PWA
+NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16–NAV-F21) and the PWA
 rows (NAV-F11/NAV-F12) need the **built** server (mode A, or `build` + `start`
 per SETUP.md) — the vite dev server serves no 301s, no prerendered stubs, and
 registers no service worker. The rail tree is build-time static;
@@ -175,6 +175,19 @@ this guide focuses on **behaviour**, not link rot.
   `…/self-hosted/install/quickstart`, `…/platform/chat/basics` and
   `https://tale.dev/de/legal/privacy-policy` (every slug in `docs/published.json`
   keeps answering; `tests/published.test.ts` proves all of them).
+- [ ] `NAV-F21` · **Sidebar labels as addresses** — Built server only —
+  `curl -sI` the rail's group labels spelled as addresses:
+  `{base}/de/verwaltung`, `{base}/de/plattform/automatisierungen`,
+  `{base}/de/verwaltung/governance`, `{base}/de/tutorials/verwaltung` and
+  `{base}/fr/plateforme/automatisations` → Each answers **HTTP 302** to the
+  first page of the group the label names — `…/de/platform/admin/overview`,
+  `…/de/platform/automations/concepts`,
+  `…/de/platform/admin/governance/audit-logs`,
+  `…/de/tutorials/admin/connect-local-provider`,
+  `…/fr/platform/automations/concepts`. **Verwaltung** labels two groups: on
+  its own it lands in **Platform**, under `tutorials/` in the tutorials. A
+  label with an unknown page under it (`{base}/de/verwaltung/xyz`) still
+  answers **404**.
 
 ## Boundary & error tests
 

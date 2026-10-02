@@ -9,6 +9,7 @@ import {
   backendEntityPrefix,
   backendKey,
   backendOrgPrefix,
+  orgApiKeyListKey,
 } from './query-keys';
 
 /**
@@ -86,6 +87,14 @@ export function useBackendHints(orgId: string | undefined): void {
           if (hint.entity === 'document') {
             void queryClient.invalidateQueries({
               queryKey: backendEntityPrefix(org, 'knowledge_entry'),
+            });
+          }
+          // The key listing describes the keys the budget rules name; a
+          // policy change from anywhere (a save, a configuration import or
+          // rollback) arrives as this hint.
+          if (hint.entity === 'governance_policy') {
+            void queryClient.invalidateQueries({
+              queryKey: orgApiKeyListKey(org),
             });
           }
         }

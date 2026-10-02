@@ -860,10 +860,10 @@ Die Sprache ist eine Anweisung an das Modell, keine validierte Ausgabegarantie. 
 | `reasoningTokens` | Anteil der Ausgabetokens fürs Denken; fehlend bedeutet nicht gemeldet, `0` bedeutet ausdrücklich null |
 | `cachedInputTokens` | Anteil der Eingabetokens aus dem Cache des Anbieters |
 | `costEstimateCents` | Katalogschätzung in US-Cent mit Nachkommastellen, auf ein Millionstel Cent gerundet; fehlt ohne Katalogpreis |
-| `estimated: true` | Von der Plattform geschätzte Werte, meist bei verlorenen Anbieterzahlen nach einem Abbruch |
+| `estimated: true` | Von der Plattform geschätzte Werte, meist wenn Anbieterzahlen durch einen Abbruch oder einen Fehler mitten im Stream verloren gingen |
 | `stepLimitHit: true` | Die Tool-Schleife hat ihr vollständiges Rundenbudget verbraucht |
 
-Die Verbrauchserfassung bucht dieselbe Katalogschätzung. Eingaben aus dem Cache werden zum normalen Eingabepreis angesetzt; bei solchen Aufrufen ist die Schätzung daher eine Obergrenze. Geschätzter Verbrauch berücksichtigt den vollständigen Prompt einschließlich der Assistenten-Tools. Schlägt ein Lauf fehl, bevor Zähler verfügbar sind, fehlt `usage`.
+Die Verbrauchserfassung bucht dieselbe Katalogschätzung. Eingaben aus dem Cache werden zum normalen Eingabepreis angesetzt; bei solchen Aufrufen ist die Schätzung daher eine Obergrenze. Geschätzter Verbrauch berücksichtigt den vollständigen Prompt einschließlich der Assistenten-Tools. Auch ein fehlgeschlagener Lauf trägt `usage` für das, was er verbraucht hat: seine abgeschlossenen Modellrunden und, falls der Anbieter die Anfrage bereits angenommen hatte, die fehlgeschlagene Runde – geschätzt, wo der Anbieter keine Zähler gemeldet hat. Eine Runde, die der Anbieter abgelehnt hat, zählt nicht mit, ob er mit einem HTTP-Fehlerstatus geantwortet oder eine Ablehnung wie ein Rate-Limit gemeldet hat, bevor eine Antwort oder ein positiver Verbrauch gemeldet wurde. Wird schon die erste Runde abgelehnt, fehlt `usage`.
 
 `parts` ist eine geordnete Liste mit dem Unterscheidungsfeld `type`: `text`, `reasoning`, `attachment`, `tool-call`, `tool-result` oder `approval`. OpenAPI beschreibt jede Variante als eigenes benanntes Schema (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`) hinter einem `type`-Diskriminator mit explizitem Mapping, ein generierter Client bekommt also eine Klasse je Art. Behandle künftig unbekannte Varianten als undurchsichtige Daten, statt die gesamte Nachricht abzulehnen.
 

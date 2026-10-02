@@ -1241,7 +1241,9 @@ chat:
     voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
   notFound: Ce chat n'est pas disponible.
   placeholder: Pose une question…
-  generationIncomplete: La réponse n'a pas pu être terminée. Réessaie.
+  generationIncomplete: Le modèle n'a renvoyé aucune réponse. Réessaie ou choisis un autre modèle.
+  generationIncompleteFiltered: Le filtre de contenu du fournisseur du modèle a retenu cette réponse. Essaie de reformuler ton message.
+  generationIncompleteLength: Le modèle a épuisé sa limite de tokens en sortie avant d'écrire une réponse. Essaie un effort de raisonnement plus faible, une demande plus courte ou un autre modèle.
   generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
   stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
   send: Envoyer le message
@@ -2848,6 +2850,26 @@ governance:
     invalidCostLimit: La limite de coût doit être supérieure à zéro.
     invalidMaxRequests: La limite de requêtes doit être supérieure à zéro.
     invalidWarningThreshold: Le seuil d'alerte doit être compris entre 0 et 100.
+    scopeLabels:
+      default: Par défaut
+      user: Utilisateur
+      team: Équipe
+      role: Rôle
+      apiKey: Clé API
+      org: Organisation
+    periodLabels:
+      daily: Quotidienne
+      weekly: Hebdomadaire
+      monthly: Mensuelle
+    apiKeyOwnerUnknown: Propriétaire inconnu
+    apiKeyInactive: Cette clé ne peut plus rien dépenser dans cette organisation, la règle ne limite donc rien. Choisis une clé active ou supprime la règle.
+    apiKeyStatus:
+      expired: Expirée
+      disabled: Désactivée
+      revoked: Révoquée
+      unavailable: Indisponible
+      holder_left: Ancien membre
+      unknown: Clé inconnue
   defaultModels:
     title: Modèles par défaut
     description:
