@@ -42,6 +42,18 @@ over plain HTTP on `:8200`:
   is replaced by the first 16 hex digits of its SHA-1, as the K8s backend does.
 - K8s: the Pod IP (read from `status.podIP`).
 
+**An exec's processes end with the exec.** runnerd starts each exec in a
+process group of its own and puts the exec id in its environment
+(`TALE_EXEC_ID`), which every descendant inherits. When the exec's command
+exits — and on a cancel or at its deadline — runnerd sends SIGTERM to that
+group and to every process carrying the id (one that moved to a group or
+session of its own, such as a browser its driver started detached), then
+SIGKILL five seconds later. A backgrounded server, a `nohup` worker or a
+browser therefore never outlives the turn that started it; before, they ran
+on in a session that read idle until the container stopped. Daemons the
+entrypoint starts (redsocks, the inner dockerd) and the containers an exec
+runs under the inner dockerd are not the exec's and keep running.
+
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token
 `HMAC-SHA256(SANDBOX_TOKEN, "runnerd-v1:" + sessionId)` in the

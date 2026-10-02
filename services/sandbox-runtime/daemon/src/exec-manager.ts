@@ -3,14 +3,22 @@
 // base64-encoded and emitted in arrival order so the platform-side agent
 // adapters can reassemble JSONL without mid-line corruption.
 //
-// Each exec runs in its own process group (detached) so the timeout/cancel
-// path can SIGTERM→SIGKILL the whole tree (a shell that forked rg/node/etc.).
+// Each exec runs in its own process group (detached) and carries its id in
+// the environment, so ending it — at exit, on cancel, at its deadline —
+// reaches the whole tree (a shell that forked rg/node/etc., a backgrounded
+// server, a browser its driver spawned detached): an exec's processes end
+// with the exec (process-reaper.ts).
 
 import { spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import type { Writable } from 'node:stream';
 
 import type { EnvStore } from './env-store.ts';
+import {
+  EXEC_TAG_ENV,
+  signalExecProcesses,
+  type ReaperDeps,
+} from './process-reaper.ts';
 import {
   ID_ALPHABET_RE,
   RUNNERD_RING_BUFFER_BYTES,
@@ -36,6 +44,10 @@ type ExecSubscriber = (event: RunnerdExecEvent) => void;
 interface LiveExec {
   startedAtMs: number;
   kill: (signal: NodeJS.Signals) => void;
+  /** SIGTERM now, SIGKILL once {@link SIGKILL_GRACE_MS} has passed — every
+   * process of the exec, whichever path ends it. */
+  terminate: () => void;
+  killTimer: ReturnType<typeof setTimeout> | null;
   /** Last RING_BUFFER_BYTES of emitted NDJSON lines, for /attach replay. */
   ring: string[];
   ringBytes: number;
@@ -85,6 +97,7 @@ export class ExecManager {
     /** Runs just before each child spawns (runnerd: the built-in skill
      * links, `baked-skills.ts`); must not throw. */
     private readonly beforeSpawn: () => void = () => {},
+    private readonly reaper: ReaperDeps = {},
   ) {}
 
   liveCount(): number {
@@ -137,8 +150,7 @@ export class ExecManager {
     if (rec.timer) clearTimeout(rec.timer);
     rec.timer = setTimeout(() => {
       rec.timedOut = true;
-      rec.kill('SIGTERM');
-      setTimeout(() => rec.kill('SIGKILL'), SIGKILL_GRACE_MS);
+      rec.terminate();
     }, rec.timeoutMs);
   }
 
@@ -219,6 +231,7 @@ export class ExecManager {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       ...this.envStore.resolve(req.env),
+      [EXEC_TAG_ENV]: req.execId,
     };
 
     const cmd = hasShell ? 'bash' : (command?.[0] ?? '');
@@ -263,18 +276,17 @@ export class ExecManager {
       timer: null,
       timedOut: false,
       stdin: null,
+      killTimer: null,
       kill: (signal) => {
-        try {
-          // Negative pid → signal the whole process group.
-          if (child.pid !== undefined) process.kill(-child.pid, signal);
-        } catch (err) {
-          // Already gone (ESRCH) — nothing to kill. Log for visibility; other
-          // errno (e.g. EPERM) is a real config problem worth surfacing.
-          console.warn(
-            `[runnerd] kill(${signal}) of pgroup ${child.pid} failed:`,
-            err instanceof Error ? err.message : err,
-          );
-        }
+        signalExecProcesses(req.execId, child.pid, signal, this.reaper);
+      },
+      terminate: () => {
+        record.kill('SIGTERM');
+        if (record.killTimer !== null) return;
+        record.killTimer = setTimeout(() => {
+          record.killTimer = null;
+          record.kill('SIGKILL');
+        }, SIGKILL_GRACE_MS);
       },
     };
     this.live.set(req.execId, record);
@@ -445,6 +457,13 @@ export class ExecManager {
         settled = true;
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
+        if (!closed) {
+          // Forced past the drain grace: a process that outlived the exec
+          // still holds the pipes. Close our ends, or every such exec keeps
+          // two descriptors of this daemon open for as long as it lives.
+          child.stdout.destroy();
+          child.stderr.destroy();
+        }
         record.exitCode = code;
         this.onActivity();
         ringEmit({
@@ -483,6 +502,11 @@ export class ExecManager {
         // 128 + signal number is the conventional shell exit for a signal.
         exitCode = code ?? (signal ? 128 + (SIGNAL_NUMBERS[signal] ?? 15) : -1);
         exited = true;
+        // The exec is over: whatever it left running (a `cmd &`, a `nohup`
+        // worker, a browser) ends with it instead of holding memory and pids
+        // in a session that reads idle. Ending them also closes the pipes a
+        // leftover inherited, so the exit is reported without the grace.
+        record.terminate();
         // stdio already closed (normal fast path) → emit now; otherwise wait a
         // bounded grace for 'close' before forcing the terminal event.
         if (closed) finish(exitCode);
@@ -506,8 +530,7 @@ export class ExecManager {
     if (!rec) return false;
     if (rec.timer) clearTimeout(rec.timer);
     rec.cancelRequested = true;
-    rec.kill('SIGTERM');
-    setTimeout(() => rec.kill('SIGKILL'), SIGKILL_GRACE_MS);
+    rec.terminate();
     return true;
   }
 

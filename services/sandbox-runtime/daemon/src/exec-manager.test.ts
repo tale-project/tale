@@ -4,7 +4,13 @@
 // cwd-safety check at a temp dir so the happy path is hermetic.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { PassThrough } from 'node:stream';
 
@@ -30,6 +36,18 @@ function collect(): {
 } {
   const events: RunnerdExecEvent[] = [];
   return { events, emit: (e) => events.push(e) };
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'EPERM') {
+      return true;
+    }
+    return false;
+  }
 }
 
 function decode(
@@ -244,6 +262,89 @@ describe('ExecManager', () => {
     expect(mgr.cancel('e9')).toBe(true);
     await done;
     expect(events[events.length - 1]?.t).toBe('exit');
+  });
+
+  test('an exec carries its id in the environment of every process', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    await mgr.run(
+      { ...base, execId: 'etag', shell: 'echo "$TALE_EXEC_ID"', cwd: ROOT },
+      emit,
+    );
+    expect(decode(events, 'stdout')).toBe('etag\n');
+  });
+
+  test('what an exec left running ends with it, and its exit is not held back', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    // The background sleep inherits stdout: before, it outlived the exec and
+    // held the pipe, so the exit waited out the drain grace.
+    await mgr.run(
+      { ...base, execId: 'ebg', shell: 'sleep 30 & echo $!', cwd: ROOT },
+      emit,
+    );
+    const pid = Number(decode(events, 'stdout').trim());
+    expect(pid).toBeGreaterThan(1);
+    const last = events[events.length - 1];
+    expect(last?.t).toBe('exit');
+    if (last?.t === 'exit') expect(last.durationMs).toBeLessThan(1_500);
+    const deadline = Date.now() + 3_000;
+    while (isAlive(pid) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(isAlive(pid)).toBe(false);
+  });
+
+  test.skipIf(!existsSync('/proc/self/environ'))(
+    'a descendant in a session of its own is found by its tag and ended too',
+    async () => {
+      const mgr = new ExecManager(new EnvStore(), () => {});
+      const { events, emit } = collect();
+      await mgr.run(
+        {
+          ...base,
+          execId: 'esid',
+          shell:
+            'setsid sleep 30 >/dev/null 2>&1 < /dev/null & sleep 0.2; pgrep -n -f "^sleep 30$"',
+          cwd: ROOT,
+        },
+        emit,
+      );
+      const pid = Number(decode(events, 'stdout').trim());
+      expect(pid).toBeGreaterThan(1);
+      const deadline = Date.now() + 3_000;
+      while (isAlive(pid) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(isAlive(pid)).toBe(false);
+    },
+  );
+
+  test('a cancelled exec ends its background processes too', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { events, emit } = collect();
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'ecbg',
+        shell: 'sleep 30 & echo $!; wait',
+        cwd: ROOT,
+      },
+      emit,
+    );
+    let pid = 0;
+    const started = Date.now();
+    while (pid === 0 && Date.now() - started < 5_000) {
+      pid = Number(decode(events, 'stdout').trim()) || 0;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(mgr.cancel('ecbg')).toBe(true);
+    await done;
+    const deadline = Date.now() + 3_000;
+    while (isAlive(pid) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(isAlive(pid)).toBe(false);
   });
 
   test('attach replays the ring of a just-finished exec', async () => {
