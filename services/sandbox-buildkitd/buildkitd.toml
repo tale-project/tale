@@ -19,9 +19,20 @@ gc = true
 
 # Keep the cache bounded so a runaway build can't fill the host disk. The
 # persistent /var/lib/buildkit volume holds the cache across daemon restarts.
+# `keepBytes` (BuildKit's reservedSpace) is a floor GC never reclaims below,
+# not a cap, and a rule's keepDuration shields everything younger than it from
+# that rule's space limits — so the old `keepBytes + keepDuration` rule capped
+# nothing. GC applies the rules in order, about a minute after a build:
+# first, cache mounts, build contexts and git checkouts unused for two days go;
 [[worker.oci.gcpolicy]]
-keepBytes = "20GB"
-keepDuration = "168h"
+keepDuration = "48h"
+filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
+# then everything else, least recently used first, until the cache is under
+# 20 GB and the disk it shares with every session keeps a tenth free.
+[[worker.oci.gcpolicy]]
+all = true
+maxUsedSpace = "20GB"
+minFreeSpace = "10%"
 
 [worker.containerd]
 # Single OCI worker; no containerd worker (the image has no containerd.sock).

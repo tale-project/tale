@@ -104,6 +104,28 @@ describe('buildkitd naming seam', () => {
   });
 });
 
+describe('buildkitd cache garbage collection', () => {
+  // BuildKit reads `keepBytes` as reservedSpace, a floor it never reclaims
+  // below, and a rule's keepDuration shields everything younger from that
+  // rule's space limits: the old single rule bounded nothing (measured on
+  // v0.33.1). Only a rule over all records with no keepDuration caps size.
+  test('the shipped policy caps the cache and guards the shared disk', async () => {
+    const toml = await Bun.file(
+      new URL('../../sandbox-buildkitd/buildkitd.toml', import.meta.url),
+    ).text();
+    const rules = toml
+      .split('[[worker.oci.gcpolicy]]')
+      .slice(1)
+      .map((rule) => rule.split(/\n\[/)[0] ?? '');
+    expect(toml).not.toMatch(/^\s*keepBytes\s*=/m);
+    const cap = rules.find((rule) => /^all\s*=\s*true/m.test(rule));
+    expect(cap).toBeDefined();
+    expect(cap).toMatch(/^maxUsedSpace\s*=\s*"\d+GB"/m);
+    expect(cap).toMatch(/^minFreeSpace\s*=/m);
+    expect(cap).not.toMatch(/keepDuration/);
+  });
+});
+
 describe('buildkitd egress drift detection', () => {
   test('egressProxyHostname extracts the host from the proxy URL', () => {
     expect(egressProxyHostname('http://sandbox-egress:3128')).toBe(
