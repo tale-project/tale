@@ -8,6 +8,8 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/services/sandbox-buildkitd/buildkitd.toml",
         "$TURBO_ROOT$/services/sandbox-buildkitd/docker-entrypoint.sh",
+        "$TURBO_ROOT$/services/sandbox-egress/docker-entrypoint.sh",
+        "$TURBO_ROOT$/services/sandbox-egress/tinyproxy.conf.template",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/activity-gate.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts"
       ]
