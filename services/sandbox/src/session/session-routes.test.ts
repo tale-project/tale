@@ -882,6 +882,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     });
 
     expect(await routes.sweepExpired()).toBe(0);
+    await routes.buildCacheSettled();
     expect(calls).toEqual([[]]);
   });
 
@@ -908,6 +909,7 @@ describe('SessionRoutes (fake runnerd)', () => {
       fakeHealth.lastActivityAtMs = 0;
 
       expect(await routes.sweepExpired()).toBe(1);
+      await routes.buildCacheSettled();
       expect(maintained).toBe(true);
     },
   );
@@ -2295,6 +2297,71 @@ describe('sweep and adoption hygiene', () => {
     gate.resolve();
     await routes.buildCacheSettled();
     expect(reconciled).toEqual([['org_build']]);
+  });
+
+  test('a slow build-cache job never holds the next maintenance pass up', async () => {
+    // After a release every helper is drifted and adoption recreates each
+    // organization's in turn: minutes during which sessions must still be
+    // swept every pass.
+    const gate = Promise.withResolvers<void>();
+    const reconciled: string[][] = [];
+    let lists = 0;
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        lists += 1;
+        return [
+          {
+            ...mkBackendSession('slow-cache-1', 'org_slow_cache'),
+            createdAtMs: Date.now(),
+            ttlMs: 3_600_000,
+            idleTimeoutMs: 3_600_000,
+          },
+        ];
+      },
+      async reconcileBuildCache(orgIds: readonly string[]) {
+        reconciled.push([...orgIds]);
+        await gate.promise;
+      },
+    });
+    fakeHealth.lastActivityAtMs = Date.now();
+    expect(await settlesWithin(routes.maintain(), 1_000)).toBe(true);
+    expect(await settlesWithin(routes.maintain(), 1_000)).toBe(true);
+    expect(lists).toBe(2);
+    expect(healthProbes.get(tokenOf('slow-cache-1'))).toBe(2);
+    // One build-cache job at a time: the passes' upkeep joined the one
+    // under way instead of stacking behind it.
+    expect(reconciled).toEqual([['org_slow_cache']]);
+    gate.resolve();
+    await routes.buildCacheSettled();
+    expect(reconciled).toEqual([['org_slow_cache']]);
+    // Once it is done, the next pass's upkeep runs again.
+    await routes.maintain();
+    await routes.buildCacheSettled();
+    expect(reconciled).toEqual([['org_slow_cache'], []]);
+  });
+
+  test('organizations adopted while the build-cache job runs are reconciled after it', async () => {
+    const gate = Promise.withResolvers<void>();
+    const reconciled: string[][] = [];
+    let listed = [mkBackendSession('early-1', 'org_early')];
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async listSessions(): Promise<BackendSession[]> {
+        return listed;
+      },
+      async reconcileBuildCache(orgIds: readonly string[]) {
+        reconciled.push([...orgIds]);
+        await gate.promise;
+      },
+    });
+    await routes.adoptExisting();
+    listed = [...listed, mkBackendSession('late-1', 'org_late')];
+    await routes.adoptExisting();
+    expect(reconciled).toEqual([['org_early']]);
+    gate.resolve();
+    await routes.buildCacheSettled();
+    expect(reconciled).toEqual([['org_early'], ['org_late']]);
   });
 
   test('a released session stops after the short window; one still held keeps the full idle window', async () => {

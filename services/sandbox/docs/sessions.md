@@ -82,6 +82,15 @@ Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a
 time, so a few hung ones bound it rather than the sum of every probe.
 
+The build-cache upkeep — the reconcile for the organizations whose agent
+sessions adoption just registered, the retirement of legacy helpers and the
+stop of idle ones — is a background job of its own: a pass starts it, or joins
+the one under way, and never waits for it. A release that changes the helpers'
+image makes every organization's helpers drifted, and recreating them takes
+seconds per organization, one organization after another; the sweep goes on
+every minute meanwhile. Organizations adopted while the job runs are
+reconciled by a run right after it.
+
 ### Capacity and idle reclamation
 
 The signed `GET /v1/limits` route exposes the configured `maxSessions`

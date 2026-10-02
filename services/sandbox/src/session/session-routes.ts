@@ -201,10 +201,14 @@ export class SessionRoutes {
   // The maintenance pass in flight: a pass slower than its interval (hung
   // daemons, a slow dockerd) must not stack copies of itself.
   private maintaining: Promise<void> | null = null;
-  // The build-cache reconcile adoption started, which runs beside the API
-  // rather than ahead of it (one organization's helper recreate takes up to
-  // minutes); the sweep's own maintenance waits for it.
-  private reconciling: Promise<void> = Promise.resolve();
+  // The build-cache upkeep in flight — the reconcile for organizations whose
+  // agent sessions were just adopted, the retirement of legacy helpers, the
+  // idle-helper sweep — and the organizations still waiting for a reconcile.
+  // It runs beside the API and beside the maintenance pass, one job at a
+  // time: recreating one organization's helpers takes seconds to minutes,
+  // and a pass that waited for it held every session's sweep up with it.
+  private buildCacheWork: Promise<void> | null = null;
+  private readonly buildCacheOrgs = new Set<string>();
   // Consecutive failed health probes of a session's incarnation.
   private readonly probeFailures = new Map<
     string,
@@ -644,22 +648,49 @@ export class SessionRoutes {
     const builders = adopted
       .filter((s) => s.profile === 'agent')
       .map((s) => s.organizationId);
-    if (builders.length > 0) {
-      const previous = this.reconciling;
-      this.reconciling = previous
-        .then(() => this.backend.reconcileBuildCache(builders))
-        .catch((error: unknown) => {
-          console.warn(
-            '[sandbox.session] build-cache reconcile after adoption failed:',
-            error,
-          );
-        });
-    }
+    if (builders.length > 0) void this.maintainBuildCache(builders);
   }
 
-  /** Settles once the build-cache reconcile adoption started is done. */
-  buildCacheSettled(): Promise<void> {
-    return this.reconciling;
+  /** Start the build-cache upkeep, or join the job under way; organizations
+   * named here are reconciled by it, or by the run that follows it. Never
+   * rejects: a failure is logged and the next sweep asks again. */
+  private maintainBuildCache(
+    organizationIds: readonly string[] = [],
+  ): Promise<void> {
+    for (const organizationId of organizationIds) {
+      this.buildCacheOrgs.add(organizationId);
+    }
+    this.buildCacheWork ??= this.runBuildCache().finally(() => {
+      this.buildCacheWork = null;
+      // Named while the last run was finishing: they get a run of their own.
+      if (this.buildCacheOrgs.size > 0) void this.maintainBuildCache();
+    });
+    return this.buildCacheWork;
+  }
+
+  private async runBuildCache(): Promise<void> {
+    do {
+      const organizationIds = [...this.buildCacheOrgs];
+      this.buildCacheOrgs.clear();
+      try {
+        // With no organization named, the backend retires drained legacy
+        // helpers and stops idle ones without provisioning anything: the last
+        // legacy session may just have stopped, letting its global helpers go.
+        await this.backend.reconcileBuildCache(organizationIds);
+      } catch (error) {
+        console.warn(
+          organizationIds.length > 0
+            ? '[sandbox.session] build-cache reconcile after adoption failed:'
+            : '[sandbox.session] build-cache maintenance failed:',
+          error,
+        );
+      }
+    } while (this.buildCacheOrgs.size > 0);
+  }
+
+  /** Settles once no build-cache upkeep is under way. */
+  async buildCacheSettled(): Promise<void> {
+    while (this.buildCacheWork !== null) await this.buildCacheWork;
   }
 
   /** Settles once the removal of ended compute adoption started is done. */
@@ -718,7 +749,9 @@ export class SessionRoutes {
   /** One maintenance pass: adoption (never while draining — a lingering
    * spawner must not adopt, and later linger-reap, the sessions its
    * replacement is creating), then the reaper. A call while a pass is under
-   * way joins it instead of starting another. */
+   * way joins it instead of starting another. The pass starts the removal of
+   * ended compute and the build-cache upkeep and waits for neither: both run
+   * beside it, so a slow one never holds up the next pass's sweep. */
   maintain(): Promise<void> {
     if (this.maintaining !== null) return this.maintaining;
     const pass = (async () => {
@@ -863,15 +896,9 @@ export class SessionRoutes {
         if (await this.sweepSession(session, nowMs)) reaped += 1;
       },
     );
-    // No newly adopted session is required for maintenance: the last legacy
-    // session may just have stopped, allowing its global build helpers to
-    // retire. Empty orgIds performs cleanup without provisioning new builders.
-    try {
-      await this.reconciling;
-      await this.backend.reconcileBuildCache([]);
-    } catch (error) {
-      console.warn('[sandbox.session] build-cache maintenance failed:', error);
-    }
+    // The build helpers follow the sessions just stopped, beside the sweep
+    // rather than inside it: the next sweep never waits for a slow recreate.
+    void this.maintainBuildCache();
     return reaped;
   }
 
