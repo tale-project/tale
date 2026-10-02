@@ -1,6 +1,11 @@
+import type {
+  TaskAgentRepairReceipt,
+  TaskAgentResumeFrom,
+} from '@tale/shared/schemas/task-review';
 import type { TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { standingSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { kickAgentRun, type StartedVia } from './agent-runs.ts';
@@ -8,10 +13,20 @@ import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
 import { markAutoRetryRetired } from './kick-plan.ts';
 import {
+  prepareRepair,
+  readRepairDecision,
+  replayRepair,
+  repairFeedback,
+  recordRepairAdmission,
+  staleRepair,
+  type RepairDecision,
+  type StaleRepair,
+} from './review-repair.ts';
+import {
   isTaskRunConfined,
   runStarterMayEditProject,
 } from './run-authority.ts';
-import { assertTaskAutomationEnabled } from './run-start.ts';
+import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
 import {
   agentAssignTaskToAgentTrusted,
   agentHandTaskToInProgressTrusted,
@@ -67,6 +82,10 @@ import {
  *   task's row lock before anything is assigned, withdrawn, moved or
  *   started, so a decision made between the requester's read and
  *   this start is never undone;
+ * - `stale_repair` — a tagged settled-review repair no longer matches the
+ *   rejected native decision, latest source, assignee or untouched task
+ *   history. Its durable admission receipt admits at most one repair and
+ *   can be replayed by a later authorized live run of the same manager;
  * - `agent_busy` — the agent is working another task in its standing
  *   workspace, which every run it is started for here shares: one active
  *   piece of work per agent workspace. The automatic retry of such a run
@@ -289,9 +308,12 @@ export interface DelegatedAgentStartArgs {
    * run's agent still the assignee, no live work — and otherwise answers
    * `stale_question` and changes nothing. Without `agentId` it resumes that
    * run's agent, never whoever holds the task now. A deliberate start leaves
-   * it out.
+   * it out. The tagged `review_repair` form instead consumes one genuine
+   * native changes-requested decision under its own guard. It derives the
+   * implementer and feedback, preserves intervening decisions, and records
+   * a replayable admission without modifying the rejected decision.
    */
-  resumeFrom?: { runId: string; approvalId: string };
+  resumeFrom?: TaskAgentResumeFrom;
 }
 
 /** Why a resumption's question is no longer the task's open question. */
@@ -302,6 +324,7 @@ export type StaleQuestionCause =
   | 'assignee_changed';
 
 export type DelegatedAgentStart =
+  | StaleRepair
   | {
       outcome: 'started';
       runId: string;
@@ -309,6 +332,8 @@ export type DelegatedAgentStart =
       agentId: string;
       /** The step's first delivery started this run; this one found it. */
       replayed?: true;
+      /** Durable source/manager binding for a guarded repair admission. */
+      repairReceipt?: TaskAgentRepairReceipt;
     }
   | {
       outcome: 'already_running';
@@ -372,6 +397,7 @@ async function assertDelegatingRun(
   args: {
     organizationId: string;
     via: Extract<StartedVia, { kind: 'agent' }>;
+    requireCurrentGrant?: boolean;
   },
 ): Promise<void> {
   const runs = await tx<
@@ -381,14 +407,25 @@ async function assertDelegatingRun(
       sessionId: string;
       startedBy: string;
       startedVia: string | null;
+      repairAllowed: boolean;
     }[]
   >`
-    SELECT project_id AS "projectId", agent_id AS "agentId",
-           session_id AS "sessionId", started_by AS "startedBy",
-           started_via AS "startedVia"
-    FROM app.project_agent_runs
-    WHERE id = ${args.via.runId} AND org_id = ${args.organizationId}
-      AND agent_id = ${args.via.agentId} AND status IN ('queued', 'running')
+    SELECT r.project_id AS "projectId", r.agent_id AS "agentId",
+           r.session_id AS "sessionId", r.started_by AS "startedBy",
+           r.started_via AS "startedVia",
+           (${args.requireCurrentGrant !== true} OR (
+             EXISTS (SELECT 1 FROM app.project_agents a
+               WHERE a.org_id = r.org_id AND a.project_id = r.project_id AND a.id = r.agent_id
+                 AND 'task_start_agent' = ANY(a.tools))
+             AND EXISTS (SELECT 1 FROM app.sandbox_sessions s
+               WHERE s.org_id = r.org_id AND s.session_id = r.session_id
+                 AND s.owner_type = 'project_agent' AND s.owner_id = r.agent_id
+                 AND s.status IN ${tx([...SANDBOX_SESSION_LIVE_STATUSES])}
+                 AND s.expires_at_ms > ${Date.now()})
+           )) AS "repairAllowed"
+    FROM app.project_agent_runs r
+    WHERE r.id = ${args.via.runId} AND r.org_id = ${args.organizationId}
+      AND r.agent_id = ${args.via.agentId} AND r.status IN ('queued', 'running')
     LIMIT 1
   `;
   const run = runs[0];
@@ -396,6 +433,13 @@ async function assertDelegatingRun(
     throw new TaskError(
       'AGENT_START_FORBIDDEN',
       'The run asking to start an agent has ended; only a live run may put another agent to work',
+      403,
+    );
+  }
+  if (args.requireCurrentGrant === true && !run.repairAllowed) {
+    throw new TaskError(
+      'AGENT_START_FORBIDDEN',
+      'This live manager no longer has the task delegation permission',
       403,
     );
   }
@@ -513,6 +557,24 @@ export async function startDelegatedAgentRun(
   tx: TransactionSql,
   args: DelegatedAgentStartArgs,
 ): Promise<DelegatedAgentStart> {
+  const repairFrom =
+    args.resumeFrom !== undefined && 'kind' in args.resumeFrom
+      ? args.resumeFrom
+      : undefined;
+  const questionFrom =
+    args.resumeFrom !== undefined && !('kind' in args.resumeFrom)
+      ? args.resumeFrom
+      : undefined;
+  if (
+    repairFrom !== undefined &&
+    (args.via.kind !== 'agent' || args.moveToInProgress === false)
+  ) {
+    throw new TaskError(
+      'AGENT_START_FORBIDDEN',
+      'A review repair needs a live manager and the ordinary task lifecycle',
+      403,
+    );
+  }
   const trigger = args.via.kind === 'agent' ? 'delegated' : 'automation';
   let task = await loadTaskOrThrow(tx, args.taskId, args.organizationId).catch(
     (error: unknown) => {
@@ -587,12 +649,26 @@ export async function startDelegatedAgentRun(
     await assertDelegatingRun(tx, {
       organizationId: args.organizationId,
       via: args.via,
+      requireCurrentGrant: repairFrom !== undefined,
     });
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
 
+  if (repairFrom !== undefined && args.via.kind === 'agent') {
+    const record = await readRepairDecision(tx, task, repairFrom);
+    if ('outcome' in record) return record;
+    const replay = await replayRepair(
+      tx,
+      task,
+      record,
+      args.via.agentId,
+      args.agentId,
+    );
+    if (replay !== null) return replay;
+  }
+  let preparedRepair: RepairDecision | undefined;
   let agentId = args.agentId ?? task.assigneeId;
-  if (args.agentId === undefined && args.resumeFrom !== undefined) {
+  if (args.agentId === undefined && questionFrom !== undefined) {
     // A resumption resumes the agent that asked — its run's own agent, never
     // whoever holds the task now: a task handed to a person, unassigned or
     // passed to another agent since the requester's read is the question's
@@ -600,20 +676,34 @@ export async function startDelegatedAgentRun(
     agentId = await agentOfTaskRun(tx, {
       organizationId: args.organizationId,
       taskId: task.id,
-      runId: args.resumeFrom.runId,
+      runId: questionFrom.runId,
     });
-  } else if (agentId === null) {
+  } else if (repairFrom === undefined && agentId === null) {
     throw new TaskError(
       'TASK_NO_AGENT_ASSIGNEE',
       'The task has no agent assignee; name the agent to start',
       409,
     );
-  } else if (args.agentId === undefined && task.assigneeType !== 'agent') {
+  } else if (
+    repairFrom === undefined &&
+    args.agentId === undefined &&
+    task.assigneeType !== 'agent'
+  ) {
     throw new TaskError(
       'TASK_NO_AGENT_ASSIGNEE',
       'The task is assigned to someone other than an agent; name the agent to start',
       409,
     );
+  }
+  if (repairFrom !== undefined) {
+    agentId = await agentOfTaskRun(tx, {
+      organizationId: args.organizationId,
+      taskId: task.id,
+      runId: repairFrom.runId,
+    });
+    if (agentId === null) return staleRepair(task.id, 'source_unavailable');
+    if (args.agentId !== undefined && args.agentId !== agentId)
+      return staleRepair(task.id, 'assignee_changed', agentId);
   }
   // One active piece of work per agent workspace: the agent row is the
   // lock two starts of the same agent queue on (`lockAgentForStart`), taken
@@ -627,7 +717,9 @@ export async function startDelegatedAgentRun(
           projectId: task.projectId,
         });
   if (agent === null) {
-    if (args.agentId === undefined && args.resumeFrom !== undefined) {
+    if (repairFrom !== undefined)
+      return staleRepair(task.id, 'source_unavailable', agentId);
+    if (args.agentId === undefined && questionFrom !== undefined) {
       // Nobody to resume: the run named is not this task's, or its agent is
       // gone (deleting an agent unassigns its tasks). Not the open question
       // either way; the guard, under the task's row lock, says what changed.
@@ -640,7 +732,7 @@ export async function startDelegatedAgentRun(
             organizationId: args.organizationId,
             taskId: task.id,
             agentId: null,
-            resumeFrom: args.resumeFrom,
+            resumeFrom: questionFrom,
           })) ?? 'assignee_changed',
       };
     }
@@ -660,12 +752,12 @@ export async function startDelegatedAgentRun(
 
   // A resumption checks, under the task's row lock and before anything is
   // written, that it still answers the task's open question.
-  if (args.resumeFrom !== undefined) {
+  if (questionFrom !== undefined) {
     const cause = await staleQuestionCause(tx, {
       organizationId: args.organizationId,
       taskId: task.id,
       agentId: agent.id,
-      resumeFrom: args.resumeFrom,
+      resumeFrom: questionFrom,
     });
     if (cause !== null) {
       return {
@@ -675,6 +767,20 @@ export async function startDelegatedAgentRun(
         staleBecause: cause,
       };
     }
+  }
+
+  if (repairFrom !== undefined && args.via.kind === 'agent') {
+    await lockTaskRunStart(tx, args.organizationId, task.id);
+    task = await loadTaskOrThrow(tx, task.id, args.organizationId);
+    const repair = await prepareRepair(
+      tx,
+      task,
+      repairFrom,
+      agent.id,
+      args.via.agentId,
+    );
+    if ('outcome' in repair) return repair;
+    preparedRepair = repair;
   }
 
   // The task's own live run carries the work: a schedule's occurrence that
@@ -782,9 +888,11 @@ export async function startDelegatedAgentRun(
     trigger,
     startedVia: args.via,
     inPlace: args.moveToInProgress === false,
-    ...(args.feedback !== undefined && args.feedback.trim() !== ''
-      ? { feedback: args.feedback }
-      : {}),
+    ...(preparedRepair !== undefined
+      ? { feedback: repairFeedback(preparedRepair, args.feedback) }
+      : args.feedback !== undefined && args.feedback.trim() !== ''
+        ? { feedback: args.feedback }
+        : {}),
   });
   if (kicked.reused) {
     return {
@@ -801,10 +909,20 @@ export async function startDelegatedAgentRun(
       actorId: actorOf(args.via),
     });
   }
+  const repairReceipt =
+    preparedRepair !== undefined && args.via.kind === 'agent'
+      ? await recordRepairAdmission(tx, task, preparedRepair, {
+          runId: kicked.runId,
+          implementationAgentId: agent.id,
+          managerAgentId: args.via.agentId,
+          issuerRunId: args.via.runId,
+        })
+      : undefined;
   return {
     outcome: 'started',
     runId: kicked.runId,
     taskId: task.id,
     agentId: agent.id,
+    ...(repairReceipt !== undefined ? { repairReceipt } : {}),
   };
 }

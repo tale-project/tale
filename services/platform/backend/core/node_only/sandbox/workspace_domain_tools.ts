@@ -1,7 +1,9 @@
 import {
+  taskAgentResumeFromSchema,
   taskAgentReviewInputSchema,
   taskAgentReviewStageFileSchema,
   type AgentReviewBlockedReason,
+  type TaskAgentReviewReceipt,
   type PendingReviewIdentity,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
@@ -245,6 +247,7 @@ interface TaskWorkStateAnswer {
   agentRunsHasMore: boolean;
   workflowRun: WorkflowRunAnswer | null;
   pendingReview: PendingReviewAnswer | null;
+  reviewDecision?: TaskAgentReviewReceipt | null;
 }
 
 interface AgentRunAnswer {
@@ -736,6 +739,9 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'The task waits for its reviewer to judge the earlier work; nothing ' +
     'started. Start it without moveToInProgress: false to withdraw that ' +
     'review and resume the task, or leave the decision to its reviewer.',
+  stale_repair:
+    'This rejected review no longer authorizes a repair (staleBecause); nothing started or changed. ' +
+    'Read the current task and decision, retire superseded intents, and never fall back to an unguarded start.',
   stale_question:
     'The question you answered is no longer the task’s open question ' +
     '(staleBecause: the task was decided, a newer run or review exists, the ' +
@@ -747,7 +753,7 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'moveToInProgress: false to reopen it deliberately, or report it.',
   agent_busy:
     'That agent is working another task (busyTaskId) in its workspace; ' +
-    'nothing started. Pick another agent or leave the task queued.',
+    'nothing started. Wait for it to finish or work on another task.',
   blocked:
     'Open tasks block this one (blockedBy); nothing started. Start it once ' +
     'they are done.',
@@ -804,21 +810,12 @@ async function runTaskStartAgent(
     typeof callArgs.moveToInProgress === 'boolean'
       ? callArgs.moveToInProgress
       : undefined;
-  // A resumption names the run that asked and the review it waits at — both
-  // ids, nothing else (`delegated-start.ts`, `resumeFrom`).
-  const resume = isRecord(callArgs.resumeFrom) ? callArgs.resumeFrom : null;
-  const resumeRunId = resume === null ? undefined : readString(resume.runId);
-  const resumeApprovalId =
-    resume === null ? undefined : readString(resume.approvalId);
-  const resumeFrom =
-    resume !== null &&
-    Object.keys(resume).length === 2 &&
-    resumeRunId !== undefined &&
-    resumeRunId.length <= 200 &&
-    resumeApprovalId !== undefined &&
-    resumeApprovalId.length <= 200
-      ? { runId: resumeRunId, approvalId: resumeApprovalId }
-      : undefined;
+  const resume =
+    callArgs.resumeFrom === undefined
+      ? undefined
+      : taskAgentResumeFromSchema.safeParse(callArgs.resumeFrom);
+  const resumeFrom = resume?.success === true ? resume.data : undefined;
+  const repair = resumeFrom !== undefined && 'kind' in resumeFrom;
   if (
     taskId === undefined ||
     (callArgs.agentId !== undefined && agentId === undefined) ||
@@ -826,14 +823,17 @@ async function runTaskStartAgent(
       typeof callArgs.feedback !== 'string') ||
     (callArgs.moveToInProgress !== undefined &&
       moveToInProgress === undefined) ||
-    (callArgs.resumeFrom !== undefined && resumeFrom === undefined)
+    (callArgs.resumeFrom !== undefined && resumeFrom === undefined) ||
+    (repair && moveToInProgress === false)
   ) {
     return {
       status: 'invalid_args',
       message:
         'task_start_agent needs {taskId: string, agentId?: string, ' +
         'feedback?: string, moveToInProgress?: boolean, ' +
-        'resumeFrom?: {runId: string, approvalId: string}}.',
+        'resumeFrom?: {runId: string, approvalId: string} | ' +
+        '{kind: "review_repair", runId: string, approvalId: string}}. ' +
+        'A review repair uses the ordinary lifecycle; moveToInProgress:false is not allowed.',
     };
   }
   if (feedback !== undefined) {
@@ -1190,6 +1190,7 @@ export async function runTaskTool(
           ),
           workflowRun: workflowRunView(work.workflowRun),
           pendingReview: pendingReviewView(work.pendingReview),
+          reviewDecision: work.reviewDecision ?? null,
           reviewFiles,
         },
       };

@@ -119,6 +119,9 @@ function workflowAgentStartOf(
     case 'stale_question':
       // A step never resumes a question (it passes no `resumeFrom`).
       throw new Error('an automation step does not resume a question');
+    case 'stale_repair':
+      // A step never admits a review repair (it passes no `resumeFrom`).
+      throw new Error('an automation step does not resume a review repair');
     case 'in_review':
       return {
         started: false,

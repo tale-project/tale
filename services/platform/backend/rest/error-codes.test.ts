@@ -263,6 +263,8 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_REVIEW_BUSY',
   'TASK_REVIEW_STALE',
   'TASK_REVIEW_FILE_UNAVAILABLE',
+  // Guarded repair admission is native-only; REST exposes no repair start.
+  'TASK_REPAIR_STALE',
   'TASK_SCHEDULE_INVALID',
   'TASK_SOURCE_THREAD_NOT_FOUND',
   // The organization's standard agent is set up only through the app's

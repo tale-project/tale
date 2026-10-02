@@ -204,6 +204,11 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'implementationAgentId and evidenceRevision bind an agent decision to ' +
     'the source. A null source or revision cannot be decided by task_review. ' +
     'pendingReview.agentReviewBlockedReason names a current handoff blocker. ' +
+    'reviewDecision is the latest validated native verdict receipt, or null ' +
+    'when unavailable or behind a newer pending, human or workflow review. ' +
+    'It names approvalId, runId, reviewer, issuerRunId, feedbackCommentId and ' +
+    'evidence; it is historical, not the current task status. Null does not ' +
+    'prove that no decision committed. ' +
     'reviewFiles lists attachments and outputs for a captured agent review, ' +
     '50 entries per page; pass reviewFiles.page.continueCursor as ' +
     'reviewFileCursor while page.isDone is false. Each entry names fileId, kind, metadata and an ' +
@@ -239,18 +244,31 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'moveToInProgress?: boolean (default true: the card moves to ' +
     'in_progress, withdrawing a pending review, and the result waits at ' +
     'in_review for its reviewer; false leaves the card where it is, only under ' +
-    'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} ' +
-    '(when you resume an agent with the answer to its question: the run ' +
-    'that asked and its pending review, as you read them — without agentId ' +
-    'it resumes that run’s agent, and only while that is still the task’s ' +
-    'open question)}. Answers ' +
-    '{started, runId, reason?}: reason stale_question (that question is no ' +
+    'backlog, todo or in_progress), resumeFrom?: {runId, approvalId} | ' +
+    '{kind: "review_repair", approvalId, runId}}. The untagged form resumes ' +
+    'an agent with the answer to its question: name the run that asked and ' +
+    'its pending review, as you read them. Without agentId it resumes that ' +
+    'run’s agent, only while that is still the task’s open question. ' +
+    'The tagged form repairs one recorded native request_changes decision. ' +
+    'A repair requires current ' +
+    'todo, the same implementation assignee and latest settled source, no ' +
+    'newer review or intervening status/assignment/archive decision. Omit ' +
+    'agentId, or name that exact implementer; false is refused. The server ' +
+    'derives review feedback and its comment ID; the combined feedback with ' +
+    'your optional brief must fit the same limit. Repair admission returns ' +
+    'repairReceipt; replayed:true recovers that prior run, never starts again ' +
+    'or claims it is still live. A later live run of the same manager can ' +
+    'replay; current grant and project authority are checked every time. ' +
+    'Never fall back from a refused repair to an unguarded start. Answers ' +
+    '{started, runId, reason?}: reason stale_repair (the rejected review no ' +
+    'longer authorizes this repair; reread and retire the outdated intent), ' +
+    'stale_question (that question is no ' +
     'longer open — the task was decided, a newer run or review exists, or the ' +
     'assignee changed; nothing changed), already_running (the task is being ' +
     'worked), in_review or ' +
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
-    'agent_busy (that agent is working another task — pick another or ' +
-    'wait), blocked (an open task blocks it) or paused (three automated ' +
+    'agent_busy (that agent is working another task — wait or work on ' +
+    'another task), blocked (an open task blocks it) or paused (three automated ' +
     'starts on this task within the hour, their automatic retries ' +
     'included) start nothing. The run answers to whoever your run ' +
     'answers to and names you as the agent that started it; an agent you ' +

@@ -1,5 +1,6 @@
 import type {
   AgentReviewBlockedReason,
+  TaskAgentReviewReceipt,
   TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 import type { Sql } from 'postgres';
@@ -14,6 +15,7 @@ import {
   findLatestAutomationRunForTask,
   findLiveAutomationRunForTask,
 } from './external-ref.ts';
+import { readTaskReviewDecision } from './review-decision.ts';
 import { getPendingReviewForTask } from './reviews.ts';
 
 /**
@@ -53,6 +55,8 @@ export interface TaskWorkflowRunState {
 }
 
 export interface TaskWorkState {
+  /** Latest recorded native decision; a newer non-native or pending review hides it. */
+  reviewDecision: TaskAgentReviewReceipt | null;
   /** Newest first — the first is the live run when the task has one. */
   agentRuns: TaskAgentRunSummary[];
   /** Whether older runs than this page exist. */
@@ -144,6 +148,7 @@ export async function readTaskWorkState(
     agentRuns: runs.slice(0, runLimit),
     agentRunsHasMore: runs.length > runLimit,
     workflowRun,
+    reviewDecision: await readTaskReviewDecision(sql, subject),
     pendingReview:
       review === null
         ? null
