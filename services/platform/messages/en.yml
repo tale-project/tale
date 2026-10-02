@@ -8217,6 +8217,7 @@ websites:
       unresolved: The embedding model's credential can't be used. An admin can check it under Settings → AI providers.
       dimension: The model's vectors don't fit this knowledge database. An admin can check the embedding model under Settings → Data residency.
       upstream: The provider failed or couldn't be reached. Choose Scan now once it's back.
+      throttled: The provider's rate limit held through every retry. The next scan continues on its own; an admin can pace requests under Settings → Data residency.
       generic: An admin can check the embedding model under Settings → Data residency.
     technicalDetails: Technical details
   scanPausedBadge: Paused

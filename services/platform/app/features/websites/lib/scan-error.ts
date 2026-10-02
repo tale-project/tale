@@ -163,6 +163,7 @@ export function embeddingHintKey(
   | 'viewDialog.scanDetail.credit'
   | 'viewDialog.scanDetail.unresolved'
   | 'viewDialog.scanDetail.dimension'
+  | 'viewDialog.scanDetail.throttled'
   | 'viewDialog.scanDetail.upstream'
   | 'viewDialog.scanDetail.generic' {
   switch (failureClass) {
@@ -174,6 +175,8 @@ export function embeddingHintKey(
       return 'viewDialog.scanDetail.unresolved';
     case 'dimension':
       return 'viewDialog.scanDetail.dimension';
+    case 'throttled':
+      return 'viewDialog.scanDetail.throttled';
     case 'upstream':
       return 'viewDialog.scanDetail.upstream';
     default:

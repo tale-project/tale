@@ -298,7 +298,7 @@ describe('account refusals from the provider', () => {
     );
   });
 
-  it('classifies any other provider failure as upstream', () => {
+  it('classifies a rate limit as throttled and any other provider failure as upstream', () => {
     expect(
       classifyEmbeddingFailure(
         OpenAI.APIError.generate(
@@ -313,7 +313,7 @@ describe('account refusals from the provider', () => {
           new Headers(),
         ),
       ),
-    ).toBe('upstream');
+    ).toBe('throttled');
     expect(
       classifyEmbeddingFailure(new OpenAI.APIConnectionTimeoutError()),
     ).toBe('upstream');
@@ -323,6 +323,173 @@ describe('account refusals from the provider', () => {
     expect(classifyEmbeddingFailure(new Error('a programming error'))).toBe(
       null,
     );
+  });
+});
+
+describe('a per-minute limit is waited out, not billed', () => {
+  // DashScope's compatible mode answers its token-per-minute limit
+  // (Throttling.AllocationQuota) with OpenAI's billing code: a scan of 300
+  // pages used to end on the first one as "balance or plan", unretried.
+  const dashScopeLimit = () =>
+    OpenAI.APIError.generate(
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message:
+            'Allocated quota exceeded, please increase your quota limit. For details, see: https://www.alibabacloud.com/help/en/model-studio/error-code#token-limit',
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+  const openAiBilling = () =>
+    OpenAI.APIError.generate(
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message:
+            'You exceeded your current quota, please check your plan and billing details.',
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+
+  it('tells the same code apart by its words', () => {
+    expect(classifyEmbeddingFailure(dashScopeLimit())).toBe('throttled');
+    expect(classifyEmbeddingFailure(openAiBilling())).toBe('credit');
+  });
+
+  it('still does not retry the billing refusal', async () => {
+    create.mockRejectedValue(openAiBilling());
+    const embedder = new Embedder(
+      { ...MODEL, model: 'embedding-billing' },
+      'sk-test',
+    );
+    await expect(embedder.embedAll(['a'])).rejects.toThrow(
+      'exceeded your current quota',
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a limited batch on the minute scale and holds the lane meanwhile', async () => {
+    vi.useFakeTimers();
+    create
+      .mockRejectedValueOnce(dashScopeLimit())
+      .mockImplementation((args) => Promise.resolve(vectorsFor(args.input)));
+    const model = { ...MODEL, model: 'embedding-limited' };
+    const embedder = new Embedder(model, 'sk-test');
+
+    const first = embedder.embedAll(['a']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    // A second batch arrives while the lane is paused: it is held too.
+    const second = new Embedder(model, 'sk-test').embedAll(['b']);
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(create).toHaveBeenCalledTimes(1);
+    // 10 s (+ jitter under 500 ms): the first batch goes again and the
+    // second follows.
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(create).toHaveBeenCalledTimes(3);
+    await expect(first).resolves.toEqual([[1, 2, 3]]);
+    await expect(second).resolves.toEqual([[1, 2, 3]]);
+  });
+
+  it('answers a search query at once, pause or not', async () => {
+    vi.useFakeTimers();
+    create
+      .mockRejectedValueOnce(dashScopeLimit())
+      .mockImplementation((args) => Promise.resolve(vectorsFor(args.input)));
+    const model = { ...MODEL, model: 'embedding-limited-query' };
+    const batch = new Embedder(model, 'sk-test').embedAll(['a']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    const query = new Embedder(model, 'sk-test').embed('q');
+    await vi.advanceTimersByTimeAsync(1);
+    expect(create).toHaveBeenCalledTimes(2);
+    await expect(query).resolves.toEqual([1, 2, 3]);
+    await vi.advanceTimersByTimeAsync(11_000);
+    await expect(batch).resolves.toEqual([[1, 2, 3]]);
+  });
+
+  it('gives up on a batch after six limited attempts', async () => {
+    vi.useFakeTimers();
+    create.mockRejectedValue(dashScopeLimit());
+    const embedder = new Embedder(
+      { ...MODEL, model: 'embedding-limited-forever' },
+      'sk-test',
+    );
+    const outcome = embedder.embedAll(['a']).then(
+      () => 'resolved',
+      (error: unknown) => error,
+    );
+    // 10 + 20 + 40 + 60 + 60 s of pauses, each with jitter under 500 ms.
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(await outcome).toBeInstanceOf(OpenAI.RateLimitError);
+    expect(create).toHaveBeenCalledTimes(6);
+  });
+});
+
+describe("pacing under the provider's per-minute limits", () => {
+  it('holds the request that would cross maxRequestsPerMinute until the minute turns', async () => {
+    vi.useFakeTimers();
+    create.mockImplementation((args) =>
+      Promise.resolve(vectorsFor(args.input)),
+    );
+    const embedder = new Embedder(
+      {
+        ...MODEL,
+        model: 'embedding-rpm',
+        maxConcurrentRequests: 3,
+        maxRequestsPerMinute: 2,
+      },
+      'sk-test',
+    );
+    const a = embedder.embedAll(['a']);
+    const b = embedder.embedAll(['b']);
+    const c = embedder.embedAll(['c']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(create).toHaveBeenCalledTimes(2);
+    await expect(a).resolves.toEqual([[1, 2, 3]]);
+    await expect(b).resolves.toEqual([[1, 2, 3]]);
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(create).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(create).toHaveBeenCalledTimes(3);
+    await expect(c).resolves.toEqual([[1, 2, 3]]);
+  });
+
+  it('holds the batch that would cross maxTokensPerMinute, and sends one alone that never could fit', async () => {
+    vi.useFakeTimers();
+    create.mockImplementation((args) =>
+      Promise.resolve(vectorsFor(args.input)),
+    );
+    // Each text here counts a handful of tokens; the limit admits one.
+    const embedder = new Embedder(
+      {
+        ...MODEL,
+        model: 'embedding-tpm',
+        maxConcurrentRequests: 3,
+        maxTokensPerMinute: 5,
+      },
+      'sk-test',
+    );
+    const a = embedder.embedAll(['ab']);
+    const b = embedder.embedAll(['cd']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    await expect(a).resolves.toEqual([[1, 2, 3]]);
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(create).toHaveBeenCalledTimes(2);
+    await expect(b).resolves.toEqual([[1, 2, 3]]);
+    // Larger than the limit by itself: goes when the minute is empty.
+    await vi.advanceTimersByTimeAsync(61_000);
+    const big = embedder.embedAll(['a much longer text than the limit allows']);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(create).toHaveBeenCalledTimes(3);
+    await expect(big).resolves.toEqual([[1, 2, 3]]);
   });
 });
 
@@ -1288,7 +1455,7 @@ describe('provider refusals no wait can lift', () => {
           message: 'Rate limit reached for embeddings',
         },
       },
-      'upstream',
+      'throttled',
     ],
     ['500', 500, { error: { message: 'The server had an error' } }, 'upstream'],
   ])('classifies %s as %s', (_label, status, body, expected) => {

@@ -8111,6 +8111,7 @@ websites:
       unresolved: Die Zugangsdaten des Embedding-Modells lassen sich nicht verwenden. Ein Admin kann sie unter Einstellungen → KI-Anbieter prüfen.
       dimension: Die Vektoren des Modells passen nicht zu dieser Wissensdatenbank. Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
       upstream: Der Anbieter ist ausgefallen oder nicht erreichbar. Wähle Jetzt scannen, sobald er wieder da ist.
+      throttled: Das Ratenlimit des Anbieters hielt über alle Wiederholungen an. Der nächste Scan macht von selbst weiter; ein Admin kann die Anfragen unter Einstellungen → Datenresidenz drosseln.
       generic: Ein Admin kann das Embedding-Modell unter Einstellungen → Datenresidenz prüfen.
     technicalDetails: Technische Details
   scanPausedBadge: Pausiert

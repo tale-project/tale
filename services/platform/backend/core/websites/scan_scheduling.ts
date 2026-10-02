@@ -129,6 +129,7 @@ export const WEBSITE_EMBEDDING_FAILED_PREFIX =
  * provider refused the account (balance, plan, billing); `unresolved` — the
  * credential the settings select does not resolve, so no call was made;
  * `dimension` — the model's vectors do not fit the knowledge database;
+ * `throttled` — the provider's rate limit held through every retry;
  * `upstream` — the provider failed or was unreachable. The reason carries
  * it as `[class]` right after the prefix, so the Websites page can say
  * which it was and whom to ask without reading the provider's words. */
@@ -137,6 +138,7 @@ export const WEBSITE_EMBEDDING_FAILURE_CLASSES = [
   'credit',
   'unresolved',
   'dimension',
+  'throttled',
   'upstream',
 ] as const;
 

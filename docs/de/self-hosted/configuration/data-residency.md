@@ -56,6 +56,7 @@ Zwei weitere optionale Einstellungen in `embedding.json` beschreiben, wie viel A
 
 - `maxConcurrentRequests` (1 bis 64, Standard 3) legt fest, wie viele Embedding-Anfragen an dieses Modell Tale für die Organisation gleichzeitig offen hält. Dokumentindexierung, die Indexierung eingehender E-Mails, Website-Scans und Suchen teilen sich dieses Limit. Weitere Anfragen warten in der Reihenfolge ihres Eintreffens; nur eine Suchanfrage zieht an wartenden Indexierungs-Batches vorbei. Jeder Tale-Prozess zählt für sich, sodass die API und jedes Worker-Replikat das Limit jeweils ausschöpfen können. Ein niedrigerer Wert gilt sofort, ein höherer erst, wenn die unter dem alten Wert gestarteten Anfragen abgeschlossen sind. Berechnet der Server eine Anfrage nach der anderen, erzeugt ein höherer Wert keine zusätzliche Last; jede Anfrage wartet nur länger.
 - `minTokensPerSecond` (eine beliebige positive Zahl) ist die niedrigste Rate, mit der der Server unter seiner üblichen Last Embeddings für dieses Modell berechnet. Miss sie, während auf derselben Hardware andere Arbeit läuft, etwa ein Chat-Modell, aber zähle die Zeit nicht mit, die eine Anfrage hinter anderen Anfragen wartet. Diese Wartezeit rechnet Tale selbst hinzu.
+- `maxTokensPerMinute` und `maxRequestsPerMinute` (ganze Zahlen) dosieren, was Tale diesem Modell innerhalb einer Minute schickt, für die Organisation in jedem Tale-Prozess. Setze sie auf die Minutenlimits eines gehosteten Anbieters, die pro Anbieterkonto über alle Deployments gezählt werden, die sich den Schlüssel teilen: Ein Indexierungs-Batch, der ein Limit überschreiten würde, wartet, bis genug von der letzten Minute verstrichen ist, sodass ein Crawl über Hunderte Seiten dosiert wird statt mit `429` abgewiesen zu werden. Tale schätzt Tokens anhand der Zeichen, eher zu hoch. Ein `429`, das der Anbieter trotzdem schickt, hält jede Anfrage der Organisation an dieses Modell an und wird im Minutentakt wiederholt; eine Suchanfrage wird von beidem nicht gebremst. Alibaba Cloud Model Studio erlaubt für text-embedding-v4 zum Beispiel 1.800 Anfragen und 1.000.000 Tokens pro Minute.
 
 ```json
 {
@@ -64,7 +65,9 @@ Zwei weitere optionale Einstellungen in `embedding.json` beschreiben, wie viel A
   "dimensions": 1024,
   "baseUrl": "https://embeddings.example.internal/v1",
   "maxConcurrentRequests": 2,
-  "minTokensPerSecond": 800
+  "minTokensPerSecond": 800,
+  "maxTokensPerMinute": 1000000,
+  "maxRequestsPerMinute": 1800
 }
 ```
 
