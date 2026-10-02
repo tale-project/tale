@@ -96,6 +96,7 @@ import {
   agentWorkTurnDeadlineMs,
   workflowAgentBudgetCents,
 } from '../sandbox/agent_deadline';
+import { AWAITING_ROOM_RESULT_STATUS } from '../sandbox/session_constants';
 import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
   ASK_HUMAN_TOOL,
@@ -1589,12 +1590,17 @@ export async function startWorkflowAgentTurnImpl(
       console.error('[agent-host] turn start failed:', err);
       // Refusals that are decisions or waits settle as such
       // (`classifyWorkflowStartFailure`); the rest is `start_failed`.
-      await settleWorkflowAgentTurn(ctx, args, {
-        errored: true,
-        ...classifyWorkflowStartFailure(err, Date.now()),
-        text: '',
-        files: [],
-      });
+      const refusal = classifyWorkflowStartFailure(err, Date.now());
+      await settleWorkflowAgentTurn(
+        ctx,
+        args,
+        { errored: true, ...refusal, text: '', files: [] },
+        // A start that waits for sandbox room ran no harness turn: the
+        // metrics must not count each of its re-kicks as a failed one.
+        refusal.failureCode === 'sandbox_capacity'
+          ? { agentResultStatus: AWAITING_ROOM_RESULT_STATUS }
+          : {},
+      );
     }
     return null;
   }
@@ -2166,9 +2172,14 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       await continueOrSettle(ctx, keys, window);
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
+      // No sandbox room is a wait here too: the re-kick resumes once the
+      // refusal's retry hint has passed, spending no attempt.
+      const noRoom = sandboxCapacityRefusal(err) !== null;
       // A broker pool cooling down says when its first account is back: the
       // stepper's re-kick waits for it.
-      const retryAtMs = credentialRetryAtMs(err);
+      const retryAtMs = noRoom
+        ? classifyWorkflowStartFailure(err, Date.now()).retryAtMs
+        : credentialRetryAtMs(err);
       // A death BEFORE the retarget settles under the asking exec the cursor
       // still names: its finalize claim was burned at the ask park, but the
       // dead-winner branch completes the record (cursor matches, no result),
@@ -2180,12 +2191,15 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         retargeted ? keys : { ...keys, execId: ask.execId },
         {
           errored: true,
-          reason: `the agent turn could not resume after the answer: ${runFailureMessage(err)}`,
-          failureCode: 'resume_failed',
+          reason: noRoom
+            ? classifyWorkflowStartFailure(err, Date.now()).reason
+            : `the agent turn could not resume after the answer: ${runFailureMessage(err)}`,
+          failureCode: noRoom ? 'sandbox_capacity' : 'resume_failed',
           ...(retryAtMs !== undefined ? { retryAtMs } : {}),
           text: '',
           files: [],
         },
+        noRoom ? { agentResultStatus: AWAITING_ROOM_RESULT_STATUS } : {},
       );
     }
     return null;

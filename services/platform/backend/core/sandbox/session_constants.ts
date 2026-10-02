@@ -85,3 +85,8 @@ export const SANDBOX_IMAGE_HOLD_CENTS = 25;
  * files), so only a call whose process died is ever taken over.
  */
 export const SANDBOX_IMAGE_CALL_STALE_MS = 10 * 60 * 1000;
+
+/** The result status a workflow agent start refused for want of sandbox room
+ * settles its op row with: no harness turn ran, so — like one parked on a
+ * question — the external-turn metrics count it as no outcome at all. */
+export const AWAITING_ROOM_RESULT_STATUS = 'awaiting_room';
