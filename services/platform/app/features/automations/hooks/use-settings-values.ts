@@ -7,7 +7,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 
 import { useBackendClient } from '@/app/hooks/use-backend-client';
-import { useSessionUser } from '@/app/hooks/use-session-user';
+import { useSessionProbeSignedIn } from '@/app/hooks/use-session-probe';
 import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/adapters';
 
 /** What each declared settings file currently holds, keyed by file name. A
@@ -42,7 +42,8 @@ export function useAutomationSettingsValues(
   const readAdapted =
     ACTION_QUERY_ADAPTERS['documents/public_actions:readProjectTextValues'] !==
     undefined;
-  const { isAuthenticated } = useSessionUser();
+  // The probe gates only the unadapted lane, so only that lane listens.
+  const isAuthenticated = useSessionProbeSignedIn(!readAdapted);
   // Only FIELD forms own a YAML file; uploads panels read the folder's
   // documents through their own query instead.
   const files = (settings?.forms ?? [])

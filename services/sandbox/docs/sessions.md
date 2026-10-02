@@ -115,6 +115,25 @@ continue (the platform keeps the same incarnation `createdAt`). Only
 workspace. Pinned ("always-on") and live-exec sessions are exempt from the
 reaper entirely.
 
+A destroy does not wait for the workspace's data to go. On Docker, once the
+container is confirmed gone, the `ses-<id>` dir is renamed into
+`<root>/.trash/` under a name of its own (`ses-<id>.<uuid>`) — one directory
+entry changed on the same filesystem, however many files the workspace holds —
+and the destroy answers; a background pass then deletes the trash, one entry
+after another. So a workspace of tens of GB in a million files answers as fast
+as an empty one (the platform gives a destroy 30 s), the id is free for a fresh
+workspace at once, and a repeated destroy finds nothing (`destroyed: false`).
+The disk space comes back when the background deletion finishes; one that took
+a second or more is logged (`[sandbox.trash] removed …`). What a restart or a
+crash cut short goes at the next start (the boot sweep), and an entry that
+could not be removed is logged and retried by the next pass and the
+five-minute sweep. `.trash/` is a dot-dir: the workspace inventory, the
+host-dir sweep and the resume resolver never take it for a workspace. Where the
+rename cannot happen (another filesystem, a disk too full for the directory
+entry), the workspace is deleted in place before the answer, as it was before
+the trash, and a failure there answers 502. On Kubernetes the PVC delete
+already hands the volume to its provisioner.
+
 ### Workspace cleanup
 
 A preserved workspace is only worth keeping while something can come back to

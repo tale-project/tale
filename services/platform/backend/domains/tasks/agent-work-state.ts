@@ -16,12 +16,13 @@ import { getPendingReviewForTask } from './reviews.ts';
  * What is working on a task, and what waits on a person — the run half of an
  * agent's `task_get`, read with the readers the task sheet uses: its run
  * list, its automation banner and Run row, the ask card and the review gate.
- * A task has at most one live run of each family (migrations 0080 and 0104),
- * so "the live one" is exact.
+ * Task-specific starts serialize on the task. Generic org-level admissions
+ * can also carry its subject and may overlap; the reader selects the newest
+ * matching live automation, without claiming those starts share that lock.
  *
  * The caller has scope-checked the task and passes its project: every read is
- * bound to the task (and the automation run to the task's own project), so
- * nothing here reaches past it.
+ * bound to the task and its org (a project automation must match the task's
+ * project; an org-level run is already member-readable).
  */
 
 /** A live automation run: the statuses the start guard counts as holding

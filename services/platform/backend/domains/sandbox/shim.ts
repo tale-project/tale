@@ -1,5 +1,5 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
@@ -11,6 +11,7 @@ import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
+import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
 import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
 import {
@@ -66,7 +67,7 @@ interface BindingResolution {
  * nothing downstream, which is the fail-closed direction.
  */
 async function boundProjectIdsOf(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   automationName: string,
 ): Promise<string[]> {
@@ -80,7 +81,7 @@ async function boundProjectIdsOf(
 }
 
 async function resolveSessionBinding(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   sessionId: string,
 ): Promise<BindingResolution> {
@@ -162,11 +163,12 @@ async function resolveSessionBinding(
  * workspace never lacks it.
  */
 async function taskRunConfinement(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   args: {
     organizationId: string;
     sessionId: string;
     agentId: string;
+    projectId: string;
     execId?: string;
   },
 ): Promise<'ended' | 'revoked' | { taskId?: string }> {
@@ -194,7 +196,12 @@ async function taskRunConfinement(
     LIMIT 1
   `;
   const run = runs[0];
-  if (run === undefined) return 'ended';
+  if (
+    run === undefined ||
+    run.agentId !== args.agentId ||
+    run.projectId !== args.projectId
+  )
+    return 'ended';
   if (
     parseRunStarter(run.startedBy).kind === 'trigger' &&
     !(await runStarterMayEditProject(sql, {
@@ -466,6 +473,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
                 organizationId: args.organizationId,
                 sessionId: args.sessionId,
                 agentId: binding.actorId,
+                projectId: binding.projectId,
                 ...(args.taskRunExecId !== undefined
                   ? { execId: args.taskRunExecId }
                   : {}),
@@ -522,6 +530,62 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         return { allowed: true, actorId: args.userId, scope: { kind: 'org' } };
       }
       return { allowed: false, reason: 'no_access_context' };
+    },
+
+    'tasks/internal_mutations:agentUpdateTaskMetadata': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; metadata is validated again by the domain
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        patch: unknown;
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const binding = await resolveSessionBinding(
+            tx,
+            args.organizationId,
+            args.sessionId,
+          );
+          if (
+            binding.kind !== 'project' ||
+            binding.ownerType !== 'project_agent' ||
+            binding.projectId === undefined ||
+            binding.actorId === undefined ||
+            args.taskRunExecId === undefined
+          ) {
+            throw new TaskError(
+              'TASK_METADATA_FORBIDDEN',
+              'Only a live project agent run may triage task metadata',
+              403,
+            );
+          }
+          const confinement = await taskRunConfinement(tx, {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            agentId: binding.actorId,
+            projectId: binding.projectId,
+            execId: args.taskRunExecId,
+          });
+          if (
+            confinement === 'ended' ||
+            confinement === 'revoked' ||
+            confinement.taskId !== undefined
+          ) {
+            throw new TaskError(
+              'TASK_METADATA_FORBIDDEN',
+              'This run no longer has project-wide authority to triage task metadata',
+              403,
+            );
+          }
+          return updateAgentTaskMetadata(tx, {
+            organizationId: args.organizationId,
+            projectId: binding.projectId,
+            actorId: binding.actorId,
+            patch: args.patch,
+          });
+        }),
+      );
     },
 
     'tasks/internal_mutations:agentStartTaskAgent': async (raw) => {

@@ -33,7 +33,8 @@ interface TrailRow {
 
 const DAY_MS = 24 * 3_600_000;
 
-/** Every category the bounds walk requires, with the compliance floors. */
+/** Every category the bounds walk requires, each floor clearing the
+ * schema's compliance floors. */
 export const BOUNDS_FILE = [
   ['documents', 1, 'days'],
   ['userTempHours', 1, 'hours'],

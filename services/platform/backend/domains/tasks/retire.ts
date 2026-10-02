@@ -3,6 +3,7 @@ import type { TransactionSql } from 'postgres';
 import { cancelRunInTx } from '../automations/store.ts';
 import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { cancelAgentRunInTx } from './agent-runs.ts';
+import { taskHoldsBlobRef } from './blob-holders.ts';
 
 /**
  * The ONE retirement walk for a set of tasks that are about to be hard
@@ -84,7 +85,8 @@ export async function retireTasksInTx(
   }
   const liveAutomationRuns = await tx<{ id: string }[]>`
     SELECT id FROM app.automation_runs
-    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+    WHERE org_id = ${args.organizationId}
+      AND (project_id = ${args.projectId} OR project_id IS NULL)
       AND status IN ('queued', 'running', 'waiting')
       AND input -> 'task' ->> 'id' = ANY(${ids})
   `;
@@ -179,13 +181,7 @@ export async function releaseUnlistedTaskBlobRefs(
   if (refs.length === 0) return [];
   const orphaned = await tx<{ ref: string }[]>`
     SELECT r.ref FROM unnest(${[...refs]}::text[]) AS r(ref)
-    WHERE NOT EXISTS (
-      SELECT 1 FROM app.tasks t
-      WHERE t.org_id = ${organizationId}
-        AND (t.outputs @> jsonb_build_array(jsonb_build_object('fileId', r.ref))
-             OR t.attachments
-                @> jsonb_build_array(jsonb_build_object('fileId', r.ref)))
-    )
+    WHERE NOT ${taskHoldsBlobRef(tx, organizationId, tx`r.ref`)}
   `;
   const releasedRefs = orphaned.map((row) => row.ref);
   if (releasedRefs.length > 0) {

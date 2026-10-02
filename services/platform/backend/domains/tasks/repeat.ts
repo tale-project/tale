@@ -1192,7 +1192,8 @@ async function chainUntouched(
   if (liveAgentRuns.length > 0) return false;
   const liveAutomationRuns = await tx<{ id: string }[]>`
     SELECT id FROM app.automation_runs
-    WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
+    WHERE org_id = ${task.organizationId}
+      AND (project_id = ${task.projectId} OR project_id IS NULL)
       AND status IN ('queued', 'running', 'waiting')
       AND input -> 'task' ->> 'id' = ANY(${ids})
     LIMIT 1

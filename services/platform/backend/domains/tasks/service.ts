@@ -39,6 +39,7 @@ import {
   type MentionSource,
   parseMentionTokens,
 } from '../../core/tasks/mentions.ts';
+import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -119,7 +120,7 @@ export const TASK_STATUSES = [
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
-export const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'] as const;
+export { TASK_PRIORITIES };
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 
 export type TaskAssigneeType = 'user' | 'agent' | 'app';
@@ -1540,6 +1541,17 @@ export async function updateTask(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
 ): Promise<void> {
+  await updateTaskFields(tx, auth, args);
+}
+
+/** Only the trusted metadata door may supply an agent actor, and that door
+ * passes priority alone. Human edits keep their existing authority and trail. */
+async function updateTaskFields(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: UpdateTaskArgs,
+  agentId?: string,
+): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   await assertTaskWorkable(tx, project, task, auth);
@@ -1782,20 +1794,26 @@ export async function updateTask(
     if (fromValue === toValue) continue;
     await recordActivity(tx, {
       task,
-      actorType: 'user',
-      actorId: auth.userId,
+      actorType: agentId === undefined ? 'user' : 'agent',
+      actorId: agentId ?? auth.userId,
       action,
       fromValue,
       toValue,
     });
   }
-  await createAuditLog(
-    tx,
-    taskAudit(auth, { id: task.id, title }, TASK_AUDIT_ACTIONS.updated, {
+  await createAuditLog(tx, {
+    ...taskAudit(auth, { id: task.id, title }, TASK_AUDIT_ACTIONS.updated, {
       previousState,
       newState,
     }),
-  );
+    ...(agentId !== undefined
+      ? {
+          actorType: 'api' as const,
+          actorId: agentId,
+          metadata: { viaAgent: true, projectId: task.projectId },
+        }
+      : {}),
+  });
   // A review already open follows the designation in this transaction: the
   // board chip, "Needs my review" and the request bell all read its
   // `requestedFor`, which the mint stamped once — without this a change
@@ -2312,9 +2330,35 @@ export async function handTaskToInProgressForKick(
   return true;
 }
 
+/** Priority-only reuse of the normal edit writer. The caller has resolved
+ * live project authority; the synthetic access context is never recorded as
+ * a human actor, and cannot carry reviewer, description or other edit fields. */
+export async function agentUpdateTaskPriorityTrusted(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    actorId: string;
+    taskId: string;
+    priority: TaskPriority | null;
+  },
+): Promise<void> {
+  await updateTaskFields(
+    tx,
+    {
+      organizationId: args.organizationId,
+      userId: args.actorId,
+      role: 'admin',
+      teamIds: [],
+    },
+    { taskId: args.taskId, priority: args.priority },
+    args.actorId,
+  );
+}
+
 /**
- * TRUSTED agent-side hand-off to a project agent — the assignment half of a
- * start another agent or an automation asked for (`delegated-start.ts`). The
+ * TRUSTED agent-side hand-off to a project agent, or unassignment — the assignment half of a
+ * start another agent or an automation asked for (`delegated-start.ts`), also
+ * used by the guarded metadata tool without a start. The
  * caller resolved who may ask and checked the agent belongs to the task's
  * project; this is the picker's write with the asking agent (or the
  * `workflow` sentinel) as the actor: the assignee, the activity line, the
@@ -2324,13 +2368,16 @@ export async function handTaskToInProgressForKick(
  */
 export async function agentAssignTaskToAgentTrusted(
   tx: TransactionSql,
-  args: { task: TaskRow; agentId: string; actorId: string },
+  args: { task: TaskRow; agentId: string | null; actorId: string },
 ): Promise<void> {
   const { task } = args;
-  const assignee: AssigneeRef = {
-    assigneeType: 'agent',
-    assigneeId: args.agentId,
-  };
+  const assignee: AssigneeRef | null =
+    args.agentId === null
+      ? null
+      : {
+          assigneeType: 'agent',
+          assigneeId: args.agentId,
+        };
   if (!assigneeChanges(task, assignee)) return;
   if (await taskHasLiveRun(tx, task)) {
     throw new TaskError(
@@ -2341,7 +2388,7 @@ export async function agentAssignTaskToAgentTrusted(
   }
   await tx`
     UPDATE app.tasks SET
-      assignee_type = 'agent', assignee_id = ${args.agentId},
+      assignee_type = ${assignee?.assigneeType ?? null}, assignee_id = ${args.agentId},
       updated_at_ms = ${Date.now()}
     WHERE id = ${task.id}
   `;
@@ -2351,13 +2398,16 @@ export async function agentAssignTaskToAgentTrusted(
     actorId: args.actorId,
     action: 'assignee.changed',
     ...(task.assigneeId !== null ? { fromValue: task.assigneeId } : {}),
-    toValue: args.agentId,
+    ...(args.agentId !== null ? { toValue: args.agentId } : {}),
   });
   await createAuditLog(tx, {
     organizationId: task.organizationId,
     actorId: args.actorId,
     actorType: 'api',
-    action: TASK_AUDIT_ACTIONS.assigned,
+    action:
+      assignee === null
+        ? TASK_AUDIT_ACTIONS.unassigned
+        : TASK_AUDIT_ACTIONS.assigned,
     category: 'data',
     resourceType: TASK_RESOURCE_TYPE,
     resourceId: task.id,
@@ -2366,13 +2416,16 @@ export async function agentAssignTaskToAgentTrusted(
       assigneeType: task.assigneeType,
       assigneeId: task.assigneeId,
     },
-    newState: { assigneeType: 'agent', assigneeId: args.agentId },
+    newState: {
+      assigneeType: assignee?.assigneeType ?? null,
+      assigneeId: args.agentId,
+    },
     metadata: { viaAgent: true, projectId: task.projectId },
     status: 'success',
   });
   await notifyTaskAssigned(tx, {
     task,
-    assigneeType: 'agent',
+    assigneeType: assignee?.assigneeType ?? null,
     assigneeId: args.agentId,
     actorType: 'agent',
     actorId: args.actorId,
@@ -3699,14 +3752,16 @@ async function taskHasLiveRun(
  * `findLiveAutomationRunForTask` probe) — the automation half of
  * `taskHasLiveRun`, for lanes that treat the two families differently (the
  * mention dispatcher steers an agent run but yields entirely to an
- * automation). */
+ * automation). An org-level run may carry this same task subject without a
+ * project binding; a different non-NULL project never holds it here. */
 async function taskHasLiveAutomationRun(
   tx: TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
 ): Promise<boolean> {
   const automation = await tx<{ id: string }[]>`
     SELECT id FROM app.automation_runs
-    WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
+    WHERE org_id = ${task.organizationId}
+      AND (project_id = ${task.projectId} OR project_id IS NULL)
       AND status IN ('queued', 'running', 'waiting')
       AND input -> 'task' ->> 'id' = ${task.id}
     LIMIT 1
@@ -4234,7 +4289,10 @@ export async function getTaskOpsIndicators(
                AND a.expires_at_ms >= ${Date.now()}
            ) AS "hasPendingAsk"
     FROM app.automation_runs r
-    WHERE r.org_id = ${auth.organizationId} AND r.project_id = ${projectId}
+    JOIN app.tasks t ON t.id = r.input -> 'task' ->> 'id'
+      AND t.org_id = r.org_id AND t.project_id = ${projectId}
+    WHERE r.org_id = ${auth.organizationId}
+      AND (r.project_id = ${projectId} OR r.project_id IS NULL)
       AND r.status IN ('queued', 'running', 'waiting')
     ORDER BY r.started_at_ms DESC
     LIMIT ${TASK_OPS_RUN_SCAN_CAP}

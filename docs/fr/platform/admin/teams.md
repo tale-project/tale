@@ -27,6 +27,8 @@ Une équipe conserve au moins un membre. Pour retirer le dernier, supprime plut�
 
 Une personne peut appartenir à plusieurs équipes. Elle peut conserver un accès grâce à une autre équipe ou à une attribution directe. La retirer d’une équipe ne supprime donc pas forcément tous ses accès à une ressource. Vérifie les autres voies d’accès lorsque tu retires des droits.
 
+Les notifications suivent la même règle. Une personne qui ne peut plus ouvrir un projet ne reçoit plus de nouvelles notifications ni d’e-mails sur les tâches de ce projet, pas même sur celles qu’elle suit. Ce qu’elle a déjà reçu reste dans ses notifications. Si elle retrouve l’accès, elle est de nouveau notifiée des tâches qu’elle suit.
+
 Une équipe provisionnée par ton fournisseur d’identité porte la mention **Synchronisée** dans la liste. Son nom et ses membres appartiennent au fournisseur : le dialogue de modification les affiche en lecture seule, car la prochaine synchronisation annulerait une modification locale. Tu peux tout de même supprimer une telle équipe localement ; le fournisseur peut la recréer.
 
 <Tip>

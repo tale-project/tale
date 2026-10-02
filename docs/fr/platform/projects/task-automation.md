@@ -112,6 +112,7 @@ Quand une exécution échoue et que plus rien ne la relance, parce que ses nouve
 | --- | --- |
 | Une limite d’utilisation a arrêté l’exécution | Un Admin relève la limite ; relance ensuite l’agent. |
 | Il manque quelque chose à l’agent : son modèle, l’un de ses skills ou l’agent lui-même | Un Éditeur ou un Admin corrige l’agent dans l’onglet **Agents** du projet. |
+| Une pièce jointe de cette tâche n’est plus dans le stockage | Toute personne qui peut modifier la tâche retire la pièce jointe ou la téléverse à nouveau ; **Détails**, à côté de l’exécution, nomme le fichier. Relance ensuite l’agent. |
 | L’exécution a atteint sa limite de temps | Relance l’agent, ou découpe la tâche en tâches plus petites. |
 | L’exécution a attendu trop longtemps une sandbox libre | Relance l’agent quand moins d’agents sont occupés. |
 | Le modèle d’IA a échoué, ou l’exécution n’a pas pu démarrer ou a été interrompue | Relance l’agent. S’il échoue encore, montre à un Admin ce que l’exécution a signalé dans **Détails**. |

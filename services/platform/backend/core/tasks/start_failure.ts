@@ -5,13 +5,16 @@ import {
 } from '../provider_credentials/resolve_credential';
 import { isSkillUnavailableError } from '../skills/skill_unavailable_error';
 import type { TaskRunFailureCode } from './task_auto_retry';
+import { isTaskInputMissingError } from './task_input_missing_error';
 
 /**
  * How a run that could not START settles: the reason the run row shows and
- * the failure code the auto-retry reads. Two start failures are decisions,
- * not faults, and never retried — the organization's spend cap, and a skill
- * the run cannot reach (the agent's configuration; three retries used to
- * burn on it before the author could act). Everything else is
+ * the failure code the auto-retry reads. Three start failures are decisions
+ * or facts a retry cannot change, and never retried — the organization's
+ * spend cap, a skill the run cannot reach (the agent's configuration; three
+ * retries used to burn on it before the author could act), and an attachment
+ * whose bytes left the object store (named in the reason; whoever can change
+ * the task removes it or uploads it again). Everything else is
  * `start_failed`, retried by default.
  *
  * A subscription broker whose every account is cooling down after a rate
@@ -41,7 +44,9 @@ export function classifyStartFailure(err: unknown): {
         ? 'credential_cooldown'
         : isSkillUnavailableError(err)
           ? 'equipment_missing'
-          : 'start_failed',
+          : isTaskInputMissingError(err)
+            ? 'input_missing'
+            : 'start_failed',
     ...(retryAtMs !== undefined && { retryAtMs }),
   };
 }

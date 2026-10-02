@@ -8,9 +8,12 @@ import { renderLaneHaltMessage } from '@/lib/knowledge/crawl-parse';
 
 import {
   classifyScanError,
+  embeddingFailureClass,
+  embeddingHintKey,
   isHollowSiteScan,
   isSiteLevelScanError,
   scanEmptyMessageKey,
+  scanErrorDetail,
   scanErrorMessageKey,
 } from './scan-error';
 
@@ -129,6 +132,83 @@ describe('classifyScanError', () => {
 
   it('falls back for an unknown dump', () => {
     expect(classifyScanError('something exploded')).toBe('generic');
+  });
+
+  // The embedding reason's "Nothing was indexed." is the plain one: the
+  // class hint beneath it says whom to ask.
+  it('tells an empty embedding scan with the plain empty line', () => {
+    expect(scanEmptyMessageKey('embedding')).toBe(
+      'viewDialog.scanEmpty.generic',
+    );
+  });
+});
+
+describe('embeddingFailureClass', () => {
+  it('reads the class the crawl action recorded', () => {
+    expect(
+      embeddingFailureClass(
+        `${WEBSITE_EMBEDDING_FAILED_PREFIX} [credential]: 401 User not found.`,
+      ),
+    ).toBe('credential');
+    expect(
+      embeddingFailureClass(
+        `${WEBSITE_EMBEDDING_FAILED_PREFIX} [dimension]: organization "ruler" produced 1024-dimensional vectors`,
+      ),
+    ).toBe('dimension');
+  });
+
+  it('has none for a reason from before the class was recorded', () => {
+    expect(
+      embeddingFailureClass(
+        `${WEBSITE_EMBEDDING_FAILED_PREFIX}: 401 User not found.`,
+      ),
+    ).toBeNull();
+  });
+
+  it('has none for any other reason', () => {
+    expect(embeddingFailureClass('Host does not resolve: x')).toBeNull();
+    expect(
+      embeddingFailureClass(`${WEBSITE_EMBEDDING_FAILED_PREFIX} [bogus]: x`),
+    ).toBeNull();
+  });
+
+  it('picks the hint by class, and the model setting without one', () => {
+    expect(embeddingHintKey('credential')).toBe(
+      'viewDialog.scanDetail.credential',
+    );
+    expect(embeddingHintKey('credit')).toBe('viewDialog.scanDetail.credit');
+    expect(embeddingHintKey('unresolved')).toBe(
+      'viewDialog.scanDetail.unresolved',
+    );
+    expect(embeddingHintKey('dimension')).toBe(
+      'viewDialog.scanDetail.dimension',
+    );
+    expect(embeddingHintKey('throttled')).toBe(
+      'viewDialog.scanDetail.throttled',
+    );
+    expect(embeddingHintKey('upstream')).toBe('viewDialog.scanDetail.upstream');
+    expect(embeddingHintKey(null)).toBe('viewDialog.scanDetail.generic');
+  });
+});
+
+describe('scanErrorDetail', () => {
+  it("keeps the provider's sentence and drops the prefix and class", () => {
+    expect(
+      scanErrorDetail(
+        `${WEBSITE_EMBEDDING_FAILED_PREFIX} [credential]: 401 User not found.`,
+      ),
+    ).toBe('401 User not found.');
+    expect(
+      scanErrorDetail(
+        `${WEBSITE_EMBEDDING_FAILED_PREFIX}: 401 User not found.`,
+      ),
+    ).toBe('401 User not found.');
+  });
+
+  it('hands any other reason over as it was stored', () => {
+    expect(scanErrorDetail('  Host does not resolve: docs.example.com ')).toBe(
+      'Host does not resolve: docs.example.com',
+    );
   });
 });
 

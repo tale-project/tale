@@ -7,6 +7,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { createWebsiteRoutes } from './routes.ts';
 import {
   deregisterAndDeleteWebsite,
+  fetchWebsitePages,
   patchWebsite,
   registerWebsite,
   resumeScanning,
@@ -67,7 +68,16 @@ vi.mock('./service.ts', async (importOriginal) => ({
     status: 'error',
     metadata: null,
   })),
+  fetchWebsitePages: vi.fn(async () => ({
+    pages: [],
+    total: 0,
+    offset: 0,
+    hasMore: false,
+    state: null,
+    counts: { failed: 0, skipped: 0 },
+  })),
   listWebsites: vi.fn(async () => ({ page: [], isDone: true })),
+  needsStatusSync: vi.fn(() => false),
   patchWebsite: vi.fn(async () => ({ id: 'w-1' })),
   registerWebsite: vi.fn(async () => ({ id: 'w-1', merged: false })),
   resumeScanning: vi.fn(async () => undefined),
@@ -156,6 +166,27 @@ describe('website routes — who may manage a source', () => {
     ]).toEqual([200, 200, 200, 200, 200]);
     expect(syncWebsiteStatuses).toHaveBeenCalledTimes(1);
     expect(await readiness.json()).toEqual({ ready: true });
+  });
+
+  // The page list narrowed to one state: the filter reaches the corpus
+  // read, and a state the list does not know is refused, not read as all.
+  it('narrows the pages to one state and refuses one it does not know', async () => {
+    const failed = await call('GET', '/w-1/pages?state=failed');
+    expect(failed.status).toBe(200);
+    expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
+      offset: 0,
+      limit: 100,
+      state: 'failed',
+    });
+    const all = await call('GET', '/w-1/pages');
+    expect(all.status).toBe(200);
+    expect(vi.mocked(fetchWebsitePages).mock.calls.at(-1)?.[2]).toEqual({
+      offset: 0,
+      limit: 100,
+    });
+    const broken = await call('GET', '/w-1/pages?state=broken');
+    expect(broken.status).toBe(400);
+    expect(fetchWebsitePages).toHaveBeenCalledTimes(2);
   });
 
   it('answers what Scan now queued', async () => {

@@ -27,6 +27,9 @@ RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
+# The root package.json's `patchedDependencies` (patches/README.md): `bun install`
+# refuses to run without the patch files, and they must reach the installed packages.
+COPY patches/ ./patches/
 COPY packages/e2e/package.json ./packages/e2e/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
@@ -198,6 +201,7 @@ CMD ["/app/services/platform/docker-entrypoint.sh"]
 FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
+COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 # bun resolves the whole workspace graph even for --production installs, and
 # --production freezes the lockfile stage 1 wrote; every manifest stage 1
 # copies must exist here too or install fails ("Workspace dependency not

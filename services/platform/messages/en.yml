@@ -3066,22 +3066,22 @@ governance:
         retention period. Includes per-execution variable/output storage
         blobs.
       placeholder: e.g. 30
-      helper: Automation runs older than this will be deleted (1–365 days).
+      helper: Automation runs older than this will be deleted.
     auditLogs:
       title: Audit logs
       description: Automatically delete audit log entries older than the retention period. Audit logs are immutable records — keep retention long enough to satisfy your compliance requirements.
       placeholder: e.g. 90
-      helper: Audit log entries older than this will be deleted (30–365 days).
+      helper: Audit log entries older than this will be deleted.
     usageLedger:
       title: Usage ledger
       description: Automatically delete token-usage records older than the retention period. Shortening this truncates historical analytics — budgets and reports depend on these records.
       placeholder: e.g. 365
-      helper: Usage ledger rows older than this will be deleted (30–3650 days).
+      helper: Usage ledger rows older than this will be deleted.
     loginAttempts:
       title: Login attempts
       description: Automatically delete failed-login tracking records older than the retention period. These are deployment-wide — the shortest retention across all orgs applies.
       placeholder: e.g. 90
-      helper: Login attempt records older than this will be deleted (7–365 days).
+      helper: Login attempt records older than this will be deleted.
   passwordPolicy:
     title: Password policy
     description:
@@ -5510,6 +5510,7 @@ projects:
       task_create: Create tasks
       task_comment: Comment on tasks
       task_update_status: Move tasks between columns
+      task_update_metadata: Change task priority and agent assignment
       task_start_agent: Start other agents on tasks
       task_upsert_by_external_ref: Sync an external item to a task
       document_find: Find documents
@@ -7427,6 +7428,7 @@ inbox:
   agentRunFailedBody: 'The agent couldn''t finish "{title}". Open the task to see why and start it again.'
   agentRunFailedBudgetBody: 'A usage limit stopped the agent on "{title}". Once an Admin raises it, start the agent again.'
   agentRunFailedSetupBody: 'The agent on "{title}" is missing something it needs. An Editor or Admin can fix it on the project''s Agents tab.'
+  agentRunFailedInputBody: 'An attachment on "{title}" is no longer in storage. Remove it from the task or upload it again, then start the agent again.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.
@@ -7538,6 +7540,7 @@ tasks:
     failure:
       budget: A usage limit stopped this run. Ask an Admin to raise it, then start the agent again.
       setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
+      input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
       time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
       capacity: The run waited too long for a free sandbox. Start the agent again when fewer agents are busy.
       model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
@@ -8231,8 +8234,16 @@ websites:
       dns: Nothing was indexed. Change the URL if the host is wrong.
       notInCorpus: Nothing was indexed. Delete the URL list and add it again.
       notInCorpusSite: Nothing was indexed. The next scan adds the site again.
-      embedding: Nothing was indexed. An admin can check the embedding model under Settings → Data residency.
       generic: Nothing was indexed.
+    scanDetail:
+      credential: The provider rejected the embedding model's credential. An admin can repair it under Settings → AI providers.
+      credit: The provider refused the request over the account's balance or plan. An admin can check the account at the provider.
+      unresolved: The embedding model's credential can't be used. An admin can check it under Settings → AI providers.
+      dimension: The model's vectors don't fit this knowledge database. An admin can check the embedding model under Settings → Data residency.
+      upstream: The provider failed or couldn't be reached. Choose Scan now once it's back.
+      throttled: The provider's rate limit held through every retry. The next scan continues on its own; an admin can pace requests under Settings → Data residency.
+      generic: An admin can check the embedding model under Settings → Data residency.
+    technicalDetails: Technical details
   scanPausedBadge: Paused
   resumeScanning: Resume scanning
   scanNow: Scan now
@@ -8258,6 +8269,13 @@ websites:
     failed: Failed
     skipped: Skipped
     failedPages: '{count, plural, one {{count} page failed} other {{count} pages failed}}'
+    filter:
+      label: Which pages to show
+      all: All
+      failed: 'Failed ({count})'
+      skipped: 'Skipped ({count})'
+    noFailedPages: No page failed
+    noSkippedPages: No page was skipped
     errorKind:
       dnsFailed: Couldn't resolve the host.
       timeout: The page didn't answer in time.

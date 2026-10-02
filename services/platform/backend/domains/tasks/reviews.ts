@@ -535,7 +535,7 @@ export interface PendingTaskReview {
 /** The task's open workflow-free review, newest first — the sheet's gate
  * card and the board chip read this. */
 export async function getPendingReviewForTask(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   taskId: string,
 ): Promise<PendingTaskReview | null> {

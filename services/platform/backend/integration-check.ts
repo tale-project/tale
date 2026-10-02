@@ -68,6 +68,7 @@ import { checkAutomationProjectVisibility } from './domains/automations/project-
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
@@ -97,8 +98,10 @@ import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tabl
 import { checkWorkspaceCleanup } from './domains/sandbox/workspace-cleanup.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
+import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integration.ts';
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
   checkCooledStartRetry,
@@ -20322,7 +20325,15 @@ async function checkSandboxBlobDoor(
     ref: encodeS3Ref('some-other-org/deadbeef'),
     org: ctx.orgId,
   });
-  if (token === null || foreignToken === null) {
+  // A validly SIGNED token for an in-namespace key the store never held: the
+  // store's 404 must pass through as 404 — it used to collapse into the 502
+  // that also says "store down", and a task whose attachment's bytes were
+  // gone read as an infra fault to retry (2026-10-02).
+  const goneToken = await signStageToken({
+    ref: encodeS3Ref(buildObjectKey(store, orgSlug)),
+    org: ctx.orgId,
+  });
+  if (token === null || foreignToken === null || goneToken === null) {
     record(
       'sandbox-blob: a stage token streams the org blob through the door',
       false,
@@ -20338,14 +20349,136 @@ async function checkSandboxBlobDoor(
   const foreign = await fetch(
     `${base}/api/sandbox-blob?token=${encodeURIComponent(foreignToken)}`,
   );
+  const gone = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(goneToken)}`,
+  );
   record(
     'sandbox-blob: a stage token streams the org blob through the door',
     served.status === 200 &&
       servedBody === payload &&
       forged.status === 403 &&
-      foreign.status === 404,
-    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404)`,
+      foreign.status === 404 &&
+      gone.status === 404,
+    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404), goneKey=${gone.status} (want 404, not 502)`,
   );
+}
+
+/**
+ * A task lists its attachments and deliverables by blob ref with no file
+ * row of its own (`domains/tasks/blob-holders.ts`): deleting the file row
+ * that minted the ref used to delete the bytes too — the card kept showing
+ * the file, and every run start met the store's 404 (2026-10-02). The bytes
+ * now outlive the row while any task lists the ref, and go through the
+ * shared release seam once no task does. Gated on ITEST_S3_ENDPOINT like
+ * the other blob lanes.
+ */
+async function checkTaskHeldBlobOutlivesFileRow(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'task-held blob outlives its file row',
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { resolveOrgSlug } = await import('./lib/org-config.ts');
+  const {
+    buildObjectKey,
+    resolveObjectStore,
+    s3DeleteObject,
+    s3HeadObject,
+    s3PutObject,
+  } = await import('./lib/object-store.ts');
+  const { encodeS3Ref } = await import('./core/lib/storage/blob_ref.ts');
+  const { deleteFile } = await import('./domains/files/service.ts');
+  const { releaseUnlistedTaskBlobRefs } =
+    await import('./domains/tasks/retire.ts');
+  const { orgId, userId } = ctx;
+  const orgSlug = (await resolveOrgSlug(sql, orgId)) ?? '';
+  const store = await resolveObjectStore(orgSlug);
+  const key = buildObjectKey(store, orgSlug);
+  const ref = encodeS3Ref(key);
+  const payload = new TextEncoder().encode('held by a task');
+  await s3PutObject(store, key, payload, 'text/plain');
+  const now = Date.now();
+  const fileRows = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'held.txt', 'text/plain', ${payload.byteLength}, ${ref},
+      ${userId}, ${now}
+    ) RETURNING id
+  `;
+  const fileId = fileRows[0]?.id ?? '';
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Held blob probe', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      attachments, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Task holding a blob', 'todo', 'a0', ${userId},
+      'user',
+      ${sql.json([
+        {
+          fileId: ref,
+          fileName: 'held.txt',
+          fileType: 'text/plain',
+          fileSize: payload.byteLength,
+        },
+      ])},
+      ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  let deleteError = '';
+  try {
+    await sql.begin((tx) =>
+      deleteFile(sql, tx, { organizationId: orgId }, fileId),
+    );
+  } catch (error) {
+    deleteError = error instanceof Error ? error.message : String(error);
+  }
+  const rowCount = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM app.file_metadata WHERE id = ${fileId}
+  `;
+  const rowGone = rowCount[0]?.n === '0';
+  const bytesKept = (await s3HeadObject(store, key)) !== null;
+  // The task lets go: no task lists the ref any more, so the task door hands
+  // it to the shared release seam, which deletes the bytes after commit.
+  await sql.begin(async (tx) => {
+    await tx`UPDATE app.tasks SET attachments = NULL WHERE id = ${taskId}`;
+    await releaseUnlistedTaskBlobRefs(tx, orgId, [ref]);
+  });
+  const released = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM pgboss.job
+    WHERE name = 'knowledge.release_refs' AND data->'refs' ? ${ref}
+  `;
+  record(
+    'task-held blob outlives its file row, and is released once no task lists it',
+    deleteError === '' &&
+      rowGone &&
+      bytesKept &&
+      Number(released[0]?.n ?? '0') >= 1,
+    `delete=${deleteError === '' ? 'ok' : deleteError} rowGone=${rowGone} (want true) bytesKept=${bytesKept} (want true) releaseJobs=${released[0]?.n ?? '0'} (want ≥1)`,
+  );
+  // Tidy: the release job may already have taken the bytes; S3 DELETE is
+  // idempotent, and the project cascades the task.
+  try {
+    await s3DeleteObject(store, key);
+  } catch (error) {
+    console.warn('[itest] held-blob cleanup failed:', error);
+  }
+  await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
 }
 
 /**
@@ -27887,6 +28020,32 @@ async function checkNotificationEmailSink(
         ...(undoes === true ? { undoes: true } : {}),
       });
 
+    // The rows are about real tasks of an organization-wide project: a
+    // task-bound row is written only for someone who can open its task.
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES ('p-email-sink', ${orgId}, 'Email sink', ${userId}, ${Date.now()},
+              ${Date.now()})
+    `;
+    for (const [index, taskId] of [
+      'email-task-a',
+      'email-task-b',
+      'email-task-c',
+      'email-task-d',
+    ].entries()) {
+      await sql`
+        INSERT INTO app.tasks (
+          id, org_id, project_id, title, status, rank, number, created_by,
+          created_by_type, created_at_ms, updated_at_ms
+        ) VALUES (
+          ${taskId}, ${orgId}, 'p-email-sink', ${taskId}, 'todo',
+          ${`e${index}`}, ${index + 1}, ${userId}, 'user', ${Date.now()},
+          ${Date.now()}
+        )
+      `;
+    }
+
     // A) Burst on one dimension: write then rewrite before the window fires
     // → the stale-epoch job skips, ONE email carries the final state.
     const first = await bell('email-task-a', 'Email me A');
@@ -27913,12 +28072,25 @@ async function checkNotificationEmailSink(
       RETURNING "id"
     `;
     const prefUserId = prefUsers[0]?.id ?? '';
+    // A member, so the row is written and the preference alone keeps the
+    // email in.
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-email-pref-${prefUserId}`}, ${orgId}, ${prefUserId},
+              'member', ${new Date()})
+    `;
     await sql`
       INSERT INTO app.notification_preferences (
         user_id, org_id, actionable_email, updated_at_ms
       ) VALUES (${prefUserId}, ${orgId}, false, ${Date.now()})
     `;
-    await bell('email-task-d', 'Pref is off', undefined, prefUserId);
+    const prefWrite = await bell(
+      'email-task-d',
+      'Pref is off',
+      undefined,
+      prefUserId,
+    );
 
     const drained = await drainNotificationEmails(sql);
     const delivered = smtpSends[0];
@@ -27936,6 +28108,7 @@ async function checkNotificationEmailSink(
       first === 'inserted' &&
         rewritten === 'rewritten' &&
         undone === 'cancelled' &&
+        prefWrite === 'inserted' &&
         drained &&
         smtpSends.length === 1 &&
         delivered?.subject === 'Task assigned to you' &&
@@ -27946,7 +28119,7 @@ async function checkNotificationEmailSink(
         ) &&
         (delivered?.from ?? '').startsWith('notification@') &&
         !rowsLeft.some((row) => row.resourceId === 'email-task-c'),
-      `write=${first}/${rewritten}/undo=${undone}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
+      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
         .map((r) => r.resourceId)
         .sort()
         .join('|')}`,
@@ -28019,6 +28192,14 @@ async function checkNotificationEmailSink(
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
+    // Later lanes count the organization's members and projects.
+    await sql`
+      DELETE FROM "member"
+      WHERE "organizationId" = ${orgId} AND "id" LIKE 'm-email-pref-%'
+    `;
+    await sql`
+      DELETE FROM app.projects WHERE id = 'p-email-sink' AND org_id = ${orgId}
+    `;
   }
 }
 
@@ -34720,6 +34901,39 @@ async function checkWebsitesCrawl(
       .loose()
       .safeParse(await (await v1('/websites?status=error')).json());
     const downBadFilter = await v1('/websites?status=broken');
+    // The page list narrowed to one state: the failed home page alone under
+    // `state=failed`, nothing under `state=skipped`, the counts beside
+    // either, and a state the list does not know refused.
+    const pagesStateWindow = z.looseObject({
+      pages: z.array(failurePage),
+      total: z.number(),
+      state: z.string().nullable(),
+      counts: z.object({ failed: z.number(), skipped: z.number() }),
+    });
+    const downFailedOnly = pagesStateWindow.safeParse(
+      await (await v1(`/websites/${downId}/pages?state=failed`)).json(),
+    );
+    const downSkippedOnly = pagesStateWindow.safeParse(
+      await (await v1(`/websites/${downId}/pages?state=skipped`)).json(),
+    );
+    const downBadState = await v1(`/websites/${downId}/pages?state=broken`);
+    record(
+      'websites pages: the list narrows to the failed or the skipped pages and counts both',
+      downFailedOnly.success &&
+        downFailedOnly.data.state === 'failed' &&
+        downFailedOnly.data.total === 1 &&
+        downFailedOnly.data.pages.length === 1 &&
+        downFailedOnly.data.pages[0]?.url === `https://${DOWN_DOMAIN}/` &&
+        downFailedOnly.data.counts.failed === 1 &&
+        downFailedOnly.data.counts.skipped === 0 &&
+        downSkippedOnly.success &&
+        downSkippedOnly.data.state === 'skipped' &&
+        downSkippedOnly.data.total === 0 &&
+        downSkippedOnly.data.pages.length === 0 &&
+        downSkippedOnly.data.counts.failed === 1 &&
+        downBadState.status === 400,
+      `failed=${downFailedOnly.success ? `${downFailedOnly.data.state ?? 'null'}/${downFailedOnly.data.total}/${downFailedOnly.data.pages[0]?.url ?? '-'}/counts ${JSON.stringify(downFailedOnly.data.counts)}` : 'PARSE'} (want failed/1/https://${DOWN_DOMAIN}//{failed:1,skipped:0}) skipped=${downSkippedOnly.success ? `${downSkippedOnly.data.state ?? 'null'}/${downSkippedOnly.data.total}/${downSkippedOnly.data.pages.length}` : 'PARSE'} (want skipped/0/0) badState=${downBadState.status} (want 400)`,
+    );
     const downDeleted = await v1(`/websites/${downId}`, { method: 'DELETE' });
     record(
       'websites scan end: a site whose every page failed reads error with the reason, never active',
@@ -44443,6 +44657,23 @@ async function checkBellHintWire(
   await sleep(500); // both tails established
   const startId = await latestOutboxId(sql);
 
+  // The row is about a real task of an organization-wide project, which the
+  // teammate can open: a task-bound row is written only for its readers.
+  await sql`
+    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
+            ${Date.now()})
+  `;
+  await sql`
+    INSERT INTO app.tasks (
+      id, org_id, project_id, title, status, rank, number, created_by,
+      created_by_type, created_at_ms, updated_at_ms
+    ) VALUES (
+      'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
+      ${userId}, 'user', ${Date.now()}, ${Date.now()}
+    )
+  `;
   const { writeCoalescedNotification } =
     await import('./domains/collab/service.ts');
   await sql.begin((tx) =>
@@ -44515,6 +44746,10 @@ async function checkBellHintWire(
       (row[0]?.read ?? false),
     `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
   );
+  // Later lanes count the organization's projects.
+  await sql`
+    DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
+  `;
 }
 
 /**
@@ -45161,7 +45396,7 @@ async function checkRetention(
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
   // Every category must be declared (the env-tightening walk throws on a
-  // gap), and the compliance floors bind (auditLog ≥ 365, loginAttempt ≥ 90).
+  // gap), and the compliance floors bind (auditLog ≥ 180, loginAttempt ≥ 90).
   const bound = (min: number, unit = 'days') =>
     [
       `  min: ${min}`,
@@ -56828,6 +57063,40 @@ function errorText(error: unknown): string {
 /** Does the suite's shared session still resolve to its user? Better Auth's
  * own door, outside every org-scoped gate, so a policy probe (2FA
  * enforcement, idle windows) cannot false-alarm it. */
+/** The longest a single lane may run — the slowest lanes take well under
+ * two minutes, and a lane that passes this is not slow but stuck. */
+const LANE_DEADLINE_MS = 10 * 60_000;
+/** The post-lane probes are one request and one query each. */
+const PROBE_DEADLINE_MS = 2 * 60_000;
+
+/**
+ * Settles `work`, or rejects naming `what` once `ms` have passed — so a
+ * lane (or a probe between lanes) that never settles truncates the run
+ * under its own name instead of holding the job until CI's wall clock
+ * kills it 30 minutes later, with nothing in the log to say which lane.
+ */
+async function withinDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  what: string,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new Error(
+          `${what} did not settle within ${Math.round(ms / 60_000)} min`,
+        ),
+      );
+    }, ms);
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sharedSessionAlive(
   base: string,
   ctx: { cookie: string; userId: string },
@@ -56956,9 +57225,15 @@ async function runLanes(
     const position = `lane ${index + 1} of ${lanes.length} (${name})`;
     const notRun = lanes.length - index - 1;
     const envBefore = new Map(Object.entries(process.env));
-    const membershipsBefore = await sharedMemberships(sql, ctx.userId);
+    const membershipsBefore = await withinDeadline(
+      sharedMemberships(sql, ctx.userId),
+      PROBE_DEADLINE_MS,
+      `the membership probe before ${position}`,
+    );
     try {
-      await run();
+      // A lane that never settles used to hold the job until CI's 30-minute
+      // wall, which names no lane; the deadline truncates the run with it.
+      await withinDeadline(run(), LANE_DEADLINE_MS, position);
     } catch (error) {
       record(
         `harness: ${name} runs to completion`,
@@ -56993,7 +57268,11 @@ async function runLanes(
       );
       globalThis.fetch = boundary;
     }
-    const membershipsAfter = await sharedMemberships(sql, ctx.userId);
+    const membershipsAfter = await withinDeadline(
+      sharedMemberships(sql, ctx.userId),
+      PROBE_DEADLINE_MS,
+      `the membership probe after ${position}`,
+    );
     if (membershipsAfter !== membershipsBefore) {
       record(
         `harness: ${name} leaves the shared user's organizations as it found them`,
@@ -57004,7 +57283,13 @@ async function runLanes(
           `owner of its own.`,
       );
     }
-    if (!(await sharedSessionAlive(base, ctx))) {
+    if (
+      !(await withinDeadline(
+        sharedSessionAlive(base, ctx),
+        PROBE_DEADLINE_MS,
+        `the shared-session probe after ${position}`,
+      ))
+    ) {
       record(
         `harness: the shared session survives ${name}`,
         false,
@@ -57769,6 +58054,10 @@ async function main(): Promise<void> {
         () => checkSandboxBlobDoor(sql, baseUrl, authCtx),
       ],
       [
+        'checkTaskHeldBlobOutlivesFileRow',
+        () => checkTaskHeldBlobOutlivesFileRow(sql, authCtx),
+      ],
+      [
         'checkNotificationProjectBackfill',
         () => checkNotificationProjectBackfill(sql, authCtx),
       ],
@@ -57786,6 +58075,10 @@ async function main(): Promise<void> {
       [
         'checkAgentRunFailureNotice',
         () => checkAgentRunFailureNotice(sql, authCtx, record),
+      ],
+      [
+        'checkTaskNotificationAccess',
+        () => checkTaskNotificationAccess(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskSourceThread',
@@ -57864,6 +58157,14 @@ async function main(): Promise<void> {
       [
         'checkAgentTaskReadTools',
         () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskMetadata',
+        () => checkAgentTaskMetadata(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskAutomationOccupancy',
+        () => checkTaskAutomationOccupancy(sql, baseUrl, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
       [

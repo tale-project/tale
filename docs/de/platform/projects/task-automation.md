@@ -112,6 +112,7 @@ Scheitert ein Lauf und wiederholt ihn nichts mehr, weil die automatischen Wieder
 | --- | --- |
 | Ein Nutzungslimit hat den Lauf gestoppt | Ein Admin hebt das Limit an; starte den Agenten danach erneut. |
 | Dem Agenten fehlt etwas, das er braucht: sein Modell, einer seiner Skills oder der Agent selbst | Ein Redakteur oder Admin behebt das im Tab **Agenten** des Projekts. |
+| Ein Anhang dieser Aufgabe ist nicht mehr im Speicher | Wer die Aufgabe ändern darf, entfernt den Anhang oder lädt ihn erneut hoch; **Details** neben dem Lauf nennt die Datei. Starte den Agenten danach erneut. |
 | Der Lauf hat sein Zeitlimit erreicht | Starte den Agenten erneut oder teile die Aufgabe in kleinere auf. |
 | Der Lauf hat zu lange auf eine freie Sandbox gewartet | Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind. |
 | Das KI-Modell ist ausgefallen, oder der Lauf konnte nicht starten oder wurde unterbrochen | Starte den Agenten erneut. Scheitert er wieder, zeig einem Admin, was der Lauf unter **Details** gemeldet hat. |

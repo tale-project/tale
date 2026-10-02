@@ -154,6 +154,12 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   retired `/de-CH/…` tree) is answered by the near-miss resolver (`@tale/ui/docs/near-miss`)
   before the 404 page: a 359-of-932 loss of published URLs and agents guessing translated slugs
   showed why (2026-09).
+- **A patched dependency stays pinned, proven and dated** — `patches/` holds the Bun
+  `patchedDependencies` patches (today postgres.js 3.4.7, #4041), and
+  [`patches/README.md`](../patches/README.md) says for each why it exists, which test proves it and
+  when to remove it. Every Dockerfile that installs from the root manifests copies `patches/`
+  (`bun install` fails without a listed patch), and bumping a patched package regenerates or
+  deletes its patch in the same change.
 
 ## A green check is not always a run
 

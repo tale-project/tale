@@ -140,9 +140,9 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
     setMounted,
   } = useHomePanel();
   const { pathname, search } = useLocation();
-  // Only a conversation-shaped page (a chat, a task, an open conversation)
-  // carries the toggle in its header, so only there may the panel fold away;
-  // everywhere else in Home it stays, or it could not be brought back.
+  // Only a page whose header carries the toggle (a chat, a task, an open
+  // conversation, a project's page) may fold the panel away; everywhere else
+  // in Home it stays, or it could not be brought back.
   const collapsible = isPanelCollapsible(
     readHomeLocation(pathname, search, organizationId),
   );

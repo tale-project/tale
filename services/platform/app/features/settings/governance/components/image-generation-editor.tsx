@@ -112,7 +112,7 @@ export function ImageGenerationEditor({
     return parsed.success ? parsed.data : null;
   }, [policyQuery.data, policyQuery.isError]);
 
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'image_generation',
     savedEnabled: saved?.enabled ?? false,
@@ -234,7 +234,7 @@ export function ImageGenerationEditor({
             onCheckedChange={onToggle}
             disabled={
               !canEdit ||
-              isToggling ||
+              isSettling ||
               editor.isSaving ||
               readFailed ||
               policyUnavailable

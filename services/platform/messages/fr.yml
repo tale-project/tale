@@ -3222,9 +3222,7 @@ governance:
         d'automatisation plus anciens que la période de rétention. Inclut les blobs de
         stockage de variables/sorties par exécution.
       placeholder: ex. 30
-      helper:
-        Les exécutions d'automatisation plus anciennes seront supprimées (1 à 365
-        jours).
+      helper: Les exécutions d'automatisation plus anciennes seront supprimées.
     auditLogs:
       title: Journaux d'audit
       description: "Supprime automatiquement les entrées du journal d'audit plus
@@ -3233,9 +3231,7 @@ governance:
         conformité ; garde une rétention suffisamment longue pour satisfaire tes
         exigences d'audit ou de conformité."
       placeholder: ex. 90
-      helper:
-        Les entrées du journal d'audit plus anciennes seront supprimées (30 à
-        365 jours).
+      helper: Les entrées du journal d'audit plus anciennes seront supprimées.
     usageLedger:
       title: Registre d'utilisation
       description:
@@ -3244,9 +3240,7 @@ governance:
         raccourcir cette rétention tronque les analyses historiques (les budgets
         et les rapports s'appuient sur ces lignes)."
       placeholder: ex. 365
-      helper:
-        Les lignes du registre d'utilisation plus anciennes seront supprimées
-        (30 à 3650 jours).
+      helper: Les lignes du registre d'utilisation plus anciennes seront supprimées.
     loginAttempts:
       title: Tentatives de connexion
       description: "Supprime automatiquement les enregistrements de suivi des
@@ -3255,8 +3249,7 @@ governance:
         à l'ensemble du déploiement — la valeur la plus stricte (la plus courte)
         parmi toutes les organisations est utilisée."
       placeholder: ex. 90
-      helper: Les enregistrements de tentatives de connexion plus anciens seront
-        supprimés (7 à 365 jours).
+      helper: Les enregistrements de tentatives de connexion plus anciens seront supprimés.
   passwordPolicy:
     title: Politique de mot de passe
     description:
@@ -7403,6 +7396,7 @@ inbox:
   agentRunFailedBody: 'L’agent n’a pas pu terminer « {title} ». Ouvre la tâche pour voir pourquoi et le relancer.'
   agentRunFailedBudgetBody: 'Une limite d’utilisation a arrêté l’agent sur « {title} ». Relance-le dès qu’un admin l’aura relevée.'
   agentRunFailedSetupBody: 'Il manque quelque chose à l’agent de « {title} ». Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.'
+  agentRunFailedInputBody: 'Une pièce jointe de « {title} » n’est plus dans le stockage. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
@@ -7517,6 +7511,7 @@ tasks:
     failure:
       budget: Une limite d’utilisation a arrêté cette exécution. Demande à un admin de la relever, puis relance l’agent.
       setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
+      input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
       time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
       capacity: L’exécution a attendu trop longtemps une sandbox libre. Relance l’agent quand moins d’agents seront occupés.
       model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
@@ -8232,8 +8227,16 @@ websites:
         nouveau.
       notInCorpusSite: Rien n'a été indexé. La prochaine analyse ajoutera le site
         à nouveau.
-      embedding: Rien n'a été indexé. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
       generic: Rien n'a été indexé.
+    scanDetail:
+      credential: Le fournisseur a rejeté les identifiants du modèle d'embedding. Un administrateur peut les réparer sous Paramètres → Fournisseurs IA.
+      credit: Le fournisseur a refusé la requête à cause du solde ou du forfait du compte. Un administrateur peut vérifier le compte chez le fournisseur.
+      unresolved: Les identifiants du modèle d'embedding ne peuvent pas être utilisés. Un administrateur peut les vérifier sous Paramètres → Fournisseurs IA.
+      dimension: Les vecteurs du modèle ne correspondent pas à cette base de connaissances. Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+      upstream: Le fournisseur est en panne ou injoignable. Choisis Analyser maintenant dès qu'il est de retour.
+      throttled: La limite de débit du fournisseur a tenu malgré toutes les tentatives. La prochaine analyse reprend d'elle-même ; un administrateur peut espacer les requêtes sous Paramètres → Résidence des données.
+      generic: Un administrateur peut vérifier le modèle d'embedding sous Paramètres → Résidence des données.
+    technicalDetails: Détails techniques
   scanPausedBadge: Suspendu
   resumeScanning: Reprendre l'analyse
   scanNow: Analyser maintenant
@@ -8259,6 +8262,13 @@ websites:
     failed: Échec
     skipped: Ignorée
     failedPages: '{count, plural, one {{count} page en échec} other {{count} pages en échec}}'
+    filter:
+      label: Pages à afficher
+      all: Toutes
+      failed: 'En échec ({count})'
+      skipped: 'Ignorées ({count})'
+    noFailedPages: Aucune page en échec
+    noSkippedPages: Aucune page ignorée
     errorKind:
       dnsFailed: Impossible de résoudre l'hôte.
       timeout: La page n'a pas répondu à temps.
@@ -8544,6 +8554,7 @@ projects:
       task_create: Créer des tâches
       task_comment: Commenter des tâches
       task_update_status: Déplacer des tâches entre colonnes
+      task_update_metadata: Modifier la priorité et l'agent assigné aux tâches
       task_start_agent: Lancer d'autres agents sur des tâches
       task_upsert_by_external_ref: Synchroniser un élément externe vers une tâche
       document_find: Trouver des documents

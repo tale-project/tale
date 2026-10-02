@@ -33,16 +33,18 @@ describe('isAutoRetryableFailure', () => {
     }
   });
 
-  it('never retries what a retry cannot change — a burned window, a gone agent, a missing skill, a cap', () => {
+  it('never retries what a retry cannot change — a burned window, a gone agent, a missing skill, a gone attachment, a cap', () => {
     // A skill the run cannot reach is the agent's configuration: the retry
     // budget used to burn three runs on it before the author could act
-    // (2026-09-26 evaluation, C-09).
+    // (2026-09-26 evaluation, C-09). An attachment whose bytes left the
+    // store is the same posture: three retries met the same 404 (2026-10-02).
     for (const code of [
       'deadline',
       'park_deadline',
       'agent_deleted',
       'agent_model_missing',
       'equipment_missing',
+      'input_missing',
       'budget_exceeded',
     ]) {
       expect(isAutoRetryableFailure(code), code).toBe(false);

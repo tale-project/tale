@@ -241,6 +241,21 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'answers to and names you as the agent that started it; an agent you ' +
     'start cannot start further agents. Keep the run id in your report. ' +
     LENGTH_UNIT_NOTE,
+  task_update_metadata:
+    'Change an existing task’s priority or agent assignment without starting work. ' +
+    'Args: {taskId: string, priority?: "p0"|"p1"|"p2"|"p3"|null, ' +
+    'agentId?: string|null, expected: {priority?: "p0"|"p1"|"p2"|"p3"|null, ' +
+    'assignee?: {type: "user"|"agent"|"app", id: string}|null}}. ' +
+    'Read the task first. Build expected.assignee from its assigneeType and ' +
+    'assigneeId as {type, id}; an absent priority or assignee becomes null. ' +
+    'Name the current value in expected for each field ' +
+    'you change; null clears it, omitted fields stay untouched. At least one ' +
+    'change field is required; no other fields are accepted. A stale value ' +
+    'refuses the whole request: read again before deciding. Ownership changes ' +
+    'require backlog, todo or in_progress with no live agent/automation run ' +
+    'and no pending human review or question. Priority alone preserves those ' +
+    'handoffs. Answers {taskId, priority, assigneeType, assigneeId, changed}. ' +
+    'Does not change status, reviewer, questions, budgets, or start any run.',
   task_upsert_by_external_ref:
     'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
     'task, keyed by (externalSystem, externalId) — a re-run updates the ' +
@@ -250,7 +265,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'string (a longer one is cut to ' +
     `${taskLimitText(TASK_DESCRIPTION_MAX)}, ending in "…"), ` +
     `externalUrl?: string, ${LABELS_ARG}, ` +
-    'priority?: "p0"|"p1"|"p2"|"p3", ' +
+    'priority?: "p0"|"p1"|"p2"|"p3" (only when creating a task), ' +
     'externalState?: "open"|"closed" (closed applies the sync close policy), ' +
     'projectId?: string (as in task_create), createIfMissing?: boolean ' +
     `(default true), dedupeScope?: "org"|"project" (default org)}. ` +

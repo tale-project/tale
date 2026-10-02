@@ -10,6 +10,7 @@ import {
   type OrgEnv,
 } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { isWebsitePageState } from '../../core/websites/types.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
@@ -239,6 +240,12 @@ export function createWebsiteRoutes(deps: {
   });
 
   app.get('/:websiteId/pages', async (c) => {
+    // `state=failed|skipped` narrows the window to the pages in that state;
+    // any other value is a typo, refused rather than read as "all".
+    const stateRaw = c.req.query('state');
+    if (stateRaw !== undefined && !isWebsitePageState(stateRaw)) {
+      return c.json({ error: 'state must be "failed" or "skipped"' }, 400);
+    }
     try {
       const website = await loadOwnedWebsite(deps.sql, c);
       // The 0.4 fetchPages debounce: at most one corpus→row sync per hour
@@ -260,6 +267,7 @@ export function createWebsiteRoutes(deps: {
         await fetchWebsitePages(deps.sql, website, {
           offset: Number(c.req.query('offset') ?? '0') || 0,
           limit: Number(c.req.query('limit') ?? '100') || 100,
+          ...(stateRaw !== undefined ? { state: stateRaw } : {}),
         }),
       );
     } catch (error) {

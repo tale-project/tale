@@ -79,7 +79,7 @@ La vue des pages permet aussi de rechercher dans le contenu indexé. Essaie une 
 
 ## Examiner une page absente
 
-Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ouvre ensuite le site et lis l’erreur de la page concernée.
+Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ouvre ensuite le site, limite la liste des pages à **En échec** ou **Ignorées**, puis lis l’erreur de la page concernée.
 
 | Problème signalé | Vérification ou correction |
 | --- | --- |
@@ -91,8 +91,8 @@ Vérifie d’abord l’adresse, le type de source et la date du dernier scan. Ou
 | Contenu non pris en charge ou sans texte lisible | Les points d’accès JSON/XML, téléchargements binaires, images ou scans peuvent ne fournir aucun texte exploitable. Fournis une page HTML ou un document pris en charge dont le texte peut être extrait. |
 | Échec du rendu ou de l’extraction | Vérifie que la page publique se charge et que le document d’origine s’ouvre. Répare ou exporte à nouveau une source endommagée. |
 | L’assistant répond que la recherche dans les pages web n’est pas configurée | L’organisation n’a pas de modèle d’embedding qui fonctionne. Un administrateur le définit dans **Paramètres > Résidence des données** ; Tale relance ensuite un scan des sources concernées. |
-| **Erreur** avec « Le modèle d'embedding n'a pas pu traiter les pages. » | Le fournisseur d’embedding a refusé la requête ou n’a pas pu y répondre : identifiants rejetés, solde épuisé ou panne. Un administrateur corrige le modèle dans **Paramètres > Résidence des données** ou ses identifiants dans **Paramètres > Fournisseurs IA** ; l’enregistrement relance le scan des sources concernées. Après une panne chez le fournisseur, choisis **Analyser maintenant** dès qu’il est de nouveau disponible. |
-| **Erreur** avec « L'analyse n'a pas eu lieu. » | Le navigateur du crawler n’a pas pu démarrer, aucune page n’a donc été rendue. L’adresse n’est pas en cause : demande à ton exploitant de vérifier le service de sandbox, puis choisis **Analyser maintenant**. |
+| **Erreur** avec « Le modèle d'embedding n'a pas pu traiter les pages. » | Le fournisseur d’embedding a refusé la requête ou n’a pas pu y répondre : identifiants rejetés, solde épuisé, limite de débit maintenue malgré toutes les tentatives, ou panne. Les détails de la source précisent lequel, avec la réponse du fournisseur en dessous. Un administrateur corrige le modèle dans **Paramètres > Résidence des données** ou ses identifiants dans **Paramètres > Fournisseurs IA** ; l’enregistrement relance le scan des sources concernées. Après une panne chez le fournisseur, choisis **Analyser maintenant** dès qu’il est de nouveau disponible. |
+| **Erreur** avec « L'analyse n'a pas eu lieu. » | Le navigateur du crawler n’a pas pu démarrer, aucune page n’a donc été rendue ; son rapport se trouve sous **Détails techniques** dans les détails de la source. L’adresse n’est pas en cause : demande à ton exploitant de vérifier le service de sandbox, puis choisis **Analyser maintenant**. |
 
 Une récupération réussie efface l’erreur précédente. Si une actualisation échoue, la copie déjà indexée peut rester disponible : **Actif** et le nombre de pages indexées ne prouvent pas que chaque page est à jour. Compare les fragments enregistrés et la date du passage avec l’original avant de t’appuyer sur une modification récente.
 

@@ -1,14 +1,20 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { notifyUser } from '../collab/service.ts';
+import { notifyUser, taskReadersAmong } from '../collab/service.ts';
 import { addTaskComment, lockTaskCommentQueue } from './comments.ts';
 import {
   enforceTaskDatesForOrg,
   OVERDUE_NUDGE_BODY,
 } from './date-notifications.ts';
 
-vi.mock('../collab/service.ts', () => ({ notifyUser: vi.fn() }));
+vi.mock('../collab/service.ts', () => ({
+  notifyUser: vi.fn(),
+  // Everyone asked can open the task unless a case says otherwise.
+  taskReadersAmong: vi.fn((_db: unknown, args: { userIds: string[] }) =>
+    Promise.resolve(args.userIds),
+  ),
+}));
 vi.mock('./comments.ts', () => ({
   addTaskComment: vi.fn(),
   lockTaskCommentQueue: vi.fn(),
@@ -72,6 +78,9 @@ function fakeSql(answer: (text: string, values: unknown[]) => Row[]): {
 beforeEach(() => {
   vi.mocked(notifyUser).mockReset();
   vi.mocked(addTaskComment).mockReset();
+  vi.mocked(taskReadersAmong).mockImplementation((_db, args) =>
+    Promise.resolve([...args.userIds]),
+  );
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
@@ -267,5 +276,51 @@ describe('enforceTaskDatesForOrg — every rung stamps the project', () => {
         projectId: 'p-1',
       });
     }
+  });
+});
+
+/** #3631: a date alert goes to the first person in line who can still open
+ * the task, so an assignee or creator taken off the project's team neither
+ * receives it nor uses it up. */
+describe('enforceTaskDatesForOrg — the alert skips whoever lost the project', () => {
+  const startSweep = (extra: Row) =>
+    fakeSql((text, values) => {
+      if (
+        text.startsWith('SELECT t2.id FROM app.tasks t2') &&
+        text.includes('start_date_ms')
+      ) {
+        return [{ id: 't-a' }];
+      }
+      if (text.startsWith('UPDATE app.tasks SET start_notified_at_ms')) {
+        return [sweepRow(String(values[1]), extra)];
+      }
+      return [];
+    });
+
+  it('tells the task creator when the assignee can no longer open the task', async () => {
+    vi.mocked(taskReadersAmong).mockImplementation((_db, args) =>
+      Promise.resolve(args.userIds.filter((id) => id !== 'u-assignee')),
+    );
+    const { sql } = startSweep({});
+
+    await enforceTaskDatesForOrg(sql, 'org-1');
+
+    expect(vi.mocked(taskReadersAmong).mock.calls[0]?.[1]).toEqual({
+      organizationId: 'org-1',
+      taskId: 't-a',
+      userIds: ['u-assignee', 'u-creator', 'u-project'],
+    });
+    expect(notifyUser).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notifyUser).mock.calls[0]?.[1].userId).toBe('u-creator');
+  });
+
+  it('tells nobody, and counts nothing, when nobody in line can open it', async () => {
+    vi.mocked(taskReadersAmong).mockResolvedValue([]);
+    const { sql } = startSweep({});
+
+    const counts = await enforceTaskDatesForOrg(sql, 'org-1');
+
+    expect(notifyUser).not.toHaveBeenCalled();
+    expect(counts.start).toBe(0);
   });
 });

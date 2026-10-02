@@ -251,7 +251,8 @@ export async function kickAgentRun(
   await lockTaskRunStart(tx, args.organizationId, args.taskId);
   const automations = await tx<{ id: string }[]>`
     SELECT id FROM app.automation_runs
-    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+    WHERE org_id = ${args.organizationId}
+      AND (project_id = ${args.projectId} OR project_id IS NULL)
       AND status IN ('queued', 'running', 'waiting')
       AND input -> 'task' ->> 'id' = ${args.taskId}
     LIMIT 1

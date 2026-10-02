@@ -2463,3 +2463,95 @@ describe('workspaceToolStatusImpl', () => {
     expect(String(result.note)).toContain('No workspace tools');
   });
 });
+
+describe('dispatchWorkspaceToolImpl — task_update_metadata', () => {
+  const metadata = {
+    taskId: 'task_1',
+    priority: 'p1',
+    agentId: 'agent_2',
+    expected: { priority: null, assignee: null },
+  };
+  async function call(callArgs: Record<string, unknown>, confined = false) {
+    const { dispatch } = await getActions();
+    const mutations: Record<string, unknown>[] = [];
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'agent_manager',
+        scope: { kind: 'project', projectId: 'project_1' },
+        ...(confined ? { confinedToTaskId: 'own_task' } : {}),
+      },
+      runMutation: vi.fn(async (ref, args) => {
+        if (
+          fnName(ref) === 'tasks/internal_mutations:agentUpdateTaskMetadata'
+        ) {
+          mutations.push(args as Record<string, unknown>);
+          return {
+            taskId: 'task_1',
+            priority: 'p1',
+            assigneeType: 'agent',
+            assigneeId: 'agent_2',
+            changed: true,
+          };
+        }
+        return null;
+      }),
+    });
+    return {
+      result: await dispatch(ctx, {
+        ...BASE,
+        taskRunExecId: 'issuer_exec',
+        tool: 'task_update_metadata',
+        callArgs,
+      }),
+      mutations,
+    };
+  }
+
+  it('passes explicit null expectations and only token-derived authority to the mutation', async () => {
+    const { result, mutations } = await call(metadata);
+    expect(result.status).toBe('ok');
+    expect(mutations).toEqual([
+      {
+        organizationId: 'org_1',
+        sessionId: 'sid_1',
+        taskRunExecId: 'issuer_exec',
+        patch: metadata,
+      },
+    ]);
+  });
+
+  it('allows clearing priority without changing ownership', async () => {
+    const patch = {
+      taskId: 'task_1',
+      priority: null,
+      expected: { priority: 'p1' },
+    };
+    const { result, mutations } = await call(patch);
+    expect(result.status).toBe('ok');
+    expect(mutations[0]?.patch).toEqual(patch);
+  });
+
+  it.each([
+    { taskId: 'task_1', priority: 'p1', expected: {} },
+    { taskId: 'task_1', agentId: null, expected: {} },
+    { taskId: 'task_1', expected: { priority: null } },
+    { ...metadata, status: 'done' },
+    { ...metadata, reviewerUserId: 'reviewer' },
+    { ...metadata, actorId: 'forged' },
+    { ...metadata, expected: { priority: null, assignee: { type: 'agent' } } },
+  ])(
+    'refuses incomplete or widened metadata requests without reaching the mutation (%j)',
+    async (patch) => {
+      const { result, mutations } = await call(patch);
+      expect(result.status).toBe('invalid_args');
+      expect(mutations).toEqual([]);
+    },
+  );
+
+  it('refuses metadata writes by a member-confined run', async () => {
+    const { result, mutations } = await call(metadata, true);
+    expect(result.status).toBe('unavailable');
+    expect(mutations).toEqual([]);
+  });
+});

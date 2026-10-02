@@ -378,7 +378,7 @@ export function FeatureFlagsEditor({
   // The section's toggle. Rules survive it being switched off, so turning the
   // feature back on restores them; enforcement short-circuits on
   // `!enabled || rules.length === 0` server-side either way.
-  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+  const { enabled, isSettling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'feature_flags',
     savedEnabled: savedConfig.enabled,
@@ -507,7 +507,7 @@ export function FeatureFlagsEditor({
             aria-label={t('featureFlags.title')}
             checked={enabled}
             onCheckedChange={onToggle}
-            disabled={cannotManage || isToggling}
+            disabled={cannotManage || isSettling}
           />
         }
       >

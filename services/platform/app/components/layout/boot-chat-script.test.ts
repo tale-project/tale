@@ -108,9 +108,13 @@ describe('index.html boot-chat script', () => {
         true,
       );
     }
+    // A project keeps the shell's bar on a phone even though its panel can
+    // fold (the two rules part here, as in `home-paths.ts`).
     for (const path of [
       '/dashboard/org-1/home',
+      '/dashboard/org-1/projects',
       '/dashboard/org-1/projects/p-1',
+      '/dashboard/org-1/projects/p-1/tasks/board',
       '/dashboard/org-1/conversations/open',
       '/dashboard/org-1/settings/account',
     ]) {
@@ -138,16 +142,18 @@ describe('index.html boot-chat script', () => {
       '/dashboard/org-1/chat',
       '/dashboard/org-1/tasks/t-1',
       '/dashboard/org-1/conversations/open?conversation=c-1',
+      '/dashboard/org-1/projects/p-1',
+      '/dashboard/org-1/projects/p-1/tasks/board',
     ]) {
       expect(
         bootAt(path, folded).classList.contains('boot-home-panel-open'),
         path,
       ).toBe(false);
     }
-    // A project or the inbox index has no toggle to bring it back, so the
-    // panel shows there whatever was stored.
+    // The projects list and the inbox index have no toggle to bring it back,
+    // so the panel shows there whatever was stored.
     for (const path of [
-      '/dashboard/org-1/projects/p-1/tasks/board',
+      '/dashboard/org-1/projects',
       '/dashboard/org-1/conversations/open',
     ]) {
       expect(

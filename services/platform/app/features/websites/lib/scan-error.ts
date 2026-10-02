@@ -1,7 +1,14 @@
+import {
+  parseWebsiteEmbeddingFailure,
+  type WebsiteEmbeddingFailureClass,
+} from '@/backend/core/websites/scan_scheduling';
+
 /**
- * lastSyncError on a website row is an operator dump (sandbox JSON, DNS
- * syscalls). The view dialog shows a one-line reason; the dump stays on
- * `title` for hover.
+ * lastSyncError on a website row is what the scan threw: the embedding
+ * provider's own sentence behind a prefix that names the model, or an
+ * operator dump (sandbox JSON, DNS syscalls). The view dialog leads with a
+ * one-line reason and shows the sentence beneath it; a dump is folded under
+ * "Technical details".
  */
 export type ScanErrorKind =
   | 'runtime'
@@ -101,13 +108,10 @@ export function scanEmptyMessageKey(
   | 'viewDialog.scanEmpty.dns'
   | 'viewDialog.scanEmpty.notInCorpus'
   | 'viewDialog.scanEmpty.notInCorpusSite'
-  | 'viewDialog.scanEmpty.embedding'
   | 'viewDialog.scanEmpty.generic' {
   switch (kind) {
     case 'runtime':
       return 'viewDialog.scanEmpty.runtime';
-    case 'embedding':
-      return 'viewDialog.scanEmpty.embedding';
     case 'dns':
       return 'viewDialog.scanEmpty.dns';
     case 'notInCorpus':
@@ -133,4 +137,60 @@ export function isHollowSiteScan(
   if ((website.crawledPageCount ?? 0) > 0) return false;
   if ((website.failedPageCount ?? 0) > 0) return false;
   return !pages.some((page) => page.chunks_count > 0 || page.fail_count > 0);
+}
+
+export type EmbeddingFailureClass = WebsiteEmbeddingFailureClass;
+
+/**
+ * Why the embedding model could not embed, as the crawl action recorded it
+ * in the reason; null for any other reason, and for one written before the
+ * class was recorded.
+ */
+export function embeddingFailureClass(
+  message: string,
+): EmbeddingFailureClass | null {
+  return parseWebsiteEmbeddingFailure(message)?.failureClass ?? null;
+}
+
+/**
+ * What to do about an embedding failure, by its class: whom to ask and
+ * where. Without a class, the model's setting is the one place to look.
+ */
+export function embeddingHintKey(
+  failureClass: EmbeddingFailureClass | null,
+):
+  | 'viewDialog.scanDetail.credential'
+  | 'viewDialog.scanDetail.credit'
+  | 'viewDialog.scanDetail.unresolved'
+  | 'viewDialog.scanDetail.dimension'
+  | 'viewDialog.scanDetail.throttled'
+  | 'viewDialog.scanDetail.upstream'
+  | 'viewDialog.scanDetail.generic' {
+  switch (failureClass) {
+    case 'credential':
+      return 'viewDialog.scanDetail.credential';
+    case 'credit':
+      return 'viewDialog.scanDetail.credit';
+    case 'unresolved':
+      return 'viewDialog.scanDetail.unresolved';
+    case 'dimension':
+      return 'viewDialog.scanDetail.dimension';
+    case 'throttled':
+      return 'viewDialog.scanDetail.throttled';
+    case 'upstream':
+      return 'viewDialog.scanDetail.upstream';
+    default:
+      return 'viewDialog.scanDetail.generic';
+  }
+}
+
+/**
+ * The stored reason as the dialog shows it: an embedding failure's own
+ * sentence, without the prefix and class the one-liner already said; any
+ * other reason as it was stored. Empty when there is nothing to show.
+ */
+export function scanErrorDetail(message: string): string {
+  const embedding = parseWebsiteEmbeddingFailure(message);
+  if (embedding !== null) return embedding.sentence;
+  return message.trim();
 }

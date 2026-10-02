@@ -304,22 +304,24 @@ records and delete them after.
   scan that never started (sandbox/runtime missing, or the crawler refused
   the host) and that has nothing indexed (`crawledPageCount` 0, no failed
   pages) → the view keeps that **Error** badge in the header; the body is a
-  teaching empty (`websites.viewDialog.scanError.runtime` +
+  red (destructive) Alert with its icon, titled by the reason
+  (`websites.viewDialog.scanError.runtime` +
   `websites.viewDialog.scanEmpty.runtime` for a missing crawler runtime,
   `websites.pagesDialog.errorKind.dnsFailed` +
   `websites.viewDialog.scanEmpty.dns` for a host that does not resolve,
   `websites.viewDialog.scanError.embedding` +
-  `websites.viewDialog.scanEmpty.embedding` for an embedding provider that
-  refused or failed the pages,
-  `websites.viewDialog.scanError.generic` +
-  `websites.viewDialog.scanEmpty.generic` otherwise) — never the raw sandbox
-  JSON, `tale-sandbox-runtime`, or `getaddrinfo` dump, and never a hollow
-  page row (`0 words` / `0 chunks`), search field, or `0 indexed` count.
-  Hover the empty → the dump is on `title`. A site that already has indexed
-  or failed pages keeps the list and a muted caption
-  (`websites.viewDialog.scanError.*`) instead of the empty. Reload
-  `/dashboard/{org}/websites` and reopen → the empty or caption is still
-  the human line.
+  `websites.viewDialog.scanEmpty.generic` + the class hint
+  `websites.viewDialog.scanDetail.*` for an embedding provider that refused
+  or failed the pages, `websites.viewDialog.scanError.generic` +
+  `websites.viewDialog.scanEmpty.generic` otherwise) — never a hollow page
+  row (`0 words` / `0 chunks`), search field, or `0 indexed` count. The
+  embedding provider's own sentence (`401 User not found.`) reads beneath the
+  hint; any other dump (sandbox JSON, `tale-sandbox-runtime`, `getaddrinfo`)
+  is folded under **Technical details**
+  (`websites.viewDialog.technicalDetails`), never inline and never only on
+  hover. A site that already has indexed or failed pages keeps the list with
+  the same Alert above it. Reload `/dashboard/{org}/websites` and reopen →
+  the Alert is still there.
 - [ ] `KNOW-F19` · **Source reads as icons** — Documents with an upload, a
   Microsoft 365 **One-time import** (`documents.onedrive.oneTimeImport`) and
   a synced folder (KNOW-F2), in German (`de`), with the window narrowed until
@@ -484,6 +486,23 @@ records and delete them after.
   more while it still scans → the same again. Then stop the backend without
   warning (`kill -9`, or `docker kill` on the backend worker) → the same,
   a couple of minutes later.
+- [ ] `KNOW-F36` · **Failed and skipped pages have a door** — Websites → open
+  a site with indexed pages beside failed and skipped ones (a URL list with a
+  `noindex` page and a 404 page next to working ones) → the pages header
+  reads `websites.indexed` and `websites.pagesDialog.failedPages`, and that
+  count is a link-styled button; above the list a segmented control
+  (`websites.pagesDialog.filter.label`) offers
+  `websites.pagesDialog.filter.all`, `websites.pagesDialog.filter.failed` and
+  `websites.pagesDialog.filter.skipped` with their counts, and is absent while
+  no page failed or was skipped. Click the count → the **Failed** segment is
+  checked and the list holds only rows labelled `websites.pagesDialog.failed`,
+  from the top, with its own **Load more**; **Skipped** holds only
+  `websites.pagesDialog.skipped` rows; a segment at 0 shows
+  `websites.pagesDialog.noFailedPages` or
+  `websites.pagesDialog.noSkippedPages`; **All** restores the whole list. A
+  scan that moves the row while **Failed** is open re-reads the failed pages,
+  not all of them; the content search ignores the filter. Keyboard: Tab
+  reaches the segments and the arrow keys switch them.
 
 ## Boundary & error tests
 

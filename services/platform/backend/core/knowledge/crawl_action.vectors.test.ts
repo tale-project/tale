@@ -235,7 +235,9 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
       new Headers(),
     );
     await expect(indexWith(() => Promise.reject(refusal))).rejects.toThrow(
-      new RegExp(`^${WEBSITE_EMBEDDING_FAILED_PREFIX}: .*User not found`),
+      new RegExp(
+        `^${WEBSITE_EMBEDDING_FAILED_PREFIX} \\[credential\\]: .*User not found`,
+      ),
     );
   });
 
@@ -244,7 +246,9 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
       new EmbeddingDimensionMismatch(1536, 1024, 'organization "ruler"'),
     );
     await expect(indexWith(() => Promise.resolve([]))).rejects.toThrow(
-      new RegExp(`^${WEBSITE_EMBEDDING_FAILED_PREFIX}: .*1024-dimensional`),
+      new RegExp(
+        `^${WEBSITE_EMBEDDING_FAILED_PREFIX} \\[dimension\\]: .*1024-dimensional`,
+      ),
     );
   });
 
@@ -264,7 +268,29 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
     await expect(
       indexer.settle('https://ruler.example/about', 'vectorless'),
     ).rejects.toThrow(
-      `${WEBSITE_EMBEDDING_FAILED_PREFIX}: The credential "OpenRouter" is disabled.`,
+      `${WEBSITE_EMBEDDING_FAILED_PREFIX} [unresolved]: The credential "OpenRouter" is disabled.`,
+    );
+  });
+
+  // The provider's per-minute limit, outlasting every retry: its own class,
+  // so the site says the next scan continues instead of blaming the account.
+  it('names the model and the rate limit when the provider throttled the pages', async () => {
+    const limited = OpenAI.APIError.generate(
+      429,
+      {
+        error: {
+          code: 'insufficient_quota',
+          message:
+            'Allocated quota exceeded, please increase your quota limit.',
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+    await expect(indexWith(() => Promise.reject(limited))).rejects.toThrow(
+      new RegExp(
+        `^${WEBSITE_EMBEDDING_FAILED_PREFIX} \\[throttled\\]: .*Allocated quota exceeded`,
+      ),
     );
   });
 

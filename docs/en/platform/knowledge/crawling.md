@@ -79,7 +79,7 @@ The page view also offers search over indexed content. Try a distinctive phrase 
 
 ## Resolve a missing page
 
-First check the address, source type, and latest scan time. Then open the source and read the affected page's error.
+First check the address, source type, and latest scan time. Then open the source, narrow its page list to **Failed** or **Skipped**, and read the affected page's error.
 
 | Reported issue | What to check or change |
 | --- | --- |
@@ -91,8 +91,8 @@ First check the address, source type, and latest scan time. Then open the source
 | Unsupported content or no readable text | JSON/XML endpoints, binary downloads, images, or scans may provide no supported page text. Supply an HTML page or a supported document with extractable text. |
 | Rendering or document extraction failed | Check that the public page loads and the original document opens. Repair or re-export the source if it is damaged. |
 | The assistant says web-page search is not set up | The organization has no working embedding model. An administrator sets one under **Settings > Data residency**; Tale then scans the affected sources again. |
-| **Error** with "The embedding model couldn't process the pages." | The embedding provider refused or failed the request: a rejected credential, an exhausted balance, or an outage. An administrator repairs the model under **Settings > Data residency** or its credential under **Settings > AI providers**; saving either one scans the affected sources again. After an outage on the provider's side, choose **Scan now** once it is back. |
-| **Error** with "Scanning didn't run." | The crawler's browser could not start, so no page was rendered. The address is not the cause: ask your operator to check the sandbox service, then choose **Scan now**. |
+| **Error** with "The embedding model couldn't process the pages." | The embedding provider refused or failed the request: a rejected credential, an exhausted balance, a rate limit that held through every retry, or an outage. The source's details say which, with the provider's own reply beneath. An administrator repairs the model under **Settings > Data residency** or its credential under **Settings > AI providers**; saving either one scans the affected sources again. After an outage on the provider's side, choose **Scan now** once it is back. |
+| **Error** with "Scanning didn't run." | The crawler's browser could not start, so no page was rendered; its report is under **Technical details** in the source's details. The address is not the cause: ask your operator to check the sandbox service, then choose **Scan now**. |
 
 A successful later fetch clears the previous error. A failed refresh can leave an earlier indexed copy available: **Active** and an indexed count do not prove every page is up to date. Compare the stored chunks and last-crawled information with the original before relying on a recent change.
 

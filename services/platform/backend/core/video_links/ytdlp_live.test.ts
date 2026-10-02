@@ -36,7 +36,10 @@ import {
   ytdlpWriteSubs,
   type YtDlpMetadata,
 } from './ytdlp';
-import { ensureVideoToolchain } from './ytdlp_toolchain';
+import {
+  VIDEO_TOOLCHAIN_DEADLINES,
+  ensureVideoToolchain,
+} from './ytdlp_toolchain';
 
 const LIVE = process.env.YOUTUBE_LIVE_TEST === '1';
 
@@ -136,15 +139,18 @@ describe.skipIf(!LIVE)(
   () => {
     // Download/resolve the yt-dlp + deno + ffmpeg + bgutil toolchain and point
     // `ytdlp.ts` at it. Lives inside the gated `describe` so it NEVER runs (nor
-    // touches the network) in the ordinary suite. Generous timeout: a cold cache
-    // downloads two binaries and may `brew install ffmpeg` on a fresh laptop.
+    // touches the network) in the ordinary suite. A cold cache downloads two
+    // binaries and may install ffmpeg; provisioning bounds itself by
+    // `VIDEO_TOOLCHAIN_DEADLINES` (stopping its own children on expiry), and
+    // the hook outlasts that bound, so a stall fails as a named stage, never
+    // as a bare hook timeout with the child left running (#4073).
     beforeAll(async () => {
       const tc = await ensureVideoToolchain();
       process.env.VIDEO_INGEST_BIN_DIR = tc.binDir;
       process.env.VIDEO_INGEST_FFMPEG_LOCATION = tc.ffmpegLocation;
       // `||=`: honour an explicit plugin dir (e.g. the CI baked path) if set.
       process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS ||= tc.pluginDir;
-    }, 600_000);
+    }, VIDEO_TOOLCHAIN_DEADLINES.totalMs + 60_000);
 
     // Guards the plugin-DISCOVERY contract, which the bot-wall skip above
     // cannot: a bgutil zip expanded flat into the plugin root (yt_dlp_plugins/

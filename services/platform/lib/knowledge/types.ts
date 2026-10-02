@@ -57,6 +57,12 @@ export interface EmbeddingModel {
    * this model. Absent, a request may wait its whole ceiling: fifteen minutes
    * for a batch, five for a search query. */
   readonly minTokensPerSecond?: number;
+  /** The most tokens Tale sends this model in any one minute, across every
+   * request of the organization in this process; absent means unpaced. */
+  readonly maxTokensPerMinute?: number;
+  /** The most requests Tale sends this model in any one minute; absent
+   * means unpaced. */
+  readonly maxRequestsPerMinute?: number;
 }
 
 /** One chunk of one document, as retrieval returns it. */

@@ -120,9 +120,64 @@ export const WEBSITE_NOT_IN_CORPUS_MESSAGE =
 /** How a scan's error opens when the organization's embedding model could
  * not embed its pages (a rejected credential, an exhausted balance, a
  * provider that is down). The Websites page reads it to say so, and whom to
- * ask, instead of the provider's bare words. */
+ * ask, ahead of the provider's own sentence. */
 export const WEBSITE_EMBEDDING_FAILED_PREFIX =
   'The embedding model could not embed the pages';
+
+/** Why the embedding model could not embed: `credential` — the provider
+ * rejected the credential, or it cannot serve embeddings; `credit` — the
+ * provider refused the account (balance, plan, billing); `unresolved` — the
+ * credential the settings select does not resolve, so no call was made;
+ * `dimension` — the model's vectors do not fit the knowledge database;
+ * `throttled` — the provider's rate limit held through every retry;
+ * `upstream` — the provider failed or was unreachable. The reason carries
+ * it as `[class]` right after the prefix, so the Websites page can say
+ * which it was and whom to ask without reading the provider's words. */
+export const WEBSITE_EMBEDDING_FAILURE_CLASSES = [
+  'credential',
+  'credit',
+  'unresolved',
+  'dimension',
+  'throttled',
+  'upstream',
+] as const;
+
+export type WebsiteEmbeddingFailureClass =
+  (typeof WEBSITE_EMBEDDING_FAILURE_CLASSES)[number];
+
+/** The reason a scan the embedding model stopped ends under:
+ * `The embedding model could not embed the pages [credential]: 401 User not found.` */
+export function websiteEmbeddingFailureReason(
+  failureClass: WebsiteEmbeddingFailureClass,
+  sentence: string,
+): string {
+  return `${WEBSITE_EMBEDDING_FAILED_PREFIX} [${failureClass}]: ${sentence}`;
+}
+
+const EMBEDDING_FAILURE_REASON = new RegExp(
+  `^${WEBSITE_EMBEDDING_FAILED_PREFIX}(?: \\[(\\w+)\\])?:\\s*(.*)$`,
+  'is',
+);
+
+/** Reads an embedding failure's class and the provider's sentence back out
+ * of a stored reason; null for any other reason. A reason written before
+ * the class was recorded has none (`failureClass: null`) and keeps its
+ * sentence. */
+export function parseWebsiteEmbeddingFailure(reason: string): {
+  failureClass: WebsiteEmbeddingFailureClass | null;
+  sentence: string;
+} | null {
+  const match = EMBEDDING_FAILURE_REASON.exec(reason.trim());
+  if (match === null) return null;
+  const token = match[1]?.toLowerCase();
+  const failureClass = WEBSITE_EMBEDDING_FAILURE_CLASSES.find(
+    (candidate) => candidate === token,
+  );
+  return {
+    failureClass: failureClass ?? null,
+    sentence: match[2]?.trim() ?? '',
+  };
+}
 
 /** The scheduler's view of one `websites` row, as
  * `listWebsitesForScanScheduling` projects it. */
