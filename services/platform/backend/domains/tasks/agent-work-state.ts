@@ -1,3 +1,7 @@
+import type {
+  AgentReviewBlockedReason,
+  TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 import type { Sql } from 'postgres';
 
 import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
@@ -13,7 +17,7 @@ import {
 import { getPendingReviewForTask } from './reviews.ts';
 
 /**
- * What is working on a task, and what waits on a person — the run half of an
+ * What is working on a task, and who reviews it — the run half of an
  * agent's `task_get`, read with the readers the task sheet uses: its run
  * list, its automation banner and Run row, the ask card and the review gate.
  * Task-specific starts serialize on the task. Generic org-level admissions
@@ -55,12 +59,16 @@ export interface TaskWorkState {
   agentRunsHasMore: boolean;
   /** The live automation run, else the latest one, else null. */
   workflowRun: TaskWorkflowRunState | null;
-  /** The task's open review, which only a person decides. */
+  /** Captured review ownership; agent verdicts use a separate opt-in tool. */
   pendingReview: {
     approvalId: string;
     round: number;
     runId: string | null;
     requestedFor: string | null;
+    reviewer: TaskReviewRecipient | null;
+    implementationAgentId: string | null;
+    evidenceRevision: string | null;
+    agentReviewBlockedReason: AgentReviewBlockedReason | null;
     createdAt: number;
   } | null;
 }
@@ -144,6 +152,10 @@ export async function readTaskWorkState(
             round: review.round,
             runId: review.runId,
             requestedFor: review.requestedFor,
+            reviewer: review.reviewer,
+            implementationAgentId: review.implementationAgentId,
+            evidenceRevision: review.evidenceRevision,
+            agentReviewBlockedReason: review.agentReviewBlockedReason,
             createdAt: review.createdAt,
           },
   };

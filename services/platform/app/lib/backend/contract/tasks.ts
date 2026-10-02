@@ -1,5 +1,12 @@
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
+import type {
+  ProjectTaskReviewer,
+  SetTaskReviewerInput,
+  TaskReviewer,
+  TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 
+import type { PendingTaskReview } from '@/backend/domains/tasks/reviews';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
 /**
@@ -53,7 +60,26 @@ export type TaskStatusWriteResult = {
   nextTask?: { id: string; number?: number; dueDate?: number };
 } | null;
 
+export interface TaskReviewerState {
+  reviewer: TaskReviewer;
+  projectReviewer: ProjectTaskReviewer;
+  pendingReview: PendingTaskReview | null;
+}
+
+export interface TaskPendingReviewIndicator {
+  taskId: string;
+  approvalId: string;
+  requestedFor?: string;
+  /** Captured recipient; an agent never falls back to a human designation. */
+  reviewer?: TaskReviewRecipient | null;
+}
+
 export interface TasksContract {
+  'tasks/queries:getTaskReviewer': {
+    kind: 'query';
+    args: { organizationId: string; taskId: string };
+    returns: TaskReviewerState;
+  };
   'tasks/mutations:addTaskComment': {
     kind: 'mutation';
     args: { taskId: string; body: string };
@@ -385,6 +411,7 @@ export interface TasksContract {
         completedAt?: number;
         externalId?: string;
         reviewerUserId?: string;
+        reviewerAgentId?: string;
         archivedAt?: number;
         createdByType: 'user' | 'agent' | 'app';
         outputs?: Array<{
@@ -498,12 +525,7 @@ export interface TasksContract {
     returns: {
       runningTaskIds: string[];
       askingTaskIds: string[];
-      pendingReviews: Array<
-        | ({ taskId: string; approvalId: string } & { requestedFor: string })
-        | ({ taskId: string; approvalId: string } & {
-            requestedFor?: undefined;
-          })
-      >;
+      pendingReviews: TaskPendingReviewIndicator[];
     };
   };
   'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects': {
@@ -512,12 +534,7 @@ export interface TasksContract {
     returns: {
       runningTaskIds: string[];
       askingTaskIds: never[];
-      pendingReviews: Array<
-        | ({ taskId: string; approvalId: string } & { requestedFor: string })
-        | ({ taskId: string; approvalId: string } & {
-            requestedFor?: undefined;
-          })
-      >;
+      pendingReviews: TaskPendingReviewIndicator[];
     };
   };
   'tasks/queries:listProjectDependencies': {
@@ -561,6 +578,7 @@ export interface TasksContract {
         completedAt?: number;
         externalId?: string;
         reviewerUserId?: string;
+        reviewerAgentId?: string;
         archivedAt?: number;
         createdByType: 'user' | 'agent' | 'app';
         outputs?: Array<{
@@ -681,6 +699,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -749,6 +768,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -846,6 +866,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -946,6 +967,7 @@ export interface TasksContract {
           completedAt?: number;
           externalId?: string;
           reviewerUserId?: string;
+          reviewerAgentId?: string;
           archivedAt?: number;
           createdByType: 'user' | 'agent' | 'app';
           outputs?: Array<{
@@ -1016,7 +1038,7 @@ export interface TasksContract {
   };
   'tasks/review_mutations:setTaskReviewer': {
     kind: 'mutation';
-    args: { reviewerUserId?: string; taskId: string };
+    args: SetTaskReviewerInput & { taskId: string };
     returns: null;
   };
   'tasks/search:searchTasks': {

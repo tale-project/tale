@@ -18,6 +18,7 @@ import {
 } from './external-ref.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
+  getPendingReviewForTask,
   requestTaskReview,
 } from './reviews.ts';
 import { TaskError, type TaskRow } from './service.ts';
@@ -30,6 +31,7 @@ vi.mock('../automations/store.ts', () => ({
   cancelRunInTx: vi.fn(),
 }));
 vi.mock('./reviews.ts', () => ({
+  getPendingReviewForTask: vi.fn(),
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
   requestTaskReview: vi.fn(),
@@ -105,6 +107,7 @@ beforeEach(() => {
   vi.mocked(beginRunInTx).mockReset();
   vi.mocked(requestTaskReview).mockReset();
   vi.mocked(closePendingTaskReviewOnStatusLeave).mockReset();
+  vi.mocked(getPendingReviewForTask).mockReset().mockResolvedValue(null);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
@@ -320,6 +323,7 @@ describe('upsertTaskByExternalRef — an archived task is read-only to the intak
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: null,
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',
@@ -405,6 +409,7 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: null,
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',
@@ -479,6 +484,46 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
     );
     expect(requestTaskReview).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['closed', 'open'] as const)(
+    'records upstream %s while preserving a captured agent review',
+    async (externalState) => {
+      vi.mocked(getPendingReviewForTask).mockResolvedValue({
+        approvalId: 'approval',
+        taskId: 't-1',
+        round: 0,
+        reviewer: { kind: 'agent', agentId: 'reviewer' },
+        requestedFor: null,
+        agentSlug: null,
+        implementationAgentId: 'author',
+        evidenceRevision: 'a'.repeat(64),
+        agentReviewBlockedReason: null,
+        runId: 'run',
+        createdAt: 1,
+      });
+      const { tx, updates } = captured(
+        parked({
+          status: 'in_review',
+          externalClosedAt: externalState === 'open' ? 123 : null,
+        }),
+      );
+      await upsertTaskByExternalRef(tx, {
+        ...intake,
+        actorId: 'workflow',
+        externalState,
+      });
+      expect(column(updates[0], 'status')).toBe('in_review');
+      expect(column(updates[0], 'completed_at_ms')).toBeNull();
+      if (externalState === 'open')
+        expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
+      else
+        expect(column(updates[0], 'external_closed_at_ms')).toBeGreaterThan(
+          123,
+        );
+      expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
+      expect(requestTaskReview).not.toHaveBeenCalled();
+    },
+  );
 
   it('reopens a park it stamped back to the inbox and clears the stamp', async () => {
     const { tx, updates } = captured(
@@ -770,6 +815,7 @@ describe('upsertTaskByExternalRef — an over-long description is cut, like the 
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: null,
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',
@@ -896,6 +942,7 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: null,
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',

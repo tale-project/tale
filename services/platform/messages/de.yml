@@ -7659,6 +7659,7 @@ tasks:
     standardAgentHint: Der Agent der Organisation für Projekte ohne eigene Agenten
     standardAgentFooter: Bis dieses Projekt eigene Agenten hat, übernimmt der Standard-Agent der Organisation seine Aufgaben.
   activity:
+    reviewResponded: "Review entschieden"
     created: Erstellt
     updated: Aktualisiert
     claimed: Übernommen
@@ -7688,6 +7689,9 @@ tasks:
       labels: Keine Labels
       attachments: Keine Anhänge
   review:
+    decisionApproved: "Freigegeben"
+    decisionChangesRequested: "Änderungen angefordert"
+    decisionUnavailable: "Review-Entscheidung nicht verfügbar"
     needsReview: Review ausstehend
     waitingOn: 'Wartet auf {name}'
     waitingOnYou: Wartet auf dein Review
@@ -7700,9 +7704,30 @@ tasks:
   reviewer:
     none: Kein Reviewer
     assignToMe: Selbst prüfen
-    search: Personen suchen
-    clear: Reviewer entfernen
+    search: "Personen und Agenten suchen"
     editorsOnly: Reviewer kann nur sein, wer dieses Projekt bearbeiten kann.
+    projectDefaultLabel: "Projektstandard"
+    projectDefault: "Projektstandard · {reviewer}"
+    projectDefaultHuman: "Projektstandard · Person"
+    independentAgent: "Wähle einen anderen Agenten als den, der die Arbeit erledigt hat."
+    agentReview: "Prüft das Ergebnis aus seiner eigenen Review-Aufgabe."
+    routingHint: "Personen brauchen Bearbeitungsrechte. Agenten brauchen die Berechtigung für Aufgabenreviews und dürfen ihre eigene Arbeit nicht prüfen."
+    pendingFor: "Aktuelles Review: {reviewer}"
+    transferHint: "Wenn du einen Reviewer wählst, überträgst du auch dieses ausstehende Review."
+    agentUnavailable: "Dieser Reviewer-Agent ist nicht verfügbar. Wähle einen anderen Reviewer."
+    agentPermissionRequired: "Dieser Agent braucht die Berechtigung für Aufgabenreviews, bevor er entscheiden kann."
+    saveError: "Reviewer konnte nicht geändert werden"
+    loadError: "Das aktuelle Review konnte nicht geladen werden. Versuche es vor einer Änderung erneut."
+    stale: "Reviewer oder Ergebnis haben sich geändert. Prüfe das aktuelle Review und wähle erneut."
+    handoffRequired: "Übertrage das ausstehende Review ausdrücklich, bevor du den Reviewer änderst."
+    busy: "Warte, bis der aktive Lauf oder die offene Frage erledigt ist, bevor du das Review überträgst."
+    sourceRequired: "Für dieses Ergebnis gibt es keinen unterstützten Umsetzungslauf für ein Review."
+    sourceChanged: "Diese Prüfung passt nicht mehr zum ausführenden Lauf oder zum zugewiesenen Agenten. Stelle bei einer geänderten Zuweisung den ursprünglichen Agenten wieder ein oder übertrage die Prüfung an eine berechtigte Person."
+    humanPolicy: "Die Organisationsrichtlinie verlangt für diese Prüfung eine Person. Übertrage sie an ein berechtigtes Mitglied."
+    policyUnavailable: "Die Prüfrichtlinie konnte nicht gelesen werden. Stelle eine gültige Organisationsrichtlinie wieder her, bevor die Prüfung entschieden wird."
+    notIndependent: "Wähle einen Agenten, der dieses Ergebnis nicht erstellt hat."
+    agentRequired: "Der zugewiesene Reviewer-Agent muss über dieses Review entscheiden."
+    invalid: "Wähle ein berechtigtes Projektmitglied oder einen Agenten dieses Projekts."
   watch:
     watch: Verfolgen
     unwatch: Nicht mehr verfolgen
@@ -8208,6 +8233,19 @@ websites:
     warning: Das lässt sich nicht rückgängig machen.
     title: Website löschen
 projects:
+  taskReview:
+    title: "Aufgabenreviews"
+    description: "Wähle, wer abgeschlossene Agentenarbeit in diesem Projekt prüft."
+    defaultReviewer: "Standard-Reviewer"
+    humanDefault: "Person"
+    humanDefaultHint: "Der Aufgabenersteller, dann der Projektersteller, sofern sie das Projekt bearbeiten dürfen."
+    agentHint: "Prüft abgeschlossene Arbeit unabhängig."
+    existingReviews: "Gilt für neue Reviews. Bereits ausstehende Reviews behalten ihren gespeicherten Reviewer."
+    permissionRequired: "Dieser Agent braucht die Berechtigung für Aufgabenreviews, bevor er entscheiden kann."
+    unavailable: "Der gewählte Reviewer-Agent ist nicht verfügbar. Wähle einen anderen Reviewer."
+    stale: "Der Projekt-Reviewer hat sich während deiner Bearbeitung geändert. Verwirf den Entwurf und wähle erneut."
+    search: "Reviewer-Agenten suchen"
+
   title: Projekte
   entityLabel: Projekte
   entityLabelOne: Projekt
@@ -8455,6 +8493,7 @@ projects:
       task_comment: Aufgaben kommentieren
       task_update_status: Aufgaben zwischen Spalten verschieben
       task_update_metadata: Aufgabenpriorität und Agentenzuweisung ändern
+      task_review: "Aufgabenergebnisse anderer Agenten prüfen"
       task_start_agent: Andere Agenten auf Aufgaben starten
       task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
       document_find: Dokumente finden

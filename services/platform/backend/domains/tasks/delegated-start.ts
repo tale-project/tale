@@ -4,6 +4,7 @@ import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { standingSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
 import { kickAgentRun, type StartedVia } from './agent-runs.ts';
+import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
 import { markAutoRetryRetired } from './kick-plan.ts';
 import {
@@ -54,17 +55,17 @@ import {
  *   per task, 0080): a schedule's occurrence that finds its role still
  *   working is coalesced, not queued behind it;
  * - `in_review` / `closed` — an in-place start (`moveToInProgress: false`)
- *   under a card that waits for a person's review, or one already Done or
+ *   under a card that waits for its reviewer, or one already Done or
  *   Cancelled: the card would go on presenting the previous work for
  *   judgment (or as finished) while new work runs under it, and the pending
  *   review would refer to superseded work. Nothing is assigned or started;
  *   the default start moves the card and withdraws the review instead;
  * - `stale_question` — a resumption (`resumeFrom`) whose question is no
- *   longer the task's open question: a person decided (Done, Cancelled, a
+ *   longer the task's open question: the task was decided (Done, Cancelled, a
  *   move), a newer run or review exists, the assignee changed (another
  *   agent, a person, nobody), or the task is being worked. Checked under the
  *   task's row lock before anything is assigned, withdrawn, moved or
- *   started, so a decision a person made between the requester's read and
+ *   started, so a decision made between the requester's read and
  *   this start is never undone;
  * - `agent_busy` — the agent is working another task in its standing
  *   workspace, which every run it is started for here shares: one active
@@ -90,7 +91,7 @@ import {
  *
  * The card: `moveToInProgress` (the default) moves it to In progress, as
  * Start agent does, withdrawing a pending review (never approving one), and
- * the completion parks it at In review for a person. `false` leaves it where
+ * the completion parks it at In review for its reviewer. `false` leaves it where
  * it is — a standing task that reports on every occurrence — and the run
  * records that intent (`in_place`, 0139), so its successful completion
  * neither moves the card nor asks for a review, whatever column the card is
@@ -325,7 +326,7 @@ export type DelegatedAgentStart =
       staleBecause: StaleQuestionCause;
     }
   | {
-      /** An in-place start refused: a person's review is pending. */
+      /** An in-place start refused: a review is pending. */
       outcome: 'in_review';
       taskId: string;
       agentId: string;
@@ -739,19 +740,13 @@ export async function startDelegatedAgentRun(
     };
   }
 
-  const blockers = await tx<{ id: string }[]>`
-    SELECT t.id FROM app.task_dependencies d
-    JOIN app.tasks t ON t.id = d.blocker_task_id
-    WHERE d.blocked_task_id = ${task.id}
-      AND t.status NOT IN ${tx([...TERMINAL_STATUSES])}
-    ORDER BY t.id
-  `;
+  const blockers = await openTaskBlockerIds(tx, task.id);
   if (blockers.length > 0) {
     return {
       outcome: 'blocked',
       taskId: task.id,
       agentId: agent.id,
-      blockedBy: blockers.map((row) => row.id),
+      blockedBy: blockers,
     };
   }
 

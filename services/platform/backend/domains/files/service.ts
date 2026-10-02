@@ -343,6 +343,42 @@ export async function getFileMetadataByIdOrRef(
   return rows[0] ?? null;
 }
 
+/** Bounded task manifest lookup. A ref may have several ledger rows; any
+ * document binding keeps its ACL precedence, including a replaced document
+ * or a binding recorded on a different row for those same bytes. */
+export async function getTaskReviewFileMetadata(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  identifiers: string[],
+): Promise<Map<string, FileMetadataRow & { documentBound: boolean }>> {
+  if (identifiers.length === 0) return new Map();
+  if (identifiers.length > 50)
+    throw new Error('Review metadata pages are capped at 50 files');
+  const rows = await sql<
+    (FileMetadataRow & { identifier: string; documentBound: boolean })[]
+  >`
+    SELECT requested.identifier, ${sql.unsafe(FILE_METADATA_COLUMNS)},
+      (file.document_id IS NOT NULL OR EXISTS (
+        SELECT 1 FROM app.file_metadata binding
+        WHERE binding.org_id = ${organizationId}
+          AND binding.storage_ref = file.storage_ref AND binding.document_id IS NOT NULL
+      ) OR EXISTS (
+        SELECT 1 FROM app.documents document
+        WHERE document.org_id = ${organizationId} AND document.file_ref = file.storage_ref
+      )) AS "documentBound"
+    FROM unnest(${sql.array(identifiers)}::text[]) AS requested(identifier)
+    JOIN LATERAL (
+      SELECT * FROM app.file_metadata metadata
+      WHERE metadata.org_id = ${organizationId}
+        AND CASE WHEN requested.identifier LIKE 's3:%'
+          THEN metadata.storage_ref = requested.identifier
+          ELSE metadata.id = requested.identifier END
+      ORDER BY metadata.created_at_ms ASC, metadata.id ASC LIMIT 1
+    ) file ON true
+  `;
+  return new Map(rows.map(({ identifier, ...file }) => [identifier, file]));
+}
+
 /**
  * Presigned GET for a blob ref the caller's org owns. Tenancy only — WHO may
  * read the row is decided first, by `access.ts` (the callers hold a row the

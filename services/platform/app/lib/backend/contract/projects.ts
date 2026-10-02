@@ -7,7 +7,14 @@
  * actually serve them.
  */
 
+import type { SetProjectTaskReviewerInput } from '@tale/shared/schemas/task-review';
+
 export interface ProjectsContract {
+  'projects/mutations:setProjectTaskReviewer': {
+    kind: 'mutation';
+    args: SetProjectTaskReviewerInput & { projectId: string };
+    returns: null;
+  };
   'projects/mutations:archiveProject': {
     kind: 'mutation';
     args: { projectId: string };
@@ -147,6 +154,7 @@ export interface ProjectsContract {
       instructions?: string;
       icon?: string;
       color?: string;
+      defaultTaskReviewerAgentId?: string;
       taskCounter?: number;
       openTaskCount?: number;
       doneTaskCount?: number;
@@ -272,6 +280,7 @@ export interface ProjectsContract {
         instructions?: string;
         icon?: string;
         color?: string;
+        defaultTaskReviewerAgentId?: string;
         taskCounter?: number;
         openTaskCount?: number;
         doneTaskCount?: number;
@@ -309,6 +318,7 @@ export interface ProjectsContract {
           instructions?: string;
           icon?: string;
           color?: string;
+          defaultTaskReviewerAgentId?: string;
           taskCounter?: number;
           openTaskCount?: number;
           doneTaskCount?: number;

@@ -4274,7 +4274,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Read a task’s open review',
       description:
-        'The task’s status beside the review a person still has to decide — `review: null` when none is pending. Read access, like the task itself. A task reaches `in_review` when its workflow parks there; the decision is made with a POST to this path, or on the board.',
+        'The task’s status beside its ordinary pending review, with the captured typed reviewer and native source evidence when available. `review: null` means no ordinary review is pending; workflow-owned approvals keep their own decision gate. Read access, like the task itself. A person decides a human-owned review with a POST to this path or on the board. An agent-owned review requires its independent native reviewer or an explicit handoff to an eligible person before human approval.',
       operationId: 'getTaskReview',
       security: sec,
       parameters: taskParameters,
@@ -4393,7 +4393,7 @@ export function buildSpec(): Json {
           'The project is missing or invisible (`PROJECT_NOT_FOUND`), the task is missing or outside this project (`TASK_NOT_FOUND`), no member carries the actor’s e-mail (`ACTOR_NOT_FOUND`), or `workflowSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',
         ),
         '409': errorResponse(
-          'The task is not in review (`TASK_NOT_IN_REVIEW`); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)',
+          'The task is not in review (`TASK_NOT_IN_REVIEW`); approval belongs to an agent and needs an explicit eligible-person handoff (`TASK_AGENT_REVIEW_REQUIRED`); approval cannot read a valid current review policy (`TASK_REVIEW_POLICY_UNAVAILABLE`, including after a human handoff); it has open subtasks (`TASK_HAS_OPEN_SUBTASKS`); two members carry the actor’s e-mail (`ACTOR_AMBIGUOUS`); the e-mail now belongs to another member than the pinned `userId` (`ACTOR_REBOUND`); `workflowSlug` is saved but not deployed (`AUTOMATION_NOT_DEPLOYED`); the task is held by the organization’s standard agent, which cannot run for the member (`STANDARD_AGENT_UNAVAILABLE`, `data.reason` saying why)',
         ),
         ...standardErrors,
         '400': withDoorRefusal(
@@ -8808,12 +8808,16 @@ curl -H "Authorization: Bearer <api-key>" \\
             'taskId',
             'round',
             'requestedFor',
+            'reviewer',
             'agentSlug',
             'runId',
+            'implementationAgentId',
+            'evidenceRevision',
+            'agentReviewBlockedReason',
             'createdAt',
           ],
           description:
-            'A task’s open review: the gate a person decides at `POST …/tasks/{taskId}/review` or on the board.',
+            'A task’s ordinary pending review, owned by the captured person or agent. Native agent verdicts use task_review; the public review POST relays a person’s decision.',
           properties: {
             approvalId: str,
             taskId: str,
@@ -8825,19 +8829,72 @@ curl -H "Authorization: Bearer <api-key>" \\
             requestedFor: {
               type: 'string',
               nullable: true,
-              description: 'The reviewer the request named, if any',
+              description:
+                'Human reviewer compatibility field; null for an agent or absent recipient. Use reviewer for typed ownership.',
             },
+            reviewer: nullable({
+              anyOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['kind', 'userId'],
+                  properties: {
+                    kind: { type: 'string', enum: ['user'] },
+                    userId: str,
+                  },
+                },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['kind', 'agentId'],
+                  properties: {
+                    kind: { type: 'string', enum: ['agent'] },
+                    agentId: str,
+                  },
+                },
+              ],
+              description: 'The recipient captured by this pending review.',
+            }),
             agentSlug: {
               type: 'string',
               nullable: true,
               description:
-                'The agent whose work is under review, if the park named one',
+                'Compatibility display text for the implementation driver, not its identity; use implementationAgentId for the actual native source agent.',
             },
             runId: {
               type: 'string',
               nullable: true,
               description:
                 'The run whose settle parked the task in review, if any',
+            },
+            implementationAgentId: {
+              type: 'string',
+              nullable: true,
+              description:
+                'The exact source run’s agent in this organization, project and task; null without a matching native source.',
+            },
+            evidenceRevision: {
+              type: 'string',
+              nullable: true,
+              pattern: '^[a-f0-9]{64}$',
+              description:
+                'Opaque compare-and-set digest of local task, source result and discussion evidence. Null without a settled native source. It does not verify external pull-request heads or checks.',
+            },
+            agentReviewBlockedReason: {
+              type: 'string',
+              nullable: true,
+              enum: [
+                'reviewer_unavailable',
+                'permission_missing',
+                'source_required',
+                'source_changed',
+                'self_review',
+                'human_policy',
+                'policy_unavailable',
+                null,
+              ],
+              description:
+                'Current reason a captured agent cannot decide; null for a human review or an eligible agent. Derived from current project scope, permission, policy and source; it never changes review ownership. Restore the indicated condition or explicitly transfer to an eligible reviewer.',
             },
             createdAt: epochMs,
           },

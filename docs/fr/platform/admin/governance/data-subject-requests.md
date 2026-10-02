@@ -20,7 +20,7 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Perso
 
 L’effacement supprime définitivement les données couvertes ; il ne les déplace pas vers la corbeille. Le reçu indique les catégories et les nombres concernés : chats, documents et imports, préférences, retours, notifications, usage et nettoyage des identifiants personnels dans l’audit. L’effacement supprime aussi les espaces de travail de sandbox propres aux [exécutions d’agent que la personne a démarrées](/fr/platform/projects/tasks#executions-demarrees-par-un-membre), même si du travail s’y exécute encore ; le reçu les compte sous **Espaces de travail de sandbox**.
 
-Les tâches qui désignent la personne comme **Relecteur** perdent cette désignation. Une demande de revue qui l’attend encore passe, comme avec **Retirer le relecteur**, à la personne qui a créé la tâche ou le projet, et celle-ci en est notifiée. Pour une tâche archivée, la demande passe sans notification. Les décisions de revue que la personne a déjà prises restent enregistrées sans son nom.
+Les tâches qui désignent la personne comme **Relecteur** perdent cette désignation. Une demande de revue qui l’attend encore passe à la première personne autorisée parmi celle qui a créé la tâche, puis celle qui a créé le projet. Cette personne reçoit une notification. Pour une tâche archivée, la demande passe sans notification. Les décisions de revue que la personne a déjà prises restent enregistrées sans son nom.
 
 ## Vérifier la règle avant le dépôt
 

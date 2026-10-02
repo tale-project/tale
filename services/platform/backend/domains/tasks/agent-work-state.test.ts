@@ -175,7 +175,11 @@ describe('readTaskWorkState', () => {
       taskId: 't-1',
       round: 2,
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
       agentSlug: 'agent-1',
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason: null,
       runId: 'run-2',
       createdAt: 30,
     });
@@ -185,6 +189,10 @@ describe('readTaskWorkState', () => {
       round: 2,
       runId: 'run-2',
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason: null,
       createdAt: 30,
     });
   });
@@ -196,5 +204,25 @@ describe('readTaskWorkState', () => {
     await expect(readTaskWorkState(sql, ARGS)).rejects.toThrow(
       'connection terminated',
     );
+  });
+
+  it('carries the same blocked agent diagnosis to native task_get', async () => {
+    vi.mocked(getPendingReviewForTask).mockResolvedValue({
+      approvalId: 'agent-review',
+      taskId: 't-1',
+      round: 0,
+      requestedFor: null,
+      reviewer: { kind: 'agent', agentId: 'reviewer' },
+      agentSlug: null,
+      implementationAgentId: 'worker',
+      evidenceRevision: 'a'.repeat(64),
+      agentReviewBlockedReason: 'permission_missing',
+      runId: 'run',
+      createdAt: 1,
+    });
+    expect((await readTaskWorkState(sql, ARGS)).pendingReview).toMatchObject({
+      reviewer: { kind: 'agent', agentId: 'reviewer' },
+      agentReviewBlockedReason: 'permission_missing',
+    });
   });
 });

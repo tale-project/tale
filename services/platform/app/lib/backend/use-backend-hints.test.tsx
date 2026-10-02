@@ -94,6 +94,23 @@ function abandon(source: FakeEventSource | undefined): void {
 }
 
 describe('useBackendHints', () => {
+  it('refreshes task reviewer defaults when another session changes project settings', () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() =>
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'project', entityId: 'p1' }),
+      ),
+    );
+    expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual(
+      [
+        ['backend', 'org1', 'project'],
+        ['backend', 'org1', 'task', 'reviewer'],
+      ],
+    );
+  });
+
   it('refreshes knowledge-entry indexing when its backing document changes', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     renderHook(() => useBackendHints('org1'), { wrapper });

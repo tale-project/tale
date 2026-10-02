@@ -22,6 +22,7 @@ import { emitEvent } from '../events/emit.ts';
 import { endRepeatForAutomationOwner } from './repeat.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
+  getPendingReviewForTask,
   requestTaskReview,
 } from './reviews.ts';
 import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
@@ -455,6 +456,13 @@ export async function upsertTaskByExternalRef(
     // `open` to lift `done` alone, so a mirror could not represent an item
     // closed and then reopened upstream (2026-09-13 evaluation, E2-02).
     const completingActor = args.actorId === 'workflow';
+    // A custom source's lifecycle is a fact, not the native reviewer's
+    // verdict. Keep syncing the batch and the source close/reopen fact,
+    // without moving or withdrawing a captured agent-owned review.
+    const preserveAgentReview =
+      existing.status === 'in_review' &&
+      (await getPendingReviewForTask(tx, args.organizationId, existing.id))
+        ?.reviewer?.kind === 'agent';
     const mirrorParked =
       existing.status === 'in_review' && existing.externalClosedAt !== null;
     let statusFrom: TaskStatus | undefined;
@@ -462,7 +470,10 @@ export async function upsertTaskByExternalRef(
     let completedAt: number | null = existing.completedAt;
     let externalClosedAt: number | null = existing.externalClosedAt;
     let rank = existing.rank;
-    if (
+    if (preserveAgentReview) {
+      if (lifecycleState === 'closed') externalClosedAt ??= now;
+      else if (lifecycleState === 'open') externalClosedAt = null;
+    } else if (
       lifecycleState === 'closed' &&
       !TERMINAL_STATUSES.has(existing.status)
     ) {

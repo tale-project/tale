@@ -57,7 +57,7 @@ export function createSandboxBlobRoutes(deps: { sql: Sql }): Hono {
       return c.text('Forbidden', 403);
     }
 
-    const { ref, org } = verdict.payload;
+    const { ref, org, maxBytes, expectedBytes } = verdict.payload;
     // `_storage` blobs stage via their own capability URLs; this route
     // exists solely for the bucket lane.
     if (!isS3Ref(ref)) {
@@ -134,6 +134,33 @@ export function createSandboxBlobRoutes(deps: { sql: Sql }): Hono {
     // Forward the declared length when the bucket provides it — the
     // daemon's cheap over-cap rejection reads it before streaming a byte.
     const contentLength = upstream.headers.get('content-length');
+    if (maxBytes !== undefined) {
+      if (contentLength !== null && Number(contentLength) > maxBytes) {
+        await upstream.body.cancel();
+        return c.text('Stage byte limit exceeded', 413);
+      }
+      let received = 0;
+      // Do not forward Content-Length: a false short declaration could let
+      // an HTTP consumer finish successfully before the stream limit fails.
+      // pipeThrough propagates downstream cancellation and upstream errors.
+      const bounded = upstream.body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            received += chunk.byteLength;
+            if (received > maxBytes)
+              throw new Error('Stage byte limit exceeded');
+            controller.enqueue(chunk);
+          },
+          flush() {
+            // A clean short EOF must fail before runnerd completes its buffer
+            // and writes over any previously staged complete destination.
+            if (expectedBytes !== undefined && received !== expectedBytes)
+              throw new Error('Stage byte count mismatch');
+          },
+        }),
+      );
+      return new Response(bounded, { status: 200, headers });
+    }
     if (contentLength !== null) {
       headers['Content-Length'] = contentLength;
     }

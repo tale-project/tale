@@ -150,7 +150,14 @@ export function TasksWorkspace({
   const reviewRequestedFor = useMemo(
     () =>
       new Map(
-        pendingReviews.map((review) => [review.taskId, review.requestedFor]),
+        pendingReviews.map((review) => [
+          review.taskId,
+          review.reviewer === undefined
+            ? review.requestedFor
+            : review.reviewer?.kind === 'user'
+              ? review.reviewer.userId
+              : undefined,
+        ]),
       ),
     [pendingReviews],
   );
@@ -161,6 +168,7 @@ export function TasksWorkspace({
       pendingReviews.map((review) => ({
         taskId: review.taskId,
         requestedFor: review.requestedFor,
+        reviewer: review.reviewer,
       })),
     [pendingReviews],
   );

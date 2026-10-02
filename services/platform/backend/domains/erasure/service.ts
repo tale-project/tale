@@ -1328,6 +1328,8 @@ export async function processErasure(
       WHERE org_id = ${organizationId} AND resource_type = 'task_review'
         AND (approved_by = ${targetUserId}
              OR metadata->>'requestedFor' = ${targetUserId}
+             OR (metadata->'reviewer'->>'kind' = 'user'
+                 AND metadata->'reviewer'->>'userId' = ${targetUserId})
              OR metadata->'response'->>'respondedBy' = ${targetUserId})
     `;
     let changed = 0;
@@ -1336,6 +1338,14 @@ export async function processErasure(
       if (metadata !== undefined) {
         if (metadata.requestedFor === targetUserId) {
           metadata.requestedFor = ERASED_SUBJECT;
+        }
+        const reviewer = metadata.reviewer;
+        if (
+          isRecord(reviewer) &&
+          reviewer.kind === 'user' &&
+          reviewer.userId === targetUserId
+        ) {
+          metadata.reviewer = { kind: 'user', userId: ERASED_SUBJECT };
         }
         const response = metadata.response;
         if (isRecord(response) && response.respondedBy === targetUserId) {
