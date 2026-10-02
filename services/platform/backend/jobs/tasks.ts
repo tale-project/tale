@@ -685,4 +685,29 @@ export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
  * next job the moment its own ends.
  */
 export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
-  new Set<TaskIdentifier>(['websites.scan']);
+  new Set<TaskIdentifier>([
+    'websites.scan',
+    // An agent turn's start (a session create can take minutes) and each of
+    // its 90 s drive windows: batched, one slow start held every start
+    // behind it, and live turns past a batch were drained only in turns.
+    'task.agent_turn',
+    'task.agent_drive',
+    'automation.agent_turn',
+    'automation.agent_drive',
+  ]);
+
+/**
+ * The fewest slots a slot queue runs, whatever `WORKER_CONCURRENCY` says. A
+ * drive window spends its 90 s waiting on the sandbox's output stream, and a
+ * live turn whose window waits for a free slot is not drained meanwhile: its
+ * output piles up in the daemon's replay ring (256 KB) and its heartbeat
+ * goes stale, so the default of five slots throttled a worker to five live
+ * agent turns at once.
+ */
+export const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
+  TaskIdentifier,
+  number
+>([
+  ['task.agent_drive', 16],
+  ['automation.agent_drive', 16],
+]);

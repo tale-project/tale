@@ -437,6 +437,47 @@ describe('startWorker slot queues', () => {
   });
 });
 
+describe('startWorker agent turn slots', () => {
+  // An agent turn's start and its 90 s drive windows ran in batches: one slow
+  // start held the starts behind it, and a worker drained at most five live
+  // turns at once — the rest waited, their output piling up in the sandbox.
+  it('works agent starts and drives through slots, drives at least sixteen at once', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      taskList: {
+        'task.agent_turn': vi.fn(),
+        'task.agent_drive': vi.fn(),
+        'automation.agent_turn': vi.fn(),
+        'automation.agent_drive': vi.fn(),
+      },
+    });
+    for (const start of ['task.agent_turn', 'automation.agent_turn']) {
+      expect(workOptions.get(start)).toMatchObject({
+        batchSize: 1,
+        localConcurrency: 5,
+      });
+    }
+    for (const drive of ['task.agent_drive', 'automation.agent_drive']) {
+      expect(workOptions.get(drive)).toMatchObject({
+        batchSize: 1,
+        localConcurrency: 16,
+      });
+    }
+  });
+
+  it('a higher worker concurrency raises the drive slots too', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 32,
+      taskList: { 'task.agent_drive': vi.fn() },
+    });
+    expect(workOptions.get('task.agent_drive')?.localConcurrency).toBe(32);
+  });
+});
+
 describe('startWorker failure reporting', () => {
   it('fails a job the database restart caught for pg-boss to retry, and reports nothing', async () => {
     const { boss, handlers } = fakeBoss();
