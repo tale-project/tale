@@ -36,6 +36,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
   useActorDirectory: () => ({
     members: [],
     agents: [],
+    contractAutomations: [],
     currentUserId: null,
     resolveActor: () => null,
   }),
@@ -62,6 +63,7 @@ vi.mock('../hooks/use-task-subject-contract', () => ({
   resolveTaskOwnership: () => ({ kind: 'human' }),
   taskSubjectEntries: () => [],
   useTaskSubjectContract: () => null,
+  useTaskSubjectContractAmong: () => null,
   useTaskContractAutomations: () => [],
 }));
 
