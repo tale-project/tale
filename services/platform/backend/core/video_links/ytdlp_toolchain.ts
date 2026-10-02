@@ -405,7 +405,13 @@ export async function downloadTo(
     if (controller.signal.reason instanceof VideoToolchainError) {
       throw controller.signal.reason;
     }
-    throw err;
+    if (err instanceof VideoToolchainError) throw err;
+    // A network or write failure (DNS, reset, ENOSPC) names its stage too.
+    throw new VideoToolchainError(
+      stage,
+      `download failed: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
+    );
   } finally {
     clearTimeout(timer);
   }
@@ -584,6 +590,15 @@ function spawnBounded(
     );
 
     child.on('error', (err) => {
+      // After the deadline this is a failed kill (EPERM), not a failed start:
+      // keep waiting for `close`, which the final grace above still bounds.
+      if (timedOut !== undefined) {
+        console.warn(
+          `[video-toolchain] ${stage}: could not signal pid ${child.pid}:`,
+          err.message,
+        );
+        return;
+      }
       settle(() =>
         resolve({ code: null, signal: null, stdout, spawnError: err }),
       );

@@ -185,6 +185,22 @@ describe('downloadTo bounds', () => {
     expect(await readFile(dest, 'utf8')).toBe('bytes');
   });
 
+  it('names the stage when the connection itself fails', async () => {
+    const url = await stub('ok');
+    servers.splice(0).forEach((server) => server.close());
+    await new Promise((r) => setTimeout(r, 50));
+    await expect(
+      downloadTo(
+        'bgutil plugin download',
+        url,
+        join(scratch, 'plugin.zip'),
+        new ProvisioningClock(FAST),
+      ),
+    ).rejects.toThrow(
+      /^\[video-toolchain\] bgutil plugin download: download failed: /,
+    );
+  });
+
   it('keeps the HTTP failure for a non-2xx answer (control)', async () => {
     const url = await stub('not-found');
     await expect(
