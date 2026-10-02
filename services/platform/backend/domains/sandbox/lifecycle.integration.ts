@@ -567,6 +567,9 @@ async function checkDestroyAdmission(
   ctx: { orgId: string; userId: string },
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl)
+    throw new Error('destroy admission proof needs DATABASE_URL');
   const orgId = `${ctx.orgId}:destroy-admission:${randomUUID()}`;
   const otherOrgId = `${ctx.orgId}:destroy-admission-other:${randomUUID()}`;
   const agentId = randomUUID();
@@ -859,6 +862,85 @@ async function checkDestroyAdmission(
       ownOrg === 'refused' && otherOrg === 'admitted',
       `own organization=${ownOrg} (want refused), other organization's same id=${otherOrg} (want admitted)`,
     );
+
+    // 7. A settlement that commits between the resume's row read and its
+    // predicate. A terminal write takes no admission lock (a Destroy's
+    // settle runs under the session's lifecycle lock; a heal or a reclaim
+    // under none), so the predicate can find the row already settled — no
+    // live row, so no pending Destroy — and the resume must still not move
+    // that row back to active and hand its turn the old incarnation. A lock
+    // on the queue's table pauses the resume exactly there: its read is
+    // done and its predicate waits for the lock, seen in `pg_locks`. The
+    // settlement then commits on a connection of its own. Once with the
+    // Destroy's job unfinished (its attempt is the one settling), once with
+    // none (a heal).
+    const third = oneConnectionPool(databaseUrl);
+    try {
+      const secondPid = (
+        await second<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+      )[0]?.pid;
+      const pausedOnRelation = async (operation: Promise<unknown>) => {
+        let finished = false;
+        void operation.then(
+          () => {
+            finished = true;
+          },
+          () => {
+            finished = true;
+          },
+        );
+        const end = Date.now() + 5_000;
+        while (Date.now() < end) {
+          if (finished) return false;
+          const waiting = await third<{ waiting: boolean }[]>`
+            SELECT EXISTS (
+              SELECT 1 FROM pg_locks
+              WHERE pid = ${secondPid ?? -1} AND locktype = 'relation'
+                AND NOT granted
+            ) AS waiting
+          `;
+          if (waiting[0]?.waiting) return true;
+          await delay(10);
+        }
+        return false;
+      };
+      for (const settlement of ['a Destroy attempt', 'a heal'] as const) {
+        await clear();
+        const settledRow = await stopped();
+        if (settlement === 'a Destroy attempt')
+          await pendingDestroy(settledRow);
+        const queueLocked = gate();
+        const releaseQueue = gate();
+        const holder = first.begin(async (tx) => {
+          await tx`LOCK TABLE pgboss.job IN ACCESS EXCLUSIVE MODE`;
+          queueLocked.release();
+          await releaseQueue.promise;
+        });
+        await queueLocked.promise;
+        const resuming = admission(resumeSessionSlot(second, args));
+        const paused = await pausedOnRelation(resuming);
+        const settledMeanwhile = await markSessionDestroyed(third, args);
+        releaseQueue.release();
+        await holder;
+        const resumed = await resuming;
+        const row = (
+          await sql<{ status: string; destroyedAt: number | null }[]>`
+            SELECT status, destroyed_at_ms::float8 AS "destroyedAt"
+            FROM app.sandbox_sessions WHERE id = ${settledRow}
+          `
+        )[0];
+        record(
+          `sandbox Destroy admission: a resume never revives a row settled between its read and its predicate (${settlement})`,
+          paused &&
+            settledMeanwhile &&
+            resumed === 'absent' &&
+            row?.status === 'destroyed',
+          `resume paused between its read and its predicate=${paused}, settlement committed meanwhile=${settledMeanwhile}, resume=${resumed} (want absent), row after=${row?.status ?? 'none'} (want destroyed)${row?.status === 'active' && row.destroyedAt !== null ? ', revived with its destroyed stamp' : ''}`,
+        );
+      }
+    } finally {
+      await third.end({ timeout: 1 });
+    }
   } finally {
     for (const item of gates) item.release();
     await clear();
