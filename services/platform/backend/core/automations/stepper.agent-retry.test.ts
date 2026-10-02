@@ -36,7 +36,7 @@ function parkedAttempt(overrides: Partial<AgentCursor>): AgentCursor {
   };
 }
 
-function harness(parked: AgentCursor) {
+function harness(parked: AgentCursor, executions = 1) {
   const kicks: KickArgs[] = [];
   const suspended: Array<Record<string, unknown>> = [];
   const finished: Array<Record<string, unknown>> = [];
@@ -66,7 +66,7 @@ function harness(parked: AgentCursor) {
             input: {},
             checkpoints: {
               nodes: {},
-              executions: 1,
+              executions,
               cursor: {
                 node: 'repair',
                 index: 0,
@@ -307,6 +307,66 @@ describe('the stepper re-kicking a failed agent attempt', () => {
 
     expect(kicks).toHaveLength(1);
     expect(parkedCursor(suspended)).toMatchObject({ attempt: 2 });
+  });
+
+  it("waits for sandbox room without charging the run's execution guard", async () => {
+    // A run whose guard is spent still re-kicks: the refused start ran
+    // nothing, and a long wait must not leave later nodes without budget.
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: AUTO_RETRY_MAX_ATTEMPTS,
+        launchedAt: undefined,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          text: '',
+          files: [],
+        },
+      }),
+      100,
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(kicks[0]?.notBefore).toBeGreaterThan(Date.now());
+    expect(suspended[0]).toMatchObject({ executions: 100 });
+    expect(parkedCursor(suspended)).toMatchObject({
+      attempt: AUTO_RETRY_MAX_ATTEMPTS,
+      waitingForRoomSince: expect.any(Number),
+    });
+  });
+
+  it('gives up on sandbox room after two hours, saying so', async () => {
+    const { ctx, kicks, finished } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 2 * 60 * 60_000 - 1,
+        result: {
+          errored: true,
+          reason:
+            "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'start_failed',
+    });
+    expect(String(finished[0]?.detail)).toContain(
+      "waited 120 minutes for sandbox room without getting any (the organization's workflow sessions are all in use)",
+    );
   });
 
   it('fails the run once the budget is spent on ordinary failures', async () => {

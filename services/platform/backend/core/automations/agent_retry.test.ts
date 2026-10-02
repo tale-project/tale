@@ -12,6 +12,7 @@ import {
   CREDENTIAL_ROTATION_FREE_RETRIES,
 } from '../tasks/task_auto_retry';
 import {
+  SANDBOX_ROOM_MAX_WAIT_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
   retryResumePrompt,
@@ -275,7 +276,23 @@ describe('planWorkflowAgentRetry', () => {
       attempt: AUTO_RETRY_MAX_ATTEMPTS,
       burnedBrokerTokenHashes: ['a'],
       credentialRotations: 0,
+      waitingForRoomSince: NOW,
     });
+    // The wait keeps its start, and ends after two hours of it.
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - 60_000 },
+        'sandbox_capacity',
+        NOW,
+      ),
+    ).toMatchObject({ retry: true, waitingForRoomSince: NOW - 60_000 });
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - SANDBOX_ROOM_MAX_WAIT_MS },
+        'sandbox_capacity',
+        NOW,
+      ).retry,
+    ).toBe(false);
     // Nothing launched: the conversation it was to resume still stands.
     expect(
       workflowAgentRetryResume(

@@ -131,6 +131,11 @@ export interface AgentCursor {
    * cooled its broker pool — so a start of it refused while the pool cools
    * down spends no attempt (`planWorkflowAgentRetry`). */
   retriedRateLimit?: boolean;
+  /** When this node began waiting for sandbox room: the first start of a
+   * streak refused for want of it (`sandbox_capacity`). Re-kicks while it
+   * waits spend no execution of the run's guard; the wait itself ends after
+   * `SANDBOX_ROOM_MAX_WAIT_MS` (`planWorkflowAgentRetry`). */
+  waitingForRoomSince?: number;
   result?: AgentTurnResult;
 }
 

@@ -47,9 +47,15 @@ export type WorkflowAgentFailureCode =
   /** The start found no sandbox room: the organization's session budget was
    * spent, or the sandbox host was at capacity or short of memory. Nothing
    * ran, and the room frees as other work settles: the re-kick waits out the
-   * refusal's retry hint and spends no attempt, bounded only by the node's
-   * execution guard ({@link planWorkflowAgentRetry}). */
+   * refusal's retry hint and spends no attempt and no execution of the run's
+   * guard, for at most {@link SANDBOX_ROOM_MAX_WAIT_MS} in a row
+   * ({@link planWorkflowAgentRetry}). */
   | 'sandbox_capacity';
+
+/** The longest an agent node waits for sandbox room before its run fails:
+ * room frees as other work settles, but a deployment whose capacity is
+ * wedged must still end the run with a reason a person can act on. */
+export const SANDBOX_ROOM_MAX_WAIT_MS = 2 * 60 * 60_000;
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
@@ -190,6 +196,7 @@ export interface WorkflowAgentAttempt {
   retriedRateLimit?: boolean;
   resumedFrom?: string;
   resumeReason?: string;
+  waitingForRoomSince?: number;
 }
 
 /** What a re-kick of a failed attempt carries, and whether it may happen. */
@@ -204,6 +211,8 @@ export interface WorkflowAgentRetryPlan {
   /** Credential rotations in a row, the failed attempt's included (0 when
    * it failed any other way) — carried so the next one can tell. */
   credentialRotations: number;
+  /** Set while the node waits for sandbox room: when the wait began. */
+  waitingForRoomSince?: number;
 }
 
 /**
@@ -227,9 +236,19 @@ export function planWorkflowAgentRetry(
   now: number,
 ): WorkflowAgentRetryPlan {
   const attempt = parked.attempt ?? 0;
+  if (failureCode === 'sandbox_capacity') {
+    const since = parked.waitingForRoomSince ?? now;
+    return {
+      retry: now - since < SANDBOX_ROOM_MAX_WAIT_MS,
+      attempt,
+      burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
+      credentialRotations: 0,
+      waitingForRoomSince: since,
+    };
+  }
   if (
-    failureCode === 'sandbox_capacity' ||
-    (failureCode === 'credential_cooldown' && parked.retriedRateLimit === true)
+    failureCode === 'credential_cooldown' &&
+    parked.retriedRateLimit === true
   ) {
     return {
       retry: true,
