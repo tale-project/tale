@@ -3,6 +3,7 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 
 import type { ResolvedActor } from '../hooks/use-actor-directory';
+import type { ContractAutomationEntry } from '../hooks/use-task-subject-contract';
 import {
   computeBlockedTaskIds,
   type DependencyEdge,
@@ -34,6 +35,9 @@ export interface TaskActorNames {
 /** The board's own actor directory, for the one project it was built for. */
 export interface BoardActorDirectory extends TaskActorNames {
   projectId: string;
+  /** The project's deployed automations, as the directory lists them —
+   * what a card's automation badge resolves its owner among. */
+  contractAutomations: ContractAutomationEntry[];
 }
 
 interface TaskBoardContextValue {

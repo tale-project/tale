@@ -8,6 +8,7 @@ import {
   useActorDirectory,
   useAssignableActors,
 } from '../hooks/use-actor-directory';
+import { useTaskContractAutomations } from '../hooks/use-task-subject-contract';
 import type { TaskCreatorType, TaskDoc } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
 import {
@@ -68,9 +69,15 @@ vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../hooks/use-task-subject-contract')
   >()),
-  useTaskSubjectContract: () => null,
-  useTaskContractAutomations: () => [],
+  useTaskContractAutomations: vi.fn(() => []),
 }));
+
+// A deployed automation with a valid task contract, as the listing reads.
+const desk = {
+  name: 'doc-verify-desk',
+  deployedVersion: 3,
+  taskContract: { workflow: 'doc-verify-desk', externalSystem: 'acme' },
+};
 
 function makeTask(
   title: string,
@@ -102,6 +109,7 @@ function boardDirectory(
   return {
     projectId,
     currentUserId: 'user_1',
+    contractAutomations: [desk],
     resolveActor: (type, id) => ({
       type,
       id,
@@ -184,6 +192,49 @@ describe('TaskCard on a project board', () => {
     for (const call of vi.mocked(useActorDirectory).mock.calls) {
       expect(call).toEqual(['org_test', 'project_2']);
     }
+    expect(useTaskContractAutomations).toHaveBeenCalledWith(
+      'org_test',
+      'project_2',
+    );
+  });
+
+  it('marks an automation-owned card from the board’s listing of the project’s automations', () => {
+    render(
+      <Board
+        tasks={[
+          makeTask('Owned', 'todo', {
+            assigneeType: 'app',
+            assigneeId: 'doc-verify-desk',
+          }),
+          makeTask('Plain', 'todo'),
+        ]}
+        actors={boardDirectory({})}
+      />,
+    );
+
+    expect(screen.getAllByLabelText(/^Operated by /)).toHaveLength(1);
+  });
+
+  it('lists no automations per card', () => {
+    // The board's own drag choreography lists them once; a card adds none.
+    const listings = (tasks: TaskDoc[]) => {
+      vi.mocked(useTaskContractAutomations).mockClear();
+      const view = render(<Board tasks={tasks} actors={boardDirectory({})} />);
+      const count = vi.mocked(useTaskContractAutomations).mock.calls.length;
+      view.unmount();
+      return count;
+    };
+
+    expect(
+      listings([
+        makeTask('One', 'todo'),
+        makeTask('Two', 'todo'),
+        makeTask('Three', 'in_progress', {
+          assigneeType: 'app',
+          assigneeId: 'doc-verify-desk',
+        }),
+      ]),
+    ).toBe(listings([makeTask('One', 'todo')]));
   });
 
   it('reads its own directory on a board that spans projects', () => {

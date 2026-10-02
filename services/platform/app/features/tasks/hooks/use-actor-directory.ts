@@ -275,6 +275,8 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     agents: agentList,
     /** Deployed automations visible from this context, slug + display name. */
     automations: automationList,
+    /** The same automations as listed, for the task-contract surfaces. */
+    contractAutomations: automations,
     /** True while the project's agent list is still being fetched — an empty
      * `agents` is only "this project HAS no agents" once this settles. */
     agentsLoading,
