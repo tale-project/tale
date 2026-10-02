@@ -43,6 +43,8 @@ export interface ReaperDeps {
   /** How long a scan waits for its reads; {@link SCAN_DEADLINE_MS} unless
    * set. */
   scanDeadlineMs?: number;
+  /** Lists the process table; `readdir` unless set. */
+  listDir?: (root: string) => Promise<string[]>;
 }
 
 /** A process of an exec's group, as a scan saw it while the group was
@@ -161,7 +163,8 @@ async function scanProcessTable(
   const selfPid = deps.selfPid ?? process.pid;
   let entries: string[];
   try {
-    const listing = await Promise.race([tracked(readdir(root)), deadline]);
+    const list = deps.listDir ?? ((dir: string) => readdir(dir));
+    const listing = await Promise.race([tracked(list(root)), deadline]);
     if (listing === 'cut') {
       console.warn(`[runnerd] listing ${root} took over ${deadlineMs} ms`);
       return [];

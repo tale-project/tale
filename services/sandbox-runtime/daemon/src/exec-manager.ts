@@ -49,6 +49,11 @@ const RECENT_EXEC_LIMIT = 16;
 /** Past this many waiting leftovers, the ones whose processes are all gone
  * are dropped — a session that always has a live exec never empties them. */
 const LEFTOVER_PRUNE_AT = 256;
+/** How long what a rotation's cancel handed over waits for its successor:
+ * a restart that never got its new exec (its start failed) must not keep a
+ * dev server running in the session until the next exec of some later turn
+ * ends. */
+const HOLD_MAX_MS = 10 * 60_000;
 
 type ExecSubscriber = (event: RunnerdExecEvent) => void;
 
@@ -146,6 +151,7 @@ export class ExecManager {
      * links, `baked-skills.ts`); must not throw. */
     private readonly beforeSpawn: () => void = () => {},
     private readonly reaper: ReaperDeps = {},
+    private readonly options: { holdMaxMs?: number } = {},
   ) {}
 
   liveCount(): number {
@@ -641,7 +647,7 @@ export class ExecManager {
       // Its leader already exited: what it left waits on, for the
       // successor as well.
       rec.handedOver = true;
-      waiting.heldSince = this.started;
+      this.holdForSuccessor(waiting);
       return;
     }
     if (rec.terminated) return;
@@ -652,11 +658,25 @@ export class ExecManager {
     setTimeout(() => {
       if (!rec.leaderExited) signalGroup(group, 'SIGKILL', this.reaper);
     }, SIGKILL_GRACE_MS).unref();
-    const held: Leftover = { execId, groupId: group, heldSince: this.started };
+    const held: Leftover = { execId, groupId: group };
+    this.holdForSuccessor(held);
     // Kept as the exec's deferred leftovers, so its pipes stay open for
     // them while it drains.
     rec.deferred = held;
     this.deferLeftovers(held);
+  }
+
+  /** Hold what a handed-over exec left for an exec started after now — at
+   * most {@link HOLD_MAX_MS}: past that, the hold lifts, and with no exec
+   * running what it held ends at once. */
+  private holdForSuccessor(leftover: Leftover): void {
+    leftover.heldSince = this.started;
+    const since = leftover.heldSince;
+    setTimeout(() => {
+      if (leftover.heldSince !== since) return;
+      leftover.heldSince = undefined;
+      if (this.live.size === 0) void this.reap(this.takeUnheldLeftovers());
+    }, this.options.holdMaxMs ?? HOLD_MAX_MS).unref();
   }
 
   /** End an exec's processes now, on a cancel or at its deadline — what it

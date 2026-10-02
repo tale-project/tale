@@ -391,6 +391,40 @@ describe('signalExecProcesses', () => {
     }
   });
 
+  test('a listing of the process table that never answers ends the scan at its deadline', async () => {
+    const warn = console.warn;
+    const warnings: unknown[] = [];
+    console.warn = (...args: unknown[]) => warnings.push(args);
+    // Answered at the end, so the read it stands for does not stay counted
+    // as out for the tests after this one.
+    const listing = Promise.withResolvers<string[]>();
+    try {
+      const { sent, kill } = recorder();
+      const started = Date.now();
+      // A tagged process outside the group could only be found by the scan.
+      const { reached } = await signalExecProcesses(
+        [{ execId: 'e5', groupId: 39, groupKnown: true }],
+        'SIGTERM',
+        {
+          procRoot: '/proc-that-hangs',
+          kill,
+          scanDeadlineMs: 200,
+          listDir: () => listing.promise,
+        },
+      );
+      expect(Date.now() - started).toBeLessThan(1_500);
+      expect(sent).toEqual([[-39, 'SIGTERM']]);
+      expect(reached).toBe(1);
+      expect(String(warnings[0])).toContain('took over 200 ms');
+    } finally {
+      listing.resolve([]);
+      await listing.promise;
+      await new Promise((r) => setTimeout(r, 0));
+      console.warn = warn;
+    }
+    expect(pendingProcReads()).toBe(0);
+  });
+
   test('without a process table only the group can be signalled', async () => {
     const { sent, kill } = recorder();
     await signalExecProcesses([{ execId: 'e2', groupId: 39 }], 'SIGTERM', {

@@ -608,6 +608,51 @@ describe('ExecManager', () => {
     }
   });
 
+  test('what a hand-over holds ends when no successor comes within its window', async () => {
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    mkdirSync(`${procRoot}/99993`);
+    writeFileSync(`${procRoot}/99993/environ`, 'TALE_EXEC_ID=eorphan\0');
+    writeFileSync(
+      `${procRoot}/99993/stat`,
+      '99993 (server) S 1 99993 99993 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4343 0 0\n',
+    );
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+          if (pid < 0) process.kill(pid, signal);
+        },
+      },
+      { holdMaxMs: 400 },
+    );
+    try {
+      const done = mgr.run(
+        { ...base, execId: 'eorphan', shell: 'sleep 30', cwd: ROOT },
+        () => {},
+      );
+      while (mgr.status('eorphan')?.state !== 'running') {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      // The restart that should follow never starts its exec.
+      expect(mgr.cancel('eorphan', { keepLeftovers: true })).toBe(true);
+      await done;
+      expect(sent.some(([pid]) => pid === 99993)).toBe(false);
+      const until = Date.now() + 3_000;
+      while (!sent.some(([pid]) => pid === 99993) && Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(sent).toContainEqual([99993, 'SIGTERM']);
+      expect(mgr.leftoverCount()).toBe(0);
+    } finally {
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  });
+
   test('a later cancel of an exec already handed over leaves what it holds to the successor', async () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
     mkdirSync(`${procRoot}/99994`);
