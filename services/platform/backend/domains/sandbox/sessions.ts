@@ -329,6 +329,10 @@ export async function releaseProjectAgentSessionSlot(
   sql: Sql,
   args: { organizationId: string; agentId: string },
   readTicket?: IdleReleaseTicketReader,
+  /** `wake: false` frees the slot without waking a parked run: the release
+   * of a run that is itself parking for room, which would otherwise wake
+   * the next parked run straight into the same refusal. */
+  opts: { wake?: boolean } = {},
 ): Promise<boolean> {
   // The runtime release tickets are read BEFORE the transaction: the
   // spawner round-trip must not run under the org's admission lock (every
@@ -370,7 +374,7 @@ export async function releaseProjectAgentSessionSlot(
     await enqueueIdleSessionReleases(tx, released, tickets);
     return released;
   });
-  if (rows.length > 0) {
+  if (rows.length > 0 && opts.wake !== false) {
     await wakeParkedAgentRuns(sql, args.organizationId).catch(
       (error: unknown) => {
         console.warn('[sandbox] capacity wake failed:', error);

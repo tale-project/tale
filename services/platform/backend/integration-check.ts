@@ -40968,10 +40968,11 @@ async function checkTaskAgentRuns(
   // once — no watchdog tick in between. Counted org-wide (a live worker may
   // have parked a sibling), so the proof is one fewer parked run and one
   // more turn job, plus the slot really hibernated.
-  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
-    runId,
-    execId,
-  });
+  // A park frees the slot its start held: a standing workspace the start
+  // resumed (`active`) before the sandbox host refused the create holds no
+  // compute, and left `active` the reconcile would heal it to destroyed and
+  // the next refused create delete its files. The release is quiet: the run
+  // stays parked and no turn is kicked into the same refusal.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -40980,6 +40981,49 @@ async function checkTaskAgentRuns(
       ${orgId}, ${ledgerSessionId}, 'active', 'project_agent', ${ledgerAgentId},
       'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}
     )
+  `;
+  const turnJobsBeforePark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  await shimRefs['tasks/agent_runs:parkTaskAgentRunForCapacity']?.({
+    runId,
+    execId,
+  });
+  const [parkedSlot] = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  const [parkedRun] = await sql<{ parked: boolean }[]>`
+    SELECT waiting_for_capacity_at_ms IS NOT NULL AS parked
+    FROM app.project_agent_runs WHERE id = ${runId}
+  `;
+  const turnJobsAfterPark = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'task.agent_turn' AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'runId' = ${runId}
+      `
+    )[0]?.count ?? '0',
+  );
+  record(
+    'a run parking for room frees its standing slot to stopped without waking a turn',
+    parkedSlot?.status === 'stopped' &&
+      (parkedRun?.parked ?? false) &&
+      turnJobsAfterPark === turnJobsBeforePark,
+    `slot=${parkedSlot?.status ?? 'MISSING'}/stopped parked=${String(parkedRun?.parked)}/true turnJobs=${turnJobsBeforePark}→${turnJobsAfterPark}`,
+  );
+  // Back to `active` for the release edge below.
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'active'
+    WHERE org_id = ${orgId} AND session_id = ${ledgerSessionId}
   `;
   const countParked = async (): Promise<number> =>
     Number(

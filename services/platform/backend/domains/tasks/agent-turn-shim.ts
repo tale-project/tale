@@ -378,18 +378,41 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     'tasks/agent_runs:parkTaskAgentRunForCapacity': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { runId: string; execId: string };
-      await sql.begin(async (tx) => {
-        const parked = await tx<{ organizationId: string; taskId: string }[]>`
+      const parked = await sql.begin(async (tx) => {
+        const rows = await tx<
+          { organizationId: string; taskId: string; agentId: string }[]
+        >`
           UPDATE app.project_agent_runs SET
             waiting_for_capacity_at_ms = ${Date.now()},
             updated_at_ms = ${Date.now()}
           WHERE id = ${args.runId} AND exec_id = ${args.execId}
             AND status = 'queued'
-          RETURNING org_id AS "organizationId", task_id AS "taskId"
+          RETURNING org_id AS "organizationId", task_id AS "taskId",
+            agent_id AS "agentId"
         `;
         // The card now reads "Waiting for a sandbox slot", not "Queued".
-        if (parked[0] !== undefined) await emitTaskRunHint(tx, parked[0]);
+        const row = rows[0];
+        if (row !== undefined) {
+          await emitTaskRunHint(tx, {
+            organizationId: row.organizationId,
+            taskId: row.taskId,
+          });
+        }
+        return row;
       });
+      // A parked run holds no slot: a standing workspace its start resumed
+      // before the sandbox host refused the create reads `active` with no
+      // compute, where the reconcile would heal it to destroyed. Free it back
+      // to `stopped` — quietly, since waking the next parked run would only
+      // send it into the same refusal.
+      if (parked !== undefined) {
+        await releaseProjectAgentSessionSlot(
+          sql,
+          { organizationId: parked.organizationId, agentId: parked.agentId },
+          undefined,
+          { wake: false },
+        );
+      }
       return null;
     },
 

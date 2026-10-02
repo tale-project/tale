@@ -9,6 +9,7 @@ import {
 import {
   SessionDuplicateError,
   SessionNotFoundError,
+  SpawnerBusyError,
   sessionAcquire,
   sessionCreate,
   sessionDestroyIfIdle,
@@ -140,7 +141,17 @@ export async function ensureAgentSession(
     // Only an idle session goes: a sibling turn of the same owner can resume
     // this still-`creating` row and create or adopt the session itself, and
     // its running exec must never die for this turn's failure. A container
-    // that never started runs no exec, so it is idle.
+    // that never started runs no exec, so it is idle. A spawner that refused
+    // the create for want of room (429) made nothing to destroy — and a
+    // destroy of an id with no compute deletes its preserved workspace, which
+    // a stopped standing session's id still names.
+    if (error instanceof SpawnerBusyError) {
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.setSessionStatus,
+        { rowId, status: 'failed' },
+      );
+      throw error;
+    }
     await sessionDestroyIfIdle(sessionId)
       .then(({ busy }) => {
         if (busy)
