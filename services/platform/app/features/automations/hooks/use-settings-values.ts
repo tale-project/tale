@@ -42,7 +42,8 @@ export function useAutomationSettingsValues(
   const readAdapted =
     ACTION_QUERY_ADAPTERS['documents/public_actions:readProjectTextValues'] !==
     undefined;
-  const { isAuthenticated } = useSessionUser();
+  // The probe gates only the unadapted lane, so only that lane subscribes.
+  const { isAuthenticated } = useSessionUser({ subscribed: !readAdapted });
   // Only FIELD forms own a YAML file; uploads panels read the folder's
   // documents through their own query instead.
   const files = (settings?.forms ?? [])

@@ -21,7 +21,8 @@ interface ConvexQueryOptions<TData = unknown> {
    * so authenticated queries never fire during the cold-load auth gap. Set
    * `false` only for queries that MUST run before auth — the `getCurrentUser`
    * probe and genuinely public reads. Adapted reads ignore this gate entirely:
-   * they authenticate with the session cookie, which the browser sends anyway.
+   * they authenticate with the session cookie, which the browser sends anyway,
+   * and do not subscribe to the probe.
    */
   requireAuth?: boolean;
   /**
@@ -58,7 +59,6 @@ export function useBackendQuery<Name extends QueryName>(
   name: Name,
   ...[args, options]: QueryArgs<Name>
 ): UseQueryResult<ReturnsOf<Name>> {
-  const { isAuthenticated } = useSessionUser();
   // `requireAuth` is our own gate, not a react-query option — peel it off.
   const { requireAuth = true, ...queryOpts } = options ?? {};
 
@@ -66,6 +66,12 @@ export function useBackendQuery<Name extends QueryName>(
   // options object every render never refetches.
   const adapter = READ_ADAPTERS[name];
   const skipped = args === 'skip';
+  // Only the no-row branch below reads the probe, so only it subscribes. One
+  // subscription per adapted read put an observer per mounted read on the
+  // probe's shared query, and each removal scans all of them (#4062).
+  const { isAuthenticated } = useSessionUser({
+    subscribed: adapter === undefined && !skipped && requireAuth,
+  });
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adapterCtx = organizationId !== undefined ? { organizationId } : {};
