@@ -515,8 +515,11 @@ interface BoundedChildResult {
  * `killGraceMs` (or as soon as the child itself exits, for anything it left
  * behind), and reject with the stage's timeout — only once the child has
  * closed, so a caller never races a still-running child. If even SIGKILL
- * brings no `close` within another grace, reject anyway and say so: the run
- * stays bounded.
+ * brings no `close` within another grace, reject anyway and say what is left:
+ * a child that did not exit, or one that did while a process it started still
+ * holds its stdout. That pipe is then closed on this side and the child
+ * unref'd, so no handle of the stage keeps the process alive: the run stays
+ * bounded.
  */
 function spawnBounded(
   stage: string,
@@ -540,6 +543,10 @@ function spawnBounded(
     let settled = false;
     // The timeout detail, once the deadline has passed.
     let timedOut: string | undefined;
+    // How the child itself ended: `close` also waits for every holder of its
+    // stdout, and may never come.
+    let exited: string | undefined;
+    let closed = false;
     const timers: NodeJS.Timeout[] = [];
     const settle = (fn: () => void): void => {
       if (settled) return;
@@ -570,25 +577,41 @@ function spawnBounded(
       }
     };
 
+    // Reject with the timeout, plus what the cleanup left behind — only what
+    // was seen: the child's own `exit` tells a child that never exited from
+    // one whose stdout something else still holds.
+    const finish = (detail: string): void => {
+      const left: string[] = [];
+      if (exited === undefined) {
+        left.push(`pid ${child.pid} did not exit after SIGKILL`);
+      } else if (!closed) {
+        left.push(
+          `pid ${child.pid} ${exited}, but a process it started still holds its stdout after the group SIGKILL`,
+        );
+      }
+      settle(() => {
+        if (!closed) child.stdout?.destroy();
+        if (exited === undefined) child.unref();
+        reject(
+          new VideoToolchainError(
+            stage,
+            left.length === 0
+              ? detail
+              : `${detail}; cleanup incomplete: ${left.join('; ')}`,
+          ),
+        );
+      });
+    };
+
     timers.push(
       setTimeout(() => {
-        timedOut = timeoutDetail(deadline, startedAt);
+        const detail = timeoutDetail(deadline, startedAt);
+        timedOut = detail;
         killGroup('SIGTERM');
         timers.push(
           setTimeout(() => {
             killGroup('SIGKILL');
-            timers.push(
-              setTimeout(() => {
-                settle(() =>
-                  reject(
-                    new VideoToolchainError(
-                      stage,
-                      `${timedOut}; pid ${child.pid} did not exit after SIGKILL`,
-                    ),
-                  ),
-                );
-              }, killGraceMs),
-            );
+            timers.push(setTimeout(() => finish(detail), killGraceMs));
           }, killGraceMs),
         );
       }, deadline.ms),
@@ -608,12 +631,19 @@ function spawnBounded(
         resolve({ code: null, signal: null, stdout, spawnError: err }),
       );
     });
+    child.on('exit', (code, signal) => {
+      exited =
+        signal === null
+          ? `exited with code ${code}`
+          : `was killed by ${signal}`;
+    });
     child.on('close', (code, signal) => {
+      closed = true;
+      if (settled) return;
       if (timedOut !== undefined) {
         // The child is gone; stop whatever it left behind in its group.
         killGroup('SIGKILL');
-        const detail = timedOut;
-        settle(() => reject(new VideoToolchainError(stage, detail)));
+        finish(timedOut);
         return;
       }
       settle(() => resolve({ code, signal, stdout }));

@@ -56,6 +56,19 @@ function isAlive(pid: number): boolean {
   }
 }
 
+/**
+ * `setsid` (util-linux) and `/proc`: the cases where a child's descendant
+ * leaves its process group run on Linux, as CI does.
+ */
+const ON_LINUX = process.platform === 'linux';
+
+/** Pipe and process handles keeping this worker's event loop alive. */
+function liveChildHandles(): number {
+  return process
+    .getActiveResourcesInfo()
+    .filter((type) => type === 'PipeWrap' || type === 'ProcessWrap').length;
+}
+
 async function waitUntilGone(pids: number[], ms = 3_000): Promise<number[]> {
   const until = Date.now() + ms;
   let alive = pids.filter(isAlive);
@@ -394,6 +407,31 @@ describe('provisionToolchain bounds', () => {
     );
     expect(await waitUntilGone(await pids())).toEqual([]);
   });
+
+  it.skipIf(!ON_LINUX)(
+    'reports a stdout holder it could not stop, and keeps no handle open',
+    async () => {
+      const cacheDir = await warmCache();
+      const holder = join(scratch, 'holder.pid');
+      // The lookup hands its stdout to a process in a session of its own,
+      // re-parented away at once (`setsid -f`), and exits 0.
+      await fakeOnPath(
+        'which',
+        `setsid -f sh -c 'echo $$ > "${holder}"; exec sleep 30'\nexit 0`,
+      );
+      const handles = liveChildHandles();
+      const err = await provisionToolchain({
+        cacheDir,
+        deadlines: FAST,
+      }).catch((e: unknown) => e);
+      strays.push(Number(await readFile(holder, 'utf8')));
+      expect(err).toMatchObject({ stage: 'ffmpeg lookup' });
+      expect((err as Error).message).toMatch(
+        /^\[video-toolchain\] ffmpeg lookup: timed out after \d+ ms \(deadline 2000 ms\); cleanup incomplete: pid \d+ exited with code 0, but a process it started still holds its stdout after the group SIGKILL$/,
+      );
+      await expect.poll(liveChildHandles).toBeLessThanOrEqual(handles);
+    },
+  );
 
   it('returns the resolved toolchain when every stage answers (control)', async () => {
     const cacheDir = await warmCache();
