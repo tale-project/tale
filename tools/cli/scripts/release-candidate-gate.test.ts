@@ -81,6 +81,13 @@ type Scenario = {
   jobs: Record<number, { name: string; conclusion: string | null }[]>;
   artifacts: Record<number, { id: number; name: string; expired: boolean }[]>;
   commitRuns: Run[];
+  /** Runs of other branches and commits, which no filtered listing returns. */
+  otherRuns?: Run[];
+  /** GitHub's filtered listings leave these runs out, with totals that still
+   * match their pages (#4055); direct reads still return them. */
+  listingOmits?: number[];
+  /** ...or show an older state of them. */
+  listingStale?: Record<number, Partial<Run>>;
   runPageOverrides?: Record<string, unknown>;
   receiptOverrides?: Record<number, unknown>;
 };
@@ -210,6 +217,14 @@ function runListPath(lane: 'candidate' | 'checks') {
     : `actions/runs?head_sha=${CANDIDATE}&per_page=100`;
 }
 
+/** A filtered listing's answer: self-consistent, but possibly incomplete or
+ * stale (#4055). */
+function filteredView(scenario: Scenario, rows: Run[]) {
+  return rows
+    .filter((entry) => !scenario.listingOmits?.includes(entry.id))
+    .map((entry) => ({ ...entry, ...scenario.listingStale?.[entry.id] }));
+}
+
 function fakeApi(scenario: Scenario) {
   const calls: string[] = [];
   const api: GitHubApi = async (path) => {
@@ -251,10 +266,13 @@ function fakeApi(scenario: Scenario) {
         /^actions\/workflows\/(\w+)\.yml\/runs\?branch=main&event=(\w+)&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
-      const rows = scenario.candidateRuns.filter(
-        (entry) =>
-          entry.event === match![2] &&
-          entry.path === `.github/workflows/${match![1]}.yml`,
+      const rows = filteredView(
+        scenario,
+        scenario.candidateRuns.filter(
+          (entry) =>
+            entry.event === match![2] &&
+            entry.path === `.github/workflows/${match![1]}.yml`,
+        ),
       );
       const page = Number(match[3] ?? 1);
       return {
@@ -332,7 +350,10 @@ function fakeApi(scenario: Scenario) {
         /^actions\/runs\?head_sha=([a-f0-9]{40})&per_page=100(?:&page=(\d+))?$/,
       ))
     ) {
-      const rows = match[1] === CANDIDATE ? scenario.commitRuns : [];
+      const rows = filteredView(
+        scenario,
+        match[1] === CANDIDATE ? scenario.commitRuns : [],
+      );
       const page = Number(match[2] ?? 1);
       return {
         total_count: rows.length,
@@ -690,6 +711,137 @@ describe('complete candidate event and receipt provenance', () => {
       expect((await judge(scenario)).report.state).toBe('blocked');
     },
   );
+});
+
+/** On 2026-10-01 GitHub's filtered run listings answered self-consistent
+ * subsets, each total matching its pages, that left out the newest runs or
+ * all of them, some led by months-old runs (#4055). */
+describe('a run listing GitHub answered incompletely', () => {
+  test('Build: a listing that keeps an older successful round cannot hide a newer failed one', async () => {
+    const scenario = passing();
+    const older = scenario.candidateRuns[0]!;
+    older.created_at = '2026-09-29T20:00:00Z';
+    const newer = candidateRun('failure', {
+      created_at: '2026-09-29T21:00:00Z',
+    });
+    scenario.candidateRuns.push(newer);
+    scenario.listingOmits = [newer.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons.join(' ')).toContain(newer.html_url);
+  });
+
+  test('Build: a listing that leaves out a failed rerun of an older run cannot approve the newer success', async () => {
+    const { scenario, retried } = rerunScenario('candidate', 'failure');
+    scenario.listingOmits = [retried.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(retried.html_url);
+  });
+
+  test('E2E: a dispatch listing that keeps an older successful round cannot hide a newer failed one', async () => {
+    const scenario = dispatchedSources();
+    const path = '.github/workflows/e2e.yml';
+    const newer = candidateRun('failure', {
+      path,
+      event: 'repository_dispatch',
+      created_at: '2026-09-29T22:00:00Z',
+    });
+    scenario.candidateRuns.push(newer);
+    scenario.listingOmits = [newer.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(newer.html_url);
+  });
+
+  test('a listing led by months-old runs cannot hide the deciding run that sits on page two of the unfiltered list', async () => {
+    const scenario = passing();
+    const older = scenario.candidateRuns[0]!;
+    older.created_at = '2026-09-29T20:00:00Z';
+    // Page one of the filtered answer: another candidate's runs from June.
+    scenario.candidateRuns.unshift(
+      ...Array.from({ length: 100 }, (_unused, index) =>
+        candidateRun('success', {
+          id: index + 1,
+          display_title: `Release candidate ${ELSEWHERE}`,
+          created_at: '2026-06-01T12:00:00Z',
+        }),
+      ),
+    );
+    const newer = candidateRun('failure', {
+      created_at: '2026-09-29T21:00:00Z',
+    });
+    scenario.candidateRuns.push(newer);
+    scenario.listingOmits = [newer.id];
+    // Another branch's runs since then fill the unfiltered list's page one.
+    scenario.otherRuns = Array.from({ length: 100 }, () =>
+      run('.github/workflows/checks.yml', 'success', {
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at: '2026-09-29T23:00:00Z',
+      }),
+    );
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.reasons.join(' ')).toContain(newer.html_url);
+  });
+
+  test('an empty Build listing still blocks', async () => {
+    const scenario = passing();
+    scenario.listingOmits = scenario.candidateRuns.map((entry) => entry.id);
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+  });
+
+  test('an empty E2E dispatch listing cannot hide a newer failed candidate run behind an older normal success', async () => {
+    const scenario = dispatchedSources();
+    const entry = scenario.candidateRuns.find((candidate) =>
+      candidate.path.endsWith('/e2e.yml'),
+    )!;
+    entry.conclusion = 'failure';
+    scenario.commitRuns.push(
+      run(entry.path, 'success', {
+        event: 'schedule',
+        created_at: '2026-09-29T20:00:00Z',
+      }),
+    );
+    scenario.listingOmits = [entry.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(entry.html_url);
+  });
+
+  test('a head_sha listing that leaves out a failed rerun of a push run cannot approve the older candidate success', async () => {
+    const scenario = dispatchedSources();
+    const normal = run('.github/workflows/checks.yml', 'failure', {
+      created_at: '2026-09-29T20:00:00Z',
+      run_started_at: '2026-09-29T22:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.commitRuns.push(normal);
+    scenario.listingOmits = [normal.id];
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(normal.html_url);
+  });
+
+  test('a listing that shows a rerun as its earlier successful attempt cannot approve the newer success', async () => {
+    const { scenario, retried } = rerunScenario('candidate', 'failure');
+    scenario.listingStale = {
+      [retried.id]: {
+        run_attempt: 1,
+        run_started_at: retried.created_at,
+        conclusion: 'success',
+      },
+    };
+    const { report } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons.join(' ')).toContain(retried.html_url);
+  });
 });
 
 describe('bounded candidate archive reader', () => {
