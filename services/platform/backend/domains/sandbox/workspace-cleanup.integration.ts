@@ -51,10 +51,18 @@ export async function checkWorkspaceCleanup(
   const destroyCalls: Array<[string, WorkspaceDestroyMode]> = [];
   const unpinCalls: string[] = [];
   let inventory: SandboxWorkspaceInventory | null = null;
+  /** How far the spawner reports a workspace's deletion; absent reads as a
+   * spawner that predates the field. */
+  const deletionOf = new Map<string, 'done' | 'pending' | 'failed'>();
   const spawner: WorkspaceSpawner = {
     destroy: async (sessionId, mode) => {
       destroyCalls.push([sessionId, mode]);
-      return { destroyed: true, busy: false };
+      const deletion = deletionOf.get(sessionId);
+      return {
+        destroyed: true,
+        busy: false,
+        ...(deletion === undefined ? {} : { deletion }),
+      };
     },
     inventory: async () => inventory,
     teardownOrganization: async () => null,
@@ -122,6 +130,16 @@ export async function checkWorkspaceCleanup(
           AND resource_id = ${sessionId}
       `
     ).map((row) => row.reason);
+  const auditStatuses = async (sessionId: string) =>
+    (
+      await sql<{ status: string }[]>`
+        SELECT status FROM app.audit_logs
+        WHERE org_id = ${orgId} AND action = 'sandbox_workspace.deleted'
+          AND resource_id = ${sessionId}
+      `
+    )
+      .map((row) => row.status)
+      .sort();
 
   const agent = async (id: string) => {
     await sql`
@@ -478,6 +496,56 @@ export async function checkWorkspaceCleanup(
         (await statusOf(erased))?.status === 'destroyed' &&
         destroyedWith(erased).join() === 'force',
       `erased ${erasedCount}`,
+    );
+
+    // 5b. Out of use is not erased: while the spawner is still deleting the
+    // workspace's files, or their deletion keeps failing, the pass throws
+    // (the receipt reads partial) and nothing settles; a Retry once they
+    // are gone does.
+    const slow = memberSessionIdForProjectAgent(liveAgent, 'user-erased-slow');
+    await session(slow, { ownerId: liveAgent, status: 'active' });
+    const erase = () =>
+      eraseMemberWorkspaces(
+        sql,
+        { organizationId: orgId, userId: 'user-erased-slow' },
+        spawner,
+      ).then(
+        (count) => `erased ${count}`,
+        (error: unknown) => (error instanceof Error ? error.message : 'threw'),
+      );
+    deletionOf.set(slow, 'pending');
+    const whileDeleting = {
+      pass: await erase(),
+      status: (await statusOf(slow))?.status,
+      audits: await auditStatuses(slow),
+    };
+    deletionOf.set(slow, 'failed');
+    const whileFailing = {
+      pass: await erase(),
+      status: (await statusOf(slow))?.status,
+      audits: await auditStatuses(slow),
+    };
+    deletionOf.set(slow, 'done');
+    const retried = {
+      pass: await erase(),
+      status: (await statusOf(slow))?.status,
+      audits: await auditStatuses(slow),
+      reasons: await audited(slow),
+    };
+    record(
+      'workspace cleanup: an erasure is not done while the workspace’s files are still being deleted or their deletion fails; its Retry settles it',
+      whileDeleting.pass.includes(`${slow} (deleting)`) &&
+        whileDeleting.status === 'expired' &&
+        whileDeleting.audits.length === 0 &&
+        whileFailing.pass.includes(`${slow} (deletion_failed)`) &&
+        whileFailing.status === 'expired' &&
+        whileFailing.audits.join() === 'failure' &&
+        retried.pass === 'erased 1' &&
+        retried.status === 'destroyed' &&
+        retried.audits.join() === 'failure,success' &&
+        retried.reasons.every((reason) => reason === 'member_erased') &&
+        destroyedWith(slow).join() === 'force,force,force',
+      JSON.stringify({ whileDeleting, whileFailing, retried }),
     );
 
     // 6. An organization hold keeps everything; released, the sweep resumes.

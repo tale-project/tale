@@ -12,11 +12,10 @@ import {
   sandboxDeviceDisconnect,
   sandboxOrganizationTeardown,
   sandboxWorkspaceInventory,
-  sessionDestroy,
-  sessionDestroyIfIdle,
-  sessionDestroyStopped,
+  sessionDestroyWorkspace,
   sessionSetPinned,
   type SandboxWorkspaceInventory,
+  type WorkspaceDestroyAnswer,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { revokeVirtualKey } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
 import {
@@ -64,6 +63,12 @@ import {
  * workspace that still has compute running, or an exec, depending on the
  * mode; a legal hold keeps everything it covers; and a spawner, gateway or
  * device that cannot answer leaves the workspace for the next attempt.
+ *
+ * Nothing here claims a deletion on a guess either. A destroy answers once
+ * the workspace is out of use, and the spawner deletes its bytes in the
+ * background; a deletion settles — rows destroyed, audited, counted by an
+ * erasure — only once the spawner reports them gone. Until then, and while
+ * their deletion keeps failing, the workspace waits for the next attempt.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -133,6 +138,12 @@ export type WorkspaceRetireOutcome =
   | 'destroyed'
   /** The spawner held nothing under the id; the rows settled. */
   | 'absent'
+  /** The spawner took it out of use, and its bytes are still being deleted —
+   * the next attempt checks again. */
+  | 'deleting'
+  /** The spawner took it out of use, but deleting its bytes keeps failing —
+   * the next attempt has it tried again. */
+  | 'deletion_failed'
   /** Decided again, and still wanted (a turn came back to it meanwhile). */
   | 'kept'
   /** Work runs in it — the next attempt tries again. */
@@ -142,18 +153,33 @@ export type WorkspaceRetireOutcome =
   /** The spawner could not be asked — the next attempt tries again. */
   | 'failed';
 
+type PendingOutcome =
+  | 'busy'
+  | 'offline'
+  | 'failed'
+  | 'deleting'
+  | 'deletion_failed';
+
 /** Outcomes that leave the workspace for a later attempt. */
-function pending(outcome: WorkspaceRetireOutcome): boolean {
-  return outcome === 'busy' || outcome === 'offline' || outcome === 'failed';
+function pending(outcome: WorkspaceRetireOutcome): outcome is PendingOutcome {
+  return (
+    outcome === 'busy' ||
+    outcome === 'offline' ||
+    outcome === 'failed' ||
+    outcome === 'deleting' ||
+    outcome === 'deletion_failed'
+  );
 }
 
 /** The spawner verbs the cleanup uses — injectable so the unit layer and the
  * real-Postgres probe drive it with a scripted spawner. */
 export interface WorkspaceSpawner {
+  /** Answers how far the workspace's deletion came: the spawner waits a
+   * bounded time for its bytes. */
   destroy: (
     sessionId: string,
     mode: WorkspaceDestroyMode,
-  ) => Promise<{ destroyed: boolean; busy: boolean }>;
+  ) => Promise<WorkspaceDestroyAnswer>;
   /** `null` from a spawner without an inventory. */
   inventory: () => Promise<SandboxWorkspaceInventory | null>;
   /** `null` from a spawner without the route. */
@@ -166,11 +192,11 @@ export interface WorkspaceSpawner {
 }
 
 const DEFAULT_SPAWNER: WorkspaceSpawner = {
-  destroy: async (sessionId, mode) => {
-    if (mode === 'stopped') return sessionDestroyStopped(sessionId);
-    if (mode === 'idle') return sessionDestroyIfIdle(sessionId);
-    return { destroyed: await sessionDestroy(sessionId), busy: false };
-  },
+  destroy: (sessionId, mode) =>
+    sessionDestroyWorkspace(sessionId, {
+      ifIdle: mode !== 'force',
+      ifStopped: mode === 'stopped',
+    }),
   inventory: sandboxWorkspaceInventory,
   teardownOrganization: sandboxOrganizationTeardown,
   disconnectDevice: sandboxDeviceDisconnect,
@@ -207,13 +233,17 @@ export interface RetireWorkspaceArgs {
  *     kind is "in use"); `idle` mode waits while an exec runs.
  *  2. DESTROY on the spawner, per the mode — its own pin dropped first, so
  *     a container a refused destroy leaves behind is reaped like any other.
- *  3. SETTLE — the claimed rows read destroyed, and the deletion is
- *     audited. Only the rows the claim took: a turn after the claim starts
- *     a fresh incarnation under the same id (its create waits for this
- *     destroy), and that one is not this deletion's to settle.
+ *  3. SETTLE — once the spawner reports the workspace's bytes gone, the
+ *     claimed rows read destroyed, and the deletion is audited. Only the
+ *     rows the claim took: a turn after the claim starts a fresh
+ *     incarnation under the same id (its create waits for this destroy),
+ *     and that one is not this deletion's to settle.
  *
  * A busy, offline or failed spawner call leaves the claimed rows `expired`:
- * nothing resumes them, and the next attempt finds the workspace again.
+ * nothing resumes them, and the next attempt finds the workspace again. So
+ * does a workspace taken out of use whose bytes are still being deleted, or
+ * whose deletion keeps failing — that one audited as a failed deletion, so
+ * it is not only a log line.
  */
 export async function retireWorkspace(
   sql: Sql,
@@ -248,6 +278,9 @@ export async function retireWorkspace(
       });
     }
     const outcome = await destroyOnSpawner(args.sessionId, args.mode, spawner);
+    if (outcome === 'deletion_failed') {
+      await auditRetired(sessionSql, organizationId, args, outcome);
+    }
     if (pending(outcome)) return outcome;
     if (claim.rowIds.length > 0) {
       await sessionSql`
@@ -310,10 +343,19 @@ async function destroyOnSpawner(
   sessionId: string,
   mode: WorkspaceDestroyMode,
   spawner: WorkspaceSpawner,
-): Promise<WorkspaceRetireOutcome> {
+): Promise<Exclude<WorkspaceRetireOutcome, 'kept'>> {
   try {
     const result = await spawner.destroy(sessionId, mode);
     if (result.busy) return 'busy';
+    // Out of use is not deleted. A spawner that reports no `deletion`
+    // predates it, and its destroy is complete when it answers.
+    if (result.deletion === 'pending') return 'deleting';
+    if (result.deletion === 'failed') {
+      console.warn(
+        `[sandbox.cleanup] deleting ${sessionId}'s workspace keeps failing on the spawner; the next attempt retries it`,
+      );
+      return 'deletion_failed';
+    }
     return result.destroyed ? 'destroyed' : 'absent';
   } catch (error) {
     if (error instanceof SandboxDeviceOfflineError) return 'offline';
@@ -322,12 +364,16 @@ async function destroyOnSpawner(
   }
 }
 
+/** The audit row of a settled deletion — or of one whose bytes the spawner
+ * keeps failing to delete, as a failure the next attempt may still turn
+ * into a deletion. */
 async function auditRetired(
   sql: Sql,
   organizationId: string,
   args: RetireWorkspaceArgs,
-  outcome: WorkspaceRetireOutcome,
+  outcome: 'destroyed' | 'absent' | 'deletion_failed',
 ): Promise<void> {
+  const failed = outcome === 'deletion_failed';
   try {
     await sql.begin((tx) =>
       createAuditLog(tx, {
@@ -338,18 +384,21 @@ async function auditRetired(
         category: 'data',
         resourceType: 'sandbox_workspace',
         resourceId: args.sessionId,
-        status: 'success',
+        status: failed ? 'failure' : 'success',
+        ...(failed ? { errorMessage: 'WORKSPACE_DELETION_FAILED' } : {}),
         metadata: {
           reason: args.reason,
-          // `absent`: the spawner held nothing under the id any more.
-          workspaceFound: outcome === 'destroyed',
+          // `absent`: the spawner held nothing under the id any more — also
+          // when an earlier attempt took the workspace out of use and its
+          // deletion has finished since.
+          workspaceFound: outcome !== 'absent',
           ...args.detail,
         },
       }),
     );
   } catch (error) {
-    // The workspace is gone either way; a lost audit row must not turn the
-    // deletion into a retry that finds nothing.
+    // The workspace is gone either way (or its failure is on the spawner's
+    // log); a lost audit row must not turn the deletion into a retry.
     console.error(
       `[sandbox.cleanup] audit of ${args.sessionId}'s deletion failed:`,
       error,
@@ -860,7 +909,8 @@ export interface WorkspaceCleanupOptions {
 export interface WorkspaceCleanupResult {
   /** Workspaces deleted, by reason. */
   retired: Partial<Record<WorkspaceRetireReason, number>>;
-  /** Workspaces left for a later sweep (busy, offline, failed). */
+  /** Workspaces left for a later sweep (busy, offline, failed, or out of
+   * use with their files still being deleted). */
   deferred: number;
   /** Workspaces no row names that the cleanup cannot attribute to this
    * deployment — another deployment's, or one the spawner cannot name an
@@ -1211,7 +1261,7 @@ export async function retireOwnerWorkspaces(
   }
   if (waiting > 0) {
     throw new Error(
-      `${waiting} workspace(s) of ${organizationId} could not be deleted yet (busy, offline or unreachable); retrying`,
+      `${waiting} workspace(s) of ${organizationId} could not be deleted yet (busy, offline, unreachable, or their files still being deleted); retrying`,
     );
   }
   return { retired, kept };
@@ -1305,7 +1355,9 @@ async function agentWorkspaceHeld(
  * an agent worked in, whatever runs there — the data is theirs, and the
  * erasure receipt must be true. THROWS when one could not be deleted, which
  * the cascade records as a failed pass (the receipt reads partial and a
- * Retry runs it again).
+ * Retry runs it again) — and while one's files are still being deleted, or
+ * their deletion keeps failing: a workspace out of use whose bytes are still
+ * on disk is not erased.
  */
 export async function eraseMemberWorkspaces(
   sql: Sql,

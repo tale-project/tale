@@ -602,17 +602,53 @@ export async function sessionDestroyIfIdle(
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
 }
 
-/** The workspace cleanup's destroy: only the preserved workspace of a
- * STOPPED session goes — the spawner answers `{busy:true}` while any compute
- * runs under the id (a turn that just resumed it, before its first exec) or a
- * create is in flight. `if_idle=1` rides along so a spawner or device that
- * predates `if_stopped` still refuses a session with a live exec. Same
- * non-2xx THROW contract as sessionDestroy; a device that is not connected
- * throws {@link SandboxDeviceOfflineError}. */
-export async function sessionDestroyStopped(
+/** How far deleting a destroyed workspace's bytes has come, as the spawner
+ * answers a destroy: `done`, `pending` (still being deleted in the
+ * background) or `failed` (the last attempt failed; the next destroy has it
+ * tried again). */
+export type WorkspaceDeletion = 'done' | 'pending' | 'failed';
+
+/** What a destroy answers the workspace cleanup. */
+export interface WorkspaceDestroyAnswer {
+  /** Something under the id was taken out of use. */
+  destroyed: boolean;
+  /** A condition refused the destroy: nothing was touched. */
+  busy: boolean;
+  /** Absent from a spawner or device that predates it, and from Kubernetes:
+   * there the destroy is complete when it answers. */
+  deletion?: WorkspaceDeletion;
+}
+
+const workspaceDestroyAnswerSchema = z.object({
+  destroyed: z.boolean(),
+  busy: z.boolean().default(false),
+  deletion: z.enum(['done', 'pending', 'failed']).optional(),
+});
+
+/** The workspace cleanup's destroy — its erasures, retirements and sweeps.
+ * `ifStopped` deletes only the preserved workspace of a STOPPED session: the
+ * spawner answers `{busy:true}` while any compute runs under the id (a turn
+ * that just resumed it, before its first exec) or a create is in flight, and
+ * `if_idle=1` rides along so a spawner or device that predates `if_stopped`
+ * still refuses a session with a live exec. `ifIdle` alone refuses only a
+ * live exec; neither (an erasure) deletes whatever runs.
+ *
+ * A destroy answers once the workspace is out of use, before its bytes are
+ * gone; `?await_deletion=1` has the spawner wait a bounded time for them and
+ * answer how far they came, so the cleanup settles a deletion only on
+ * `done`. Same non-2xx THROW contract as sessionDestroy; a device that is
+ * not connected throws {@link SandboxDeviceOfflineError}. */
+export async function sessionDestroyWorkspace(
   sessionId: string,
-): Promise<{ destroyed: boolean; busy: boolean }> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1&if_stopped=1`;
+  conditions: { ifIdle?: boolean; ifStopped?: boolean } = {},
+): Promise<WorkspaceDestroyAnswer> {
+  const query = new URLSearchParams();
+  if (conditions.ifIdle === true || conditions.ifStopped === true) {
+    query.set('if_idle', '1');
+  }
+  if (conditions.ifStopped === true) query.set('if_stopped', '1');
+  query.set('await_deletion', '1');
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?${query}`;
   const res = await spawnerFetch('DELETE', path, {
     signal: AbortSignal.timeout(60_000),
   });
@@ -620,9 +656,7 @@ export async function sessionDestroyStopped(
   if (!res.ok) {
     throw new Error(`sandbox session destroy failed (${res.status})`);
   }
-  return z
-    .object({ destroyed: z.boolean(), busy: z.boolean() })
-    .parse(await res.json());
+  return workspaceDestroyAnswerSchema.parse(await res.json());
 }
 
 const workspaceInventorySchema = z.object({

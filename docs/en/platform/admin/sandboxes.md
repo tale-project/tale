@@ -98,7 +98,7 @@ Besides deleting unused workspaces, Tale deletes a workspace when what it belong
 
 This happens within about a minute, or after the task ends if one is still running in the workspace. A pinned workspace goes too, but a [legal hold](/platform/admin/governance/legal-hold) keeps every workspace it covers: a hold on the organization keeps all of them, and a hold on a person keeps that person's own workspaces. An hourly cleanup also deletes leftovers that nothing owns any more, such as a workflow run's workspace that was never reclaimed.
 
-Every workspace Tale deletes on its own, for one of these reasons or for being unused, appears in the [audit log](/platform/admin/governance/audit-logs) under **Settings > Governance > Logs** as **Sandbox workspace deleted**. It is a system event in the **Data** category, and its metadata names the reason: `agent_deleted`, `member_removed`, `member_erased`, `unused` or `orphaned`.
+Every workspace Tale deletes on its own, for one of these reasons or for being unused, appears in the [audit log](/platform/admin/governance/audit-logs) under **Settings > Governance > Logs** as **Sandbox workspace deleted**. It is a system event in the **Data** category, and its metadata names the reason: `agent_deleted`, `member_removed`, `member_erased`, `unused` or `orphaned`. The event is recorded once the workspace's files are deleted, which can take a while for a large workspace. If deleting them fails, the event appears with the status **Failure**, and Tale tries again at the next cleanup until the files are gone.
 
 ## Resolve a blocked start
 
