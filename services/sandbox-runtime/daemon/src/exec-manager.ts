@@ -119,6 +119,10 @@ export class ExecManager {
     execId: string,
     emit: ExecSubscriber,
     sinceSeq = 0,
+    /** The consumer went away: stop following, and settle at once instead of
+     * when the exec ends — a platform that re-attaches every window would
+     * otherwise leave one subscriber (and one open operation) per window. */
+    signal?: AbortSignal,
   ): Promise<void> | null {
     const liveRec = this.live.get(execId);
     if (liveRec) {
@@ -132,8 +136,14 @@ export class ExecManager {
       // follow live. The replay loop + subscribers.add are synchronous, so no
       // live event can slip in between (single-threaded) → no gap, no dup.
       for (const line of liveRec.ring) emitRingLine(line, emit, sinceSeq);
+      if (signal?.aborted) return Promise.resolve();
       liveRec.subscribers.add(emit);
-      return liveRec.done.finally(() => liveRec.subscribers.delete(emit));
+      const gone = new Promise<void>((resolve) => {
+        signal?.addEventListener('abort', () => resolve(), { once: true });
+      });
+      return Promise.race([liveRec.done, gone]).finally(() =>
+        liveRec.subscribers.delete(emit),
+      );
     }
     const recentRec = this.recent.get(execId);
     if (recentRec) {

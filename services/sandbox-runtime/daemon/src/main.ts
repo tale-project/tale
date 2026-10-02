@@ -242,11 +242,16 @@ async function handleAttach(
     }
   };
   // This attach consumer dropping leaves the exec to its sliding deadline; a
-  // further reattach re-arms it. No grace kill here (see handleExec).
-  req.on('close', () => {
+  // further reattach re-arms it. No grace kill here (see handleExec). The
+  // attach itself ends with its consumer, so it stops counting as work.
+  const consumer = new AbortController();
+  const gone = () => {
     attachClosed = true;
-  });
-  const stream = execManager.attach(execId, emit, sinceSeq);
+    consumer.abort();
+  };
+  req.on('close', gone);
+  res.on('close', gone);
+  const stream = execManager.attach(execId, emit, sinceSeq, consumer.signal);
   if (stream) await stream;
   res.end();
 }

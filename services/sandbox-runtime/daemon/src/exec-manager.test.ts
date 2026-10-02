@@ -347,6 +347,35 @@ describe('ExecManager', () => {
     expect(isAlive(pid)).toBe(false);
   });
 
+  test('a consumer that goes away stops following and settles its attach at once', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const { emit } = collect();
+    const done = mgr.run(
+      { ...base, execId: 'edrop', shell: 'sleep 30', cwd: ROOT },
+      emit,
+    );
+    const started = Date.now();
+    while (mgr.status('edrop')?.state !== 'running') {
+      if (Date.now() - started > 5_000) throw new Error('edrop never started');
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    const follower = collect();
+    const consumer = new AbortController();
+    const stream = mgr.attach('edrop', follower.emit, 0, consumer.signal);
+    expect(stream).not.toBeNull();
+    consumer.abort();
+    const settled = await Promise.race([
+      stream?.then(() => 'settled'),
+      new Promise((r) => setTimeout(() => r('pending'), 500)),
+    ]);
+    expect(settled).toBe('settled');
+    const seen = follower.events.length;
+    expect(mgr.cancel('edrop')).toBe(true);
+    await done;
+    // The exit event went to the live consumer only, not to the one gone.
+    expect(follower.events.length).toBe(seen);
+  });
+
   test('attach replays the ring of a just-finished exec', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
