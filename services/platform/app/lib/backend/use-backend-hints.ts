@@ -5,7 +5,11 @@ import { isStructuredBackendError } from '@/app/hooks/use-action-query';
 
 import { eventsUrl } from './api-client';
 import { probeBackendSoon, reportBackendReachable } from './connection-state';
-import { backendEntityPrefix, backendOrgPrefix } from './query-keys';
+import {
+  backendEntityPrefix,
+  backendKey,
+  backendOrgPrefix,
+} from './query-keys';
 
 /**
  * `EventSource.CLOSED` as a literal: the browser has given up on this source
@@ -70,6 +74,13 @@ export function useBackendHints(orgId: string | undefined): void {
           void queryClient.invalidateQueries({
             queryKey: backendEntityPrefix(org, hint.entity),
           });
+          // The task reviewer read also includes its project's future default.
+          // Refetch that read without retargeting the captured pending review.
+          if (hint.entity === 'project') {
+            void queryClient.invalidateQueries({
+              queryKey: backendKey(org, 'task', 'reviewer'),
+            });
+          }
           // Entry lists display the indexing state of their backing document.
           // The indexing worker emits document hints as that state changes.
           if (hint.entity === 'document') {

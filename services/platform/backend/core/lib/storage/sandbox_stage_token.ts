@@ -26,7 +26,6 @@
  * verifier) and node actions (the session-exec signer).
  */
 
-const TOKEN_VERSION = 'v1';
 const KEY_DERIVATION_CONTEXT = 'sandbox-blob-stage:v1';
 /** Staging URLs are consumed by the daemon within the same exec call; 10
  * minutes absorbs a slow multi-hundred-MB stage without leaving a long-lived
@@ -42,6 +41,27 @@ export interface StageTokenPayload {
   org: string;
   /** Expiry, epoch ms. */
   exp: number;
+  /** v2 only. The signed stream ceiling; old v1 verifiers reject v2. */
+  maxBytes?: number;
+  /** v2 only, when the caller knows immutable metadata. Zero is valid. */
+  expectedBytes?: number;
+}
+
+function validByteCap(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function validExpectedBytes(
+  value: unknown,
+  maxBytes: unknown,
+): value is number {
+  return (
+    validByteCap(maxBytes) &&
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= maxBytes
+  );
 }
 
 function b64urlEncode(bytes: Uint8Array): string {
@@ -110,18 +130,39 @@ async function signMessage(root: string, message: string): Promise<Uint8Array> {
 /** Mint a stage token for one blob. Returns `null` when the deployment has no
  * HMAC root to sign with. `now` is injectable for tests. */
 export async function signStageToken(
-  payload: { ref: string; org: string },
+  payload: {
+    ref: string;
+    org: string;
+    maxBytes?: number;
+    expectedBytes?: number;
+  },
   now: number = Date.now(),
 ): Promise<string | null> {
+  if (payload.maxBytes !== undefined && !validByteCap(payload.maxBytes)) {
+    throw new Error('A stage byte limit must be a positive safe integer');
+  }
+  if (
+    payload.expectedBytes !== undefined &&
+    !validExpectedBytes(payload.expectedBytes, payload.maxBytes)
+  ) {
+    throw new Error(
+      'An expected stage size must be a nonnegative safe integer within the byte limit',
+    );
+  }
   const root = hmacRoot();
   if (root === null) return null;
   const full: StageTokenPayload = {
     ref: payload.ref,
     org: payload.org,
     exp: now + STAGE_TOKEN_TTL_MS,
+    ...(payload.maxBytes === undefined ? {} : { maxBytes: payload.maxBytes }),
+    ...(payload.expectedBytes === undefined
+      ? {}
+      : { expectedBytes: payload.expectedBytes }),
   };
   const payloadB64 = b64urlEncode(utf8(JSON.stringify(full)));
-  const message = `${TOKEN_VERSION}.${payloadB64}`;
+  const version = payload.maxBytes === undefined ? 'v1' : 'v2';
+  const message = `${version}.${payloadB64}`;
   const sig = await signMessage(root, message);
   return `${message}.${b64urlEncode(sig)}`;
 }
@@ -142,13 +183,13 @@ export async function verifyStageToken(
   const root = hmacRoot();
   if (root === null) return { ok: false, reason: 'unconfigured' };
   const parts = token.split('.');
-  if (parts.length !== 3 || parts[0] !== TOKEN_VERSION) {
+  if (parts.length !== 3 || (parts[0] !== 'v1' && parts[0] !== 'v2')) {
     return { ok: false, reason: 'malformed' };
   }
-  const [, payloadB64, sigB64] = parts;
+  const [version, payloadB64, sigB64] = parts;
   const sigBytes = b64urlDecode(sigB64 ?? '');
   if (sigBytes === null) return { ok: false, reason: 'malformed' };
-  const expected = await signMessage(root, `${TOKEN_VERSION}.${payloadB64}`);
+  const expected = await signMessage(root, `${version}.${payloadB64}`);
   if (!timingSafeEqualBytes(sigBytes, expected)) {
     return { ok: false, reason: 'bad_signature' };
   }
@@ -171,6 +212,15 @@ export async function verifyStageToken(
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape validated field-by-field above
   const payload = parsed as StageTokenPayload;
+  if (
+    version === 'v2'
+      ? !validByteCap(payload.maxBytes) ||
+        (payload.expectedBytes !== undefined &&
+          !validExpectedBytes(payload.expectedBytes, payload.maxBytes))
+      : payload.maxBytes !== undefined || payload.expectedBytes !== undefined
+  ) {
+    return { ok: false, reason: 'malformed' };
+  }
   if (payload.exp <= now) return { ok: false, reason: 'expired' };
   return { ok: true, payload };
 }
@@ -187,8 +237,15 @@ export async function verifyStageToken(
 export async function buildSandboxBlobStageUrl(
   ref: string,
   organizationId: string,
+  maxBytes?: number,
+  expectedBytes?: number,
 ): Promise<string | null> {
-  const token = await signStageToken({ ref, org: organizationId });
+  const token = await signStageToken({
+    ref,
+    org: organizationId,
+    maxBytes,
+    expectedBytes,
+  });
   if (token === null) return null;
   const base = (
     process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'

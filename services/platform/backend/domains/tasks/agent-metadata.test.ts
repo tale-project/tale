@@ -30,6 +30,7 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: 'reviewer',
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',

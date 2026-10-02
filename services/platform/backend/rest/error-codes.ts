@@ -197,6 +197,7 @@ export const REST_ERROR_CODES = [
   'SKILL_TEAM_UNKNOWN',
   'STANDARD_AGENT_OFF',
   'STANDARD_AGENT_UNAVAILABLE',
+  'TASK_AGENT_REVIEW_REQUIRED',
   'TASK_ARCHIVED',
   'TASK_AUTOMATION_DISABLED',
   'TASK_AUTOMATION_UNAVAILABLE',
@@ -207,6 +208,7 @@ export const REST_ERROR_CODES = [
   'TASK_LABEL_UNKNOWN',
   'TASK_NOT_FOUND',
   'TASK_NOT_IN_REVIEW',
+  'TASK_REVIEW_POLICY_UNAVAILABLE',
   'TEAM_ACCESS_DENIED',
   // A hub document inside a team folder takes the folder's audience; a
   // request naming a team outside it is refused.

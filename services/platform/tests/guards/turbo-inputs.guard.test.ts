@@ -140,6 +140,16 @@ const OUTSIDE_READS = [
     path: 'services/sandbox/src/config.ts',
     readers: 'scripts/dev-sandbox-runtime.test.ts',
   },
+  {
+    path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
+    readers:
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/protocol.ts',
+    readers:
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
+  },
 ];
 
 /** The slice of `packages/ui/package.json` this guard reads. */

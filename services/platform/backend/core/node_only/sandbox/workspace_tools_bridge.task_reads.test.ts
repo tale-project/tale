@@ -12,6 +12,7 @@
  * its size, its end, its cursor — not the database's order.
  */
 
+import type { PendingReviewIdentity } from '@tale/shared/schemas/task-review';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
@@ -33,6 +34,7 @@ interface BoardTask {
   commentCount: number;
   createdAt: number;
   updatedAt: number;
+  pendingReview?: PendingReviewIdentity | null;
 }
 
 type Scope =
@@ -90,7 +92,10 @@ function keysetPage(
     .filter(
       (task) =>
         (projectIds === undefined || projectIds.includes(task.projectId)) &&
-        (args.status === undefined || task.status === args.status),
+        (args.status === undefined || task.status === args.status) &&
+        (args.reviewerAgentId === undefined ||
+          (task.pendingReview?.reviewer?.kind === 'agent' &&
+            task.pendingReview.reviewer.agentId === args.reviewerAgentId)),
     )
     .sort((a, b) => compare(key(a), key(b)))
     .filter(
@@ -205,6 +210,69 @@ async function walk(
 describe('task_find pages a whole queue', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('returns captured identities across every review page, including deleted reviewers', async () => {
+    const board = tiedBoard(63).map((task, index) =>
+      Object.assign(task, {
+        status: 'in_review',
+        pendingReview: {
+          approvalId: `approval-${index}`,
+          runId: `source-${index}`,
+          reviewer: {
+            kind: 'agent' as const,
+            agentId: index === 62 ? 'deleted-agent' : 'agent-1',
+          },
+        },
+      }),
+    );
+    const { call, called } = createHarness({ board });
+    const all = await walk(call, { status: 'in_review', limit: 20 });
+    expect(
+      all.flatMap((page) =>
+        (page.tasks as { pendingReview: unknown }[]).map(
+          (task) => task.pendingReview,
+        ),
+      ),
+    ).toEqual(board.map((task) => task.pendingReview));
+    const own = await walk(call, { reviewerAgentId: 'agent-1', limit: 20 });
+    expect(
+      own.flatMap((page) =>
+        (page.tasks as { taskId: string }[]).map((task) => task.taskId),
+      ),
+    ).toEqual(board.slice(0, 62).map((task) => task._id));
+    expect(called('listTasksForAgent').at(-1)?.args.reviewerAgentId).toBe(
+      'agent-1',
+    );
+  });
+
+  it('preserves human and null captured summaries without inventing an agent', async () => {
+    const board = tiedBoard(2);
+    board[0]!.pendingReview = {
+      approvalId: 'human-approval',
+      runId: null,
+      reviewer: { kind: 'user', userId: 'person-1' },
+    };
+    board[1]!.pendingReview = null;
+    const { call } = createHarness({ board });
+    expect(
+      (
+        outputOf(await call('task_find', {})).tasks as {
+          pendingReview: unknown;
+        }[]
+      ).map((task) => task.pendingReview),
+    ).toEqual(board.map((task) => task.pendingReview));
+  });
+
+  it.each([null, 3, {}, '', '   ', 'a'.repeat(201)])(
+    'refuses malformed reviewerAgentId %j before the task read',
+    async (reviewerAgentId) => {
+      const { call, called } = createHarness();
+      const result = await call('task_find', { reviewerAgentId });
+      expect(result.status).toBe('invalid_args');
+      expect(String(result.message)).toContain('reviewerAgentId');
+      expect(called('listTasksForAgent')).toHaveLength(0);
+    },
+  );
+
   it.each(['board', 'created'] as const)(
     'walks 251 tasks tied on status, rank and creation time exactly once (%s order)',
     async (order) => {
@@ -304,6 +372,7 @@ describe('task_find pages a whole queue', () => {
       { status: 'backlog', order: 'created' },
       { status: 'backlog', includeArchived: true },
       { status: 'backlog', assigneeId: 'agent-2' },
+      { status: 'backlog', reviewerAgentId: 'agent-2' },
     ]) {
       const result = await call('task_find', { ...changed, limit: 2, cursor });
       expect(result.status).toBe('invalid_args');
@@ -441,6 +510,43 @@ describe('task_find pages a whole queue', () => {
 
 describe('task_get reads what a manager decides with', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it.each([
+    'reviewer_unavailable',
+    'permission_missing',
+    'source_required',
+    'source_changed',
+    'self_review',
+    'human_policy',
+    'policy_unavailable',
+    null,
+  ])(
+    'relays the shared captured-agent blocker %s to the native caller',
+    async (agentReviewBlockedReason) => {
+      const { call } = createHarness({
+        workState: () => ({
+          agentRuns: [],
+          agentRunsHasMore: false,
+          workflowRun: null,
+          pendingReview: {
+            approvalId: 'a-1',
+            round: 1,
+            runId: 'r-1',
+            reviewer: { kind: 'agent', agentId: 'reviewer-1' },
+            requestedFor: null,
+            implementationAgentId: 'worker',
+            evidenceRevision: 'a'.repeat(64),
+            createdAt: 1_790_000_000_000,
+            agentReviewBlockedReason,
+          },
+        }),
+      });
+      const result = await call('task_get', { taskId: 't-0000' });
+      expect(outputOf(result).pendingReview).toMatchObject({
+        agentReviewBlockedReason,
+      });
+    },
+  );
 
   const run = (overrides: Record<string, unknown> = {}) => ({
     id: 'run-2',
@@ -755,6 +861,9 @@ describe('task_get reads what a manager decides with', () => {
         round: 2,
         runId: 'run-2',
         requestedFor: 'user-9',
+        reviewer: { kind: 'user', userId: 'user-9' },
+        implementationAgentId: 'agent-1',
+        evidenceRevision: 'a'.repeat(64),
         createdAt: 1_790_000_600_000,
       },
     });
@@ -763,7 +872,11 @@ describe('task_get reads what a manager decides with', () => {
       round: 2,
       runId: 'run-2',
       requestedFor: 'user-9',
+      reviewer: { kind: 'user', userId: 'user-9' },
+      implementationAgentId: 'agent-1',
+      evidenceRevision: 'a'.repeat(64),
       since: '2026-09-21T14:23:20.000Z',
+      agentReviewBlockedReason: null,
     });
   });
 

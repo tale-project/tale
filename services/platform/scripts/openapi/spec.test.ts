@@ -1318,6 +1318,90 @@ describe('MCP JSON-RPC envelopes validate against their documented schemas', () 
   });
 });
 
+/** Typed recipients and source evidence must remain readable by clients. */
+describe('native review ownership in the public read contract', () => {
+  const validate = responseValidator(
+    '/api/v1/projects/{id}/tasks/{taskId}/review',
+    'get',
+    '200',
+  );
+  const review = {
+    approvalId: 'approval',
+    taskId: 'task',
+    round: 0,
+    requestedFor: null,
+    reviewer: { kind: 'agent', agentId: 'reviewer-b' },
+    agentSlug: 'Implementation A',
+    runId: 'source-run',
+    implementationAgentId: 'implementation-a',
+    evidenceRevision: 'a'.repeat(64),
+    agentReviewBlockedReason: null,
+    createdAt: 1_700_000_000_000,
+  };
+  const answer = (pending: Json | null) => ({
+    task: { id: 'task', status: 'in_review' },
+    review: pending,
+  });
+  it('accepts exact agent evidence, a person and a source-less or absent review', () => {
+    for (const pending of [
+      review,
+      {
+        ...review,
+        requestedFor: 'person',
+        reviewer: { kind: 'user', userId: 'person' },
+      },
+      {
+        ...review,
+        reviewer: null,
+        runId: null,
+        implementationAgentId: null,
+        evidenceRevision: null,
+      },
+      null,
+    ]) {
+      expect(validate(answer(pending)), JSON.stringify(validate.errors)).toBe(
+        true,
+      );
+    }
+  });
+  it('rejects mixed recipient identity and malformed evidence digests', () => {
+    expect(
+      validate(
+        answer({
+          ...review,
+          reviewer: { kind: 'agent', agentId: 'reviewer-b', userId: 'person' },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      validate(answer({ ...review, evidenceRevision: 'not-a-digest' })),
+    ).toBe(false);
+    expect(
+      validate(answer({ ...review, implementationAgentId: undefined })),
+    ).toBe(false);
+  });
+  it('accepts known recovery reasons and refuses unknown diagnoses', () => {
+    for (const reason of [
+      'reviewer_unavailable',
+      'permission_missing',
+      'source_required',
+      'source_changed',
+      'self_review',
+      'human_policy',
+      'policy_unavailable',
+    ]) {
+      expect(
+        validate(answer({ ...review, agentReviewBlockedReason: reason })),
+      ).toBe(true);
+    }
+    expect(
+      validate(
+        answer({ ...review, agentReviewBlockedReason: 'try_again_somehow' }),
+      ),
+    ).toBe(false);
+  });
+});
+
 /**
  * The skill schemas are typed from the file layer's own views: a fixture
  * that satisfies `SkillSummaryView` / `SkillDocumentView` must validate,

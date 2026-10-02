@@ -1,5 +1,11 @@
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
+import {
+  projectTaskReviewerFromId,
+  taskReviewerFromIds,
+  type SetTaskReviewerInput,
+  type TaskReviewRecipient,
+} from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
@@ -71,6 +77,7 @@ import {
   kickAgentRun,
 } from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
+import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
 import {
   assertTaskCanRepeat,
@@ -81,15 +88,18 @@ import {
 } from './repeat.ts';
 import { releaseUnlistedTaskBlobRefs, retireTasksInTx } from './retire.ts';
 import {
+  agentReviewerEligibility,
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
+  getPendingReviewForTask,
+  replacePendingTaskReviewer,
   requestTaskReview,
   retargetPendingTaskReview,
   reviewerEligibility,
   type TaskReviewTrigger,
 } from './reviews.ts';
 import { scheduleMayActInProject } from './run-authority.ts';
-import { mentionAutomationEnabled } from './run-start.ts';
+import { lockTaskRunStart, mentionAutomationEnabled } from './run-start.ts';
 import { assertTaskSourceThreadReadable } from './source-thread.ts';
 
 /**
@@ -150,6 +160,7 @@ export interface TaskRow {
   assigneeType: TaskAssigneeType | null;
   assigneeId: string | null;
   reviewerUserId: string | null;
+  reviewerAgentId: string | null;
   parentTaskId: string | null;
   commentCount: number;
   rank: string;
@@ -201,6 +212,7 @@ export const TASK_COLUMNS = `
   description, attachments, outputs, number, status, priority,
   label_ids AS "labelIds", assignee_type AS "assigneeType",
   assignee_id AS "assigneeId", reviewer_user_id AS "reviewerUserId",
+  reviewer_agent_id AS "reviewerAgentId",
   parent_task_id AS "parentTaskId", comment_count AS "commentCount", rank,
   external_system AS "externalSystem", external_id AS "externalId",
   external_url AS "externalUrl", external_source_id AS "externalSourceId",
@@ -1557,6 +1569,15 @@ async function updateTaskFields(
   await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
 
+  // Working one's own task does not confer project review administration.
+  // An unchanged field sent with an ordinary edit remains a no-op.
+  if (
+    args.reviewerUserId !== undefined &&
+    args.reviewerUserId !== task.reviewerUserId
+  ) {
+    assertTaskLabelsEditable(project, auth);
+  }
+
   const previousState: Record<string, unknown> = {};
   const newState: Record<string, unknown> = {};
 
@@ -1686,6 +1707,27 @@ async function updateTaskFields(
       repeatChanged = true;
       previousState.repeat = current;
       newState.repeat = repeat;
+    }
+  }
+  if (
+    args.reviewerUserId !== undefined &&
+    reviewerUserId !== task.reviewerUserId
+  ) {
+    const pending = await getPendingReviewForTask(
+      tx,
+      auth.organizationId,
+      task.id,
+    );
+    if (
+      task.reviewerAgentId != null ||
+      pending?.reviewer?.kind === 'agent' ||
+      (reviewerUserId === null && project.defaultTaskReviewerAgentId != null)
+    ) {
+      throw new TaskError(
+        'TASK_REVIEWER_HANDOFF_REQUIRED',
+        'Use an explicit reviewer handoff for agent-owned review',
+        409,
+      );
     }
   }
   // A NEW designee (not a clear, not a re-select) is about to be subscribed
@@ -1825,12 +1867,44 @@ async function updateTaskFields(
           actorUserId: auth.userId,
         })
       : undefined;
+  await notifyReviewerDesignation(tx, {
+    task: { ...task, title },
+    reviewerUserId,
+    openReviewer,
+    actorUserId: auth.userId,
+  });
+  // An edit fans out only the mentions it ADDS: prose reworded around an
+  // existing `@handle` must not ring the bell or start the agent again.
+  if (newState.description !== undefined && description !== null) {
+    await fanOutDescriptionMentions(tx, auth, {
+      taskId: task.id,
+      project,
+      description,
+      previousDescription: task.description ?? '',
+    });
+  }
+}
+
+async function notifyReviewerDesignation(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    reviewerUserId: string | null;
+    openReviewer: string | undefined;
+    actorUserId: string;
+  },
+): Promise<void> {
+  const { task, reviewerUserId, openReviewer, actorUserId } = args;
+  const designatedReviewer =
+    reviewerUserId !== null && reviewerUserId !== task.reviewerUserId
+      ? reviewerUserId
+      : null;
   // The previous designee is off the hook: an unread "You're the reviewer"
   // heads-up would keep telling them otherwise. Their request bell, when the
   // review was open, went with the retarget above.
   if (task.reviewerUserId !== null && reviewerUserId !== task.reviewerUserId) {
     await dismissReviewerAssignedNotifications(tx, {
-      organizationId: auth.organizationId,
+      organizationId: task.organizationId,
       taskId: task.id,
       userId: task.reviewerUserId,
     });
@@ -1842,7 +1916,7 @@ async function updateTaskFields(
     // follow when the card reaches In review. Before this, the column was
     // written and nobody was told.
     await autoSubscribe(tx, {
-      organizationId: auth.organizationId,
+      organizationId: task.organizationId,
       taskId: task.id,
       subscriberType: 'user',
       subscriberId: designatedReviewer,
@@ -1852,23 +1926,175 @@ async function updateTaskFields(
     // its collapse identity and would rewrite the actionable row in place.
     if (openReviewer !== designatedReviewer) {
       await notifyTaskReviewerAssigned(tx, {
-        organizationId: auth.organizationId,
-        task: { id: task.id, projectId: task.projectId, title },
+        organizationId: task.organizationId,
+        task: { id: task.id, projectId: task.projectId, title: task.title },
         reviewerUserId: designatedReviewer,
-        actorUserId: auth.userId,
+        actorUserId,
       });
     }
   }
-  // An edit fans out only the mentions it ADDS: prose reworded around an
-  // existing `@handle` must not ring the bell or start the agent again.
-  if (newState.description !== undefined && description !== null) {
-    await fanOutDescriptionMentions(tx, auth, {
-      taskId: task.id,
-      project,
-      description,
-      previousDescription: task.description ?? '',
-    });
+}
+
+/** Read both the future routing choice and the captured current gate. */
+export async function getTaskReviewer(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  taskId: string,
+) {
+  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
+  const project = await loadProjectOrThrow(sql, task.projectId);
+  assertTaskReadable(project, auth);
+  return {
+    reviewer: taskReviewerFromIds(task),
+    projectReviewer: projectTaskReviewerFromId(
+      project.defaultTaskReviewerAgentId,
+    ),
+    pendingReview: await getPendingReviewForTask(
+      sql,
+      auth.organizationId,
+      task.id,
+    ),
+  };
+}
+
+/** The editor-only handoff changes routing, never the implementation owner,
+ * status, outputs, execution or tool grants. Every expected field is CAS. */
+export async function setTaskReviewer(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  taskId: string,
+  args: SetTaskReviewerInput,
+) {
+  const initial = await loadTaskOrThrow(tx, taskId, auth.organizationId);
+  const project = await loadProjectOrThrow(tx, initial.projectId);
+  assertTaskLabelsEditable(project, auth);
+  assertTaskNotArchived(initial);
+  await lockTaskRunStart(tx, auth.organizationId, taskId);
+  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
+  assertTaskNotArchived(task);
+  const expectedUserId =
+    args.expected.reviewer.kind === 'user'
+      ? args.expected.reviewer.userId
+      : null;
+  const expectedAgentId =
+    args.expected.reviewer.kind === 'agent'
+      ? args.expected.reviewer.agentId
+      : null;
+  if (
+    task.reviewerUserId !== expectedUserId ||
+    (task.reviewerAgentId ?? null) !== expectedAgentId
+  ) {
+    throw new TaskError(
+      'TASK_REVIEWER_STALE',
+      'Task reviewer changed; read it again',
+      409,
+    );
   }
+  const reviewerUserId =
+    args.reviewer.kind === 'user' ? args.reviewer.userId : null;
+  const reviewerAgentId =
+    args.reviewer.kind === 'agent' ? args.reviewer.agentId : null;
+  if (reviewerUserId !== null && reviewerUserId !== task.reviewerUserId) {
+    const eligibility = await reviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectTeamIds: project.teamIds,
+      userId: reviewerUserId,
+    });
+    if (eligibility !== 'eligible') {
+      throw new TaskError(
+        'TASK_REVIEWER_INVALID',
+        'Choose an active member with project edit access',
+      );
+    }
+  }
+  const effectiveAgentId =
+    reviewerAgentId ??
+    (reviewerUserId === null ? project.defaultTaskReviewerAgentId : null);
+  if (effectiveAgentId != null) {
+    if (
+      (await agentReviewerEligibility(tx, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        agentId: effectiveAgentId,
+      })) !== 'eligible'
+    )
+      throw new TaskError(
+        'TASK_REVIEWER_INVALID',
+        'Choose an agent in this project with permission to review tasks',
+      );
+    if (task.assigneeType === 'agent' && task.assigneeId === effectiveAgentId) {
+      throw new TaskError(
+        'TASK_REVIEWER_NOT_INDEPENDENT',
+        'Choose an agent other than the implementation agent',
+        409,
+      );
+    }
+  }
+  const resolvesToAgent = effectiveAgentId != null;
+  if (
+    resolvesToAgent &&
+    args.expected.pendingReview !== null &&
+    (await taskHasLiveRun(tx, task))
+  ) {
+    throw new TaskError(
+      'TASK_REVIEWER_BUSY',
+      'The task still has active work or a protected question',
+      409,
+    );
+  }
+  const next = { ...task, reviewerUserId, reviewerAgentId };
+  await replacePendingTaskReviewer(tx, {
+    task: next,
+    expected: args.expected.pendingReview,
+    actorUserId: auth.userId,
+  });
+  const pendingReview = await getPendingReviewForTask(
+    tx,
+    auth.organizationId,
+    taskId,
+  );
+  const changed =
+    task.reviewerUserId !== reviewerUserId ||
+    (task.reviewerAgentId ?? null) !== reviewerAgentId ||
+    (pendingReview?.approvalId ?? null) !==
+      (args.expected.pendingReview?.approvalId ?? null);
+  if (!changed) return { reviewer: args.reviewer, pendingReview };
+  await tx`
+    UPDATE app.tasks SET reviewer_user_id = ${reviewerUserId},
+      reviewer_agent_id = ${reviewerAgentId}, updated_at_ms = ${Date.now()}
+    WHERE id = ${taskId} AND org_id = ${auth.organizationId}
+  `;
+  await recordActivity(tx, {
+    task,
+    actorType: 'user',
+    actorId: auth.userId,
+    action: 'reviewer.changed',
+    fromValue: JSON.stringify(taskReviewerFromIds(task)),
+    toValue: JSON.stringify(args.reviewer),
+  });
+  await createAuditLog(
+    tx,
+    taskAudit(auth, task, TASK_AUDIT_ACTIONS.updated, {
+      previousState: {
+        reviewer: taskReviewerFromIds(task),
+        approvalId: args.expected.pendingReview?.approvalId ?? null,
+      },
+      newState: {
+        reviewer: args.reviewer,
+        approvalId: pendingReview?.approvalId ?? null,
+      },
+    }),
+  );
+  await notifyReviewerDesignation(tx, {
+    task,
+    reviewerUserId,
+    actorUserId: auth.userId,
+    openReviewer:
+      pendingReview?.reviewer?.kind === 'user'
+        ? pendingReview.reviewer.userId
+        : undefined,
+  });
+  return { reviewer: args.reviewer, pendingReview };
 }
 
 async function hasOpenChildren(
@@ -2287,6 +2513,66 @@ export async function agentUpdateTaskStatusTrusted(
   });
   await mintReview();
   return { ok: true };
+}
+
+/** Lower half of the separately authorized, source-bound native review.
+ * The review domain closes its exact approval in this same transaction.
+ * Generic agent status tools still cannot complete tasks. This uses the
+ * existing settle so rollups, bells and repeating copies cannot drift. */
+export async function applyAgentTaskReviewStatusTrusted(
+  tx: TransactionSql,
+  args: { task: TaskRow; agentId: string; status: 'done' | 'todo' },
+): Promise<void> {
+  const { task, status } = args;
+  const project = await loadProjectOrThrow(tx, task.projectId);
+  assertTaskCreatable(project, {
+    organizationId: task.organizationId,
+    userId: args.agentId,
+    role: 'admin',
+    teamIds: [],
+  });
+  assertTaskNotArchived(task);
+  if (task.status !== 'in_review') {
+    throw new TaskError(
+      'TASK_REVIEW_STALE',
+      'The task is no longer in review',
+      409,
+    );
+  }
+  if (await taskHasLiveRun(tx, task)) {
+    throw new TaskError(
+      'TASK_REVIEW_BUSY',
+      'A live run or question still holds this task',
+      409,
+    );
+  }
+  if (status === 'done') {
+    if (await hasOpenChildren(tx, task.id)) {
+      throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
+    }
+    if ((await openTaskBlockerIds(tx, task.id)).length > 0) {
+      throw new TaskError(
+        'TASK_REVIEW_BLOCKED',
+        'An open dependency still blocks this task',
+        409,
+      );
+    }
+  }
+  const now = Date.now();
+  const rank = await computeEndRank(tx, task.projectId, status);
+  await tx`
+    UPDATE app.tasks SET
+      status = ${status}, rank = ${rank},
+      completed_at_ms = ${status === 'done' ? (task.completedAt ?? now) : null},
+      updated_at_ms = ${now}, status_changed_at_ms = ${now}
+    WHERE id = ${task.id} AND org_id = ${task.organizationId}
+  `;
+  await settleTaskStatusChange(tx, {
+    task,
+    toStatus: status,
+    actorType: 'agent',
+    actorId: args.agentId,
+  });
 }
 
 /**
@@ -3124,7 +3410,23 @@ function boardFilterClause(sql: Sql, filters: TaskListFilters) {
     AND (${status}::text IS NULL OR t.status = ${status})
     AND (${statuses === null} OR t.status = ANY(${statuses ?? []}))
     AND (${assigneeId}::text IS NULL OR t.assignee_id = ${assigneeId})
-    AND (${reviewerId}::text IS NULL OR t.reviewer_user_id = ${reviewerId})
+    AND (${reviewerId}::text IS NULL OR EXISTS (
+      SELECT 1 FROM app.approvals r
+      WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
+        AND r.resource_id = t.id AND r.status = 'pending'
+        AND r.wf_execution_id IS NULL
+        AND CASE WHEN r.metadata ? 'reviewer' THEN
+          CASE WHEN r.metadata -> 'reviewer' ->> 'kind' = 'user'
+            THEN r.metadata -> 'reviewer' ->> 'userId' ELSE NULL END
+          ELSE r.metadata ->> 'requestedFor' END = ${reviewerId}
+    ) OR (
+      t.reviewer_user_id = ${reviewerId} AND NOT EXISTS (
+        SELECT 1 FROM app.approvals r
+        WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
+          AND r.resource_id = t.id AND r.status = 'pending'
+          AND r.wf_execution_id IS NULL
+      )
+    ))
     AND (${externalSystem}::text IS NULL OR t.external_system = ${externalSystem})
     ${patterns.length > 0 ? sql`AND ${taskSearchMatch(sql, patterns)}` : sql``}
   `;
@@ -3203,6 +3505,7 @@ export async function listTasksForAgent(
     projectIds?: string[];
     status?: TaskStatus;
     assigneeId?: string;
+    reviewerAgentId?: string;
     includeArchived?: boolean;
     order?: AgentTaskListOrder;
     after?: AgentTaskListPosition;
@@ -3231,6 +3534,17 @@ export async function listTasksForAgent(
     WHERE org_id = ${args.organizationId}
       AND (${scoped === null} OR project_id = ANY(${scoped ?? []}))
       AND ${boardFilterClause(sql, filters)}
+      AND ${
+        args.reviewerAgentId === undefined
+          ? sql`TRUE`
+          : sql`(
+              SELECT a.metadata -> 'reviewer' FROM app.approvals a
+              WHERE a.resource_id = t.id AND a.org_id = t.org_id
+                AND a.resource_type = 'task_review' AND a.status = 'pending'
+                AND a.wf_execution_id IS NULL
+              ORDER BY a.seq DESC LIMIT 1
+            ) = jsonb_build_object('kind', 'agent', 'agentId', ${args.reviewerAgentId}::text)`
+      }
       AND ${
         after === undefined
           ? sql`TRUE`
@@ -4238,6 +4552,7 @@ export interface TaskOpsIndicators {
     taskId: string;
     approvalId: string;
     requestedFor?: string;
+    reviewer: TaskReviewRecipient | null;
   }[];
 }
 
@@ -4246,11 +4561,13 @@ function projectPendingReviews(
     taskId: string;
     approvalId: string;
     requestedFor: string | null;
+    reviewer: TaskReviewRecipient | null;
   }[],
 ): TaskOpsIndicators['pendingReviews'] {
   return rows.map((row) => ({
     taskId: row.taskId,
     approvalId: row.approvalId,
+    reviewer: row.reviewer,
     ...(row.requestedFor !== null ? { requestedFor: row.requestedFor } : {}),
   }));
 }

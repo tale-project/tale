@@ -12,6 +12,11 @@ import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { updateAgentTaskMetadata } from '../tasks/agent-metadata.ts';
+import {
+  authorizeAgentReviewFile,
+  stageAgentReviewFile,
+} from '../tasks/agent-review-files.ts';
+import { reviewAgentTask } from '../tasks/agent-review.ts';
 import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
 import {
@@ -217,6 +222,60 @@ async function taskRunConfinement(
     ...run,
   });
   return confined ? { taskId: run.taskId } : {};
+}
+
+/** The same session and starter gate for project-wide task mutations.
+ * A caller-named actor/project never crosses this boundary. */
+async function requireProjectTaskRun(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    taskRunExecId?: string;
+  },
+  code: 'TASK_METADATA_FORBIDDEN' | 'TASK_REVIEW_FORBIDDEN',
+): Promise<{ projectId: string; agentId: string; execId: string }> {
+  const binding = await resolveSessionBinding(
+    tx,
+    args.organizationId,
+    args.sessionId,
+  );
+  if (
+    binding.kind !== 'project' ||
+    binding.ownerType !== 'project_agent' ||
+    binding.projectId === undefined ||
+    binding.actorId === undefined ||
+    args.taskRunExecId === undefined
+  ) {
+    throw new TaskError(
+      code,
+      'Only a live project agent run may change task metadata or review work',
+      403,
+    );
+  }
+  const confinement = await taskRunConfinement(tx, {
+    organizationId: args.organizationId,
+    sessionId: args.sessionId,
+    agentId: binding.actorId,
+    projectId: binding.projectId,
+    execId: args.taskRunExecId,
+  });
+  if (
+    confinement === 'ended' ||
+    confinement === 'revoked' ||
+    confinement.taskId !== undefined
+  ) {
+    throw new TaskError(
+      code,
+      'This run no longer has project-wide task authority',
+      403,
+    );
+  }
+  return {
+    projectId: binding.projectId,
+    agentId: binding.actorId,
+    execId: args.taskRunExecId,
+  };
 }
 
 /**
@@ -542,48 +601,75 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
       };
       return coded(() =>
         transactSerializable(sql, async (tx) => {
-          const binding = await resolveSessionBinding(
+          const authority = await requireProjectTaskRun(
             tx,
-            args.organizationId,
-            args.sessionId,
+            args,
+            'TASK_METADATA_FORBIDDEN',
           );
-          if (
-            binding.kind !== 'project' ||
-            binding.ownerType !== 'project_agent' ||
-            binding.projectId === undefined ||
-            binding.actorId === undefined ||
-            args.taskRunExecId === undefined
-          ) {
-            throw new TaskError(
-              'TASK_METADATA_FORBIDDEN',
-              'Only a live project agent run may triage task metadata',
-              403,
-            );
-          }
-          const confinement = await taskRunConfinement(tx, {
-            organizationId: args.organizationId,
-            sessionId: args.sessionId,
-            agentId: binding.actorId,
-            projectId: binding.projectId,
-            execId: args.taskRunExecId,
-          });
-          if (
-            confinement === 'ended' ||
-            confinement === 'revoked' ||
-            confinement.taskId !== undefined
-          ) {
-            throw new TaskError(
-              'TASK_METADATA_FORBIDDEN',
-              'This run no longer has project-wide authority to triage task metadata',
-              403,
-            );
-          }
           return updateAgentTaskMetadata(tx, {
             organizationId: args.organizationId,
-            projectId: binding.projectId,
-            actorId: binding.actorId,
+            projectId: authority.projectId,
+            actorId: authority.agentId,
             patch: args.patch,
           });
+        }),
+      );
+    },
+
+    'tasks/internal_actions:stageAgentReviewFile': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the complete operation is validated by the domain
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        request: unknown;
+      };
+      return coded(() =>
+        stageAgentReviewFile(args.sessionId, args.request, (request) =>
+          transactSerializable(sql, async (tx) => {
+            const authority = await requireProjectTaskRun(
+              tx,
+              args,
+              'TASK_REVIEW_FORBIDDEN',
+            );
+            return authorizeAgentReviewFile(
+              tx,
+              {
+                organizationId: args.organizationId,
+                sessionId: args.sessionId,
+                ...authority,
+              },
+              request,
+            );
+          }),
+        ),
+      );
+    },
+
+    'tasks/internal_mutations:agentReviewTask': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the domain validates the complete review input
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        review: unknown;
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_REVIEW_FORBIDDEN',
+          );
+          return reviewAgentTask(
+            tx,
+            {
+              organizationId: args.organizationId,
+              sessionId: args.sessionId,
+              ...authority,
+            },
+            args.review,
+          );
         }),
       );
     },

@@ -1,5 +1,6 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
+import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -77,6 +78,8 @@ import {
   deleteTaskLabel,
   ensureDefaultProjectLabels,
   getTask,
+  getTaskReviewer,
+  setTaskReviewer,
   getTaskOpsIndicators,
   getTaskOpsIndicatorsForAccessibleProjects,
   listSubtasks,
@@ -1074,6 +1077,34 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       return c.json(
         await listTaskDependencies(deps.sql, auth, c.req.param('taskId')),
       );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:taskId/reviewer', async (c) => {
+    try {
+      return c.json(
+        await getTaskReviewer(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('taskId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/reviewer', async (c) => {
+    const body = setTaskReviewerInputSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        setTaskReviewer(tx, auth, c.req.param('taskId'), body.data),
+      );
+      return c.json(result);
     } catch (error) {
       return handleError(c, error);
     }

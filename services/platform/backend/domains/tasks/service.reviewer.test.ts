@@ -7,7 +7,11 @@ import {
   notifyTaskReviewerAssigned,
 } from '../collab/service.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
-import { retargetPendingTaskReview, reviewerEligibility } from './reviews.ts';
+import {
+  getPendingReviewForTask,
+  retargetPendingTaskReview,
+  reviewerEligibility,
+} from './reviews.ts';
 import { type TaskRow, updateTask } from './service.ts';
 
 vi.mock('../collab/service.ts', () => ({
@@ -22,6 +26,7 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('./reviews.ts', () => ({
+  getPendingReviewForTask: vi.fn(() => Promise.resolve(null)),
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
   requestTaskReview: vi.fn(),
@@ -66,6 +71,7 @@ const project: ProjectRow = {
   openTaskCount: 1,
   doneTaskCount: 0,
   projectAgentCount: 0,
+  defaultTaskReviewerAgentId: null,
   teamId: null,
   sharedWithTeamIds: [],
   teamIds: [],
@@ -93,6 +99,7 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
     assigneeType: null,
     assigneeId: null,
     reviewerUserId: 'u-alice',
+    reviewerAgentId: null,
     parentTaskId: null,
     commentCount: 0,
     rank: 'a0',
@@ -150,6 +157,7 @@ beforeEach(() => {
   statements = [];
   vi.mocked(loadProjectOrThrow).mockReset().mockResolvedValue(project);
   vi.mocked(retargetPendingTaskReview).mockReset().mockResolvedValue(undefined);
+  vi.mocked(getPendingReviewForTask).mockReset().mockResolvedValue(null);
   vi.mocked(reviewerEligibility).mockReset().mockResolvedValue('eligible');
   vi.mocked(autoSubscribe).mockReset();
   vi.mocked(dismissReviewerAssignedNotifications).mockReset();
@@ -157,6 +165,32 @@ beforeEach(() => {
 });
 
 describe('updateTask — the open review follows the reviewer', () => {
+  it.each([null, 'u-bob'])(
+    'refuses a member changing the reviewer on their own task to %s',
+    async (reviewerUserId) => {
+      const tx = fakeTx(taskRow({ createdBy: auth.userId }));
+      await expect(
+        updateTask(
+          tx,
+          { ...auth, role: 'member' },
+          { taskId: 't-1', reviewerUserId },
+        ),
+      ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN', status: 403 });
+      expect(retargetPendingTaskReview).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps ordinary member edits with an unchanged reviewer working', async () => {
+    const tx = fakeTx(taskRow({ createdBy: auth.userId }));
+    await expect(
+      updateTask(
+        tx,
+        { ...auth, role: 'member' },
+        { taskId: 't-1', reviewerUserId: 'u-alice', title: 'Member edit' },
+      ),
+    ).resolves.toBeUndefined();
+    expect(retargetPendingTaskReview).not.toHaveBeenCalled();
+  });
   it('hands the open review to the new designee in the same transaction, without the heads-up', async () => {
     vi.mocked(retargetPendingTaskReview).mockResolvedValue('u-bob');
     const tx = fakeTx(taskRow());
@@ -323,5 +357,50 @@ describe('updateTask — the previous designee is let off the hook', () => {
     });
 
     expect(dismissReviewerAssignedNotifications).not.toHaveBeenCalled();
+  });
+});
+
+describe('legacy reviewer edits preserve delegated ownership', () => {
+  it('requires an explicit handoff to replace a configured agent', async () => {
+    const tx = fakeTx(
+      taskRow({ reviewerUserId: null, reviewerAgentId: 'agent-reviewer' }),
+    );
+    await expect(
+      updateTask(tx, auth, { taskId: 't-1', reviewerUserId: 'u-bob' }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_HANDOFF_REQUIRED' });
+    expect(statements.some((text) => text.startsWith('UPDATE'))).toBe(false);
+  });
+
+  it('requires an explicit handoff when the captured owner is an agent', async () => {
+    vi.mocked(getPendingReviewForTask).mockResolvedValue({
+      approvalId: 'a',
+      taskId: 't-1',
+      runId: 'r',
+      round: 0,
+      requestedFor: null,
+      reviewer: { kind: 'agent', agentId: 'agent-reviewer' },
+      agentSlug: null,
+      implementationAgentId: null,
+      evidenceRevision: null,
+      agentReviewBlockedReason: 'source_required',
+      createdAt: 1,
+    });
+    const tx = fakeTx(taskRow());
+    await expect(
+      updateTask(tx, auth, { taskId: 't-1', reviewerUserId: 'u-bob' }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_HANDOFF_REQUIRED' });
+    expect(statements.some((text) => text.startsWith('UPDATE'))).toBe(false);
+  });
+
+  it('does not let an old Clear silently delegate to the project agent default', async () => {
+    vi.mocked(loadProjectOrThrow).mockResolvedValue({
+      ...project,
+      defaultTaskReviewerAgentId: 'agent-reviewer',
+    });
+    const tx = fakeTx(taskRow());
+    await expect(
+      updateTask(tx, auth, { taskId: 't-1', reviewerUserId: null }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_HANDOFF_REQUIRED' });
+    expect(statements.some((text) => text.startsWith('UPDATE'))).toBe(false);
   });
 });

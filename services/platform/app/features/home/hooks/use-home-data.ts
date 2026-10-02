@@ -204,6 +204,9 @@ export function useHomeData(
 
   const taskItems = useMemo((): HomeTaskItem[] => {
     const seen = new Set<string>();
+    // The server's reviewer filter honors the captured review recipient.
+    // A changed task default must not put an agent's review in a person's Home.
+    const reviewTaskIds = new Set(reviewsQuery.tasks.map((task) => task._id));
     return [...tasksQuery.tasks, ...reviewsQuery.tasks]
       .filter((task) => {
         if (task.archivedAt !== undefined || seen.has(task._id)) return false;
@@ -214,7 +217,7 @@ export function useHomeData(
         const key = task.projectKey ?? projectKeys.get(task.projectId);
         const identifier = formatTaskIdentifier(key, task.number);
         const awaitingMyReview =
-          task.status === 'in_review' && task.reviewerUserId === myUserId;
+          task.status === 'in_review' && reviewTaskIds.has(task._id);
         const item: HomeTaskItem = {
           kind: 'task',
           id: task._id,
@@ -229,7 +232,7 @@ export function useHomeData(
         };
         return item;
       });
-  }, [tasksQuery.tasks, reviewsQuery.tasks, projectKeys, myUserId]);
+  }, [tasksQuery.tasks, reviewsQuery.tasks, projectKeys]);
 
   const conversationItems = useMemo((): HomeConversationItem[] => {
     if (!hasInbox) return [];

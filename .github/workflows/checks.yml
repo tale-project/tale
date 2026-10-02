@@ -375,6 +375,8 @@ jobs:
               - 'services/platform/package.json'
               - 'services/platform/Dockerfile'
               - 'services/db/**'
+              - 'services/sandbox-runtime/daemon/src/file-ops.ts'
+              - 'services/sandbox-runtime/daemon/src/protocol.ts'
               - 'packages/shared/**'
               - 'packages/ui/package.json'
               - 'packages/ui/src/i18n/**'

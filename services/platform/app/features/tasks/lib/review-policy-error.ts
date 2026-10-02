@@ -12,6 +12,8 @@ export function reviewPolicyErrorMessage(
   t: (key: string) => string,
 ): string | undefined {
   switch (backendErrorCode(error)) {
+    case 'TASK_AGENT_REVIEW_REQUIRED':
+      return t('reviewer.agentRequired');
     case 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED':
       return t('review.independentReviewerRequired');
     case 'REVIEW_COMPETENCE_REQUIRED':

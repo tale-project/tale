@@ -71,8 +71,11 @@ const review = {
   taskId: 't-1',
   round: 2,
   requestedFor: null,
+  reviewer: null,
   agentSlug: null,
   runId: 'run-0',
+  implementationAgentId: null,
+  evidenceRevision: null,
   createdAt: 5,
 };
 const member = {
@@ -227,6 +230,22 @@ describe('GET /projects/{id}/tasks/{taskId}/review', () => {
       task: { id: 't-1', status: 'done' },
       review: null,
     });
+  });
+
+  it('preserves typed agent ownership and exact source evidence on the read door', async () => {
+    const agentReview = {
+      ...review,
+      reviewer: { kind: 'agent', agentId: 'reviewer-b' },
+      implementationAgentId: 'implementation-a',
+      evidenceRevision: 'a'.repeat(64),
+    };
+    service.getPendingReviewForTask.mockResolvedValue(agentReview);
+    const { request } = mount();
+    expect(await (await request()).json()).toEqual({
+      task: { id: 't-1', status: 'in_review' },
+      review: agentReview,
+    });
+    expect(service.updateTaskStatus).not.toHaveBeenCalled();
   });
 });
 
@@ -433,6 +452,33 @@ describe('POST /projects/{id}/tasks/{taskId}/review', () => {
       code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
     });
     expect(service.createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('returns a registered 409 for agent-owned approval even with strict error-code validation', async () => {
+    const { TaskReviewError } = await vi.importActual<
+      typeof import('../domains/tasks/reviews.ts')
+    >('../domains/tasks/reviews.ts');
+    service.updateTaskStatus.mockRejectedValue(
+      new TaskReviewError(
+        'TASK_AGENT_REVIEW_REQUIRED',
+        'This review belongs to an agent; explicitly transfer it before a human approval',
+        409,
+      ),
+    );
+    vi.stubEnv('TALE_STRICT_ERROR_CODES', '1');
+    try {
+      const { request } = mount();
+      const response = await request('POST', { decision: 'approve', actor });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: 'TASK_AGENT_REVIEW_REQUIRED',
+      });
+      expect(service.createAuditLog).not.toHaveBeenCalled();
+      expect(service.addTaskComment).not.toHaveBeenCalled();
+      expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('refuses an undeployed workflow on request_changes before charging or deciding', async () => {

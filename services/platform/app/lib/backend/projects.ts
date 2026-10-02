@@ -7,6 +7,7 @@
  * against the shapes they always consumed.
  */
 
+import { setProjectTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
@@ -56,6 +57,7 @@ interface ProjectWire {
   /** The audience — every team the project is scoped to; [] = org-wide. */
   teamIds: string[];
   instructions: string | null;
+  defaultTaskReviewerAgentId?: string | null;
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -87,6 +89,9 @@ function projectView(row: ProjectWire): ProjectListItem {
     sharedWithTeamIds: row.sharedWithTeamIds,
     teamIds: row.teamIds,
     ...(row.instructions !== null ? { instructions: row.instructions } : {}),
+    ...(typeof row.defaultTaskReviewerAgentId === 'string'
+      ? { defaultTaskReviewerAgentId: row.defaultTaskReviewerAgentId }
+      : {}),
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -578,6 +583,33 @@ const projectWriteInvalidate = (
 };
 
 export const projectWriteAdapters: Record<string, WriteAdapter> = {
+  'projects/mutations:setProjectTaskReviewer': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const projectId = requireString(args, 'projectId');
+      await backendFetch(
+        `/projects/${encodeURIComponent(projectId)}/task-reviewer`,
+        {
+          method: 'POST',
+          body: setProjectTaskReviewerInputSchema.parse({
+            reviewer: args.reviewer,
+            expected: args.expected,
+          }),
+          orgId,
+        },
+      );
+      return null;
+    },
+    invalidate: (client, args, ctx) => {
+      projectWriteInvalidate(client, args, ctx);
+      const orgId = orgOf(args, ctx);
+      if (orgId !== undefined) {
+        void client.invalidateQueries({
+          queryKey: backendEntityPrefix(orgId, 'task'),
+        });
+      }
+    },
+  },
   'projects/mutations:createProject': {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);

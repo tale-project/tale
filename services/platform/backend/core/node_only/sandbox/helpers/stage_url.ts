@@ -19,6 +19,8 @@ import { buildSandboxBlobStageUrl } from '../../../lib/storage/sandbox_stage_tok
 export async function stageUrlForBlobRef(
   ref: string,
   organizationId: string,
+  maxBytes?: number,
+  expectedBytes?: number,
 ): Promise<string | null> {
   if (!isS3Ref(ref)) {
     console.warn(
@@ -26,5 +28,5 @@ export async function stageUrlForBlobRef(
     );
     return null;
   }
-  return buildSandboxBlobStageUrl(ref, organizationId);
+  return buildSandboxBlobStageUrl(ref, organizationId, maxBytes, expectedBytes);
 }
