@@ -177,8 +177,27 @@ const RUNS_SEARCH_CEILING = RUNS_PAGE_SIZE * RUNS_MAX_PAGES;
 // The unfiltered run list has no search ceiling. 3,000 runs were about six
 // days of this repository's runs in 2026-10.
 const WALK_MAX_PAGES = 30;
-// Commit dates come from the committer's clock, not GitHub's.
-const WALK_SLACK_MS = 60 * 60 * 1000;
+/** GitHub creates one run of each of these for every push to main: their push
+ * triggers carry no path filter (release-candidate-workflows.test.ts holds
+ * them to the workflow files). */
+export const ARRIVAL_WORKFLOWS = [
+  '.github/workflows/checks.yml',
+  '.github/workflows/commitlint.yml',
+  '.github/workflows/sast.yml',
+] as const;
+/** The same push may also run these, as their path filters decide. */
+export const FILTERED_PUSH_WORKFLOWS = [
+  CANDIDATE_WORKFLOW_PATH,
+  '.github/workflows/security.yml',
+  '.github/workflows/cli.yml',
+] as const;
+const PUSH_WORKFLOWS = new Set<string>([
+  ...ARRIVAL_WORKFLOWS,
+  ...FILTERED_PUSH_WORKFLOWS,
+]);
+// GitHub may create a push's runs late; the walk reads this much server time
+// past the earliest one it finds, so a run created earlier still joins it.
+const ARRIVAL_MARGIN_MS = 60 * 60 * 1000;
 
 const SHA = /^[a-f0-9]{40}$/;
 const VERSION = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -254,9 +273,6 @@ const receiptSchema = z.object({
     }),
   ),
 });
-const commitSchema = z.object({
-  committer: z.object({ date: z.iso.datetime({ offset: true }) }),
-});
 const compareSchema = z.object({ status: z.string() });
 const refSchema = z.object({
   object: z.object({ sha: z.string(), type: z.string() }),
@@ -286,6 +302,11 @@ export type GateReport = {
   tag: string | null;
   tagName: string | null;
   latestRelease: { tag: string; sha: string | null } | null;
+  /** The first run GitHub created for the push of C to main. Evidence
+   * created before it never counts. */
+  arrival: { url: string; createdAt: string } | null;
+  /** Candidate runs for C created before that arrival, which never count. */
+  excluded: RunSummary[];
   /** Every candidate run for this SHA, newest attempt first; it decides. */
   validation: RunSummary[];
   receipt: { artifact: string; id: number } | null;
@@ -373,14 +394,15 @@ async function readRuns(
 }
 
 /** The repository's run list without any search filter, newest first, until
- * a page ends before `since`. Its total is not exact, and runs created while
- * it is read push earlier ones down a page: those repeats are skipped. A new
- * run out of id order, a short page before the list ends or a walk past its
- * page bound refuses it. */
+ * `done` holds after a full page or the list ends. Its total is not exact,
+ * and runs created while it is read push earlier ones down a page: those
+ * repeats are skipped. A new run out of id order, a short page before the
+ * list ends or a walk past its page bound refuses it. */
 async function walkRuns(
   api: GitHubApi,
   repo: string,
-  since: number,
+  done: (runs: Run[]) => boolean,
+  goal: string,
   blocked: string[],
 ): Promise<Run[] | null> {
   const path = `${repo}/actions/runs?per_page=${RUNS_PAGE_SIZE}`;
@@ -417,11 +439,45 @@ async function walkRuns(
       }
       return runs;
     }
-    if (Date.parse(listed.at(-1)!.created_at) < since) return runs;
+    if (done(runs)) return runs;
   }
   return refuse(
-    `it did not reach ${new Date(since).toISOString()} within ${(WALK_MAX_PAGES * RUNS_PAGE_SIZE).toLocaleString('en-US')} runs`,
+    `it did not get past ${goal} within ${(WALK_MAX_PAGES * RUNS_PAGE_SIZE).toLocaleString('en-US')} runs`,
   );
+}
+
+/** Where C reached main, as GitHub recorded it: the runs the unfiltered list
+ * holds for a push of exactly C to main by the trusted push workflows. The
+ * boundary is the lowest run id among them, GitHub's own creation order; no
+ * Git date and no filtered answer feeds it. It is a boundary only when the
+ * cohort is whole, with one run of every arrival workflow, and never two runs
+ * of one workflow: that would mean C reached main by more than one push, or a
+ * run was created twice, and leave the boundary ambiguous. Null while the
+ * runs read so far hold no whole cohort. */
+function arrivalOf(
+  runs: Run[],
+  sha: string,
+): { boundary: Run } | { ambiguous: string } | null {
+  const cohort = runs.filter(
+    (run) =>
+      run.event === 'push' &&
+      run.head_branch === 'main' &&
+      run.head_sha === sha &&
+      PUSH_WORKFLOWS.has(run.path),
+  );
+  const repeated = cohort.find(
+    (run, index) =>
+      cohort.findIndex((other) => other.path === run.path) !== index,
+  );
+  if (repeated)
+    return {
+      ambiguous: `${repeated.path} ran more than once for a push of ${sha} to main (${repeated.html_url}), so where ${sha} reached main is ambiguous`,
+    };
+  if (
+    !ARRIVAL_WORKFLOWS.every((path) => cohort.some((run) => run.path === path))
+  )
+    return null;
+  return { boundary: cohort.reduce((a, b) => (b.id < a.id ? b : a)) };
 }
 
 type Listing = {
@@ -451,53 +507,76 @@ function sameAttempt(a: Run, b: Run) {
 
 /** GitHub's filtered run listings have answered self-consistent subsets,
  * every total matching its pages, that left out the newest runs or all of
- * them (#4055). A complete filtered answer is therefore never proof alone:
- * each one is held to the unfiltered run list, walked back past the
- * candidate commit's own date (no run for it is older) or the oldest run a
- * listing returned. A run one read has and the other lacks, or describes
- * differently, sets that listing aside as incomplete. A run that either
- * read saw still going is judged as still going. */
+ * them (#4055). A complete filtered answer is therefore never proof alone.
+ * The gate walks the unfiltered run list down to where C reached main
+ * ({@link arrivalOf}), then an hour of server time past it and past every run
+ * a listing returned. Evidence created before that boundary never counts: a
+ * candidate run dispatched before C reached main, and every rerun of it, is
+ * reported as excluded. From the boundary up, each listing must match the
+ * walk: a run one read has and the other lacks, or describes as a different
+ * attempt or outcome, sets that listing aside as incomplete. A run that
+ * either read saw still going is judged as still going. */
 async function crossCheck(
   api: GitHubApi,
   repo: string,
   sha: string,
   listings: Listing[],
   blocked: string[],
-) {
+): Promise<{ arrival: Run | null; excluded: Run[] }> {
   const complete = listings.filter((listing) => listing.runs !== null);
-  if (complete.length === 0) return;
-  const commit = commitSchema.safeParse(
-    await api(`${repo}/git/commits/${sha}`),
+  const unverified = (reason?: string) => {
+    if (reason) blocked.push(reason);
+    for (const listing of complete) listing.runs = null;
+    return { arrival: null, excluded: [] };
+  };
+  if (complete.length === 0) return unverified();
+  const oldestListed = Math.min(
+    ...complete.flatMap((listing) =>
+      listing.runs!.filter(listing.lists).map((run) => run.id),
+    ),
   );
-  const since = commit.success
-    ? Math.min(
-        Date.parse(commit.data.committer.date),
-        ...complete.flatMap((listing) =>
-          listing
-            .runs!.filter(listing.lists)
-            .map((run) => Date.parse(run.created_at)),
-        ),
-      ) - WALK_SLACK_MS
-    : null;
-  if (since === null) {
-    blocked.push(
-      `cannot read the date of ${sha}, which bounds the unfiltered run list the listings are checked against`,
+  const walked = await walkRuns(
+    api,
+    repo,
+    (runs) => {
+      const arrival = arrivalOf(runs, sha);
+      if (arrival === null) return false;
+      if ('ambiguous' in arrival) return true;
+      const last = runs.at(-1)!;
+      return (
+        last.id < oldestListed &&
+        Date.parse(last.created_at) <
+          Date.parse(arrival.boundary.created_at) - ARRIVAL_MARGIN_MS
+      );
+    },
+    `where ${sha} reached main and every run a listing returned`,
+    blocked,
+  );
+  if (walked === null) return unverified();
+  const arrival = arrivalOf(walked, sha);
+  if (arrival === null)
+    return unverified(
+      `the unfiltered run list holds no push of ${sha} to main with one run each of ${ARRIVAL_WORKFLOWS.map(stemOf).join(', ')}, so nothing shows where it reached main`,
     );
-  }
-  const walked =
-    since === null ? null : await walkRuns(api, repo, since, blocked);
-  const walkedById = new Map(walked?.map((run) => [run.id, run]));
+  if ('ambiguous' in arrival) return unverified(arrival.ambiguous);
+  const { boundary } = arrival;
+  const counts = (run: Run) => run.id >= boundary.id;
+  const walkedById = new Map(walked.map((run) => [run.id, run]));
+  const excluded = new Map<number, Run>();
   for (const listing of complete) {
-    if (walked === null) {
-      listing.runs = null;
-      continue;
-    }
+    for (const run of [...listing.runs!, ...walked])
+      if (listing.workflow && listing.lists(run) && !counts(run))
+        excluded.set(run.id, walkedById.get(run.id) ?? run);
     const listed = new Map(
-      listing.runs!.filter(listing.lists).map((run) => [run.id, run]),
+      listing
+        .runs!.filter((run) => listing.lists(run) && counts(run))
+        .map((run) => [run.id, run]),
     );
     const disagreements = [
       ...walked
-        .filter((run) => listing.lists(run) && !listed.has(run.id))
+        .filter(
+          (run) => listing.lists(run) && counts(run) && !listed.has(run.id),
+        )
         .map((run) => `${listing.path} omits ${run.html_url}`),
       ...[...listed.values()].flatMap((run) => {
         const other = walkedById.get(run.id);
@@ -518,11 +597,12 @@ async function crossCheck(
       listing.runs = null;
       continue;
     }
-    listing.runs = listing.runs!.map((run) => {
+    listing.runs = listing.runs!.filter(counts).map((run) => {
       const other = listed.has(run.id) ? walkedById.get(run.id) : undefined;
       return other && other.status !== 'completed' ? other : run;
     });
   }
+  return { arrival: boundary, excluded: [...excluded.values()] };
 }
 
 /** Every run the gate may judge: each workflow's candidate-event listings,
@@ -560,8 +640,16 @@ async function runEvidence(
     runs: await readRuns(api, commitPath, blocked),
   };
   listings.push(onCommit);
-  await crossCheck(api, repo, sha, listings, blocked);
+  const { arrival, excluded } = await crossCheck(
+    api,
+    repo,
+    sha,
+    listings,
+    blocked,
+  );
   return {
+    arrival,
+    excluded: excluded.sort(newestFirst),
     candidates(workflow: string) {
       const own = listings.filter((listing) => listing.workflow === workflow);
       return {
@@ -856,6 +944,8 @@ export async function gate({
     tag: null,
     tagName: null,
     latestRelease: null,
+    arrival: null,
+    excluded: [],
     validation: [],
     receipt: null,
     checks: [],
@@ -932,6 +1022,11 @@ export async function gate({
   // GitHub head_sha is H, so exact-C push listings cannot discover them.
   const evidence = await runEvidence(api, repo, sha, reasons.blocked);
   const candidates = evidence.candidates(CANDIDATE_WORKFLOW_PATH);
+  report.arrival = evidence.arrival && {
+    url: evidence.arrival.html_url,
+    createdAt: evidence.arrival.created_at,
+  };
+  report.excluded = evidence.excluded.map(summary);
   report.validation = candidates.runs.map(summary);
   const validation = candidates.runs[0];
   if (!validation) {

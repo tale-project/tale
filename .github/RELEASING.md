@@ -114,8 +114,8 @@ To be `eligible`, the candidate must pass all of these:
 - **Its place on `main`.** The candidate is on `main`, contains and advances beyond the latest
   release's source, and the version is newer than that release. An existing version allocation
   still returns `allocated` for recovery; this rule does not ask you to replace its tag.
-- **Its newest validation.** The newest `Release candidate <sha>` attempt was dispatched from `main`,
-  used the trusted Build workflow and succeeded, with every required job successful and a complete,
+- **Its newest validation.** The newest `Release candidate <sha>` attempt was dispatched from `main`
+  after the candidate reached it, used the trusted Build workflow and succeeded, with every required job successful and a complete,
   unexpired current-attempt receipt. Earlier distinct candidate runs stay in the report; each entry describes
   that run's current attempt. Each run records its attempt number, creation and current attempt
   start times, dispatch branch and workflow source SHA in the report.
@@ -145,13 +145,28 @@ change to its query strategy.
 
 A complete list is still not proof on its own. On 2026-10-01 GitHub answered filtered lists whose
 totals matched their pages, yet the newest runs were missing, or every run was (#4055). So the gate
-also walks the repository's unfiltered run list, newest first, back past the candidate commit's
-date (or past the oldest run a list returned, if that is earlier), and holds every list to it. A
-run that one read lists and the other lacks, or that the two reads describe as different attempts
-or outcomes, answers `blocked` with the run named, and the gate judges nothing from that list.
-So does a walk that is out of order, ends early or does not get back that far within 3,000 runs
-(about six days of this repository's runs in 2026-10). Read again; do not tag from any of these
-results. A run still going in either read is judged as still going.
+also walks the repository's unfiltered run list, newest first, to where the candidate reached
+`main`, and holds every list to it.
+
+- **Where the candidate reached `main`** comes from GitHub's own runs, never from a Git date: the
+  runs GitHub created for a push of exactly C to `main` by Checks, Commitlint and SAST, which run
+  for every push to `main`, and by Build, Security and CLI when their path filters admit it. The
+  boundary is the first of those runs in GitHub's creation order (run id). The walk reads an hour
+  of GitHub time past it, and past every run a list returned, so runs GitHub created late for the
+  same push still join it.
+- **Evidence created before that boundary never counts:** a candidate run dispatched before C
+  reached `main`, and every rerun of it, whatever its result or when it was queued. The report
+  lists such runs under `excluded`. From the boundary up, the newest attempt still decides as
+  above. If every validation predates the boundary, dispatch the same SHA again for a fresh full
+  round.
+- **The gate answers `blocked`** when the walk finds no push of C with one run each of Checks,
+  Commitlint and SAST; when one of the push workflows ran twice for a push of C to `main` (C
+  reached `main` twice, or a run was created twice, so the boundary is ambiguous); when, from the
+  boundary up, a list lacks a run the walk found, or the reverse, or the two reads describe a run
+  as different attempts or outcomes; and when the walk is out of order, ends early or does not get
+  past the boundary within 3,000 runs (about six days of this repository's runs in 2026-10). Read
+  again; do not tag from any of these results. A run still going in either read is judged as
+  still going.
 
 Job and artifact metadata must be complete, with unique ids and totals matching the returned
 records (at most 100 per list). Each receipt archive is limited to 1 MiB compressed and one

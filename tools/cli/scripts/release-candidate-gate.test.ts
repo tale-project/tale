@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   gate,
+  ARRIVAL_WORKFLOWS,
   CANDIDATE_JOBS,
   IMAGE_SERVICES,
   candidateArtifactName,
@@ -83,8 +84,6 @@ type Scenario = {
   commitRuns: Run[];
   /** Runs of other branches and commits, which no filtered listing returns. */
   otherRuns?: Run[];
-  /** The candidate commit's committer date; null answers 404. */
-  commitDate?: string | null;
   /** GitHub's filtered listings leave these runs out, with totals that still
    * match their pages (#4055); direct reads still return them. */
   listingOmits?: number[];
@@ -96,6 +95,17 @@ type Scenario = {
 
 /** Everything the gate reads, for a candidate every check passed on. */
 function passing(): Scenario {
+  // GitHub ran these for the push of C to main before anyone validated it.
+  const commitRuns = [
+    ...REQUIRED_WORKFLOWS.map((path) =>
+      run(path, 'success', {
+        event: path.endsWith('e2e.yml') ? 'workflow_dispatch' : 'push',
+      }),
+    ),
+    // The push Build run main merges starved (#3951): not a candidate check.
+    run('.github/workflows/build.yml', 'cancelled'),
+    run('.github/workflows/scorecard.yml', 'failure'),
+  ];
   const validation = candidateRun('success');
   return {
     tags: { 'v0.5.63': { sha: PREVIOUS } },
@@ -124,18 +134,17 @@ function passing(): Scenario {
         },
       ],
     },
-    commitRuns: [
-      ...REQUIRED_WORKFLOWS.map((path) =>
-        run(path, 'success', {
-          event: path.endsWith('e2e.yml') ? 'workflow_dispatch' : 'push',
-        }),
-      ),
-      // The push Build run main merges starved (#3951): not a candidate check.
-      run('.github/workflows/build.yml', 'cancelled'),
-      run('.github/workflows/scorecard.yml', 'failure'),
-    ],
+    commitRuns,
   };
 }
+
+/** The source lane's workflow: sast.yml also runs nightly, so normal runs of
+ * it other than the one push run can exist for C. */
+const SOURCE_LANE_WORKFLOW = '.github/workflows/sast.yml';
+const pushRunOf = (scenario: Scenario, path: string) =>
+  scenario.commitRuns.find(
+    (entry) => entry.path === path && entry.event === 'push',
+  )!;
 
 /** The older run is attempted again after a newer run has completed. */
 function rerunScenario(
@@ -145,10 +154,12 @@ function rerunScenario(
 ) {
   const scenario = passing();
   const path =
+    lane === 'candidate' ? '.github/workflows/build.yml' : SOURCE_LANE_WORKFLOW;
+  const make =
     lane === 'candidate'
-      ? '.github/workflows/build.yml'
-      : '.github/workflows/checks.yml';
-  const make = lane === 'candidate' ? candidateRun : run.bind(null, path);
+      ? candidateRun
+      : (result: string | null, extra: Partial<Run>) =>
+          run(path, result, { event: 'schedule', ...extra });
   const retried = make(conclusion, {
     created_at: '2026-09-29T19:00:00Z',
     run_started_at: '2026-09-29T21:00:00Z',
@@ -172,11 +183,7 @@ function rerunScenario(
       ];
     }
   } else {
-    scenario.commitRuns = [
-      ...scenario.commitRuns.filter((entry) => entry.path !== path),
-      newer,
-      retried,
-    ];
+    scenario.commitRuns = [...scenario.commitRuns, newer, retried];
   }
   return { scenario, retried };
 }
@@ -281,15 +288,6 @@ function fakeApi(scenario: Scenario) {
     if ((match = rest.match(/^compare\/(.+)\?per_page=1$/))) {
       const status = scenario.compare[match[1]!];
       return status ? { status } : null;
-    }
-    if (rest === `git/commits/${CANDIDATE}`) {
-      const date =
-        scenario.commitDate === undefined
-          ? '2026-09-29T00:00:00Z'
-          : scenario.commitDate;
-      return date === null
-        ? null
-        : { sha: CANDIDATE, committer: { name: 'GitHub', date } };
     }
     if ((match = rest.match(/^actions\/runs\?per_page=100&page=(\d+)$/))) {
       const rows = allRuns(scenario);
@@ -416,8 +414,11 @@ async function judge(scenario: Scenario, version = 'v0.5.64') {
 
 function dispatchedSources() {
   const scenario = passing();
+  // Only the push runs GitHub creates for every push to main stay: the
+  // candidate receipts below are newer than them.
   scenario.commitRuns = scenario.commitRuns.filter(
     (entry) =>
+      (ARRIVAL_WORKFLOWS as readonly string[]).includes(entry.path) ||
       !REQUIRED_WORKFLOWS.includes(
         entry.path as (typeof REQUIRED_WORKFLOWS)[number],
       ),
@@ -518,10 +519,19 @@ describe('complete candidate event and receipt provenance', () => {
     '%s: candidate success recovers an older cancelled source run, but a later failed source rerun still blocks',
     async (stem) => {
       const scenario = dispatchedSources();
-      const normal = run(`.github/workflows/${stem}.yml`, 'cancelled', {
+      const path = `.github/workflows/${stem}.yml`;
+      // The push of C ran each workflow once; a second run would be a
+      // second push.
+      const normal =
+        scenario.commitRuns.find(
+          (entry) => entry.path === path && entry.event === 'push',
+        ) ?? run(path, 'cancelled');
+      if (!scenario.commitRuns.includes(normal))
+        scenario.commitRuns.push(normal);
+      Object.assign(normal, {
+        conclusion: 'cancelled',
         created_at: '2026-09-29T20:00:00Z',
       });
-      scenario.commitRuns.push(normal);
       expect((await judge(scenario)).report.state).toBe('eligible');
       normal.run_attempt = 2;
       normal.run_started_at = '2026-09-29T22:00:00Z';
@@ -855,12 +865,12 @@ describe('a run listing GitHub answered incompletely', () => {
 
   test('a head_sha listing that leaves out a failed rerun of a push run cannot approve the older candidate success', async () => {
     const scenario = dispatchedSources();
-    const normal = run('.github/workflows/checks.yml', 'failure', {
-      created_at: '2026-09-29T20:00:00Z',
+    const normal = pushRunOf(scenario, '.github/workflows/checks.yml');
+    Object.assign(normal, {
+      conclusion: 'failure',
       run_started_at: '2026-09-29T22:00:00Z',
       run_attempt: 2,
     });
-    scenario.commitRuns.push(normal);
     scenario.listingOmits = [normal.id];
     const { report } = await judge(scenario);
     expect(report.state).toBe('blocked');
@@ -882,6 +892,199 @@ describe('a run listing GitHub answered incompletely', () => {
   });
 });
 
+/** Root's review of #4074 (issuecomment-5949439275): a Git date bounds
+ * nothing. Evidence counts from where GitHub recorded C reaching main. */
+describe('where C reached main', () => {
+  const elsewhereAt = (created_at: string, firstId: number) =>
+    Array.from({ length: 100 }, (_unused, index) =>
+      run('.github/workflows/checks.yml', 'success', {
+        id: firstId + index,
+        event: 'pull_request',
+        head_branch: 'fix/elsewhere',
+        head_sha: ELSEWHERE,
+        created_at,
+      }),
+    );
+  /** C's push runs at `arrival` (ids from 1 or after the early run), an
+   * early Build run at 16:00 rerun at 22:00, 100 foreign runs at 17:00 and
+   * the 19:00 validation, all in GitHub's id order. */
+  function arrivalScenario(arrival: '15:00' | '19:00', rerun: string | null) {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    validation.created_at = '2026-09-29T19:00:00Z';
+    const pushFirst = arrival === '15:00';
+    scenario.commitRuns.forEach((entry, index) => {
+      entry.id = (pushFirst ? 1 : 200) + index;
+      entry.created_at = `2026-09-29T${arrival}:00Z`;
+    });
+    const early = candidateRun(rerun, {
+      id: pushFirst ? 50 : 1,
+      created_at: '2026-09-29T16:00:00Z',
+      run_started_at: '2026-09-29T22:00:00Z',
+      run_attempt: 2,
+    });
+    scenario.candidateRuns.push(early);
+    scenario.jobs[early.id] = scenario.jobs[validation.id]!;
+    scenario.artifacts[early.id] = [
+      {
+        id: 9000,
+        name: candidateArtifactName(early.path, CANDIDATE, 2),
+        expired: false,
+      },
+    ];
+    scenario.otherRuns = elsewhereAt('2026-09-29T17:00:00Z', 60);
+    return { scenario, early };
+  }
+
+  test('a future-dated Git commit cannot hide the 16:00 run made after C reached main at 15:00, rerun and failed at 22:00', async () => {
+    const { scenario, early } = arrivalScenario('15:00', 'failure');
+    scenario.listingOmits = [early.id];
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.receipt).toBeNull();
+    expect(report.arrival?.createdAt).toBe('2026-09-29T15:00:00Z');
+    expect(report.reasons).toContain(
+      `the run listings disagree: repos/${REPOSITORY}/${runListPath('candidate')} omits ${early.html_url}; read again`,
+    );
+    expect(calls.some((call) => call.includes('git/commits'))).toBe(false);
+  });
+
+  test.each([
+    ['failure', 'blocked'],
+    [null, 'pending'],
+    ['success', 'eligible'],
+  ] as const)(
+    'with an honest listing the 22:00 rerun of that 16:00 run decides: %s → %s',
+    async (rerun, state) => {
+      const { scenario, early } = arrivalScenario('15:00', rerun);
+      const { report } = await judge(scenario);
+      expect(report.state).toBe(state);
+      expect(report.validation[0]).toMatchObject({
+        url: early.html_url,
+        attempt: 2,
+        startedAt: '2026-09-29T22:00:00Z',
+      });
+      expect(report.excluded).toEqual([]);
+    },
+  );
+
+  test('a run created before C reached main never counts, even a failed rerun: omitted, it is simply not seen', async () => {
+    const { scenario, early } = arrivalScenario('19:00', 'failure');
+    scenario.listingOmits = [early.id];
+    const { report } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.arrival?.createdAt).toBe('2026-09-29T19:00:00Z');
+    expect(report.validation.map((entry) => entry.url)).toEqual([
+      scenario.candidateRuns[0]!.html_url,
+    ]);
+  });
+
+  test('a listed run created before C reached main is reported as excluded and does not decide', async () => {
+    const { scenario, early } = arrivalScenario('19:00', 'failure');
+    const { report } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.excluded).toEqual([
+      expect.objectContaining({
+        url: early.html_url,
+        attempt: 2,
+        conclusion: 'failure',
+      }),
+    ]);
+  });
+
+  test.each([
+    ['checks.yml', '.github/workflows/checks.yml'],
+    ['build.yml', '.github/workflows/build.yml'],
+  ])(
+    'a second push run of %s for C on main makes the boundary ambiguous',
+    async (_label, path) => {
+      const scenario = passing();
+      scenario.commitRuns.push(
+        run(path, 'success', { created_at: '2026-09-29T23:00:00Z' }),
+      );
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.arrival).toBeNull();
+      expect(report.reasons).toEqual([
+        expect.stringMatching(
+          new RegExp(
+            `^${path.replaceAll('.', '\\.')} ran more than once for a push of ${CANDIDATE} to main \\(.+\\), so where ${CANDIDATE} reached main is ambiguous$`,
+          ),
+        ),
+      ]);
+    },
+  );
+
+  test('an earlier push of C that a listing returns is read however far below the boundary it lies', async () => {
+    const scenario = passing();
+    // C reached main once at 10:00, and again at 19:00.
+    scenario.commitRuns.push(
+      run('.github/workflows/checks.yml', 'success', {
+        id: 1,
+        created_at: '2026-09-29T10:00:00Z',
+      }),
+    );
+    scenario.otherRuns = elsewhereAt('2026-09-29T11:00:00Z', 2);
+    const { report, calls } = await judge(scenario);
+    expect(report.state).toBe('blocked');
+    expect(report.reasons).toEqual([expect.stringContaining('so where')]);
+    expect(
+      calls.filter((call) => call.startsWith(`${API_ROOT}${WALK_PATH}&`)),
+    ).toHaveLength(2);
+  });
+
+  test('the whole push cohort sets the boundary: a validation between its runs counts', async () => {
+    const scenario = passing();
+    const validation = scenario.candidateRuns[0]!;
+    // GitHub created build.yml's push run at once and the arrival workflows'
+    // runs late, after the candidate was dispatched.
+    pushRunOf(scenario, '.github/workflows/build.yml').id = 1;
+    for (const [index, path] of ARRIVAL_WORKFLOWS.entries())
+      pushRunOf(scenario, path).id = validation.id + 1000 + index;
+    const { report } = await judge(scenario);
+    expect(report.reasons).toEqual([]);
+    expect(report.state).toBe('eligible');
+    expect(report.arrival?.url).toBe(
+      pushRunOf(scenario, '.github/workflows/build.yml').html_url,
+    );
+  });
+
+  test('a validation older than every run of the push is excluded, and a fresh full validation recovers', async () => {
+    const scenario = passing();
+    const stale = scenario.candidateRuns[0]!;
+    // C reached main, and its own runs began, after that validation.
+    for (const entry of scenario.commitRuns) entry.id += 5000;
+    const blocked = await judge(scenario);
+    expect(blocked.report.state).toBe('blocked');
+    expect(blocked.report.excluded.map((entry) => entry.url)).toEqual([
+      stale.html_url,
+    ]);
+    expect(blocked.report.reasons).toEqual([
+      `no main-branch Release candidate run validated ${CANDIDATE}: dispatch build.yml for it (.github/RELEASING.md)`,
+    ]);
+    // The same SHA dispatched again, after it reached main.
+    const fresh = candidateRun('success', {
+      id: stale.id + 10_000,
+      created_at: '2026-09-29T23:30:00Z',
+    });
+    scenario.candidateRuns.push(fresh);
+    scenario.jobs[fresh.id] = scenario.jobs[stale.id]!;
+    scenario.artifacts[fresh.id] = [
+      {
+        id: 9001,
+        name: candidateArtifactName(fresh.path, CANDIDATE, 1),
+        expired: false,
+      },
+    ];
+    const recovered = await judge(scenario);
+    expect(recovered.report.reasons).toEqual([]);
+    expect(recovered.report.state).toBe('eligible');
+    expect(recovered.report.receipt?.id).toBe(9001);
+  });
+});
+
 describe('the unfiltered run list the listings are held to', () => {
   const walkCalls = (calls: string[]) =>
     calls.filter((call) => call.startsWith(`${API_ROOT}${WALK_PATH}&`));
@@ -896,7 +1099,7 @@ describe('the unfiltered run list the listings are held to', () => {
       }),
     );
 
-  test('listings carry no branch filter, and the walk stops at the first page that ends before the candidate commit', async () => {
+  test('listings carry no branch filter, and the walk stops at the first page that ends an hour before C reached main', async () => {
     const scenario = passing();
     scenario.otherRuns = Array.from({ length: 150 }, (_unused, index) =>
       run('.github/workflows/checks.yml', 'success', {
@@ -911,19 +1114,31 @@ describe('the unfiltered run list the listings are held to', () => {
     expect(report.reasons).toEqual([]);
     expect(report.state).toBe('eligible');
     expect(calls.some((call) => call.includes('branch='))).toBe(false);
-    expect(calls).toContain(`${API_ROOT}git/commits/${CANDIDATE}`);
+    expect(calls.some((call) => call.includes('git/commits'))).toBe(false);
     expect(walkCalls(calls)).toEqual([`${API_ROOT}${WALK_PATH}&page=1`]);
   });
 
-  test('a listed run older than the candidate commit takes the walk back to it', async () => {
+  test('the walk reads down to every run a listing returned, and shows one from before C reached main as excluded', async () => {
     const scenario = passing();
-    scenario.commitDate = '2026-09-30T00:00:00Z';
-    scenario.otherRuns = elsewhere(100, {
-      created_at: '2026-09-29T22:30:00Z',
+    // Dispatched before C reached main, rerun last, failed: it never counts.
+    const early = candidateRun('failure', {
+      id: 1,
+      created_at: '2026-09-29T10:00:00Z',
+      run_started_at: '2026-09-29T23:00:00Z',
+      run_attempt: 2,
     });
+    scenario.candidateRuns.push(early);
+    scenario.otherRuns = elsewhere(100, {
+      created_at: '2026-09-29T11:00:00Z',
+    });
+    for (const [index, entry] of scenario.otherRuns.entries())
+      entry.id = index + 2;
     const { report, calls } = await judge(scenario);
     expect(report.reasons).toEqual([]);
     expect(report.state).toBe('eligible');
+    expect(report.excluded).toEqual([
+      expect.objectContaining({ url: early.html_url, conclusion: 'failure' }),
+    ]);
     expect(walkCalls(calls)).toHaveLength(2);
   });
 
@@ -1022,21 +1237,27 @@ describe('the unfiltered run list the listings are held to', () => {
     const { report, calls } = await judge(scenario);
     expect(report.state).toBe('blocked');
     expect(report.reasons).toEqual([
-      `incomplete workflow run evidence from repos/${REPOSITORY}/${WALK_PATH}: it did not reach 2026-09-28T23:00:00.000Z within 3,000 runs`,
+      `incomplete workflow run evidence from repos/${REPOSITORY}/${WALK_PATH}: it did not get past where ${CANDIDATE} reached main and every run a listing returned within 3,000 runs`,
     ]);
     expect(walkCalls(calls)).toHaveLength(30);
   });
 
-  test('without the candidate commit date the listings stay unverified', async () => {
-    const scenario = passing();
-    scenario.commitDate = null;
-    const { report, calls } = await judge(scenario);
-    expect(report.state).toBe('blocked');
-    expect(report.reasons).toEqual([
-      `cannot read the date of ${CANDIDATE}, which bounds the unfiltered run list the listings are checked against`,
-    ]);
-    expect(walkCalls(calls)).toEqual([]);
-  });
+  test.each([...ARRIVAL_WORKFLOWS])(
+    'without the push run of %s for C on main nothing shows where C reached main',
+    async (path) => {
+      const scenario = passing();
+      scenario.commitRuns = scenario.commitRuns.filter(
+        (entry) => entry !== pushRunOf(scenario, path),
+      );
+      const { report } = await judge(scenario);
+      expect(report.state).toBe('blocked');
+      expect(report.receipt).toBeNull();
+      expect(report.arrival).toBeNull();
+      expect(report.reasons).toEqual([
+        `the unfiltered run list holds no push of ${CANDIDATE} to main with one run each of checks, commitlint, sast, so nothing shows where it reached main`,
+      ]);
+    },
+  );
 
   test.each(['the listing', 'the unfiltered list'])(
     'a validation that %s still saw running is pending, not refused',
@@ -1302,10 +1523,10 @@ describe('release candidate gate', () => {
   );
 
   test('the newest validation decides, and an earlier failure stays visible', async () => {
+    const retried = passing();
     const failed = candidateRun('failure', {
       created_at: '2026-09-29T20:00:00Z',
     });
-    const retried = passing();
     const passed = retried.candidateRuns[0]!;
     passed.created_at = '2026-09-29T21:00:00Z';
     retried.candidateRuns.push(failed);
@@ -1345,7 +1566,7 @@ describe('release candidate gate', () => {
           lane === 'candidate'
             ? report.validation[0]
             : report.checks.find(
-                (check) => check.workflow === '.github/workflows/checks.yml',
+                (check) => check.workflow === SOURCE_LANE_WORKFLOW,
               )?.run;
         expect(selected).toMatchObject({
           url: retried.html_url,
@@ -1498,10 +1719,13 @@ describe('release candidate gate', () => {
     'the newest %s run of a required workflow blocks it, whatever ran before',
     async (conclusion) => {
       const scenario = passing();
-      const newest = run('.github/workflows/checks.yml', conclusion, {
-        created_at: '2026-09-29T23:59:00Z',
+      // A rerun of the push run: the one push of C ran checks.yml once.
+      const newest = pushRunOf(scenario, '.github/workflows/checks.yml');
+      Object.assign(newest, {
+        conclusion,
+        run_attempt: 2,
+        run_started_at: '2026-09-29T23:59:00Z',
       });
-      scenario.commitRuns.push(newest);
       const { report } = await judge(scenario);
       expect(report.state).toBe('blocked');
       expect(report.reasons).toEqual([
@@ -1524,8 +1748,8 @@ describe('release candidate gate', () => {
 
   test('a path-filtered workflow blocks it only when it ran and did not pass', async () => {
     const scenario = passing();
-    const audit = run('.github/workflows/security.yml', 'failure');
-    scenario.commitRuns.push(audit);
+    const audit = pushRunOf(scenario, '.github/workflows/security.yml');
+    audit.conclusion = 'failure';
     const { report } = await judge(scenario);
     expect(report.state).toBe('blocked');
     expect(report.reasons).toEqual([
@@ -1535,17 +1759,18 @@ describe('release candidate gate', () => {
 
   test('a required run still going leaves it pending, a failure outranks it', async () => {
     const scenario = passing();
-    scenario.commitRuns.push(
-      run('.github/workflows/sast.yml', null, {
-        created_at: '2026-09-29T23:59:00Z',
-      }),
-    );
+    Object.assign(pushRunOf(scenario, '.github/workflows/sast.yml'), {
+      status: 'in_progress',
+      conclusion: null,
+      run_attempt: 2,
+      run_started_at: '2026-09-29T23:59:00Z',
+    });
     expect((await judge(scenario)).report.state).toBe('pending');
-    scenario.commitRuns.push(
-      run('.github/workflows/commitlint.yml', 'failure', {
-        created_at: '2026-09-29T23:59:00Z',
-      }),
-    );
+    Object.assign(pushRunOf(scenario, '.github/workflows/commitlint.yml'), {
+      conclusion: 'failure',
+      run_attempt: 2,
+      run_started_at: '2026-09-29T23:59:00Z',
+    });
     const { report } = await judge(scenario);
     expect(report.state).toBe('blocked');
     expect(report.reasons).toHaveLength(2);
@@ -1824,7 +2049,6 @@ describe('release candidate gate command', () => {
           (workflow) =>
             `actions/workflows/${workflow.split('/').at(-1)}/runs?event=repository_dispatch&per_page=100&page=1`,
         ),
-        `git/commits/${CANDIDATE}`,
         ...Array.from(
           { length: Math.floor(allRuns(scenario).length / 100) + 1 },
           (_unused, page) => `${WALK_PATH}&page=${page + 1}`,
