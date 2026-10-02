@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 80 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 81 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -145,8 +145,10 @@ agent.
   one under **Settings → API → REST**, an Admin removes the holder of the
   second from the organization, and the third passes its expiry → reload
   `policies-limits` → Every row still names its key and its owner, never a
-  bare key id, each beside a label for why it no longer limits anything —
-  **Revoked**, **Former member** and **Expired**
+  bare key id, each beside its status — **Revoked**, **Former member** and
+  **Expired** while the expired key is still stored. Once expiry cleanup
+  removes that key, it reads **Unavailable**, keeping its name and owner;
+  cleanup alone must never make it **Revoked**
   (`governance.budgets.apiKeyStatus.*`). **Edit rule** on one of them: the
   **API key** field still shows that key, with **This key can no longer spend
   in this organization…** (`governance.budgets.apiKeyInactive`) above it, and

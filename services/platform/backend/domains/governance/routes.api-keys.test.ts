@@ -593,17 +593,40 @@ describe('describeRuleApiKeys', () => {
     expect(left).toEqual({ ...whileMember, ownerName: null });
   });
 
-  it('reads a key a member created and no longer holds as revoked', async () => {
-    // Cara is a member, so her keys are this organization's to see: one she
-    // made here and no longer holds is gone, whether or not the trail kept
-    // its revoke (she deleted it while away, or the audit write failed).
+  it('does not infer a revoke from a missing member key without a revoke receipt', async () => {
+    // Expiry cleanup deletes auth rows without a revoke event. The name
+    // and holder remain known here; the reason it disappeared does not.
     const { sql } = fakeSql({
       members: ['u-cara'],
       audit: [CREATED],
       users: [CARA],
     });
     const [key] = await describeRuleApiKeys(sql, 'org-1', ['key-a']);
-    expect(key).toMatchObject({ status: 'revoked', ownerName: 'Cara' });
+    expect(key).toEqual({
+      id: 'key-a',
+      name: 'Desk script',
+      start: 'tale_Ds',
+      userId: 'u-cara',
+      ownerName: 'Cara',
+      ownerEmail: 'cara@example.test',
+      status: 'unavailable',
+      expiresAt: null,
+    });
+  });
+
+  it('does not invent a removal cause when the holder of a missing key rejoins', async () => {
+    const history = { audit: [CREATED], users: [CARA] };
+    const left = fakeSql({ ...history, members: [] });
+    const returned = fakeSql({ ...history, members: ['u-cara'] });
+    const [before] = await describeRuleApiKeys(left.sql, 'org-1', ['key-a']);
+    const [after] = await describeRuleApiKeys(returned.sql, 'org-1', ['key-a']);
+    expect(before).toMatchObject({ status: 'holder_left', ownerName: null });
+    expect(after).toMatchObject({
+      name: 'Desk script',
+      status: 'unavailable',
+      ownerName: 'Cara',
+      expiresAt: null,
+    });
   });
 
   it('keeps the audit row’s address for a holder whose account is gone', async () => {

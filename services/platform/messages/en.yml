@@ -2737,6 +2737,7 @@ governance:
       expired: Expired
       disabled: Disabled
       revoked: Revoked
+      unavailable: Unavailable
       holder_left: Former member
       unknown: Unknown key
   defaultModels:

@@ -51886,6 +51886,7 @@ async function checkApiKeyCreateGate(
 async function checkOrgApiKeyListing(
   sql: Sql,
   base: string,
+  auth: Auth,
   ctx: { cookie: string; orgId: string },
   suffix: string,
 ): Promise<void> {
@@ -51930,6 +51931,23 @@ async function checkOrgApiKeyListing(
   const memberKey = await mint(member.cookie, `keylist-live-${suffix}`);
   const expiredKey = await mint(member.cookie, `keylist-expired-${suffix}`);
   const outsiderKey = await mint(outsider.cookie, `keylist-out-${suffix}`);
+  const revokedKey = await mint(member.cookie, `keylist-revoked-${suffix}`);
+  if (revokedKey !== null) {
+    const revoked = await fetch(`${base}/api/auth/api-key/delete`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: member.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({ keyId: revokedKey.id }),
+    });
+    await revoked.text();
+  }
+  // Creating a key can start Better Auth's expiry sweep without awaiting
+  // it. Finish that work before aging this fixture, then use only the
+  // governance read until its still-present Expired state has been observed.
+  await auth.api.deleteAllExpiredApiKeys({});
   if (expiredKey !== null) {
     await sql`
       UPDATE "apikey" SET "expiresAt" = now() - interval '1 day'
@@ -51967,6 +51985,7 @@ async function checkOrgApiKeyListing(
     (minted) => minted !== null && adminText.includes(minted.key),
   );
   const memberRes = await list(member.cookie);
+  await memberRes.text();
   record(
     "org api-key listing: an admin sees members' live keys, masked; a non-admin is refused",
     adminRes.status === 200 &&
@@ -51990,18 +52009,6 @@ async function checkOrgApiKeyListing(
   // organization has no evidence of — another organization's, or an id that
   // names nothing — answers `unknown` either way, so a saved rule cannot be
   // used to ask whose key an id is.
-  const revokedKey = await mint(member.cookie, `keylist-revoked-${suffix}`);
-  if (revokedKey !== null) {
-    await fetch(`${base}/api/auth/api-key/delete`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: member.cookie,
-        origin: base,
-      },
-      body: JSON.stringify({ keyId: revokedKey.id }),
-    });
-  }
   const noSuchKeyId = `keylist-none-${suffix}`;
   const policyUrl = `${base}/api/app/governance/policies/budgets?orgId=${ctx.orgId}`;
   const priorBudgets = z
@@ -52015,8 +52022,8 @@ async function checkOrgApiKeyListing(
         .then((res) => res.json())
         .catch(() => null),
     );
-  const savePolicy = (config: unknown) =>
-    fetch(policyUrl, {
+  const savePolicy = async (config: unknown) => {
+    const res = await fetch(policyUrl, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -52025,6 +52032,9 @@ async function checkOrgApiKeyListing(
       },
       body: JSON.stringify({ config }),
     });
+    await res.text();
+    return res;
+  };
   const ruleKeyIds = [
     memberKey?.id,
     expiredKey?.id,
@@ -52044,11 +52054,6 @@ async function checkOrgApiKeyListing(
   });
   const describedRes = await list(ctx.cookie);
   const describedText = await describedRes.text();
-  await savePolicy(
-    priorBudgets.success && priorBudgets.data.policy !== null
-      ? priorBudgets.data.policy.config
-      : { enabled: false, rules: [] },
-  );
   let describedBody: unknown = null;
   try {
     describedBody = JSON.parse(describedText);
@@ -52058,19 +52063,18 @@ async function checkOrgApiKeyListing(
       error instanceof Error ? error.message : error,
     );
   }
-  const described = z
-    .object({
-      ruleKeys: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string().nullable(),
-          userId: z.string().nullable(),
-          ownerEmail: z.string().nullable(),
-          status: z.string(),
-        }),
-      ),
-    })
-    .safeParse(describedBody);
+  const ruleKeyListingSchema = z.object({
+    ruleKeys: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string().nullable(),
+        userId: z.string().nullable(),
+        ownerEmail: z.string().nullable(),
+        status: z.string(),
+      }),
+    ),
+  });
+  const described = ruleKeyListingSchema.safeParse(describedBody);
   const ruleKey = (id: string | undefined) =>
     described.success
       ? described.data.ruleKeys.find((key) => key.id === id)
@@ -52105,6 +52109,69 @@ async function checkOrgApiKeyListing(
     `save → ${saved.status}, read → ${describedRes.status}, live described=${ruleKey(memberKey?.id) !== undefined}, expired=${expiredRule?.status ?? 'MISSING'}/${expiredRule?.ownerEmail ?? 'no owner'}, revoked=${revokedRule?.status ?? 'MISSING'}/${revokedRule?.name ?? 'no name'}/${revokedRule?.ownerEmail ?? 'no owner'}, outsider=${outsiderRule?.status ?? 'MISSING'}/${outsiderRule?.name ?? 'no name'}, none=${noSuchRule?.status ?? 'MISSING'}, outsider named=${describedText.includes(outsider.email)}, secret leaked=${ruleKeySecretLeaked}`,
   );
 
+  // Exercise the real plugin cleanup, not a hand-deleted auth row or a
+  // sleep that races its throttle. Cleanup catches adapter errors, so its
+  // success response alone does not prove that the expired row was removed.
+  await auth.api.deleteAllExpiredApiKeys({});
+  const expiredRowsLeft =
+    expiredKey === null
+      ? []
+      : await sql`SELECT "id" FROM "apikey" WHERE "id" = ${expiredKey.id}`;
+  const expiredRevokeReceipts =
+    expiredKey === null
+      ? []
+      : await sql`
+          SELECT id FROM app.audit_logs
+          WHERE org_id = ${ctx.orgId} AND resource_type = 'api_key'
+            AND resource_id = ${expiredKey.id} AND action = 'api_key.revoked'
+        `;
+  const sweptRes = await list(ctx.cookie);
+  const sweptText = await sweptRes.text();
+  let sweptBody: unknown = null;
+  try {
+    sweptBody = JSON.parse(sweptText);
+  } catch (error) {
+    console.warn(
+      '[org api-key listing] the post-cleanup read answered no JSON',
+      error instanceof Error ? error.message : error,
+    );
+  }
+  const swept = ruleKeyListingSchema.safeParse(sweptBody);
+  const sweptKey = (id: string | undefined) =>
+    swept.success
+      ? swept.data.ruleKeys.find((key) => key.id === id)
+      : undefined;
+  const unavailableRule = sweptKey(expiredKey?.id);
+  const sweptSecretLeaked = [
+    memberKey,
+    expiredKey,
+    revokedKey,
+    outsiderKey,
+  ].some((minted) => minted !== null && sweptText.includes(minted.key));
+  record(
+    'org api-key listing: real expiry cleanup removes the row without a revoke receipt; the known key becomes unavailable',
+    expiredKey !== null &&
+      expiredRule?.status === 'expired' &&
+      expiredRowsLeft.length === 0 &&
+      expiredRevokeReceipts.length === 0 &&
+      sweptRes.status === 200 &&
+      unavailableRule?.status === 'unavailable' &&
+      unavailableRule.name === `keylist-expired-${suffix}` &&
+      unavailableRule.userId === member.userId &&
+      unavailableRule.ownerEmail === member.email &&
+      sweptKey(revokedKey?.id)?.status === 'revoked' &&
+      sweptKey(outsiderKey?.id)?.status === 'unknown' &&
+      sweptKey(noSuchKeyId)?.status === 'unknown' &&
+      !sweptText.includes(outsider.email) &&
+      !sweptSecretLeaked,
+    `read → ${sweptRes.status}, before=${expiredRule?.status ?? 'MISSING'}, auth rows=${expiredRowsLeft.length}, revoke receipts=${expiredRevokeReceipts.length}, after=${unavailableRule?.status ?? 'MISSING'}/${unavailableRule?.name ?? 'no name'}/${unavailableRule?.ownerEmail ?? 'no owner'}, explicit revoke=${sweptKey(revokedKey?.id)?.status ?? 'MISSING'}, secret leaked=${sweptSecretLeaked}`,
+  );
+  await savePolicy(
+    priorBudgets.success && priorBudgets.data.policy !== null
+      ? priorBudgets.data.policy.config
+      : { enabled: false, rules: [] },
+  );
+
   // A key whose holder LEFT is described from what this organization
   // recorded while they were a member, and nothing else. What they do with
   // the key afterwards happens elsewhere: deleting it writes its
@@ -52119,12 +52186,15 @@ async function checkOrgApiKeyListing(
     `keylist-leaver-${suffix}`,
     'developer',
   );
-  const deleteKey = (cookie: string, keyId: string) =>
-    fetch(`${base}/api/auth/api-key/delete`, {
+  const deleteKey = async (cookie: string, keyId: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/delete`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie, origin: base },
       body: JSON.stringify({ keyId }),
     });
+    await res.text();
+    return res;
+  };
   const leftKey = await mint(leaver.cookie, `keylist-left-${suffix}`);
   const leftRevokedKey = await mint(
     leaver.cookie,
@@ -58019,7 +58089,7 @@ async function main(): Promise<void> {
       ],
       [
         'checkOrgApiKeyListing',
-        () => checkOrgApiKeyListing(sql, baseUrl, authCtx, orgSuffix),
+        () => checkOrgApiKeyListing(sql, baseUrl, auth, authCtx, orgSuffix),
       ],
       [
         'checkApiKeyCreateGate',

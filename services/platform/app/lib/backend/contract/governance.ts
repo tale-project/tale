@@ -30,9 +30,10 @@ export interface CompetenceRecordWire {
 /**
  * What the organization can say about a key a budget rule names: `active`
  * can still spend and is offered by the picker; every other state is a key
- * a saved rule still points at — expired, disabled, deleted (`revoked`),
- * held by someone who left (`holder_left`), or one this organization knows
- * nothing about (`unknown`).
+ * a saved rule still points at — expired, disabled, explicitly revoked,
+ * absent without a recorded cause (`unavailable`), held by someone who
+ * left (`holder_left`), or one this organization knows nothing about
+ * (`unknown`).
  */
 export type OrgApiKeyStatus =
   | 'active'
@@ -40,6 +41,7 @@ export type OrgApiKeyStatus =
   | 'disabled'
   | 'holder_left'
   | 'revoked'
+  | 'unavailable'
   | 'unknown';
 
 /** One API key as the budget editor reads it (`GET /governance/api-keys`,

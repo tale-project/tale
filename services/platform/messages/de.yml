@@ -2835,6 +2835,7 @@ governance:
       expired: Abgelaufen
       disabled: Deaktiviert
       revoked: Widerrufen
+      unavailable: Nicht verfügbar
       holder_left: Ehemaliges Mitglied
       unknown: Unbekannter Schlüssel
   defaultModels:

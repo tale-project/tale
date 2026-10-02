@@ -121,35 +121,40 @@ describe('organization API key listing adapter', () => {
     expiresAt: null,
   };
 
-  it('reads every member key of the organization for the budget picker', async () => {
-    // One list for the editor: the live keys the picker offers, then the
-    // keys the saved rules still name, each in the state the backend gives.
-    const revoked = {
-      id: 'key-2',
-      name: 'Old script',
-      start: 'tale_B',
-      userId: 'u-2',
-      ownerName: 'Ben',
-      ownerEmail: 'ben@example.test',
-      status: 'revoked',
-      expiresAt: null,
-    };
-    const fetch = vi
-      .spyOn(window, 'fetch')
-      .mockResolvedValue(Response.json({ keys: [live], ruleKeys: [revoked] }));
-    const read = settingsReadAdapters['governance/api_keys:listOrgApiKeys']?.(
-      { organizationId: 'org-a' },
-      {},
-    );
-    await expect(read?.queryFn()).resolves.toEqual([
-      { ...live, status: 'active' },
-      { ...revoked, createdAt: null },
-    ]);
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/app/governance/api-keys?orgId=org-a',
-      expect.objectContaining({ method: 'GET' }),
-    );
-  });
+  it.each(['revoked', 'unavailable'])(
+    'keeps known identity and %s status beside the live keys for the budget picker',
+    async (status) => {
+      // One list for the editor: the live keys the picker offers, then the
+      // keys the saved rules still name, each in the state the backend gives.
+      const inactive = {
+        id: 'key-2',
+        name: 'Old script',
+        start: 'tale_B',
+        userId: 'u-2',
+        ownerName: 'Ben',
+        ownerEmail: 'ben@example.test',
+        status,
+        expiresAt: null,
+      };
+      const fetch = vi
+        .spyOn(window, 'fetch')
+        .mockResolvedValue(
+          Response.json({ keys: [live], ruleKeys: [inactive] }),
+        );
+      const read = settingsReadAdapters['governance/api_keys:listOrgApiKeys']?.(
+        { organizationId: 'org-a' },
+        {},
+      );
+      await expect(read?.queryFn()).resolves.toEqual([
+        { ...live, status: 'active' },
+        { ...inactive, createdAt: null },
+      ]);
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/app/governance/api-keys?orgId=org-a',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    },
+  );
 
   it('reads a backend that answers the live keys alone', async () => {
     // Mid-roll the previous image still serves: no `ruleKeys` on its answer.

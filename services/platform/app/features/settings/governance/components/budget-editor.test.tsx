@@ -84,6 +84,17 @@ const STABLE_API_KEYS = {
       status: 'holder_left',
     },
     {
+      id: 'key-unavailable',
+      name: 'Archived export',
+      start: 'taleJK',
+      userId: 'u-dana',
+      ownerName: 'Dana',
+      ownerEmail: 'dana@example.test',
+      createdAt: null,
+      expiresAt: null,
+      status: 'unavailable',
+    },
+    {
       id: 'key-unknown',
       name: null,
       start: null,
@@ -381,14 +392,18 @@ describe('BudgetEditor', () => {
     // another admin may have created.
     it('names a rule’s key, its state and its owner after the key stopped being live', () => {
       setLoaded(
-        ['key-expired', 'key-revoked', 'key-left', 'key-unknown'].map(
-          (apiKeyId) => ({
-            scope: 'apiKey',
-            apiKeyId,
-            period: 'monthly',
-            maxRequests: 100,
-          }),
-        ),
+        [
+          'key-expired',
+          'key-revoked',
+          'key-left',
+          'key-unavailable',
+          'key-unknown',
+        ].map((apiKeyId) => ({
+          scope: 'apiKey',
+          apiKeyId,
+          period: 'monthly',
+          maxRequests: 100,
+        })),
       );
       render(<BudgetEditor organizationId="org-1" />);
 
@@ -407,54 +422,74 @@ describe('BudgetEditor', () => {
       expect(within(left).getByText('Former member')).toBeInTheDocument();
       expect(within(left).getByText('Former Person')).toBeInTheDocument();
 
+      // The identity is known even when the removal cause was not recorded.
+      const unavailable = screen.getByRole('cell', { name: /Archived export/ });
+      expect(within(unavailable).getByText('Unavailable')).toBeInTheDocument();
+      expect(within(unavailable).getByText('Dana')).toBeInTheDocument();
+      expect(
+        within(unavailable).queryByText('Revoked'),
+      ).not.toBeInTheDocument();
+
       // A key the organization knows nothing about is said to be one.
       const unknown = screen.getByRole('cell', { name: /key-unknown/ });
       expect(within(unknown).getByText('Unknown key')).toBeInTheDocument();
 
       // No cell is a bare id any more.
-      for (const id of ['key-expired', 'key-revoked', 'key-left']) {
+      for (const id of [
+        'key-expired',
+        'key-revoked',
+        'key-left',
+        'key-unavailable',
+      ]) {
         expect(screen.queryByText(id)).not.toBeInTheDocument();
       }
     });
 
-    it('offers only live keys, and keeps the key of the rule being edited', async () => {
-      setLoaded([
-        {
-          scope: 'apiKey',
-          apiKeyId: 'key-expired',
-          period: 'monthly',
-          maxRequests: 100,
-        },
-      ]);
-      const { user } = render(<BudgetEditor organizationId="org-1" />);
+    it.each([
+      ['key-expired', 'Nightly export'],
+      ['key-unavailable', 'Archived export'],
+    ])(
+      'offers only live keys, and keeps the edited rule’s %s',
+      async (apiKeyId, name) => {
+        setLoaded([
+          {
+            scope: 'apiKey',
+            apiKeyId,
+            period: 'monthly',
+            maxRequests: 100,
+          },
+        ]);
+        const { user } = render(<BudgetEditor organizationId="org-1" />);
 
-      await user.click(screen.getByRole('button', { name: /edit rule/i }));
-      const dialog = await screen.findByRole('dialog');
-      // The field names the rule's key instead of an empty placeholder, and
-      // says the rule limits nothing any more.
-      const picker = within(dialog).getByRole('button', { name: /API key/ });
-      expect(picker).toHaveTextContent('Nightly export · Dana');
-      expect(
-        within(dialog).getByText(/can no longer spend in this organization/),
-      ).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: /edit rule/i }));
+        const dialog = await screen.findByRole('dialog');
+        // The field names the rule's key instead of an empty placeholder, and
+        // says the rule limits nothing any more.
+        const picker = within(dialog).getByRole('button', { name: /API key/ });
+        expect(picker).toHaveTextContent(`${name} · Dana`);
+        expect(
+          within(dialog).getByText(/can no longer spend in this organization/),
+        ).toBeInTheDocument();
 
-      await user.click(picker);
-      const options = (await screen.findAllByRole('option')).map(
-        (option) => option.textContent,
-      );
-      expect(options.some((text) => text?.includes('CI Key · Dana'))).toBe(
-        true,
-      );
-      expect(options.some((text) => text?.includes('Nightly export'))).toBe(
-        true,
-      );
-      // Keys no rule in the dialog names and that cannot spend are not on
-      // offer: a rule on one would limit nothing.
-      expect(options.some((text) => text?.includes('opencode laptop'))).toBe(
-        false,
-      );
-      expect(options.some((text) => text?.includes('Old script'))).toBe(false);
-    });
+        await user.click(picker);
+        const options = (await screen.findAllByRole('option')).map(
+          (option) => option.textContent,
+        );
+        expect(options.some((text) => text?.includes('CI Key · Dana'))).toBe(
+          true,
+        );
+        expect(options.some((text) => text?.includes(name))).toBe(true);
+        expect(options).toHaveLength(2);
+        // Keys no rule in the dialog names and that cannot spend are not on
+        // offer: a rule on one would limit nothing.
+        expect(options.some((text) => text?.includes('opencode laptop'))).toBe(
+          false,
+        );
+        expect(options.some((text) => text?.includes('Old script'))).toBe(
+          false,
+        );
+      },
+    );
 
     // A per-field `0` is not "no limit": the enforcer reads it as the strictest
     // cap and blocks every request. Typing `0` must be rejected, not saved.

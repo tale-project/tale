@@ -78,9 +78,10 @@ export async function listOrgApiKeys(
  *  - `expired` / `disabled` — the key is still held by a member.
  *  - `holder_left` — its holder is no longer a member; what became of the
  *    key since is theirs, not this organization's, to know.
- *  - `revoked` — the key is gone, and this organization may say so: its
- *    audit trail recorded the revoke, or its creator is a member now and no
- *    longer holds it.
+ *  - `revoked` — the key is gone and this organization's audit trail
+ *    recorded the revoke.
+ *  - `unavailable` — a member's known key is gone, but this organization
+ *    has no recorded cause. Expiry cleanup also removes keys without a revoke.
  *  - `unknown` — no member holds it and the audit trail never saw it.
  *  - `active` — a live key past the listing's bound.
  */
@@ -90,6 +91,7 @@ export type RuleApiKeyStatus =
   | 'disabled'
   | 'holder_left'
   | 'revoked'
+  | 'unavailable'
   | 'unknown';
 
 /**
@@ -228,11 +230,13 @@ export async function describeRuleApiKeys(
             : 'active'
         : audit === undefined && revoke === undefined
           ? 'unknown'
-          : // A member who created it no longer holds it; anyone else's key
-            // is revoked only where this organization's trail says so.
-            revoke !== undefined || member !== undefined
+          : // Absence is not evidence of a revoke. What happened to a
+            // former member's key remains private to them.
+            revoke !== undefined
             ? 'revoked'
-            : 'holder_left';
+            : member !== undefined
+              ? 'unavailable'
+              : 'holder_left';
     return {
       id,
       name: current !== undefined ? current.name : (audit?.name ?? null),
