@@ -94,14 +94,29 @@ export function readHomeLocation(
 }
 
 /**
- * Whether the Home panel may be folded away on this page: only on the
- * conversation-shaped pages, whose header carries the toggle to bring it
- * back. The boot script in index.html mirrors this rule.
+ * Whether this page brings its own phone header — a chat, a task, an open
+ * conversation: back arrow, title, actions — so the shell's bar would only
+ * stack an empty row above it. The boot script in index.html mirrors this
+ * rule (`boot-thread-page`).
  */
-export function isPanelCollapsible(location: HomeLocation): boolean {
+export function hasOwnPhoneHeader(location: HomeLocation): boolean {
   return (
     location.kind === 'chat' ||
     location.kind === 'task' ||
     (location.kind === 'conversation' && location.conversationId !== undefined)
+  );
+}
+
+/**
+ * Whether the Home panel may be folded away on this page: only where the
+ * page's header carries the toggle to bring it back — the conversation-shaped
+ * pages and a project's own page. The projects list and the inbox index have
+ * no toggle, so the panel stays there. The boot script in index.html mirrors
+ * this rule.
+ */
+export function isPanelCollapsible(location: HomeLocation): boolean {
+  return (
+    hasOwnPhoneHeader(location) ||
+    (location.kind === 'project' && location.projectId !== undefined)
   );
 }

@@ -64,7 +64,7 @@ The checkbox at the start of the bar ticks the whole list. While only some conve
 
 </Frame>
 
-A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room, and **Show sidebar** brings it back; the button's tooltip shows the shortcut. In a conversation, the first action, **Copy link**, copies a link that opens the same conversation for a teammate. Owners and Admins assign the conversation from its header, to a person, a team, or one of each. Choosing the current person or team again clears it, as do **Unassign** and **Remove team** at the end of the list; the other assignment stays as it is.
+A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room, and **Show sidebar** brings it back; the button's tooltip shows the shortcut. A project's page offers the same button at the start of its header. In a conversation, the first action, **Copy link**, copies a link that opens the same conversation for a teammate. Owners and Admins assign the conversation from its header, to a person, a team, or one of each. Choosing the current person or team again clears it, as do **Unassign** and **Remove team** at the end of the list; the other assignment stays as it is.
 
 Images in an email appear inside the message. Tale fetches the pictures hosted on the sender's servers for you, so the sender sees neither your IP address nor when you read the message. A picture larger than 10 MB, or one in SVG format, does not appear.
 
