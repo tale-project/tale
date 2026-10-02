@@ -388,7 +388,8 @@ export async function releaseProjectAgentSessionSlot(
  * refresh that never re-counts. A row an administrator's Destroy is
  * removing is refused before anything changes
  * ({@link SandboxDestroyPendingError}): the row id is all the Destroy's
- * retry checks, and a resume keeps it.
+ * retry checks, and a resume keeps it. False when no live row is left to
+ * resume — none was, or one was settled while this ran.
  */
 export async function resumeSessionSlot(
   sql: Sql,
@@ -423,14 +424,33 @@ export async function resumeSessionSlot(
         );
       }
     }
-    await tx`
+    // Against a terminal write, the write itself is the boundary. The row
+    // read above holds no lock and a settlement takes no admission lock
+    // (`markSessionDestroyed` — a Destroy attempt's under the session's
+    // lifecycle lock, a heal's or a reclaim's under none — the cleanup's
+    // claim, a watchdog's stamp), so one can commit anywhere in this
+    // transaction, also before the predicate, which then finds no live row
+    // and so no pending Destroy. The write therefore moves the row only
+    // while it is still live: moving nothing answers that the allocation is
+    // gone, as if the settlement had come first, so no caller resumes a
+    // settled incarnation, and its next start opens a fresh one. A write
+    // that lands holds the row until this commit, so nothing settles it in
+    // between. After it, an administrator's Destroy settles only from
+    // inside an attempt, while its job is unfinished: one queued before
+    // this transaction took the admission lock either refused the turn at
+    // the predicate or had settled the row already, leaving the write
+    // nothing to move; one asked for later waits for that lock, so it is
+    // ordered after this turn, which it cancels.
+    const moved = await tx<{ id: string }[]>`
       UPDATE app.sandbox_sessions SET
         status = 'active', last_activity_at_ms = ${now},
         expires_at_ms = CASE WHEN pinned THEN expires_at_ms
           ELSE ${now + SANDBOX_SESSION_MAX_LIFETIME_MS} END
       WHERE id = ${row.id}
+        AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+      RETURNING id
     `;
-    return true;
+    return moved.length > 0;
   });
 }
 
