@@ -33,7 +33,7 @@ import {
   runnerdStageFiles,
   runnerdWriteStdin,
 } from './runnerd-client.ts';
-import type { RunnerdExecEvent } from './runnerd-protocol.ts';
+import type { RunnerdExecEvent, RunnerdHealth } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRegistry, type RegistrySession } from './session-registry.ts';
 import {
@@ -48,6 +48,38 @@ function b64decode(b64: string): Uint8Array {
 /** How long a session whose runnerd failed a reclaim probe stays off the
  * candidate list — the periodic sweep re-probes everything anyway. */
 const RECLAIM_PROBE_BACKOFF_MS = 30_000;
+
+/** How long a session whose daemon answered that it cannot be reclaimed —
+ * held by a turn, working, pinned, or too old for the claim — stays off the
+ * candidate list. Nearly every running turn is a candidate by this replica's
+ * own count (the platform ends each exec stream at its drain window and
+ * follows the turn by attach), so creates refused at capacity used to probe
+ * every busy session again, one after another. A release through this
+ * spawner puts the session back on the list at once. */
+const RECLAIM_BUSY_FOR_MS = 15_000;
+
+/** Daemons one reclaim walk probes at most, idle-longest first: the next
+ * walk goes on past the ones this one found busy. */
+const RECLAIM_PROBES_PER_WALK = 8;
+
+/** How long a walk that found nothing to reclaim answers the creates refused
+ * after it: they are refused at once rather than each walking the same busy
+ * sessions again. A release through this spawner ends the wait. */
+const RECLAIM_NOTHING_FOR_MS = 3_000;
+
+/** Does runnerd's answer allow a reclaim claim: a daemon that speaks the
+ * claim protocol, released (or a claim already under way), unpinned, with
+ * nothing in flight? */
+function reclaimable(health: RunnerdHealth): boolean {
+  const activity = health.activity;
+  return (
+    activity !== undefined &&
+    !activity.pinned &&
+    health.liveExecs === 0 &&
+    activity.activeOperations === 0 &&
+    (activity.released || activity.reclaiming)
+  );
+}
 
 /** Longest an acquire waits for an in-flight create of the same id. Under
  * the platform's own acquire timeout, so a create that is still pulling its
@@ -181,6 +213,13 @@ export class SessionRoutes {
   // skipped as reclaim candidates for a short window so one wedged daemon
   // (a full health timeout) does not stall every create at capacity.
   private readonly probeFailedAtMs = new Map<string, number>();
+  // Sessions whose daemon last answered, to a reclaim probe or the sweep's,
+  // that they cannot be reclaimed, by the time of that answer
+  // (RECLAIM_BUSY_FOR_MS).
+  private readonly busyAtMs = new Map<string, number>();
+  // Until when a create at capacity skips the reclaim walk: the last walk
+  // found nothing (RECLAIM_NOTHING_FOR_MS).
+  private nothingToReclaimUntilMs = 0;
   // Settles when the destroy of that id is done (success or failure):
   // destroys of one id run one after another, and a create of the id waits
   // for the one under way instead of racing its workspace removal.
@@ -428,9 +467,13 @@ export class SessionRoutes {
   /** Reclaim the released idle session that has been idle longest, if any.
    * Candidates that failed their last probe within the back-off window are
    * skipped: a wedged daemon costs one health timeout per window, not one per
-   * create. A candidate a concurrent create is already stopping frees that
-   * create's slot, so each create at capacity claims a session of its own and
-   * shares a sibling's stop only when nothing else is left. */
+   * create. So are candidates whose daemon said a moment ago that they cannot
+   * be reclaimed; a walk probes at most RECLAIM_PROBES_PER_WALK daemons, and
+   * after a walk that found nothing the creates refused next are answered at
+   * once. A candidate whose claim is already acknowledged needs no probe. A
+   * candidate a concurrent create is already stopping frees that create's
+   * slot, so each create at capacity claims a session of its own and shares a
+   * sibling's stop only when nothing else is left. */
   private async reclaimOneIdle(): Promise<boolean> {
     const now = Date.now();
     const idleSince = (session: RegistrySession) =>
@@ -439,23 +482,38 @@ export class SessionRoutes {
       .list()
       .filter((session) => !session.pinned && session.liveExecs.size === 0)
       .sort((a, b) => idleSince(a) - idleSince(b));
-    for (const session of candidates) {
-      if (this.stopping.has(session.sessionId)) continue;
-      const failedAt = this.probeFailedAtMs.get(session.sessionId);
-      if (
-        failedAt !== undefined &&
-        now - failedAt < RECLAIM_PROBE_BACKOFF_MS &&
-        !this.reclaimClaims.has(session.sessionId)
-      ) {
-        continue;
+    const walk = now >= this.nothingToReclaimUntilMs;
+    if (walk) {
+      let probes = 0;
+      for (const session of candidates) {
+        const sessionId = session.sessionId;
+        if (this.stopping.has(sessionId)) continue;
+        if (!this.reclaimClaims.has(sessionId)) {
+          const failedAt = this.probeFailedAtMs.get(sessionId);
+          if (failedAt !== undefined && now - failedAt < RECLAIM_PROBE_BACKOFF_MS)
+            continue;
+          const busyAt = this.busyAtMs.get(sessionId);
+          if (busyAt !== undefined && now - busyAt < RECLAIM_BUSY_FOR_MS)
+            continue;
+          if (probes >= RECLAIM_PROBES_PER_WALK) continue;
+          probes += 1;
+        }
+        if (await this.reclaimIdle(session)) return true;
       }
-      if (await this.reclaimIdle(session)) return true;
     }
     for (const session of candidates) {
       const pending = this.stopping.get(session.sessionId);
       if (pending !== undefined && (await pending)) return true;
     }
+    if (walk) this.nothingToReclaimUntilMs = Date.now() + RECLAIM_NOTHING_FOR_MS;
     return false;
+  }
+
+  /** Remember what runnerd's answer says about reclaiming this session: one
+   * that cannot be reclaimed stays off the candidate list for a while. */
+  private noteReclaimable(sessionId: string, health: RunnerdHealth): void {
+    if (reclaimable(health)) this.busyAtMs.delete(sessionId);
+    else this.busyAtMs.set(sessionId, Date.now());
   }
 
   /** runnerd's atomic claim closes the health-probe→stop race across replicas.
@@ -491,22 +549,19 @@ export class SessionRoutes {
     try {
       if (!this.reclaimClaims.has(sessionId)) {
         const health = await runnerdHealth(opts);
+        this.noteReclaimable(sessionId, health);
         const activity = health.activity;
-        if (
-          activity === undefined ||
-          activity.pinned ||
-          health.liveExecs > 0 ||
-          activity.activeOperations > 0 ||
-          (!activity.released && !activity.reclaiming)
-        ) {
-          return false;
-        }
+        if (activity === undefined || !reclaimable(health)) return false;
         const claimId = crypto.randomUUID();
         const result = await runnerdActivity(opts, 'reclaim', {
           claimId,
           generation: activity.generation,
         });
-        if (result.claimed !== true) return false;
+        if (result.claimed !== true) {
+          // Acquired between the probe and the claim: held by a turn now.
+          this.busyAtMs.set(sessionId, Date.now());
+          return false;
+        }
         // Frozen: nothing can start in this incarnation any more, so a
         // failed stop below is retried later without another probe.
         this.reclaimClaims.set(sessionId, {
@@ -523,6 +578,7 @@ export class SessionRoutes {
     } catch (error) {
       // An older daemon has no claim route and cannot have frozen itself.
       if (error instanceof RunnerdActivityError && error.status === 404) {
+        this.busyAtMs.set(sessionId, Date.now());
         return false;
       }
       if (error instanceof SessionIncarnationChangedError) {
@@ -579,6 +635,7 @@ export class SessionRoutes {
   private forgetReclaimMarks(sessionId: string): void {
     this.reclaimClaims.delete(sessionId);
     this.probeFailedAtMs.delete(sessionId);
+    this.busyAtMs.delete(sessionId);
     this.probeFailures.delete(sessionId);
     // Its memory is the host's again: no reservation for it either.
     this.youngBytes.delete(sessionId);
@@ -962,6 +1019,8 @@ export class SessionRoutes {
       });
       this.probeFailures.delete(s.sessionId);
       s.lastActivityAtMs = health.lastActivityAtMs;
+      // What the sweep saw spares a create at capacity a probe of its own.
+      this.noteReclaimable(s.sessionId, health);
       // Resume a frozen stop after a spawner restart through the same
       // generation and backend-incarnation fences as pressure admission.
       if (health.activity?.reclaiming) return this.reclaimIdle(s);
@@ -1429,6 +1488,11 @@ export class SessionRoutes {
       if (action === 'release') {
         if (typeof result.released !== 'boolean')
           throw new Error('invalid runnerd release response');
+        if (result.released) {
+          // A reclaim candidate now: the next create at capacity may take it.
+          this.busyAtMs.delete(sessionId);
+          this.nothingToReclaimUntilMs = 0;
+        }
         return jsonResponse({ released: result.released }, 200);
       }
       if (

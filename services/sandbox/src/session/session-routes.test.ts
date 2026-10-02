@@ -10,6 +10,7 @@ import {
   beforeEach,
   describe,
   expect,
+  setSystemTime,
   test,
 } from 'bun:test';
 
@@ -1867,6 +1868,57 @@ describe('capacity pressure reclamation', () => {
     await release(routes, 'wedged');
     expect((await create(routes, 'third')).status).toBe(429);
     expect(healthProbes.get(token) ?? 0).toBe(0);
+  });
+
+  describe('creates refused at capacity do not probe every busy session', () => {
+    const fleet = Array.from({ length: 12 }, (_, i) => `held-${i}`);
+    const full = { ...cfg, session: { ...cfg.session, maxSessions: 12 } };
+    const probes = () =>
+      [...healthProbes.values()].reduce((sum, count) => sum + count, 0);
+    const probed = (id: string) =>
+      healthProbes.get(deriveRunnerdToken(cfg.sandboxToken, id)) ?? 0;
+    const fill = async (routes: SessionRoutes) => {
+      for (const id of fleet) {
+        expect((await create(routes, id)).status).toBe(201);
+      }
+    };
+
+    test('a walk probes a bounded few, idle-longest first, and the refusals after it wait', async () => {
+      const routes = new SessionRoutes(full, fakeBackend);
+      await fill(routes);
+      // Every session is held by a turn; none can be reclaimed.
+      expect((await create(routes, 'refused-1')).status).toBe(429);
+      expect(probes()).toBe(8);
+      expect(fleet.slice(0, 8).every((id) => probed(id) === 1)).toBe(true);
+      // Refused at once: the walk a moment ago found nothing.
+      expect((await create(routes, 'refused-2')).status).toBe(429);
+      expect(probes()).toBe(8);
+      // A release puts its session back on the list and ends the wait; the
+      // sessions found busy a moment ago are not probed again.
+      await release(routes, 'held-11');
+      expect((await create(routes, 'admitted')).status).toBe(201);
+      expect(stopped.has('held-11')).toBe(true);
+      expect(probes()).toBe(12);
+      expect(fleet.slice(0, 8).every((id) => probed(id) === 1)).toBe(true);
+    });
+
+    test('what the sweep saw spares the walk its probes, for a while', async () => {
+      const routes = new SessionRoutes(full, fakeBackend);
+      await fill(routes);
+      fakeHealth.lastActivityAtMs = Date.now();
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(probes()).toBe(12);
+      expect((await create(routes, 'refused-1')).status).toBe(429);
+      expect(probes()).toBe(12);
+      // Once the answers are old, a walk asks again.
+      setSystemTime(new Date(Date.now() + 20_000));
+      try {
+        expect((await create(routes, 'refused-2')).status).toBe(429);
+        expect(probes()).toBe(20);
+      } finally {
+        setSystemTime();
+      }
+    });
   });
 
   test('a replacement spawner safely finishes a frozen stop from before restart', async () => {
