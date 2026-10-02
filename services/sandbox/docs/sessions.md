@@ -52,7 +52,8 @@ SIGKILL five seconds later. A backgrounded server, a `nohup` worker or a
 browser therefore never outlives the turn that started it; before, they ran
 on in a session that read idle until the container stopped. Daemons the
 entrypoint starts (redsocks, the inner dockerd) and the containers an exec
-runs under the inner dockerd are not the exec's and keep running.
+runs under the inner dockerd are not the exec's and keep running. On
+SIGTERM, runnerd passes the signal on to every live exec before it exits.
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token

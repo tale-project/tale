@@ -775,7 +775,9 @@ if [ "$1" = "egress-sidecar" ]; then
   resolve_egress_endpoint
   if [ -z "${TALE_EGRESS_IP}" ]; then
     echo "[entrypoint] WARN: egress-sidecar could not resolve the egress proxy endpoint; transparent egress disabled (proxy-aware clients still use HTTPS_PROXY). Idling so the runner can still start." >&2
-    exec sleep infinity
+    # Under tini: a bare `sleep` as PID 1 ignores SIGTERM, so every Pod
+    # deletion waited out the whole grace period for this idle sidecar.
+    exec tini -- sleep infinity
   fi
   # Best-effort install — never crashloop the sidecar (and so block the runner)
   # on an iptables hiccup; proxy-aware clients still egress via the env.
@@ -804,7 +806,8 @@ fi
 # orphans that reparent to PID 1, and node never wait()s children it did not
 # spawn, so as PID 1 it would let them pile up as zombies against pids-limit
 # until fork() fails. `tini -g` forwards container-stop SIGTERM to runnerd's
-# process group, so graceful shutdown is unchanged.
+# process group; runnerd passes it on to every live exec (each runs in a
+# group of its own) before it exits.
 # ---------------------------------------------------------------------------
 if [ "$1" = "daemon" ]; then
   # Both DinD and transparent egress boot the container as root (DinD to run the

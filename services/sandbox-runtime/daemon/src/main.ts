@@ -513,10 +513,13 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  // SIGTERM → graceful close (the container is being torn down; in-flight execs
-  // get their process-group SIGTERM from the orchestrator's container stop).
+  // SIGTERM → graceful close (the container is being torn down). The init's
+  // signal reaches only this daemon's process group, never the execs (each
+  // runs in a group of its own), so pass it on: a harness gets to write its
+  // transcript and a wrapper to remove what it staged before the teardown.
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     process.on(sig, () => {
+      execManager.terminateAll();
       server.close(() => process.exit(0));
       setTimeout(() => process.exit(0), 2_000);
     });

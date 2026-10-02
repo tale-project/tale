@@ -544,6 +544,11 @@ export class ExecManager {
     return true;
   }
 
+  /** The daemon is going down: every live exec gets its SIGTERM now. */
+  terminateAll(): void {
+    for (const rec of this.live.values()) rec.terminate();
+  }
+
   /** Per-exec status WITHOUT consuming the stream: `running` (live), `exited`
    * (recently retained — carries the real exitCode), or null (`gone`: evicted
    * past the recent window or never existed). The platform's restorative
