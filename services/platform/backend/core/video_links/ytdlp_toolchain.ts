@@ -28,13 +28,19 @@
  * `ytdlp.ts` via `VIDEO_INGEST_BIN_DIR` (prepended to the sandboxed spawn PATH),
  * `VIDEO_INGEST_FFMPEG_LOCATION`, and `VIDEO_INGEST_YTDLP_PLUGIN_DIRS`.
  *
+ * Every stage is BOUNDED (`VIDEO_TOOLCHAIN_DEADLINES`): neither `fetch` nor a
+ * spawned child has a deadline of its own, and a caller's timeout (a Vitest
+ * hook's) rejects without cancelling anything. A stall therefore aborts its
+ * download or stops the child it started, and rejects with a
+ * `VideoToolchainError` naming the stage, its elapsed time and its deadline.
+ *
  * `'use node'`: this file lives under `convex/` (so the convex bundler analyses
  * it) and uses `node:child_process`/`node:fs` — the same runtime pin as
  * `ytdlp.ts`. It is imported only by the gated live test, never by a deployed
  * Convex function.
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, type StdioOptions } from 'node:child_process';
 import { existsSync, promises as fs } from 'node:fs';
 import { arch, homedir, platform } from 'node:os';
 import { join } from 'node:path';
@@ -45,6 +51,77 @@ import { join } from 'node:path';
  * no download — the sandboxed child finds it without `VIDEO_INGEST_BIN_DIR`.
  */
 const PINNED_SYSTEM_BIN_DIRS = ['/usr/local/bin', '/usr/bin'] as const;
+
+/**
+ * Wall-clock bounds for one provisioning run. Each stage gets its own deadline,
+ * capped by what is left of `totalMs`. `totalMs` (plus the kill grace) stays
+ * below the live test's hook timeout, so a stall fails HERE, naming its stage,
+ * instead of as an anonymous "Hook timed out" that leaves the child running —
+ * which is how a stalled `apt-get` once held the required Unit job for ten
+ * minutes (#4073). The install bound is wide on purpose: a slow but moving
+ * apt mirror is common on hosted runners.
+ */
+export const VIDEO_TOOLCHAIN_DEADLINES = {
+  totalMs: 540_000,
+  /** `fetch` until the response headers arrive. */
+  downloadResponseMs: 30_000,
+  /** Reading one asset's body (each is well under ~50 MB). */
+  downloadBodyMs: 120_000,
+  /** One `which` lookup. */
+  lookupMs: 10_000,
+  /** One `unzip`. */
+  unzipMs: 60_000,
+  /** `brew install ffmpeg` / `apt-get install ffmpeg`. */
+  packageInstallMs: 420_000,
+  /** SIGTERM → SIGKILL grace for a stopped child's process group. */
+  killGraceMs: 5_000,
+};
+
+type VideoToolchainDeadlines = typeof VIDEO_TOOLCHAIN_DEADLINES;
+
+/** A provisioning stage failed; `stage` names it (e.g. `yt-dlp download body`). */
+export class VideoToolchainError extends Error {
+  readonly stage: string;
+
+  constructor(stage: string, detail: string, options?: ErrorOptions) {
+    super(`[video-toolchain] ${stage}: ${detail}`, options);
+    this.name = 'VideoToolchainError';
+    this.stage = stage;
+  }
+}
+
+/** One stage's effective bound: its own deadline, or the rest of the run's. */
+interface StageDeadline {
+  ms: number;
+  /** Set when the remaining provisioning budget, not the stage's own bound, set `ms`. */
+  budgetMs?: number;
+}
+
+/** Bounds every stage of one provisioning run by its own deadline and the run's total. */
+export class ProvisioningClock {
+  readonly deadlines: VideoToolchainDeadlines;
+  private readonly startedAt = Date.now();
+
+  constructor(deadlines: VideoToolchainDeadlines) {
+    this.deadlines = deadlines;
+  }
+
+  stage(ms: number): StageDeadline {
+    const left = Math.max(
+      0,
+      this.deadlines.totalMs - (Date.now() - this.startedAt),
+    );
+    return left < ms ? { ms: left, budgetMs: this.deadlines.totalMs } : { ms };
+  }
+}
+
+function timeoutDetail(deadline: StageDeadline, startedAt: number): string {
+  const bound =
+    deadline.budgetMs === undefined
+      ? `deadline ${deadline.ms} ms`
+      : `the rest of the ${deadline.budgetMs} ms provisioning budget, ${deadline.ms} ms`;
+  return `timed out after ${Date.now() - startedAt} ms (${bound})`;
+}
 
 /**
  * bgutil PO-token provider plugin version. Pinned to match the `bgutil` service
@@ -95,19 +172,34 @@ export async function ensureVideoToolchain(): Promise<VideoToolchain> {
   return cachedToolchain;
 }
 
-async function provisionToolchain(): Promise<VideoToolchain> {
+/**
+ * One un-memoized provisioning run. `ensureVideoToolchain` is the entry point;
+ * this seam exists so a test can point it at a scratch cache with short
+ * deadlines.
+ */
+export async function provisionToolchain(
+  options: {
+    cacheDir?: string;
+    deadlines?: Partial<VideoToolchainDeadlines>;
+  } = {},
+): Promise<VideoToolchain> {
+  const clock = new ProvisioningClock({
+    ...VIDEO_TOOLCHAIN_DEADLINES,
+    ...options.deadlines,
+  });
   const cacheDir =
-    process.env.TALE_VIDEO_TOOLCHAIN_DIR?.trim() ||
-    join(homedir(), '.cache', 'tale-video-toolchain');
+    options.cacheDir ??
+    (process.env.TALE_VIDEO_TOOLCHAIN_DIR?.trim() ||
+      join(homedir(), '.cache', 'tale-video-toolchain'));
   const binDir = join(cacheDir, 'bin');
   const pluginDir = join(cacheDir, 'plugins');
   await fs.mkdir(binDir, { recursive: true });
   await fs.mkdir(pluginDir, { recursive: true });
 
-  await ensureYtdlp(binDir);
-  await ensureDeno(binDir);
-  const ffmpegLocation = await ensureFfmpeg();
-  await ensureBgutilPlugin(pluginDir);
+  await ensureYtdlp(binDir, clock);
+  await ensureDeno(binDir, clock);
+  const ffmpegLocation = await ensureFfmpeg(clock);
+  await ensureBgutilPlugin(pluginDir, clock);
 
   return { binDir, ffmpegLocation, pluginDir };
 }
@@ -131,13 +223,18 @@ function ytdlpAsset(): string {
   throw new Error(`[video-toolchain] no yt-dlp standalone build for ${p}/${a}`);
 }
 
-async function ensureYtdlp(binDir: string): Promise<void> {
+async function ensureYtdlp(
+  binDir: string,
+  clock: ProvisioningClock,
+): Promise<void> {
   const cached = join(binDir, 'yt-dlp');
   if (isOnPinnedSystemPath('yt-dlp') || existsSync(cached)) return;
   console.info('[video-toolchain] downloading yt-dlp…');
   await downloadTo(
+    'yt-dlp download',
     `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${ytdlpAsset()}`,
     cached,
+    clock,
   );
   await fs.chmod(cached, 0o755);
 }
@@ -153,17 +250,22 @@ function denoTriple(): string {
   throw new Error(`[video-toolchain] no deno build for ${p}/${a}`);
 }
 
-async function ensureDeno(binDir: string): Promise<void> {
+async function ensureDeno(
+  binDir: string,
+  clock: ProvisioningClock,
+): Promise<void> {
   const cached = join(binDir, 'deno');
   if (isOnPinnedSystemPath('deno') || existsSync(cached)) return;
   console.info('[video-toolchain] downloading deno…');
   // The deno release ships a single `deno` binary inside a zip.
   const zip = join(binDir, 'deno.zip');
   await downloadTo(
+    'deno download',
     `https://github.com/denoland/deno/releases/latest/download/deno-${denoTriple()}.zip`,
     zip,
+    clock,
   );
-  await unzipInto(zip, binDir);
+  await unzipInto('deno unzip', zip, binDir, clock);
   await fs.rm(zip, { force: true });
   await fs.chmod(cached, 0o755);
 }
@@ -173,22 +275,40 @@ async function ensureDeno(binDir: string): Promise<void> {
  * `--ffmpeg-location`, so it need NOT sit on the pinned spawn PATH — a Homebrew
  * `/opt/homebrew/bin/ffmpeg` is fine. If absent, install it with the platform
  * package manager (brew on macOS, apt on Debian/Ubuntu, best-effort) and
- * re-resolve. Throws a clear, actionable error if it still can't be found.
+ * re-resolve. Throws a clear, actionable error if it still can't be found,
+ * carrying the install stage's own failure (a timeout names its elapsed time).
  */
-async function ensureFfmpeg(): Promise<string> {
-  const found = await which('ffmpeg');
+async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
+  const found = await which('ffmpeg', clock);
   if (found) return found;
 
-  if (platform() === 'darwin' && (await which('brew'))) {
+  const install = clock.deadlines.packageInstallMs;
+  let installFailure: unknown;
+  if (platform() === 'darwin' && (await which('brew', clock))) {
     console.info('[video-toolchain] installing ffmpeg via Homebrew…');
-    await run('brew', ['install', 'ffmpeg']);
-  } else if (platform() === 'linux' && (await which('apt-get'))) {
+    await run(
+      'ffmpeg install (brew)',
+      'brew',
+      ['install', 'ffmpeg'],
+      clock.stage(install),
+      clock,
+    );
+  } else if (platform() === 'linux' && (await which('apt-get', clock))) {
     console.info('[video-toolchain] installing ffmpeg via apt-get…');
     // Best-effort: the runner may lack sudo or network. A failure just surfaces
     // as the "still missing" error below, with full context for the operator.
+    // `sudo -n`: a password prompt is a wait with no deadline, and the bounded
+    // child runs without a terminal — it fails at once instead.
     try {
-      await run('sudo', ['apt-get', 'install', '-y', 'ffmpeg']);
+      await run(
+        'ffmpeg install (apt-get)',
+        'sudo',
+        ['-n', 'apt-get', 'install', '-y', 'ffmpeg'],
+        clock.stage(install),
+        clock,
+      );
     } catch (err) {
+      installFailure = err;
       console.warn(
         '[video-toolchain] apt-get install ffmpeg failed (best-effort):',
         err instanceof Error ? err.message : err,
@@ -196,12 +316,15 @@ async function ensureFfmpeg(): Promise<string> {
     }
   }
 
-  const reResolved = await which('ffmpeg');
+  const reResolved = await which('ffmpeg', clock);
   if (!reResolved) {
+    const cause =
+      installFailure instanceof Error ? ` (${installFailure.message})` : '';
     throw new Error(
-      '[video-toolchain] ffmpeg not found and could not be auto-installed. ' +
-        'Install it manually (macOS: `brew install ffmpeg`; Debian/Ubuntu: ' +
-        '`apt-get install ffmpeg`) and re-run.',
+      '[video-toolchain] ffmpeg not found and could not be auto-installed' +
+        `${cause}. Install it manually (macOS: \`brew install ffmpeg\`; ` +
+        'Debian/Ubuntu: `apt-get install ffmpeg`) and re-run.',
+      { cause: installFailure },
     );
   }
   return reResolved;
@@ -214,17 +337,22 @@ async function ensureFfmpeg(): Promise<string> {
  * (see `BGUTIL_PLUGIN_NEST_DIR`). Presence of that nested package is the
  * idempotency guard.
  */
-async function ensureBgutilPlugin(pluginDir: string): Promise<void> {
+async function ensureBgutilPlugin(
+  pluginDir: string,
+  clock: ProvisioningClock,
+): Promise<void> {
   const installDir = bgutilPluginInstallDir(pluginDir);
   if (existsSync(join(installDir, 'yt_dlp_plugins'))) return;
   console.info('[video-toolchain] downloading bgutil yt-dlp plugin…');
   await fs.mkdir(installDir, { recursive: true });
   const zip = join(pluginDir, 'bgutil-ytdlp-pot-provider.zip');
   await downloadTo(
+    'bgutil plugin download',
     `https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip`,
     zip,
+    clock,
   );
-  await unzipInto(zip, installDir);
+  await unzipInto('bgutil plugin unzip', zip, installDir, clock);
   await fs.rm(zip, { force: true });
 }
 
@@ -232,16 +360,55 @@ async function ensureBgutilPlugin(pluginDir: string): Promise<void> {
  * Stream a URL to `dest`. `fetch` follows redirects, so the GitHub
  * `releases/latest/download/…` shape (302 → CDN) works directly. The whole body
  * is buffered in memory — every asset here is well under ~50 MB.
+ *
+ * Bounded in two stages on ONE `AbortController`, because the signal handed to
+ * `fetch` governs the body read too: `<stage> response` until the headers
+ * arrive, then `<stage> body`. Expiry aborts the request with a
+ * `VideoToolchainError` naming the stage.
  */
-async function downloadTo(url: string, dest: string): Promise<void> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(
-      `[video-toolchain] download failed (${res.status} ${res.statusText}): ${url}`,
+export async function downloadTo(
+  stage: string,
+  url: string,
+  dest: string,
+  clock: ProvisioningClock,
+): Promise<void> {
+  const controller = new AbortController();
+  const arm = (phase: string, deadline: StageDeadline): NodeJS.Timeout => {
+    const startedAt = Date.now();
+    return setTimeout(
+      () =>
+        controller.abort(
+          new VideoToolchainError(phase, timeoutDetail(deadline, startedAt)),
+        ),
+      deadline.ms,
     );
+  };
+  let timer = arm(
+    `${stage} response`,
+    clock.stage(clock.deadlines.downloadResponseMs),
+  );
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) {
+      await res.body?.cancel();
+      throw new VideoToolchainError(
+        stage,
+        `download failed (${res.status} ${res.statusText}): ${url}`,
+      );
+    }
+    timer = arm(`${stage} body`, clock.stage(clock.deadlines.downloadBodyMs));
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    await fs.writeFile(dest, bytes);
+  } catch (err) {
+    // An abort surfaces as whatever the runtime wraps it in; the reason is ours.
+    if (controller.signal.reason instanceof VideoToolchainError) {
+      throw controller.signal.reason;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  await fs.writeFile(dest, bytes);
 }
 
 /**
@@ -249,49 +416,187 @@ async function downloadTo(url: string, dest: string): Promise<void> {
  * GitHub Ubuntu runner). `-o` overwrites so a re-run over a warm cache never
  * blocks on a prompt; `-q` keeps the test output quiet.
  */
-async function unzipInto(zip: string, destDir: string): Promise<void> {
-  await run('unzip', ['-o', '-q', zip, '-d', destDir]);
+async function unzipInto(
+  stage: string,
+  zip: string,
+  destDir: string,
+  clock: ProvisioningClock,
+): Promise<void> {
+  await run(
+    stage,
+    'unzip',
+    ['-o', '-q', zip, '-d', destDir],
+    clock.stage(clock.deadlines.unzipMs),
+    clock,
+  );
 }
 
 /**
  * Resolve `bin` to an absolute path via the system `which`, searching the FULL
  * inherited PATH (unlike the sandboxed yt-dlp spawn) so a Homebrew/apt ffmpeg is
- * discoverable. Returns null when not found — never throws.
+ * discoverable. Returns null when not found (or when `which` itself is missing);
+ * rejects only when the lookup overruns its deadline.
  */
-async function which(bin: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const child = spawn('which', [bin], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    let out = '';
-    child.stdout.on('data', (d) => {
-      out += d.toString();
-    });
-    // ENOENT (no `which` binary) or any spawn error → treat as "not found".
-    child.on('error', () => resolve(null));
-    child.on('close', (code) => {
-      const first = out.trim().split('\n')[0]?.trim();
-      resolve(code === 0 && first ? first : null);
-    });
-  });
+async function which(
+  bin: string,
+  clock: ProvisioningClock,
+): Promise<string | null> {
+  const result = await spawnBounded(
+    `${bin} lookup`,
+    'which',
+    [bin],
+    clock.stage(clock.deadlines.lookupMs),
+    clock.deadlines.killGraceMs,
+    true,
+  );
+  if (result.spawnError) return null;
+  const first = result.stdout.trim().split('\n')[0]?.trim();
+  return result.code === 0 && first ? first : null;
 }
 
 /**
  * Spawn `cmd` and resolve on exit 0, rejecting otherwise. stdout/stderr are
  * inherited so a slow `brew install` streams progress into the test output.
  */
-async function run(cmd: string, args: string[]): Promise<void> {
+export async function run(
+  stage: string,
+  cmd: string,
+  args: string[],
+  deadline: StageDeadline,
+  clock: ProvisioningClock,
+): Promise<void> {
+  const result = await spawnBounded(
+    stage,
+    cmd,
+    args,
+    deadline,
+    clock.deadlines.killGraceMs,
+    false,
+  );
+  if (result.spawnError) {
+    throw new VideoToolchainError(
+      stage,
+      `could not start '${cmd}': ${result.spawnError.message}`,
+      { cause: result.spawnError },
+    );
+  }
+  if (result.code !== 0) {
+    const how =
+      result.code === null
+        ? `was killed by ${result.signal}`
+        : `exited ${result.code}`;
+    throw new VideoToolchainError(stage, `'${cmd} ${args.join(' ')}' ${how}`);
+  }
+}
+
+interface BoundedChildResult {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  /** Set when the child never started (e.g. ENOENT). */
+  spawnError?: Error;
+}
+
+/**
+ * Run one child under `deadline` — the `ytdlp.ts:runYtdlp` shape. `detached`
+ * gives the child its own process group, so a stop reaches it and everything
+ * IT started, and nothing else: on expiry, SIGTERM the group, SIGKILL it after
+ * `killGraceMs` (or as soon as the child itself exits, for anything it left
+ * behind), and reject with the stage's timeout — only once the child has
+ * closed, so a caller never races a still-running child. If even SIGKILL
+ * brings no `close` within another grace, reject anyway and say so: the run
+ * stays bounded.
+ */
+function spawnBounded(
+  stage: string,
+  cmd: string,
+  args: string[],
+  deadline: StageDeadline,
+  killGraceMs: number,
+  captureStdout: boolean,
+): Promise<BoundedChildResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ['ignore', 'inherit', 'inherit'] });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) resolve();
-      else
-        reject(
-          new Error(
-            `[video-toolchain] '${cmd} ${args.join(' ')}' exited ${code}`,
-          ),
+    const startedAt = Date.now();
+    const stdio: StdioOptions = captureStdout
+      ? ['ignore', 'pipe', 'ignore']
+      : ['ignore', 'inherit', 'inherit'];
+    const child = spawn(cmd, args, { stdio, detached: true });
+    let stdout = '';
+    child.stdout?.on('data', (d: Buffer) => {
+      stdout += d.toString();
+    });
+
+    let settled = false;
+    // The timeout detail, once the deadline has passed.
+    let timedOut: string | undefined;
+    const timers: NodeJS.Timeout[] = [];
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      for (const t of timers) clearTimeout(t);
+      fn();
+    };
+    const killGroup = (signal: NodeJS.Signals): void => {
+      const pid = child.pid;
+      if (pid === undefined) return;
+      try {
+        process.kill(-pid, signal);
+      } catch {
+        try {
+          child.kill(signal);
+        } catch (err) {
+          // ESRCH is the child already gone; anything else (EPERM) means the
+          // signal never landed and a process it started may live on.
+          const code =
+            err instanceof Error && 'code' in err ? err.code : undefined;
+          if (code !== 'ESRCH') {
+            console.warn(
+              `[video-toolchain] ${stage}: ${signal} failed for pid ${pid}:`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        }
+      }
+    };
+
+    timers.push(
+      setTimeout(() => {
+        timedOut = timeoutDetail(deadline, startedAt);
+        killGroup('SIGTERM');
+        timers.push(
+          setTimeout(() => {
+            killGroup('SIGKILL');
+            timers.push(
+              setTimeout(() => {
+                settle(() =>
+                  reject(
+                    new VideoToolchainError(
+                      stage,
+                      `${timedOut}; pid ${child.pid} did not exit after SIGKILL`,
+                    ),
+                  ),
+                );
+              }, killGraceMs),
+            );
+          }, killGraceMs),
         );
+      }, deadline.ms),
+    );
+
+    child.on('error', (err) => {
+      settle(() =>
+        resolve({ code: null, signal: null, stdout, spawnError: err }),
+      );
+    });
+    child.on('close', (code, signal) => {
+      if (timedOut !== undefined) {
+        // The child is gone; stop whatever it left behind in its group.
+        killGroup('SIGKILL');
+        const detail = timedOut;
+        settle(() => reject(new VideoToolchainError(stage, detail)));
+        return;
+      }
+      settle(() => resolve({ code, signal, stdout }));
     });
   });
 }
