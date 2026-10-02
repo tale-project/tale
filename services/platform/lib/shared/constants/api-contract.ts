@@ -313,5 +313,9 @@
  * deleting it works as for any agent. A review relay that moves a task the
  * standard agent holds to `in_progress` can answer `STANDARD_AGENT_OFF`
  * (403) or `STANDARD_AGENT_UNAVAILABLE` (409). Additive.
+ *
+ * 3.10.0 — 2026-10-01: the project agent tools vocabulary gains
+ * `task_update_metadata`, an explicit priority and agent-assignment grant
+ * that starts no work. Existing agents keep their saved grants.
  */
-export const API_CONTRACT_VERSION = '3.9.0';
+export const API_CONTRACT_VERSION = '3.10.0';

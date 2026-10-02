@@ -133,6 +133,7 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'task_create', effect: 'write', module: 'tasks' },
   { name: 'task_comment', effect: 'write', module: 'tasks' },
   { name: 'task_update_status', effect: 'write', module: 'tasks' },
+  { name: 'task_update_metadata', effect: 'write', module: 'tasks' },
   { name: 'task_start_agent', effect: 'write', module: 'tasks' },
   { name: 'task_upsert_by_external_ref', effect: 'write', module: 'tasks' },
   { name: 'document_find', effect: 'read', module: 'documents' },
@@ -147,10 +148,14 @@ export const AGENT_TOOL_CATALOG = [
  * Grantable tools only a PROJECT AGENT's run can use: `task_start_agent`
  * puts another agent of the project to work on behalf of whoever the run
  * answers to (`domains/tasks/delegated-start.ts`). An automation starts
- * agents with its `task.start_agent` step instead, so the automation agent
- * node neither offers nor grants these.
+ * agents with its `task.start_agent` step instead. `task_update_metadata`
+ * triages existing tasks without starting work. The automation agent node
+ * neither offers nor grants these project-only tools.
  */
-export const PROJECT_AGENT_ONLY_TOOLS: readonly string[] = ['task_start_agent'];
+export const PROJECT_AGENT_ONLY_TOOLS: readonly string[] = [
+  'task_start_agent',
+  'task_update_metadata',
+];
 
 /** The grantable tools that change org data (status listings badge these). */
 export const WRITE_EFFECT_TOOLS: readonly string[] = AGENT_TOOL_CATALOG.filter(

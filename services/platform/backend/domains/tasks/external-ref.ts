@@ -829,7 +829,7 @@ export async function startWorkflowForTaskInTx(
     const rows = await tx<{ id: string }[]>`
       SELECT id FROM app.automation_runs
       WHERE org_id = ${args.organizationId}
-        AND project_id = ${args.task.projectId}
+        AND (project_id = ${args.task.projectId} OR project_id IS NULL)
         AND status IN ('queued', 'running', 'waiting')
         AND input->'task'->>'id' = ${args.task.id}
       ORDER BY started_at_ms DESC LIMIT 1
@@ -911,7 +911,9 @@ interface AutomationRunForTaskArgs {
   taskId: string;
 }
 
-/** The subject-linked live automation run operating this task, if any. */
+/** The subject-linked live automation run operating this task, if any.
+ * The caller has authorized the task and derived its project. A same-org
+ * organization run may carry its subject without a project binding. */
 export async function findLiveAutomationRunForTask(
   sql: Sql,
   args: AutomationRunForTaskArgs,
@@ -945,7 +947,8 @@ async function findAutomationRunForTask(
   >`
     SELECT id, name, status, version, detail
     FROM app.automation_runs
-    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+    WHERE org_id = ${args.organizationId}
+      AND (project_id = ${args.projectId} OR project_id IS NULL)
       AND ${
         options.liveOnly
           ? sql`status IN ('queued', 'running', 'waiting')`

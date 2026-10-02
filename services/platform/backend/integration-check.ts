@@ -98,8 +98,10 @@ import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tabl
 import { checkWorkspaceCleanup } from './domains/sandbox/workspace-cleanup.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
+import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integration.ts';
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
 import {
   checkCooledStartRetry,
@@ -57539,6 +57541,14 @@ async function main(): Promise<void> {
       [
         'checkAgentTaskReadTools',
         () => checkAgentTaskReadTools(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentTaskMetadata',
+        () => checkAgentTaskMetadata(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTaskAutomationOccupancy',
+        () => checkTaskAutomationOccupancy(sql, baseUrl, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
       [

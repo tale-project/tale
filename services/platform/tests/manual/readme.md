@@ -54,7 +54,7 @@ directory and greppable as one token.
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 34 |
 | [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 114 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 35 |
-| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, review | 115 |
+| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, review | 116 |
 | [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 15 |
 
 ## How a round runs

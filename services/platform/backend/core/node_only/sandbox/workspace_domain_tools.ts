@@ -39,6 +39,7 @@ import {
   taskLimitText,
   taskTitleRefusal,
 } from '../../tasks/helpers';
+import { TASK_PRIORITIES, taskMetadataPatchSchema } from '../../tasks/metadata';
 import {
   isRecord,
   readBoolean,
@@ -54,6 +55,7 @@ export const WORKSPACE_TASK_TOOLS = [
   'task_create',
   'task_comment',
   'task_update_status',
+  'task_update_metadata',
   'task_start_agent',
   'task_upsert_by_external_ref',
 ] as const;
@@ -74,7 +76,6 @@ const TASK_STATUSES = [
 ] as const;
 /** Columns an agent may CREATE into — never the review/terminal columns. */
 const TASK_CREATE_STATUSES = ['backlog', 'todo'] as const;
-const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'] as const;
 
 /** Labels one task tool call may name: the first ones are kept and the rest
  * dropped, before the domain's own per-name limit applies. */
@@ -1354,6 +1355,47 @@ export async function runTaskTool(
         };
       }
       return { status: 'ok', output: { taskId, status } };
+    }
+
+    if (args.tool === 'task_update_metadata') {
+      if (confinedTo !== undefined) {
+        return memberRunRefusal(
+          'It cannot triage task priority or ownership. An editor must start the agent for that.',
+        );
+      }
+      if (
+        authority.scope.kind !== 'project' ||
+        args.session?.taskRunExecId === undefined
+      ) {
+        return {
+          status: 'unavailable',
+          blockers: [
+            {
+              code: 'not_a_project_agent_run',
+              guidance:
+                'Only a live project agent run can triage task metadata.',
+            },
+          ],
+        };
+      }
+      const parsed = taskMetadataPatchSchema.safeParse(callArgs);
+      if (!parsed.success) {
+        return {
+          status: 'invalid_args',
+          message:
+            'task_update_metadata needs {taskId, priority?, agentId?, expected: {priority?, assignee?}}. Name the current value of each field being changed; null clears it. No other fields are accepted.',
+        };
+      }
+      const output = await ctx.runMutation(
+        internal.tasks.internal_mutations.agentUpdateTaskMetadata,
+        {
+          organizationId,
+          sessionId: args.session.sessionId,
+          taskRunExecId: args.session.taskRunExecId,
+          patch: parsed.data,
+        },
+      );
+      return { status: 'ok', output };
     }
 
     if (args.tool === 'task_start_agent') {
