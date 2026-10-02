@@ -113,7 +113,11 @@ async function isNotificationAllowed(
   return value === null || value === undefined ? true : value;
 }
 
-export type CoalesceOutcome = 'inserted' | 'rewritten' | 'cancelled';
+export type CoalesceOutcome =
+  | 'inserted'
+  | 'rewritten'
+  | 'cancelled'
+  | 'withheld';
 
 /** The newest UNREAD twin scan bound (the 0.4 cap). */
 const UNREAD_SCAN_CAP = 100;
@@ -193,7 +197,8 @@ async function emitBellHints(
  *
  * Scoped to the row's own organization — a task id that does not resolve
  * inside it is left alone, so a link is never invented from another tenant's
- * data. Only queries on the miss path, and uses the caller's handle, so it
+ * data (from the writer such a row never gets here: nobody in the
+ * organization can open its task, so it is withheld first). Only queries on the miss path, and uses the caller's handle, so it
  * joins the open transaction rather than reading around it.
  *
  * `coalesceKeyFor` reads `conversationId` and `documentId`, never
@@ -217,14 +222,108 @@ async function withTaskProjectContext(
   return { ...args, params: { ...params, projectId } };
 }
 
+// ------------------------------------------------------- who may be told
+
+/** Which project a reader check is about: one by its id, or the one the task
+ * row names when the check runs. */
+type ReaderScope = { projectId: string } | { taskId: string };
+
+/**
+ * Of `userIds`, those who can open the project now: current, non-disabled
+ * members of the organization in its audience — owners and admins always;
+ * an organization-wide project, every member; otherwise a member of one of
+ * its teams, counted the way `getUserTeamIds` counts them for
+ * `assertTaskReadable` (a team of THIS organization). A subscription row
+ * outlives its subscriber's membership and team access, an assignee or a
+ * reviewer stays on the task row after both are gone, and a run keeps its
+ * starter's id — none of them is permission to read about the task, least
+ * of all by email. The role is the stored `member` role, which every
+ * background delivery reads (a trusted-headers session's role is written
+ * back to it at each sign-in).
+ */
+async function readersAmong(
+  db: Db,
+  args: { organizationId: string; userIds: readonly string[] } & ReaderScope,
+): Promise<string[]> {
+  const userIds = [...new Set(args.userIds)];
+  if (userIds.length === 0) return [];
+  const projectId = 'projectId' in args ? args.projectId : null;
+  const taskId = 'taskId' in args ? args.taskId : null;
+  const rows = await db<{ userId: string }[]>`
+    WITH audience AS (
+      SELECT ${db.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
+      FROM app.projects
+      WHERE org_id = ${args.organizationId}
+        AND id = COALESCE(${projectId}::text, (
+          SELECT project_id FROM app.tasks
+          WHERE id = ${taskId}::text AND org_id = ${args.organizationId}
+        ))
+      LIMIT 1
+    )
+    SELECT m."userId" FROM audience, "member" m
+    WHERE m."organizationId" = ${args.organizationId}
+      AND m."userId" IN ${db(userIds)}
+      AND lower(m."role") <> 'disabled'
+      AND (lower(m."role") IN ('owner', 'admin')
+           OR cardinality(audience."teamIds") = 0
+           OR EXISTS (
+             SELECT 1 FROM "teamMember" tm
+             JOIN "team" t ON t."id" = tm."teamId"
+             WHERE tm."userId" = m."userId"
+               AND t."organizationId" = ${args.organizationId}
+               AND tm."teamId" = ANY (audience."teamIds")
+           ))
+  `;
+  return rows.map((row) => row.userId);
+}
+
+/** {@link readersAmong} for a project named by its id. */
+function projectReadersAmong(
+  db: Db,
+  args: { organizationId: string; projectId: string; userIds: string[] },
+): Promise<string[]> {
+  return readersAmong(db, args);
+}
+
+/**
+ * {@link readersAmong} for the project a task is filed in now — the gate
+ * every task-bound row passes when it is written
+ * ({@link writeCoalescedNotification}), and again when its email leaves
+ * (`email-sink.ts`).
+ */
+export function taskReadersAmong(
+  db: Db,
+  args: { organizationId: string; taskId: string; userIds: readonly string[] },
+): Promise<string[]> {
+  return readersAmong(db, args);
+}
+
 /**
  * Write (or rewrite, or cancel) one notification row. Callers own the
  * preference gate — this is the mechanics of one row.
+ *
+ * A task-bound row is news about the task, so it is written only for
+ * someone who can open the task now ({@link taskReadersAmong}): whoever
+ * picked the recipient — a subscription, the task's assignee or reviewer, a
+ * mention, a date sweep — for anyone else nothing is written, rewritten or
+ * cancelled, and the answer is `withheld` (#3631).
  */
 export async function writeCoalescedNotification(
   db: Db,
   input: CollabNotificationInput,
 ): Promise<CoalesceOutcome> {
+  if (
+    input.taskId !== undefined &&
+    (
+      await taskReadersAmong(db, {
+        organizationId: input.organizationId,
+        taskId: input.taskId,
+        userIds: [input.userId],
+      })
+    ).length === 0
+  ) {
+    return 'withheld';
+  }
   const args = await withTaskProjectContext(db, input);
   const key = coalesceKeyFor(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused pure fn narrows types internally; unknown types simply never collapse
@@ -496,7 +595,10 @@ export async function getTaskSubscription(
     : { subscribed: true, muted: rows[0]?.muted === true };
 }
 
-/** Unmuted human watchers of a task — the audience for outcomes. */
+/** Unmuted human watchers of a task — the audience for outcomes. Which of
+ * them may still be told is the writer's call: a watcher who lost access to
+ * the project keeps the subscription and gets no row
+ * ({@link writeCoalescedNotification}). */
 async function taskSubscriberUserIds(
   db: Db,
   taskId: string,
@@ -1149,50 +1251,6 @@ const AGENT_RUN_FAILED_BODY_KEY: Record<TaskRunFailureClass, string> = {
 };
 
 /**
- * Of `userIds`, those who can still open the project: current, non-disabled
- * members of the organization in its audience (owners and admins always; an
- * organization-wide project, every member). A subscription row outlives its
- * subscriber's membership and team access, and a run keeps its starter's
- * id — neither is permission to read about the task, least of all by email.
- */
-async function projectReadersAmong(
-  db: Db,
-  args: { organizationId: string; projectId: string; userIds: string[] },
-): Promise<string[]> {
-  if (args.userIds.length === 0) return [];
-  const projects = await db<{ teamIds: string[] | null }[]>`
-    SELECT ${db.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
-    FROM app.projects
-    WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
-    LIMIT 1
-  `;
-  const project = projects[0];
-  if (project === undefined) return [];
-  const teamIds = project.teamIds ?? [];
-  const rows =
-    teamIds.length === 0
-      ? await db<{ userId: string }[]>`
-          SELECT "userId" FROM "member"
-          WHERE "organizationId" = ${args.organizationId}
-            AND "userId" IN ${db(args.userIds)}
-            AND lower("role") <> 'disabled'
-        `
-      : await db<{ userId: string }[]>`
-          SELECT m."userId" FROM "member" m
-          WHERE m."organizationId" = ${args.organizationId}
-            AND m."userId" IN ${db(args.userIds)}
-            AND lower(m."role") <> 'disabled'
-            AND (lower(m."role") IN ('owner', 'admin')
-                 OR EXISTS (
-                   SELECT 1 FROM "teamMember" tm
-                   WHERE tm."userId" = m."userId"
-                     AND tm."teamId" IN ${db(teamIds)}
-                 ))
-        `;
-  return rows.map((row) => row.userId);
-}
-
-/**
  * A project agent's run on a task failed and nothing will start it again by
  * itself — the automatic retries are spent, or the failure is one a retry
  * cannot change. Until this row existed the only trace was the run strip
@@ -1403,7 +1461,7 @@ export async function notifyAgentQuestionAsked(
     ) {
       continue;
     }
-    await writeCoalescedNotification(db, {
+    const outcome = await writeCoalescedNotification(db, {
       ...row,
       userId,
       organizationId: args.organizationId,
@@ -1412,7 +1470,7 @@ export async function notifyAgentQuestionAsked(
       actorType: 'agent',
       actorId: args.automationLabel,
     });
-    notified += 1;
+    if (outcome !== 'withheld') notified += 1;
   }
   return notified;
 }

@@ -68,6 +68,7 @@ import { checkAutomationProjectVisibility } from './domains/automations/project-
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
@@ -27723,6 +27724,32 @@ async function checkNotificationEmailSink(
         ...(undoes === true ? { undoes: true } : {}),
       });
 
+    // The rows are about real tasks of an organization-wide project: a
+    // task-bound row is written only for someone who can open its task.
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES ('p-email-sink', ${orgId}, 'Email sink', ${userId}, ${Date.now()},
+              ${Date.now()})
+    `;
+    for (const [index, taskId] of [
+      'email-task-a',
+      'email-task-b',
+      'email-task-c',
+      'email-task-d',
+    ].entries()) {
+      await sql`
+        INSERT INTO app.tasks (
+          id, org_id, project_id, title, status, rank, number, created_by,
+          created_by_type, created_at_ms, updated_at_ms
+        ) VALUES (
+          ${taskId}, ${orgId}, 'p-email-sink', ${taskId}, 'todo',
+          ${`e${index}`}, ${index + 1}, ${userId}, 'user', ${Date.now()},
+          ${Date.now()}
+        )
+      `;
+    }
+
     // A) Burst on one dimension: write then rewrite before the window fires
     // → the stale-epoch job skips, ONE email carries the final state.
     const first = await bell('email-task-a', 'Email me A');
@@ -27749,12 +27776,25 @@ async function checkNotificationEmailSink(
       RETURNING "id"
     `;
     const prefUserId = prefUsers[0]?.id ?? '';
+    // A member, so the row is written and the preference alone keeps the
+    // email in.
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-email-pref-${prefUserId}`}, ${orgId}, ${prefUserId},
+              'member', ${new Date()})
+    `;
     await sql`
       INSERT INTO app.notification_preferences (
         user_id, org_id, actionable_email, updated_at_ms
       ) VALUES (${prefUserId}, ${orgId}, false, ${Date.now()})
     `;
-    await bell('email-task-d', 'Pref is off', undefined, prefUserId);
+    const prefWrite = await bell(
+      'email-task-d',
+      'Pref is off',
+      undefined,
+      prefUserId,
+    );
 
     const drained = await drainNotificationEmails(sql);
     const delivered = smtpSends[0];
@@ -27772,6 +27812,7 @@ async function checkNotificationEmailSink(
       first === 'inserted' &&
         rewritten === 'rewritten' &&
         undone === 'cancelled' &&
+        prefWrite === 'inserted' &&
         drained &&
         smtpSends.length === 1 &&
         delivered?.subject === 'Task assigned to you' &&
@@ -27782,7 +27823,7 @@ async function checkNotificationEmailSink(
         ) &&
         (delivered?.from ?? '').startsWith('notification@') &&
         !rowsLeft.some((row) => row.resourceId === 'email-task-c'),
-      `write=${first}/${rewritten}/undo=${undone}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
+      `write=${first}/${rewritten}/undo=${undone}/pref=${prefWrite}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
         .map((r) => r.resourceId)
         .sort()
         .join('|')}`,
@@ -27855,6 +27896,14 @@ async function checkNotificationEmailSink(
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
+    // Later lanes count the organization's members and projects.
+    await sql`
+      DELETE FROM "member"
+      WHERE "organizationId" = ${orgId} AND "id" LIKE 'm-email-pref-%'
+    `;
+    await sql`
+      DELETE FROM app.projects WHERE id = 'p-email-sink' AND org_id = ${orgId}
+    `;
   }
 }
 
@@ -44312,6 +44361,23 @@ async function checkBellHintWire(
   await sleep(500); // both tails established
   const startId = await latestOutboxId(sql);
 
+  // The row is about a real task of an organization-wide project, which the
+  // teammate can open: a task-bound row is written only for its readers.
+  await sql`
+    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
+            ${Date.now()})
+  `;
+  await sql`
+    INSERT INTO app.tasks (
+      id, org_id, project_id, title, status, rank, number, created_by,
+      created_by_type, created_at_ms, updated_at_ms
+    ) VALUES (
+      'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
+      ${userId}, 'user', ${Date.now()}, ${Date.now()}
+    )
+  `;
   const { writeCoalescedNotification } =
     await import('./domains/collab/service.ts');
   await sql.begin((tx) =>
@@ -44384,6 +44450,10 @@ async function checkBellHintWire(
       (row[0]?.read ?? false),
     `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
   );
+  // Later lanes count the organization's projects.
+  await sql`
+    DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
+  `;
 }
 
 /**
@@ -57337,6 +57407,10 @@ async function main(): Promise<void> {
       [
         'checkAgentRunFailureNotice',
         () => checkAgentRunFailureNotice(sql, authCtx, record),
+      ],
+      [
+        'checkTaskNotificationAccess',
+        () => checkTaskNotificationAccess(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskSourceThread',
