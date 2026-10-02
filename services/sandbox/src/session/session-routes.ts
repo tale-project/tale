@@ -433,8 +433,16 @@ export class SessionRoutes {
         this.registry.size() -
         this.creating.size;
       if (free <= ahead.length) return 'full';
+      // Memory is held only for waiters this host could ever fit: one that
+      // asks for more than the host has beside its reserve must not keep
+      // every create behind it out for as long as it keeps asking.
+      const fits = this.memoryCeiling();
       let held = 0;
-      for (const waiter of ahead) held += waiter.workingSetBytes;
+      for (const waiter of ahead) {
+        if (fits === null || waiter.workingSetBytes <= fits) {
+          held += waiter.workingSetBytes;
+        }
+      }
       if (this.memoryShort(workingSetBytes + held)) return 'short';
     }
     if (this.atCapacity()) return 'full';
@@ -444,6 +452,23 @@ export class SessionRoutes {
     this.creatingBytes.set(sessionId, workingSetBytes);
     this.createSettled.set(sessionId, Promise.withResolvers<void>());
     return null;
+  }
+
+  /** The most memory a session could ever be given here: the host's total
+   * beside its reserve, or null when the host's memory is unknown. */
+  private memoryCeiling(): number | null {
+    let memory: HostMemory | null;
+    try {
+      memory = this.hostMemory.latest();
+    } catch (error) {
+      console.warn('[sandbox.session] host memory unreadable:', error);
+      return null;
+    }
+    if (memory === null) return null;
+    return (
+      memory.totalBytes -
+      memoryReserveBytes(memory.totalBytes, this.cfg.session.minFreeMemoryBytes)
+    );
   }
 
   /** Would starting a session of this working set, beside every create in

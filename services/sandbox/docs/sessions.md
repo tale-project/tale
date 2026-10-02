@@ -168,7 +168,8 @@ and the check cannot stop sessions already running from growing past it.
 order of its first refusal; asking again keeps its place. Room that frees
 next is the oldest waiters': a create gets in ahead of them only where there
 is a free slot for each of them as well, and memory for their planned
-working sets beside its own. The refusal says where the create stands —
+working sets beside its own (a waiter whose working set this host could
+never fit beside its reserve holds no memory). The refusal says where the create stands —
 `queue: { position, waiting }` in the body — and when that place comes up:
 `retry-after` is 5 s for the front and 5 s more per place behind it, up to
 60 s, so a waiter that comes back when told is first when room frees, and

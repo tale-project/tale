@@ -2771,6 +2771,25 @@ describe('the first-come line for host room', () => {
     expect((await create(routes, 'mem-old')).status).toBe(201);
   });
 
+  test('a waiter the host could never fit holds no memory for the creates behind it', async () => {
+    // A 2 GiB host keeps 1 GiB free: a 1.5 GiB working set never fits.
+    const tiny = () => ({ totalBytes: 2 * GIB, availableBytes: 1.8 * GIB });
+    const dind = { ...cfg, dockerInContainer: true };
+    const routes = new SessionRoutes(dind, fakeBackend, undefined, {
+      latest: tiny,
+      read: () => Promise.resolve(tiny()),
+    });
+    expect((await create(routes, 'too-big')).status).toBe(429);
+    const render = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'small-render',
+        organizationId: 'org_line',
+        profile: 'default',
+      }),
+    );
+    expect(render.status).toBe(201);
+  });
+
   test('a restarted spawner starts with no line', async () => {
     const first = new SessionRoutes(capped, fakeBackend);
     await create(first, 'r-a');
