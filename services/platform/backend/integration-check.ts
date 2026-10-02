@@ -40180,6 +40180,76 @@ async function checkSandboxSpawner(
       `refused=${refusedRes.status}, retrying=${retrying}, whileRetrying=${whileRetrying?.destroyState}, duplicate=${duplicateRes.status} (jobs=${jobsWhileRetrying.join('/')}), afterFailure=${afterFailure?.destroyState}/${afterFailure?.status}, retry=${retryRes.status}, destroyed=${retried}`,
     );
 
+    // A retry outlives the row it was asked for: the spawner did delete the
+    // workspace but the answer was lost, the reconcile heals the row, and a
+    // turn opens a fresh incarnation under the same id. The retry leaves that
+    // one alone, the list never reads it as being destroyed, and a Destroy
+    // asked for it is queued on its own rather than absorbed.
+    await provision('itest-spawn-3', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-22',
+    });
+    const firstRowId = (
+      await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
+    )?.id;
+    failDeletes = true;
+    const staleRes = await destroy('itest-spawn-3');
+    const staleRetrying = await waitFor(
+      async () => (await destroyJobStates('itest-spawn-3')).includes('retry'),
+      15_000,
+    );
+    live.delete('itest-spawn-3');
+    await sessions.markSessionDestroyed(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-3',
+    });
+    await provision('itest-spawn-3', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-22',
+    });
+    const freshRowId = (
+      await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
+    )?.id;
+    const freshWhileStale = await viewRow('itest-spawn-3');
+    failDeletes = false;
+    await sql`
+      UPDATE pgboss.job SET start_after = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'rowId' = ${firstRowId ?? ''} AND state = 'retry'
+    `;
+    const staleSettled = await waitFor(
+      async () =>
+        (await destroyJobStates('itest-spawn-3')).every(
+          (state) => state === 'completed',
+        ),
+      15_000,
+    );
+    const freshKept =
+      live.has('itest-spawn-3') &&
+      (await rowStatus('itest-spawn-3')) === 'active';
+    const freshRes = await destroy('itest-spawn-3');
+    const freshDestroyed = await waitFor(
+      async () =>
+        !live.has('itest-spawn-3') &&
+        (await rowStatus('itest-spawn-3')) === 'destroyed',
+      15_000,
+    );
+    record(
+      'sandbox Destroy retry leaves a fresh incarnation under the reused id alone',
+      staleRes.status === 202 &&
+        staleRetrying &&
+        firstRowId !== undefined &&
+        freshRowId !== undefined &&
+        freshRowId !== firstRowId &&
+        freshWhileStale !== undefined &&
+        (freshWhileStale.destroyState ?? null) === null &&
+        staleSettled &&
+        freshKept &&
+        freshRes.status === 202 &&
+        freshDestroyed,
+      `stale=${staleRes.status}, retrying=${staleRetrying}, rows=${firstRowId === freshRowId ? 'same' : 'distinct'}, freshWhileStale=${freshWhileStale?.destroyState ?? 'none'}, staleSettled=${staleSettled}, freshKept=${freshKept}, fresh=${freshRes.status}, freshDestroyed=${freshDestroyed}`,
+    );
+
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
     const post = (route: string, body?: unknown): Promise<Response> =>
       fetch(`${base}${route}`, {

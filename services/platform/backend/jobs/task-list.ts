@@ -144,6 +144,10 @@ const sessionJobSchema = z.object({
   sessionId: z.string().min(1),
 });
 
+const destroySessionSchema = sessionJobSchema.extend({
+  rowId: z.string().min(1),
+});
+
 const orgCleanupSchema = z.object({
   orgSlug: z.string().min(1),
 });
@@ -893,7 +897,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // A throw is the retry: the spawner could not be asked, refused, or
       // the session's device is offline. The row stays listed, unpinned on
       // both sides, and reads the Destroy as pending until the last attempt.
-      await teardownSession(deps.sql, sessionJobSchema.parse(payload));
+      await teardownSession(deps.sql, destroySessionSchema.parse(payload));
     },
     'sandbox.retire_workspaces': async (payload) => {
       const input = retireWorkspacesSchema.parse(payload);

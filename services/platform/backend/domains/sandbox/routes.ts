@@ -346,7 +346,7 @@ export function createSandboxRoutes(deps: {
     const destroys = await sessionDestroyStates(
       deps.sql,
       organizationId,
-      sessions,
+      sessions.map((session) => session.sessionId),
     );
     for (const session of sessions) {
       session.deletesAt = deletions.get(session.sessionId) ?? null;

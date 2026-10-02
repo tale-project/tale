@@ -261,7 +261,11 @@ describe('sandbox settings read and write authority', () => {
       ]),
     );
     const response = await app().request('/sessions/view');
-    expect(destroyStates).toHaveBeenCalledWith(query, 'member-org', rows);
+    expect(destroyStates).toHaveBeenCalledWith(query, 'member-org', [
+      'a',
+      'b',
+      'c',
+    ]);
     const body = (await response.json()) as {
       sessions: Array<{ sessionId: string; destroyState: string | null }>;
     };

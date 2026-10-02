@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 
 /**
@@ -15,9 +16,13 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
  * that delete was still queued would open a fresh incarnation over the very
  * files the delete is about to remove.
  *
- * The page reads the queue back for each row: a Destroy still queued,
- * retrying or running reads `pending`, and one whose every attempt failed
- * reads `failed` until the next one is asked for.
+ * Each job names the row it was asked for. A session id is deterministic
+ * (a project agent's is the same for every incarnation), so a retry that
+ * finds a newer row under it leaves that one alone (`teardownSession`).
+ *
+ * The page reads the queue back for each row: a Destroy of that row still
+ * queued, retrying or running reads `pending`, and one whose every attempt
+ * failed reads `failed` until the next one is asked for.
  */
 
 export type SandboxDestroyState = 'pending' | 'failed';
@@ -37,67 +42,73 @@ interface SessionArgs {
 }
 
 /**
- * Queue the Destroy of one of the organization's sessions. False when the
- * organization holds no undestroyed row under that id, so nothing is queued
- * for another organization's session or for one already gone. A Destroy
- * already queued or running for the session absorbs this one.
+ * Queue the Destroy of one of the organization's sessions: of its latest
+ * incarnation, the one the teardown reads. False when the organization holds
+ * no such row, or it is already destroyed, so nothing is queued for another
+ * organization's session or for one already gone. A Destroy of the same row
+ * already queued or running absorbs this one.
  */
 export async function scheduleSessionDestroy(
   sql: Sql,
   args: SessionArgs,
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string }[]>`
-      SELECT id FROM app.sandbox_sessions
+    const rows = await tx<{ id: string; status: string }[]>`
+      SELECT id, status FROM app.sandbox_sessions
       WHERE org_id = ${args.organizationId} AND session_id = ${args.sessionId}
-        AND status <> 'destroyed'
+      ORDER BY created_at_ms DESC
       LIMIT 1
     `;
-    if (rows.length === 0) return false;
+    const row = rows[0];
+    if (row === undefined || row.status === 'destroyed') return false;
     await addJobInTx(
       tx,
       DESTROY_JOB,
-      { organizationId: args.organizationId, sessionId: args.sessionId },
-      { singletonKey: JSON.stringify([args.organizationId, args.sessionId]) },
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        rowId: row.id,
+      },
+      {
+        singletonKey: JSON.stringify([
+          args.organizationId,
+          args.sessionId,
+          row.id,
+        ]),
+      },
     );
     return true;
   });
 }
 
 /**
- * Each listed session's destroy state, from its latest Destroy job. A failed
- * job counts only when it was asked for after the row's incarnation began:
- * a fresh workspace under a reused id is not the one that failed to go.
+ * Each listed session's destroy state, from the latest Destroy job asked for
+ * the row it lists now. A job for an earlier incarnation under the same id
+ * says nothing about a fresh workspace the id names today.
  */
 export async function sessionDestroyStates(
   sql: Sql,
   organizationId: string,
-  sessions: readonly { sessionId: string; createdAt: number }[],
+  sessionIds: readonly string[],
 ): Promise<Map<string, SandboxDestroyState>> {
   const states = new Map<string, SandboxDestroyState>();
-  if (sessions.length === 0) return states;
-  const jobs = await sql<
-    { sessionId: string; state: string; createdAt: number }[]
-  >`
-    SELECT DISTINCT ON (data ->> 'sessionId')
-      data ->> 'sessionId' AS "sessionId", state::text AS state,
-      (EXTRACT(EPOCH FROM created_on) * 1000)::float8 AS "createdAt"
-    FROM pgboss.job
-    WHERE name = ${DESTROY_JOB}
-      AND data ->> 'organizationId' = ${organizationId}
-      AND data ->> 'sessionId' = ANY(${sessions.map((session) => session.sessionId)})
-    ORDER BY data ->> 'sessionId', created_on DESC
+  if (sessionIds.length === 0) return states;
+  const jobs = await sql<{ sessionId: string; state: string }[]>`
+    SELECT DISTINCT ON (s.session_id)
+      s.session_id AS "sessionId", j.state::text AS state
+    FROM pgboss.job j
+    JOIN app.sandbox_sessions s
+      ON s.id::text = j.data ->> 'rowId' AND s.org_id = ${organizationId}
+    WHERE j.name = ${DESTROY_JOB}
+      AND j.data ->> 'organizationId' = ${organizationId}
+      AND s.session_id = ANY(${[...sessionIds]})
+      AND s.status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+    ORDER BY s.session_id, j.created_on DESC
   `;
-  const incarnations = new Map(
-    sessions.map((session) => [session.sessionId, session.createdAt]),
-  );
   for (const job of jobs) {
     if (UNFINISHED_JOB_STATES.has(job.state)) {
       states.set(job.sessionId, 'pending');
-    } else if (
-      job.state === 'failed' &&
-      job.createdAt >= (incarnations.get(job.sessionId) ?? Infinity)
-    ) {
+    } else if (job.state === 'failed') {
       states.set(job.sessionId, 'failed');
     }
   }
