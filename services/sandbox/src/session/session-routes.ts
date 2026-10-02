@@ -68,6 +68,12 @@ const WEDGED_PROBE_FAILURES = 5;
  * again. */
 const ENDED_REAP_BACKOFF_MS = 10 * 60_000;
 
+/** How long a session that just started keeps part of its planned working
+ * set reserved at admission: its turn is still growing toward it while
+ * MemAvailable shows only the idle footprint. The reservation shrinks
+ * linearly to nothing over this window. */
+const YOUNG_SESSION_RESERVE_MS = 90_000;
+
 /** Run `work` over `items`, at most `limit` at a time. */
 async function forEachLimited<T>(
   items: readonly T[],
@@ -141,6 +147,12 @@ export class SessionRoutes {
   // The working set each create in flight is planned with: memory a starting
   // session is about to take that MemAvailable does not show yet.
   private readonly creatingBytes = new Map<string, number>();
+  // Sessions that started a moment ago, with the working set they were
+  // planned with: what they are still growing into (YOUNG_SESSION_RESERVE_MS).
+  private readonly youngBytes = new Map<
+    string,
+    { bytes: number; sinceMs: number }
+  >();
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
   // of answering a false not-found that the caller would turn into a
@@ -322,8 +334,9 @@ export class SessionRoutes {
   }
 
   /** Would starting a session of this working set, beside every create in
-   * flight at theirs, leave the host less than its reserve? Unknown memory
-   * never refuses. */
+   * flight at theirs and what the sessions that just started are still
+   * growing into, leave the host less than its reserve? Unknown memory never
+   * refuses. */
   private memoryShort(workingSetBytes: number): boolean {
     let memory: HostMemory | null;
     try {
@@ -335,6 +348,12 @@ export class SessionRoutes {
     if (memory === null) return false;
     let starting = workingSetBytes;
     for (const bytes of this.creatingBytes.values()) starting += bytes;
+    const now = Date.now();
+    for (const [sessionId, young] of this.youngBytes) {
+      const left = 1 - (now - young.sinceMs) / YOUNG_SESSION_RESERVE_MS;
+      if (left <= 0) this.youngBytes.delete(sessionId);
+      else starting += Math.round(young.bytes * left);
+    }
     const reserve = memoryReserveBytes(
       memory.totalBytes,
       this.cfg.session.minFreeMemoryBytes,
@@ -554,6 +573,8 @@ export class SessionRoutes {
     this.reclaimClaims.delete(sessionId);
     this.probeFailedAtMs.delete(sessionId);
     this.probeFailures.delete(sessionId);
+    // Its memory is the host's again: no reservation for it either.
+    this.youngBytes.delete(sessionId);
   }
 
   /**
@@ -1145,6 +1166,13 @@ export class SessionRoutes {
         endpoint,
         liveExecs: new Map(),
       });
+      const planned = this.creatingBytes.get(req.sessionId);
+      if (planned !== undefined) {
+        this.youngBytes.set(req.sessionId, {
+          bytes: planned,
+          sinceMs: Date.now(),
+        });
+      }
       return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
     } finally {
       this.creating.delete(req.sessionId);

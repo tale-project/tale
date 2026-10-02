@@ -40,12 +40,15 @@ docker exec tale-sandbox bun /app/src/control-cli.ts drain-status   # {draining,
 returns the configured `maxSessions` without requiring a Docker or Kubernetes
 inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
 organizations; unset, a Docker spawner that can read its host's memory sizes
-it from that memory at boot (one session per 768 MiB beyond the reserve, at
-least 8, at most 256), and 8 applies elsewhere. On such a host admission also
-keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of the host, at least 1 GiB),
-counting creates still starting at their planned working set: a create that
-would cut into it reclaims a released idle session or answers 429
-`host_memory`. At most 12 Docker CLI processes run at once. Platform adds an organization's three
+it from that memory (one session per 768 MiB beyond the reserve, or per
+1.5 GiB where agent sessions run Docker inside, at least 8, at most 256; at
+boot, or at the first sweep that can read it), and 8 applies elsewhere. On
+such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
+the host, at least 1 GiB), counting creates still starting at their planned
+working set and sessions started in the last 90 seconds at what they are
+still growing into: a create that would cut into it reclaims a released idle
+session or answers 429 `host_memory`. At most 12 Docker CLI processes run at
+once, each within its own time budget, the wait for a slot included. Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
 There is no independently configured organization runtime ceiling. With

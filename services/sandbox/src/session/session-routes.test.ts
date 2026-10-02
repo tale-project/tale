@@ -2455,6 +2455,24 @@ describe('memory-aware admission', () => {
     ]);
   });
 
+  test('a session that just started keeps its working set reserved while it grows into it', async () => {
+    // MemAvailable still shows 4 GiB: the new sessions sit at their idle
+    // footprint, but their turns are about to take their working sets.
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => 4),
+    );
+    for (const id of ['young-1', 'young-2', 'young-3', 'young-4']) {
+      expect((await create(routes, id)).status).toBe(201);
+    }
+    expect((await create(routes, 'young-5')).status).toBe(429);
+    // A session that is gone gives its reservation back at once.
+    await routes.handleDestroy('young-1');
+    expect((await create(routes, 'young-5')).status).toBe(201);
+  });
+
   test('short of memory, a released idle session is reclaimed to make room', async () => {
     let available = 8;
     const routes = new SessionRoutes(

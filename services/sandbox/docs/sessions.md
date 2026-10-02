@@ -123,12 +123,15 @@ Where the spawner can read the Docker host's memory (the local socket, the
 same kernel and total as the daemon reports), admission also holds every
 create to the host's free memory: with each create still starting counted at
 its planned working set (agent 512 MiB, with Docker inside 1.5 GiB, crawler
-render 256 MiB), the host must keep `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
-it, at least 1 GiB). Short of it, the create reclaims a released idle session
-like one at capacity, then answers 429 `host_memory` (`retry-after: 15`). The
-decision is taken under the admission lock from a reading at most a second
-old, so a burst sees each create admitted before it. Unknown memory never
-refuses a create.
+render 512 MiB), and each session started in the last 90 seconds at the part
+of it a linear decay leaves (its turn is still growing into it while
+MemAvailable shows only the idle footprint), the host must keep
+`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB). Short of it,
+the create reclaims a released idle session like one at capacity, then
+answers 429 `host_memory` (`retry-after: 15`). The decision is taken under the
+admission lock from a reading the probe refreshes every second, so a burst
+sees each create admitted before it. Unknown memory never refuses a create,
+and the check cannot stop sessions already running from growing past it.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
 enforce the shared namespace count on a best-effort basis; use ResourceQuota

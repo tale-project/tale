@@ -50,6 +50,26 @@ const hostMemory =
   cfg.backend === 'docker' && cfg.deviceConfigPath === null
     ? new HostMemoryProbe()
     : null;
+// No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
+// gets a capacity sized from it (never below the fixed default of 8), and
+// the memory guard at admission protects the rest. A boot that cannot read
+// it yet (a busy daemon after a reboot) sizes on a later sweep.
+let capacitySized = hostMemory === null || cfg.session.autoMaxSessions !== true;
+async function sizeSessionCapacity(): Promise<void> {
+  if (capacitySized || hostMemory === null) return;
+  const memory = await hostMemory.read();
+  if (memory === null || capacitySized) return;
+  capacitySized = true;
+  cfg.session.maxSessions = autoSessionCapacity(
+    memory.totalBytes,
+    memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
+    cfg.dockerInContainer,
+  );
+  console.log(
+    `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
+  );
+}
+
 let sessionRoutes: SessionRoutes | null = null;
 let sessionBackend: SessionBackend | null = null;
 function getSessionBackend(): SessionBackend {
@@ -501,20 +521,12 @@ async function main(): Promise<void> {
     await backend.warmImage();
   }
 
-  // No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
-  // gets a capacity sized from it (never below the fixed default of 8), and
-  // the memory guard at admission protects the rest.
-  if (hostMemory !== null && cfg.session.autoMaxSessions === true) {
-    const memory = await hostMemory.read();
-    if (memory !== null) {
-      cfg.session.maxSessions = autoSessionCapacity(
-        memory.totalBytes,
-        memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
-      );
-      console.log(
-        `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
-      );
-    }
+  hostMemory?.start();
+  await sizeSessionCapacity();
+  if (!capacitySized) {
+    console.warn(
+      `[sandbox] cannot read the Docker host's memory yet; session capacity stays ${cfg.session.maxSessions} until it can (set SANDBOX_MAX_SESSIONS to fix it)`,
+    );
   }
 
   const stopPeriodic = startPeriodicSweep(backend, cfg);
@@ -536,6 +548,11 @@ async function main(): Promise<void> {
       void sessions.maintain().catch((err) => {
         console.warn('[sandbox.session] periodic sweep failed:', err);
       });
+      if (!capacitySized) {
+        void sizeSessionCapacity().catch((err: unknown) => {
+          console.warn('[sandbox] sizing the session capacity failed:', err);
+        });
+      }
       // Max-linger self-reap (CLI-independent safety net): if this spawner has
       // been draining longer than the linger TTL, reclaim its session compute
       // ourselves so a deploy that died mid-roll can't pin compute forever.

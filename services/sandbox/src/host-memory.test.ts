@@ -25,6 +25,14 @@ describe('sizing from the host', () => {
     expect(capacity(1024)).toBe(256);
   });
 
+  test('where agent sessions run their own Docker daemon, a slot holds a whole such turn', () => {
+    const capacity = (gib: number) =>
+      autoSessionCapacity(gib * GIB, memoryReserveBytes(gib * GIB), true);
+    expect(capacity(4)).toBe(8);
+    expect(capacity(16)).toBe(9);
+    expect(capacity(64)).toBe(38);
+  });
+
   test('a starting session is planned at its kind of working set', () => {
     expect(sessionWorkingSetBytes('default', true)).toBe(256 * 1024 ** 2);
     expect(sessionWorkingSetBytes('agent', false)).toBe(512 * 1024 ** 2);
@@ -41,16 +49,33 @@ describe('HostMemoryProbe', () => {
     kernel?: string;
     daemonTotalBytes?: number;
     available?: () => number;
+    dockerFails?: () => boolean;
+    now?: () => number;
   }) {
     const totalKb = 16 * 1024 * 1024;
     let dockerCalls = 0;
+    let reads = 0;
     const instance = new HostMemoryProbe({
       env: {},
       kernelRelease: () => '6.10.14-linuxkit',
-      readFile: () =>
-        Promise.resolve(meminfo(totalKb, scenario.available?.() ?? 4194304)),
+      ...(scenario.now ? { now: scenario.now } : {}),
+      readFile: () => {
+        reads += 1;
+        return Promise.resolve(
+          meminfo(totalKb, scenario.available?.() ?? 4194304),
+        );
+      },
       docker: (args) => {
         dockerCalls += 1;
+        if (scenario.dockerFails?.() === true) {
+          return Promise.resolve({
+            exitCode: 124,
+            stdout: '',
+            stderr: 'timed out',
+            stdoutTruncated: false,
+            stderrTruncated: false,
+          });
+        }
         const stdout =
           args[0] === 'context'
             ? JSON.stringify(scenario.endpoint ?? 'unix:///var/run/docker.sock')
@@ -67,7 +92,7 @@ describe('HostMemoryProbe', () => {
         });
       },
     });
-    return { instance, dockerCalls: () => dockerCalls };
+    return { instance, dockerCalls: () => dockerCalls, reads: () => reads };
   }
 
   test('reads MemAvailable where /proc describes the Docker host', async () => {
@@ -97,5 +122,45 @@ describe('HostMemoryProbe', () => {
     expect((await instance.read())?.availableBytes).toBe(4 * GIB);
     expect((await instance.read(true))?.availableBytes).toBe(2 * GIB);
     expect(dockerCalls()).toBe(2);
+  });
+
+  test('concurrent reads share one', async () => {
+    let now = 1_000_000;
+    const { instance, reads } = probe({ now: () => now });
+    await instance.read();
+    // The verdict read /proc once, the reading once.
+    expect(reads()).toBe(2);
+    now += 5_000;
+    const shared = await Promise.all([
+      instance.read(),
+      instance.read(),
+      instance.read(),
+    ]);
+    expect(shared.every((m) => m?.availableBytes === 4 * GIB)).toBe(true);
+    expect(reads()).toBe(3);
+  });
+
+  test('a Docker CLI that could not answer is asked again within a minute, not in ten', async () => {
+    let now = 1_000_000;
+    let fails = true;
+    const { instance } = probe({ now: () => now, dockerFails: () => fails });
+    expect(await instance.read()).toBeNull();
+    fails = false;
+    now += 31_000;
+    expect((await instance.read())?.availableBytes).toBe(4 * GIB);
+  });
+
+  test('started, it keeps the reading admission decides with fresh', async () => {
+    let available = 4 * 1024 * 1024;
+    const { instance } = probe({ available: () => available });
+    await instance.read();
+    available = 2 * 1024 * 1024;
+    instance.start();
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1_300));
+      expect(instance.latest()?.availableBytes).toBe(2 * GIB);
+    } finally {
+      instance.stop();
+    }
   });
 });

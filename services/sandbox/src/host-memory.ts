@@ -29,7 +29,9 @@ export const SESSION_WORKING_SET_BYTES = {
 } as const;
 
 /** The memory a session slot is sized with when capacity follows the host:
- * between an idle session and a heavy turn, so a busy fleet still fits. */
+ * between an idle session and a heavy turn, so a busy fleet still fits —
+ * and a whole Docker-in-sandbox turn where agent sessions run their own
+ * daemon. */
 const SIZING_BYTES_PER_SESSION = 768 * MIB;
 const AUTO_MIN_SESSIONS = 8;
 const AUTO_MAX_SESSIONS = 256;
@@ -54,10 +56,13 @@ export function memoryReserveBytes(
 export function autoSessionCapacity(
   totalBytes: number,
   reserveBytes: number,
+  dockerInside = false,
 ): number {
-  const fits = Math.floor(
-    (totalBytes - reserveBytes) / SIZING_BYTES_PER_SESSION,
+  const perSession = Math.max(
+    SIZING_BYTES_PER_SESSION,
+    sessionWorkingSetBytes('agent', dockerInside),
   );
+  const fits = Math.floor((totalBytes - reserveBytes) / perSession);
   return Math.min(AUTO_MAX_SESSIONS, Math.max(AUTO_MIN_SESSIONS, fits));
 }
 
@@ -77,6 +82,10 @@ export function sessionWorkingSetBytes(
 const READING_TTL_MS = 1_000;
 /** How long the verdict "this /proc describes the Docker host" holds. */
 const VERDICT_TTL_MS = 10 * 60_000;
+/** How long a verdict the Docker CLI could not reach holds: a busy daemon
+ * right after a reboot must not switch the memory guard off for ten
+ * minutes. */
+const FAILED_VERDICT_TTL_MS = 30_000;
 
 export interface HostMemoryDeps {
   docker?: (args: string[]) => Promise<RunDockerResult>;
@@ -92,11 +101,16 @@ export class HostMemoryProbe {
   private readonly kernelRelease: () => string;
   private readonly now: () => number;
   private readonly env: Record<string, string | undefined>;
-  private verdict: { local: boolean; atMs: number; totalBytes: number } | null =
-    null;
+  private verdict: {
+    local: boolean;
+    atMs: number;
+    totalBytes: number;
+    failed: boolean;
+  } | null = null;
   private judging: Promise<boolean> | null = null;
   private reading: { atMs: number; memory: HostMemory | null } | null = null;
   private refreshing: Promise<HostMemory | null> | null = null;
+  private ticker: ReturnType<typeof setInterval> | null = null;
 
   constructor(deps: HostMemoryDeps = {}) {
     this.docker =
@@ -107,36 +121,53 @@ export class HostMemoryProbe {
     this.env = deps.env ?? process.env;
   }
 
-  /** The last reading, at most about a second old, without waiting: what
-   * admission decides with, inside its lock. A stale reading starts a fresh
-   * one for the next decision. Null until the first reading lands, and where
-   * this process cannot see the Docker host's memory. */
-  latest(): HostMemory | null {
-    const reading = this.reading;
-    if (reading === null || this.now() - reading.atMs >= READING_TTL_MS) {
-      this.refreshing ??= this.read(true)
-        .catch((error: unknown) => {
-          console.warn('[sandbox] host memory refresh failed:', error);
-          return null;
-        })
-        .finally(() => {
-          this.refreshing = null;
-        });
-    }
-    return reading?.memory ?? null;
+  /** Keep the reading fresh: one read a second, so admission, which
+   * decides without waiting, never judges a create on an old one. */
+  start(): void {
+    if (this.ticker !== null) return;
+    this.ticker = setInterval(() => {
+      void this.read().catch((error: unknown) => {
+        console.warn('[sandbox] host memory refresh failed:', error);
+      });
+    }, READING_TTL_MS);
+    this.ticker.unref();
   }
 
-  /** The host's memory now, or null when this process cannot see the Docker
-   * host's (never a guess: null leaves admission to the session count). */
-  async read(fresh = false): Promise<HostMemory | null> {
-    const now = this.now();
+  stop(): void {
+    if (this.ticker !== null) clearInterval(this.ticker);
+    this.ticker = null;
+  }
+
+  /** The last reading, without waiting: what admission decides with inside
+   * its lock — about a second old once `start()` keeps it fresh. Null until
+   * the first reading lands, and where this process cannot see the Docker
+   * host's memory. */
+  latest(): HostMemory | null {
+    return this.reading?.memory ?? null;
+  }
+
+  /** The host's memory, or null when this process cannot see the Docker
+   * host's (never a guess: null leaves admission to the session count). A
+   * reading under a second old is reused and concurrent callers share one
+   * read, unless `fresh` asks for one taken after the call. */
+  read(fresh = false): Promise<HostMemory | null> {
+    const reading = this.reading;
     if (
       !fresh &&
-      this.reading !== null &&
-      now - this.reading.atMs < READING_TTL_MS
+      reading !== null &&
+      this.now() - reading.atMs < READING_TTL_MS
     ) {
-      return this.reading.memory;
+      return Promise.resolve(reading.memory);
     }
+    if (fresh) return this.readNow();
+    this.refreshing ??= this.readNow().finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
+  }
+
+  private async readNow(): Promise<HostMemory | null> {
+    const now = this.now();
     let memory: HostMemory | null = null;
     if (await this.describesDockerHost()) {
       try {
@@ -151,13 +182,18 @@ export class HostMemoryProbe {
         console.warn('[sandbox] cannot read the host memory:', error);
       }
     }
-    this.reading = { atMs: now, memory };
+    // A slower read that started earlier never replaces a newer reading.
+    if (this.reading === null || this.reading.atMs <= now) {
+      this.reading = { atMs: now, memory };
+    }
     return memory;
   }
 
   private describesDockerHost(): Promise<boolean> {
     const verdict = this.verdict;
-    if (verdict !== null && this.now() - verdict.atMs < VERDICT_TTL_MS) {
+    const ttl =
+      verdict?.failed === true ? FAILED_VERDICT_TTL_MS : VERDICT_TTL_MS;
+    if (verdict !== null && this.now() - verdict.atMs < ttl) {
       return Promise.resolve(verdict.local);
     }
     this.judging ??= this.judge().finally(() => {
@@ -169,6 +205,7 @@ export class HostMemoryProbe {
   private async judge(): Promise<boolean> {
     let local = false;
     let totalBytes = 0;
+    let failed = false;
     try {
       const endpoint =
         !this.env.DOCKER_CONTEXT && this.env.DOCKER_HOST
@@ -202,12 +239,13 @@ export class HostMemoryProbe {
         own.totalBytes === daemonTotal;
       totalBytes = local && own !== null ? own.totalBytes : 0;
     } catch (error) {
+      failed = true;
       console.warn(
-        '[sandbox] cannot tell whether this host is the Docker host; admission counts sessions only:',
+        `[sandbox] cannot tell whether this host is the Docker host; admission counts sessions only (asked again in ${FAILED_VERDICT_TTL_MS / 1000} s):`,
         error,
       );
     }
-    this.verdict = { local, atMs: this.now(), totalBytes };
+    this.verdict = { local, atMs: this.now(), totalBytes, failed };
     return local;
   }
 
