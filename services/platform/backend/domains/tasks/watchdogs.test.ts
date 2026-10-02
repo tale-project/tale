@@ -19,6 +19,7 @@ import {
   failAgentRun,
   listOverdueAgentRuns,
   listParkedAgentRuns,
+  wakeParkedAgentRuns,
 } from './agent-runs.ts';
 import { runTaskAgentWatchdog } from './watchdogs.ts';
 
@@ -68,6 +69,33 @@ beforeEach(() => {
 afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
+});
+
+describe('runTaskAgentWatchdog (parked runs)', () => {
+  it('wakes up to four parked runs per organization a tick, stopping when none is left', async () => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+    vi.mocked(listParkedAgentRuns).mockResolvedValue([
+      { organizationId: 'org-busy' },
+      { organizationId: 'org-busy' },
+      { organizationId: 'org-quiet' },
+    ] as never);
+    const remaining = new Map([
+      ['org-busy', 6],
+      ['org-quiet', 1],
+    ]);
+    vi.mocked(wakeParkedAgentRuns).mockImplementation(async (_sql, org) => {
+      const left = remaining.get(org) ?? 0;
+      if (left === 0) return 0;
+      remaining.set(org, left - 1);
+      return 1;
+    });
+
+    const result = await runTaskAgentWatchdog(fakeSql([]));
+
+    expect(result.woken).toBe(5);
+    expect(remaining.get('org-busy')).toBe(2);
+    expect(remaining.get('org-quiet')).toBe(0);
+  });
 });
 
 describe('runTaskAgentWatchdog (deadline lane)', () => {

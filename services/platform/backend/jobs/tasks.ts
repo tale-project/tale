@@ -711,3 +711,17 @@ export const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   ['task.agent_drive', 16],
   ['automation.agent_drive', 16],
 ]);
+
+/**
+ * How often an IDLE slot of these queues polls, in seconds, where the
+ * default is two. Each slot of a slot queue polls on its own, so sixteen
+ * drive slots polling every two seconds would cost a worker eight empty
+ * fetches a second; a drive window is always enqueued with no delay, so the
+ * insert notification wakes the slots at once and the poll is only the
+ * recovery backstop.
+ */
+export const TASK_WORKER_IDLE_POLL_SECONDS: ReadonlyMap<string, number> =
+  new Map<TaskIdentifier, number>([
+    ['task.agent_drive', 10],
+    ['automation.agent_drive', 10],
+  ]);

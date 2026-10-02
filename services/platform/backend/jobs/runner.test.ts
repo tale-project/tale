@@ -463,8 +463,15 @@ describe('startWorker agent turn slots', () => {
       expect(workOptions.get(drive)).toMatchObject({
         batchSize: 1,
         localConcurrency: 16,
+        // Sixteen idle slots poll every ten seconds, not every two: a drive
+        // is enqueued with no delay, so its insert notification wakes them.
+        pollingIntervalSeconds: 10,
+        notifyPollingIntervalSeconds: 10,
       });
     }
+    expect(workOptions.get('task.agent_turn')).toMatchObject({
+      pollingIntervalSeconds: 2,
+    });
   });
 
   it('a higher worker concurrency raises the drive slots too', async () => {
