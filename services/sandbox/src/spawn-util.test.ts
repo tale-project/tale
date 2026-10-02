@@ -238,17 +238,17 @@ describe('docker CLI concurrency', () => {
     process.env.DOCKER_BIN = bin;
     try {
       const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
-        runDocker(['pull', '1.5'], { timeoutMs: 10_000 }),
+        runDocker(['pull', '3'], { timeoutMs: 10_000 }),
       );
       // Queued behind them, an ordinary call waits for the first to end.
       const queued = runDocker(['inspect', '0'], { timeoutMs: 10_000 });
-      const startedAtMs = Date.now();
       const short = await runDocker(['inspect', '0'], {
-        timeoutMs: 1_000,
+        timeoutMs: 2_000,
         priority: true,
       });
+      // It ran, and ended while every shared slot was still held and the
+      // ordinary call still waited.
       expect(short.exitCode).toBe(0);
-      expect(Date.now() - startedAtMs).toBeLessThan(1_000);
       expect(dockerCliLoad()).toEqual({
         running: DOCKER_CLI_CONCURRENCY,
         waiting: 1,
@@ -260,7 +260,7 @@ describe('docker CLI concurrency', () => {
       else process.env.DOCKER_BIN = previous;
       await rm(dir, { recursive: true, force: true });
     }
-  });
+  }, 10_000);
 
   test('short calls take a free shared slot first, and their own lane is bounded too', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));

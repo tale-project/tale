@@ -25,7 +25,11 @@ import {
   WorkspaceTrash,
   workspaceTrash,
 } from '../../session/workspace-trash.ts';
-import { DOCKER_CLI_CONCURRENCY, runDocker } from '../../spawn-util.ts';
+import {
+  DOCKER_CLI_CONCURRENCY,
+  dockerCliLoad,
+  runDocker,
+} from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { DockerBackend, dockerHealth } from './docker-backend.ts';
 import {
@@ -317,9 +321,8 @@ describe('short docker calls beside a burst', () => {
   test('the health probe and an identity check answer while long calls hold every shared slot', async () => {
     await fakeDocker({ present: true, rm: 'ok' });
     const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
-      runDocker(['pull', '1.5'], { timeoutMs: 10_000 }),
+      runDocker(['pull', '3'], { timeoutMs: 10_000 }),
     );
-    const startedAtMs = Date.now();
     expect(await new DockerBackend(backendConfig()).health()).toEqual({
       ok: true,
       detail: '29.0.0',
@@ -327,9 +330,14 @@ describe('short docker calls beside a burst', () => {
     expect(
       await new DockerSessionBackend(backendConfig()).sessionExists('burst-1'),
     ).toBe(true);
-    expect(Date.now() - startedAtMs).toBeLessThan(1_000);
+    // Both answered while every shared slot was still held: neither waited
+    // for one of the long calls to end.
+    expect(dockerCliLoad()).toEqual({
+      running: DOCKER_CLI_CONCURRENCY,
+      waiting: 0,
+    });
     await Promise.all(holders);
-  });
+  }, 10_000);
 
   test('a health probe that found no docker CLI slot reads as transient', () => {
     const answer = {
