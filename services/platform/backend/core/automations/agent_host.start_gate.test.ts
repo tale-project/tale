@@ -230,6 +230,7 @@ describe('classifyWorkflowStartFailure', () => {
         'the agent turn is waiting for sandbox room: the sandbox host is busy',
       failureCode: 'sandbox_capacity',
       retryAtMs: NOW + 15_000,
+      retryAfterMs: 15_000,
     });
     expect(
       classifyWorkflowStartFailure(

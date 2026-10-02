@@ -7,7 +7,7 @@
  * has been revoked") — resumes the conversation on a fresh vend for free.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { AUTO_RETRY_MAX_ATTEMPTS } from '../tasks/task_auto_retry.ts';
@@ -15,7 +15,10 @@ import type { AutomationAgentHost } from './agent_host.ts';
 import type { AgentCursor } from './checkpoints.ts';
 import { setAutomationAgentHostFactory, stepRunImpl } from './stepper.ts';
 
-afterEach(() => setAutomationAgentHostFactory(null));
+afterEach(() => {
+  setAutomationAgentHostFactory(null);
+  vi.restoreAllMocks();
+});
 
 type KickArgs = Parameters<AutomationAgentHost['kick']>[0];
 
@@ -338,6 +341,36 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       attempt: AUTO_RETRY_MAX_ATTEMPTS,
       waitingForRoomSince: expect.any(Number),
     });
+  });
+
+  it('backs a room wait off past the retry hint, more with each refusal in a row', async () => {
+    // The top of each window: the hint doubled per refusal in a row.
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        waitingForRoomSince: Date.now() - 5 * 60_000,
+        roomRefusals: 2,
+        result: {
+          errored: true,
+          reason:
+            'the agent turn is waiting for sandbox room: the sandbox host is busy',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 10_000,
+          retryAfterMs: 10_000,
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    // The third refusal in a row: up to eight times the hint, not the hint.
+    expect(kicks[0]?.notBefore).toBeGreaterThanOrEqual(before + 80_000);
+    expect(kicks[0]?.notBefore).toBeLessThanOrEqual(Date.now() + 80_000);
+    expect(parkedCursor(suspended)).toMatchObject({ roomRefusals: 3 });
   });
 
   it('gives up on sandbox room after two hours, saying so', async () => {

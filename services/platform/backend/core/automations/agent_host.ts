@@ -1244,6 +1244,7 @@ export function classifyWorkflowStartFailure(
   reason: string;
   failureCode: WorkflowAgentFailureCode;
   retryAtMs?: number;
+  retryAfterMs?: number;
 } {
   if (isTurnBudgetExceededError(err)) {
     return {
@@ -1257,6 +1258,7 @@ export function classifyWorkflowStartFailure(
       reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : "the organization's workflow sessions are all in use"}`,
       failureCode: 'sandbox_capacity',
       retryAtMs: now + noRoom.retryAfterMs,
+      retryAfterMs: noRoom.retryAfterMs,
     };
   }
   const retryAtMs = credentialRetryAtMs(err);
@@ -2175,11 +2177,13 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       // No sandbox room is a wait here too: the re-kick resumes once the
       // refusal's retry hint has passed, spending no attempt.
       const noRoom = sandboxCapacityRefusal(err) !== null;
+      const roomWait = noRoom
+        ? classifyWorkflowStartFailure(err, Date.now())
+        : undefined;
       // A broker pool cooling down says when its first account is back: the
       // stepper's re-kick waits for it.
-      const retryAtMs = noRoom
-        ? classifyWorkflowStartFailure(err, Date.now()).retryAtMs
-        : credentialRetryAtMs(err);
+      const retryAtMs =
+        roomWait !== undefined ? roomWait.retryAtMs : credentialRetryAtMs(err);
       // A death BEFORE the retarget settles under the asking exec the cursor
       // still names: its finalize claim was burned at the ask park, but the
       // dead-winner branch completes the record (cursor matches, no result),
@@ -2191,11 +2195,15 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         retargeted ? keys : { ...keys, execId: ask.execId },
         {
           errored: true,
-          reason: noRoom
-            ? classifyWorkflowStartFailure(err, Date.now()).reason
-            : `the agent turn could not resume after the answer: ${runFailureMessage(err)}`,
+          reason:
+            roomWait !== undefined
+              ? roomWait.reason
+              : `the agent turn could not resume after the answer: ${runFailureMessage(err)}`,
           failureCode: noRoom ? 'sandbox_capacity' : 'resume_failed',
           ...(retryAtMs !== undefined ? { retryAtMs } : {}),
+          ...(roomWait?.retryAfterMs !== undefined
+            ? { retryAfterMs: roomWait.retryAfterMs }
+            : {}),
           text: '',
           files: [],
         },

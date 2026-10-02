@@ -68,8 +68,13 @@ export interface AgentTurnResult {
   agentSessionId?: string;
   /** No retry can start before this, epoch ms: the start met a
    * subscription broker whose every account was cooling down after a rate
-   * limit, and this is when the first one is back. */
+   * limit, and this is when the first one is back — or found no sandbox
+   * room, and this is when the refusal's retry hint has passed. */
   retryAtMs?: number;
+  /** The retry hint of a start refused for want of sandbox room, ms: the
+   * delay of the waiting node's next start grows from it
+   * (`sandboxRoomRetryAtMs`). */
+  retryAfterMs?: number;
   text: string;
   files: AgentTurnFile[];
   /** Outputs the harvest could not bring back (over a cap, unreadable,
@@ -136,6 +141,9 @@ export interface AgentCursor {
    * waits spend no execution of the run's guard; the wait itself ends after
    * `SANDBOX_ROOM_MAX_WAIT_MS` (`planWorkflowAgentRetry`). */
   waitingForRoomSince?: number;
+  /** The refusals in a row of that wait: the next start's delay grows with
+   * them (`sandboxRoomRetryAtMs`). */
+  roomRefusals?: number;
   result?: AgentTurnResult;
 }
 

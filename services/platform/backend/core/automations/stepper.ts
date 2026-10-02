@@ -37,6 +37,7 @@ import {
   SANDBOX_ROOM_MAX_WAIT_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
+  sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
 } from './agent_retry';
 import { boundCheckpointTrace, boundNodeTrace } from './bound_run_payload';
@@ -1281,6 +1282,19 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       const resume = workflowAgentRetryResume(settled, reason, parked, {
         resumable: harnessResumesConversations(parked.harness),
       });
+      // A node waiting for sandbox room backs off past the refusal's hint,
+      // more with each refusal in a row; any other refusal with a hint (a
+      // broker pool cooling down) waits for exactly that.
+      const now = Date.now();
+      const notBefore = waitingForRoom
+        ? sandboxRoomRetryAtMs({
+            now,
+            retryAfterMs:
+              settled.retryAfterMs ??
+              Math.max((settled.retryAtMs ?? now) - now, 0),
+            refusals: plan.roomRefusals ?? 1,
+          })
+        : settled.retryAtMs;
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,
@@ -1293,9 +1307,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         // A start refused while every broker account cooled down: the
         // re-kick's start waits for the first one back instead of meeting
         // the same refusal at once and spending the budget in seconds.
-        ...(settled.retryAtMs !== undefined
-          ? { notBefore: settled.retryAtMs }
-          : {}),
+        ...(notBefore !== undefined ? { notBefore } : {}),
       });
       const agent: AgentCursor = {
         execId: kicked.execId,
@@ -1316,6 +1328,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         ...(settled.apiErrorStatus === 429 ? { retriedRateLimit: true } : {}),
         ...(plan.waitingForRoomSince !== undefined
           ? { waitingForRoomSince: plan.waitingForRoomSince }
+          : {}),
+        ...(plan.roomRefusals !== undefined
+          ? { roomRefusals: plan.roomRefusals }
           : {}),
       };
       const cursor: NodeCursor = {

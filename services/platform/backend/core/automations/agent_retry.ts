@@ -57,6 +57,40 @@ export type WorkflowAgentFailureCode =
  * wedged must still end the run with a reason a person can act on. */
 export const SANDBOX_ROOM_MAX_WAIT_MS = 2 * 60 * 60_000;
 
+/** The longest one start of a node waiting for sandbox room is held back:
+ * past it, a node still waiting asks about once a minute on average. */
+export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
+
+/**
+ * When the next start of a node waiting for sandbox room may run. Never
+ * before the refusal's retry hint; past the hint, at a moment drawn at
+ * random from a window that doubles with each refusal in a row, up to
+ * {@link SANDBOX_ROOM_RETRY_CEILING_MS}. A full host answers every waiter
+ * with the same hint, so a fixed delay kept the waiters in lockstep — a
+ * burst of creates the spawner refused together, every ten seconds for as
+ * long as the wait lasted; the doubling thins a long wait's attempts, and
+ * the draw spreads waiters refused together across the window.
+ */
+export function sandboxRoomRetryAtMs(args: {
+  now: number;
+  /** The refusal's retry hint. */
+  retryAfterMs: number;
+  /** Refusals in a row of this wait, the one being answered included. */
+  refusals: number;
+  random?: () => number;
+}): number {
+  const hint = Math.min(
+    Math.max(args.retryAfterMs, 0),
+    SANDBOX_ROOM_RETRY_CEILING_MS,
+  );
+  const window = Math.min(
+    SANDBOX_ROOM_RETRY_CEILING_MS,
+    hint * 2 ** Math.max(1, args.refusals),
+  );
+  const draw = (args.random ?? Math.random)();
+  return args.now + hint + Math.round(draw * (window - hint));
+}
+
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
  * turn would only ask again. Everything else — provider errors, crashes,
@@ -197,6 +231,7 @@ export interface WorkflowAgentAttempt {
   resumedFrom?: string;
   resumeReason?: string;
   waitingForRoomSince?: number;
+  roomRefusals?: number;
 }
 
 /** What a re-kick of a failed attempt carries, and whether it may happen. */
@@ -213,6 +248,10 @@ export interface WorkflowAgentRetryPlan {
   credentialRotations: number;
   /** Set while the node waits for sandbox room: when the wait began. */
   waitingForRoomSince?: number;
+  /** Set while the node waits for sandbox room: the refusals in a row, the
+   * failed attempt's included, which the re-kick's delay grows with
+   * ({@link sandboxRoomRetryAtMs}). */
+  roomRefusals?: number;
 }
 
 /**
@@ -244,6 +283,10 @@ export function planWorkflowAgentRetry(
       burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
       credentialRotations: 0,
       waitingForRoomSince: since,
+      roomRefusals:
+        (parked.waitingForRoomSince !== undefined
+          ? (parked.roomRefusals ?? 0)
+          : 0) + 1,
     };
   }
   if (

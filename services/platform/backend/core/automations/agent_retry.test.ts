@@ -13,9 +13,11 @@ import {
 } from '../tasks/task_auto_retry';
 import {
   SANDBOX_ROOM_MAX_WAIT_MS,
+  SANDBOX_ROOM_RETRY_CEILING_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
   retryResumePrompt,
+  sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
   type WorkflowAgentAttempt,
 } from './agent_retry';
@@ -277,6 +279,7 @@ describe('planWorkflowAgentRetry', () => {
       burnedBrokerTokenHashes: ['a'],
       credentialRotations: 0,
       waitingForRoomSince: NOW,
+      roomRefusals: 1,
     });
     // The wait keeps its start, and ends after two hours of it.
     expect(
@@ -309,6 +312,29 @@ describe('planWorkflowAgentRetry', () => {
         {},
         RESUMES,
       ),
+    ).toBeUndefined();
+  });
+
+  it('counts the refusals of a room wait in a row, and starts the count with a new wait', () => {
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - 60_000, roomRefusals: 3 },
+        'sandbox_capacity',
+        NOW,
+      ).roomRefusals,
+    ).toBe(4);
+    // A refusal count without a wait it belongs to starts over.
+    expect(
+      planWorkflowAgentRetry({ roomRefusals: 3 }, 'sandbox_capacity', NOW)
+        .roomRefusals,
+    ).toBe(1);
+    // Any other failure ends the wait.
+    expect(
+      planWorkflowAgentRetry(
+        { waitingForRoomSince: NOW - 60_000, roomRefusals: 3 },
+        'harness_error',
+        NOW,
+      ).roomRefusals,
     ).toBeUndefined();
   });
 
@@ -376,5 +402,38 @@ describe('planWorkflowAgentRetry', () => {
         NOW,
       ),
     ).toMatchObject({ attempt: 2, credentialRotations: 0 });
+  });
+});
+
+describe('sandboxRoomRetryAtMs', () => {
+  const NOW = 1_800_000_000_000;
+  const at = (refusals: number, draw: number, retryAfterMs = 10_000) =>
+    sandboxRoomRetryAtMs({
+      now: NOW,
+      retryAfterMs,
+      refusals,
+      random: () => draw,
+    }) - NOW;
+
+  it('never starts before the refusal’s retry hint', () => {
+    for (const refusals of [1, 2, 5, 40]) expect(at(refusals, 0)).toBe(10_000);
+  });
+
+  it('draws from a window that doubles with each refusal in a row, up to the ceiling', () => {
+    expect([1, 2, 3, 4, 5, 40].map((refusals) => at(refusals, 1))).toEqual([
+      20_000,
+      40_000,
+      80_000,
+      SANDBOX_ROOM_RETRY_CEILING_MS,
+      SANDBOX_ROOM_RETRY_CEILING_MS,
+      SANDBOX_ROOM_RETRY_CEILING_MS,
+    ]);
+    // Waiters refused together spread across the window.
+    expect(at(3, 0.5)).toBe(45_000);
+  });
+
+  it('holds a hint past the ceiling to the ceiling, and a missing one to now', () => {
+    expect(at(1, 1, 10 * 60_000)).toBe(SANDBOX_ROOM_RETRY_CEILING_MS);
+    expect(at(3, 1, 0)).toBe(0);
   });
 });
