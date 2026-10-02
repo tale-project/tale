@@ -77,6 +77,14 @@ still running is joined, never stacked) **stops**:
   never registers and which used to stay (with, on Docker, its inner image
   volume) until a resume or a destroy. Their removal runs beside the API,
   eight at a time: after a host reboot every session container has ended.
+  A create of an id whose ended compute is still being removed — the
+  platform resuming it at once — waits for that removal, up to 30 seconds
+  (else it answers 429 busy and the caller retries): past the fenced
+  container removal, the removal's steps are keyed by the session's name
+  (the inner image volume, the pin marker) and would otherwise remove what
+  the new container uses. The removal
+  belongs to the ended incarnation: it never holds up an acquire of a
+  session registered under the id, nor counts as that session's stop.
 
 Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a

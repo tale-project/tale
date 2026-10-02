@@ -125,6 +125,12 @@ async function forEachLimited<T>(
   );
 }
 
+/** Longest a create waits for the removal of the same id's ended compute
+ * (a container that exited with the host's reboot, say) under way: well
+ * under the platform's create timeout, and past it the create answers busy
+ * and the caller retries. */
+const CREATE_WAITS_FOR_ENDED_REAP_MS = 30_000;
+
 /** Longest a create waits for a destroy of the same id under way. A destroy
  * settles once the compute is gone and the workspace moved aside (Docker
  * deletes it in the background), so the wait is normally short; past this
@@ -207,8 +213,16 @@ export class SessionRoutes {
   // Stops in flight (pressure reclaim or the sweep), shared so a concurrent
   // create at capacity or an acquire waits for the outcome. Every handle
   // settles to a boolean — a failed stop is `false`, never a rejection a
-  // waiter would surface as a 500.
+  // waiter would surface as a 500. Each is the stop of the incarnation the
+  // registry holds.
   private readonly stopping = new Map<string, Promise<boolean>>();
+  // Removals of ended compute in flight (reapEnded), by session id. Kept
+  // apart from `stopping`: the incarnation they remove is never the one the
+  // registry holds, so an acquire, a pressure reclaim or the sweep of the
+  // registered session must not wait for it or count it as that session's
+  // stop. A create of the id waits for it instead (handleCreate). Settles to
+  // a boolean, never rejects.
+  private readonly endedReaping = new Map<string, Promise<boolean>>();
   // Sessions whose runnerd did not answer a reclaim probe, by failure time:
   // skipped as reclaim candidates for a short window so one wedged daemon
   // (a full health timeout) does not stall every create at capacity.
@@ -770,6 +784,7 @@ export class SessionRoutes {
         this.registry.has(id) ||
         this.creating.has(id) ||
         this.stopping.has(id) ||
+        this.endedReaping.has(id) ||
         this.destroySettled.has(id) ||
         (failedAt !== undefined && now - failedAt < ENDED_REAP_BACKOFF_MS)
       ) {
@@ -783,6 +798,12 @@ export class SessionRoutes {
             return true;
           },
           (error: unknown) => {
+            if (error instanceof SessionIncarnationChangedError) {
+              // Replaced under the id meanwhile (a peer replica's create):
+              // the ended incarnation is gone, and the new one is not ours.
+              this.endedReapFailedAtMs.delete(id);
+              return false;
+            }
             this.endedReapFailedAtMs.set(id, Date.now());
             console.warn(
               `[sandbox.session] removing the ended compute of ${id} failed (retried in ${ENDED_REAP_BACKOFF_MS / 60_000} min):`,
@@ -792,9 +813,9 @@ export class SessionRoutes {
           },
         )
         .finally(() => {
-          this.stopping.delete(id);
+          this.endedReaping.delete(id);
         });
-      this.stopping.set(id, stop);
+      this.endedReaping.set(id, stop);
       if (await stop) {
         console.log(
           `[sandbox.session] removed the ended compute of ${id} (workspace preserved for resume)`,
@@ -1220,6 +1241,24 @@ export class SessionRoutes {
           { 'retry-after': '30' },
         );
       }
+      // So does the removal of the id's ended compute (a resume right after
+      // a host reboot): its steps are keyed by the session's name — the
+      // inner image volume, the pin marker — and run beside this create
+      // they would remove what the new container is about to use.
+      const reaping = this.endedReaping.get(req.sessionId);
+      if (
+        reaping !== undefined &&
+        !(await settlesWithin(reaping, CREATE_WAITS_FOR_ENDED_REAP_MS))
+      ) {
+        return jsonResponse(
+          {
+            error: 'busy',
+            message: `the removal of ${req.sessionId}'s ended compute is still under way`,
+          },
+          429,
+          { 'retry-after': '10' },
+        );
+      }
       const createdAtMs = Date.now();
       let created: CreateSessionResult;
       try {
@@ -1577,12 +1616,16 @@ export class SessionRoutes {
   }
 
   /** Is there compute under the id — a registered session, a stop still
-   * removing one, or a container/Pod the backend holds that has not ended
-   * (one still starting on a peer replica counts; an exited container whose
-   * process died out-of-band does not)? A backend that cannot answer counts
-   * as holding it. */
+   * removing one (an ended container's removal too), or a container/Pod the
+   * backend holds that has not ended (one still starting on a peer replica
+   * counts; an exited container whose process died out-of-band does not)? A
+   * backend that cannot answer counts as holding it. */
   private async holdsCompute(sessionId: string): Promise<boolean> {
-    if (this.registry.has(sessionId) || this.stopping.has(sessionId)) {
+    if (
+      this.registry.has(sessionId) ||
+      this.stopping.has(sessionId) ||
+      this.endedReaping.has(sessionId)
+    ) {
       return true;
     }
     try {

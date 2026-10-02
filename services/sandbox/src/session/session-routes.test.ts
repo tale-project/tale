@@ -2327,6 +2327,93 @@ describe('sweep and adoption hygiene', () => {
     expect(most).toBeLessThanOrEqual(8);
   });
 
+  describe('a resume beside the removal of its ended compute', () => {
+    const endedRace = (id: string) => ({
+      ...mkBackendSession(id, 'org_hygiene'),
+      createdAtMs: 5,
+      state: 'degraded' as const,
+      ended: true,
+    });
+
+    test('a create of the id waits for the removal, then goes ahead on a settled slate', async () => {
+      const removal = Promise.withResolvers<void>();
+      const order: string[] = [];
+      let listed: BackendSession[] = [endedRace('race-1')];
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async listSessions(): Promise<BackendSession[]> {
+          return listed;
+        },
+        async stopSession(sessionId: string, expectedCreatedAtMs?: number) {
+          order.push(`stop:${sessionId}:${expectedCreatedAtMs}`);
+          await removal.promise;
+          order.push(`stopped:${sessionId}`);
+          return fakeBackend.stopSession(sessionId);
+        },
+        async createSession(spec: SessionSpec) {
+          order.push(`create:${spec.sessionId}`);
+          return fakeBackend.createSession(spec);
+        },
+      });
+      await routes.adoptExisting();
+      listed = [];
+      const resumed = routes.handleCreate(
+        JSON.stringify({ sessionId: 'race-1', organizationId: 'org_hygiene' }),
+      );
+      expect(await settlesWithin(resumed, 200)).toBe(false);
+      expect(order).toEqual(['stop:race-1:5']);
+      removal.resolve();
+      expect((await resumed).status).toBe(201);
+      expect(order).toEqual([
+        'stop:race-1:5',
+        'stopped:race-1',
+        'create:race-1',
+      ]);
+      expect(
+        await settlesWithin(routes.handleActivity('race-1', 'acquire'), 1_000),
+      ).toBe(true);
+      expect(destroyed.size).toBe(0);
+    });
+
+    test('the session registered under the id is neither held up nor counted as freed by that removal', async () => {
+      const removal = Promise.withResolvers<void>();
+      const capped = { ...cfg, session: { ...cfg.session, maxSessions: 1 } };
+      let listed: BackendSession[] = [endedRace('race-2')];
+      const fenced: Array<number | undefined> = [];
+      const routes = new SessionRoutes(capped, {
+        ...fakeBackend,
+        async listSessions(): Promise<BackendSession[]> {
+          return listed;
+        },
+        async stopSession(sessionId: string, expectedCreatedAtMs?: number) {
+          fenced.push(expectedCreatedAtMs);
+          // The ended incarnation's removal hangs; the registered one's goes.
+          if (expectedCreatedAtMs === 5) await removal.promise;
+          return fakeBackend.stopSession(sessionId);
+        },
+      });
+      await routes.adoptExisting();
+      // A peer replica resumed the id meanwhile: the next adoption registers
+      // the new incarnation while the old one's removal still runs.
+      listed = [
+        { ...mkBackendSession('race-2', 'org_hygiene'), createdAtMs: 9_000 },
+      ];
+      await routes.adoptExisting();
+      expect(
+        await settlesWithin(routes.handleActivity('race-2', 'acquire'), 1_000),
+      ).toBe(true);
+      await release(routes, 'race-2');
+      // At capacity, the registered session is reclaimed for the create; the
+      // other incarnation's removal is not mistaken for its stop.
+      const next = create(routes, 'race-next');
+      expect(await settlesWithin(next, 1_000)).toBe(true);
+      expect((await next).status).toBe(201);
+      expect(fenced).toEqual([5, 9_000]);
+      removal.resolve();
+      await routes.endedReapSettled();
+    });
+  });
+
   test('the build-cache reconcile after adoption covers agent sessions only and never holds adoption up', async () => {
     const gate = Promise.withResolvers<void>();
     const reconciled: string[][] = [];
