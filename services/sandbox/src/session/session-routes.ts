@@ -9,6 +9,11 @@ import {
   type CreateSessionResult,
   type SessionBackend,
 } from '../backend/types.ts';
+import {
+  memoryReserveBytes,
+  sessionWorkingSetBytes,
+  type HostMemory,
+} from '../host-memory.ts';
 import { jsonResponse } from '../http-util.ts';
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
@@ -89,6 +94,17 @@ async function forEachLimited<T>(
  * create answers busy. */
 const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
 
+/** Where admission reads the host's memory from. */
+export interface HostMemorySource {
+  latest(): HostMemory | null;
+  read(fresh?: boolean): Promise<HostMemory | null>;
+}
+
+const NO_HOST_MEMORY: HostMemorySource = {
+  latest: () => null,
+  read: () => Promise.resolve(null),
+};
+
 /** Whether `promise` settles, either way, within `ms`. */
 export async function settlesWithin(
   promise: Promise<unknown>,
@@ -122,6 +138,9 @@ export class SessionRoutes {
   // occupied capacity — a burst of distinct ids during a slow pull must not
   // oversubscribe the host by the number of creates in flight.
   private readonly creating = new Map<string, string>();
+  // The working set each create in flight is planned with: memory a starting
+  // session is about to take that MemAvailable does not show yet.
+  private readonly creatingBytes = new Map<string, number>();
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
   // of answering a false not-found that the caller would turn into a
@@ -196,6 +215,10 @@ export class SessionRoutes {
     private readonly cfg: SpawnerConfig,
     private readonly backend: SessionBackend,
     private readonly isDraining: () => boolean = () => false,
+    /** The Docker host's memory: `latest` without waiting (admission decides
+     * with it inside its lock), `read` afresh. Null where it cannot be read
+     * (a remote daemon, Kubernetes): admission then counts sessions only. */
+    private readonly hostMemory: HostMemorySource = NO_HOST_MEMORY,
   ) {}
 
   /** Number of live sessions this spawner currently manages (drain readiness). */
@@ -272,11 +295,15 @@ export class SessionRoutes {
   }
 
   /** The admission decision for one create: a duplicate id → 409, a full
-   * host → `'full'`, else the id is reserved in `creating`. */
+   * host → `'full'`, a host whose memory would drop below its reserve with
+   * every create in flight at its planned working set → `'short'`, else the
+   * id is reserved in `creating`. Synchronous, under the admission lock: each
+   * create sees exactly the ones admitted before it. */
   private admit(
     sessionId: string,
     organizationId: string,
-  ): Response | 'full' | null {
+    workingSetBytes: number,
+  ): Response | 'full' | 'short' | null {
     if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
       return jsonResponse(
         {
@@ -287,27 +314,59 @@ export class SessionRoutes {
       );
     }
     if (this.atCapacity()) return 'full';
+    if (this.memoryShort(workingSetBytes)) return 'short';
     this.creating.set(sessionId, organizationId);
+    this.creatingBytes.set(sessionId, workingSetBytes);
     this.createSettled.set(sessionId, Promise.withResolvers<void>());
     return null;
+  }
+
+  /** Would starting a session of this working set, beside every create in
+   * flight at theirs, leave the host less than its reserve? Unknown memory
+   * never refuses. */
+  private memoryShort(workingSetBytes: number): boolean {
+    let memory: HostMemory | null;
+    try {
+      memory = this.hostMemory.latest();
+    } catch (error) {
+      console.warn('[sandbox.session] host memory unreadable:', error);
+      return false;
+    }
+    if (memory === null) return false;
+    let starting = workingSetBytes;
+    for (const bytes of this.creatingBytes.values()) starting += bytes;
+    const reserve = memoryReserveBytes(
+      memory.totalBytes,
+      this.cfg.session.minFreeMemoryBytes,
+    );
+    return memory.availableBytes - starting < reserve;
   }
 
   private async reserveCreate(
     sessionId: string,
     organizationId: string,
+    profile: 'agent' | 'default',
   ): Promise<Response | null> {
-    let decision = await this.withAdmission(() =>
-      this.admit(sessionId, organizationId),
+    const workingSet = sessionWorkingSetBytes(
+      profile,
+      this.cfg.dockerInContainer,
     );
-    if (decision === 'full') {
-      // At capacity: try to reclaim ONE released idle session, outside the
-      // admission lock (a probe per candidate and a backend stop take
-      // seconds — creates that still have room must not queue behind them),
-      // then decide again. Concurrent creates at capacity share the one stop
-      // in flight and only the first to re-enter admission gets its slot.
+    let decision = await this.withAdmission(() =>
+      this.admit(sessionId, organizationId, workingSet),
+    );
+    if (decision === 'full' || decision === 'short') {
+      // At capacity, or short of memory: try to reclaim ONE released idle
+      // session, outside the admission lock (a probe per candidate and a
+      // backend stop take seconds — creates that still have room must not
+      // queue behind them), then decide again. Concurrent creates at capacity
+      // share the one stop in flight and only the first to re-enter admission
+      // gets its slot. Short of memory, the decision waits for a reading
+      // taken after the reclaim.
+      const short = decision === 'short';
       await this.reclaimOneIdle();
+      if (short) await this.readHostMemory();
       decision = await this.withAdmission(() =>
-        this.admit(sessionId, organizationId),
+        this.admit(sessionId, organizationId, workingSet),
       );
     }
     if (decision === 'full') {
@@ -317,7 +376,27 @@ export class SessionRoutes {
         { 'retry-after': '10' },
       );
     }
+    if (decision === 'short') {
+      return jsonResponse(
+        {
+          error: 'host_memory',
+          message:
+            'the sandbox host is short of memory; the session starts once running sessions free some',
+        },
+        429,
+        { 'retry-after': '15' },
+      );
+    }
     return decision;
+  }
+
+  /** A fresh reading of the host's memory, for the next admission. */
+  private async readHostMemory(): Promise<void> {
+    try {
+      await this.hostMemory.read(true);
+    } catch (error) {
+      console.warn('[sandbox.session] host memory unreadable:', error);
+    }
   }
 
   /** Reclaim the released idle session that has been idle longest, if any.
@@ -976,7 +1055,11 @@ export class SessionRoutes {
       return jsonResponse({ error: 'bad_request', message: v.error }, 400);
     const req = v.value;
 
-    const refused = await this.reserveCreate(req.sessionId, req.organizationId);
+    const refused = await this.reserveCreate(
+      req.sessionId,
+      req.organizationId,
+      req.profile,
+    );
     if (refused !== null) return refused;
     try {
       // A destroy of this id already under way finishes first, so the create
@@ -1065,6 +1148,7 @@ export class SessionRoutes {
       return jsonResponse({ session: this.toInfo(req.sessionId) }, 201);
     } finally {
       this.creating.delete(req.sessionId);
+      this.creatingBytes.delete(req.sessionId);
       this.createSettled.get(req.sessionId)?.resolve();
       this.createSettled.delete(req.sessionId);
     }

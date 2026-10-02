@@ -17,7 +17,8 @@ image; the only thing that varies is _when the session is destroyed_:
 Per-org fairness is the governance `sandbox_quota` policy (separate project-agent,
 workflow and render budgets, default 2 each). Their total is derived, and saving
 the policy requires that total to fit the current deployment capacity,
-`SANDBOX_MAX_SESSIONS` (default 8), plus the slots of the organization's
+`SANDBOX_MAX_SESSIONS` (sized from host memory on a local Docker host when
+unset, at least 8; 8 elsewhere), plus the slots of the organization's
 connected [devices](devices.md). There is no independent organization runtime
 ceiling. Concurrent executions of the same workflow each own a separate session;
 agent and script nodes within one execution share that session.
@@ -117,6 +118,17 @@ Role grants) and waits for the original Pod to disappear before admitting a
 replacement. A different incarnation found under the name is never counted as
 freed. An acquire for a session whose create is still in flight waits for
 that create (bounded) rather than answering a false not-found.
+
+Where the spawner can read the Docker host's memory (the local socket, the
+same kernel and total as the daemon reports), admission also holds every
+create to the host's free memory: with each create still starting counted at
+its planned working set (agent 512 MiB, with Docker inside 1.5 GiB, crawler
+render 256 MiB), the host must keep `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
+it, at least 1 GiB). Short of it, the create reclaims a released idle session
+like one at capacity, then answers 429 `host_memory` (`retry-after: 15`). The
+decision is taken under the admission lock from a reading at most a second
+old, so a burst sees each create admitted before it. Unknown memory never
+refuses a create.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
 enforce the shared namespace count on a best-effort basis; use ResourceQuota

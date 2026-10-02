@@ -130,6 +130,12 @@ export interface HubConfig {
 export interface SessionConfig {
   /** Spawner-wide concurrent session cap (replica-local on Docker). */
   maxSessions: number;
+  /** No SANDBOX_MAX_SESSIONS was set: a Docker spawner that can read its
+   * host's memory sizes {@link maxSessions} from it at boot. */
+  autoMaxSessions?: boolean;
+  /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
+   * unset is a tenth of the host, at least 1 GiB. */
+  minFreeMemoryBytes?: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */

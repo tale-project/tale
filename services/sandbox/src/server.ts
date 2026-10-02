@@ -28,6 +28,11 @@ import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
 import { makeHealthProbe } from './health-probe.ts';
+import {
+  autoSessionCapacity,
+  HostMemoryProbe,
+  memoryReserveBytes,
+} from './host-memory.ts';
 import { jsonResponse } from './http-util.ts';
 import { createRequestAuth } from './request-auth.ts';
 import { SessionRoutes } from './session/session-routes.ts';
@@ -39,6 +44,12 @@ const backend = createHostBackend(cfg);
 
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
+// The Docker host's memory, read where /proc describes it (a local Docker
+// spawner; never Kubernetes, a remote daemon or a device's own host checks).
+const hostMemory =
+  cfg.backend === 'docker' && cfg.deviceConfigPath === null
+    ? new HostMemoryProbe()
+    : null;
 let sessionRoutes: SessionRoutes | null = null;
 let sessionBackend: SessionBackend | null = null;
 function getSessionBackend(): SessionBackend {
@@ -54,6 +65,7 @@ function getSessionRoutes(): SessionRoutes {
       cfg,
       getSessionBackend(),
       () => controlRoutes.isDraining,
+      ...(hostMemory !== null ? [hostMemory] : []),
     );
   }
   return sessionRoutes;
@@ -487,6 +499,22 @@ async function main(): Promise<void> {
   // and never published to a registry, so the pull is guaranteed to 404.
   if (process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1') {
     await backend.warmImage();
+  }
+
+  // No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
+  // gets a capacity sized from it (never below the fixed default of 8), and
+  // the memory guard at admission protects the rest.
+  if (hostMemory !== null && cfg.session.autoMaxSessions === true) {
+    const memory = await hostMemory.read();
+    if (memory !== null) {
+      cfg.session.maxSessions = autoSessionCapacity(
+        memory.totalBytes,
+        memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
+      );
+      console.log(
+        `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
+      );
+    }
   }
 
   const stopPeriodic = startPeriodicSweep(backend, cfg);

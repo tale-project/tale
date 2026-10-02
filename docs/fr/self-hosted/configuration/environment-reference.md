@@ -242,7 +242,8 @@ Le spawner sandbox lit les paramètres ci-dessous. Transmets-les dans son enviro
 
 | Nom | Défaut | Description |
 | --- | --- | --- |
-| `SANDBOX_MAX_SESSIONS` | `8` | Nombre maximal de sessions actives ou au démarrage de toutes les organisations sur l’hôte Docker ou dans le namespace Kubernetes, y compris les conteneurs inactifs conservés pour être réutilisés. Cette capacité ne réserve ni CPU ni mémoire. Des réplicas Kubernetes concurrents l’appliquent au mieux ; utilise ResourceQuota pour imposer des limites strictes aux ressources du namespace. |
+| `SANDBOX_MAX_SESSIONS` | dimensionnée selon la mémoire de l’hôte sur un hôte Docker local (au moins `8`, au plus `256`) ; `8` ailleurs | Nombre maximal de sessions actives ou au démarrage de toutes les organisations sur l’hôte Docker ou dans le namespace Kubernetes, y compris les conteneurs inactifs conservés pour être réutilisés. Cette capacité ne réserve ni CPU ni mémoire. Sans valeur, sur un hôte Docker dont le spawner peut lire la mémoire, elle est dimensionnée selon cette mémoire : une session par tranche de 768 MiB restant après `SANDBOX_MIN_FREE_MEMORY`. Une valeur explicite la fixe. Des réplicas Kubernetes concurrents l’appliquent au mieux ; utilise ResourceQuota pour imposer des limites strictes aux ressources du namespace. |
+| `SANDBOX_MIN_FREE_MEMORY` | un dixième de la mémoire de l’hôte, au moins `1g` | Mémoire qu’une nouvelle session doit laisser libre sur un hôte Docker local, en plus des sessions encore au démarrage. Si un démarrage en laissait moins, le spawner arrête d’abord une session libérée inactive ; si la mémoire manque encore, il répond « occupé » et le travail attend que des sessions en cours en libèrent. Accepte des tailles comme `2g` ou `1536m`. Sans effet sous Kubernetes ou avec un daemon Docker distant. |
 | `SANDBOX_AGENT_CPUS` | `2` | Limite de CPU par session d’agent. Tiens compte des builds simultanés et des autres tâches de l’hôte pour choisir le nombre de sessions. |
 | `SANDBOX_AGENT_MEMORY` | `4g` ; `8g` avec Docker dans la sandbox | Limite de mémoire par session d’agent, partagée avec son daemon Docker interne et les conteneurs qu’il lance. Une valeur explicite remplace ces deux valeurs par défaut et s’applique aux nouvelles sessions. |
 | `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 min) | Délai d’inactivité avant l’arrêt des sessions non épinglées. Les conteneurs auxiliaires du cache de build d’une organisation s’arrêtent aussi après ce délai sans session potentiellement active ; leurs réseaux et volumes de cache sont conservés. |
@@ -250,11 +251,11 @@ Le spawner sandbox lit les paramètres ci-dessous. Transmets-les dans son enviro
 | `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optionnel, lu par le spawner.** L'image dont sort chaque conteneur de session. Le défaut est le tag que la stack de développement construit localement ; un hôte qui tire ses images pose donc le nom de la registry : `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, aligné sur le reste de la stack. `tale deploy` le pose pour toi. |
 | `SANDBOX_DIND_INNER_POOL` | non défini (automatique) | Pool d’adresses optionnel du daemon Docker interne des sessions d’agent, sur Docker ou Kubernetes. Choisis un `/16` IPv4 privé RFC1918 sous forme canonique, hors de tes réseaux de Pods, de Services et de VPC. Le runtime refuse tout chevauchement avec les réseaux et adresses qu’elle détecte. |
 
-À pleine capacité, le spawner peut arrêter une session inactive, libérée et non épinglée avant le délai d’inactivité pour accepter un nouveau travail, en commençant par celle qui est inactive depuis le plus longtemps. Le daemon doit confirmer qu’aucun travail n’est en cours ; les sessions occupées ou dont l’état est inconnu restent protégées. L’arrêt conserve le répertoire ou le volume persistant de l’espace de travail. Sans session à récupérer en toute sécurité, la capacité du déploiement continue de bloquer les nouveaux démarrages.
+À pleine capacité, le spawner peut arrêter une session inactive, libérée et non épinglée avant le délai d’inactivité pour accepter un nouveau travail, en commençant par celle qui est inactive depuis le plus longtemps. Le daemon doit confirmer qu’aucun travail n’est en cours ; les sessions occupées ou dont l’état est inconnu restent protégées. L’arrêt conserve le répertoire ou le volume persistant de l’espace de travail. Sans session à récupérer en toute sécurité, la capacité du déploiement continue de bloquer les nouveaux démarrages. Il en va de même lorsque la mémoire libre de l’hôte passerait sous `SANDBOX_MIN_FREE_MEMORY`.
 
 ### Dimensionner la capacité des sessions
 
-Commence à 8, puis teste les tâches que ton déploiement exécutera en même temps. Le rendu dans le navigateur et les builds Docker n’ont pas les mêmes pics de charge ; inclus les agents, les workflows et l’exploration de toutes les organisations. Une place libre ne garantit pas des ressources suffisantes. Le spawner n’ajuste pas automatiquement cette valeur à la mémoire de l’hôte.
+Sans `SANDBOX_MAX_SESSIONS` sur un hôte Docker, le spawner dimensionne la capacité au démarrage selon la mémoire de l’hôte (un hôte de 16 GiB obtient 19 sessions, un hôte de 64 GiB en obtient 76) et n’admet une nouvelle session que si l’hôte garde `SANDBOX_MIN_FREE_MEMORY` de libre, en comptant les sessions encore au démarrage. Un pic de travail qui surchargerait l’hôte attend donc, au lieu de voir ses sessions arrêtées faute de mémoire. Fixe toi-même la capacité sous Kubernetes, avec un daemon Docker distant ou si l’hôte fait aussi tourner d’autres charges gourmandes : teste alors les tâches que ton déploiement exécutera en même temps. Le rendu dans le navigateur et les builds Docker n’ont pas les mêmes pics de charge ; inclus les agents, les workflows et l’exploration de toutes les organisations. Une place libre ne garantit pas des ressources suffisantes.
 
 Sous Docker, relève la consommation pendant que des tâches représentatives s’exécutent en parallèle. Répète cette commande pendant l’exécution ; une mesure au repos ne montre pas les pics des tâches :
 
@@ -268,7 +269,7 @@ Les 4 GiB ou 8 GiB d’un agent sont un plafond de mémoire ; cette mémoire n�
 
 ### Appliquer un changement de capacité
 
-Ajoute ou modifie cette ligne dans le `.env` du déploiement, en conservant les autres entrées. Les valeurs explicites restent en vigueur après une mise à niveau ; la valeur par défaut de 8 s’applique quand la variable est absente.
+Ajoute ou modifie cette ligne dans le `.env` du déploiement, en conservant les autres entrées. Les valeurs explicites restent en vigueur après une mise à niveau ; sans valeur, un hôte Docker dimensionne la capacité selon sa mémoire comme décrit plus haut, et Kubernetes utilise 8.
 
 ```dotenv .env
 SANDBOX_MAX_SESSIONS=8
@@ -287,6 +288,8 @@ Vérifie la nouvelle capacité du déploiement dans [Sandboxes](/fr/platform/adm
 ### Après une mise à niveau
 
 La capacité par défaut était de 16, et les organisations créées avant cette version ont reçu les limites 2/4/4, soit un total de 10. Un déploiement qui n’a jamais défini `SANDBOX_MAX_SESSIONS` démarre donc la nouvelle version avec une capacité de 8 et des organisations dont le total enregistré la dépasse. Le travail en cours n’est pas touché, et chaque organisation continue d’admettre du travail selon ses limites enregistrées ; seul l’enregistrement de la page Sandboxes reste bloqué tant que le total ne rentre pas, et abaisser une limite s’enregistre toujours. Définis `SANDBOX_MAX_SESSIONS=16` explicitement pour conserver la capacité précédente, ou demande à chaque organisation concernée d’abaisser une limite.
+
+À partir de cette version, un déploiement Docker qui n’a jamais défini `SANDBOX_MAX_SESSIONS` obtient une capacité dimensionnée selon la mémoire de son hôte au lieu de 8, jamais moins de 8. Il peut admettre plus de sessions à la fois qu’avant, et seulement tant que l’hôte a de la mémoire disponible. Définis une valeur explicite pour garder une capacité fixe.
 
 ### Caches de build Docker
 

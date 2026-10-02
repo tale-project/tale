@@ -2393,6 +2393,103 @@ describe('sweep and adoption hygiene', () => {
   });
 });
 
+describe('memory-aware admission', () => {
+  const GIB = 1024 ** 3;
+  const create = (routes: SessionRoutes, id: string) =>
+    routes.handleCreate(
+      JSON.stringify({
+        sessionId: id,
+        organizationId: 'org_memory',
+        profile: 'agent',
+      }),
+    );
+  /** A host whose memory reads as `available()` GiB of 16. */
+  const host = (available: () => number) => {
+    const reading = () => ({
+      totalBytes: 16 * GIB,
+      availableBytes: available() * GIB,
+    });
+    return { latest: reading, read: () => Promise.resolve(reading()) };
+  };
+
+  test('a create that would leave the host under its reserve is refused with host_memory', async () => {
+    // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at
+    // 512 MiB, so 2 GiB available is not enough.
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => 2),
+    );
+    const refused = await create(routes, 'tight-1');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('15');
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(created.has('tight-1')).toBe(false);
+    expect(routes.pendingCreates().size).toBe(0);
+  });
+
+  test('creates still starting count against the memory they are about to take', async () => {
+    const gate = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(
+      cfg,
+      {
+        ...fakeBackend,
+        async createSession(spec) {
+          await gate.promise;
+          return fakeBackend.createSession(spec);
+        },
+      },
+      undefined,
+      host(() => 4),
+    );
+    // 4 GiB available, 1.6 GiB reserve, 512 MiB each: four fit, the fifth not.
+    const burst = ['b1', 'b2', 'b3', 'b4', 'b5'].map((id) =>
+      create(routes, id),
+    );
+    expect((await burst[4])?.status).toBe(429);
+    gate.resolve();
+    const statuses = await Promise.all(burst.slice(0, 4));
+    expect(statuses.map((response) => response.status)).toEqual([
+      201, 201, 201, 201,
+    ]);
+  });
+
+  test('short of memory, a released idle session is reclaimed to make room', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      {
+        ...fakeBackend,
+        async stopSession(sessionId: string) {
+          available = 8;
+          return fakeBackend.stopSession(sessionId);
+        },
+      },
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-mem')).status).toBe(201);
+    const ticket: unknown = await (
+      await routes.handleActivity('warm-mem', 'ticket')
+    ).json();
+    await routes.handleActivity('warm-mem', 'release', JSON.stringify(ticket));
+    available = 2;
+    expect((await create(routes, 'after-reclaim')).status).toBe(201);
+    expect(stopped.has('warm-mem')).toBe(true);
+  });
+
+  test('unknown host memory never refuses a create', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend, undefined, {
+      latest: () => {
+        throw new Error('meminfo unreadable');
+      },
+      read: () => Promise.reject(new Error('meminfo unreadable')),
+    });
+    expect((await create(routes, 'unknown-mem')).status).toBe(201);
+  });
+});
+
 describe('settlesWithin', () => {
   test('answers whether a promise settled, either way, in time', async () => {
     expect(await settlesWithin(Promise.resolve(), 1_000)).toBe(true);

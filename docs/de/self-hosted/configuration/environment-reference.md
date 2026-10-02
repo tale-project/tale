@@ -242,7 +242,8 @@ Der Sandbox-Spawner liest die folgenden Einstellungen. Übergib sie seiner Umgeb
 
 | Name | Default | Beschreibung |
 | --- | --- | --- |
-| `SANDBOX_MAX_SESSIONS` | `8` | Höchstzahl laufender und startender Sessions aller Organisationen auf dem Docker-Host oder im Kubernetes-Namespace, einschließlich weiterlaufender Container im Leerlauf. Die Kapazität reserviert weder CPU noch Arbeitsspeicher. Gleichzeitige Kubernetes-Replikate setzen sie nach bestem Bemühen durch; harte Ressourcengrenzen im Namespace setzt du mit ResourceQuota. |
+| `SANDBOX_MAX_SESSIONS` | auf einem lokalen Docker-Host nach dem Host-Speicher bemessen (mindestens `8`, höchstens `256`); sonst `8` | Höchstzahl laufender und startender Sessions aller Organisationen auf dem Docker-Host oder im Kubernetes-Namespace, einschließlich weiterlaufender Container im Leerlauf. Die Kapazität reserviert weder CPU noch Arbeitsspeicher. Fehlt die Variable auf einem Docker-Host, dessen Speicher der Spawner lesen kann, bemisst er sie nach diesem Speicher: eine Session je 768 MiB, die nach `SANDBOX_MIN_FREE_MEMORY` übrig bleiben. Ein expliziter Wert legt sie fest. Gleichzeitige Kubernetes-Replikate setzen sie nach bestem Bemühen durch; harte Ressourcengrenzen im Namespace setzt du mit ResourceQuota. |
+| `SANDBOX_MIN_FREE_MEMORY` | ein Zehntel des Host-Speichers, mindestens `1g` | Speicher, den eine neue Session auf einem lokalen Docker-Host frei lassen muss, neben den Sessions, die noch starten. Würde ein Start weniger übrig lassen, stoppt der Spawner zuerst eine freigegebene Session im Leerlauf; reicht der Speicher dann immer noch nicht, antwortet er mit „beschäftigt“, und die Arbeit wartet, bis laufende Sessions Speicher freigeben. Akzeptiert Größen wie `2g` oder `1536m`. Wirkt nicht unter Kubernetes oder mit einem entfernten Docker-Daemon. |
 | `SANDBOX_AGENT_CPUS` | `2` | CPU-Grenze je Agent-Session. Berücksichtige bei der Session-Anzahl gleichzeitig laufende Builds und andere Aufgaben auf dem Host. |
 | `SANDBOX_AGENT_MEMORY` | `4g`; `8g` mit Docker in der Sandbox | Speichergrenze je Agent-Session, die auch für ihren inneren Docker-Daemon und dessen Container gilt. Ein expliziter Wert ersetzt beide Standardwerte und gilt für neu erstellte Sessions. |
 | `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 Min.) | Leerlauffenster, nach dem nicht angepinnte Sessions stoppen. Die Build-Cache-Hilfscontainer einer Organisation stoppen ebenfalls nach diesem Fenster ohne möglicherweise aktive Session; Netzwerke und Cache-Volumes bleiben erhalten. |
@@ -250,11 +251,11 @@ Der Sandbox-Spawner liest die folgenden Einstellungen. Übergib sie seiner Umgeb
 | `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optional, vom Spawner gelesen.** Das Image, aus dem jeder Session-Container entsteht. Der Default ist der Tag, den der Entwicklungs-Stack lokal baut; ein Host, der seine Images zieht, setzt deshalb den Registry-Namen: `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, passend zum Rest des Stacks. `tale deploy` setzt ihn für dich. |
 | `SANDBOX_DIND_INNER_POOL` | nicht gesetzt (automatisch) | Optionaler Adresspool für den inneren Docker-Daemon in Agent-Sessions auf Docker oder Kubernetes. Verwende ein kanonisches privates IPv4-`/16` nach RFC1918 außerhalb deiner Pod-, Service- und VPC-Netze. Die Runtime lehnt Überschneidungen mit erkannten Netzen und Adressen ab. |
 
-Bei voller Kapazität kann der Spawner eine freigegebene, nicht angepinnte Session im Leerlauf schon vor Ablauf des Leerlauffensters stoppen, um neue Arbeit zuzulassen, zuerst die am längsten untätige. Der Daemon muss bestätigen, dass keine Arbeit läuft; beschäftigte Sessions und Sessions mit unbekanntem Zustand bleiben geschützt. Das dauerhafte Arbeitsverzeichnis oder Volume bleibt beim Stoppen erhalten. Lässt sich keine Session sicher freigeben, blockiert die Kapazitätsgrenze weiterhin neue Starts.
+Bei voller Kapazität kann der Spawner eine freigegebene, nicht angepinnte Session im Leerlauf schon vor Ablauf des Leerlauffensters stoppen, um neue Arbeit zuzulassen, zuerst die am längsten untätige. Der Daemon muss bestätigen, dass keine Arbeit läuft; beschäftigte Sessions und Sessions mit unbekanntem Zustand bleiben geschützt. Das dauerhafte Arbeitsverzeichnis oder Volume bleibt beim Stoppen erhalten. Lässt sich keine Session sicher freigeben, blockiert die Kapazitätsgrenze weiterhin neue Starts. Dasselbe gilt, wenn der freie Speicher des Hosts unter `SANDBOX_MIN_FREE_MEMORY` fallen würde.
 
 ### Session-Kapazität bemessen
 
-Beginne mit 8 und teste die Aufgaben, die deine Bereitstellung gleichzeitig ausführen soll. Browser-Rendering und Docker-Builds haben unterschiedliche Lastspitzen; berücksichtige Agents, Workflows und Crawling aller Organisationen. Ein freier Session-Platz garantiert keine ausreichenden Ressourcen. Der Spawner passt diese Einstellung nicht automatisch an den Host-Speicher an.
+Fehlt `SANDBOX_MAX_SESSIONS` auf einem Docker-Host, bemisst der Spawner die Kapazität beim Start nach dem Speicher des Hosts (ein Host mit 16 GiB erhält 19 Sessions, einer mit 64 GiB 76) und lässt eine neue Session nur zu, solange der Host `SANDBOX_MIN_FREE_MEMORY` frei behält, wobei er die noch startenden Sessions mitzählt. Eine Lastspitze, die den Host überbuchen würde, wartet deshalb, statt dass ihre Sessions wegen Speichermangels beendet werden. Lege die Kapazität selbst fest unter Kubernetes, mit einem entfernten Docker-Daemon oder wenn auf dem Host auch andere speicherhungrige Dienste laufen: Teste dann die Aufgaben, die deine Bereitstellung gleichzeitig ausführen soll. Browser-Rendering und Docker-Builds haben unterschiedliche Lastspitzen; berücksichtige Agents, Workflows und Crawling aller Organisationen. Ein freier Session-Platz garantiert keine ausreichenden Ressourcen.
 
 Miss unter Docker den Ressourcenbedarf, während typische Aufgaben gleichzeitig laufen. Wiederhole diesen Befehl während des Durchlaufs; eine Messung im Leerlauf zeigt keine Lastspitzen:
 
@@ -268,7 +269,7 @@ Die 4 GiB oder 8 GiB eines Agents sind eine Speicherobergrenze; beim Start reser
 
 ### Eine Kapazitätsänderung anwenden
 
-Ergänze oder ändere diese Zeile in der `.env` deiner Bereitstellung. Behalte die übrigen Einträge bei. Explizite Werte gelten auch nach Upgrades weiter; der Standardwert 8 greift, wenn die Variable fehlt.
+Ergänze oder ändere diese Zeile in der `.env` deiner Bereitstellung. Behalte die übrigen Einträge bei. Explizite Werte gelten auch nach Upgrades weiter; ohne einen bemisst ein Docker-Host die Kapazität wie oben beschrieben nach seinem Speicher, und Kubernetes verwendet 8.
 
 ```dotenv .env
 SANDBOX_MAX_SESSIONS=8
@@ -287,6 +288,8 @@ Prüfe die neue Bereitstellungskapazität unter [Sandboxes](/de/platform/admin/s
 ### Nach einem Upgrade
 
 Die Standardkapazität lag bisher bei 16, und Organisationen aus früheren Versionen wurden mit den Limits 2/4/4 angelegt, also einer Summe von 10. Eine Bereitstellung, die `SANDBOX_MAX_SESSIONS` nie gesetzt hat, startet mit der neuen Version daher mit einer Kapazität von 8 und Organisationen, deren gespeicherte Summe darüber liegt. Laufende Arbeit ist davon nicht betroffen, und jede Organisation lässt weiterhin Arbeit unter ihren gespeicherten Limits zu; nur das Speichern der Sandbox-Seite bleibt gesperrt, bis die Summe passt, und niedrigere Limits lassen sich weiterhin speichern. Setze entweder `SANDBOX_MAX_SESSIONS=16` explizit, um die bisherige Kapazität zu behalten, oder bitte jede betroffene Organisation, ein Limit zu verringern.
+
+Ab dieser Version erhält eine Docker-Bereitstellung, die `SANDBOX_MAX_SESSIONS` nie gesetzt hat, eine nach dem Host-Speicher bemessene Kapazität statt 8, nie weniger als 8. Sie kann mehr Sessions gleichzeitig zulassen als zuvor, und das nur, solange der Host Speicher übrig hat. Setze einen expliziten Wert, um eine feste Kapazität zu behalten.
 
 ### Docker-Build-Caches
 

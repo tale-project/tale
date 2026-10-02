@@ -242,7 +242,8 @@ The sandbox spawner reads the settings below. Pass them into its environment and
 
 | Name | Default | Description |
 | --- | --- | --- |
-| `SANDBOX_MAX_SESSIONS` | `8` | Maximum running and starting sessions across all organizations on the Docker host or in the Kubernetes namespace, including idle containers kept for reuse. This capacity does not reserve CPU or memory. Concurrent Kubernetes replicas enforce it on a best-effort basis; use ResourceQuota for hard namespace resource bounds. |
+| `SANDBOX_MAX_SESSIONS` | sized from host memory on a local Docker host (at least `8`, at most `256`); `8` elsewhere | Maximum running and starting sessions across all organizations on the Docker host or in the Kubernetes namespace, including idle containers kept for reuse. This capacity does not reserve CPU or memory. Unset on a Docker host whose memory the spawner can read, it is sized from that memory: one session per 768 MiB left after `SANDBOX_MIN_FREE_MEMORY`. An explicit value fixes it. Concurrent Kubernetes replicas enforce it on a best-effort basis; use ResourceQuota for hard namespace resource bounds. |
+| `SANDBOX_MIN_FREE_MEMORY` | a tenth of host memory, at least `1g` | Memory a new session must leave free on a local Docker host, beside the sessions still starting. A create that would leave less first stops a released idle session; if memory is still short, the spawner answers busy and the work waits until running sessions free some. Accepts sizes such as `2g` or `1536m`. Has no effect on Kubernetes or with a remote Docker daemon. |
 | `SANDBOX_AGENT_CPUS` | `2` | CPU limit per agent session. Account for overlapping builds and other host workloads when choosing the session count. |
 | `SANDBOX_AGENT_MEMORY` | `4g`; `8g` with Docker inside the sandbox | Memory limit per agent session, shared with its inner Docker daemon and nested containers. An explicit value overrides either default and applies to newly created sessions. |
 | `SANDBOX_SESSION_MAX_IDLE_MS` | `1800000` (30 min) | Idle window for stopping unpinned sessions. Organization build-cache helpers also stop after this window with no potentially active organization session; their networks and cache volumes are retained. |
@@ -250,11 +251,11 @@ The sandbox spawner reads the settings below. Pass them into its environment and
 | `SANDBOX_RUNTIME_IMAGE`          | `tale-sandbox-runtime:latest` | **Optional, read by the spawner.** The image every session container is created from. The default is the tag the development stack builds locally, so a host that pulls its images sets the registry one: `ghcr.io/tale-project/tale/tale-sandbox-runtime:<version>`, matching the rest of the stack. `tale deploy` sets it for you. |
 | `SANDBOX_DIND_INNER_POOL` | unset (automatic) | Optional inner Docker address pool for agent sessions on Docker or Kubernetes. Use a canonical RFC1918 IPv4 `/16` outside your Pod, Service and VPC networks. The runtime rejects overlaps with networks and addresses it discovers. |
 
-At full capacity, the spawner can stop a released, unpinned idle session before the idle timeout to admit new work, starting with the one idle longest. The daemon must confirm that no work is in progress; busy sessions and sessions with unknown state are protected. Stopping compute preserves the persistent workspace directory or volume. If no safe session can be reclaimed, admission remains blocked by the deployment capacity.
+At full capacity, the spawner can stop a released, unpinned idle session before the idle timeout to admit new work, starting with the one idle longest. The daemon must confirm that no work is in progress; busy sessions and sessions with unknown state are protected. Stopping compute preserves the persistent workspace directory or volume. If no safe session can be reclaimed, admission remains blocked by the deployment capacity. The same applies when the host's free memory would drop below `SANDBOX_MIN_FREE_MEMORY`.
 
 ### Size session capacity
 
-Start with 8, then test the tasks your deployment will run together. Browser rendering and Docker builds have different peaks; include agents, workflows and crawling across all organizations. A free session slot does not guarantee enough resources, and the spawner does not automatically adjust this setting to host memory.
+On a Docker host with `SANDBOX_MAX_SESSIONS` unset, the spawner sizes the capacity from the host's memory at start (a 16 GiB host gets 19 sessions, a 64 GiB host 76) and admits a new session only while the host keeps `SANDBOX_MIN_FREE_MEMORY` free, counting the sessions still starting. A burst of work that would overcommit the host therefore waits instead of having its sessions killed for lack of memory. Set the capacity yourself on Kubernetes, with a remote Docker daemon, or when the host also runs other heavy workloads: test the tasks your deployment will run together. Browser rendering and Docker builds have different peaks; include agents, workflows and crawling across all organizations. A free session slot does not guarantee enough resources.
 
 On Docker, sample resource use while representative tasks overlap. Repeat this command during the run; an idle snapshot does not show task peaks:
 
@@ -268,7 +269,7 @@ An agent's 4 GiB or 8 GiB memory limit is a ceiling, not memory reserved at star
 
 ### Apply a capacity change
 
-Add or update this line in the deployment's `.env`, keeping its other entries. Explicit values remain in effect across upgrades; the default of 8 applies when the variable is unset.
+Add or update this line in the deployment's `.env`, keeping its other entries. Explicit values remain in effect across upgrades; without one, a Docker host sizes the capacity from its memory as described above, and Kubernetes uses 8.
 
 ```dotenv .env
 SANDBOX_MAX_SESSIONS=8
@@ -287,6 +288,8 @@ Confirm the new deployment capacity in [Sandboxes](/platform/admin/sandboxes). W
 ### After an upgrade
 
 The default capacity used to be 16, and organizations created before this release were seeded with limits of 2/4/4, a total of 10. A deployment that never set `SANDBOX_MAX_SESSIONS` therefore starts the new version with a capacity of 8 and organizations whose saved total exceeds it. Running work is not affected, and each organization keeps admitting work under its saved limits; only saving the Sandboxes page is blocked until its total fits, and lowering limits still saves. Either set `SANDBOX_MAX_SESSIONS=16` explicitly to keep the previous capacity, or ask each affected organization to lower one limit.
+
+From this release, a Docker deployment that never set `SANDBOX_MAX_SESSIONS` gets a capacity sized from its host's memory instead of 8, never less than 8. It can admit more sessions at once than before, and only while the host has memory to spare. Set an explicit value to keep a fixed capacity.
 
 ### Docker build caches
 

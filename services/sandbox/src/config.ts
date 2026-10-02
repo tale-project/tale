@@ -120,6 +120,23 @@ function k8sQuantityEnv(name: string, re: RegExp): string | undefined {
   return value;
 }
 
+/** A Docker-style memory size from the environment ('2g', '1536m', bytes),
+ * undefined when unset, refused at boot when unreadable. */
+function memoryQuantityEnv(name: string): number | undefined {
+  const value = process.env[name]?.trim();
+  if (value === undefined || value === '') return undefined;
+  const m = /^(\d+)([kmg]?)b?$/i.exec(value);
+  if (!m) {
+    throw new Error(
+      `Env var ${name} is not a memory size such as 2g or 1536m: ${JSON.stringify(value)}`,
+    );
+  }
+  const unit = { '': 1, k: 1024, m: 1024 ** 2, g: 1024 ** 3 }[
+    (m[2] ?? '').toLowerCase()
+  ];
+  return Number(m[1]) * (unit ?? 1);
+}
+
 function numEnv(
   name: string,
   fallback: number,
@@ -216,6 +233,7 @@ export function loadConfig(): SpawnerConfig {
     'SANDBOX_K8S_MEMORY_REQUEST',
     MEMORY_QUANTITY_RE,
   );
+  const minFreeMemoryBytes = memoryQuantityEnv('SANDBOX_MIN_FREE_MEMORY');
   const dindInnerPool = rawDindInnerPool
     ? parseDindInnerPool(rawDindInnerPool)
     : undefined;
@@ -476,6 +494,8 @@ export function loadConfig(): SpawnerConfig {
       // render allocation budgets (defaults 2/2/2), and not a CPU or memory
       // reservation. Operators size this against the host and session profiles.
       maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 }),
+      autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
+      ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
       maxLifetimeMs: numEnv(
         'SANDBOX_SESSION_MAX_LIFETIME_MS',
         24 * 60 * 60 * 1000,
