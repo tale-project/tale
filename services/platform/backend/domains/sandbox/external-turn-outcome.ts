@@ -21,6 +21,15 @@ export type ExternalTurnOutcome =
    * outcome, so neither counted nor in any rate's denominator. */
   | 'parked';
 
+/** The op outcomes that are no outcome — a turn parked on a question, a
+ * start waiting for sandbox room — for the reads that must leave them out
+ * in SQL, before a row cap: a long room wait settles one op per refused
+ * start, enough to crowd every real turn out of a capped page. */
+export const NO_OUTCOME_RESULT_STATUSES: readonly string[] = [
+  'awaiting_human',
+  AWAITING_ROOM_RESULT_STATUS,
+];
+
 export function classifyOutcome(
   outcome: string | null,
   status: string,

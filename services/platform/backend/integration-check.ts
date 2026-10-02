@@ -50475,6 +50475,19 @@ async function checkMetricsSurface(
       (${`${orgId}-other`}, 'mx-sess', 'mx-other-op', 'task-agent',
        'completed', 'other-tenant', ${now - 2000}, ${now - 1000})
   `;
+  // An automation step waiting for sandbox room settles one op per refused
+  // start: not a harness turn, and newer than every real one. Enough of
+  // them to fill the metrics read's 5000-row cap on their own, plus one
+  // inside the harness-health window under a harness the real turns name.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      harness, started_at_ms, finished_at_ms
+    )
+    SELECT ${orgId}, 'mx-wait', 'mx-wait-' || n, 'workflow-agent', 'failed',
+           'awaiting_room', 'codex', ${now - 500}, ${now - 400}
+    FROM generate_series(1, 5000) AS n
+  `;
 
   // ---- probes ------------------------------------------------------------
   const usage = z
@@ -50731,13 +50744,18 @@ async function checkMetricsSurface(
       harnessHealthAfter.data.health.length === 3 &&
       harnessHealthAfter.data.health.find((row) => row.harness === 'codex')
         ?.recentTotal === 1 &&
+      // The question-parked turn and the room waits are no outcome.
       harnessHealthAfter.data.health.find(
         (row) => row.harness === 'claude-code',
-      )?.recentTotal === 6,
+      )?.recentTotal === 5,
     turns.success
-      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows, no room waits) health=${JSON.stringify(harnessHealthAfter.success ? harnessHealthAfter.data.health.map((row) => [row.harness, row.recentTotal]) : 'shape-fail')} (want claude-code 5, pi 1, codex 1)`
       : 'shape-fail',
   );
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id = 'mx-wait'
+  `;
 
   // ---- the run dialog's execution log ---------------------------------
   const { sessionIdForWorkflowExecution } =
