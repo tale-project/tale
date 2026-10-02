@@ -58,8 +58,9 @@ const RECLAIM_PROBE_BACKOFF_MS = 30_000;
  * spawner puts the session back on the list at once. */
 const RECLAIM_BUSY_FOR_MS = 15_000;
 
-/** Daemons one reclaim walk probes at most, idle-longest first: the next
- * walk goes on past the ones this one found busy. */
+/** Daemons one reclaim walk probes at most — the sessions last seen
+ * released first, then idle-longest first: the next walk goes on past the
+ * ones this one found busy. */
 const RECLAIM_PROBES_PER_WALK = 8;
 
 /** How long a walk that found nothing to reclaim answers the creates refused
@@ -229,10 +230,10 @@ export class SessionRoutes {
   private readonly probeFailedAtMs = new Map<string, number>();
   // What each session's daemon last answered, to a reclaim probe or the
   // sweep's, about reclaiming it, and when; an acquire or a release through
-  // this spawner counts as an answer too. One that cannot be reclaimed stays off the
-  // candidate list for RECLAIM_BUSY_FOR_MS; one that can goes first, so a
-  // walk capped at RECLAIM_PROBES_PER_WALK reaches it among hundreds of busy
-  // sessions.
+  // this spawner counts as an answer too. One that cannot be reclaimed stays
+  // off the candidate list for RECLAIM_BUSY_FOR_MS; one that can goes first,
+  // so a walk capped at RECLAIM_PROBES_PER_WALK reaches it among hundreds of
+  // busy sessions.
   private readonly reclaimSeen = new Map<
     string,
     { atMs: number; reclaimable: boolean }
