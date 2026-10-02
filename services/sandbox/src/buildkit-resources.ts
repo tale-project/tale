@@ -231,6 +231,18 @@ export async function inspectBuildkitContainer(
   organizationId: string,
   network: string,
 ): Promise<'running' | 'stopped' | null> {
+  const helper = await inspectBuildkitHelper(name, organizationId, network);
+  if (helper === null) return null;
+  return helper.running ? 'running' : 'stopped';
+}
+
+/** {@link inspectBuildkitContainer}, with the stamp of how the helper was
+ * launched (its `tale.helper-config` label; absent on one from before it). */
+export async function inspectBuildkitHelper(
+  name: string,
+  organizationId: string,
+  network: string,
+): Promise<{ running: boolean; stamp: string | undefined } | null> {
   const raw = await inspect([
     'inspect',
     '--format',
@@ -251,7 +263,11 @@ export async function inspectBuildkitContainer(
   if (typeof data.running !== 'boolean') {
     throw new Error(`buildkitd: invalid container state for ${name}`);
   }
-  return data.running ? 'running' : 'stopped';
+  const stamp = object(data.labels)['tale.helper-config'];
+  return {
+    running: data.running,
+    stamp: typeof stamp === 'string' ? stamp : undefined,
+  };
 }
 
 async function egressContainer(

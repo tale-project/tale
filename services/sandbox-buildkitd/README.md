@@ -64,13 +64,21 @@ The builder runs privileged for its mount and namespace operations. Its private
 bridge and the egress firewall are required boundaries; the API has no separate
 client authentication. The GC policy in [buildkitd.toml](buildkitd.toml) caps
 each organization's cache at 20 GB (least recently used records go first) and
-prunes when the disk it shares with every session drops below a tenth free;
-cache mounts, build contexts and git checkouts unused for two days go first.
-Registry mirror storage is separate from the BuildKit cache.
+prunes it further while the disk it shares with every session has less than
+5% free, but never below 2 GB: each builder prunes its own cache by the whole
+shortfall, so without that floor a disk other data filled would wipe every
+building organization's cache. Cache mounts, build contexts and git checkouts
+unused for two days go first. GC runs at start and about a minute after a
+build. Registry mirror storage is separate from the BuildKit cache.
 
-The builder runs under one agent session's CPU, memory and process limits (its
-RUN steps execute there, outside every session's cgroup), each mirror under
-512 MB and one CPU, and every helper's logs are capped like a session's.
+The builder is shared by all of its organization's agent sessions and runs
+under their CPU limit and twice their memory limit (its RUN steps execute
+there, outside every session's cgroup), or `SANDBOX_BUILDKITD_CPUS` and
+`SANDBOX_BUILDKITD_MEMORY`; each mirror runs under 512 MB and one CPU, and
+every helper's logs are capped like a session's. Each helper carries a stamp of
+its image and bounds: one launched by an earlier release or with other
+settings gets the new bounds in place, and the builder is recreated on the
+current image once no build is running (the cache volume is kept).
 
 Keep Docker's outer network allocation within RFC1918 and separate from the
 inner Docker pool. Current runtimes select a non-overlapping private `/16` at

@@ -24,6 +24,8 @@ const KEYS = [
   'SANDBOX_MAX_SESSIONS_PER_ORG',
   'SANDBOX_K8S_CPU_REQUEST',
   'SANDBOX_K8S_MEMORY_REQUEST',
+  'SANDBOX_BUILDKITD_CPUS',
+  'SANDBOX_BUILDKITD_MEMORY',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -81,6 +83,22 @@ test('session Pod requests: absent by default, read as Kubernetes quantities, re
   process.env.SANDBOX_K8S_MEMORY_REQUEST = '768Mi';
   process.env.SANDBOX_K8S_CPU_REQUEST = 'half';
   expect(() => loadConfig()).toThrow(/SANDBOX_K8S_CPU_REQUEST/);
+});
+
+test('the builder bounds are optional and validated', () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdCpus');
+  expect(loadConfig()).not.toHaveProperty('buildkitdMemoryBytes');
+  process.env.SANDBOX_BUILDKITD_CPUS = '6';
+  process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
+  expect(loadConfig()).toMatchObject({
+    buildkitdCpus: 6,
+    buildkitdMemoryBytes: 12 * 1024 ** 3,
+  });
+  process.env.SANDBOX_BUILDKITD_MEMORY = 'lots';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_MEMORY/);
+  process.env.SANDBOX_BUILDKITD_MEMORY = '12g';
+  process.env.SANDBOX_BUILDKITD_CPUS = 'many';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_CPUS/);
 });
 
 describe('loadConfig — runtime tier', () => {

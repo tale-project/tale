@@ -14,10 +14,12 @@ import {
   buildkitdCacheVolumeName,
   buildkitdContainerName,
   buildkitdEndpoint,
+  buildkitHelperLimits,
   buildkitdMirrorContainerName,
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
   ensureBuildkitd,
+  helperStamp,
   MIRROR_REGISTRIES,
   retainBuildkitd,
   sweepIdleBuildkitd,
@@ -75,7 +77,9 @@ if (a[0] === 'exec') {
   if (a[2] === 'test') done();
   if (a[2] === 'cat') done('[dns]\n nameservers = ["172.22.0.2"]');
   if (a[2] === 'getent') done('172.22.0.2 tale-buildkit-egress');
+  if (a[2] === 'buildctl') done(s.buildRunning ? 'COMPLETE\nSTARTED\n' : 'COMPLETE\n');
 }
+if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); done(); }
 if (a[0] === 'run') {
   const name = flag('--name');
   s.containers[name] = { id: (++s.nextId).toString(16).padStart(64, '0'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true };
@@ -125,6 +129,7 @@ interface FakeState {
   daemonError: boolean;
   stopFails: string | null;
   stopGate: boolean;
+  buildRunning?: boolean;
 }
 
 const cfg: SpawnerConfig = {
@@ -164,6 +169,16 @@ const originalDockerBin = process.env.DOCKER_BIN;
 function seed(organizationId: string): FakeState {
   const labels = { 'tale.buildkitd': '1', 'tale.org': organizationId };
   const network = buildkitdNetworkName(organizationId);
+  // Helpers launched by this release with these settings.
+  const stamps = [
+    helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder')),
+    ...MIRROR_REGISTRIES.map(() =>
+      helperStamp(
+        cfg.buildkitdMirrorImage,
+        buildkitHelperLimits(cfg, 'mirror'),
+      ),
+    ),
+  ];
   return {
     containers: Object.fromEntries(
       [
@@ -176,7 +191,7 @@ function seed(organizationId: string): FakeState {
         {
           id: String(index + 1).padStart(64, '0'),
           name,
-          labels,
+          labels: { ...labels, 'tale.helper-config': stamps[index] ?? '' },
           networks: { [network]: {} },
           ports: null,
           running: true,
@@ -288,6 +303,57 @@ describe('organization build-cache lifecycle', () => {
     expect((await calls()).filter((args) => args[0] === 'run')).toHaveLength(3);
   });
 
+  test('a builder from an earlier release is recreated once no build runs; its cache and mirrors stay', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const builder = buildkitdContainerName(org);
+    for (const container of Object.values(initial.containers)) {
+      // Launched before helpers carried a stamp.
+      delete container.labels['tale.helper-config'];
+    }
+    initial.buildRunning = true;
+    await save(initial);
+
+    // A build is under way: the builder keeps serving, its bounds and the
+    // mirrors' applied in place.
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    let log = await calls();
+    expect(log.filter((args) => args[0] === 'run')).toHaveLength(0);
+    const updates = log.filter((args) => args[0] === 'update');
+    const byName = (a: string, b: string) => a.localeCompare(b);
+    expect(updates.map((args) => args.at(-1) ?? '').sort(byName)).toEqual(
+      Object.keys(initial.containers).sort(byName),
+    );
+    expect(updates.find((args) => args.at(-1) === builder)).toContain(
+      '--memory=8192m',
+    );
+    expect((await state()).containers[builder]?.id).toBe(
+      initial.containers[builder]?.id,
+    );
+
+    // The build is done: the next ensure recreates the builder on the current
+    // image and bounds, keeping the cache volume; the mirrors keep serving.
+    const busy = await state();
+    busy.buildRunning = false;
+    await save(busy);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    log = await calls();
+    const launches = log.filter((args) => args[0] === 'run');
+    expect(launches).toHaveLength(1);
+    expect(launches[0]).toContain(cfg.buildkitdImage);
+    const final = await state();
+    expect(final.containers[builder]?.id).not.toBe(
+      initial.containers[builder]?.id,
+    );
+    expect(final.containers[builder]?.labels['tale.helper-config']).toBe(
+      helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder')),
+    );
+    expect(final.volumes).toEqual(initial.volumes);
+    // Bounds already applied are not applied again.
+    expect(log.filter((args) => args[0] === 'update')).toHaveLength(0);
+  });
+
   test('idle-stop releases all four helpers after the existing grace, preserving caches and network for resume', async () => {
     const org = nextOrg();
     const initial = seed(org);
@@ -342,11 +408,13 @@ describe('organization build-cache lifecycle', () => {
     expect(launches.find((args) => args.includes('--privileged'))).toContain(
       buildkitdContainerName(org),
     );
-    // Every helper runs bounded, the builder by one agent session's budget.
+    // Every helper runs bounded; the builder, shared by the organization's
+    // agent sessions, with an agent session's CPUs and twice its memory.
     const agent = cfg.session.agentProfile;
+    expect(agent.memory).toBe('4g');
     for (const args of launches) {
       const builder = args.includes('--privileged');
-      expect(args).toContain(`--memory=${builder ? agent.memory : '512m'}`);
+      expect(args).toContain(`--memory=${builder ? '8192m' : '512m'}`);
       expect(args).toContain(`--cpus=${builder ? agent.cpus : 1}`);
       expect(args.some((arg) => arg.startsWith('--pids-limit='))).toBe(true);
       expect(args).toContain('--oom-score-adj=500');

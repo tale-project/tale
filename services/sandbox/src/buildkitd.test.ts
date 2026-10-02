@@ -11,12 +11,17 @@ import {
   buildkitdMirrorRef,
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
+  buildkitHelperLimits,
   EGRESS_READY_MARKER,
   egressProxyHostname,
   firstIpv4,
+  helperStamp,
   MIRROR_REGISTRIES,
   parseDnsNameserver,
 } from './buildkitd.ts';
+import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
+
+const LIMITS_CFG = { session: TEST_SESSION_CONFIG };
 
 describe('buildkitd naming seam', () => {
   test('all build resources are stable per org and distinct across orgs', () => {
@@ -101,6 +106,40 @@ describe('buildkitd naming seam', () => {
     expect(entrypoint).toContain(`EGRESS_READY=${EGRESS_READY_MARKER}`);
     expect(BUILDKITD_LIVE_TOML).toMatch(/^\/[\w./-]+$/);
     expect(entrypoint).toContain(`LIVE_TOML=${BUILDKITD_LIVE_TOML}`);
+  });
+});
+
+describe('buildkitd helper bounds', () => {
+  test('the operator sets the builder’s CPUs and memory; mirrors stay small', () => {
+    const cfg = {
+      ...LIMITS_CFG,
+      buildkitdCpus: 6,
+      buildkitdMemoryBytes: 12 * 1024 ** 3,
+    };
+    expect(buildkitHelperLimits(cfg, 'builder')).toEqual(
+      expect.arrayContaining([
+        '--cpus=6',
+        '--memory=12288m',
+        '--memory-swap=12288m',
+      ]),
+    );
+    expect(buildkitHelperLimits(cfg, 'mirror')).toEqual(
+      expect.arrayContaining(['--cpus=1', '--memory=512m']),
+    );
+  });
+
+  test('a stamp changes with the image and with the bounds', () => {
+    const limits = buildkitHelperLimits(LIMITS_CFG, 'builder');
+    const stamp = helperStamp('buildkit:1', limits);
+    expect(stamp).toMatch(/^[a-f0-9]{16}$/);
+    expect(helperStamp('buildkit:1', limits)).toBe(stamp);
+    expect(helperStamp('buildkit:2', limits)).not.toBe(stamp);
+    expect(
+      helperStamp(
+        'buildkit:1',
+        buildkitHelperLimits({ ...LIMITS_CFG, buildkitdCpus: 3 }, 'builder'),
+      ),
+    ).not.toBe(stamp);
   });
 });
 

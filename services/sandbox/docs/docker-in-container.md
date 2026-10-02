@@ -215,9 +215,13 @@ Resources with foreign or missing ownership labels are never stopped or adopted.
 
 This integration currently belongs to the Docker backend. The Kubernetes
 backend does not provision this shared BuildKit service. BuildKit's GC caps
-each organization's cache at 20 GB and keeps a tenth of the disk free;
-registry mirror storage is separate. The builder runs under one agent
-session's limits, since builds run in it rather than in the session. See
+each organization's cache at 20 GB and prunes it further, never below 2 GB,
+while the shared disk has less than 5% free; registry mirror storage is
+separate. The builder is bounded too, since builds run in it rather than in
+the session: an agent session's CPUs and twice its memory unless
+`SANDBOX_BUILDKITD_CPUS` / `SANDBOX_BUILDKITD_MEMORY` say otherwise. A helper
+launched by an earlier release gets the new bounds in place and is recreated
+on the current image once no build runs. See
 [the BuildKit reference](../../sandbox-buildkitd/README.md) for the resource
 boundary and upgrade requirements.
 

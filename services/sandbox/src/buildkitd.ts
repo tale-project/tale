@@ -8,6 +8,7 @@ import {
   ensureBuildkitNetwork,
   ensureBuildkitVolume,
   inspectBuildkitContainer,
+  inspectBuildkitHelper,
   readDockerMetadata,
   removeBuildkitNetwork,
   removeBuildkitVolume,
@@ -230,22 +231,55 @@ async function withBuildkitdOperation<T>(
 
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
 
+const MIB = 1024 * 1024;
+
+/** A Docker memory size (`8g`, `1536m`, `4294967296`) in bytes, or null. */
+function dockerMemoryBytes(value: string): number | null {
+  const m = /^(\d+(?:\.\d+)?)([bkmg])?$/i.exec(value.trim());
+  if (!m) return null;
+  const unit = { b: 1, k: 1024, m: MIB, g: 1024 * MIB }[
+    (m[2] ?? 'b').toLowerCase()
+  ];
+  return unit === undefined ? null : Number(m[1]) * unit;
+}
+
+/** The memory one organization's builder may use: the operator's
+ * (SANDBOX_BUILDKITD_MEMORY), else twice an agent session's — every agent
+ * session of the organization builds in it, so it holds a couple of heavy
+ * builds at once. A ceiling, not a reservation: an idle builder uses little. */
+/** What a helper's bounds are read from. */
+type HelperBoundsConfig = Pick<
+  SpawnerConfig,
+  'session' | 'buildkitdCpus' | 'buildkitdMemoryBytes'
+>;
+
+function builderMemory(cfg: HelperBoundsConfig): string {
+  if (cfg.buildkitdMemoryBytes !== undefined) {
+    return `${Math.max(1, Math.floor(cfg.buildkitdMemoryBytes / MIB))}m`;
+  }
+  const agent = cfg.session.agentProfile.memory;
+  const bytes = dockerMemoryBytes(agent);
+  return bytes === null ? agent : `${Math.floor((2 * bytes) / MIB)}m`;
+}
+
 /** The cgroup, process and log bounds a helper runs under. A build's RUN steps
  * execute inside the builder, outside any session's cgroup: unbounded, one
  * organization's parallel builds could take the whole host, and under memory
  * pressure the kernel killed sessions (OOM score 500) before the builder (0).
- * The builder gets the budget of one agent session (a Docker-in-sandbox one
- * when the cache is on); a mirror idles at about 10 MB. Logging is set in
+ * The builder is shared by every agent session of its organization and gets
+ * {@link builderMemory} and an agent session's CPUs unless the operator sets
+ * SANDBOX_BUILDKITD_CPUS; a mirror idles at about 10 MB. Logging is set in
  * full, as for a session (docker-session-args.ts): an option left unset falls
  * through to the host daemon's defaults, which can make the run fail. */
 export function buildkitHelperLimits(
-  cfg: SpawnerConfig,
+  cfg: HelperBoundsConfig,
   role: 'builder' | 'mirror',
 ): string[] {
   const agent = cfg.session.agentProfile;
-  const memory = role === 'builder' ? agent.memory : '512m';
+  const memory = role === 'builder' ? builderMemory(cfg) : '512m';
+  const cpus = cfg.buildkitdCpus ?? agent.cpus;
   return [
-    `--cpus=${role === 'builder' ? agent.cpus : 1}`,
+    `--cpus=${role === 'builder' ? cpus : 1}`,
     `--memory=${memory}`,
     `--memory-swap=${memory}`,
     `--pids-limit=${role === 'builder' ? Math.max(agent.pidsLimit, 16384) : 256}`,
@@ -258,6 +292,65 @@ export function buildkitHelperLimits(
     '--log-opt',
     'compress=false',
   ];
+}
+
+/** The label a helper carries with {@link helperStamp}. */
+const HELPER_STAMP_LABEL = 'tale.helper-config';
+
+/** How a helper was launched — its image and bounds — as a short hash: a
+ * running helper whose stamp differs predates the current release or
+ * settings. */
+export function helperStamp(image: string, limits: readonly string[]): string {
+  return createHash('sha256')
+    .update([image, ...limits].join('\n'))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/** The bounds `docker update` applies to a running container. */
+const LIVE_LIMIT_FLAGS = [
+  '--cpus=',
+  '--memory=',
+  '--memory-swap=',
+  '--pids-limit=',
+];
+// Running helpers whose bounds were updated in place, with the stamp they were
+// updated to: done once per stamp, not on every ensure.
+const limitsUpdated = new Map<string, string>();
+
+/** Bring a running helper's cgroup bounds up to date without a restart (its
+ * image and log options stay as they were). Best effort: a helper using more
+ * than the new limit keeps its old one until it is recreated. */
+async function updateHelperLimits(
+  name: string,
+  stamp: string,
+  limits: readonly string[],
+): Promise<void> {
+  if (limitsUpdated.get(name) === stamp) return;
+  const live = limits.filter((flag) =>
+    LIVE_LIMIT_FLAGS.some((prefix) => flag.startsWith(prefix)),
+  );
+  const result = await runDocker(['update', ...live, name], {
+    timeoutMs: 10_000,
+  });
+  if (result.exitCode !== 0) {
+    console.warn(
+      `[sandbox.buildkitd] could not update the limits of ${name}: ${result.stderr.trim()}`,
+    );
+    return;
+  }
+  limitsUpdated.set(name, stamp);
+}
+
+/** Is no build running in this builder? A record still `STARTED` is a build
+ * under way; an answer that cannot be read counts as busy. */
+async function builderIdle(name: string): Promise<boolean> {
+  const result = await runDocker(
+    ['exec', name, 'buildctl', 'debug', 'histories', '--format', '{{.Type}}'],
+    { timeoutMs: 10_000 },
+  );
+  if (result.exitCode !== 0) return false;
+  return !result.stdout.split('\n').some((line) => line.trim() === 'STARTED');
 }
 
 async function liveBuildkitOrganizations(
@@ -564,13 +657,22 @@ async function ensureOneMirrorUnlocked(
   registry: string,
   name: string,
 ): Promise<void> {
-  const state = await inspectBuildkitContainer(
+  const limits = buildkitHelperLimits(cfg, 'mirror');
+  const stamp = helperStamp(cfg.buildkitdMirrorImage, limits);
+  const helper = await inspectBuildkitHelper(
     name,
     organizationId,
     cfg.egressNetwork,
   );
-  if (state !== null) {
-    if (state === 'running') return;
+  if (helper !== null) {
+    if (helper.running) {
+      // A mirror from before this release keeps serving (a recreate would
+      // cut off the pulls going through it); its bounds apply in place.
+      if (helper.stamp !== stamp) {
+        await updateHelperLimits(name, stamp, limits);
+      }
+      return;
+    }
     const rm = await runDocker(['rm', '-f', name]);
     if (rm.exitCode !== 0) {
       console.warn(
@@ -592,9 +694,11 @@ async function ensureOneMirrorUnlocked(
       'tale.buildkitd=1',
       '--label',
       `tale.org=${organizationId}`,
+      '--label',
+      `${HELPER_STAMP_LABEL}=${stamp}`,
       '--restart',
       'unless-stopped',
-      ...buildkitHelperLimits(cfg, 'mirror'),
+      ...limits,
       // On this organization's network so buildkit reaches it by name; it pulls upstream
       // through the egress proxy (so the mirror itself needs no external DNS).
       '--network',
@@ -752,24 +856,40 @@ async function ensureBuildkitdOnNetwork(
   // a stack restart moved sandbox-egress to a new IP, silently serves builds
   // with no working DNS/egress (RUN steps fail to resolve any external host) —
   // recreate it. See buildkitdEgressHealthy.
-  const state = await inspectBuildkitContainer(
+  const limits = buildkitHelperLimits(cfg, 'builder');
+  const stamp = helperStamp(cfg.buildkitdImage, limits);
+  const helper = await inspectBuildkitHelper(
     name,
     organizationId,
     cfg.egressNetwork,
   );
-  if (state !== null) {
-    if (state === 'running') {
+  if (helper !== null) {
+    if (helper.running) {
       if (await buildkitdEgressHealthy(cfg, name)) {
-        // A partial idle-stop/crash may have stopped mirrors while the builder
-        // stayed healthy. Reusing the builder must revive those caches too.
-        await ensureBuildkitdMirrors(cfg, organizationId);
-        return endpoint;
+        // A builder launched by an earlier release or with other bounds runs
+        // its old image (and with it the old cache policy): it is recreated
+        // once no build is under way, and meanwhile gets the bounds in place.
+        const current = helper.stamp === stamp;
+        if (current || !(await builderIdle(name))) {
+          if (!current) await updateHelperLimits(name, stamp, limits);
+          // A partial idle-stop/crash may have stopped mirrors while the
+          // builder stayed healthy. Reusing the builder must revive those
+          // caches too.
+          await ensureBuildkitdMirrors(cfg, organizationId);
+          return endpoint;
+        }
+        console.log(
+          `[sandbox.buildkitd] recreating ${name}: it was launched with another ` +
+            `image or other bounds and no build is running. The persistent ` +
+            `cache volume is preserved.`,
+        );
+      } else {
+        console.warn(
+          `[sandbox.buildkitd] ${name} is running but its egress fence is missing or ` +
+            `stale; recreating so build RUN steps regain internet. The persistent ` +
+            `cache volume is preserved.`,
+        );
       }
-      console.warn(
-        `[sandbox.buildkitd] ${name} is running but its egress fence is missing or ` +
-          `stale; recreating so build RUN steps regain internet. The persistent ` +
-          `cache volume is preserved.`,
-      );
     }
     // Stopped/dead OR running-but-egress-broken: reap it so the `run --name`
     // below recreates it. The cache lives in the volume, not the container, so
@@ -802,10 +922,12 @@ async function ensureBuildkitdOnNetwork(
       'tale.buildkitd=1',
       '--label',
       `tale.org=${organizationId}`,
+      '--label',
+      `${HELPER_STAMP_LABEL}=${stamp}`,
       // Long-lived shared infra: survive a daemon crash + host docker restart.
       '--restart',
       'unless-stopped',
-      ...buildkitHelperLimits(cfg, 'builder'),
+      ...limits,
       // Only this organization's sessions can reach the builder. RUN-step
       // egress goes through the proxy attached to this private bridge.
       '--network',

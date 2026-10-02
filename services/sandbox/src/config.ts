@@ -234,6 +234,10 @@ export function loadConfig(): SpawnerConfig {
     MEMORY_QUANTITY_RE,
   );
   const minFreeMemoryBytes = memoryQuantityEnv('SANDBOX_MIN_FREE_MEMORY');
+  const buildkitdMemoryBytes = memoryQuantityEnv('SANDBOX_BUILDKITD_MEMORY');
+  const buildkitdCpus = process.env.SANDBOX_BUILDKITD_CPUS?.trim()
+    ? numEnv('SANDBOX_BUILDKITD_CPUS', 0, { min: 0.1 })
+    : undefined;
   const dindInnerPool = rawDindInnerPool
     ? parseDindInnerPool(rawDindInnerPool)
     : undefined;
@@ -463,6 +467,8 @@ export function loadConfig(): SpawnerConfig {
     // the internal net. Overridable for a pinned/mirrored ref in fenced deploys.
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
+    ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
+    ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),
     // Transparent egress for the session's own processes (default on; resolved +
     // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
     transparentEgress,

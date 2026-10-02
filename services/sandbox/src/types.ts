@@ -46,6 +46,11 @@ export interface SpawnerConfig {
   // pulls resolve by name on the internal net (buildkit can't resolve external
   // registry names through docker's embedded DNS).
   buildkitdMirrorImage: string;
+  // The bounds of each organization's builder (env SANDBOX_BUILDKITD_CPUS and
+  // SANDBOX_BUILDKITD_MEMORY): unset, an agent session's CPUs and twice its
+  // memory (buildkitd.ts buildkitHelperLimits).
+  buildkitdCpus?: number;
+  buildkitdMemoryBytes?: number;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
   // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client
