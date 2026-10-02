@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ActivityGate } from './activity-gate.ts';
 import { reconcileBakedSkills } from './baked-skills.ts';
+import { exitDaemon } from './daemon-exit.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -517,15 +518,17 @@ if (
   // signal reaches only this daemon's process group, never the execs (each
   // runs in a group of its own), so pass it on: a harness gets to write its
   // transcript and a wrapper to remove what it staged before the teardown.
+  // Either exit ends the daemon even past a /proc read that never returns
+  // (daemon-exit.ts).
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     process.on(sig, () => {
-      setTimeout(() => process.exit(0), 2_000);
+      setTimeout(() => exitDaemon(0), 2_000);
       void execManager
         .terminateAll()
         .catch((error: unknown) => {
           console.warn('[runnerd] passing the stop on failed:', error);
         })
-        .finally(() => server.close(() => process.exit(0)));
+        .finally(() => server.close(() => exitDaemon(0)));
     });
   }
 
