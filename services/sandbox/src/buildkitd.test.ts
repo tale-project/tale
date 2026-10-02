@@ -105,10 +105,11 @@ describe('buildkitd naming seam', () => {
 });
 
 describe('buildkitd cache garbage collection', () => {
-  // BuildKit reads `keepBytes` as reservedSpace, a floor it never reclaims
-  // below, and a rule's keepDuration shields everything younger from that
-  // rule's space limits: the old single rule bounded nothing (measured on
-  // v0.33.1). Only a rule over all records with no keepDuration caps size.
+  // A rule's keepDuration shields everything used more recently from that
+  // rule's space limits: the old keepBytes + keepDuration rule pruned nothing
+  // used within a week (measured on v0.33.1). Only a rule over all records
+  // with no keepDuration caps size; its reservedSpace is the floor disk
+  // pressure never prunes below.
   test('the shipped policy caps the cache and guards the shared disk', async () => {
     const toml = await Bun.file(
       new URL('../../sandbox-buildkitd/buildkitd.toml', import.meta.url),
@@ -122,6 +123,7 @@ describe('buildkitd cache garbage collection', () => {
     expect(cap).toBeDefined();
     expect(cap).toMatch(/^maxUsedSpace\s*=\s*"\d+GB"/m);
     expect(cap).toMatch(/^minFreeSpace\s*=/m);
+    expect(cap).toMatch(/^reservedSpace\s*=\s*"\d+GB"/m);
     expect(cap).not.toMatch(/keepDuration/);
   });
 });
