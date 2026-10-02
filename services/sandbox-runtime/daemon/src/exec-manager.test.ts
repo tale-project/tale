@@ -4,10 +4,14 @@
 // cwd-safety check at a temp dir so the happy path is hermetic.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
+  constants,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -17,6 +21,7 @@ import { PassThrough } from 'node:stream';
 
 import { EnvStore } from './env-store.ts';
 import { ExecManager, isStdinWritable } from './exec-manager.ts';
+import { pendingProcReads } from './process-reaper.ts';
 import type { RunnerdExecEvent, RunnerdExecRequest } from './protocol.ts';
 
 // realpath the temp dir up front — macOS /tmp is a symlink to /private/tmp, so
@@ -65,6 +70,20 @@ async function stdoutPid(events: RunnerdExecEvent[]): Promise<number> {
 async function waitGone(pid: number): Promise<void> {
   const deadline = Date.now() + 3_000;
   while (isAlive(pid) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+/** Let every read waiting on a FIFO come back, and wait until they have. */
+async function releaseFifo(fifo: string): Promise<void> {
+  const until = Date.now() + 5_000;
+  while (pendingProcReads() > 0 && Date.now() < until) {
+    try {
+      closeSync(openSync(fifo, constants.O_WRONLY | constants.O_NONBLOCK));
+    } catch (err) {
+      // ENXIO: the stuck read has not opened the FIFO yet.
+      if (!(err instanceof Error && 'code' in err)) throw err;
+    }
     await new Promise((r) => setTimeout(r, 20));
   }
 }
@@ -395,6 +414,51 @@ describe('ExecManager', () => {
     expect(sent[0]?.[0]).toBeLessThan(0);
   });
 
+  test('a cancel signals the exec’s group at once, even while a read of the process table hangs', async () => {
+    // A fake process table in which one process's environment read never
+    // comes back: a FIFO no one writes stands in for a process stuck
+    // holding its memory lock.
+    const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
+    mkdirSync(`${procRoot}/41`);
+    writeFileSync(
+      `${procRoot}/41/stat`,
+      '41 (stuck) D 1 41 41 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4141 0 0\n',
+    );
+    const fifo = `${procRoot}/41/environ`;
+    expect(spawnSync('mkfifo', [fifo]).status).toBe(0);
+    const sent: Array<[number, NodeJS.Signals]> = [];
+    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
+      procRoot,
+      scanDeadlineMs: 500,
+      kill: (pid, signal) => {
+        sent.push([pid, signal]);
+        process.kill(pid, signal);
+      },
+    });
+    try {
+      const { events, emit } = collect();
+      const done = mgr.run(
+        { ...base, execId: 'estuck', shell: 'sleep 30', cwd: ROOT },
+        emit,
+      );
+      while (mgr.status('estuck')?.state !== 'running') {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(mgr.cancel('estuck')).toBe(true);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.[0]).toBeLessThan(0);
+      expect(sent[0]?.[1]).toBe('SIGTERM');
+      await done;
+      expect(events[events.length - 1]).toMatchObject({
+        t: 'exit',
+        cancelled: true,
+      });
+    } finally {
+      await releaseFifo(fifo);
+      rmSync(procRoot, { recursive: true, force: true });
+    }
+  });
+
   test('what an exec left running waits while another exec of the session runs', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const long = collect();
@@ -585,7 +649,10 @@ describe('ExecManager', () => {
     const procRoot = mkdtempSync(`${tmpdir()}/runnerd-proc-`);
     mkdirSync(`${procRoot}/99991`);
     writeFileSync(`${procRoot}/99991/environ`, 'TALE_EXEC_ID=prune-7\0');
-    writeFileSync(`${procRoot}/99991/stat`, '99991 (dev) S 1 99991 99991 0\n');
+    writeFileSync(
+      `${procRoot}/99991/stat`,
+      '99991 (dev) S 1 99991 99991 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4242 0 0\n',
+    );
     const sent: Array<[number, NodeJS.Signals]> = [];
     const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
       procRoot,

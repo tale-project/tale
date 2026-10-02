@@ -4,12 +4,23 @@
 // stands in for /proc, so this runs on any host.
 
 import { afterAll, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  closeSync,
+  constants,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  rmSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 
 import {
   EXEC_TAG_ENV,
   execsWithProcesses,
+  pendingProcReads,
   signalExecProcesses,
   taggedPids,
 } from './process-reaper.ts';
@@ -26,6 +37,8 @@ interface FakeProcess {
   pgrp?: number;
   /** Command name as `stat` shows it, parentheses and spaces included. */
   comm?: string;
+  /** Start time in clock ticks since boot; defaults to 1000 + pid. */
+  startTime?: number;
 }
 
 /** A process table: pid → its environment and process group. */
@@ -37,14 +50,49 @@ function procTable(processes: Record<string, FakeProcess>): string {
     if (proc.env !== null) {
       writeFileSync(`${root}/${pid}/environ`, `${proc.env.join('\0')}\0`);
     }
-    const pgrp = proc.pgrp ?? pid;
-    const comm = proc.comm ?? 'sleep';
-    writeFileSync(
-      `${root}/${pid}/stat`,
-      `${pid} (${comm}) S 1 ${pgrp} ${pgrp} 0 -1 4194560 0 0\n`,
-    );
+    writeStat(root, pid, proc);
   }
   return root;
+}
+
+/** A `stat` line as Linux writes it: the group is field 5, the start time
+ * field 22. */
+function writeStat(root: string, pid: string, proc: FakeProcess): void {
+  const pgrp = proc.pgrp ?? pid;
+  const comm = proc.comm ?? 'sleep';
+  const startTime = proc.startTime ?? 1000 + Number(pid);
+  writeFileSync(
+    `${root}/${pid}/stat`,
+    `${pid} (${comm}) S 1 ${pgrp} ${pgrp} 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 ${startTime} 1000 100\n`,
+  );
+}
+
+/** A process whose environment read does not come back — a FIFO no one
+ * writes stands in for a process stuck holding its memory lock. */
+function stallEnviron(root: string, pid: string, pgrp: number): string {
+  mkdirSync(`${root}/${pid}`);
+  writeStat(root, pid, { env: null, pgrp });
+  const fifo = `${root}/${pid}/environ`;
+  const made = spawnSync('mkfifo', [fifo]);
+  if (made.status !== 0) throw new Error(`mkfifo failed: ${String(made.stderr)}`);
+  return fifo;
+}
+
+/** Let every read waiting on the FIFO come back (with `data`), and wait
+ * until they have. */
+async function release(fifo: string, data = ''): Promise<void> {
+  const until = Date.now() + 5_000;
+  while (pendingProcReads() > 0 && Date.now() < until) {
+    try {
+      const fd = openSync(fifo, constants.O_WRONLY | constants.O_NONBLOCK);
+      if (data !== '') writeSync(fd, data);
+      closeSync(fd);
+    } catch (err) {
+      // ENXIO: no reader has the FIFO open yet; ENOENT: it was replaced.
+      if (!(err instanceof Error && 'code' in err)) throw err;
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
 }
 
 const tagged = (execId: string, pgrp?: number, comm?: string): FakeProcess => ({
@@ -163,11 +211,71 @@ describe('signalExecProcesses', () => {
       'SIGTERM',
       { procRoot, kill },
     );
+    // The known group goes first, before the table is read.
     expect(sent).toEqual([
+      [-60, 'SIGTERM'],
       [-39, 'SIGTERM'],
       [51, 'SIGTERM'],
-      [-60, 'SIGTERM'],
     ]);
+  });
+
+  test('a known group is signalled before the table is read, so a read that hangs cannot hold it back', async () => {
+    const procRoot = procTable({
+      '40': tagged('e5', 39),
+      '42': tagged('e5', 42),
+    });
+    const fifo = stallEnviron(procRoot, '41', 39);
+    const { sent, kill } = recorder();
+    try {
+      const round = signalExecProcesses(
+        [{ execId: 'e5', groupId: 39, groupKnown: true }],
+        'SIGTERM',
+        { procRoot, kill, scanDeadlineMs: 200 },
+      );
+      expect(sent).toEqual([[-39, 'SIGTERM']]);
+      await round;
+      // The scan answered at its deadline with what it read.
+      expect(sent).toEqual([
+        [-39, 'SIGTERM'],
+        [42, 'SIGTERM'],
+      ]);
+    } finally {
+      await release(fifo);
+    }
+  });
+
+  test('a process whose read did not come back is skipped until the read returns or the pid is someone else’s', async () => {
+    const procRoot = procTable({ '42': tagged('e6', 42) });
+    const fifo = stallEnviron(procRoot, '41', 41);
+    const deps = { procRoot, scanDeadlineMs: 300 };
+    try {
+      let started = Date.now();
+      expect(await taggedPids('e6', deps)).toEqual([42]);
+      expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+      expect(pendingProcReads()).toBe(1);
+      // The next scan does not wait on it again, nor add a read of its own.
+      started = Date.now();
+      expect(await taggedPids('e6', deps)).toEqual([42]);
+      expect(Date.now() - started).toBeLessThan(250);
+      expect(pendingProcReads()).toBe(1);
+      // The read comes back: the process is read again.
+      await release(fifo, `${EXEC_TAG_ENV}=e6\0`);
+      rmSync(fifo);
+      writeFileSync(fifo, `${EXEC_TAG_ENV}=e6\0`);
+      expect(await taggedPids('e6', deps)).toEqual([41, 42]);
+      expect(pendingProcReads()).toBe(0);
+      // A pid whose read stalls, then names a new process, is read again.
+      rmSync(fifo);
+      spawnSync('mkfifo', [fifo]);
+      expect(await taggedPids('e6', deps)).toEqual([42]);
+      writeStat(procRoot, '41', { env: null, pgrp: 41, startTime: 99_999 });
+      started = Date.now();
+      await taggedPids('e6', deps);
+      expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+      expect(pendingProcReads()).toBe(2);
+    } finally {
+      await release(fifo);
+    }
   });
 
   test('without a process table only the group can be signalled', async () => {

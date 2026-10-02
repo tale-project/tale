@@ -675,7 +675,8 @@ export class ExecManager {
   /** One reaping round: SIGTERM now, SIGKILL to whatever is left once the
    * grace has passed — by then a group counts as the exec's while its leader
    * still runs, else only while a process tagged with the exec is still in
-   * it. Resolves once the SIGTERM is sent. */
+   * it. A group known to be the exec's gets each signal at once, before the
+   * process table is read. Resolves once the SIGTERM is sent. */
   private async reap(targets: Reaping[]): Promise<void> {
     if (targets.length === 0) return;
     const round = (signal: NodeJS.Signals, of: ReapTarget[]) =>

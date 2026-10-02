@@ -13,11 +13,20 @@
 // harness writing its transcript) and cuts it short. A process that both left
 // the group and rewrote its environment (a `setsid` server that sets its own
 // title) is out of reach; a per-exec cgroup would be the way to catch it.
+//
+// Reading another process's environment takes that process's memory lock,
+// which a process stuck under memory pressure can hold for minutes. So a
+// group known to be the exec's is signalled before the table is read, a scan
+// answers with what it read once its deadline passes, and a process whose
+// read did not come back is skipped until it is gone or the read returns.
 
 import { readdir, readFile } from 'node:fs/promises';
 
 /** The environment variable every exec's processes carry: the exec id. */
 export const EXEC_TAG_ENV = 'TALE_EXEC_ID';
+
+/** How long one scan of the process table waits for its reads. */
+const SCAN_DEADLINE_MS = 2_000;
 
 export interface ReaperDeps {
   /** Where the process table is read (Linux `/proc`); absent elsewhere. */
@@ -25,6 +34,9 @@ export interface ReaperDeps {
   kill?: (pid: number, signal: NodeJS.Signals) => void;
   /** Never signalled: this daemon itself. */
   selfPid?: number;
+  /** How long a scan waits for its reads; {@link SCAN_DEADLINE_MS} unless
+   * set. */
+  scanDeadlineMs?: number;
 }
 
 /** An exec whose processes a round ends: its id and its process group. */
@@ -47,54 +59,99 @@ function errorCode(err: unknown): string | undefined {
   return undefined;
 }
 
-interface TaggedProcess {
+interface ProcessEntry {
   pid: number;
   pgrp: number;
-  execId: string;
+  /** When the process started (`stat` field 22, in clock ticks since boot):
+   * with the pid, it names one process even after the pid is reused. */
+  startTime: string;
+  /** The exec it is tagged with; absent when untagged, or while its
+   * environment cannot be read. */
+  execId?: string;
 }
 
-/** The process group of a `/proc/<pid>/stat` line: the fifth field, read
- * after the command name, which may itself hold spaces and parentheses. */
-function pgrpOf(stat: string): number | null {
+/** The process group and start time of a `/proc/<pid>/stat` line: the fifth
+ * and the twenty-second field, read after the command name, which may itself
+ * hold spaces and parentheses. */
+function parseStat(stat: string): { pgrp: number; startTime: string } | null {
   const end = stat.lastIndexOf(')');
   if (end === -1) return null;
+  // The fields after the command name start with the third, the state.
   const fields = stat.slice(end + 2).split(' ');
   const pgrp = Number(fields[2]);
-  return Number.isInteger(pgrp) && pgrp > 0 ? pgrp : null;
+  const startTime = fields[19];
+  if (!Number.isInteger(pgrp) || pgrp <= 0) return null;
+  if (startTime === undefined || !/^\d+$/.test(startTime)) return null;
+  return { pgrp, startTime };
 }
 
-/** Every readable process carrying an exec tag, or null when there is no
- * process table here (a development host that is not Linux). Async: a read
- * of another process's environment can wait on that process's memory lock,
- * which must never stall this daemon's only event loop. */
-async function readTaggedProcesses(
+/** A read that did not come back within its scan, until it does. */
+interface StalledRead {
+  /** The process's start time, when its `stat` was read: a new process under
+   * the same pid is read again. Absent when even the `stat` read stalled. */
+  startTime?: string;
+}
+
+/** Per process table: the pids whose read is still out. */
+const stalledByRoot = new Map<string, Map<number, StalledRead>>();
+let readsInFlight = 0;
+
+/** How many reads of the process table have not come back. Each holds one
+ * thread of libuv's pool, which `process.exit` waits for. */
+export function pendingProcReads(): number {
+  return readsInFlight;
+}
+
+function tracked<T>(read: Promise<T>): Promise<T> {
+  readsInFlight += 1;
+  return read.finally(() => {
+    readsInFlight -= 1;
+  });
+}
+
+/** Every readable process, each with the exec it is tagged with, or null
+ * when there is no process table here (a development host that is not
+ * Linux). Async: a read of another process's environment can wait on that
+ * process's memory lock, which must never stall this daemon's only event
+ * loop. Answers with what it read once the deadline passes. */
+async function readProcessTable(
   deps: ReaperDeps,
-): Promise<TaggedProcess[] | null> {
+): Promise<ProcessEntry[] | null> {
   const root = deps.procRoot ?? '/proc';
   const selfPid = deps.selfPid ?? process.pid;
   let entries: string[];
   try {
-    entries = await readdir(root);
+    entries = await tracked(readdir(root));
   } catch (err) {
     if (errorCode(err) !== 'ENOENT') {
       console.warn('[runnerd] cannot read the process table:', err);
     }
     return null;
   }
+  let stalled = stalledByRoot.get(root);
+  if (stalled === undefined) {
+    stalled = new Map();
+    stalledByRoot.set(root, stalled);
+  }
   const prefix = `${EXEC_TAG_ENV}=`;
-  const found: TaggedProcess[] = [];
-  await Promise.all(
-    entries.map(async (name) => {
-      if (!/^\d+$/.test(name)) return;
-      const pid = Number(name);
-      if (pid <= 1 || pid === selfPid) return;
-      let environ: string;
+  const listed = new Set<number>();
+  const found: ProcessEntry[] = [];
+  // The reads still out, with what each has learned so far.
+  const unsettled = new Map<number, StalledRead>();
+  // The marks this scan left, so a read that comes back late clears its own.
+  const marks = new Map<number, StalledRead>();
+  const readOne = async (name: string, known: Map<number, StalledRead>) => {
+    if (!/^\d+$/.test(name)) return;
+    const pid = Number(name);
+    if (pid <= 1 || pid === selfPid) return;
+    listed.add(pid);
+    const mark = known.get(pid);
+    if (mark !== undefined && mark.startTime === undefined) return;
+    unsettled.set(pid, {});
+    try {
       let stat: string;
       try {
-        [environ, stat] = await Promise.all([
-          readFile(`${root}/${name}/environ`, 'latin1'),
-          readFile(`${root}/${name}/stat`, 'latin1'),
-        ]);
+        stat = await tracked(readFile(`${root}/${name}/stat`, 'latin1'));
       } catch (err) {
         // A process that exited between the listing and the read, or one
         // another user owns, is not an exec's to end.
@@ -103,13 +160,61 @@ async function readTaggedProcesses(
         }
         return;
       }
-      const tag = environ.split('\0').find((entry) => entry.startsWith(prefix));
-      const pgrp = pgrpOf(stat);
-      if (tag === undefined || pgrp === null) return;
-      found.push({ pid, pgrp, execId: tag.slice(prefix.length) });
+      const parsed = parseStat(stat);
+      if (parsed === null) return;
+      const entry: ProcessEntry = { pid, ...parsed };
+      if (mark !== undefined) {
+        if (mark.startTime === parsed.startTime) {
+          // Its environment read has not come back: known by its group.
+          found.push(entry);
+          return;
+        }
+        // The pid names a new process now.
+        known.delete(pid);
+      }
+      unsettled.set(pid, { startTime: parsed.startTime });
+      let environ: string;
+      try {
+        environ = await tracked(readFile(`${root}/${name}/environ`, 'latin1'));
+      } catch (err) {
+        if (!VANISHED.has(errorCode(err) ?? '')) {
+          console.warn(`[runnerd] cannot read process ${pid}:`, err);
+        }
+        return;
+      }
+      const tag = environ.split('\0').find((e) => e.startsWith(prefix));
+      if (tag !== undefined) entry.execId = tag.slice(prefix.length);
+      found.push(entry);
+    } finally {
+      unsettled.delete(pid);
+      const left = marks.get(pid);
+      if (left !== undefined && known.get(pid) === left) known.delete(pid);
+    }
+  };
+  const reads = Promise.all(entries.map((name) => readOne(name, stalled)));
+  const deadlineMs = deps.scanDeadlineMs ?? SCAN_DEADLINE_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const cut = await Promise.race([
+    reads.then(() => false),
+    new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(true), deadlineMs);
     }),
-  );
-  return found;
+  ]);
+  clearTimeout(timer);
+  for (const pid of stalled.keys()) {
+    if (!listed.has(pid)) stalled.delete(pid);
+  }
+  if (cut) {
+    for (const [pid, read] of unsettled) {
+      marks.set(pid, read);
+      stalled.set(pid, read);
+    }
+    console.warn(
+      `[runnerd] process reads still out after ${deadlineMs} ms, skipped until they return: ${[...unsettled.keys()].join(', ')}`,
+    );
+  }
+  // A copy: reads that come back later must not change this scan's answer.
+  return found.slice();
 }
 
 /** The processes whose environment carries the tag of `execId`. */
@@ -117,7 +222,7 @@ export async function taggedPids(
   execId: string,
   deps: ReaperDeps = {},
 ): Promise<number[]> {
-  const table = await readTaggedProcesses(deps);
+  const table = await readProcessTable(deps);
   return (table ?? [])
     .filter((proc) => proc.execId === execId)
     .map((proc) => proc.pid)
@@ -129,16 +234,22 @@ export async function taggedPids(
 export async function execsWithProcesses(
   deps: ReaperDeps = {},
 ): Promise<Set<string> | null> {
-  const table = await readTaggedProcesses(deps);
-  return table === null ? null : new Set(table.map((proc) => proc.execId));
+  const table = await readProcessTable(deps);
+  if (table === null) return null;
+  const execs = new Set<string>();
+  for (const proc of table) {
+    if (proc.execId !== undefined) execs.add(proc.execId);
+  }
+  return execs;
 }
 
 /**
  * Signal what the targets left running: each process once. A target's
- * group is signalled when it is certainly still the exec's (`groupKnown`, or
- * a process tagged with the exec is still in it), and every tagged process
- * outside its group on its own. Without a process table only the group can
- * be signalled. Returns how many targets the signal reached.
+ * group is signalled when it is certainly still the exec's (`groupKnown`, at
+ * once, before the table is read; or while a process tagged with the exec is
+ * still in it), and every tagged process outside its group on its own.
+ * Without a process table only the group can be signalled. Returns how many
+ * targets the signal reached.
  */
 export async function signalExecProcesses(
   targets: readonly ReapTarget[],
@@ -158,21 +269,35 @@ export async function signalExecProcesses(
       }
     }
   };
-  const table = await readTaggedProcesses(deps);
-  for (const { execId, groupId, groupKnown } of targets) {
-    const group = groupId !== undefined && groupId > 1 ? groupId : null;
-    const members = (table ?? []).filter((proc) => proc.execId === execId);
-    const groupIsTheExecs =
+  const groupOf = ({ groupId }: ReapTarget) =>
+    groupId !== undefined && groupId > 1 ? groupId : null;
+  // Negative pid: the whole process group. Sent before the scan, which can
+  // wait on a stuck process for as long as its deadline.
+  const groupSent = targets.map((target) => {
+    const group = groupOf(target);
+    if (group === null || target.groupKnown !== true) return false;
+    send(-group, `pgroup ${group}`);
+    return true;
+  });
+  const table = await readProcessTable(deps);
+  targets.forEach((target, index) => {
+    const group = groupOf(target);
+    const members = (table ?? []).filter(
+      (proc) => proc.execId === target.execId,
+    );
+    let groupReached = groupSent[index] === true;
+    if (
+      !groupReached &&
       group !== null &&
-      (table === null ||
-        groupKnown === true ||
-        members.some((proc) => proc.pgrp === group));
-    // Negative pid: the whole process group.
-    if (groupIsTheExecs) send(-group, `pgroup ${group}`);
+      (table === null || members.some((proc) => proc.pgrp === group))
+    ) {
+      send(-group, `pgroup ${group}`);
+      groupReached = true;
+    }
     for (const proc of members) {
-      if (groupIsTheExecs && proc.pgrp === group) continue;
+      if (groupReached && proc.pgrp === group) continue;
       send(proc.pid, `pid ${proc.pid}`);
     }
-  }
+  });
   return reached;
 }
