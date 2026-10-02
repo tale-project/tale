@@ -32,7 +32,20 @@ const { mockMutation, mockToast } = vi.hoisted(() => ({
   mockToast: vi.fn(),
 }));
 
+const resolveAlex = () => ({
+  type: 'user',
+  id: 'user-1',
+  name: 'Alex',
+  isAgent: false,
+});
+
 vi.mock('../hooks/use-actor-directory', () => ({
+  // The trigger names the assignee; the list, mounted on first use, reads
+  // the project-scoped candidates.
+  useActorDirectory: () => ({
+    currentUserId: 'user-1',
+    resolveActor: resolveAlex,
+  }),
   useAssignableActors: (_organizationId: string, projectId?: string) => ({
     assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
@@ -40,12 +53,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
     assignableAgents: projectId === undefined ? [] : mockDirectoryAgents,
     agentsLoading: mockAgentsLoading,
     currentUserId: 'user-1',
-    resolveActor: () => ({
-      type: 'user',
-      id: 'user-1',
-      name: 'Alex',
-      isAgent: false,
-    }),
+    resolveActor: resolveAlex,
     canAddAgents: projectId !== undefined && mockCanAddAgents,
     projectResolved: projectId !== undefined && mockProjectResolved,
     standardAgentAvailable:

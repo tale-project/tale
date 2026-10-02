@@ -6,9 +6,11 @@ import {
   type SearchableSelectOption,
 } from '@tale/ui/searchable-select';
 import { Tooltip } from '@tale/ui/tooltip';
+import type { ReactElement } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { useDeferredPicker } from '../hooks/use-deferred-picker';
 import { TASK_PRIORITY_ORDER, type TaskPriority } from '../lib/display';
 import { TaskPriorityIcon } from './task-priority-icon';
 
@@ -58,7 +60,7 @@ function NoPriorityGlyph() {
  * Inline priority editor reusing the shared {@link SearchableSelect}. The
  * priority glyph is the icon-button trigger; selecting an option (or "No
  * priority") updates the task. Read-only callers pass `disabled` to render just
- * the glyph.
+ * the glyph. The list mounts on first use ({@link useDeferredPicker}).
  */
 export function PriorityPicker({
   priority,
@@ -77,7 +79,7 @@ export function PriorityPicker({
   showLabel?: boolean;
 }) {
   const { t } = useT('tasks');
-  const { t: tCommon } = useT('common');
+  const deferred = useDeferredPicker();
 
   const glyph = priority ? (
     <TaskPriorityIcon priority={priority} />
@@ -99,15 +101,6 @@ export function PriorityPicker({
     );
   }
 
-  // "No priority" leads so a set priority can always be cleared back to it.
-  const options: SearchableSelectOption[] = [
-    { value: NO_PRIORITY, label: t('priority.none') },
-    ...TASK_PRIORITY_ORDER.map((p) => ({
-      value: p,
-      label: t(`priority.${p}`),
-    })),
-  ];
-
   // See AssigneePicker: keep the press/click off the draggable parent so it
   // doesn't start a drag or open the task.
   const trigger = showLabel ? (
@@ -116,8 +109,12 @@ export function PriorityPicker({
       variant="ghost"
       aria-label={`${t('fields.priority')}: ${label}`}
       className="h-7 gap-1.5 rounded-md px-1.5 text-sm font-normal"
+      {...deferred.triggerProps}
       onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        deferred.engage();
+      }}
     >
       {glyph}
       {label}
@@ -131,8 +128,12 @@ export function PriorityPicker({
       // 24px, the smallest target a pointer may be asked to hit (WCAG 2.5.8)
       // — the glyph plus `p-1` came to 22.
       className="size-6 rounded-md p-0"
+      {...deferred.triggerProps}
       onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        deferred.engage();
+      }}
     >
       {glyph}
     </Button>
@@ -150,35 +151,81 @@ export function PriorityPicker({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <SearchableSelect
-        value={priority ?? NO_PRIORITY}
-        onValueChange={(val) => {
-          if (val === NO_PRIORITY) {
-            onChange(null);
-            return;
-          }
-          const match = TASK_PRIORITY_ORDER.find((p) => p === val);
-          if (match) onChange(match);
-        }}
-        options={options}
-        align={align}
-        trigger={trigger}
-        aria-label={t('fields.priority')}
-        searchPlaceholder={t('fields.priority')}
-        emptyText={tCommon('search.noResults')}
-        optionAction={(opt) => {
-          const match = TASK_PRIORITY_ORDER.find((p) => p === opt.value);
-          return match ? (
-            <TaskPriorityIcon priority={match} />
-          ) : (
-            <NoPriorityGlyph />
-          );
-        }}
-      />
+      {deferred.engaged ? (
+        <PriorityList
+          priority={priority}
+          onChange={onChange}
+          align={align}
+          trigger={trigger}
+          open={deferred.open}
+          onOpenChange={deferred.setOpen}
+        />
+      ) : (
+        trigger
+      )}
     </span>
   );
 
   // A labelled trigger already says what the glyph means; the tooltip is
   // only for the bare glyph.
   return showLabel ? picker : <Tooltip content={label}>{picker}</Tooltip>;
+}
+
+/** The picker's list, mounted on its first use around the same trigger. */
+function PriorityList({
+  priority,
+  onChange,
+  align,
+  trigger,
+  open,
+  onOpenChange,
+}: {
+  priority: TaskPriority | null | undefined;
+  onChange: (priority: TaskPriority | null) => void;
+  align: 'start' | 'center' | 'end';
+  trigger: ReactElement;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+
+  // "No priority" leads so a set priority can always be cleared back to it.
+  const options: SearchableSelectOption[] = [
+    { value: NO_PRIORITY, label: t('priority.none') },
+    ...TASK_PRIORITY_ORDER.map((p) => ({
+      value: p,
+      label: t(`priority.${p}`),
+    })),
+  ];
+
+  return (
+    <SearchableSelect
+      value={priority ?? NO_PRIORITY}
+      onValueChange={(val) => {
+        if (val === NO_PRIORITY) {
+          onChange(null);
+          return;
+        }
+        const match = TASK_PRIORITY_ORDER.find((p) => p === val);
+        if (match) onChange(match);
+      }}
+      options={options}
+      open={open}
+      onOpenChange={onOpenChange}
+      align={align}
+      trigger={trigger}
+      aria-label={t('fields.priority')}
+      searchPlaceholder={t('fields.priority')}
+      emptyText={tCommon('search.noResults')}
+      optionAction={(opt) => {
+        const match = TASK_PRIORITY_ORDER.find((p) => p === opt.value);
+        return match ? (
+          <TaskPriorityIcon priority={match} />
+        ) : (
+          <NoPriorityGlyph />
+        );
+      }}
+    />
+  );
 }
