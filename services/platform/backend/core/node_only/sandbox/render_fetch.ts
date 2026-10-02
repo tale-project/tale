@@ -330,24 +330,31 @@ export async function renderUrlsInSandbox(
     // the watchdog's COLLECT pass, the one pass that reaches what the create
     // may have left behind.
     if (created) {
+      let destroyed = false;
       try {
         await sessionDestroy(sessionId);
+        destroyed = true;
       } catch (error) {
         console.warn(
-          `[render] session ${sessionId} destroy failed (teardown cron will reap it):`,
+          `[render] session ${sessionId} destroy failed (the watchdog's release pass reaps it):`,
           error instanceof Error ? error.message : error,
         );
       }
-      try {
-        await ctx.runMutation(
-          internal.sandbox.session_mutations.markSessionRowDestroyed,
-          { organizationId: args.organizationId, sessionId },
-        );
-      } catch (error) {
-        console.warn(
-          `[render] session ${sessionId} row flip failed:`,
-          error instanceof Error ? error.message : error,
-        );
+      // A session whose destroy failed may still run: its row stays live,
+      // the one state the watchdog's release pass reaches. Settled as
+      // destroyed, its container outlived every pass, outside the budget.
+      if (destroyed) {
+        try {
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.markSessionRowDestroyed,
+            { organizationId: args.organizationId, sessionId },
+          );
+        } catch (error) {
+          console.warn(
+            `[render] session ${sessionId} row flip failed:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
       }
     }
   }

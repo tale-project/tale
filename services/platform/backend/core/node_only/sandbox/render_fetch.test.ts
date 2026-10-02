@@ -302,6 +302,23 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
     ]);
   });
 
+  // The regression: a failed destroy still settled the row `destroyed`,
+  // which hid it from the watchdog's release pass while its container ran
+  // on, outside the render budget.
+  it('a session whose destroy failed keeps its live row for the watchdog', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    spawner.sessionDestroy.mockImplementation(async () => {
+      run.events.push('destroy');
+      throw new Error('spawner unreachable');
+    });
+
+    await run.render();
+
+    expect(run.events.at(-1)).toBe('destroy');
+    expect(run.events).not.toContain('markSessionRowDestroyed');
+  });
+
   it('a sandbox host at capacity is a wait for room, not a failed batch', async () => {
     const run = renderRun('row_1');
     scriptSpawner(run.events);
