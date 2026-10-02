@@ -396,7 +396,7 @@ const NOTHING_BUILDS = () => Promise.resolve(true);
 
 /** The build cache an organization's builder keeps when it stops for want of
  * agent sessions, unless SANDBOX_BUILDKITD_IDLE_CACHE says otherwise. */
-export const DEFAULT_IDLE_CACHE_BYTES = 5 * 1024 ** 3;
+const DEFAULT_IDLE_CACHE_BYTES = 5 * 1024 ** 3;
 
 /** Bound on the prune before an idle stop: deleting tens of GB of snapshots
  * takes a while, and the stop goes on either way. */
