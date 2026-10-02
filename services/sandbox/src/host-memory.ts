@@ -23,7 +23,7 @@ const GIB = 1024 * MIB;
  * and its MCP servers), a turn with its inner Docker daemon, a crawler render
  * (Chromium and a few pages). Admission keeps this much per starting session
  * beyond the reserve. */
-export const SESSION_WORKING_SET_BYTES = {
+const SESSION_WORKING_SET_BYTES = {
   agent: 512 * MIB,
   dind: 1536 * MIB,
   default: 512 * MIB,

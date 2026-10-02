@@ -26,7 +26,11 @@ gc = true
 # first, cache mounts, build contexts and git checkouts unused for two days go;
 [[worker.oci.gcpolicy]]
 keepDuration = "48h"
-filters = ["type==source.local", "type==exec.cachemount", "type==source.git.checkout"]
+filters = [
+  "type==source.local",
+  "type==exec.cachemount",
+  "type==source.git.checkout",
+]
 # then everything else, least recently used first, until the cache is under
 # 20 GB — and smaller while the disk it shares with every session has less
 # than 5% free, but never below 2 GB: every organization's builder prunes its
