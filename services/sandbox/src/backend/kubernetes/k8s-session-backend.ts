@@ -79,7 +79,11 @@ export class KubernetesSessionBackend implements SessionBackend {
     // A pre-existing workspace PVC means this is a RESUME of a stopped session.
     // A failed create here must NOT delete that PVC (it holds the user's
     // preserved data) — stop instead. Fresh creates clean up fully.
-    const preexisting = await this.workspacePvcExists(spec.sessionId);
+    // Only agent sessions keep a workspace volume; a crawler render's
+    // workspace lives and dies with its Pod (k8s-session-pod-spec.ts).
+    const durable = spec.profile === 'agent';
+    const preexisting =
+      durable && (await this.workspacePvcExists(spec.sessionId));
     // On a resume (preexisting PVC) a Pod that died out-of-band can still hold
     // the deterministic Pod/Secret name and would 409 the create below — one
     // wasted, user-visible failed turn before the failed-create cleanup reaps
@@ -88,7 +92,9 @@ export class KubernetesSessionBackend implements SessionBackend {
     // failed-create cleanup envelope remains the backstop for anything this
     // misses.
     if (preexisting) await this.reapTerminalPod(spec.sessionId);
-    await this.ensureWorkspacePvc(spec.sessionId, spec.organizationId);
+    if (durable) {
+      await this.ensureWorkspacePvc(spec.sessionId, spec.organizationId);
+    }
 
     const secret: V1Secret = {
       apiVersion: 'v1',

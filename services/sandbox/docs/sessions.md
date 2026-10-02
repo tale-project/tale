@@ -289,7 +289,9 @@ initContainer / harvest sidecar. `automountServiceAccountToken: false`,
 readiness probe on the unauthenticated `/readyz`, per-session Secret
 (`<pod>-spec`) carrying the runnerd token + seed env via `envFrom`.
 
-The workspace is a **per-session PVC** (`<pod>-ws`, `ReadWriteOnce`, sized by
+A crawler render (the `default` profile) is created for one batch and
+destroyed after it, so its workspace is a sized `emptyDir`; an agent
+session's workspace is a **per-session PVC** (`<pod>-ws`, `ReadWriteOnce`, sized by
 `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, storage class from
 `SANDBOX_K8S_CACHE_STORAGECLASS`), `ensure`d before the Pod (read-before-create,
 409-tolerant so a concurrent create on a peer replica wins cleanly). It is the durable home

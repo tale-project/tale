@@ -638,7 +638,8 @@ spec:
 | `SANDBOX_K8S_NAMESPACE` | The namespace the session Pods, Secrets, and workspace claims are created in; the spawner's own namespace in this layout. Defaults to `tale-sandbox`. |
 | `SANDBOX_RUNTIME_IMAGE` | The matching Tale sandbox runtime image, available to every node. |
 | `NODE_EXTRA_CA_CERTS` | The cluster CA file, normally `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` inside the spawner. It is the only CA-trust mechanism the spawner honors; keep TLS verification on. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | The size of each `/agent` workspace claim, default `4Gi`; also bounds the inner Docker temporary store when that is enabled. |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | The size of each agent session's `/agent` workspace claim, default `4Gi`; also bounds a crawler render's temporary workspace, which needs no claim because it is never resumed, and the inner Docker temporary store when that is enabled. |
+| `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST` | What every session Pod requests from the scheduler, as Kubernetes quantities. Unset, an agent Pod requests `250m` and `512Mi` (`1Gi` with Docker inside the sandbox) and a crawler render `100m` and `256Mi`; a request never exceeds the Pod's limit. Raise them when agents on your nodes run heavier builds than this, so the scheduler does not place more sessions than a node can hold. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS` | The StorageClass for workspace claims; unset uses the cluster default. |
 | `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | A supported runtime tier and, when needed, the installed RuntimeClass name. |
 | `SANDBOX_EGRESS_PROXY` | The egress Service the sessions use, default `http://sandbox-egress:3128`. |

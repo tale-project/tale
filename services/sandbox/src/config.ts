@@ -103,6 +103,23 @@ function deploymentSandboxRuntime(): {
   return out;
 }
 
+const CPU_QUANTITY_RE = /^\d+(\.\d+)?m?$/;
+const MEMORY_QUANTITY_RE = /^\d+(\.\d+)?(Ki|Mi|Gi|Ti|k|M|G|T)?$/;
+
+/** An optional Kubernetes quantity from the environment: undefined when
+ * unset, refused at boot when it is not one (a typo would otherwise reach
+ * every Pod create as an apiserver 422). */
+function k8sQuantityEnv(name: string, re: RegExp): string | undefined {
+  const value = process.env[name]?.trim();
+  if (value === undefined || value === '') return undefined;
+  if (!re.test(value)) {
+    throw new Error(
+      `Env var ${name} is not a Kubernetes quantity: ${JSON.stringify(value)}`,
+    );
+  }
+  return value;
+}
+
 function numEnv(
   name: string,
   fallback: number,
@@ -191,6 +208,14 @@ export function loadConfig(): SpawnerConfig {
     boolEnvOpt('SANDBOX_DOCKER_IN_CONTAINER') ??
     dindDefaultEnabled(runtimeTier);
   const rawDindInnerPool = process.env.SANDBOX_DIND_INNER_POOL?.trim();
+  const k8sCpuRequest = k8sQuantityEnv(
+    'SANDBOX_K8S_CPU_REQUEST',
+    CPU_QUANTITY_RE,
+  );
+  const k8sMemoryRequest = k8sQuantityEnv(
+    'SANDBOX_K8S_MEMORY_REQUEST',
+    MEMORY_QUANTITY_RE,
+  );
   const dindInnerPool = rawDindInnerPool
     ? parseDindInnerPool(rawDindInnerPool)
     : undefined;
@@ -393,6 +418,10 @@ export function loadConfig(): SpawnerConfig {
           : (process.env.SANDBOX_RUNTIME_CLASS ??
             k8sRuntimeClassFor(runtimeTier)),
       workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
+      ...(k8sCpuRequest !== undefined ? { cpuRequest: k8sCpuRequest } : {}),
+      ...(k8sMemoryRequest !== undefined
+        ? { memoryRequest: k8sMemoryRequest }
+        : {}),
     },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
     // The shared HMAC secret every state-changing route is verified against

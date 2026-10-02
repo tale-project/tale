@@ -74,6 +74,11 @@ export interface SpawnerConfig {
     // bound a runaway session can fill the node disk; the K8s analogue of
     // docker's fsize ulimit.
     workspaceSizeLimit: string;
+    // What every session Pod requests from the scheduler, overriding the
+    // per-profile defaults (env SANDBOX_K8S_CPU_REQUEST /
+    // SANDBOX_K8S_MEMORY_REQUEST, K8s quantities). Never above the limit.
+    cpuRequest?: string;
+    memoryRequest?: string;
   };
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls

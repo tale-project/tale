@@ -22,6 +22,8 @@ const KEYS = [
   'SANDBOX_MAX_REQUEST_BODY_BYTES',
   'SANDBOX_MAX_SESSIONS',
   'SANDBOX_MAX_SESSIONS_PER_ORG',
+  'SANDBOX_K8S_CPU_REQUEST',
+  'SANDBOX_K8S_MEMORY_REQUEST',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -63,6 +65,22 @@ test('deployment session capacity is the only runtime cap', () => {
   const config = loadConfig();
   expect(config.session.maxSessions).toBe(24);
   expect(config.session).not.toHaveProperty('maxSessionsPerOrg');
+});
+
+test('session Pod requests: absent by default, read as Kubernetes quantities, refused when malformed', () => {
+  expect(loadConfig().k8s).not.toHaveProperty('cpuRequest');
+  expect(loadConfig().k8s).not.toHaveProperty('memoryRequest');
+  process.env.SANDBOX_K8S_CPU_REQUEST = ' 300m ';
+  process.env.SANDBOX_K8S_MEMORY_REQUEST = '768Mi';
+  expect(loadConfig().k8s).toMatchObject({
+    cpuRequest: '300m',
+    memoryRequest: '768Mi',
+  });
+  process.env.SANDBOX_K8S_MEMORY_REQUEST = '768 MB';
+  expect(() => loadConfig()).toThrow(/SANDBOX_K8S_MEMORY_REQUEST/);
+  process.env.SANDBOX_K8S_MEMORY_REQUEST = '768Mi';
+  process.env.SANDBOX_K8S_CPU_REQUEST = 'half';
+  expect(() => loadConfig()).toThrow(/SANDBOX_K8S_CPU_REQUEST/);
 });
 
 describe('loadConfig — runtime tier', () => {
