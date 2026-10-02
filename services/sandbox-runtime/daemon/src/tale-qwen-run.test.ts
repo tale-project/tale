@@ -6,7 +6,7 @@
 // PATH that records what it was launched with.
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -41,6 +41,7 @@ const FAKE_QWEN = `#!/bin/sh
   python3 -c 'import json,os,sys; d=os.path.join(os.environ["HOME"],".qwen"); print(json.dumps({n: open(os.path.join(d,n)).read() for n in (os.listdir(d) if os.path.isdir(d) else [])}))' | tr -d '\\n'
   printf ',"yolo_warning":"%s"}\\n' "$QWEN_CODE_SUPPRESS_YOLO_WARNING"
 } > "$FAKE_SEEN"
+[ -z "$FAKE_SLEEP" ] || sleep "$FAKE_SLEEP"
 printf '%s\\n' '{"type":"system","subtype":"init","session_id":"fake-session","model":"m"}'
 printf '%s\\n' '{"type":"result","subtype":"success","session_id":"fake-session","is_error":false,"result":"done"}'
 exit "\${FAKE_EXIT:-0}"
@@ -244,4 +245,43 @@ describe('tale-qwen-run', () => {
       'qwen-code not installed',
     );
   });
+});
+
+describe('tale-qwen-run cancel', () => {
+  pyTest(
+    'a process-group SIGTERM mid-run removes the staged settings and context file',
+    async () => {
+      const child = spawn('python3', [WRAPPER, '--workdir', workspace], {
+        detached: true,
+        stdio: ['pipe', 'ignore', 'ignore'],
+        env: {
+          ...process.env,
+          PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}`,
+          HOME: join(root, 'home'),
+          TMPDIR: join(root, 'tmp'),
+          FAKE_SEEN: seenPath,
+          FAKE_SLEEP: '30',
+        },
+      });
+      child.stdin?.end(
+        JSON.stringify({ prompt: 'p', system_prompt: 'be brief' }),
+      );
+      const exited = new Promise<number | null>((r) =>
+        child.on('exit', (code) => r(code)),
+      );
+      // The fake CLI records its launch once the wrapper has staged everything.
+      const started = Date.now();
+      while (!existsSync(seenPath) && Date.now() - started < 10_000) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(existsSync(seenPath)).toBe(true);
+      expect(readdirSync(join(root, 'tmp')).length).toBeGreaterThan(0);
+      if (child.pid !== undefined) process.kill(-child.pid, 'SIGTERM');
+      expect(await exited).toBe(128 + 15);
+      expect(readdirSync(join(root, 'tmp'))).toEqual([]);
+      const qwenHome = join(root, 'home', '.qwen');
+      expect(existsSync(qwenHome) ? readdirSync(qwenHome) : []).toEqual([]);
+    },
+    20_000,
+  );
 });
