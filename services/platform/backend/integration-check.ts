@@ -44247,11 +44247,6 @@ async function checkBellHintWire(
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
-  // TEMPORARY TRACE (CI hang hunt, remove before merge)
-  const trace = (step: string): void => {
-    console.error(`[bell-wire] ${new Date().toISOString()} ${step}`);
-  };
-  trace('start');
   const post = (
     route: string,
     body: unknown,
@@ -44272,21 +44267,17 @@ async function checkBellHintWire(
     base,
     'bell-wire',
   );
-  trace(`signed up mate ${mateId === '' ? 'FAILED' : 'ok'}`);
   const joined = await post(`/api/app/members?orgId=${orgId}`, {
     userId: mateId,
     role: 'member',
   });
-  trace(`joined ${joined.status}`);
 
   const ownerStream = connectSse(`${base}/events?orgId=${orgId}`, { cookie });
   const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
     cookie: mateCookie,
   });
   await sleep(500); // both tails established
-  trace('streams opened');
   const startId = await latestOutboxId(sql);
-  trace(`outbox start ${startId}`);
 
   const { writeCoalescedNotification } =
     await import('./domains/collab/service.ts');
@@ -44313,12 +44304,10 @@ async function checkBellHintWire(
   const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
   const isBellHint = (e: SseEvent): boolean =>
     e.event === 'hint' && e.data === bellHint;
-  trace('notification written');
   const mateGotIt = await waitFor(
     () => mateStream.events.some(isBellHint),
     5_000,
   );
-  trace(`mateGotIt ${mateGotIt}`);
   await sleep(700); // two poll cycles — the owner's stream had every chance
   const ownerSpared = !ownerStream.events.some(isBellHint);
   const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
@@ -44338,18 +44327,14 @@ async function checkBellHintWire(
     undefined,
     mateCookie,
   );
-  trace(`markAll ${markAll.status}`);
   const mateToldOfRead = await waitFor(
     () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
     5_000,
   );
-  trace(`mateToldOfRead ${mateToldOfRead}; aborting streams`);
   ownerStream.abort();
   mateStream.abort();
   await ownerStream.done;
-  trace('owner stream done');
   await mateStream.done;
-  trace('mate stream done');
   const row = await sql<{ read: boolean }[]>`
     SELECT read FROM app.user_notifications
     WHERE org_id = ${orgId} AND user_id = ${mateId}
