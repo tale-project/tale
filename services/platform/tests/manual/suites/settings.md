@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 114 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 116 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -829,6 +829,15 @@ run.
   `docker volume ls --filter label=tale.org=<id>` list nothing, no
   `tale-sandbox-*-cache-<id>` volume remains, and the host session root
   holds none of its `ses-pa-…` directories.
+- [ ] `SET-F73` · **Destroy answers at once** — As owner on
+  `/dashboard/{org}/settings/sandboxes` with a live workspace (env-gated; a
+  project agent's after a task that installed dependencies shows it best) →
+  row menu → **Destroy** → confirm → The dialog closes within a second with
+  the toast **Destroying sandbox** (`sandboxes.toast.destroying`); the row
+  reads **Destroying** (`sandboxes.status.destroying`) and its row menu
+  offers nothing enabled; another row can be pinned meanwhile; the row
+  leaves the list within a few seconds of the spawner finishing, without a
+  reload.
 
 ## Boundary & error tests
 
@@ -1029,6 +1038,15 @@ run.
   → **Days without use** (`sandboxes.cleanup.unusedDays`) → `0`, `3651` or
   `2.5` → Save is blocked with **Must be a whole number between 1 and 3650.**
   (`sandboxes.cleanup.invalidDays`); `1` and `3650` save.
+- [ ] `SET-B29` · **A Destroy the spawner cannot finish** — Mode B. Stop
+  the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
+  workspace on `/dashboard/{org}/settings/sandboxes` → The dialog still
+  closes at once and the row reads **Destroying** while the job retries;
+  start the service again within a few minutes (`docker start
+  tale-sandbox`) → the row leaves on its own. Repeat, leaving the service
+  stopped for half an hour → the row stays, unpinned, reading **Destroy
+  failed** (`sandboxes.status.destroyFailed`), and its menu offers
+  **Destroy** again, which finishes once the service is back.
 
 ## Accessibility (WCAG 2.1 AA)
 

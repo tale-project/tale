@@ -21,6 +21,7 @@ import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
+import type { SandboxDestroyState } from './destroy-schedule.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import {
   captureIdleReleaseTickets,
@@ -608,6 +609,9 @@ export interface SandboxSessionView {
   /** When the workspace is deleted for being unused, if it stays unused
    * (`unusedWorkspaceDeletions`); null when nothing will delete it. */
   deletesAt?: number | null;
+  /** An administrator's Destroy under way (`pending`) or one whose every
+   * attempt failed (`failed`); null when none is (`sessionDestroyStates`). */
+  destroyState?: SandboxDestroyState | null;
 }
 
 interface SessionOpViewRow {

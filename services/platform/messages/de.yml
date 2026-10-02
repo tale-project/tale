@@ -8754,6 +8754,8 @@ sandboxes:
     pausedBudget: Pausiert (Budget)
     pinned: Angepinnt
     deletesOn: Wird am {date} gelöscht, falls weiterhin ungenutzt
+    destroying: Wird gelöscht
+    destroyFailed: Nicht gelöscht
   task:
     none: Keine aktive Aufgabe
     project: '{count, plural, one {Projektaufgabe} other {# Projektaufgaben}}'
@@ -8772,7 +8774,8 @@ sandboxes:
     stopped: Aufgabe gestoppt
     pinned: Sandbox angepinnt
     unpinned: Sandbox gelöst
-    destroyed: Sandbox gelöscht
+    destroying: Sandbox wird gelöscht
+    destroyingDescription: Sie verschwindet aus der Liste, sobald ihr Arbeitsbereich gelöscht ist.
     error: Aktion fehlgeschlagen
   empty:
     title: Noch keine Arbeitsbereiche

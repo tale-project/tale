@@ -100,9 +100,10 @@ export async function withSessionLifecycleLock<T>(
   return locked.value;
 }
 
-/** Authorize before contacting the spawner; settle the row only after it
- * confirms destruction or absence. Failures leave it retryable, and unpinned
- * on both sides. */
+/** The Sandboxes page's Destroy, as its `sandbox.destroy_session` job runs
+ * it (`destroy-schedule.ts`). Authorize before contacting the spawner;
+ * settle the row only after it confirms destruction or absence. Failures
+ * throw, for the job's retry, and leave the row unpinned on both sides. */
 export async function teardownSession(
   sql: Sql,
   args: SessionArgs,

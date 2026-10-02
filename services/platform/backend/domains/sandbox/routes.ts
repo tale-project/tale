@@ -20,9 +20,13 @@ import {
 import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import {
+  scheduleSessionDestroy,
+  sessionDestroyStates,
+} from './destroy-schedule.ts';
 import { classifyOutcome } from './external-turn-outcome.ts';
 import { getSandboxDeploymentLimits } from './limits.ts';
-import { pinSession, teardownSession } from './service.ts';
+import { pinSession } from './service.ts';
 import {
   getAgentNodeSandboxOp,
   listRunningOpsBySession,
@@ -337,8 +341,16 @@ export function createSandboxRoutes(deps: {
         )
         .map((session) => session.sessionId),
     );
+    // A Destroy runs as a job: each row says whether one is under way, or
+    // whether the last one failed.
+    const destroys = await sessionDestroyStates(
+      deps.sql,
+      organizationId,
+      sessions,
+    );
     for (const session of sessions) {
       session.deletesAt = deletions.get(session.sessionId) ?? null;
+      session.destroyState = destroys.get(session.sessionId) ?? null;
     }
     return c.json({ sessions });
   });
@@ -398,15 +410,18 @@ export function createSandboxRoutes(deps: {
       : c.json({ error: 'session not found' }, 404);
   });
 
+  /** Queue the session's teardown and answer at once: the job waits for the
+   * session's lifecycle lock and the spawner's delete, which nobody should
+   * watch a dialog spin for (`destroy-schedule.ts`). */
   app.post('/sessions/:sessionId/destroy', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
-    const destroyed = await teardownSession(deps.sql, {
+    const scheduled = await scheduleSessionDestroy(deps.sql, {
       organizationId: c.get('orgId'),
       sessionId: c.req.param('sessionId'),
     });
-    return destroyed
-      ? c.json({ destroyed: true })
+    return scheduled
+      ? c.json({ scheduled: true }, 202)
       : c.json({ error: 'session not found' }, 404);
   });
 

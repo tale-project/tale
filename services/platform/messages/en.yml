@@ -8436,6 +8436,8 @@ sandboxes:
     pausedBudget: Paused (budget)
     pinned: Pinned
     deletesOn: Deleted on {date} unless used again
+    destroying: Destroying
+    destroyFailed: Destroy failed
   task:
     none: No active task
     project: '{count, plural, one {Project task} other {# project tasks}}'
@@ -8454,7 +8456,8 @@ sandboxes:
     stopped: Task stopped
     pinned: Sandbox pinned
     unpinned: Sandbox unpinned
-    destroyed: Sandbox destroyed
+    destroying: Destroying sandbox
+    destroyingDescription: It leaves the list once its workspace is deleted.
     error: Action failed
   empty:
     title: No workspaces yet

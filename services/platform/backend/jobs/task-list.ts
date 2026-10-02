@@ -45,7 +45,10 @@ import {
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
-import { recreatePinnedSession } from '../domains/sandbox/service.ts';
+import {
+  recreatePinnedSession,
+  teardownSession,
+} from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import {
@@ -135,7 +138,8 @@ const idleSessionReleaseSchema = z.object({
   generation: z.string().min(1),
 });
 
-const recreatePinnedSchema = z.object({
+/** One session of one organization: a pinned recreate's or a Destroy's. */
+const sessionJobSchema = z.object({
   organizationId: z.string().min(1),
   sessionId: z.string().min(1),
 });
@@ -510,7 +514,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       );
     },
     'sandbox.recreate_pinned': async (payload) => {
-      const input = recreatePinnedSchema.parse(payload);
+      const input = sessionJobSchema.parse(payload);
       try {
         const outcome = await recreatePinnedSession(deps.sql, input);
         if (outcome === 'recreated') {
@@ -884,6 +888,12 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           `[watchdog] automation agents: re-enqueued ${asks.requeued} lost answered-ask resume(s)`,
         );
       }
+    },
+    'sandbox.destroy_session': async (payload) => {
+      // A throw is the retry: the spawner could not be asked, refused, or
+      // the session's device is offline. The row stays listed, unpinned on
+      // both sides, and reads the Destroy as pending until the last attempt.
+      await teardownSession(deps.sql, sessionJobSchema.parse(payload));
     },
     'sandbox.retire_workspaces': async (payload) => {
       const input = retireWorkspacesSchema.parse(payload);

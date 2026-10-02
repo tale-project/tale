@@ -119,11 +119,17 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       sessionId: string,
       fn: () => Promise<unknown>,
       successKey: string,
+      successDescriptionKey?: string,
     ): Promise<void> => {
       setPendingId(sessionId);
       try {
         await fn();
-        toast({ title: t(successKey) });
+        toast({
+          title: t(successKey),
+          ...(successDescriptionKey !== undefined
+            ? { description: t(successDescriptionKey) }
+            : {}),
+        });
       } catch (err) {
         toast({
           title: t('toast.error'),
@@ -212,6 +218,14 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                   </Badge>
                 )}
                 {s.pinned && <Badge variant="blue">{t('status.pinned')}</Badge>}
+                {s.destroyState === 'pending' && (
+                  <Badge variant="yellow">{t('status.destroying')}</Badge>
+                )}
+                {s.destroyState === 'failed' && (
+                  <Badge variant="destructive">
+                    {t('status.destroyFailed')}
+                  </Badge>
+                )}
               </Row>
               <span className="text-muted-foreground text-xs">
                 {t(allocated ? 'status.quotaInUse' : 'status.quotaReleased')}
@@ -297,7 +311,10 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         header: '',
         cell: ({ row }) => {
           const s = row.original;
-          const busy = pendingId === s.sessionId;
+          // A queued Destroy unpins and deletes the workspace whatever is
+          // asked of it meanwhile, so the row offers nothing until it is gone.
+          const busy =
+            pendingId === s.sessionId || s.destroyState === 'pending';
           return (
             <Row gap={0} align="stretch" justify="end">
               <EntityRowActions
@@ -421,7 +438,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
               void run(
                 sessionId,
                 () => destroy.mutateAsync({ organizationId, sessionId }),
-                'toast.destroyed',
+                'toast.destroying',
+                'toast.destroyingDescription',
               ).finally(() => setConfirmDestroy(null));
             }}
           />

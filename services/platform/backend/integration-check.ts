@@ -39897,6 +39897,10 @@ async function checkSandboxSpawner(
   const SPAWNER_TOKEN = 'itest-spawner-token';
   const live = new Map<string, { pinned: boolean }>();
   let badSignatures = 0;
+  // The admin Destroy runs as a job: a held delete shows the request
+  // answering before the spawner has, a failing one the retry and its end.
+  let deleteHold: Promise<void> | null = null;
+  let failDeletes = false;
   const spawner = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -39958,8 +39962,16 @@ async function checkSandboxSpawner(
         return;
       }
       if (method === 'DELETE' && idMatch) {
-        live.delete(sessionId);
-        res.end('{"destroyed":true}');
+        void (async () => {
+          await deleteHold;
+          if (failDeletes) {
+            res.statusCode = 500;
+            res.end('{"error":"itest delete failure"}');
+            return;
+          }
+          live.delete(sessionId);
+          res.end('{"destroyed":true}');
+        })();
         return;
       }
       if (method === 'PATCH' && idMatch && idMatch[2] === '/pin') {
@@ -40028,20 +40040,44 @@ async function checkSandboxSpawner(
     );
 
     // Admin surface over HTTP: list + pin + destroy.
-    const listed = z
-      .object({
-        sessions: z.array(
-          z.looseObject({ sessionId: z.string(), status: z.string() }),
-        ),
-      })
-      .loose()
-      .safeParse(
-        await (
-          await fetch(`${base}/api/app/sandbox/sessions/view?orgId=${orgId}`, {
-            headers: { cookie },
-          })
-        ).json(),
-      );
+    const view = async () =>
+      z
+        .object({
+          sessions: z.array(
+            z.looseObject({
+              sessionId: z.string(),
+              status: z.string(),
+              destroyState: z.enum(['pending', 'failed']).nullish(),
+            }),
+          ),
+        })
+        .loose()
+        .safeParse(
+          await (
+            await fetch(
+              `${base}/api/app/sandbox/sessions/view?orgId=${orgId}`,
+              { headers: { cookie } },
+            )
+          ).json(),
+        );
+    const viewRow = async (sessionId: string) => {
+      const parsed = await view();
+      return parsed.success
+        ? parsed.data.sessions.find((row) => row.sessionId === sessionId)
+        : undefined;
+    };
+    const rowStatus = async (sessionId: string) =>
+      (await sessions.getSessionBySessionId(sql, orgId, sessionId))?.status;
+    const destroyJobStates = async (sessionId: string) =>
+      (
+        await sql<{ state: string }[]>`
+          SELECT state::text AS state FROM pgboss.job
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'sessionId' = ${sessionId}
+          ORDER BY created_on
+        `
+      ).map((job) => job.state);
+    const listed = await view();
     const pinRes = await fetch(
       `${base}/api/app/sandbox/sessions/itest-spawn-1/pin?orgId=${orgId}`,
       {
@@ -40050,26 +40086,98 @@ async function checkSandboxSpawner(
         body: JSON.stringify({ pinned: true }),
       },
     );
-    const destroyRes = await fetch(
-      `${base}/api/app/sandbox/sessions/itest-spawn-1/destroy?orgId=${orgId}`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', cookie, origin: base },
-      },
+    const destroy = (sessionId: string) =>
+      fetch(
+        `${base}/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie,
+            origin: base,
+          },
+        },
+      );
+    // The spawner holds its delete: the request answers anyway, the row
+    // reads the Destroy as under way, and the queued teardown finishes it
+    // once the spawner does.
+    let releaseDeletes = () => {};
+    deleteHold = new Promise<void>((resolve) => {
+      releaseDeletes = resolve;
+    });
+    const destroyRes = await destroy('itest-spawn-1');
+    const whileHeld = await viewRow('itest-spawn-1');
+    const liveWhileHeld = live.has('itest-spawn-1');
+    releaseDeletes();
+    deleteHold = null;
+    const settled = await waitFor(
+      async () =>
+        !live.has('itest-spawn-1') &&
+        (await rowStatus('itest-spawn-1')) === 'destroyed',
+      15_000,
     );
+    const afterDestroy = await viewRow('itest-spawn-1');
 
     record(
       'sandbox spawner dispatch (reused HMAC client + admin surface)',
       badSignatures === 0 &&
         rowAfterCreate?.status === 'active' &&
-        !live.has('itest-spawn-1') &&
         listed.success &&
         listed.data.sessions.some(
           (row) => row.sessionId === 'itest-spawn-1' && row.status === 'active',
         ) &&
         pinRes.ok &&
-        destroyRes.ok,
-      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
+        destroyRes.status === 202 &&
+        whileHeld?.destroyState === 'pending' &&
+        liveWhileHeld &&
+        settled &&
+        afterDestroy === undefined,
+      `signatures ok=${badSignatures === 0}, active=${rowAfterCreate?.status === 'active'}, admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), whileHeld(destroyState=${whileHeld?.destroyState}, live=${liveWhileHeld}), settled=${settled}, listedAfter=${afterDestroy !== undefined}, containerGone=${live.get('itest-spawn-1') === undefined}`,
+    );
+
+    // A spawner that refuses the delete: the job retries while the row reads
+    // pending, a Destroy whose ladder ran out reads failed, and asking again
+    // queues a fresh one that finishes the work.
+    await provision('itest-spawn-2', {
+      ownerType: 'workflow_run',
+      ownerId: 'wf-21',
+    });
+    failDeletes = true;
+    const refusedRes = await destroy('itest-spawn-2');
+    const retrying = await waitFor(
+      async () => (await destroyJobStates('itest-spawn-2')).includes('retry'),
+      15_000,
+    );
+    const whileRetrying = await viewRow('itest-spawn-2');
+    const duplicateRes = await destroy('itest-spawn-2');
+    const jobsWhileRetrying = await destroyJobStates('itest-spawn-2');
+    // Stand in for the end of the ladder (a quarter to half an hour).
+    await sql`
+      UPDATE pgboss.job SET state = 'failed', completed_on = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'sessionId' = 'itest-spawn-2' AND state = 'retry'
+    `;
+    const afterFailure = await viewRow('itest-spawn-2');
+    failDeletes = false;
+    const retryRes = await destroy('itest-spawn-2');
+    const retried = await waitFor(
+      async () =>
+        !live.has('itest-spawn-2') &&
+        (await rowStatus('itest-spawn-2')) === 'destroyed',
+      15_000,
+    );
+    record(
+      'sandbox Destroy retries in the background, reads failed when it gives up, and finishes when asked again',
+      refusedRes.status === 202 &&
+        retrying &&
+        whileRetrying?.destroyState === 'pending' &&
+        duplicateRes.status === 202 &&
+        jobsWhileRetrying.length === 1 &&
+        afterFailure?.destroyState === 'failed' &&
+        afterFailure.status === 'active' &&
+        retryRes.status === 202 &&
+        retried,
+      `refused=${refusedRes.status}, retrying=${retrying}, whileRetrying=${whileRetrying?.destroyState}, duplicate=${duplicateRes.status} (jobs=${jobsWhileRetrying.join('/')}), afterFailure=${afterFailure?.destroyState}/${afterFailure?.status}, retry=${retryRes.status}, destroyed=${retried}`,
     );
 
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
