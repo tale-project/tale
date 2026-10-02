@@ -150,6 +150,26 @@ describe('HostMemoryProbe', () => {
     expect((await instance.read())?.availableBytes).toBe(4 * GIB);
   });
 
+  test('a re-judge the Docker CLI cannot answer keeps a good verdict', async () => {
+    let now = 1_000_000;
+    let fails = false;
+    let available = 2 * 1024 * 1024;
+    const { instance } = probe({
+      now: () => now,
+      dockerFails: () => fails,
+      available: () => available,
+    });
+    expect((await instance.read())?.availableBytes).toBe(2 * GIB);
+    // Ten minutes on, the verdict is due again while every CLI slot is busy.
+    fails = true;
+    available = 3 * 1024 * 1024;
+    now += 10 * 60_000 + 1;
+    expect((await instance.read())?.availableBytes).toBe(3 * GIB);
+    // Still failing at the quick retry: still the host's memory.
+    now += 31_000;
+    expect((await instance.read())?.availableBytes).toBe(3 * GIB);
+  });
+
   test('started, it keeps the reading admission decides with fresh', async () => {
     let available = 4 * 1024 * 1024;
     const { instance } = probe({ available: () => available });

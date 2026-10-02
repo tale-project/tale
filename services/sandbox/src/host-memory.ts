@@ -241,8 +241,16 @@ export class HostMemoryProbe {
       totalBytes = local && own !== null ? own.totalBytes : 0;
     } catch (error) {
       failed = true;
+      // A host once found to be the Docker host stays it: a re-judge the
+      // CLI could not answer (a busy daemon, a burst holding every CLI slot)
+      // must not switch the memory guard off. It is asked again soon.
+      const previous = this.verdict;
+      if (previous?.local === true) {
+        local = true;
+        totalBytes = previous.totalBytes;
+      }
       console.warn(
-        `[sandbox] cannot tell whether this host is the Docker host; admission counts sessions only (asked again in ${FAILED_VERDICT_TTL_MS / 1000} s):`,
+        `[sandbox] cannot tell whether this host is the Docker host${local ? '; keeping the last verdict' : '; admission counts sessions only'} (asked again in ${FAILED_VERDICT_TTL_MS / 1000} s):`,
         error,
       );
     }
