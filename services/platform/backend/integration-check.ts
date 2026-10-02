@@ -40259,13 +40259,19 @@ async function checkSandboxSpawner(
     // retry checks, so a turn let in here would be killed by the next
     // attempt, its workspace deleted and its tokens revoked. It is refused
     // before anything starts, the row keeps reading Destroying, and once the
-    // Destroy has finished the same start opens a fresh incarnation.
+    // Destroy has finished the same start opens a fresh incarnation. In an
+    // organization of their own: the lane's organization may already hold
+    // as many project sessions as its budget allows. The Destroy is asked
+    // for through the route's own scheduler and read back through the
+    // page's own reader; the real worker runs it against this spawner.
     const { ensureAgentSession } =
       await import('./core/node_only/sandbox/agent_session.ts');
     const { agentTurnShimHandlers, taskAgentShimScheduler } =
       await import('./domains/tasks/agent-turn-shim.ts');
     const { automationShimHandlers, automationShimScheduler } =
       await import('./domains/automations/shim.ts');
+    const { scheduleSessionDestroy, sessionDestroyStates } =
+      await import('./domains/sandbox/destroy-schedule.ts');
     const { createCtxShim } = await import('./lib/ctx-shim.ts');
     const naming = await import('./core/sandbox/session_naming.ts');
     const taskShim = createCtxShim(agentTurnShimHandlers(sql), {
@@ -40274,6 +40280,7 @@ async function checkSandboxSpawner(
     const automationShim = createCtxShim(automationShimHandlers(sql), {
       scheduler: automationShimScheduler(sql),
     });
+    const resumeOrgId = `${orgId}:destroy-resume:${randomUUID()}`;
     const resumeAgentId = `itest-resume-${randomUUID()}`;
     const resumeRunId = `itest-resume-run-${randomUUID()}`;
     const resumePaths = [
@@ -40299,108 +40306,140 @@ async function checkSandboxSpawner(
         ownerId: naming.workflowExecutionOwnerId(resumeRunId),
       },
     ];
-    for (const resumePath of resumePaths) {
-      const ownerType = resumePath.owner.type;
-      await provision(resumePath.sessionId, {
-        ownerType,
-        ownerId: resumePath.ownerId,
-      });
-      // Hibernated: the idle release stopped its compute, kept its files.
-      await sql`
-        UPDATE app.sandbox_sessions SET status = 'stopped'
-        WHERE org_id = ${orgId} AND session_id = ${resumePath.sessionId}
-      `;
-      live.delete(resumePath.sessionId);
-      const askedRowId = (
-        await sessions.getSessionBySessionId(sql, orgId, resumePath.sessionId)
-      )?.id;
-      failDeletes = true;
-      const askRes = await destroy(resumePath.sessionId);
-      const firstFailed = await waitFor(
-        async () =>
-          (await destroyJobStates(resumePath.sessionId)).includes('retry'),
-        15_000,
-      );
-      const start = () =>
-        ensureAgentSession(
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hosts' admission on its lane's shim, as the job wires it
-          resumePath.shim as unknown as Parameters<
-            typeof ensureAgentSession
-          >[0],
-          {
-            organizationId: orgId,
-            sessionId: resumePath.sessionId,
-            owner: resumePath.owner,
-            agentKind: 'claude-code',
-          },
-        ).then(
-          (started) =>
-            started.liveCreatedAt === undefined ? 'fresh' : 'resumed',
-          (error: unknown) =>
-            String(error).includes('is deleting this sandbox workspace')
-              ? 'refused'
-              : `error: ${String(error)}`,
-        );
-      const asked = await start();
-      // What the turn would hold had it been let in: its session token.
-      if (asked === 'resumed') {
+    const resumeRowStatus = async (sessionId: string) =>
+      (await sessions.getSessionBySessionId(sql, resumeOrgId, sessionId))
+        ?.status;
+    try {
+      for (const resumePath of resumePaths) {
+        const resumeArgs = {
+          organizationId: resumeOrgId,
+          sessionId: resumePath.sessionId,
+        };
+        // The hosts' choreography, then the idle release: compute
+        // stopped, files kept.
+        await sessions.reserveSessionSlot(sql, {
+          ...resumeArgs,
+          profile: 'agent',
+          ownerType: resumePath.owner.type,
+          ownerId: resumePath.ownerId,
+          createdBy: userId,
+        });
+        await sessionCreate({
+          sessionId: resumePath.sessionId,
+          organizationId: resumeOrgId,
+          profile: 'agent',
+        });
         await sql`
-          INSERT INTO app.sandbox_session_tokens (
-            org_id, session_id, token_hash, scope, created_at_ms, expires_at_ms
-          ) VALUES (${orgId}, ${resumePath.sessionId}, ${randomUUID()}, '{}'::jsonb,
-            ${Date.now()}, ${Date.now() + 3_600_000})
+          UPDATE app.sandbox_sessions SET status = 'stopped'
+          WHERE org_id = ${resumeOrgId}
+            AND session_id = ${resumePath.sessionId}
         `;
+        live.delete(resumePath.sessionId);
+        const askedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        failDeletes = true;
+        const queued = await scheduleSessionDestroy(sql, resumeArgs);
+        const firstFailed = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).includes('retry'),
+          15_000,
+        );
+        const start = () =>
+          ensureAgentSession(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hosts' admission on its lane's shim, as the job wires it
+            resumePath.shim as unknown as Parameters<
+              typeof ensureAgentSession
+            >[0],
+            {
+              ...resumeArgs,
+              owner: resumePath.owner,
+              agentKind: 'claude-code',
+            },
+          ).then(
+            (started) =>
+              started.liveCreatedAt === undefined ? 'fresh' : 'resumed',
+            (error: unknown) =>
+              String(error).includes('is deleting this sandbox workspace')
+                ? 'refused'
+                : `error: ${String(error)}`,
+          );
+        const asked = await start();
+        // What the turn would hold had it been let in: its session token.
+        if (asked === 'resumed') {
+          await sql`
+            INSERT INTO app.sandbox_session_tokens (
+              org_id, session_id, token_hash, scope, created_at_ms,
+              expires_at_ms
+            ) VALUES (${resumeOrgId}, ${resumePath.sessionId}, ${randomUUID()},
+              '{}'::jsonb, ${Date.now()}, ${Date.now() + 3_600_000})
+          `;
+        }
+        const containerAfterAsk = live.has(resumePath.sessionId);
+        const rowAfterAsk = await resumeRowStatus(resumePath.sessionId);
+        const pageAfterAsk = (
+          await sessionDestroyStates(sql, resumeOrgId, [resumePath.sessionId])
+        ).get(resumePath.sessionId);
+        failDeletes = false;
+        await sql`
+          UPDATE pgboss.job SET start_after = now()
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'rowId' = ${askedRowId ?? ''} AND state = 'retry'
+        `;
+        const resumeRetried = await waitFor(
+          async () =>
+            (await destroyJobStates(resumePath.sessionId)).every(
+              (state) => state === 'completed',
+            ) && (await resumeRowStatus(resumePath.sessionId)) === 'destroyed',
+          15_000,
+        );
+        const containerAfterRetry = live.has(resumePath.sessionId);
+        const tokens = await sql<{ revoked: boolean }[]>`
+          SELECT revoked_at_ms IS NOT NULL AS revoked
+          FROM app.sandbox_session_tokens
+          WHERE org_id = ${resumeOrgId} AND session_id = ${resumePath.sessionId}
+        `;
+        const afterwards = await start();
+        const startedRowId = (
+          await sessions.getSessionBySessionId(
+            sql,
+            resumeOrgId,
+            resumePath.sessionId,
+          )
+        )?.id;
+        record(
+          `sandbox Destroy retry never deletes work resumed after the request: ${resumePath.lane}`,
+          queued &&
+            firstFailed &&
+            asked === 'refused' &&
+            !containerAfterAsk &&
+            rowAfterAsk === 'stopped' &&
+            pageAfterAsk === 'pending' &&
+            resumeRetried &&
+            tokens.length === 0 &&
+            afterwards === 'fresh' &&
+            startedRowId !== undefined &&
+            startedRowId !== askedRowId &&
+            live.has(resumePath.sessionId) &&
+            (await resumeRowStatus(resumePath.sessionId)) === 'active',
+          `queued=${queued}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want fresh), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}`,
+        );
+        // The fresh session holds one of the organization's project slots.
+        await sessions.markSessionDestroyed(sql, resumeArgs);
+        live.delete(resumePath.sessionId);
       }
-      const containerAfterAsk = live.has(resumePath.sessionId);
-      const rowAfterAsk = await rowStatus(resumePath.sessionId);
-      const pageAfterAsk = (await viewRow(resumePath.sessionId))?.destroyState;
+    } finally {
       failDeletes = false;
       await sql`
-        UPDATE pgboss.job SET start_after = now()
-        WHERE name = 'sandbox.destroy_session'
-          AND data ->> 'rowId' = ${askedRowId ?? ''} AND state = 'retry'
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${resumeOrgId}
       `;
-      const resumeRetried = await waitFor(
-        async () =>
-          (await destroyJobStates(resumePath.sessionId)).every(
-            (state) => state === 'completed',
-          ) && (await rowStatus(resumePath.sessionId)) === 'destroyed',
-        15_000,
-      );
-      const containerAfterRetry = live.has(resumePath.sessionId);
-      const tokens = await sql<{ revoked: boolean }[]>`
-        SELECT revoked_at_ms IS NOT NULL AS revoked
-        FROM app.sandbox_session_tokens
-        WHERE org_id = ${orgId} AND session_id = ${resumePath.sessionId}
-      `;
-      const afterwards = await start();
-      const startedRowId = (
-        await sessions.getSessionBySessionId(sql, orgId, resumePath.sessionId)
-      )?.id;
-      record(
-        `sandbox Destroy retry never deletes work resumed after the request: ${resumePath.lane}`,
-        askRes.status === 202 &&
-          firstFailed &&
-          asked === 'refused' &&
-          !containerAfterAsk &&
-          rowAfterAsk === 'stopped' &&
-          pageAfterAsk === 'pending' &&
-          resumeRetried &&
-          tokens.length === 0 &&
-          afterwards === 'fresh' &&
-          startedRowId !== undefined &&
-          startedRowId !== askedRowId &&
-          live.has(resumePath.sessionId) &&
-          (await rowStatus(resumePath.sessionId)) === 'active',
-        `destroy=${askRes.status}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want fresh), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}`,
-      );
-      // The fresh session holds an agent slot; the lane's later checks need
-      // the organization's budget.
-      await sessions.markSessionDestroyed(sql, {
-        organizationId: orgId,
-        sessionId: resumePath.sessionId,
-      });
-      live.delete(resumePath.sessionId);
+      await sql`DELETE FROM app.sandbox_session_tokens WHERE org_id = ${resumeOrgId}`;
+      await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${resumeOrgId}`;
     }
 
     // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
