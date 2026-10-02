@@ -9,9 +9,9 @@ import { reportError } from '../error-reporting.ts';
 import { bossDbInTx } from './enqueue.ts';
 import type { BackendTaskList } from './task-list.ts';
 import {
+  slotQueueSlots,
   TASK_WORKER_BATCH_LIMITS,
   TASK_WORKER_IDLE_POLL_SECONDS,
-  TASK_WORKER_MIN_SLOTS,
   TASK_WORKER_SLOT_QUEUES,
 } from './tasks.ts';
 
@@ -21,8 +21,12 @@ export type WorkerOptions = {
   /** Max jobs fetched (and processed concurrently) per queue per fetch;
    * `TASK_WORKER_BATCH_LIMITS` lowers it for the queues it names, and a
    * queue in `TASK_WORKER_SLOT_QUEUES` runs as many one-job slots instead
-   * (at least its `TASK_WORKER_MIN_SLOTS`). */
+   * (`slotQueueSlots`). */
   concurrency?: number;
+  /** One-job slots of the agent start queues (AGENT_START_SLOTS). */
+  agentStartSlots?: number | undefined;
+  /** One-job slots of the agent drive queues (AGENT_DRIVE_SLOTS). */
+  agentDriveSlots?: number | undefined;
 } & (
   | { shouldDefer?: undefined; sql?: undefined }
   | {
@@ -141,10 +145,11 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         ...(TASK_WORKER_SLOT_QUEUES.has(name)
           ? {
               batchSize: 1,
-              localConcurrency: Math.max(
+              localConcurrency: slotQueueSlots(name, {
                 concurrency,
-                TASK_WORKER_MIN_SLOTS.get(name) ?? 0,
-              ),
+                agentStartSlots: options.agentStartSlots,
+                agentDriveSlots: options.agentDriveSlots,
+              }),
             }
           : {
               batchSize: Math.min(

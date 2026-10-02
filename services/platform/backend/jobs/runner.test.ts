@@ -441,7 +441,7 @@ describe('startWorker agent turn slots', () => {
   // An agent turn's start and its 90 s drive windows ran in batches: one slow
   // start held the starts behind it, and a worker drained at most five live
   // turns at once — the rest waited, their output piling up in the sandbox.
-  it('works agent starts and drives through slots, drives at least sixteen at once', async () => {
+  it('works agent starts and drives through slots, starts at least eight and drives sixteen at once', async () => {
     const { boss, workOptions } = fakeBoss();
     await startWorker({
       boss,
@@ -456,7 +456,7 @@ describe('startWorker agent turn slots', () => {
     for (const start of ['task.agent_turn', 'automation.agent_turn']) {
       expect(workOptions.get(start)).toMatchObject({
         batchSize: 1,
-        localConcurrency: 5,
+        localConcurrency: 8,
       });
     }
     for (const drive of ['task.agent_drive', 'automation.agent_drive']) {
@@ -482,6 +482,31 @@ describe('startWorker agent turn slots', () => {
       taskList: { 'task.agent_drive': vi.fn() },
     });
     expect(workOptions.get('task.agent_drive')?.localConcurrency).toBe(32);
+  });
+
+  it('the operator sets the start and drive slots, whatever the worker concurrency', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      agentStartSlots: 3,
+      agentDriveSlots: 48,
+      taskList: {
+        'task.agent_turn': vi.fn(),
+        'automation.agent_turn': vi.fn(),
+        'task.agent_drive': vi.fn(),
+        'automation.agent_drive': vi.fn(),
+        'websites.scan': vi.fn(),
+      },
+    });
+    expect(workOptions.get('task.agent_turn')?.localConcurrency).toBe(3);
+    expect(workOptions.get('automation.agent_turn')?.localConcurrency).toBe(3);
+    expect(workOptions.get('task.agent_drive')?.localConcurrency).toBe(48);
+    expect(workOptions.get('automation.agent_drive')?.localConcurrency).toBe(
+      48,
+    );
+    // Other slot queues keep the worker concurrency.
+    expect(workOptions.get('websites.scan')?.localConcurrency).toBe(5);
   });
 });
 

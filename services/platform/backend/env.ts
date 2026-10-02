@@ -15,6 +15,19 @@ const envSchema = z.object({
   ROLE: z.enum(['api', 'worker', 'all']).default('all'),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(5),
   /**
+   * Agent turn starts a worker runs at once, per lane (task and automation);
+   * unset, WORKER_CONCURRENCY and at least 8 (`jobs/tasks.ts`
+   * `agentQueueSlots`).
+   */
+  AGENT_START_SLOTS: z.coerce.number().int().min(1).max(256).optional(),
+  /**
+   * Live agent turns' 90 s drive windows a worker runs at once, per lane;
+   * unset, WORKER_CONCURRENCY and at least 16. A worker keeps about 2.5 times
+   * this many live turns per lane drained before their windows wait past
+   * the recovery horizon.
+   */
+  AGENT_DRIVE_SLOTS: z.coerce.number().int().min(1).max(256).optional(),
+  /**
    * Required by the api/all roles (asserted in main.ts); a pure worker can
    * boot without auth configuration.
    */

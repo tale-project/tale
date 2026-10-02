@@ -715,13 +715,48 @@ export const TASK_WORKER_SLOT_QUEUES: ReadonlySet<string> =
  * goes stale, so the default of five slots throttled a worker to five live
  * agent turns at once.
  */
-export const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
+const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
   TaskIdentifier,
   number
 >([
+  ['task.agent_turn', 8],
+  ['automation.agent_turn', 8],
   ['task.agent_drive', 16],
   ['automation.agent_drive', 16],
 ]);
+
+/** The agent queues whose slots the operator sets: a turn's start (a
+ * session create and its first 90 s window) and its later drive windows. */
+const AGENT_START_QUEUES: ReadonlySet<string> = new Set<TaskIdentifier>([
+  'task.agent_turn',
+  'automation.agent_turn',
+]);
+const AGENT_DRIVE_QUEUES: ReadonlySet<string> = new Set<TaskIdentifier>([
+  'task.agent_drive',
+  'automation.agent_drive',
+]);
+
+/**
+ * How many one-job slots a slot queue runs on this worker: the operator's
+ * AGENT_START_SLOTS / AGENT_DRIVE_SLOTS for the agent queues, else
+ * `concurrency` and at least the queue's {@link TASK_WORKER_MIN_SLOTS}.
+ */
+export function slotQueueSlots(
+  name: string,
+  options: {
+    concurrency: number;
+    agentStartSlots?: number | undefined;
+    agentDriveSlots?: number | undefined;
+  },
+): number {
+  if (AGENT_START_QUEUES.has(name) && options.agentStartSlots !== undefined) {
+    return options.agentStartSlots;
+  }
+  if (AGENT_DRIVE_QUEUES.has(name) && options.agentDriveSlots !== undefined) {
+    return options.agentDriveSlots;
+  }
+  return Math.max(options.concurrency, TASK_WORKER_MIN_SLOTS.get(name) ?? 0);
+}
 
 /**
  * How often an IDLE slot of these queues polls, in seconds, where the
