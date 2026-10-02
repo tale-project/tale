@@ -835,7 +835,8 @@ run.
   row menu → **Destroy** → confirm → The dialog closes within a second with
   the toast **Destroying sandbox** (`sandboxes.toast.destroying`); the row
   reads **Destroying** (`sandboxes.status.destroying`) and its row menu
-  offers nothing enabled; another row can be pinned meanwhile; the row
+  holds **Pin** and **Destroy** (**Stop task**, shown while a task runs,
+  stays available); another row can be pinned meanwhile; the row
   leaves the list within a few seconds of the spawner finishing, without a
   reload.
 

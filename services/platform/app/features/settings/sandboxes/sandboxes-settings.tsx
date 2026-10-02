@@ -311,10 +311,12 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         header: '',
         cell: ({ row }) => {
           const s = row.original;
+          const busy = pendingId === s.sessionId;
           // A queued Destroy unpins and deletes the workspace whatever is
-          // asked of it meanwhile, so the row offers nothing until it is gone.
-          const busy =
-            pendingId === s.sessionId || s.destroyState === 'pending';
+          // asked of it meanwhile, so Pin and Destroy wait until it is gone.
+          // Stop stays: a task that runs while the Destroy retries can still
+          // be stopped.
+          const changing = busy || s.destroyState === 'pending';
           return (
             <Row gap={0} align="stretch" justify="end">
               <EntityRowActions
@@ -341,7 +343,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                     key: 'pin',
                     label: s.pinned ? t('actions.unpin') : t('actions.pin'),
                     icon: s.pinned ? PinOff : Pin,
-                    disabled: busy,
+                    disabled: changing,
                     onClick: () =>
                       void run(
                         s.sessionId,
@@ -361,7 +363,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                     // Auto-gets a separator above it; the confirm dialog below
                     // gates the actual teardown.
                     destructive: true,
-                    disabled: busy,
+                    disabled: changing,
                     onClick: () => setConfirmDestroy(s.sessionId),
                   },
                 ]}

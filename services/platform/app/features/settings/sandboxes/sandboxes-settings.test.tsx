@@ -384,17 +384,21 @@ describe('SandboxesSettings Destroy', () => {
     return row;
   }
 
-  it('reads a queued Destroy on its row and offers nothing else meanwhile', async () => {
+  it('reads a queued Destroy on its row and holds Pin and Destroy, not Stop, meanwhile', async () => {
     listing([{ ...aliceRow, destroyState: 'pending' }, hibernatedRow]);
     const { user } = renderSettings();
     const alice = await openRowMenu(user, 'Alice');
     expect(within(alice).getByText('Destroying')).toBeInTheDocument();
-    for (const name of ['Stop task', 'Pin', 'Destroy']) {
+    for (const name of ['Pin', 'Destroy']) {
       expect(await screen.findByRole('menuitem', { name })).toHaveAttribute(
         'aria-disabled',
         'true',
       );
     }
+    // A task running while the Destroy retries can still be stopped.
+    expect(
+      await screen.findByRole('menuitem', { name: 'Stop task' }),
+    ).not.toHaveAttribute('aria-disabled');
     const bob = screen.getByText('Bob').closest('tr') as HTMLElement;
     expect(within(bob).queryByText('Destroying')).not.toBeInTheDocument();
   });
