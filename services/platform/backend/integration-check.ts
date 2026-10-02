@@ -20161,7 +20161,15 @@ async function checkSandboxBlobDoor(
     ref: encodeS3Ref('some-other-org/deadbeef'),
     org: ctx.orgId,
   });
-  if (token === null || foreignToken === null) {
+  // A validly SIGNED token for an in-namespace key the store never held: the
+  // store's 404 must pass through as 404 — it used to collapse into the 502
+  // that also says "store down", and a task whose attachment's bytes were
+  // gone read as an infra fault to retry (2026-10-02).
+  const goneToken = await signStageToken({
+    ref: encodeS3Ref(buildObjectKey(store, orgSlug)),
+    org: ctx.orgId,
+  });
+  if (token === null || foreignToken === null || goneToken === null) {
     record(
       'sandbox-blob: a stage token streams the org blob through the door',
       false,
@@ -20177,14 +20185,136 @@ async function checkSandboxBlobDoor(
   const foreign = await fetch(
     `${base}/api/sandbox-blob?token=${encodeURIComponent(foreignToken)}`,
   );
+  const gone = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(goneToken)}`,
+  );
   record(
     'sandbox-blob: a stage token streams the org blob through the door',
     served.status === 200 &&
       servedBody === payload &&
       forged.status === 403 &&
-      foreign.status === 404,
-    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404)`,
+      foreign.status === 404 &&
+      gone.status === 404,
+    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404), goneKey=${gone.status} (want 404, not 502)`,
   );
+}
+
+/**
+ * A task lists its attachments and deliverables by blob ref with no file
+ * row of its own (`domains/tasks/blob-holders.ts`): deleting the file row
+ * that minted the ref used to delete the bytes too — the card kept showing
+ * the file, and every run start met the store's 404 (2026-10-02). The bytes
+ * now outlive the row while any task lists the ref, and go through the
+ * shared release seam once no task does. Gated on ITEST_S3_ENDPOINT like
+ * the other blob lanes.
+ */
+async function checkTaskHeldBlobOutlivesFileRow(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  if (!itestObjectStore()) {
+    recordSkip(
+      record,
+      'task-held blob outlives its file row',
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { resolveOrgSlug } = await import('./lib/org-config.ts');
+  const {
+    buildObjectKey,
+    resolveObjectStore,
+    s3DeleteObject,
+    s3HeadObject,
+    s3PutObject,
+  } = await import('./lib/object-store.ts');
+  const { encodeS3Ref } = await import('./core/lib/storage/blob_ref.ts');
+  const { deleteFile } = await import('./domains/files/service.ts');
+  const { releaseUnlistedTaskBlobRefs } =
+    await import('./domains/tasks/retire.ts');
+  const { orgId, userId } = ctx;
+  const orgSlug = (await resolveOrgSlug(sql, orgId)) ?? '';
+  const store = await resolveObjectStore(orgSlug);
+  const key = buildObjectKey(store, orgSlug);
+  const ref = encodeS3Ref(key);
+  const payload = new TextEncoder().encode('held by a task');
+  await s3PutObject(store, key, payload, 'text/plain');
+  const now = Date.now();
+  const fileRows = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'held.txt', 'text/plain', ${payload.byteLength}, ${ref},
+      ${userId}, ${now}
+    ) RETURNING id
+  `;
+  const fileId = fileRows[0]?.id ?? '';
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Held blob probe', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      attachments, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Task holding a blob', 'todo', 'a0', ${userId},
+      'user',
+      ${sql.json([
+        {
+          fileId: ref,
+          fileName: 'held.txt',
+          fileType: 'text/plain',
+          fileSize: payload.byteLength,
+        },
+      ])},
+      ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  let deleteError = '';
+  try {
+    await sql.begin((tx) =>
+      deleteFile(sql, tx, { organizationId: orgId }, fileId),
+    );
+  } catch (error) {
+    deleteError = error instanceof Error ? error.message : String(error);
+  }
+  const rowCount = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM app.file_metadata WHERE id = ${fileId}
+  `;
+  const rowGone = rowCount[0]?.n === '0';
+  const bytesKept = (await s3HeadObject(store, key)) !== null;
+  // The task lets go: no task lists the ref any more, so the task door hands
+  // it to the shared release seam, which deletes the bytes after commit.
+  await sql.begin(async (tx) => {
+    await tx`UPDATE app.tasks SET attachments = NULL WHERE id = ${taskId}`;
+    await releaseUnlistedTaskBlobRefs(tx, orgId, [ref]);
+  });
+  const released = await sql<{ n: string }[]>`
+    SELECT count(*)::text AS n FROM pgboss.job
+    WHERE name = 'knowledge.release_refs' AND data->'refs' ? ${ref}
+  `;
+  record(
+    'task-held blob outlives its file row, and is released once no task lists it',
+    deleteError === '' &&
+      rowGone &&
+      bytesKept &&
+      Number(released[0]?.n ?? '0') >= 1,
+    `delete=${deleteError === '' ? 'ok' : deleteError} rowGone=${rowGone} (want true) bytesKept=${bytesKept} (want true) releaseJobs=${released[0]?.n ?? '0'} (want ≥1)`,
+  );
+  // Tidy: the release job may already have taken the bytes; S3 DELETE is
+  // idempotent, and the project cascades the task.
+  try {
+    await s3DeleteObject(store, key);
+  } catch (error) {
+    console.warn('[itest] held-blob cleanup failed:', error);
+  }
+  await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
 }
 
 /**
@@ -57440,6 +57570,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxBlobDoor',
         () => checkSandboxBlobDoor(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkTaskHeldBlobOutlivesFileRow',
+        () => checkTaskHeldBlobOutlivesFileRow(sql, authCtx),
       ],
       [
         'checkNotificationProjectBackfill',

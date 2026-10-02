@@ -25,6 +25,7 @@ import {
   s3PutObject,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
 import { consumeUploadIntent, type UploadPurpose } from './upload-intents.ts';
 
 /**
@@ -641,6 +642,10 @@ export async function deleteFile(
   const { orgSlug } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(meta.storageRef, orgSlug);
   await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
+  // A task lists its attachments and deliverables by ref with no row of its
+  // own (`domains/tasks/blob-holders.ts`): the bytes stay while any task
+  // still names them, or the card would keep showing a file whose every run
+  // start meets the store's 404.
   const stillReferenced = await tx<{ referenced: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM app.file_metadata
@@ -650,7 +655,8 @@ export async function deleteFile(
       SELECT 1 FROM app.documents
       WHERE org_id = ${scope.organizationId}
         AND file_ref = ${meta.storageRef}
-    ) AS referenced
+    ) OR ${taskHoldsBlobRef(tx, scope.organizationId, tx`${meta.storageRef}`)}
+    AS referenced
   `;
   if (stillReferenced[0]?.referenced ?? false) {
     return;

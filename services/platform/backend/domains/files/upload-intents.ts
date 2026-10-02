@@ -7,6 +7,7 @@ import {
 } from '../../core/lib/storage/blob_ref.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
 
 /**
  * The app upload-intent ledger (`app.upload_intents`, migration 0067) — the
@@ -221,8 +222,11 @@ export async function sweepUploadIntents(
       AND (${vouchedFor} OR EXISTS (
         SELECT 1 FROM app.file_metadata m
         WHERE m.org_id = i.org_id AND m.storage_ref = i.s3_ref
-      ))
+      ) OR ${taskHoldsBlobRef(sql, args.organizationId, sql`i.s3_ref`)})
   `;
+  // A task that lists the ref holds the blob the same way a file row does
+  // (`tasks/blob-holders.ts`): its bind always vouches for the intent, so
+  // this is the belt to that brace.
   const abandoned = await sql<{ id: string; s3Ref: string }[]>`
     SELECT i.id, i.s3_ref AS "s3Ref" FROM ${ledger} i
     WHERE i.org_id = ${args.organizationId}
@@ -233,6 +237,7 @@ export async function sweepUploadIntents(
         SELECT 1 FROM app.file_metadata m
         WHERE m.org_id = i.org_id AND m.storage_ref = i.s3_ref
       )
+      AND NOT ${taskHoldsBlobRef(sql, args.organizationId, sql`i.s3_ref`)}
     ORDER BY i.expires_at_ms
     LIMIT ${RECLAIM_BATCH}
   `;

@@ -64,6 +64,18 @@ describe('TaskAgentRunFailureNotice', () => {
     expect(screen.queryByText(/API Error/)).not.toBeInTheDocument();
   });
 
+  it('names the move for an attachment the store no longer holds', () => {
+    state.run = failedRun({
+      failureCode: 'input_missing',
+      error:
+        'the agent run could not start: the attachment "Afos.xlsx" is no longer in storage — remove it from the task or upload it again',
+    });
+    renderNotice();
+
+    expect(screen.getByText('agentRun.failure.input')).toBeInTheDocument();
+    expect(screen.queryByText(/Afos\.xlsx/)).not.toBeInTheDocument();
+  });
+
   it('offers Retry to whoever may start the agent, and starts it', async () => {
     state.run = failedRun({ failureCode: 'turn_crashed' });
     const user = userEvent.setup();

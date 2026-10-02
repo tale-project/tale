@@ -6,6 +6,7 @@ import {
   messageRef,
   parseMessageRef,
 } from '../../../lib/knowledge/message-ref.ts';
+import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
 
 /**
  * Ref liveness — the two questions every lane that takes content out of
@@ -26,9 +27,12 @@ import {
  *      the corpus copy goes.
  *   2. blob-liveness — may the BYTES be deleted? Only when no document
  *      (`file_ref` or `history_files` — retained controlled-record snapshots
- *      need their bytes) and no live file row references the ref. WebDAV
- *      COPY shares one blob ref across several document rows, so a purge of
- *      one copy must never destroy the twin's bytes.
+ *      need their bytes), no live file row and no task references the ref.
+ *      WebDAV COPY shares one blob ref across several document rows, so a
+ *      purge of one copy must never destroy the twin's bytes; a task lists
+ *      its attachments and deliverables by ref with no row of its own
+ *      (`tasks/blob-holders.ts`), so a file row deleted under it must not
+ *      take the task's bytes along.
  *
  * An indexed email body is keyed by MESSAGE ref instead (`msg:<message id>`,
  * `lib/knowledge/message-ref.ts`): it has no bytes and no file row, so it
@@ -113,6 +117,7 @@ export async function assessRefLiveness(
             AND (${excludeDoc}::text IS NULL OR fm.document_id IS NULL
                  OR fm.document_id <> ${excludeDoc})
         )
+        OR ${taskHoldsBlobRef(sql, args.organizationId, sql`r.ref`)}
       ) AS "blobLive"
     FROM unnest(${args.refs}::text[]) AS r(ref)
   `;
