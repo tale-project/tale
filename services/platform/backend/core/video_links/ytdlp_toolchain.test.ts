@@ -14,7 +14,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ProvisioningClock,
@@ -307,6 +307,41 @@ describe('bounded children', () => {
     ).rejects.toThrow(
       /^\[video-toolchain\] bgutil plugin unzip: could not start/,
     );
+  });
+});
+
+describe('monotonic accounting', () => {
+  // `vi.setSystemTime` without fake timers steps `Date` alone: a wall-clock
+  // jump, while timers and `performance.now()` run on.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('spends no budget on a wall-clock step', () => {
+    const clock = new ProvisioningClock(FAST);
+    vi.setSystemTime(Date.now() + 3_600_000);
+    expect(clock.stage(10_000)).toEqual({ ms: 10_000 });
+  });
+
+  it('reports the real elapsed time across a wall-clock step back', async () => {
+    const { script, pids } = await stallingScript('stall');
+    const clock = new ProvisioningClock(FAST);
+    const pending = run(
+      'deno unzip',
+      script,
+      [],
+      clock.stage(FAST.unzipMs),
+      clock,
+    ).catch((e: unknown) => e);
+    vi.setSystemTime(Date.now() - 3_600_000);
+    const message = ((await pending) as Error).message;
+    vi.useRealTimers();
+    const elapsed = /timed out after (\d+) ms \(deadline 2000 ms\)$/.exec(
+      message,
+    )?.[1];
+    expect(Number(elapsed)).toBeGreaterThanOrEqual(2_000);
+    expect(Number(elapsed)).toBeLessThan(10_000);
+    expect(await waitUntilGone(await pids())).toEqual([]);
   });
 });
 

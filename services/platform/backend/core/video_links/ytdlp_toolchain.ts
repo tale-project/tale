@@ -97,10 +97,14 @@ interface StageDeadline {
   budgetMs?: number;
 }
 
-/** Bounds every stage of one provisioning run by its own deadline and the run's total. */
+/**
+ * Bounds every stage of one provisioning run by its own deadline and the run's
+ * total. Elapsed time is monotonic (`performance.now()`), so a wall-clock step
+ * — an NTP correction, a laptop waking up — neither spends nor grants budget.
+ */
 export class ProvisioningClock {
   readonly deadlines: VideoToolchainDeadlines;
-  private readonly startedAt = Date.now();
+  private readonly startedAt = performance.now();
 
   constructor(deadlines: VideoToolchainDeadlines) {
     this.deadlines = deadlines;
@@ -109,18 +113,19 @@ export class ProvisioningClock {
   stage(ms: number): StageDeadline {
     const left = Math.max(
       0,
-      this.deadlines.totalMs - (Date.now() - this.startedAt),
+      Math.floor(this.deadlines.totalMs - (performance.now() - this.startedAt)),
     );
     return left < ms ? { ms: left, budgetMs: this.deadlines.totalMs } : { ms };
   }
 }
 
+/** `startedAt` is a `performance.now()` reading. */
 function timeoutDetail(deadline: StageDeadline, startedAt: number): string {
   const bound =
     deadline.budgetMs === undefined
       ? `deadline ${deadline.ms} ms`
       : `the rest of the ${deadline.budgetMs} ms provisioning budget, ${deadline.ms} ms`;
-  return `timed out after ${Date.now() - startedAt} ms (${bound})`;
+  return `timed out after ${Math.round(performance.now() - startedAt)} ms (${bound})`;
 }
 
 /**
@@ -374,7 +379,7 @@ export async function downloadTo(
 ): Promise<void> {
   const controller = new AbortController();
   const arm = (phase: string, deadline: StageDeadline): NodeJS.Timeout => {
-    const startedAt = Date.now();
+    const startedAt = performance.now();
     return setTimeout(
       () =>
         controller.abort(
@@ -522,7 +527,7 @@ function spawnBounded(
   captureStdout: boolean,
 ): Promise<BoundedChildResult> {
   return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
+    const startedAt = performance.now();
     const stdio: StdioOptions = captureStdout
       ? ['ignore', 'pipe', 'ignore']
       : ['ignore', 'inherit', 'inherit'];
