@@ -19,8 +19,9 @@ import { tmpdir } from 'node:os';
 
 import {
   EXEC_TAG_ENV,
-  execsWithProcesses,
+  groupMembers,
   pendingProcReads,
+  processesLeft,
   signalExecProcesses,
   taggedPids,
 } from './process-reaper.ts';
@@ -134,19 +135,66 @@ describe('taggedPids', () => {
   });
 });
 
-describe('execsWithProcesses', () => {
-  test('names every exec with a tagged process left', async () => {
+describe('groupMembers', () => {
+  test('records the group’s processes from their stat alone', async () => {
+    const procRoot = procTable({
+      '40': tagged('e1', 39),
+      '41': { env: ['PATH=/bin'], pgrp: 39, startTime: 7 },
+      '50': tagged('e1', 50),
+    });
+    // Its environment read would never come back; the record reads none.
+    const fifo = stallEnviron(procRoot, '42', 39);
+    try {
+      const members = await groupMembers(39, {
+        procRoot,
+        scanDeadlineMs: 2_000,
+      });
+      expect(
+        members.sort((a, b) => a.pid - b.pid),
+      ).toEqual([
+        { pid: 40, startTime: '1040' },
+        { pid: 41, startTime: '7' },
+        { pid: 42, startTime: '1042' },
+      ]);
+      expect(pendingProcReads()).toBe(0);
+      expect(await groupMembers(undefined, { procRoot })).toEqual([]);
+    } finally {
+      await release(fifo);
+    }
+  });
+});
+
+describe('processesLeft', () => {
+  test('a target has processes left while one is tagged with it or a recorded member is still in its group', async () => {
     const procRoot = procTable({
       '20': tagged('e1'),
-      '21': tagged('e1'),
-      '22': tagged('e2'),
-      '23': { env: ['PATH=/bin'] },
+      // Untagged, still in e2's group under the start time recorded.
+      '31': { env: ['PATH=/bin'], pgrp: 30, startTime: 5 },
+      // Its pid was reused: a new process in a new group 40.
+      '41': { env: ['PATH=/bin'], pgrp: 40, startTime: 9 },
     });
-    expect(await execsWithProcesses({ procRoot })).toEqual(
-      new Set(['e1', 'e2']),
+    const left = await processesLeft(
+      [
+        { execId: 'e1', groupId: 19 },
+        {
+          execId: 'e2',
+          groupId: 30,
+          members: Promise.resolve([{ pid: 31, startTime: '5' }]),
+        },
+        {
+          execId: 'e3',
+          groupId: 40,
+          members: Promise.resolve([{ pid: 41, startTime: '8' }]),
+        },
+        { execId: 'e4', groupId: 30 },
+      ],
+      { procRoot },
     );
+    expect(left).toEqual([true, true, false, false]);
     expect(
-      await execsWithProcesses({ procRoot: '/nonexistent-proc-root' }),
+      await processesLeft([{ execId: 'e1', groupId: 19 }], {
+        procRoot: '/nonexistent-proc-root',
+      }),
     ).toBeNull();
   });
 });
@@ -160,7 +208,7 @@ describe('signalExecProcesses', () => {
       '42': tagged('e2', 42),
     });
     const { sent, kill } = recorder();
-    const reached = await signalExecProcesses(
+    const { reached } = await signalExecProcesses(
       [{ execId: 'e2', groupId: 39, groupKnown: true }],
       'SIGTERM',
       { procRoot, kill },
@@ -180,6 +228,49 @@ describe('signalExecProcesses', () => {
       kill,
     });
     expect(sent).toEqual([[-39, 'SIGKILL']]);
+  });
+
+  test('a group is the exec’s while a member it recorded is still in it, tag or not', async () => {
+    const procRoot = procTable({
+      // `env -i` dropped the tag; the start time names the same process.
+      '40': { env: ['PATH=/bin'], pgrp: 39, startTime: 77 },
+    });
+    const { sent, kill } = recorder();
+    const { members } = await signalExecProcesses(
+      [
+        {
+          execId: 'e2',
+          groupId: 39,
+          members: Promise.resolve([{ pid: 40, startTime: '77' }]),
+        },
+      ],
+      'SIGKILL',
+      { procRoot, kill },
+    );
+    expect(sent).toEqual([[-39, 'SIGKILL']]);
+    // What the round saw in the group, for the next round's proof.
+    expect(members).toEqual([[{ pid: 40, startTime: '77' }]]);
+  });
+
+  test('a recorded member whose pid now names another process proves nothing', async () => {
+    const procRoot = procTable({
+      '39': { env: ['PATH=/bin'], pgrp: 39, startTime: 90 },
+      '40': { env: ['PATH=/bin'], pgrp: 39, startTime: 91 },
+    });
+    const { sent, kill } = recorder();
+    const { members } = await signalExecProcesses(
+      [
+        {
+          execId: 'e2',
+          groupId: 39,
+          members: Promise.resolve([{ pid: 40, startTime: '77' }]),
+        },
+      ],
+      'SIGKILL',
+      { procRoot, kill },
+    );
+    expect(sent).toEqual([]);
+    expect(members).toEqual([[]]);
   });
 
   test('a group whose tagged processes all left is never signalled — its number may be someone else’s now', async () => {
@@ -293,7 +384,7 @@ describe('signalExecProcesses', () => {
     const warnings: unknown[] = [];
     console.warn = (...args: unknown[]) => warnings.push(args);
     try {
-      const reached = await signalExecProcesses(
+      const { reached } = await signalExecProcesses(
         [{ execId: 'e3', groupId: 49, groupKnown: true }],
         'SIGKILL',
         {

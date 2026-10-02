@@ -17,8 +17,10 @@ import type { Writable } from 'node:stream';
 import type { EnvStore } from './env-store.ts';
 import {
   EXEC_TAG_ENV,
-  execsWithProcesses,
+  groupMembers,
+  processesLeft,
   signalExecProcesses,
+  type GroupMember,
   type ReaperDeps,
   type ReapTarget,
 } from './process-reaper.ts';
@@ -544,7 +546,10 @@ export class ExecManager {
         // session runs, which also closes the pipes a leftover inherited so
         // the exit is reported without the grace. While another exec runs,
         // it may be using what this one started (a build daemon, a dev
-        // server): the leftovers wait for the session's last exec to end.
+        // server): the leftovers wait for the session's last exec to end,
+        // with a record of the group's processes as the leader leaves them —
+        // the proof, later, that the group is still the exec's even where no
+        // process in it carries the tag.
         if (!record.terminated) {
           record.terminated = true;
           const self: ReapTarget = {
@@ -555,8 +560,12 @@ export class ExecManager {
             (id) => id !== req.execId,
           );
           if (othersLive) {
-            record.deferred = self;
-            this.deferLeftovers(self);
+            const waiting: ReapTarget = {
+              ...self,
+              members: this.recordGroup(req.execId, record.groupId),
+            };
+            record.deferred = waiting;
+            this.deferLeftovers(waiting);
           } else {
             void this.reap([
               ...this.leftovers.splice(0),
@@ -662,46 +671,64 @@ export class ExecManager {
 
   /** Drop the waiting leftovers whose processes are all gone. */
   private async pruneLeftovers(): Promise<void> {
-    const scanned = new Set(this.leftovers);
-    const running = await execsWithProcesses(this.reaper);
-    if (running === null) return;
+    const scanned = this.leftovers.slice();
+    const left = await processesLeft(scanned, this.reaper);
+    if (left === null) return;
     // A target deferred during the scan may have processes it missed.
-    const kept = this.leftovers.filter(
-      (t) => !scanned.has(t) || running.has(t.execId),
-    );
+    const gone = new Set(scanned.filter((_, index) => left[index] !== true));
+    const kept = this.leftovers.filter((t) => !gone.has(t));
     this.leftovers.splice(0, this.leftovers.length, ...kept);
+  }
+
+  /** The processes of an exec's group as a scan finds them now, for a later
+   * round to prove the group is still the exec's. */
+  private recordGroup(
+    execId: string,
+    groupId: number | undefined,
+  ): Promise<GroupMember[]> {
+    return groupMembers(groupId, this.reaper).catch((error: unknown) => {
+      console.warn(`[runnerd] recording exec ${execId}'s group failed:`, error);
+      return [];
+    });
   }
 
   /** One reaping round: SIGTERM now, SIGKILL to whatever is left once the
    * grace has passed — by then a group counts as the exec's while its leader
-   * still runs, else only while a process tagged with the exec is still in
-   * it. A group known to be the exec's gets each signal at once, before the
-   * process table is read. Resolves once the SIGTERM is sent. */
+   * still runs, else only while a process tagged with the exec, or one the
+   * SIGTERM round saw in the group (or the target's own record), is still
+   * in it. A group known to be the exec's gets each signal at once, before
+   * the process table is read. Resolves once the SIGTERM is sent. */
   private async reap(targets: Reaping[]): Promise<void> {
     if (targets.length === 0) return;
     const round = (signal: NodeJS.Signals, of: ReapTarget[]) =>
       signalExecProcesses(of, signal, this.reaper).catch((error: unknown) => {
         console.warn(`[runnerd] ${signal} round failed:`, error);
-        return 0;
+        return null;
       });
-    setTimeout(() => {
-      void round(
-        'SIGKILL',
-        targets.map(({ execId, groupId, leaderRunning }) => ({
-          execId,
-          groupId,
-          groupKnown: leaderRunning?.() === true,
-        })),
-      );
-    }, SIGKILL_GRACE_MS).unref();
-    await round(
+    const term = round(
       'SIGTERM',
-      targets.map(({ execId, groupId, groupKnown }) => ({
+      targets.map(({ execId, groupId, groupKnown, members }) => ({
         execId,
         groupId,
         groupKnown,
+        members,
       })),
     );
+    setTimeout(() => {
+      void round(
+        'SIGKILL',
+        targets.map(({ execId, groupId, leaderRunning, members }, index) => ({
+          execId,
+          groupId,
+          groupKnown: leaderRunning?.() === true,
+          members: Promise.all([term, members]).then(([seen, recorded]) => [
+            ...(seen?.members[index] ?? []),
+            ...(recorded ?? []),
+          ]),
+        })),
+      );
+    }, SIGKILL_GRACE_MS).unref();
+    await term;
   }
 
   /** Per-exec status WITHOUT consuming the stream: `running` (live), `exited`

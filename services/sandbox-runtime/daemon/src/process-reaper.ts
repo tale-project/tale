@@ -14,6 +14,12 @@
 // the group and rewrote its environment (a `setsid` server that sets its own
 // title) is out of reach; a per-exec cgroup would be the way to catch it.
 //
+// A group's number is the exec's only while the group lives: once its last
+// process is gone, the number may be reused. A round that comes later than
+// the exec's end therefore needs proof. A process of the group the exec left
+// (its pid and start time, recorded while the group was certainly the
+// exec's) still in it is one, and so is a process tagged with the exec.
+//
 // Reading another process's environment takes that process's memory lock,
 // which a process stuck under memory pressure can hold for minutes. So a
 // group known to be the exec's is signalled before the table is read, a scan
@@ -39,14 +45,25 @@ export interface ReaperDeps {
   scanDeadlineMs?: number;
 }
 
+/** A process of an exec's group, as a scan saw it while the group was
+ * certainly the exec's: with its start time, it names that one process even
+ * after the pid is reused. */
+export interface GroupMember {
+  pid: number;
+  startTime: string;
+}
+
 /** An exec whose processes a round ends: its id and its process group. */
 export interface ReapTarget {
   execId: string;
   groupId: number | undefined;
   /** The group is certainly still the exec's: the round comes as its leader
    * exits (or while it runs), before the number can be reused. Otherwise the
-   * group is signalled only while a process tagged with the exec is in it. */
+   * group is signalled only while a process tagged with the exec, or one of
+   * {@link members}, is in it. */
   groupKnown?: boolean;
+  /** The group's processes as a scan saw them while it was the exec's. */
+  members?: Promise<readonly GroupMember[]>;
 }
 
 /** Errors that mean "that process is gone or not ours to judge". */
@@ -113,9 +130,11 @@ function tracked<T>(read: Promise<T>): Promise<T> {
  * when there is no process table here (a development host that is not
  * Linux). Async: a read of another process's environment can wait on that
  * process's memory lock, which must never stall this daemon's only event
- * loop. Answers with what it read once the deadline passes. */
+ * loop. Answers with what it read once the deadline passes. Without
+ * `withTags`, only `stat` is read: no process's memory lock is taken. */
 async function readProcessTable(
   deps: ReaperDeps,
+  withTags = true,
 ): Promise<ProcessEntry[] | null> {
   const root = deps.procRoot ?? '/proc';
   const selfPid = deps.selfPid ?? process.pid;
@@ -163,6 +182,10 @@ async function readProcessTable(
       const parsed = parseStat(stat);
       if (parsed === null) return;
       const entry: ProcessEntry = { pid, ...parsed };
+      if (!withTags) {
+        found.push(entry);
+        return;
+      }
       if (mark !== undefined) {
         if (mark.startTime === parsed.startTime) {
           // Its environment read has not come back: known by its group.
@@ -229,34 +252,94 @@ export async function taggedPids(
     .sort((a, b) => a - b);
 }
 
-/** The execs that still have a tagged process running, or null when there
- * is no process table here. */
-export async function execsWithProcesses(
+/** The processes in `groupId` now, read from `stat` alone; empty without a
+ * process table. Taken while the group is certainly the exec's, it lets a
+ * later round prove the group still is. */
+export async function groupMembers(
+  groupId: number | undefined,
   deps: ReaperDeps = {},
-): Promise<Set<string> | null> {
-  const table = await readProcessTable(deps);
-  if (table === null) return null;
-  const execs = new Set<string>();
-  for (const proc of table) {
-    if (proc.execId !== undefined) execs.add(proc.execId);
+): Promise<GroupMember[]> {
+  if (groupId === undefined || groupId <= 1) return [];
+  const table = await readProcessTable(deps, false);
+  return (table ?? [])
+    .filter((proc) => proc.pgrp === groupId)
+    .map(({ pid, startTime }) => ({ pid, startTime }));
+}
+
+/** The members a target recorded, or none when recording them failed. */
+async function recordedMembers(
+  target: ReapTarget,
+): Promise<readonly GroupMember[]> {
+  if (target.members === undefined) return [];
+  try {
+    return await target.members;
+  } catch (err) {
+    console.warn(`[runnerd] no group record for exec ${target.execId}:`, err);
+    return [];
   }
-  return execs;
+}
+
+/** Whether a recorded member of the group is still in it. */
+function memberStillIn(
+  group: number,
+  members: readonly GroupMember[],
+  table: readonly ProcessEntry[],
+): boolean {
+  return table.some(
+    (proc) =>
+      proc.pgrp === group &&
+      members.some(
+        (m) => m.pid === proc.pid && m.startTime === proc.startTime,
+      ),
+  );
+}
+
+const groupOf = ({ groupId }: ReapTarget): number | null =>
+  groupId !== undefined && groupId > 1 ? groupId : null;
+
+/** Per target, whether any of its processes is left: one tagged with the
+ * exec, or a recorded member still in its group. Null when there is no
+ * process table here. */
+export async function processesLeft(
+  targets: readonly ReapTarget[],
+  deps: ReaperDeps = {},
+): Promise<boolean[] | null> {
+  const [table, recorded] = await Promise.all([
+    readProcessTable(deps),
+    Promise.all(targets.map(recordedMembers)),
+  ]);
+  if (table === null) return null;
+  return targets.map((target, index) => {
+    if (table.some((proc) => proc.execId === target.execId)) return true;
+    const group = groupOf(target);
+    return group !== null && memberStillIn(group, recorded[index] ?? [], table);
+  });
+}
+
+/** What a round did. */
+export interface RoundResult {
+  /** How many signals were delivered. */
+  reached: number;
+  /** Per target, in order: the processes of its group the round saw while
+   * it counted the group as the exec's — empty when it did not, or without
+   * a process table. */
+  members: GroupMember[][];
 }
 
 /**
  * Signal what the targets left running: each process once. A target's
  * group is signalled when it is certainly still the exec's (`groupKnown`, at
- * once, before the table is read; or while a process tagged with the exec is
- * still in it), and every tagged process outside its group on its own.
- * Without a process table only the group can be signalled. Returns how many
- * targets the signal reached.
+ * once, before the table is read; or while a process tagged with the exec,
+ * or a recorded member, is still in it), and every tagged process outside
+ * its group on its own. Without a process table only the group can be
+ * signalled.
  */
 export async function signalExecProcesses(
   targets: readonly ReapTarget[],
   signal: NodeJS.Signals,
   deps: ReaperDeps = {},
-): Promise<number> {
-  if (targets.length === 0) return 0;
+): Promise<RoundResult> {
+  if (targets.length === 0) return { reached: 0, members: [] };
   const kill = deps.kill ?? ((pid, sig) => process.kill(pid, sig));
   let reached = 0;
   const send = (target: number, label: string) => {
@@ -269,8 +352,6 @@ export async function signalExecProcesses(
       }
     }
   };
-  const groupOf = ({ groupId }: ReapTarget) =>
-    groupId !== undefined && groupId > 1 ? groupId : null;
   // Negative pid: the whole process group. Sent before the scan, which can
   // wait on a stuck process for as long as its deadline.
   const groupSent = targets.map((target) => {
@@ -279,25 +360,34 @@ export async function signalExecProcesses(
     send(-group, `pgroup ${group}`);
     return true;
   });
-  const table = await readProcessTable(deps);
-  targets.forEach((target, index) => {
+  const [table, recorded] = await Promise.all([
+    readProcessTable(deps),
+    Promise.all(targets.map(recordedMembers)),
+  ]);
+  const members = targets.map((target, index) => {
     const group = groupOf(target);
-    const members = (table ?? []).filter(
+    const tagged = (table ?? []).filter(
       (proc) => proc.execId === target.execId,
     );
     let groupReached = groupSent[index] === true;
     if (
       !groupReached &&
       group !== null &&
-      (table === null || members.some((proc) => proc.pgrp === group))
+      (table === null ||
+        tagged.some((proc) => proc.pgrp === group) ||
+        memberStillIn(group, recorded[index] ?? [], table))
     ) {
       send(-group, `pgroup ${group}`);
       groupReached = true;
     }
-    for (const proc of members) {
+    for (const proc of tagged) {
       if (groupReached && proc.pgrp === group) continue;
       send(proc.pid, `pid ${proc.pid}`);
     }
+    if (!groupReached || group === null || table === null) return [];
+    return table
+      .filter((proc) => proc.pgrp === group)
+      .map(({ pid, startTime }) => ({ pid, startTime }));
   });
-  return reached;
+  return { reached, members };
 }

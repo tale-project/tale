@@ -358,6 +358,70 @@ describe('ExecManager', () => {
     },
   );
 
+  test.skipIf(!existsSync('/proc/self/environ'))(
+    'what an exec left waiting in its group ends with the last exec, tag or not',
+    async () => {
+      const mgr = new ExecManager(new EnvStore(), () => {});
+      const long = collect();
+      const longDone = mgr.run(
+        { ...base, execId: 'eulong', shell: 'sleep 30', cwd: ROOT },
+        long.emit,
+      );
+      while (mgr.status('eulong')?.state !== 'running') {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      const short = collect();
+      // `env -i` drops the tag; the process stays in the exec's group.
+      await mgr.run(
+        {
+          ...base,
+          execId: 'eushort',
+          shell: 'env -i /bin/sleep 401 >/dev/null 2>&1 & echo $!',
+          cwd: ROOT,
+        },
+        short.emit,
+      );
+      const pid = Number(decode(short.events, 'stdout').trim());
+      expect(pid).toBeGreaterThan(1);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(isAlive(pid)).toBe(true);
+      expect(mgr.leftoverCount()).toBe(1);
+      expect(mgr.cancel('eulong')).toBe(true);
+      await longDone;
+      await waitGone(pid);
+      expect(isAlive(pid)).toBe(false);
+    },
+  );
+
+  test.skipIf(!existsSync('/proc/self/environ'))(
+    'an untagged process in the group of an exec that ended alone still gets the SIGKILL',
+    async () => {
+      const mgr = new ExecManager(new EnvStore(), () => {});
+      const { events, emit } = collect();
+      await mgr.run(
+        {
+          ...base,
+          execId: 'euterm',
+          // Ignores SIGTERM and carries no tag; the exec waits for its trap.
+          shell:
+            "rm -f ready; env -i /bin/bash -c \"trap '' TERM; : > ready; exec /bin/sleep 403\" >/dev/null 2>&1 & while [ ! -e ready ]; do sleep 0.02; done; echo $!",
+          cwd: ROOT,
+        },
+        emit,
+      );
+      const pid = Number(decode(events, 'stdout').trim());
+      expect(pid).toBeGreaterThan(1);
+      await new Promise((r) => setTimeout(r, 1_000));
+      expect(isAlive(pid)).toBe(true);
+      const deadline = Date.now() + 7_000;
+      while (isAlive(pid) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(isAlive(pid)).toBe(false);
+    },
+    15_000,
+  );
+
   test('a cancelled exec ends its background processes too', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
