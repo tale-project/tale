@@ -1323,7 +1323,13 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
           ? { credentialRotations: plan.credentialRotations }
           : {}),
         ...(resume !== undefined
-          ? { resumedFrom: resume.agentSessionId, resumeReason: resume.reason }
+          ? {
+              resumedFrom: resume.agentSessionId,
+              resumeReason: resume.reason,
+              ...(resume.askId !== undefined
+                ? { resumeAskId: resume.askId }
+                : {}),
+            }
           : {}),
         ...(settled.apiErrorStatus === 429 ? { retriedRateLimit: true } : {}),
         ...(plan.waitingForRoomSince !== undefined

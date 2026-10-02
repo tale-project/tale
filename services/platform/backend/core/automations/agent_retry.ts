@@ -112,6 +112,9 @@ export function isWorkflowAgentRetryable(code: string | undefined): boolean {
 export interface WorkflowAgentRetryResume {
   agentSessionId: string;
   reason: string;
+  /** An answered question the conversation has not seen: the resume opens
+   * with its answer instead of the retry prompt. */
+  askId?: string;
 }
 
 /** Failures that leave no conversation to continue: the sandbox session is
@@ -139,15 +142,35 @@ const NEVER_LAUNCHED_FAILURE_CODES: ReadonlySet<string> = new Set([
  * harness the platform never resumes (`capabilities.resume: false` in its
  * YAML — the exec builder refuses a handle on it). A start refused while
  * the broker pool cooled down never launched, so the conversation it was to
- * resume (`parked.resumedFrom`) still stands, with the cut that ended it.
+ * resume (`parked.resumedFrom`) still stands, with the cut that ended it —
+ * and so does the asking conversation an answered question's delivery was
+ * refused for (`settled.undeliveredAskId`), which the re-kick resumes with
+ * that answer; without a handle to it, the fresh start folds every answer
+ * into its prompt.
  */
 export function workflowAgentRetryResume(
-  settled: { failureCode?: string; agentSessionId?: string },
+  settled: {
+    failureCode?: string;
+    agentSessionId?: string;
+    undeliveredAskId?: string;
+  },
   reason: string,
-  parked: Pick<WorkflowAgentAttempt, 'resumedFrom' | 'resumeReason'>,
+  parked: Pick<
+    WorkflowAgentAttempt,
+    'resumedFrom' | 'resumeReason' | 'resumeAskId'
+  >,
   harness: { resumable: boolean },
 ): WorkflowAgentRetryResume | undefined {
   if (!harness.resumable) return undefined;
+  if (settled.undeliveredAskId !== undefined) {
+    return settled.agentSessionId !== undefined
+      ? {
+          agentSessionId: settled.agentSessionId,
+          reason,
+          askId: settled.undeliveredAskId,
+        }
+      : undefined;
+  }
   if (
     settled.failureCode !== undefined &&
     NEVER_LAUNCHED_FAILURE_CODES.has(settled.failureCode) &&
@@ -156,6 +179,9 @@ export function workflowAgentRetryResume(
     return {
       agentSessionId: parked.resumedFrom,
       reason: parked.resumeReason ?? reason,
+      ...(parked.resumeAskId !== undefined
+        ? { askId: parked.resumeAskId }
+        : {}),
     };
   }
   if (settled.agentSessionId === undefined) return undefined;
@@ -230,6 +256,7 @@ export interface WorkflowAgentAttempt {
   retriedRateLimit?: boolean;
   resumedFrom?: string;
   resumeReason?: string;
+  resumeAskId?: string;
   waitingForRoomSince?: number;
   roomRefusals?: number;
 }

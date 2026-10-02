@@ -315,6 +315,59 @@ describe('planWorkflowAgentRetry', () => {
     ).toBeUndefined();
   });
 
+  it('resumes the asking conversation with the answer a refused delivery never brought', () => {
+    const refused = {
+      failureCode: 'sandbox_capacity',
+      agentSessionId: 'conv-ask',
+      undeliveredAskId: 'ask-1',
+    };
+    // Even over an older conversation the asking attempt itself resumed.
+    expect(
+      workflowAgentRetryResume(
+        refused,
+        'waiting for room',
+        { resumedFrom: 'conv-older', resumeReason: 'the stream broke' },
+        RESUMES,
+      ),
+    ).toEqual({
+      agentSessionId: 'conv-ask',
+      reason: 'waiting for room',
+      askId: 'ask-1',
+    });
+    // A re-kick refused again carries the undelivered answer on.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity' },
+        'waiting for room',
+        {
+          resumedFrom: 'conv-ask',
+          resumeReason: 'waiting for room',
+          resumeAskId: 'ask-1',
+        },
+        RESUMES,
+      ),
+    ).toEqual({
+      agentSessionId: 'conv-ask',
+      reason: 'waiting for room',
+      askId: 'ask-1',
+    });
+    // No handle to the asking conversation: the fresh start folds every
+    // answer into its prompt, as the delivery would have.
+    expect(
+      workflowAgentRetryResume(
+        { failureCode: 'sandbox_capacity', undeliveredAskId: 'ask-1' },
+        'waiting for room',
+        { resumedFrom: 'conv-older', resumeReason: 'the stream broke' },
+        RESUMES,
+      ),
+    ).toBeUndefined();
+    expect(
+      workflowAgentRetryResume(refused, 'waiting for room', {}, {
+        resumable: false,
+      }),
+    ).toBeUndefined();
+  });
+
   it('begins a new room wait once a start launched after the last one began', () => {
     // The wait ended with a start that ran; the refusal of a later start —
     // an answered question's resume, hours on — waits on its own clock.

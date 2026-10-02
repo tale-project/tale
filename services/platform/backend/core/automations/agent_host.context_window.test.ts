@@ -23,8 +23,11 @@ const io = vi.hoisted(() => ({
   /** The serving the resolver answers; the local gateway model when unset. */
   serving: undefined as Record<string, unknown> | undefined,
   instructions: [] as string[],
+  prompts: [] as string[],
   /** The org's `system_prompt` policy file; null reads as "no policy". */
   systemPrompt: null as unknown,
+  /** What the session ensure throws, when it refuses. */
+  sessionRefusal: undefined as Error | undefined,
   starts: [] as Array<{
     execId: string;
     argv: string[];
@@ -41,6 +44,7 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
       args: Parameters<typeof actual.buildExternalTurnExec>[0],
     ) => {
       io.instructions.push(args.instructions);
+      io.prompts.push(args.prompt);
       return actual.buildExternalTurnExec(args);
     },
     drainHarnessWindow: async (args: {
@@ -82,7 +86,10 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
 }));
 vi.mock('../node_only/sandbox/agent_session', () => ({
-  ensureAgentSession: async () => ({ liveCreatedAt: 1000 }),
+  ensureAgentSession: async () => {
+    if (io.sessionRefusal !== undefined) throw io.sessionRefusal;
+    return { liveCreatedAt: 1000 };
+  },
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
   provisionSessionGatewayKey: async () => ({
@@ -212,7 +219,9 @@ beforeEach(() => {
   io.serving = undefined;
   io.starts = [];
   io.instructions = [];
+  io.prompts = [];
   io.systemPrompt = null;
+  io.sessionRefusal = undefined;
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveProviderCredential).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -459,6 +468,68 @@ describe('an automation agent turn', () => {
           'the agent turn could not resume after the answer: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
       },
     });
+  });
+
+  it('settles an answered-ask resume refused for sandbox room with the asking conversation, the answer still undelivered', async () => {
+    io.sessionRefusal = Object.assign(
+      new Error('At most 2 workflow sandbox sessions can be active.'),
+      { code: 'QUOTA_EXCEEDED' },
+    );
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      mutations.find(
+        (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'sandbox_capacity',
+        agentSessionId: 'claude-session-1',
+        undeliveredAskId: 'ask-1',
+        retryAfterMs: 15_000,
+      },
+    });
+  });
+
+  it('resumes the asking conversation with an answer its refused delivery never brought', async () => {
+    servesWindow(65_536);
+    const { ctx } = makeCtx({ status: 'running' });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+      resume: {
+        agentSessionId: 'claude-session-1',
+        reason:
+          "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+        askId: 'ask-1',
+      },
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.argv).toContain('claude-session-1');
+    expect(io.prompts[0]).toContain('The operator answered your question:');
+    expect(io.prompts[0]).toContain('Cost centre 4711.');
+    expect(io.prompts[0]).not.toContain('cut short by an infrastructure');
   });
 
   it('holds a kicked start until a cooling broker pool has an account back', async () => {

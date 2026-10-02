@@ -1518,6 +1518,16 @@ export async function startWorkflowAgentTurnImpl(
               },
             )
           : [];
+      // A resume that delivers an answered question — its own delivery was
+      // refused for want of sandbox room before it launched — opens the
+      // asking conversation with that answer, as the delivery would have.
+      const undeliveredAnswer =
+        args.resume?.askId !== undefined
+          ? await readUndeliveredAnswer(ctx, {
+              organizationId: args.organizationId,
+              askId: args.resume.askId,
+            })
+          : undefined;
       // The serving model's window, so the harness compacts before the
       // prompt outgrows what the model serves; unknown leaves it to the
       // harness.
@@ -1538,7 +1548,14 @@ export async function startWorkflowAgentTurnImpl(
         prompt:
           args.resume === undefined
             ? promptWithAnsweredAsks(args.request.prompt, answeredAsks)
-            : retryResumePrompt(args.resume.reason),
+            : undeliveredAnswer !== undefined
+              ? answerResumePrompt({
+                  nodePrompt: args.request.prompt,
+                  answer: undeliveredAnswer,
+                  hasConversation: true,
+                  answeredAsks: [],
+                })
+              : retryResumePrompt(args.resume.reason),
         execId: args.execId,
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
@@ -1606,6 +1623,22 @@ export async function startWorkflowAgentTurnImpl(
     }
     return null;
   }
+}
+
+/** The answer of an answered question a resume is to deliver, or undefined
+ * when the question is gone or holds no answer (the resume then opens with
+ * the retry prompt alone). */
+async function readUndeliveredAnswer(
+  ctx: ActionCtx,
+  args: { organizationId: string; askId: string },
+): Promise<string | undefined> {
+  const ask = readAskRow(
+    await ctx.runQuery(internal.automations.human_asks.getAskForResume, {
+      askId: args.askId,
+      organizationId: args.organizationId,
+    }),
+  );
+  return ask?.status === 'answered' ? ask.answer : undefined;
 }
 
 /** What `readAgentCursor` answers: the run's status and its cursor, or null
@@ -2203,6 +2236,17 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           ...(retryAtMs !== undefined ? { retryAtMs } : {}),
           ...(roomWait?.retryAfterMs !== undefined
             ? { retryAfterMs: roomWait.retryAfterMs }
+            : {}),
+          // Refused for room before anything launched, the delivery leaves
+          // the asking conversation as it was: the re-kick resumes it with
+          // this answer instead of starting the node over.
+          ...(roomWait !== undefined && !retargeted
+            ? {
+                undeliveredAskId: ask._id,
+                ...(ask.agentSessionId !== undefined
+                  ? { agentSessionId: ask.agentSessionId }
+                  : {}),
+              }
             : {}),
           text: '',
           files: [],

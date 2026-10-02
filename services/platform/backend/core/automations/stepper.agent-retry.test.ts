@@ -404,6 +404,39 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     );
   });
 
+  it('resumes the asking conversation when the delivery of an answer found no room', async () => {
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        execId: 'exec-asking',
+        result: {
+          errored: true,
+          reason:
+            "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + 15_000,
+          retryAfterMs: 15_000,
+          agentSessionId: 'conv-ask',
+          undeliveredAskId: 'ask-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks[0]?.resume).toEqual({
+      agentSessionId: 'conv-ask',
+      reason:
+        "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+      askId: 'ask-1',
+    });
+    expect(parkedCursor(suspended)).toMatchObject({
+      resumedFrom: 'conv-ask',
+      resumeAskId: 'ask-1',
+    });
+  });
+
   it('gives up on sandbox room after two hours, saying so', async () => {
     const { ctx, kicks, finished } = harness(
       parkedAttempt({
