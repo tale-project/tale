@@ -53,7 +53,7 @@ can fail before the application starts.
 | `BETTER_AUTH_SECRET` | Required when the process serves APIs (`api` or `all`) |
 | `SITE_URL` | Public origin used by authentication; non-loopback origins require HTTPS |
 | `TALE_CONFIG_DIR` / `TALE_CONFIG_BUILTIN_DIR` | Writable deployment configuration and shipped catalog |
-| `WORKER_CONCURRENCY` | Jobs one worker process runs at once, default `5` (1–64); raise `KNOWLEDGE_DB_POOL_MAX` with it |
+| `WORKER_CONCURRENCY` | Jobs one worker process runs at once per queue, default `5` (1–64); agent drive windows get at least 16 per queue (`TASK_WORKER_MIN_SLOTS`); raise `KNOWLEDGE_DB_POOL_MAX` with it |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SENTRY_DSN` | Optional error reporting |
 

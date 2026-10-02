@@ -102,7 +102,7 @@ Every workspace Tale deletes on its own, for one of these reasons or for being u
 
 ## Resolve a blocked start
 
-A start that finds no room waits, and needs nothing from you. When your organization's limits are in use, or the deployment is full or short of memory, the work starts on its own once room frees: a task run waits in the queue, an automation's agent step tries again after a short pause without using up its retries, and crawling continues with its next batch.
+A start that finds no room waits, and needs nothing from you. When your organization's limits are in use, or the deployment is full or short of memory, the work starts on its own once room frees: a task run waits in the queue and is tried again at least every two minutes, an automation's agent step tries again after a short pause without using up its retries (for up to two hours, after which the run fails with that reason), and crawling continues with its next batch.
 
 Raise a workload limit only when its allocations are full and the new total fits shared capacity. If the deployment itself is full, increasing an organization limit cannot create infrastructure. To add capacity of your own, [connect a device](/platform/admin/sandbox-devices): new workspaces start on it. Otherwise, ask the operator to inspect capacity and host resources; a free container slot alone does not guarantee enough CPU or memory.
 
