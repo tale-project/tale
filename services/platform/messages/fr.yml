@@ -8847,6 +8847,8 @@ sandboxes:
     pausedBudget: En pause (budget)
     pinned: Épinglée
     deletesOn: Suppression prévue le {date}, sauf nouvelle utilisation
+    destroying: Suppression…
+    destroyFailed: Non supprimée
   task:
     none: Aucune tâche active
     project: '{count, plural, one {Tâche de projet} other {# tâches de projet}}'
@@ -8859,13 +8861,14 @@ sandboxes:
     destroy: Supprimer
   destroyConfirm:
     title: Supprimer la sandbox ?
-    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Le prochain lancement de l'agent crée une nouvelle sandbox.
+    description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Une fois la sandbox supprimée, le prochain lancement de l'agent en crée une nouvelle.
     confirm: Supprimer
   toast:
     stopped: Tâche arrêtée
     pinned: Sandbox épinglée
     unpinned: Sandbox détachée
-    destroyed: Sandbox supprimée
+    destroying: Suppression de la sandbox en cours
+    destroyingDescription: Elle disparaît de la liste dès que son espace de travail est supprimé.
     error: Échec de l'action
   empty:
     title: Aucun espace de travail pour le moment

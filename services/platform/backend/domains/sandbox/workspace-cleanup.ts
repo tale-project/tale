@@ -56,7 +56,7 @@ import {
  *    `sandbox_workspaces` policy's window — then every workspace the
  *    spawner's inventory lists that no row owns any more;
  *  - the Sandboxes page's explicit Destroy, which keeps its own path
- *    (`teardownSession`).
+ *    (`teardownSession`, run by the `sandbox.destroy_session` job).
  *
  * Nothing here deletes on a guess. A decision is taken again under the
  * organization's admission lock right before the rows change (a turn that

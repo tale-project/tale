@@ -114,6 +114,9 @@ export interface SandboxContract {
       /** When the workspace is deleted for being unused, if it stays
        * unused; null when nothing will delete it. */
       deletesAt?: number | null;
+      /** An administrator's Destroy still under way (`pending`), or one
+       * whose every attempt failed (`failed`); null when none is. */
+      destroyState?: 'pending' | 'failed' | null;
     }>;
   };
 }
