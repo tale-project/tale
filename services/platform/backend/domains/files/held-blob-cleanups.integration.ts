@@ -279,6 +279,8 @@ export async function checkVideoLinkHeldBlobs(
     status: string;
     fileStatus: string;
     aged?: boolean;
+    /** False: the engine committed the row but never recorded its id. */
+    recorded?: boolean;
   }) => {
     const text = `video transcript probe ${args.label}`;
     const ref = await p.putBlob(text);
@@ -303,8 +305,8 @@ export async function checkVideoLinkHeldBlobs(
         ${orgId}, ${p.owner.userId},
         ${`https://example.test/held-${p.suffix}-${args.label}`},
         ${`held-${p.suffix}-${args.label}`}, 'youtube',
-        ${`held-${args.label}`}, ${args.status}, ${at}, ${ref}, ${fileId},
-        'active', ${at}
+        ${`held-${args.label}`}, ${args.status}, ${at}, ${ref},
+        ${args.recorded === false ? null : fileId}, 'active', ${at}
       ) RETURNING id
     `;
     return { jobId: jobs[0]?.id ?? '', fileId, ref };
@@ -362,6 +364,7 @@ export async function checkVideoLinkHeldBlobs(
         taskCancel === 200 &&
         taskKept &&
         taskListed &&
+        taskRow === 'gone' &&
         docBind === 200 &&
         docCancel === 200 &&
         docKept &&
@@ -422,6 +425,40 @@ export async function checkVideoLinkHeldBlobs(
         gcUnheldRow === 'gone' &&
         jobsGone.every(Boolean),
       `task: attach=${gcAttach.status} kept=${gcTaskKept} listed=${gcTaskListed} (want 200/true/true); document: bind=${gcBind} kept=${gcDocKept} row=${gcDocRow} (want 200/true/active); unheld: gone=${gcUnheldGone} row=${gcUnheldRow} (want true/gone); jobs reaped=${jobsGone.join('/')} (want true each)`,
+    );
+
+    // A row the engine committed under the job's ref but never recorded on
+    // the job (the Whisper lane saves the audio row, then patches its id; a
+    // cancel or a crash in between): the cleanup and the GC find it by ref,
+    // so neither the row nor, once it is gone, its bytes outlive the job.
+    const lost = await videoJob({
+      label: 'cancel-unrecorded',
+      status: 'failed',
+      fileStatus: 'failed',
+      recorded: false,
+    });
+    const lostCancel = await cancel(lost.jobId);
+    const lostRow = await p.rowState(lost.fileId);
+    const lostGone = !(await p.present(lost.ref));
+    const lostAged = await videoJob({
+      label: 'gc-unrecorded',
+      status: 'failed',
+      fileStatus: 'failed',
+      aged: true,
+      recorded: false,
+    });
+    await runVideoLinkWatchdog(sql);
+    const lostAgedRow = await p.rowState(lostAged.fileId);
+    const lostAgedGone = !(await p.present(lostAged.ref));
+    record(
+      'a video link’s cleanup and GC drop the row its engine never recorded, and its bytes (#4110)',
+      lostCancel === 200 &&
+        lostRow === 'gone' &&
+        lostGone &&
+        lostAgedRow === 'gone' &&
+        lostAgedGone &&
+        (await jobGone(lostAged.jobId)),
+      `cancel: status=${lostCancel} row=${lostRow} bytes gone=${lostGone} (want 200/gone/true); GC: row=${lostAgedRow} bytes gone=${lostAgedGone} (want gone/true)`,
     );
   } catch (error) {
     recordThrow(record, 'video-link held blobs', error);
@@ -508,11 +545,12 @@ export async function checkStagedBundlesUnnameable(
 /**
  * Dropping a task's attachment releases the ref: the task's own unbound
  * rows are trashed, and the release job takes the bytes (and reaps the
- * trashed rows) once nothing live names them. A product's image row is the
- * product's, not the task's: when a task let go of an image's ref, the
- * release took the bytes and the row the product still shows.
+ * trashed rows) once nothing live names them. A product's image row and a
+ * video link's transcript row are their lanes', not the task's: when a task
+ * let go of such a ref, the release took the bytes and the row the product
+ * still showed, or the chip was about to send.
  */
-export async function checkTaskReleaseKeepsProductImage(
+export async function checkTaskReleaseKeepsLaneRows(
   sql: Sql,
   base: string,
   ctx: { orgId: string },
@@ -579,22 +617,98 @@ export async function checkTaskReleaseKeepsProductImage(
     const imageKept = await p.present(imageRef);
     const served = (await p.call('GET', `products/images/${fileId}`)).status;
 
-    // The control: the task's own upload still goes once the task drops it.
+    // A video link's transcript, pasted before a thread existed (no
+    // thread_id): its job names the row, and a send binds it from there.
+    const transcript = 'video transcript held by its chip';
+    const chipRef = await p.putBlob(transcript);
+    const now = Date.now();
+    const chipRows = await sql<{ id: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, source, file_name, content_type, size,
+        uploaded_by, transcript, transcription_status, created_at_ms
+      ) VALUES (
+        ${orgId}, ${chipRef}, 'video_link', 'chip.txt',
+        'text/plain; charset=utf-8', ${transcript.length}, ${p.owner.userId},
+        ${transcript}, 'completed', ${now}
+      ) RETURNING id
+    `;
+    const chipFileId = chipRows[0]?.id ?? '';
+    await sql`
+      INSERT INTO app.video_link_jobs (
+        org_id, uploaded_by, source_url, source_url_hash, source_platform,
+        pasted_token, status, status_changed_at_ms, storage_ref,
+        file_metadata_id, lifecycle_status, created_at_ms
+      ) VALUES (
+        ${orgId}, ${p.owner.userId}, ${`https://example.test/chip-${p.suffix}`},
+        ${`chip-${p.suffix}`}, 'youtube', 'chip', 'completed', ${now},
+        ${chipRef}, ${chipFileId}, 'active', ${now}
+      )
+    `;
+    const chipTask = await p.attach(chipRef, 'video-chip');
+    const chipDrop = await dropAndRelease(chipTask.taskId, chipRef);
+    const chipRow = await p.rowState(chipFileId);
+    const chipKept = await p.present(chipRef);
+
+    // The controls: the task's own uploads still go once the task drops
+    // them — one only its intent records, one registered as a file row.
     const own = await p.upload('file', 'a task’s own attachment');
     const ownTask = await p.attach(own, 'own-attachment');
     const ownDrop = await dropAndRelease(ownTask.taskId, own);
     const ownGone = !(await p.present(own));
+    const presigned = z
+      .object({ url: z.string().url(), s3Ref: z.string() })
+      .safeParse(
+        await p.jsonOf(
+          await p.call('POST', 'files/blob-upload', {
+            contentType: 'text/plain',
+          }),
+        ),
+      );
+    if (!presigned.success) throw new Error('presign failed');
+    const registeredRef = presigned.data.s3Ref;
+    p.refs.push(registeredRef);
+    await fetch(presigned.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'a task’s own registered attachment',
+    });
+    const registered = await p.call('POST', 'files/register', {
+      storageRef: registeredRef,
+      fileName: 'own-registered.txt',
+      contentType: 'text/plain',
+    });
+    const registeredRows = await sql<{ id: string }[]>`
+      SELECT id FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref = ${registeredRef}
+    `;
+    const registeredTask = await p.attach(registeredRef, 'own-registered');
+    const registeredDrop = await dropAndRelease(
+      registeredTask.taskId,
+      registeredRef,
+    );
+    const registeredRow = await p.rowState(registeredRows[0]?.id ?? '');
+    const registeredGone = !(await p.present(registeredRef));
     record(
-      'dropping a task’s attachment leaves a product’s image to the product, and still releases the task’s own upload (#4110)',
+      'dropping a task’s attachment leaves a product’s image and a video link’s transcript to their lanes, and still releases the task’s own uploads (#4110)',
       imageTask.status === 200 &&
         imageDrop === 200 &&
         imageRow === 'active' &&
         imageKept &&
         served === 200 &&
+        chipTask.status === 200 &&
+        chipDrop === 200 &&
+        chipRow === 'active' &&
+        chipKept &&
         ownTask.status === 200 &&
         ownDrop === 200 &&
-        ownGone,
-      `product image: attach=${imageTask.status} drop=${imageDrop} row=${imageRow} kept=${imageKept} served=${served} (want 200/200/active/true/200); own upload: attach=${ownTask.status} drop=${ownDrop} released=${ownGone} (want 200/200/true)`,
+        ownGone &&
+        registered.status === 200 &&
+        registeredRows.length === 1 &&
+        registeredTask.status === 200 &&
+        registeredDrop === 200 &&
+        registeredRow === 'gone' &&
+        registeredGone,
+      `product image: attach=${imageTask.status} drop=${imageDrop} row=${imageRow} kept=${imageKept} served=${served} (want 200/200/active/true/200); video transcript: attach=${chipTask.status} drop=${chipDrop} row=${chipRow} kept=${chipKept} (want 200/200/active/true); own upload: attach=${ownTask.status} drop=${ownDrop} released=${ownGone} (want 200/200/true); own registered file: register=${registered.status} rows=${registeredRows.length} attach=${registeredTask.status} drop=${registeredDrop} row=${registeredRow} released=${registeredGone} (want 200/1/200/200/gone/true)`,
     );
   } catch (error) {
     recordThrow(record, 'task release and product images', error);

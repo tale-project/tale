@@ -368,6 +368,18 @@ describe('a video link’s reclaim', () => {
       "transcription_status IS DISTINCT FROM 'completed'",
     );
     expect(texts[rowDelete]).toContain('document_id IS NULL');
+    // The recorded row, or one the engine committed under the job's ref
+    // before recording it; a completed transcript stays (the guard is on).
+    expect(texts[rowDelete]).toContain(
+      'id = ? OR (storage_ref = ? AND uploaded_by = ?)',
+    );
+    expect(fake.statements[rowDelete]?.values).toEqual([
+      'org-1',
+      'fm-1',
+      's3:acme/t',
+      'user-1',
+      false,
+    ]);
     expect(texts.indexOf('RECLAIM')).toBeGreaterThan(rowDelete);
     expect(deleteUnheldOrgBlobRefs).toHaveBeenCalledWith(fake.sql, 'org-1', [
       's3:acme/t',
@@ -390,6 +402,14 @@ describe('a video link’s reclaim', () => {
       t.startsWith('DELETE FROM app.file_metadata'),
     );
     expect(texts[rowDelete]).toContain('document_id IS NULL');
+    // The GC takes a completed transcript too (the guard is off).
+    expect(fake.statements[rowDelete]?.values).toEqual([
+      'org-1',
+      'fm-1',
+      's3:acme/t',
+      'user-1',
+      true,
+    ]);
     const reclaim = texts.indexOf('RECLAIM');
     expect(reclaim).toBeGreaterThan(rowDelete);
     expect(

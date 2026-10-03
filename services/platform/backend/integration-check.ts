@@ -78,7 +78,7 @@ import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handov
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
 import {
   checkStagedBundlesUnnameable,
-  checkTaskReleaseKeepsProductImage,
+  checkTaskReleaseKeepsLaneRows,
   checkVideoLinkHeldBlobs,
 } from './domains/files/held-blob-cleanups.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
@@ -59036,9 +59036,9 @@ async function main(): Promise<void> {
           ),
       ],
       [
-        'checkTaskReleaseKeepsProductImage',
+        'checkTaskReleaseKeepsLaneRows',
         () =>
-          checkTaskReleaseKeepsProductImage(
+          checkTaskReleaseKeepsLaneRows(
             sql,
             baseUrl,
             authCtx,

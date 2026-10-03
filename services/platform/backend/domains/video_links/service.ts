@@ -227,9 +227,10 @@ async function updateJob(
 
 /**
  * Cancellation/retry cleanup (the 0.4 twin): message-bound rows are
- * UNTOUCHABLE (their transcript is a sent bubble's content of record);
- * otherwise the blob deletes best-effort and a non-completed
- * file_metadata row drops.
+ * UNTOUCHABLE (their transcript is a sent bubble's content of record).
+ * Otherwise the job's own row drops, unless it is a completed transcript
+ * (the donor copy a cancel keeps) or a document took it over; then the
+ * bytes go only when nothing holds them (#4110).
  */
 async function cleanupCancelledVideoLink(
   sql: Sql,
@@ -238,23 +239,40 @@ async function cleanupCancelledVideoLink(
   const job = await getJob(sql, jobId);
   if (!job) return;
   if (job.messageBoundAt !== null) return;
-  if (job.fileMetadataId !== null) {
-    // A row a document took over (`documents/from-blob-upload`) is the
-    // document's file now, whatever its transcription did.
-    await sql`
-      DELETE FROM app.file_metadata
-      WHERE id = ${job.fileMetadataId}
-        AND transcription_status IS DISTINCT FROM 'completed'
-        AND document_id IS NULL
-    `;
-  }
+  await deleteJobFileRows(sql, job, { keepCompleted: true });
   // The row first, then the bytes, and only when nothing holds them: the
   // ref is its paster's own row's ref, handed to the chip as `storageId`, so
   // a task may list it and a document may have taken it over — and a
-  // completed transcript row, which the cleanup keeps, holds it too (#4110).
+  // completed transcript row, which the cleanup keeps, holds it too.
   if (job.storageRef !== null) {
     await deleteUnheldOrgBlobRefs(sql, job.organizationId, [job.storageRef]);
   }
+}
+
+/**
+ * Drop a job's own file rows: the one it recorded, and any its engine
+ * committed under the job's ref before recording it (the Whisper lane
+ * saves the audio row, then patches `file_metadata_id`; a cancel or a
+ * crash in between left that row, and so its bytes, behind for good). A
+ * row a document took over (`documents/from-blob-upload`) is the
+ * document's file now, whatever its transcription did.
+ */
+async function deleteJobFileRows(
+  sql: Sql,
+  job: VideoLinkJobRow,
+  options: { keepCompleted: boolean },
+): Promise<void> {
+  if (job.fileMetadataId === null && job.storageRef === null) return;
+  await sql`
+    DELETE FROM app.file_metadata
+    WHERE org_id = ${job.organizationId}
+      AND (id = ${job.fileMetadataId}
+           OR (storage_ref = ${job.storageRef}
+               AND uploaded_by = ${job.uploadedBy}))
+      AND document_id IS NULL
+      AND (${!options.keepCompleted}
+           OR transcription_status IS DISTINCT FROM 'completed')
+  `;
 }
 
 /**
@@ -611,14 +629,9 @@ export async function runVideoLinkWatchdog(sql: Sql): Promise<void> {
   for (const row of gcRows) {
     const job = await getJob(sql, row.id);
     if (!job || job.messageBoundAt !== null) continue;
-    // The cleanup's order and rule: the row goes unless a document took it
+    // The cleanup's order and rule: the rows go unless a document took them
     // over, then the bytes, unless something still holds them (#4110).
-    if (job.fileMetadataId !== null) {
-      await sql`
-        DELETE FROM app.file_metadata
-        WHERE id = ${job.fileMetadataId} AND document_id IS NULL
-      `;
-    }
+    await deleteJobFileRows(sql, job, { keepCompleted: false });
     if (job.storageRef !== null) {
       await deleteUnheldOrgBlobRefs(sql, job.organizationId, [job.storageRef]);
     }
@@ -1310,8 +1323,8 @@ export async function cancelVideoLink(
 
   // The cancel is a CAS on the state the user saw. The finalizers settle a
   // job `indexing → completed` in one transaction; a cancel that landed on
-  // that completed row afterwards would take its blob with it (the cleanup
-  // keeps a completed file row) and leave a Ready chip over deleted bytes.
+  // that completed row afterwards would undo a job that settled on its own:
+  // the transcript the user was waiting for would vanish behind a skip.
   // A job that merely ADVANCED (still in flight) is cancelled in its new
   // state; a job that SETTLED on its own is left as it settled.
   let cancelled = job;

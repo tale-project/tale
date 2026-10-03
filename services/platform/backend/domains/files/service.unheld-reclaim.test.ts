@@ -95,3 +95,23 @@ it('keeps every byte something holds, and asks nothing for no refs', async () =>
   expect(await deleteUnheldOrgBlobRefs(none.sql, 'org_1', [])).toEqual([]);
   expect(none.statements).toEqual([]);
 });
+
+it('keeps every byte when the holder check fails, and logs it', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  // Only the holder question fails; the fragments it is built from never
+  // reach the database on their own.
+  const failing = ((strings: TemplateStringsArray) =>
+    strings.join('?').trim().startsWith('SELECT r.ref')
+      ? Promise.reject(new Error('connection lost'))
+      : Promise.resolve([])) as unknown as Sql;
+
+  expect(
+    await deleteUnheldOrgBlobRefs(failing, 'org_1', ['s3:blobs/acme/a']),
+  ).toEqual([]);
+  expect(deleteOrgObject).not.toHaveBeenCalled();
+  expect(warn).toHaveBeenCalledWith(
+    '[files] blob reclaim skipped (holder check failed):',
+    expect.any(Error),
+  );
+  warn.mockRestore();
+});
