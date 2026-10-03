@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 
 import { isPrivateIp } from '@tale/shared/net/private-ip';
 import { getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici';
@@ -826,5 +828,80 @@ describe('routeVendorFetch on native fetch, without the network', () => {
       'rejected AbortError: This operation was aborted (cause none)',
     );
     expect(result.routed).toEqual(result.native);
+  });
+});
+
+/** Two full collections a macrotask apart: what a busy run may do between
+ * a response and the abort that ends it. */
+async function collectGarbage(): Promise<void> {
+  setFlagsFromString('--expose_gc');
+  const gc: unknown = runInNewContext('gc');
+  if (typeof gc !== 'function') throw new Error('V8 exposes no gc()');
+  for (let pass = 0; pass < 2; pass += 1) {
+    Reflect.apply(gc, undefined, []);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+describe("routeVendorFetch and the caller's abort", () => {
+  it('ends a streamed response on abort after a garbage collection, as fetch does', async () => {
+    // An `/events` tail on the box: one hint, then heartbeats until the
+    // client goes. Before #4112 the boundary passed fetch a request whose
+    // signal followed the caller's only through a weak link: a collection
+    // between the response and the abort, and the tail read on forever.
+    const server = createServer((request, response) => {
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.write('event: hint\ndata: {}\n\n');
+      const beat = setInterval(() => {
+        response.write('event: heartbeat\ndata: \n\n');
+      }, 100);
+      request.on('close', () => clearInterval(beat));
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    const port =
+      address !== null && typeof address === 'object' ? address.port : 0;
+    const routed = routeVendorFetch(globalThis.fetch, {
+      stubOrigin: 'http://127.0.0.1:9',
+      onOffBox: () => undefined,
+    });
+    try {
+      const outcomes: string[] = [];
+      for (const fetchImpl of [globalThis.fetch, routed]) {
+        const controller = new AbortController();
+        const response = await fetchImpl(`http://127.0.0.1:${port}/events`, {
+          signal: controller.signal,
+        });
+        const reader = response.body?.getReader();
+        if (reader === undefined) throw new Error('the tail has no body');
+        await reader.read();
+        await collectGarbage();
+        controller.abort();
+        const ended = (async (): Promise<string> => {
+          try {
+            for (;;) {
+              if ((await reader.read()).done) return 'ended';
+            }
+          } catch (error) {
+            return error instanceof Error ? error.name : String(error);
+          }
+        })();
+        const outcome = await Promise.race([
+          ended,
+          new Promise<string>((resolve) => {
+            setTimeout(() => resolve('still open 2 s after the abort'), 2_000);
+          }),
+        ]);
+        // A tail the abort missed is ended by hand; an aborted one is errored.
+        if (outcome !== 'AbortError') await reader.cancel();
+        outcomes.push(outcome);
+      }
+      expect(outcomes).toEqual(['AbortError', 'AbortError']);
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
   });
 });
