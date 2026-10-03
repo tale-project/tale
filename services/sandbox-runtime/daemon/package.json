@@ -5,7 +5,7 @@
   "description": "runnerd — in-container control daemon for persistent sandbox sessions; bundled to dist/runnerd.mjs and run by the runtime image's Node 24",
   "type": "module",
   "scripts": {
-    "build": "bun build --target=node src/main.ts --outfile dist/runnerd.mjs && bun build --target=node src/lazy-docker.ts --outfile dist/lazy-docker.mjs",
+    "build": "bun build --target=node src/main.ts --outfile dist/runnerd.mjs && bun build --target=node src/lazy-docker-entry.ts --outfile dist/lazy-docker.mjs",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "bunx oxlint --type-aware",

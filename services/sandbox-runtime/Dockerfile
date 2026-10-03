@@ -22,7 +22,7 @@ FROM oven/bun:1 AS daemon-build
 WORKDIR /build
 COPY services/sandbox-runtime/daemon/ ./
 RUN bun build --target=node src/main.ts --outfile /runnerd.mjs \
-    && bun build --target=node src/lazy-docker.ts --outfile /lazy-docker.mjs
+    && bun build --target=node src/lazy-docker-entry.ts --outfile /lazy-docker.mjs
 
 # Gemini's system settings must be immutable and root-owned. Derive them
 # from the platform's existing harness interpreter, without a package install.
