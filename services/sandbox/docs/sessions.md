@@ -199,7 +199,8 @@ rather than treating a suffix as complete history.
 
 `POST /files/stage` accepts the existing `files` list: a destination `path`
 and either `url` or `contentBase64`. Downloads stream to a temporary file,
-with a 100 MiB cap and 25-second per-file deadline, and atomically replace the
+with a 100 MiB cap, a 25-second per-file deadline and one 25-second deadline for
+the entire batch, and atomically replace the
 destination only after success. Inline files remain capped at 1 MiB. Cancelled,
 failed and oversized transfers leave the previous destination intact and
 remove their temporary file. Parent symlinks cannot redirect staging outside
@@ -310,17 +311,35 @@ hold memory in the line, but consume no additional session slot. These checks
 apply only where the Docker host's memory can be verified, and do not impose a
 hard aggregate memory limit on already-running work.
 
-On the Docker backend, admission also keeps a floor of free space on the disk
-the workspaces live on — the session root, read with `statfs` every five
-seconds (`host-disk.ts`): `SANDBOX_MIN_FREE_DISK`, a twentieth of the disk,
-at least 2 GiB and at most 20 GiB (`0` turns it off). Below it every create
+On the Docker backend, admission also keeps a floor of free space on the
+workspace filesystem and Docker's metadata filesystem where it can be verified.
+`statfs` reads the session root and the verified Docker hostname bind every
+five seconds (`host-disk.ts`). `SANDBOX_MIN_FREE_DISK` sets the floor on each
+filesystem; unset, it is a twentieth of each, at least 2 GiB and at most
+20 GiB (`0` turns it off). Below either filesystem's floor every create
 answers 429 `host_disk`; no idle session is reclaimed for it, since a stopped
 session keeps its workspace. The spawner logs the disk going below its floor
 and coming back. Meanwhile each build-cache upkeep removes the helpers and
 caches of organizations whose helpers are all stopped and that no session or
 create may use, the longest-stopped first, at most three a run and only while
 the disk stays short; a removal that frees nothing on that disk (the caches
-live on another one) pauses the removals for six hours.
+live on another one) pauses the removals for six hours. If a different
+filesystem becomes the most constrained after removal, upkeep stops that pass
+and reassesses next sweep instead of comparing free bytes across disks.
+
+The Docker observation reuses the spawner's existing `/etc/hostname` bind.
+Its full container identity and source path must agree with the selected
+daemon's container inspection and data-root; discovery uses bounded Docker
+metadata calls, cached for ten minutes (thirty seconds after an unavailable
+observation). A transient metadata failure keeps an already verified mount
+only while its kernel mount entry is unchanged. No helper container or extra host mount is created. If the bind
+cannot be verified, the spawner logs that Docker disk pressure is unknown
+and continues observing the workspace filesystem. This covers Docker's
+metadata filesystem, including local volumes only when they share it;
+separately mounted volume directories, custom volume drivers, and separate
+containerd image/snapshot stores remain outside the check. The floor controls
+admission of new work, not disk writes by existing work. Hard per-session
+quotas still require [operator-provisioned storage](docker-in-container.md#storage--lifecycle).
 
 **Room goes first come, first served.** A create refused for room (429
 `session_quota`, `host_memory` or `host_disk`) waits in a line, by session id, in the

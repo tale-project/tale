@@ -50,6 +50,8 @@ export function isDeniedEnvName(name: string): boolean {
 
 export interface RunnerdHealth {
   ok: true;
+  /** DinD /_ping readiness. False keeps liveness healthy but blocks new work. */
+  dockerReady?: boolean;
   bootedAtMs: number;
   lastActivityAtMs: number;
   liveExecs: number;
@@ -146,6 +148,72 @@ export type RunnerdExecEvent = (
       message: string;
     }
 ) & { seq?: number };
+
+/** Validate every record at both replay and HTTP boundaries. Additive fields
+ * are allowed; missing or corrupt payloads must never advance a stream cursor. */
+export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
+  if (!isObject(value)) return false;
+  if (value.seq !== undefined && !positiveInteger(value.seq)) return false;
+  switch (value.t) {
+    case 'replay-start':
+      return true;
+    case 'replay-complete':
+      return (
+        nonNegativeNumber(value.throughSeq) &&
+        Number.isSafeInteger(value.throughSeq)
+      );
+    case 'start':
+      return (
+        typeof value.execId === 'string' &&
+        value.execId.length > 0 &&
+        nonNegativeNumber(value.startedAtMs)
+      );
+    case 'stdout':
+    case 'stderr':
+      // Buffer.from(base64) silently ignores corrupt characters. Validate the
+      // alphabet and padding without decoding/allocating another output copy.
+      return (
+        typeof value.b64 === 'string' &&
+        value.b64.length % 4 === 0 &&
+        /^[A-Za-z0-9+/]*={0,2}$/.test(value.b64)
+      );
+    case 'exit':
+      return (
+        typeof value.exitCode === 'number' &&
+        Number.isSafeInteger(value.exitCode) &&
+        nonNegativeNumber(value.durationMs) &&
+        typeof value.timedOut === 'boolean' &&
+        typeof value.cancelled === 'boolean' &&
+        isObject(value.truncated) &&
+        typeof value.truncated.stdout === 'boolean' &&
+        typeof value.truncated.stderr === 'boolean'
+      );
+    case 'fail':
+      return (
+        typeof value.message === 'string' &&
+        (value.code === 'INVALID_CWD' ||
+          value.code === 'EXEC_LIMIT' ||
+          value.code === 'DUPLICATE_EXEC' ||
+          value.code === 'BAD_REQUEST' ||
+          value.code === 'OUTPUT_LIMIT' ||
+          value.code === 'REPLAY_UNAVAILABLE')
+      );
+    default:
+      return false;
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function positiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
 
 export interface RunnerdCancelResponse {
   killed: boolean;

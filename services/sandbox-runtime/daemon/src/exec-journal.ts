@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 
-import type { RunnerdExecEvent } from './protocol.ts';
+import { isRunnerdExecEvent, type RunnerdExecEvent } from './protocol.ts';
 
 const EXEC_BYTES = 64 * 1024 * 1024;
 const SESSION_BYTES = 256 * 1024 * 1024;
@@ -384,37 +384,5 @@ export class ExecJournal {
       // Failed close does not make its storage available to another writer.
       .catch(() => {})
       .finally(() => this.released.resolve());
-  }
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
-
-/** Narrow a recorded protocol line to a RunnerdExecEvent. Lines are produced by
- * ringEmit (JSON.stringify of our own union), so this is defence-in-depth, but
- * it keeps the replay path cast-free: validate the `t` discriminator + the
- * required per-variant fields before emitting. */
-function isRunnerdExecEvent(v: unknown): v is RunnerdExecEvent {
-  if (!isObject(v)) return false;
-  if (v.seq !== undefined && typeof v.seq !== 'number') return false;
-  switch (v.t) {
-    case 'start':
-      return typeof v.execId === 'string' && typeof v.startedAtMs === 'number';
-    case 'stdout':
-    case 'stderr':
-      return typeof v.b64 === 'string';
-    case 'exit':
-      return (
-        typeof v.exitCode === 'number' &&
-        typeof v.durationMs === 'number' &&
-        typeof v.timedOut === 'boolean' &&
-        typeof v.cancelled === 'boolean' &&
-        isObject(v.truncated)
-      );
-    case 'fail':
-      return typeof v.code === 'string' && typeof v.message === 'string';
-    default:
-      return false;
   }
 }

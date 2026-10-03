@@ -1330,6 +1330,35 @@ export interface SessionExecResult {
   errorMessage?: string;
 }
 
+const execOutputSchema = z
+  .object({
+    text: z.string().optional(),
+    b64: z.base64().optional(),
+    seq: z.number().int().positive().optional(),
+  })
+  .refine((value) => value.text !== undefined || value.b64 !== undefined);
+
+const execResultSchema = z.object({
+  status: z.enum(['completed', 'failed', 'cancelled']),
+  exitCode: z.number().int().nullable(),
+  durationMs: z.number().nonnegative(),
+  stdoutBase64: z.base64(),
+  stderrBase64: z.base64(),
+  truncated: z.object({ stdout: z.boolean(), stderr: z.boolean() }),
+  errorCode: z.string().optional(),
+  errorMessage: z.string().optional(),
+}) satisfies z.ZodType<SessionExecResult>;
+
+const execErrorSchema = z.object({
+  message: z.string().optional(),
+  code: z.string().optional(),
+});
+
+const replayStartSchema = z.object({});
+const replayCompleteSchema = z.object({
+  throughSeq: z.number().int().nonnegative(),
+});
+
 export interface SessionExecCallbacks {
   onStdout?: (text: string) => void;
   onStderr?: (text: string) => void;
@@ -1555,25 +1584,20 @@ async function consumeExecSse(
   };
   const handleEvent = (event: string, data: string): void => {
     if (event === 'replay-start') {
+      parseExecData(data, replayStartSchema, event);
       journal = true;
       if (attaching) replay = 'journal';
       return;
     }
     if (event === 'stdout' || event === 'stderr') {
-      const parsed = parseData<{ text?: string; b64?: string; seq?: number }>(
-        data,
-      );
-      if (
-        cursor &&
-        typeof parsed?.seq === 'number' &&
-        parsed.seq <= cursor.lastSeq
-      )
+      const parsed = parseExecData(data, execOutputSchema, event);
+      if (cursor && parsed.seq !== undefined && parsed.seq <= cursor.lastSeq)
         return;
       if (
         attaching &&
         !journal &&
         cursor &&
-        typeof parsed?.seq === 'number' &&
+        parsed.seq !== undefined &&
         parsed.seq > Math.max(2, cursor.lastSeq + 1)
       ) {
         throw new ExecStreamProtocolError(
@@ -1586,11 +1610,11 @@ async function consumeExecSse(
       if (replay === 'unknown') completeReplay();
       try {
         const text =
-          typeof parsed?.b64 === 'string'
+          parsed.b64 !== undefined
             ? outputDecoders[event].decode(Buffer.from(parsed.b64, 'base64'), {
                 stream: true,
               })
-            : (parsed?.text ?? '');
+            : (parsed.text ?? '');
         if (text !== '') {
           if (event === 'stdout') callbacks.onStdout?.(text);
           else callbacks.onStderr?.(text);
@@ -1607,31 +1631,25 @@ async function consumeExecSse(
       // be silently skipped on reconnect.
       // Advance the reconnect cursor as each seq'd delta is consumed, so a drop
       // resumes from exactly here (no missed or replayed bytes).
-      if (
-        cursor &&
-        typeof parsed?.seq === 'number' &&
-        parsed.seq > cursor.lastSeq
-      ) {
+      if (cursor && parsed.seq !== undefined && parsed.seq > cursor.lastSeq) {
         cursor.lastSeq = parsed.seq;
       }
     } else if (event === 'replay-complete') {
+      parseExecData(data, replayCompleteSchema, event);
       completeReplay();
     } else if (event === 'result') {
+      const parsed = parseExecData(data, execResultSchema, event);
       if (replay === 'unknown') completeReplay();
-      const parsed = parseData<SessionExecResult>(data);
-      if (parsed) result = parsed;
+      result = parsed;
     } else if (event === 'error') {
-      const parsed = parseData<{ message?: string; code?: string }>(data);
-      const message = parsed?.message ?? 'sandbox session exec stream error';
+      const parsed = parseExecData(data, execErrorSchema, event);
+      const message = parsed.message ?? 'sandbox session exec stream error';
       // The spawner's attach grammar for an unknown exec (session-routes.ts):
       // `exec <id> not found`.
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
-      if (
-        parsed?.code?.startsWith('REPLAY_') ||
-        parsed?.code === 'OUTPUT_LIMIT'
-      )
+      if (parsed.code?.startsWith('REPLAY_') || parsed.code === 'OUTPUT_LIMIT')
         throw new ExecStreamProtocolError(message);
       throw new Error(message);
     }
@@ -1705,26 +1723,39 @@ function parseSseBlock(
   handle: (event: string, data: string) => void,
 ): void {
   let event = 'message';
-  let data = '';
+  const data: string[] = [];
   for (const line of block.split('\n')) {
-    if (line.startsWith('event: ')) event = line.slice(7).trim();
-    else if (line.startsWith('data: ')) data = line.slice(6);
-    // ': ' comment lines (keepalive) are ignored.
+    const colon = line.indexOf(':');
+    const field = colon < 0 ? line : line.slice(0, colon);
+    const raw = colon < 0 ? '' : line.slice(colon + 1);
+    const value = raw.startsWith(' ') ? raw.slice(1) : raw;
+    if (field === 'event') event = value.trim();
+    else if (field === 'data') data.push(value);
+    // Comment lines (keepalive) have an empty field and are ignored.
   }
-  if (data) handle(event, data);
+  // An explicitly empty data field still dispatches: known events must fail
+  // payload validation instead of disappearing before a later valid result.
+  if (data.length > 0) handle(event, data.join('\n'));
 }
 
-function parseData<T>(data: string): T | null {
+/** Called only after the SSE frame is complete. A broken JSON payload is not
+ * a transport split: ignoring it would let later records advance the cursor
+ * past lost lifecycle or usage facts. Keep raw payloads out of the refusal. */
+function parseExecData<T>(
+  data: string,
+  schema: z.ZodType<T>,
+  event: string,
+): T {
+  let value: unknown;
   try {
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    return JSON.parse(data) as T;
+    value = JSON.parse(data);
   } catch {
-    // Intentional silence: SSE legitimately delivers partial/malformed payloads
-    // (a chunk split mid-JSON, a stray keepalive). Callers handle null and the
-    // remainder is reassembled on the next read — logging here would fire on
-    // every benign partial chunk.
-    return null;
+    throw new ExecStreamProtocolError(`Invalid sandbox ${event} event`);
   }
+  const parsed = schema.safeParse(value);
+  if (!parsed.success)
+    throw new ExecStreamProtocolError(`Invalid sandbox ${event} event`);
+  return parsed.data;
 }
 
 async function safeText(res: Response): Promise<string> {

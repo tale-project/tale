@@ -37,7 +37,9 @@ File staging streams each URL into a temporary file beside its destination
 and replaces the destination only after a complete, bounded download. Cancelling
 or failing a download preserves the previous file. At most two stage requests
 are admitted at once, including their JSON intake; excess requests report
-`busy`. URL inputs retain their 100 MiB limit and 25-second per-file deadline;
+`busy`. The entire staging batch has a 25-second deadline; queued items cannot
+extend it by taking turns. URL inputs retain their 100 MiB limit and
+25-second per-file deadline;
 inline inputs retain their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination; a changed file is repaired. Explicit final
@@ -121,6 +123,15 @@ shared container gate runs on amd64. Each native amd64/arm64 runtime build also
 runs this document check for both users against its pushed image digest, after
 verifying the source, revision and version labels. Both builds must pass before
 the release manifests are published.
+
+Inner Docker startup has a 30-second readiness budget, with each Docker client
+probe bounded to two seconds. After startup, runnerd checks the fixed local
+socket directly with a 750 ms deadline and shares results for one second.
+A failed engine makes `/readyz` and new acquire/exec requests return 503;
+authenticated `/healthz` keeps reporting process activity with
+`dockerReady: false`. The spawner recycles only an atomically claimed idle,
+unpinned session, preserving its workspace. Running work and pinned sessions
+remain protected; engine recovery makes them ready again.
 
 Before starting inner Docker on either backend, the runtime checks IPv4 routes
 and gateways from all tables, interface addresses and prefixes, DNS servers,
