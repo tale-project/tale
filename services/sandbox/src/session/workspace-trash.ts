@@ -14,6 +14,13 @@
 // own, so destroying that new session never meets the old workspace still
 // being deleted.
 //
+// Taken out of use is not deleted. The destroy answers once the rename lands;
+// what an erasure or a retirement may claim waits for the bytes, so the trash
+// also says how far the deletion of one id's entries has come (`deletion`),
+// and lets a caller have them attempted now and wait a bounded time for the
+// result (`settle`). Both read the trash itself, so a restart never turns
+// bytes still on disk into `done`.
+//
 // Trash that a restart or a crash cut short stays on disk until the boot sweep
 // empties it (cleanup.ts), and the periodic sweep retries what a pass could not
 // remove. `.trash/` is a dot-dir, and its entries' names carry a `.`: the
@@ -23,6 +30,8 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, readdir, rename, rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+
+import type { WorkspaceDeletion } from '../backend/types.ts';
 
 /** The trash dir under the host session root. */
 const TRASH_DIR_NAME = '.trash';
@@ -57,6 +66,12 @@ export class WorkspaceTrash {
   readonly dir: string;
   private pass: Promise<void> | null = null;
   private passAgain = false;
+  /** Entries whose last removal failed. Kept in memory only: after a restart
+   * such an entry reads `pending` until a pass has tried it again. */
+  private readonly failed = new Set<string>();
+  /** Settles with the entry the next removal attempt was at, or `null` once
+   * the pass ends. */
+  private attempted = Promise.withResolvers<string | null>();
 
   /** @param remove Deletes one tree; tests hand in one they can hold. */
   constructor(
@@ -69,10 +84,12 @@ export class WorkspaceTrash {
   /**
    * Take `path` out of use and have it deleted. Resolves once nothing is left
    * under the name: the tree was renamed into the trash, which a background
-   * pass empties, or there was nothing there. When the rename cannot happen
-   * (another filesystem, no room for a directory entry), the tree is deleted
-   * in place before this resolves, as it was before the trash existed — and
-   * that THROWS when it fails, leaving what it could not remove where it was.
+   * pass empties, or there was nothing there. Out of use is not yet deleted:
+   * {@link deletion} says how far the background pass came. When the rename
+   * cannot happen (another filesystem, no room for a directory entry), the
+   * tree is deleted in place before this resolves, as it was before the trash
+   * existed — and that THROWS when it fails, leaving what it could not remove
+   * where it was.
    */
   async discard(path: string): Promise<void> {
     try {
@@ -111,9 +128,76 @@ export class WorkspaceTrash {
       })
       .finally(() => {
         this.pass = null;
+        this.announceAttempt(null);
       });
     this.pass = pass;
     return pass;
+  }
+
+  /**
+   * How far deleting what was discarded from `path` has come: `done` once no
+   * trash entry of it is left, `failed` while the last attempt at one of them
+   * failed, `pending` while they wait or are being deleted. Entries are
+   * matched by the name {@link discard} gives them (`<name>.<uuid>`; a
+   * session id holds no `.`), so a fresh workspace under the same name never
+   * counts. THROWS when the trash cannot be read: unknown is not `done`.
+   */
+  async deletion(path: string): Promise<WorkspaceDeletion> {
+    const prefix = `${basename(path)}.`;
+    let names: string[];
+    try {
+      names = await readdir(this.dir);
+    } catch (err) {
+      // No trash: nothing was ever discarded under this root.
+      if (isMissing(err)) return 'done';
+      throw err;
+    }
+    const left = names.filter((name) => name.startsWith(prefix));
+    if (left.length === 0) return 'done';
+    return left.some((name) => this.failed.has(name)) ? 'failed' : 'pending';
+  }
+
+  /**
+   * Have what is left of `path` in the trash attempted now — an entry whose
+   * removal failed is tried again — and wait up to `waitMs` for the outcome.
+   * Answers {@link deletion} at the end: still `pending` when the time ran
+   * out first (a large tree, or other entries ahead of it in the pass).
+   */
+  async settle(path: string, waitMs: number): Promise<WorkspaceDeletion> {
+    const deadline = Date.now() + waitMs;
+    // A failed entry is tried again, and reads pending until that answers.
+    const prefix = `${basename(path)}.`;
+    for (const name of this.failed) {
+      if (name.startsWith(prefix)) this.failed.delete(name);
+    }
+    for (;;) {
+      let attempted = this.attempted.promise;
+      const state = await this.deletion(path);
+      if (state !== 'pending') return state;
+      void this.empty();
+      // Look again after an attempt at one of these entries, or once the
+      // pass ends — not after every other entry the pass works through.
+      for (;;) {
+        const left = deadline - Date.now();
+        if (left <= 0) return this.deletion(path);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const name = await Promise.race([
+          attempted,
+          new Promise<undefined>((resolve) => {
+            timer = setTimeout(() => resolve(undefined), left);
+          }),
+        ]);
+        clearTimeout(timer);
+        if (name === undefined) return this.deletion(path);
+        if (name === null || name.startsWith(prefix)) break;
+        attempted = this.attempted.promise;
+      }
+    }
+  }
+
+  private announceAttempt(name: string | null): void {
+    this.attempted.resolve(name);
+    this.attempted = Promise.withResolvers<string | null>();
   }
 
   private async drain(): Promise<void> {
@@ -129,18 +213,28 @@ export class WorkspaceTrash {
         }
         return;
       }
+      // A failure mark outlives no entry: one removed by other means goes.
+      const listed = new Set(names);
+      for (const name of this.failed) {
+        if (!listed.has(name)) this.failed.delete(name);
+      }
       for (const name of names) {
         const path = join(this.dir, name);
         const startedAtMs = Date.now();
+        let removed = true;
         try {
           await this.remove(path);
         } catch (err) {
+          removed = false;
           console.warn(
             `[sandbox.trash] removing ${path} failed; the next pass retries it:`,
             err,
           );
-          continue;
         }
+        if (removed) this.failed.delete(name);
+        else this.failed.add(name);
+        this.announceAttempt(name);
+        if (!removed) continue;
         const tookMs = Date.now() - startedAtMs;
         if (tookMs >= LOG_REMOVAL_AFTER_MS) {
           console.log(
