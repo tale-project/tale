@@ -137,7 +137,7 @@ describe('drainSessionExecResilient', () => {
       return sseResponse([
         'event: error\ndata: {"code":"ATTACH_BUSY","message":"busy"}\n\n',
       ]);
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     await expect(
       drainSessionExecResilient(
         's',
