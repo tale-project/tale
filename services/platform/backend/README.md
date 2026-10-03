@@ -58,6 +58,7 @@ can fail before the application starts.
 | `AGENT_DRIVE_SLOTS` | Live agent turns' drive windows one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 16 (1–256); a worker drains about 2.5× this many live turns per lane before their windows wait past the recovery horizon |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SENTRY_DSN` | Optional error reporting |
+| `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | Manual HTTP and worker trace sample rate, `0` (disabled) by default, `0`–`1`; requires `SENTRY_DSN` and transaction support at the destination |
 
 An `api` process serves HTTP/SSE and can enqueue work; a `worker` consumes jobs
 and runs schedules. `all` combines both for local development. Every role runs
@@ -207,3 +208,21 @@ must also leave the shared user's organization memberships as it found them, or
 it fails: every later `/api/v1` call on that user's keys would answer
 `ORG_SLUG_REQUIRED`. A probe that needs another organization gives it an owner of
 its own.
+
+
+## Measure backend work
+
+Prometheus request labels use a finite vocabulary of HTTP methods and mounted app
+domains. Unknown methods and paths share fallback labels. Concurrent `/metrics`
+scrapes share one render and one round of collectors; the next scrape reads afresh.
+
+Set `BACKEND_SENTRY_TRACES_SAMPLE_RATE` above `0` to sample backend operations
+independently of browser tracing. HTTP spans measure handler completion, excluding
+response-body streaming and health/metrics probes. Worker spans measure each job
+and its drain check, handler or handover. Jobs in a batch have independent traces.
+Trace data contains bounded operation names, HTTP method/route class/status,
+process role and release, without request/job payloads, raw SQL, identifiers,
+URLs, inherited user context or breadcrumbs. Automatic performance integrations
+stay disabled and outgoing requests receive no trace headers. See the
+[operator guide](https://docs.tale.dev/self-hosted/configuration/observability-config)
+for configuration and sampling limits.

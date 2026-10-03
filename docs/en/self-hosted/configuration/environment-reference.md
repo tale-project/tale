@@ -126,7 +126,8 @@ See [Audit log integrity](/self-hosted/operate/security/audit-log-integrity) for
 | Name                        | Default | Description                                                                                                                            |
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `SENTRY_DSN`                | unset   | Sentry DSN for error tracking. Leave unset to disable. Compatible with self-hosted GlitchTip and Bugsink.                              |
-| `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optional sample rate for browser performance traces (`0.0`–`1.0`). Browser-only — the backend reports errors, never traces.            |
+| `SENTRY_TRACES_SAMPLE_RATE` | unset | Optional sample rate for browser performance traces (`0.0`–`1.0`); independent of backend sampling. |
+| `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | `0` | Backend HTTP and worker span sample rate (`0.0`–`1.0`). Requires `SENTRY_DSN` and a destination accepting Sentry transactions; `0` disables spans. |
 | `METRICS_BEARER_TOKEN` | unset | Bearer token for the proxy’s `/metrics/*` routes. Without a configured token they return 401. Internal process endpoints remain a separate network-access concern. |
 | `UMAMI_URL` | unset | HTTPS origin of the authenticated collector gateway. HTTP is accepted only for local testing on `localhost`, `127.0.0.1` or `[::1]`. Requires a valid website ID and proxy token; no path, query or credentials in this URL. |
 | `UMAMI_WEBSITE_ID` | unset | Umami website UUID. Unset or invalid disables aggregate analytics; use a separate ID for each deployment. |

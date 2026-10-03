@@ -73,6 +73,8 @@ const envSchema = z.object({
    * unset disables it entirely. See `error-reporting.ts`.
    */
   SENTRY_DSN: z.string().optional(),
+  /** Manual backend spans only; independent of browser sampling. */
+  BACKEND_SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
 });
 
 export type BackendEnv = z.infer<typeof envSchema>;

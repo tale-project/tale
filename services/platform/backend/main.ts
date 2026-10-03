@@ -40,7 +40,11 @@ async function main(): Promise<void> {
   const env = loadEnv();
   // First thing after the env parse, so even a failing boot (migrations, DB
   // connectivity) reports before the process dies. No-op without SENTRY_DSN.
-  initErrorReporting({ dsn: env.SENTRY_DSN, role: env.ROLE });
+  initErrorReporting({
+    dsn: env.SENTRY_DSN,
+    role: env.ROLE,
+    tracesSampleRate: env.BACKEND_SENTRY_TRACES_SAMPLE_RATE,
+  });
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);
 

@@ -221,7 +221,7 @@ describe('error reporting with a DSN', () => {
     // (the CLI writes `'0'` by default), and the SDK reads it. With it set,
     // `tracePropagationTargets: []` alone stopped nothing on the wire
     // (2026-09-18 evaluation, J6-1) — so the whole suite runs with it.
-    process.env.SENTRY_TRACES_SAMPLE_RATE = '0';
+    process.env.SENTRY_TRACES_SAMPLE_RATE = '1';
     ingest = createServer((req, res) => {
       if (req.url?.startsWith('/probe')) {
         // A plain outgoing request from this process — what a third-party
@@ -305,7 +305,7 @@ describe('error reporting with a DSN', () => {
     // dispatcher the crawler's `safeFetch` dials through.
     const options = Sentry.getClient()?.getOptions();
     expect(options?.tracePropagationTargets).toEqual([]);
-    // The knob reached the SDK: span recording is on, at zero.
+    // Browser sampling cannot enable backend spans.
     expect(options?.tracesSampleRate).toBe(0);
     const res = await fetch(`http://127.0.0.1:${ingestPort}/probe`);
     expect(res.status).toBe(200);
@@ -403,7 +403,7 @@ describe('error reporting with a DSN', () => {
       );
       expect(event).toBeDefined();
       const tags = event?.tags as Record<string, string>;
-      expect(tags['http.route_class']).toBe('/api/app/widgets');
+      expect(tags['http.route_class']).toBe('/api/app');
     } finally {
       consoleError.mockRestore();
     }
