@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { EnvStore } from './env-store.ts';
-import { ExecManager } from './exec-manager.ts';
+import { ExecManager, resolveExecShim } from './exec-manager.ts';
 import type { RunnerdExecEvent, RunnerdExecRequest } from './protocol.ts';
 
 const SOURCE = fileURLToPath(
@@ -356,6 +356,35 @@ function standIn(name: string, lines: string[], code = 0): string {
   writeFileSync(path, `#!/bin/sh\n${says}\nexit ${code}\n`, { mode: 0o755 });
   return path;
 }
+
+describe('which shim execs run under', () => {
+  test('the one TALE_EXEC_SHIM names when it is executable, none when it is not', () => {
+    const executable = standIn('resolve-me', [], 0);
+    expect(resolveExecShim({ TALE_EXEC_SHIM: executable }, 'linux')).toBe(
+      executable,
+    );
+    const plain = `${ROOT}/not-executable`;
+    writeFileSync(plain, '#!/bin/sh\n', { mode: 0o644 });
+    expect(resolveExecShim({ TALE_EXEC_SHIM: plain }, 'linux')).toBeNull();
+    expect(
+      resolveExecShim({ TALE_EXEC_SHIM: `${ROOT}/missing` }, 'linux'),
+    ).toBeNull();
+  });
+
+  test('none when TALE_EXEC_SHIM is empty, or off Linux', () => {
+    const executable = standIn('resolve-off', [], 0);
+    expect(resolveExecShim({ TALE_EXEC_SHIM: '' }, 'linux')).toBeNull();
+    expect(
+      resolveExecShim({ TALE_EXEC_SHIM: executable }, 'darwin'),
+    ).toBeNull();
+  });
+
+  test('unset, the runtime image’s own shim, where it is installed', () => {
+    expect([null, '/usr/local/bin/tale-exec-shim']).toContain(
+      resolveExecShim({}, 'linux'),
+    );
+  });
+});
 
 describe('the shim’s status pipe', () => {
   // Fake pids the stand-ins name: only recorded, never signalled.
