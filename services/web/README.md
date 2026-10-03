@@ -47,12 +47,19 @@ of the box. Set these at deploy time (compose, systemd, K8s), or via a local
   this snapshot; it also provides the cold-start and offline feed fallback.
 - **Runtime feed** — `GET /api/releases` (`lib/releases/feed.ts`) re-fetches
   the full two-page list on a 30-minute TTL and the page swaps it in after
-  hydration, still displaying only the newest 40 releases.
+  hydration, still displaying only the newest 40 releases. `GET /changelog.json` serves the same
+  cache outside the `/api/` robots exclusion, with complete release bodies, `source` and `fetchedAt`.
+  Each localized changelog advertises it as an alternate representation; `llms.txt` links to it.
+  Readers that do not run JavaScript can use this endpoint for current notes.
 
 Both layers are needed: release images are built _before_ the release workflow
 publishes the GitHub release, so a snapshot alone is always at least one
 release behind. Reads never block on GitHub — a failed refresh keeps the last
-good list (or the snapshot) and backs off.
+good list (or the snapshot) and backs off. Both JSON routes cache responses for five minutes.
+`/api/health` exposes `checks.releases` with the source, fetch time and age in seconds. After six
+hours without fresh data its `ok` becomes false, and a failed refresh reports one monitoring
+error per stale episode. Release freshness is advisory: it does not make site readiness fail.
+A successful refresh resets the report so a later outage can be detected.
 
 ## Optional error reporting
 

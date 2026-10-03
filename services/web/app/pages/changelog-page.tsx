@@ -2,6 +2,7 @@ import {
   buildBreadcrumbListJsonLd,
   buildItemListJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
+import { TALE_SITE_URL } from '@tale/ui/seo/globals';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ReleaseBody } from '@/app/components/blocks/changelog/release-body';
@@ -32,9 +33,14 @@ import {
   prerenderedBodyCount,
   RELEASE_DISPLAY_LIMIT,
 } from '@/lib/releases/prerender-budget';
+import { CHANGELOG_JSON_ROUTE } from '@/lib/releases/route';
 import type { Release } from '@/lib/releases/types';
 import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
+
+const RELEASE_ALTERNATE_FORMATS = [
+  { href: `${TALE_SITE_URL}${CHANGELOG_JSON_ROUTE}`, type: 'application/json' },
+] as const;
 
 /** True when the GitHub release name is more than a version restatement. */
 function distinctiveReleaseName(release: Release): string | null {
@@ -140,6 +146,7 @@ export function ChangelogPage() {
     description: tSeo('changelog.description'),
     path: '/changelog',
     jsonLd,
+    alternateFormats: RELEASE_ALTERNATE_FORMATS,
   });
 
   const releaseStream = (

@@ -10,7 +10,7 @@ import {
   RELEASES_FETCHED_AT,
 } from './app/generated/releases-manifest';
 import { createReleaseFeed } from './lib/releases/feed';
-import { handleReleasesRequest, RELEASES_ROUTE } from './lib/releases/route';
+import { handleReleasesRequest, RELEASES_ROUTES } from './lib/releases/route';
 import { createMarketingArtifactsServer } from './lib/seo/artifacts-server';
 
 // In dev the SSR loader is bound at the first artifact request via the
@@ -38,19 +38,21 @@ const devReleaseFeed = createReleaseFeed({
 });
 
 function mountReleaseFeedRoute(middlewares: Connect.Server): void {
-  middlewares.use(RELEASES_ROUTE, (request, nodeResponse) => {
-    const response = handleReleasesRequest(
-      new Request(`http://localhost${RELEASES_ROUTE}`, {
-        method: request.method ?? 'GET',
-      }),
-      devReleaseFeed,
-    );
-    nodeResponse.statusCode = response.status;
-    for (const [key, value] of response.headers) {
-      nodeResponse.setHeader(key, value);
-    }
-    void response.text().then((text) => nodeResponse.end(text));
-  });
+  for (const path of RELEASES_ROUTES) {
+    middlewares.use(path, (request, nodeResponse) => {
+      const response = handleReleasesRequest(
+        new Request(`http://localhost${path}`, {
+          method: request.method ?? 'GET',
+        }),
+        devReleaseFeed,
+      );
+      nodeResponse.statusCode = response.status;
+      for (const [key, value] of response.headers) {
+        nodeResponse.setHeader(key, value);
+      }
+      void response.text().then((text) => nodeResponse.end(text));
+    });
+  }
 }
 
 export default defineConfig({

@@ -302,3 +302,50 @@ describe('applyHeadToDocument ↔ renderHeadToHtml parity', () => {
     ).toBe(0);
   });
 });
+
+describe('alternate representations', () => {
+  beforeEach(() => {
+    document.head.innerHTML = '';
+  });
+
+  it('keeps language alternates and format links distinct in SSR and client, removing stale formats on navigation', () => {
+    const input = {
+      ...base,
+      alternateFormats: [
+        { href: 'https://tale.dev/changelog.json', type: 'application/json' },
+        {
+          href: 'https://tale.dev/changelog.atom',
+          type: 'application/atom+xml',
+        },
+      ],
+      hreflang: {
+        locale: 'en' as const,
+        alternates: {
+          en: 'https://tale.dev/changelog',
+          de: 'https://tale.dev/de/changelog',
+        },
+      },
+    };
+    const tags = resolveDocumentHead(input);
+    document.head.innerHTML = renderHeadToHtml(tags);
+    expect(
+      document.head.querySelectorAll('link[rel="alternate"][type]'),
+    ).toHaveLength(2);
+    applyHeadToDocument(tags);
+    expect(
+      document.head.querySelectorAll('link[rel="alternate"][type]'),
+    ).toHaveLength(2);
+    expect(
+      document.head.querySelector('link[hreflang="de"]')?.getAttribute('href'),
+    ).toBe('https://tale.dev/de/changelog');
+    expect(
+      document.head
+        .querySelector('link[type="application/json"]')
+        ?.getAttribute('href'),
+    ).toBe('https://tale.dev/changelog.json');
+    applyHeadToDocument(resolveDocumentHead(base));
+    expect(
+      document.head.querySelectorAll('link[rel="alternate"][type]'),
+    ).toHaveLength(0);
+  });
+});

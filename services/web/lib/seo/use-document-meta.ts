@@ -1,6 +1,9 @@
 import { buildLocaleAlternateUrls } from '@tale/ui/seo/alternates';
 import { TALE_SITE_URL } from '@tale/ui/seo/globals';
-import { useTaleDocumentMeta } from '@tale/ui/seo/tale-document-meta';
+import {
+  useTaleDocumentMeta,
+  type TaleDocumentMetaInput,
+} from '@tale/ui/seo/tale-document-meta';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -36,6 +39,7 @@ interface DocumentMeta {
    * identity feeds the head effect (see docs-page.tsx for the pattern).
    */
   jsonLd?: string[];
+  alternateFormats?: TaleDocumentMetaInput['alternateFormats'];
 }
 
 /**
@@ -50,6 +54,7 @@ export function useDocumentMeta({
   canonicalPath,
   noindex,
   jsonLd,
+  alternateFormats,
 }: DocumentMeta) {
   const locale = useCurrentLocale();
   const { t } = useT('seo');
@@ -85,5 +90,6 @@ export function useDocumentMeta({
     noindex,
     hreflang,
     jsonLd,
+    alternateFormats,
   });
 }

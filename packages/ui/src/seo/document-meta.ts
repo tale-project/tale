@@ -42,6 +42,7 @@ export function useDocumentMeta(meta: DocumentMeta): void {
     noindex,
     hreflang,
     jsonLd,
+    alternateFormats,
   } = meta;
 
   // SSR capture. Effects don't run under `renderToString`, so record the
@@ -71,6 +72,7 @@ export function useDocumentMeta(meta: DocumentMeta): void {
         noindex,
         hreflang,
         jsonLd,
+        alternateFormats,
       }),
     );
   }, [
@@ -90,6 +92,7 @@ export function useDocumentMeta(meta: DocumentMeta): void {
     noindex,
     hreflang,
     jsonLd,
+    alternateFormats,
   ]);
 }
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ReleaseFeed, ReleaseFeedPayload } from './feed';
-import { handleReleasesRequest, RELEASES_ROUTE } from './route';
+import {
+  handleReleasesRequest,
+  RELEASES_ROUTE,
+  CHANGELOG_JSON_ROUTE,
+  RELEASES_ROUTES,
+} from './route';
 
 const PAYLOAD: ReleaseFeedPayload = {
   releases: [
@@ -26,6 +31,14 @@ const feed: ReleaseFeed = {
 const url = `http://localhost:3001${RELEASES_ROUTE}`;
 
 describe('handleReleasesRequest', () => {
+  it('shares one source for the crawlable and application URLs', async () => {
+    expect(RELEASES_ROUTES).toEqual([RELEASES_ROUTE, CHANGELOG_JSON_ROUTE]);
+    const response = handleReleasesRequest(
+      new Request(`http://localhost${CHANGELOG_JSON_ROUTE}`),
+      feed,
+    );
+    expect(await response.json()).toEqual(PAYLOAD);
+  });
   it('serves the feed as cacheable JSON', async () => {
     const response = handleReleasesRequest(new Request(url), feed);
 

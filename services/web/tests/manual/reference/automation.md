@@ -48,6 +48,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Registry bijection | ✅ | `lib/seo/marketing-routes.test.ts` |
 | [seo](../suites/seo.md) | Image budgets | ✅ | `tests/images.test.ts` |
 | [seo](../suites/seo.md) | Build-time release snapshot keeps the newest 40 complete releases without mutating the fetched list | ✅ | `lib/releases/write-manifest.test.ts` |
+| [seo](../suites/seo.md) | Crawlable live JSON releases, cache fallback, six-hour freshness reporting and localized alternate links | ✅ | `lib/releases/route.test.ts`, `lib/releases/feed.test.ts`, `tests/prerender/seo.test.ts` |
 | [seo](../suites/seo.md) | Container HTTP probes | ✅ | `services/platform/tests/integration/container-web-test.ts` (`/nope`→404, `/pricing`, `/de/pricing`, sitemap, og.png) |
 | [seo](../suites/seo.md) | A path no file can carry — a NUL or another C0 control (`/%00`, `/a%00b`, `/de/%00`), or one past the OS path limit (5000 characters) — answers the real 404, never a reported 500 | ✅ automated | `packages/ui/src/server/static-paths.integration.test.ts` (`reportError` is not called) |
 | [seo](../suites/seo.md) | Lighthouse targets (Perf ≥95, SEO 100, a11y ≥95, BP 100, CLS 0) | 🔶 | Local Lighthouse 13.4 on built `start` (2026-07-09): desktop unthrottled `/` **99/100/100/100** CLS≈0; `/pricing` **100/100/100/100**; mobile default throttle `/` Perf **58** (FCP/LCP on Slow 4G), A11y/BP/SEO **100**. Re-run PSI on production after deploy. |
