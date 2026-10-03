@@ -1115,9 +1115,27 @@ describe('ExecManager', () => {
     const streams = consumers.map((consumer) =>
       mgr.attach('eattachcleanup', () => {}, 0, consumer.signal),
     );
+    // Handle every refusal immediately, before cancelling or yielding to the
+    // process. Admission rejects two readers without attaching any listeners.
+    const settled = Promise.allSettled(
+      streams.map((stream) => Promise.resolve(stream)),
+    );
     expect(streams.every((stream) => stream !== null)).toBe(true);
     expect(mgr.cancel('eattachcleanup')).toBe(true);
-    await Promise.all([done, ...streams]);
+    await done;
+    const outcomes = await settled;
+    expect(outcomes.map((outcome) => outcome.status)).toEqual([
+      ...Array.from({ length: 8 }, () => 'fulfilled' as const),
+      'rejected',
+      'rejected',
+    ]);
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        expect(outcome.reason).toMatchObject({
+          message: 'attachment limit reached',
+        });
+      }
+    }
     for (const consumer of consumers) {
       expect(getEventListeners(consumer.signal, 'abort')).toHaveLength(0);
     }
