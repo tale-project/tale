@@ -902,6 +902,7 @@ export function chatProjectsQuery(organizationId: string) {
           color?: string | null;
           pinnedAt?: number | null;
           projectAgentCount?: number;
+          managedAgentCount?: number;
           canEdit?: boolean;
         }[];
       }>('/projects', { signal, orgId: organizationId }).then((body) =>
@@ -916,6 +917,9 @@ export function chatProjectsQuery(organizationId: string) {
             // agent, and whether the reader may add one.
             typeof row.projectAgentCount === 'number'
               ? { projectAgentCount: row.projectAgentCount }
+              : {},
+            typeof row.managedAgentCount === 'number'
+              ? { managedAgentCount: row.managedAgentCount }
               : {},
             typeof row.canEdit === 'boolean' ? { canEdit: row.canEdit } : {},
           ),

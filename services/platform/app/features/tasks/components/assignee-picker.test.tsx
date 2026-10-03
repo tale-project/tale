@@ -206,6 +206,27 @@ describe('AssigneePicker', () => {
     consoleError.mockRestore();
   });
 
+  it('hides an unavailable managed standard agent and shows the no-agent note', async () => {
+    mockDirectoryAgents = [{ ...mockAgents[0], managed: true }];
+    mockStandardAgentAvailable = false;
+    const { open } = renderPicker();
+    await open();
+
+    expect(screen.queryByText('Research Bot')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.noAgentsReader'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps an available managed standard agent assignable', async () => {
+    mockDirectoryAgents = [{ ...mockAgents[0], managed: true }];
+    mockStandardAgentAvailable = true;
+    const { open } = renderPicker();
+    await open();
+
+    expect(screen.getByText('Research Bot')).toBeInTheDocument();
+  });
+
   it('offers no standard agent where the project has agents of its own', async () => {
     mockStandardAgentAvailable = true;
     const { open } = renderPicker();

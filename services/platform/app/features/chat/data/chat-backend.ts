@@ -333,6 +333,9 @@ export function useChatProjects(
         ...(project.projectAgentCount !== undefined
           ? { agentCount: project.projectAgentCount }
           : {}),
+        ...(project.managedAgentCount !== undefined
+          ? { managedAgentCount: project.managedAgentCount }
+          : {}),
         // The chat's own projects read carries it when the backend does.
         ...(typeof project.canEdit === 'boolean'
           ? { canEdit: project.canEdit }
