@@ -6,7 +6,7 @@ import {
   messageRef,
   parseMessageRef,
 } from '../../../lib/knowledge/message-ref.ts';
-import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
+import { listedBlobRefHeld } from '../files/blob-holders.ts';
 
 /**
  * Ref liveness — the two questions every lane that takes content out of
@@ -27,12 +27,13 @@ import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
  *      the corpus copy goes.
  *   2. blob-liveness — may the BYTES be deleted? Only when no document
  *      (`file_ref` or `history_files` — retained controlled-record snapshots
- *      need their bytes), no live file row and no task references the ref.
- *      WebDAV COPY shares one blob ref across several document rows, so a
- *      purge of one copy must never destroy the twin's bytes; a task lists
- *      its attachments and deliverables by ref with no row of its own
- *      (`tasks/blob-holders.ts`), so a file row deleted under it must not
- *      take the task's bytes along.
+ *      need their bytes), no live file row and no listed holder references
+ *      the ref. WebDAV COPY shares one blob ref across several document
+ *      rows, so a purge of one copy must never destroy the twin's bytes; a
+ *      task, a pending outbound mail and a chat message list their files by
+ *      ref with no row of their own (`files/blob-holders.ts`'
+ *      `listedBlobRefHeld`, the list `blobRefHeld` asks too), so a file row
+ *      purged under one must not take its bytes along (#4111).
  *
  * An indexed email body is keyed by MESSAGE ref instead (`msg:<message id>`,
  * `lib/knowledge/message-ref.ts`): it has no bytes and no file row, so it
@@ -117,7 +118,7 @@ export async function assessRefLiveness(
             AND (${excludeDoc}::text IS NULL OR fm.document_id IS NULL
                  OR fm.document_id <> ${excludeDoc})
         )
-        OR ${taskHoldsBlobRef(sql, args.organizationId, sql`r.ref`)}
+        OR ${listedBlobRefHeld(sql, args.organizationId, sql`r.ref`)}
       ) AS "blobLive"
     FROM unnest(${args.refs}::text[]) AS r(ref)
   `;

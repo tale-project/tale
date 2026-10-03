@@ -11,7 +11,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
-import { firstForeignUpload } from '../files/upload-intents.ts';
+import { assertOwnedAttachments } from './attachment-ownership.ts';
 import {
   IMPROVE_MAX_INPUT_CHARS,
   IMPROVE_MAX_INSTRUCTION_CHARS,
@@ -426,32 +426,23 @@ export function createConversationRoutes(deps: {
   });
 
   /**
-   * Outbound attachments are client-named blob refs the connector will READ
-   * and mail out of the organization. Each must be the sender's own upload
-   * (their upload intent, or a row they registered) — a document's ref,
-   * which every reader of that document holds, is not theirs to send.
+   * The early refusal of an attachment that is not the sender's own upload
+   * (`attachment-ownership.ts`): asked without a stamp, because the send's
+   * own transaction proves it again and stamps there (#4111).
    */
-  const assertOwnedAttachments = async (
+  const refuseForeignAttachments = (
     c: Context<OrgEnv>,
     attachments: readonly { storageId: string }[] | undefined,
-  ): Promise<void> => {
-    if (attachments === undefined || attachments.length === 0) return;
-    const foreign = await firstForeignUpload(
+  ): Promise<void> =>
+    assertOwnedAttachments(
       deps.sql,
       {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
       },
-      attachments.map((attachment) => attachment.storageId),
+      attachments,
+      { stamp: false },
     );
-    if (foreign !== null) {
-      throw new ConversationError(
-        'ATTACHMENT_NOT_OWNED',
-        'An attachment is not one of your uploads. Remove it and attach the file again.',
-        403,
-      );
-    }
-  };
 
   /** Send a reply through the conversation's connector (undo window). An
    * empty `content` beside files is an attachment-only reply. */
@@ -468,7 +459,7 @@ export function createConversationRoutes(deps: {
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
-      await assertOwnedAttachments(c, body.data.attachments);
+      await refuseForeignAttachments(c, body.data.attachments);
       const messageId = await replyToConversation(deps.sql, {
         conversationId: c.req.param('id'),
         organizationId: c.get('orgId'),
@@ -508,7 +499,7 @@ export function createConversationRoutes(deps: {
       .safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     try {
-      await assertOwnedAttachments(c, body.data.attachments);
+      await refuseForeignAttachments(c, body.data.attachments);
       const result = await composeEmailConversation(deps.sql, {
         organizationId: c.get('orgId'),
         contactId: body.data.contactId,

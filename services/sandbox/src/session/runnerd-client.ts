@@ -334,23 +334,47 @@ export async function runnerdEnvPatch(
   return body.denied ?? [];
 }
 
+/** A stage request refused before any file mutation; callers may retry it. */
+export class RunnerdStageBusyError extends Error {
+  constructor() {
+    super('runnerd staging is busy');
+  }
+}
+
 interface RunnerdStageResult {
   staged: Array<{ path: string; bytes: number }>;
   skipped: Array<{ path: string; reason: string }>;
+  reconciled?: true;
 }
 
 /** POST /files/stage — write each item into the workspace (inline base64
  * bytes, or fetched by the daemon from its URL). */
 export async function runnerdStageFiles(
   opts: RunnerdClientOptions,
-  files: Array<{ path: string; url?: string; contentBase64?: string }>,
+  files: Array<{
+    path: string;
+    url?: string;
+    contentBase64?: string;
+    sourceId?: string;
+  }>,
+  reconcile: { replaceRoots?: string[]; keepPaths?: string[] } = {},
 ): Promise<RunnerdStageResult> {
   const res = await fetch(`${opts.baseUrl}/files/stage`, {
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
-    body: JSON.stringify({ files }),
+    body: JSON.stringify({ files, ...reconcile }),
     signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
   });
+  if (res.status === 503) {
+    const body: unknown = await res.json().catch(() => null);
+    if (
+      body !== null &&
+      typeof body === 'object' &&
+      'error' in body &&
+      body.error === 'busy'
+    )
+      throw new RunnerdStageBusyError();
+  }
   if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   return (await res.json()) as RunnerdStageResult;
@@ -408,15 +432,22 @@ export async function runnerdListDir(
 export async function runnerdReadFile(
   opts: RunnerdClientOptions,
   path: string,
-): Promise<ArrayBuffer | null> {
+  signal?: AbortSignal,
+): Promise<Response | null> {
   const res = await fetch(
     `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}`,
     {
       headers: authHeaders(opts.token),
-      signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        ...(signal === undefined ? [] : [signal]),
+      ]),
     },
   );
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`runnerd /fs/read ${res.status}`);
-  return res.arrayBuffer();
+  if (!res.ok) {
+    await res.body?.cancel();
+    if (res.status === 404) return null;
+    throw new Error(`runnerd /fs/read ${res.status}`);
+  }
+  return res;
 }
