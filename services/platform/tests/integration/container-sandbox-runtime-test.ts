@@ -691,6 +691,97 @@ send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '
 }
 
 console.log('');
+console.log('--- playwright MCP starts only when a turn uses the browser ---');
+// The launcher answers the start of a turn from the manifests the image build
+// recorded for the platform's argument sets (playwright-mcp-args.json): the
+// real server, a Node process holding ~100 MB, must not run until the first
+// tool call, its tool list must be the server's own, and a tool call must
+// reach a server started then.
+{
+  const nodeScript = `const { spawn, execFileSync } = require('child_process');
+const args = JSON.parse(require('fs').readFileSync('/opt/tale/playwright-mcp/args.json', 'utf8'))[0];
+const serverRunning = () => {
+  try { execFileSync('pgrep', ['-f', 'bin/mcp-server-playwright']); return true; } catch { return false; }
+};
+function session(command, argv) {
+  const srv = spawn(command, argv, { stdio: ['pipe', 'pipe', 'inherit'] });
+  const waiting = new Map();
+  let buf = '';
+  srv.stdout.on('data', (d) => {
+    buf += d.toString();
+    let idx;
+    while ((idx = buf.indexOf('\\n')) >= 0) {
+      const line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+      let msg; try { msg = JSON.parse(line); } catch { continue; }
+      const done = waiting.get(msg.id);
+      if (done) { waiting.delete(msg.id); done(msg); }
+    }
+  });
+  const ask = (id, method, params) => new Promise((resolve) => {
+    waiting.set(id, resolve);
+    srv.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, ...(params ? { params } : {}) }) + '\\n');
+  });
+  const tell = (method) => srv.stdin.write(JSON.stringify({ jsonrpc: '2.0', method }) + '\\n');
+  return { srv, ask, tell };
+}
+const init = { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'conformance', version: '1.0' } };
+(async () => {
+  const deadline = setTimeout(() => { console.error('LAZY_TIMEOUT'); process.exit(1); }, 90000);
+  const lazy = session('tale-playwright-mcp', args);
+  await lazy.ask(1, 'initialize', init);
+  lazy.tell('notifications/initialized');
+  const listed = await lazy.ask(2, 'tools/list');
+  if (serverRunning()) { console.error('LAZY_SERVER_STARTED_EARLY'); process.exit(1); }
+  const direct = session('mcp-server-playwright', args);
+  await direct.ask(1, 'initialize', init);
+  direct.tell('notifications/initialized');
+  const own = await direct.ask(2, 'tools/list');
+  direct.srv.kill();
+  if (JSON.stringify(listed.result) !== JSON.stringify(own.result)) { console.error('LAZY_TOOLS_DIFFER'); process.exit(1); }
+  const called = await lazy.ask(3, 'tools/call', { name: 'browser_navigate', arguments: { url: 'about:blank' } });
+  if (called.error || (called.result && called.result.isError)) { console.error('LAZY_NAVIGATE_FAILED ' + JSON.stringify(called)); process.exit(1); }
+  clearTimeout(deadline);
+  console.log('MCP_LAZY_OK ' + listed.result.tools.length);
+  lazy.srv.kill();
+  process.exit(0);
+})().catch((error) => { console.error(error); process.exit(1); });
+`;
+  const { combined } = await capture(
+    [
+      'docker',
+      'run',
+      '--rm',
+      '-i',
+      '--user',
+      '10001',
+      '--read-only',
+      '--tmpfs',
+      '/tmp:exec,nosuid,nodev,size=256m',
+      '--tmpfs',
+      '/workspace:uid=10001,gid=10001',
+      '--shm-size=512m',
+      '--env',
+      'HOME=/workspace/.home',
+      '--env',
+      'TMPDIR=/workspace/.tmp',
+      '--entrypoint',
+      'sh',
+      IMAGE,
+      '-c',
+      'mkdir -p "$HOME" "$TMPDIR" && exec node -',
+    ],
+    { stdin: nodeScript },
+  );
+  if (combined.includes('MCP_LAZY_OK')) {
+    pass(
+      'playwright MCP answers the start itself and starts the server on the first tool call',
+    );
+  } else {
+    fail(`playwright MCP lazy start failed (got: ${combined.slice(0, 400)})`);
+  }
+}
+
+console.log('');
 console.log('--- runnerd boots under the daemon entrypoint ---');
 // Start the daemon (PID 1 via the image entrypoint `daemon` arg) and probe
 // /readyz. No token (unsigned dev mode) so the probe is unauthenticated.
