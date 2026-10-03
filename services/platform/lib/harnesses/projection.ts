@@ -1,6 +1,7 @@
 /** Bounded incremental display state. Protocol lifecycle/accounting remains
  * independent of this tail: evicting a display entry never forgets a task or
  * usage event. A disk replay can be arbitrarily longer than the displayed log. */
+import { appendHarnessAnswer } from './jsonl';
 import {
   TIMELINE_MAX_ENTRIES,
   TIMELINE_MAX_JSON_BYTES,
@@ -8,7 +9,7 @@ import {
 } from './timeline';
 import type { HarnessEvent } from './types';
 
-export const HARNESS_TEXT_MAX_CHARS = 64 * 1024;
+export const HARNESS_TEXT_MAX_CHARS = 32_000;
 const VALUE_CHARS = 2000;
 const BLOCK_CHARS = 4000;
 
@@ -134,12 +135,20 @@ export class HarnessProjection {
   private deltas = new TimelineTail();
   private fullText = '';
   private deltaText = '';
+  // Settlement may need the narrative when a CLI omits finalText. Keep it
+  // exact within the same explicit safety budget as one protocol record;
+  // display eviction must never silently truncate a downstream task report.
+  private narrative = '';
   private streamsDeltas = false;
   revision = 0;
 
   accept(event: HarnessEvent): void {
     if (event.type === 'text') {
       if (this.streamsDeltas) return;
+      this.narrative = appendHarnessAnswer(
+        this.narrative,
+        `${this.narrative === '' ? '' : '\n\n'}${event.text}`,
+      );
       this.fullText = textTail(
         `${this.fullText}${this.fullText === '' ? '' : '\n\n'}${event.text}`,
       );
@@ -149,7 +158,9 @@ export class HarnessProjection {
         this.streamsDeltas = true;
         this.full = new TimelineTail();
         this.fullText = '';
+        this.narrative = '';
       }
+      this.narrative = appendHarnessAnswer(this.narrative, event.text);
       this.deltaText = textTail(this.deltaText + event.text);
       this.deltas.text(event.text, '');
     } else if (event.type === 'tool-use') {
@@ -165,6 +176,10 @@ export class HarnessProjection {
       this.deltas.result(event, output);
     } else return;
     this.revision += 1;
+  }
+
+  get answerText(): string {
+    return this.narrative;
   }
 
   get text(): string {

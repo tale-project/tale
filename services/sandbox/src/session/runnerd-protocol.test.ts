@@ -35,6 +35,31 @@ describe('runnerd protocol mirror', () => {
   const canon = constantsOf(canonical);
   const mirr = constantsOf(mirror);
 
+  test.each([
+    null,
+    '0',
+    '1',
+    '123',
+    '001',
+    '',
+    '-1',
+    '1.5',
+    'NaN',
+    'Infinity',
+    '9007199254740992',
+    '1e3',
+    ' 2',
+  ])('sequence parser agrees for %s', (raw) => {
+    const expected =
+      raw === null
+        ? 0
+        : /^[0-9]+$/.test(raw) && Number.isSafeInteger(Number(raw))
+          ? Number(raw)
+          : null;
+    expect(canonical.parseRunnerdSequence(raw)).toBe(expected);
+    expect(mirror.parseRunnerdSequence(raw)).toBe(expected);
+  });
+
   test('every canonical constant is mirrored with the same value', () => {
     for (const [name, value] of canon) {
       expect(mirr.has(name)).toBe(true);

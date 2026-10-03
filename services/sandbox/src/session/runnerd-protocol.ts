@@ -201,7 +201,8 @@ export type RunnerdExecEvent = (
         | 'DUPLICATE_EXEC'
         | 'BAD_REQUEST'
         | 'OUTPUT_LIMIT'
-        | 'REPLAY_UNAVAILABLE';
+        | 'REPLAY_UNAVAILABLE'
+        | 'OUTPUT_GAP';
       message: string;
     }
 ) & { seq?: number };
@@ -245,4 +246,12 @@ export interface RunnerdEnvResponse {
 export interface RunnerdError {
   error: string;
   message?: string;
+}
+
+/** Missing cursor starts at zero; malformed cursors must never skip history. */
+export function parseRunnerdSequence(value: string | null): number | null {
+  if (value === null) return 0;
+  if (!/^[0-9]+$/.test(value)) return null;
+  const sequence = Number(value);
+  return Number.isSafeInteger(sequence) ? sequence : null;
 }

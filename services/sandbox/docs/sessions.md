@@ -177,7 +177,8 @@ the command continue under the existing exec deadline. A dropped consumer does
 not keep an idle session busy after the command ends.
 
 Reconnect through `/execs/:id/attach?sinceSeq=<last-seen-seq>`. The complete
-protocol lives in an unlinked, disk-backed journal, limited to **64 MiB of
+protocol lives in an unlinked journal under `/agent/.runtime/tmp` on the
+workspace disk, limited to **64 MiB of
 encoded NDJSON per exec** and **256 MiB per session**, including base64 output.
 Completed journals are evicted oldest first under the session budget, and at
 most 16 completed execs are retained. An active writer that exhausts its budget
@@ -236,6 +237,28 @@ preserving paths elsewhere. The workspace root itself cannot be reconciled.
 A successful response includes `reconciled: true`; older runtimes omit it, so
 the platform uses its prior clear-and-restage behavior during a mixed rollout.
 Never send a final manifest for a failed or unfinished transfer batch.
+
+The platform folds parsed events into a bounded display projection, with a
+32,000-character live text tail and bounded timeline payloads. Its progress
+writer holds at most one active write and one replaceable pending snapshot,
+then flushes before settlement. Output/control replay remains independent of
+these display limits. Unchanged staged files are reused only after checking
+their current digest; each turn still checks the caller's authority and removes
+stale files from the requested input mounts. Artifact harvesting enforces its
+read limit while receiving file bytes and uploads the existing buffer without a second
+full-size copy.
+
+Pin changes persist the desired value and a delivery job in one transaction.
+Delivery reads the latest value under the session lifecycle lock and retries
+until acknowledged or that incarnation is gone. Repeated Unpin delivery does
+not extend expiry. The watchdog runs its four independent reconciliation and
+cleanup passes concurrently, with one remote operation per pass and a
+120-second deadline per pass, so an unreachable session cannot starve every
+cleanup lane.
+The default reconcile batch reserves 20 probes for active sessions and five
+for retained unpinned incarnations, rotating each group independently and
+interleaving a retained probe after every four active probes. Historical pin
+repair cannot fill the active health-check slots or retire an absent workspace.
 
 The build-cache upkeep — the reconcile for the organizations whose agent
 sessions adoption just registered, the retirement of legacy helpers and the

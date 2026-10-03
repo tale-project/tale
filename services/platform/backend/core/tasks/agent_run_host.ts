@@ -18,6 +18,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
+import { textTail } from '../../../lib/harnesses/projection';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import type { TaskCommentBodies } from '../../../lib/shared/schemas/task-comment';
@@ -1732,7 +1733,7 @@ async function continueOrSettle(
       kind: 'task-agent',
       status: 'running',
       lastEventAt: Date.now(),
-      ...(window.text !== '' ? { progressText: window.text } : {}),
+      ...(window.text !== '' ? { progressText: textTail(window.text) } : {}),
       ...(window.agentSessionId !== undefined && !launchFailed
         ? { agentSessionId: window.agentSessionId }
         : {}),

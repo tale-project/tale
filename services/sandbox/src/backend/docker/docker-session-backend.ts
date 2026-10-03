@@ -380,7 +380,7 @@ export class DockerSessionBackend implements SessionBackend {
           return { endpoint, plan };
         };
         const budgetMs = Math.min(
-          15_000,
+          5_000,
           this.cfg.session.createHealthTimeoutMs / 4,
           remaining(),
         );

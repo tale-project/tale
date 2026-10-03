@@ -168,6 +168,12 @@ released-session idle window. Their configured memory ceiling is unchanged.
 
 ## Organization build caches
 
+Optional cache preparation waits at most five seconds or a quarter of the
+session readiness budget, whichever is shorter. Mirrors prepare concurrently.
+A slower shared preparation continues for future sessions while the current
+session starts with its local builder; its elapsed wait counts against runner
+readiness.
+
 On Docker, each organization has one privileged BuildKit container, three unprivileged
 registry mirrors, an internal network and four cache volumes. The spawner
 packs `/23` bridges (512 addresses each) into the first available Docker
@@ -215,6 +221,14 @@ Docker containers explicitly disable IPv6 so IPv4-only deployments do not rely
 on host IPv6 firewall support. See the [operator environment reference](../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
 
 ## Inner Docker networking
+
+An enabled agent session starts its inner engine on the first ordinary Docker
+socket connection and stops it after five idle minutes only when no clients
+or active containers need it and all container restart policies are disabled. The image store and workspace survive that
+engine stop; the address pool stays fixed until the session container restarts.
+Existing container metadata at boot starts the engine immediately for restart
+policies. Agents need no setting or new command. See the
+[Docker lifecycle](docs/docker-in-container.md#storage--lifecycle).
 
 On Docker and Kubernetes, DinD agent sessions choose an inner private `/16`
 against their observed routes, interface addresses, DNS and proxy/gateway

@@ -328,8 +328,7 @@ select_inner_docker_pool() {
 # Dedicated low-priv uid redsocks runs as on the SESSION transparent-egress path,
 # so the OUTPUT owner-match loop-breaker has a stable owner to exempt (see
 # _install_session_output_redirect). Must match the `redsocks` user in the
-# Dockerfile. The DinD inner path still launches redsocks as root (its loop is
-# broken by the destination RETURNs instead) — that path is untouched.
+# Dockerfile. Nested Docker reuses this same relay across engine activations.
 TALE_REDSOCKS_UID="${TALE_REDSOCKS_UID:-10002}"
 # redsocks config path for the session path. /tmp is the writable tmpfs even when
 # the non-DinD session keeps a read-only root, so write it there (not /etc, which
@@ -403,22 +402,10 @@ setup_inner_transparent_egress() {
   # that hijacks inner localhost/sibling traffic (busybox ignores no_proxy). With
   # transparent egress there must be no proxy env — drop the stale file.
   rm -f /agent/.runtime/home/.docker/config.json 2>/dev/null || true
-  cat >/etc/redsocks.conf <<EOF
-base { log_debug = off; log_info = off; log = "stderr"; daemon = off; redirector = iptables; }
-redsocks { local_ip = 0.0.0.0; local_port = 12346; ip = ${TALE_EGRESS_IP}; port = ${TALE_EGRESS_PORT}; type = http-connect; }
-EOF
-  # redsocks lives in /usr/sbin, which the image PATH drops — call it absolute.
-  # Inherit container stderr so the outer logger rotates long-lived diagnostics.
-  /usr/sbin/redsocks -c /etc/redsocks.conf >&2 &
-  TALE_REDSOCKS_STARTED=1
-  # nat REDSOCKS chain: leave internal / private / link-local DIRECT (so inner
-  # service-to-service, localhost healthchecks and the inner embedded DNS are
-  # untouched), tunnel everything public through redsocks.
-  "$_IPTABLES" -t nat -N REDSOCKS 2>/dev/null || "$_IPTABLES" -t nat -F REDSOCKS
-  for _cidr in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
-    "$_IPTABLES" -t nat -A REDSOCKS -d "$_cidr" -j RETURN
-  done
-  "$_IPTABLES" -t nat -A REDSOCKS -p tcp -j REDIRECT --to-ports 12346
+  # Session egress starts the shared low-privilege relay before runnerd. Reuse it
+  # across engine activations; never launch duplicate relays or flush OUTPUT's chain.
+  _launch_session_redsocks
+  _ensure_redsocks_chain
   # Apply to every nested container regardless of which inner compose bridge it
   # lands on (all draw from the inner pool); PREROUTING sees the original source
   # before the inner daemon's MASQUERADE rewrites it.
@@ -530,7 +517,7 @@ _install_session_dns_dnat() {
 }
 
 # Launch redsocks as the dedicated low-priv uid (for the owner-match), unless it
-# is already running (the DinD inner path launched it as root). Background;
+# is already running from session setup or a prior engine activation. Background;
 # diagnostics go to the container logger, which owns rotation, instead of
 # growing a file in the session's temporary filesystem.
 _launch_session_redsocks() {
@@ -573,12 +560,14 @@ setup_session_transparent_egress() {
 # Best-effort: IMDS is already unreachable via the --internal network, so a
 # failure here is not fatal.
 apply_inner_egress_fence() {
+  "$_IPTABLES" -C DOCKER-USER -d 169.254.0.0/16 -j REJECT --reject-with icmp-host-prohibited 2>/dev/null ||
   "$_IPTABLES" -I DOCKER-USER -d 169.254.0.0/16 -j REJECT \
     --reject-with icmp-host-prohibited 2>/dev/null ||
     echo "[entrypoint] WARN: could not install inner IMDS egress fence (non-fatal; --internal already blocks it)" >&2
   if [ -x "$_IP6TABLES" ]; then
     for _c6 in fe80::/10 ::ffff:169.254.0.0/112; do
-      "$_IP6TABLES" -I DOCKER-USER -d "$_c6" -j REJECT 2>/dev/null || true
+      "$_IP6TABLES" -C DOCKER-USER -d "$_c6" -j REJECT 2>/dev/null ||
+        "$_IP6TABLES" -I DOCKER-USER -d "$_c6" -j REJECT 2>/dev/null || true
     done
   fi
 }
@@ -636,8 +625,9 @@ start_inner_dockerd() {
     fi
   fi
 
-  # Choose the pool before dockerd adds its own routes and firewall chains.
-  select_inner_docker_pool
+  # The outer boot selects once before Docker adds any routes. Reuse that
+  # trusted selection for every activation so retained bridges never shift it.
+  [ -n "${TALE_DIND_INNER_POOL}" ] || select_inner_docker_pool
 
   # Prepare cgroup v2 delegation BEFORE dockerd, so the /docker cgroup tree it
   # creates is a domain cgroup that can carry memory/pids limits.
@@ -659,8 +649,8 @@ start_inner_dockerd() {
   # independently of the outer session's cap. Apply that same cap here; daemon
   # diagnostics themselves inherit the outer logger instead of a growing file.
   # shellcheck disable=SC2086 # _dns_flags must word-split: empty, or one --dns flag
-  PATH="/usr/sbin:/sbin:${PATH}" dockerd \
-    --host=unix:///var/run/docker.sock \
+  PATH="/usr/sbin:/sbin:${PATH}" /usr/bin/dockerd \
+    --host="unix://${1:-/var/run/docker.sock}" \
     --data-root=/var/lib/docker \
     --bip="${TALE_DIND_INNER_BIP}" \
     --default-address-pool "base=${TALE_DIND_INNER_POOL},size=24" \
@@ -679,7 +669,7 @@ start_inner_dockerd() {
       echo "[entrypoint] FATAL: inner dockerd exited during startup; see container logs" >&2
       exit 1
     fi
-    if docker info >/dev/null 2>&1; then
+    if /usr/bin/docker --host="unix://${1:-/var/run/docker.sock}" info >/dev/null 2>&1; then
       # DOCKER-USER exists now that dockerd is up — install the IMDS fence and
       # the transparent-egress redirect (both need the daemon's chains/bridge).
       apply_inner_egress_fence
@@ -701,14 +691,36 @@ start_inner_dockerd() {
 # network. Established replies to nested containers remain allowed by Docker's
 # existing rules. The guard is required even when development egress filtering
 # is disabled; an unguarded dual-homed session must never start runnerd.
+# Docker can insert its forwarding hooks ahead of a pre-boot guard. Keep our
+# rule first, then remove any older duplicate by descending rule number. Insert
+# before deleting so the namespace is never left without the guard.
+_ensure_outer_forward_guard() {
+  _guard_tool="$1"
+  _guard_rules="$("$_guard_tool" -S FORWARD)" || return 1
+  _guard_first="$(printf '%s\n' "$_guard_rules" | awk '$1 == "-A" { print; exit }')"
+  case "$_guard_first" in
+    '-A FORWARD -i eth+ -m conntrack ! --ctstate RELATED,ESTABLISHED -j DROP'|'-A FORWARD -i eth+ -m conntrack ! --ctstate ESTABLISHED,RELATED -j DROP') ;;
+    *) "$_guard_tool" -I FORWARD 1 -i eth+ -m conntrack ! --ctstate ESTABLISHED,RELATED -j DROP || return 1 ;;
+  esac
+  _guard_rules="$("$_guard_tool" -S FORWARD)" || return 1
+  _guard_duplicates="$(printf '%s\n' "$_guard_rules" | awk '
+    $1 == "-A" { n++ }
+    /^-A FORWARD -i eth\+ -m conntrack ! --ctstate (RELATED,ESTABLISHED|ESTABLISHED,RELATED) -j DROP$/ && n > 1 { indexes[++count] = n }
+    END { for (i = count; i > 0; i--) print indexes[i] }
+  ')"
+  for _guard_index in $_guard_duplicates; do
+    "$_guard_tool" -D FORWARD "$_guard_index" || return 1
+  done
+}
+
 protect_shared_cache_network() {
   [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] || return 0
-  if ! "${_IPTABLES}" -I FORWARD 1 -i eth+ -m conntrack ! --ctstate ESTABLISHED,RELATED -j DROP; then
+  if ! _ensure_outer_forward_guard "$_IPTABLES"; then
     echo "[entrypoint] FATAL: IPv4 build-cache network guard unavailable" >&2
     exit 1
   fi
   if "${_IP6TABLES}" -L FORWARD >/dev/null 2>&1; then
-    if ! "${_IP6TABLES}" -I FORWARD 1 -i eth+ -m conntrack ! --ctstate ESTABLISHED,RELATED -j DROP; then
+    if ! _ensure_outer_forward_guard "$_IP6TABLES"; then
       echo "[entrypoint] FATAL: IPv6 build-cache network guard unavailable" >&2
       exit 1
     fi
@@ -752,10 +764,10 @@ setup_shared_buildx_builder() {
   # Select a builder keyed by the full validated endpoint; never adopt that
   # legacy definition, and explicitly fall back to the local daemon on failure.
   export BUILDX_BUILDER=default
-  _builder=$(node -e 'const {createHash}=require("node:crypto"); process.stdout.write("tale-build-"+createHash("sha256").update(process.env.TALE_BUILDKITD_ENDPOINT).digest("hex").slice(0,24))')
+  _builder=$(/usr/bin/env -u NODE_OPTIONS -u NODE_PATH /opt/node/bin/node -e 'const {createHash}=require("node:crypto"); process.stdout.write("tale-build-"+createHash("sha256").update(process.env.TALE_BUILDKITD_ENDPOINT).digest("hex").slice(0,24))')
   _bk() {
-    setpriv --reuid 10001 --regid 10001 --init-groups -- \
-      env HOME=/agent/.runtime/home docker buildx "$@"
+    /usr/bin/setpriv --reuid 10001 --regid 10001 --init-groups -- \
+      /usr/bin/env HOME=/agent/.runtime/home /usr/bin/docker buildx "$@"
   }
   if _bk inspect "${_builder}" >/dev/null 2>&1 ||
     _bk create --name "${_builder}" --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
@@ -776,6 +788,27 @@ setup_shared_buildx_builder() {
 # the pod's lifetime. The `runner` container stays fully hardened and never holds
 # NET_ADMIN. On docker this is all done inline in the `daemon` dispatch instead.
 # ---------------------------------------------------------------------------
+# Invoked only by the root supervisor with an immutable executable/env. The
+# private socket remains inaccessible until every fence has been installed.
+if [ "$1" = "internal-dockerd" ]; then
+  [ "$(id -u)" = "0" ] || exit 65
+  _stop_inner_dockerd() {
+    if [ -n "${TALE_DOCKERD_PID:-}" ]; then
+      kill -TERM "$TALE_DOCKERD_PID" 2>/dev/null || true
+      wait "$TALE_DOCKERD_PID" 2>/dev/null || true
+    fi
+  }
+  trap '_stop_inner_dockerd' EXIT
+  trap 'exit 0' TERM INT
+  TALE_REDSOCKS_STARTED="${TALE_LAZY_REDSOCKS_STARTED:-}"
+  TALE_DIND_INNER_POOL="${TALE_LAZY_INNER_POOL:-}"
+  TALE_DIND_INNER_BIP="${TALE_LAZY_INNER_BIP:-}"
+  start_inner_dockerd /var/run/tale-docker/engine.sock
+  printf 'READY\n' >&3
+  wait "$TALE_DOCKERD_PID"
+  exit $?
+fi
+
 if [ "$1" = "egress-sidecar" ]; then
   resolve_egress_endpoint
   if [ -z "${TALE_EGRESS_IP}" ]; then
@@ -892,22 +925,30 @@ if [ "$1" = "daemon" ]; then
     setup_session_transparent_egress
   fi
 
-  # DinD: bring up the inner dockerd as root, then hand off under tini like
-  # every session path (here it also reaps the many short-lived shims native
-  # docker spawns); the already-backgrounded dockerd reparents to tini. setpriv
-  # drops to the agent user so Claude Code's bypassPermissions (refused as
-  # root) still works.
+  # Docker is a demand-activated capability. Protect the outer networks before
+  # runnerd readiness (the spawner can attach an org network immediately after),
+  # and prepare session egress without booting the inner engine.
   if [ "${TALE_DIND:-}" = "1" ]; then
-    start_inner_dockerd
-    # Also redirect the session's OWN processes (not just nested containers) when
-    # transparent egress is on — reuses the redsocks + chain dockerd's setup left.
+    _runner_path="$PATH"
+    PATH=/opt/node/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    export PATH
+    select_inner_docker_pool
+    export TALE_DIND_INNER_POOL TALE_DIND_INNER_BIP
+    protect_shared_cache_network
     [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] && setup_session_transparent_egress
-    # Point builds at the shared buildkitd (exports BUILDX_BUILDER for runnerd) —
-    # no-op + byte-identical when TALE_BUILDKITD_ENDPOINT is unset.
+    # The inner containers need the same relay even without session REDIRECT.
+    resolve_egress_endpoint
+    if [ -n "${TALE_EGRESS_IP}" ]; then
+      _launch_session_redsocks
+      _ensure_redsocks_chain
+    fi
+    export TALE_REDSOCKS_STARTED
     setup_shared_buildx_builder
-    exec tini -g -- \
-      setpriv --reuid 10001 --regid 10001 --init-groups -- \
-      node /usr/local/lib/tale/runnerd.mjs
+    export TALE_RUNNER_NODE_PATH="$NODE_PATH"
+    export PATH="$_runner_path"
+    # The supervisor is root: workspace Node loaders must never run in it.
+    exec /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_LIBRARY_PATH \
+      /usr/bin/tini -g -- /opt/node/bin/node /usr/local/lib/tale/lazy-docker.mjs
   fi
 
   # Non-DinD paths — same reaper. With transparent egress the container booted
