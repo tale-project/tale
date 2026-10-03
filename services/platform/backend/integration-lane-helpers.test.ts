@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { AuthEnv } from './auth/session';
 import { closeServerGracefully } from './http-shutdown';
@@ -200,6 +200,50 @@ describe('connectSse', () => {
       'closing the SSE tail /events?orgId=o1 did not settle within 0.05 s',
     );
   });
+
+  it('names a tail whose stream breaks before it is closed, leaving no rejection unhandled', async () => {
+    // The backend drops the connection while the lane awaits something
+    // else. Unhandled, that rejection ended the whole harness: no lane
+    // named, no tally.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const breakingFetch = (): Promise<Response> =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(frame('hint', '{}'));
+                setTimeout(() => {
+                  controller.error(new TypeError('terminated'));
+                }, 10);
+              },
+            }),
+          ),
+        );
+      const tail = connectSse(
+        'http://127.0.0.1:9/events?orgId=o1',
+        {},
+        { fetch: breakingFetch },
+      );
+      await sleep(100);
+
+      const failure =
+        'the SSE tail /events?orgId=o1 failed: TypeError: terminated';
+      expect(unhandled).toEqual([]);
+      expect(warn.mock.calls).toEqual([[`[itest] Error: ${failure}`]]);
+      await expect(tail.close()).rejects.toThrow(failure);
+      // A broken tail has nothing left to cancel: no second warning.
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
 });
 
 /** The `sql` reads the events handler makes, answered for a member of
@@ -215,7 +259,8 @@ function eventsSql(strings: TemplateStringsArray): Promise<unknown[]> {
   return Promise.resolve([]);
 }
 
-/** The real server and `/events` handler, minus the session lookup. */
+/** The real server and `/events` handler, minus the session lookup; it
+ * polls and heartbeats every 20 ms, so a tail sees it is live at once. */
 function serveEvents(): Promise<{
   server: ReturnType<typeof serve>;
   origin: string;
@@ -230,7 +275,13 @@ function serveEvents(): Promise<{
     await next();
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
-  app.get('/events', createEventsHandler(eventsSql as never));
+  app.get(
+    '/events',
+    createEventsHandler(eventsSql as never, {
+      pollIntervalMs: 20,
+      heartbeatIntervalMs: 20,
+    }),
+  );
   return new Promise((resolve) => {
     const server = serve({ fetch: app.fetch, port: 0 }, (info) => {
       resolve({ server, origin: `http://127.0.0.1:${info.port}` });
@@ -281,7 +332,8 @@ describe('settleTeardown', () => {
     ] as const) {
       const { server, origin } = await serveEvents();
       const tail = connectSse(`${origin}/events?orgId=org1`, {});
-      await sleep(300);
+      // A heartbeat in: the stream is live and enrolled for the drain.
+      while (tail.events.length === 0) await sleep(10);
       const { checks, record } = recorder();
       await settleTeardown(
         [
@@ -296,7 +348,7 @@ describe('settleTeardown', () => {
           ],
         ],
         record,
-        1_000,
+        2_000,
       );
 
       expect(checks.map((check) => check.name)).toEqual(

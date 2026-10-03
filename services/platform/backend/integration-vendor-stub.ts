@@ -328,10 +328,10 @@ type FetchDispatcher = Pick<Dispatcher, 'dispatch'> & {
  *    depends on it.
  *
  * Methods, bodies, headers, redirect modes, the caller's abort signal and
- * the response, clones included, stay fetch's own. A `data:` or `blob:` URL never reaches a
- * dispatcher. A dispatcher a Request carries itself (none in the codebase)
- * gives way to the global one. Like `fetch` it answers a bad input with a
- * rejected promise, never a throw.
+ * the response, clones included, stay fetch's own. A `data:` or `blob:`
+ * URL never reaches a dispatcher. A dispatcher a Request carries itself
+ * (none in the codebase) gives way to the global one. Like `fetch` it
+ * answers a bad input with a rejected promise, never a throw.
  */
 export function routeVendorFetch(
   realFetch: typeof globalThis.fetch,
@@ -391,10 +391,12 @@ export function routeVendorFetch(
       // The caller's own signal, never `request.signal`: undici makes a
       // request's signal follow the one it was built from through a weak
       // reference to an AbortController that only that request holds, and
-      // nothing holds `request` once fetch has answered (fetch keeps its OWN
-      // request alive, nodejs/undici#4627). A collection in between and the
-      // caller's abort never reached the connection: a closed `/events`
-      // tail went on reading heartbeats, and its lane waited forever (#4112).
+      // nothing holds `request` once this function has returned. fetch
+      // keeps its OWN request alive (undici made that explicit in
+      // nodejs/undici#4627), and that request follows the caller's signal.
+      // A collection in between and the caller's abort never reached the
+      // connection: a closed `/events` tail went on reading heartbeats, and
+      // its lane waited forever (#4112).
       signal: callerSignal(input, init),
     };
     return realFetch(request, gated);

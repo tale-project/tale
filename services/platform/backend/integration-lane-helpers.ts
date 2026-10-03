@@ -212,7 +212,8 @@ export interface SseTail {
   /** Every event so far, in arrival order. */
   readonly events: SseEvent[];
   /** Settles once the stream has ended: the server ended it, or
-   * {@link SseTail.close} did. Rejects only with another failure. */
+   * {@link SseTail.close} did. Rejects only with another failure, naming
+   * the tail. */
   readonly done: Promise<void>;
   /** Ends the tail and waits for {@link SseTail.done}, at most
    * {@link SSE_CLOSE_DEADLINE_MS}: a tail that does not end fails the lane
@@ -249,6 +250,7 @@ export function connectSse(
   const controller = new AbortController();
   const events: SseEvent[] = [];
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let ended = false;
 
   const done = (async () => {
     const response = await fetchSse(url, {
@@ -293,18 +295,30 @@ export function connectSse(
         boundary = buffer.indexOf('\n\n');
       }
     }
-  })().catch((error: unknown) => {
-    if (!(error instanceof Error && error.name === 'AbortError')) {
-      throw error;
-    }
+  })()
+    .catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      throw new Error(`${name} failed: ${errorText(error)}`, { cause: error });
+    })
+    .finally(() => {
+      ended = true;
+    });
+  // A tail that fails while nothing awaits it (the backend dropped the
+  // connection mid-lane) must not end the harness as an unhandled
+  // rejection, with no lane named and no tally: the failure is logged here
+  // and `done` still rejects, for `close()` or the lane to throw.
+  void done.catch((error: unknown) => {
+    console.warn(`[itest] ${errorText(error)}`);
   });
 
   const close = async (): Promise<void> => {
     // Cancel first: the pending read ends at once, and the abort below then
-    // finds no live body to error.
-    reader?.cancel().catch((error: unknown) => {
-      console.warn(`[itest] cancelling ${name} failed: ${errorText(error)}`);
-    });
+    // finds no live body to error. A tail that has ended has none to cancel.
+    if (!ended) {
+      reader?.cancel().catch((error: unknown) => {
+        console.warn(`[itest] cancelling ${name} failed: ${errorText(error)}`);
+      });
+    }
     controller.abort();
     await withinDeadline(done, closeWithinMs, `closing ${name}`);
   };
