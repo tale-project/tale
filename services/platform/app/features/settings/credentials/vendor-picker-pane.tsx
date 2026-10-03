@@ -99,7 +99,7 @@ export function VendorPickerPane<
       <Skeletonize loading label={tSkeleton('loading')}>
         <Stack gap={4} className="min-h-0 flex-1">
           <SkeletonBox className="h-10 w-full">&nbsp;</SkeletonBox>
-          <Stack gap={1.5} className="min-h-0 flex-1">
+          <Stack gap={2} className="min-h-0 flex-1">
             <SkeletonBox className="h-12 w-full">&nbsp;</SkeletonBox>
             <SkeletonBox className="h-12 w-full">&nbsp;</SkeletonBox>
             <SkeletonBox className="h-12 w-full">&nbsp;</SkeletonBox>
