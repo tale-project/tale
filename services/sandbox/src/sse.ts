@@ -58,7 +58,7 @@ export function sseResponse(
           }
           return true;
         };
-        const send = (event: string, data: unknown) => {
+        const send = (event: string, data: unknown): void | Promise<void> => {
           if (!canSend()) return;
           controller.enqueue(
             enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
