@@ -111,6 +111,40 @@ test('rejects destinations inside a checkout, including symlinks', async () => {
   }
 });
 
+test('refuses a new destination inside a checkout before creating it', async () => {
+  const checkout = await temporaryDirectory();
+  execFileSync('git', ['init', '--quiet', checkout]);
+  const failure = await snapshotTraffic(
+    join(checkout, 'private', 'snapshots'),
+    response,
+  ).catch((error: unknown) => error);
+  expect(failure).toHaveProperty(
+    'message',
+    expect.stringContaining('outside Git'),
+  );
+  if (process.platform !== 'win32') {
+    const link = join(await temporaryDirectory(), 'linked');
+    await symlink(checkout, link);
+    const linkedFailure = await snapshotTraffic(
+      join(link, 'snapshots'),
+      response,
+    ).catch((error: unknown) => error);
+    expect(linkedFailure).toHaveProperty(
+      'message',
+      expect.stringContaining('outside Git'),
+    );
+  }
+  const unverified = await temporaryDirectory();
+  const child = runSyntheticSnapshot(join(unverified, 'snapshots'), {
+    PATH: join(unverified, 'missing-programs'),
+  });
+  expect(child.stderr.toString()).toContain(
+    'Cannot verify the private output directory',
+  );
+  expect(await readdir(checkout)).toEqual(['.git']);
+  expect(await readdir(unverified)).toEqual([]);
+});
+
 test('refuses to collect or save traffic when Git is unavailable', async () => {
   const output = await temporaryDirectory();
   execFileSync('git', ['init', '--quiet', output]);

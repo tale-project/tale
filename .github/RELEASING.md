@@ -22,8 +22,11 @@ has the structure. Generated API contract notes and the PR list follow these sec
 
 Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select.
 Only select a candidate containing that reviewed file. The existing candidate gate checks CI
-and source identity; it does not check the prose. Release Prepare independently rejects missing,
-empty or placeholder sections before any image builds. Content-only `sites_only` builds are exempt.
+and source identity; it does not check the prose. Release Prepare runs the same validator before
+any image builds. It rejects a missing file, a missing, repeated or misordered section, and a
+section that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers. It cannot
+recognise leftover template prose or a wrong claim; the review must. Content-only `sites_only`
+builds are exempt.
 
 ## 1. Choose the candidate
 
@@ -221,7 +224,12 @@ A published version is not a deployment. Deployments follow their own procedure.
 - **A release publication retry.** A published release is preserved, including its edited notes
   and attached assets. A draft with the same tag stops publication for the release lane to
   reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures
-  remain failures instead of being reported as an existing release.
+  remain failures instead of being reported as an existing release. The draft check is
+  `gh release view <tag>`: gh looks a published release up by its tag and a draft by its pending
+  tag (GraphQL `release(tagName:)`, `FetchRelease` in cli/cli `pkg/cmd/release/shared/fetch.go`).
+  The workflow test stubs `gh`, so it proves the step's branching, not GitHub's lookup. This is
+  a recorded decision: the step treats any failed lookup as a missing release and calls
+  `gh release create`, so the draft check is only as reliable as gh's lookup.
 - **A failed Release run after the tag.** Never move the tag. Re-run the Release run's failed
   jobs (its concurrency never cancels a release), or release the fix as the next version.
 
