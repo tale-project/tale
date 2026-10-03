@@ -61,7 +61,9 @@ describe('NotFoundPage', () => {
 
   it('sets a noindex document title', () => {
     renderPage();
-    expect(document.title).toBe('Page not found | The Tale design system');
+    expect(document.title).toBe(
+      'Page not found | Tale UI: React component library',
+    );
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute(
       'content',
       expect.stringContaining('noindex'),

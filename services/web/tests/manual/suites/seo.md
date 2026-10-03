@@ -38,13 +38,9 @@ nothing here.
 ## Functional tests
 
 - [ ] `SEO-F1` · **Prerendered titles** — `curl -s {base}/{page}` for every
-  marketing page; grep `<title>` · Each serves its own `seo.{page}.title` + `
-  \ · Tale` **in the raw HTML** (home: **Tale: The Orchestrator for AI
-  Agents**; `/pricing`: **How much does Tale cost? — Community & Enterprise \
-  · Tale**; `/contact`: **Contact us \ · Tale**; `/request-demo`: **Request a
-  demo \ · Tale**; `/hardware-pricing`: **What does Tale AI hardware cost? \ ·
-  Tale**; `/changelog`: **What's new in Tale? — Changelog \ · Tale**;
-  `/about`: **Who is behind Tale? — About Ruler GmbH \ → Tale**)
+  marketing page; inspect `<title>` → Each serves its own `seo.{page}.title`
+  from the current locale catalog in the raw HTML. A title that does not
+  already name Tale gains the shared ` | Tale` suffix.
 - [ ] `SEO-F2` · **Meta description + OG** — Same fetches; grep `meta
   name="description"`, `og:title`, `og:description`, `twitter:card` →
   Description matches `seo.{page}.description`; `og:*`/`twitter:*` mirror
@@ -66,13 +62,12 @@ nothing here.
   `/llms.txt`, `/llms-full.txt` → robots: `Allow: /`, `Disallow: /api/`,
   `Disallow: /_search/`, **`Disallow:` for every legal URL** (e.g.
   `/legal/privacy-policy`, `/de/legal/…`), and **two** sitemap lines
-  (`https://tale.dev/sitemap.xml` + `https://tale.dev/docs/sitemap.xml`); both
+  (`https://tale.dev/sitemap.xml` + `https://docs.tale.dev/sitemap.xml`); both
   llms files serve plaintext markdown summaries (HTTP 200, non-empty) and are
   linked from the footer bottom bar (`footer.llmsTxtLabel`,
   `footer.llmsFullTxtLabel` — [navigation.md](navigation.md) NAV-F7)
 - [ ] `SEO-F7` · **Content pre-JS** — View-source of `/` (or curl) — do not
-  execute JS → The hero heading from `home.hero.title` (**Orchestrate every AI
-  agent on your stack**) is present in the served HTML — the page is
+  execute JS → The hero heading from `home.hero.title` is present in the served HTML — the page is
   meaningful to crawlers without hydration.
 - [ ] `SEO-F8` · **Legal noindex** — `curl -s {base}/legal/privacy-policy`;
   grep `robots` → `<meta name="robots" content="noindex,nofollow">` present on

@@ -1,3 +1,4 @@
+import { TALE_DOCS_LLMS_TXT } from '@tale/ui/seo/globals';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -10,9 +11,13 @@ describe('llms.txt product facts', () => {
   it('exposes a factual Pages intro for AIO/LLMO crawlers', () => {
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/Ruler GmbH/);
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/MIT/);
-    expect(WEB_LLMS_PAGES_INTRO).toMatch(/ISO 27001/);
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/Claude Code/);
-    expect(WEB_LLMS_PAGES_INTRO).toMatch(/CHF 12/);
+    expect(WEB_LLMS_PAGES_INTRO).toMatch(/https:\/\/tale\.dev\/pricing/);
+  });
+
+  it('points readers directly to the canonical documentation index', () => {
+    expect(WEB_LLMS_PAGES_INTRO).toContain(TALE_DOCS_LLMS_TXT);
+    expect(WEB_LLMS_PAGES_INTRO).not.toContain('https://tale.dev/docs');
   });
 
   it('attaches the intro to the Pages section', () => {

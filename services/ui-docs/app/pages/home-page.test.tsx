@@ -42,7 +42,9 @@ describe('HomePage', () => {
     const { container } = renderPage();
     const headings = container.querySelectorAll('h1');
     expect(headings).toHaveLength(1);
-    expect(headings[0]).toHaveTextContent('The Tale design system');
+    expect(headings[0]).toHaveTextContent(
+      'Build with the React components behind Tale',
+    );
     expect(screen.getByRole('link', { name: 'Read the docs' })).toHaveAttribute(
       'href',
       '/docs/getting-started/introduction',

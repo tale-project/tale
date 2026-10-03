@@ -6,7 +6,6 @@ import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowUp,
   Bookmark,
-  Bot,
   Brain,
   ChevronDown,
   ChevronRight,
@@ -179,17 +178,10 @@ export function HeroOrchestration({
                   className="text-fg-subtle size-3.5 shrink-0"
                 />
                 <span className="text-fg-muted ml-0.5 inline-flex items-center gap-1 text-xs font-medium">
-                  <Bot aria-hidden className="size-3.5" />
-                  <span className="max-w-24 truncate sm:max-w-none">
-                    {beat >= BEAT.routing
-                      ? scene.agentRouted
-                      : t('demos.hero.composerAgent')}
-                  </span>
-                  <ChevronDown aria-hidden className="size-3 opacity-70" />
-                </span>
-                <span className="text-fg-muted hidden items-center gap-1 text-xs font-medium sm:inline-flex">
                   <Cpu aria-hidden className="size-3.5" />
-                  {scene.model}
+                  <span className="max-w-24 truncate sm:max-w-none">
+                    {scene.model}
+                  </span>
                   <ChevronDown aria-hidden className="size-3 opacity-70" />
                 </span>
               </div>

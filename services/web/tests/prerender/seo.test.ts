@@ -6,7 +6,10 @@ import { extractInlineScriptHashes } from '@tale/ui/server';
 import { describe, expect, it } from 'vitest';
 
 import { RELEASES } from '../../app/generated/releases-manifest';
-import { prerenderedBodyCount } from '../../lib/releases/prerender-budget';
+import {
+  prerenderedBodyCount,
+  RELEASE_DISPLAY_LIMIT,
+} from '../../lib/releases/prerender-budget';
 import { MARKETING_ROUTE_URLS } from '../../lib/seo/marketing-routes';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -139,12 +142,10 @@ describe('prerender SEO suite', () => {
   // budget are prerendered, the rest mount on hydration from the manifest
   // the JS bundle already ships.
   describe('changelog page weight', () => {
-    // Mirrors DISPLAY_LIMIT in app/pages/changelog-page.tsx; the body cut
-    // is the byte budget applied to the manifest this build fetched
-    // (`bun run build` refreshes it before prerendering).
-    const RELEASES_IN_STREAM = 40;
+    // The shared display limit caps both the page and bundled snapshot; the
+    // body cut is the byte budget applied to this build's fetched manifest.
     const PRERENDERED_BODIES = prerenderedBodyCount(
-      RELEASES.slice(0, RELEASES_IN_STREAM),
+      RELEASES.slice(0, RELEASE_DISPLAY_LIMIT),
     );
     // The prose wrapper ReleaseBody renders — one per rendered body.
     const BODY_MARKER = /max-w-none text-\[15px\]/g;
@@ -156,7 +157,7 @@ describe('prerender SEO suite', () => {
         const found = html ?? '';
 
         expect((found.match(/<article/g) ?? []).length).toBe(
-          RELEASES_IN_STREAM,
+          RELEASE_DISPLAY_LIMIT,
         );
         expect((found.match(BODY_MARKER) ?? []).length).toBe(
           PRERENDERED_BODIES,

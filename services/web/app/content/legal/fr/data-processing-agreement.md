@@ -4,7 +4,7 @@ description: Comment Ruler GmbH traite les données personnelles pour le compte 
 noindex: true
 ---
 
-**Dernière mise à jour :** 11.06.2026
+**Dernière mise à jour :** 03.10.2026
 
 Le présent accord de traitement des données (« DPA ») est un avenant au Service Agreement (« Contrat ») entre Ruler GmbH (« Tale », « nous ») et l’entité ou la personne qui accepte le Contrat (« Client », « tu »). Il s’applique chaque fois que Tale traite des données personnelles pour le compte du Client dans le cadre de la fourniture des services. En exécutant le Contrat, le Client conclut ce DPA en son nom et, dans la mesure requise par le droit applicable, au nom de ses utilisateurs autorisés et sociétés affiliées. Ce DPA prend effet à la date du Contrat.
 
@@ -132,7 +132,7 @@ g) sensibilisation à la sécurité pour le personnel.
 
 ### 7.2 Certifications
 
-Tale détient les certifications ISO 27001 et SOC 2 Type II (ou des standards équivalents) et en fournit la preuve sur demande raisonnable.
+Ruler GmbH maintient une certification ISO 27001 dont le périmètre couvre Tale Enterprise et les services professionnels, et en fournit la preuve sur demande raisonnable.
 
 ### 7.3 Mises à jour
 
@@ -182,7 +182,7 @@ Lorsque l’assistance aux demandes des Personnes concernées requiert un effort
 
 ### 10.1 Rapports d’audit
 
-Tale met à disposition, sur demande raisonnable et pas plus d’une fois par an, des copies des rapports d’audit tiers ou certifications pertinents (rapports SOC 2 Type II, certificats ISO 27001) pour démontrer le respect de ce DPA.
+Tale met à disposition, sur demande raisonnable et pas plus d’une fois par an, des copies des rapports d’audit tiers ou certifications pertinents (tels que les certificats ISO 27001) pour démontrer le respect de ce DPA.
 
 ### 10.2 Audits complémentaires
 

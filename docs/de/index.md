@@ -1,18 +1,24 @@
 ---
 title: Tale-Dokumentation
-description: Tale nutzen, Projektagenten erstellen, Anwendungen anbinden und eine Instanz betreiben.
+description: Koordiniere Teammitglieder und KI-Agenten in Tales Open-Source-Arbeitsbereich mit Projektaufgaben, Delegation, Sandboxes und prüfbaren Ergebnissen.
 kind: index
 ---
 
-Tale vereint Gespräche, Projekte, Wissen und Automatisierungen in einem Arbeitsbereich. Beginne mit deiner Aufgabe; du musst nicht zuerst jede Funktion kennen.
+Tale ist ein Open-Source-Arbeitsbereich für Teams und KI-Agenten. Plane die Arbeit auf einem gemeinsamen Aufgabenboard, weise Personen oder Agenten zu, stimme die nächsten Schritte ab und prüfe Berichte und gelieferte Dateien. Projektwissen und Anweisungen geben der Arbeit ihren Kontext.
+
+## Von der Aufgabe zum geprüften Ergebnis
+
+Beginne mit einem Problem, etwa dem Erstellen einer Website, einer Recherche für eine Entscheidung oder der Vorbereitung einer Marketingkampagne. Erstelle eine [Projektaufgabe](/de/platform/projects/tasks) mit dem gewünschten Ergebnis und den Quellen, weise einen [Projektagenten](/de/get-started/editors) zu, starte die Aufgabe und verfolge seine Arbeit bis zur [Ergebnisprüfung](/de/platform/projects/task-automation). Ein koordinierender Agent kann bereite Aufgaben delegieren, wenn er die nötigen Werkzeuge hat. Nutze eine [Automatisierung](/de/platform/automations/concepts), wenn der Prozess geplante Starts oder festgelegte Schritte braucht.
+
+Wähle die Anleitung für deinen nächsten Schritt. Du kannst Tale auf eigener Infrastruktur betreiben oder den verwalteten Cloud-Dienst nutzen.
 
 ## Dein Einstieg
 
 <CardGroup cols="2">
 
-<Card title="Deine erste Nachricht senden" icon="message-circle" href="/de/get-started/quickstart">
+<Card title="Einen Projektagenten erstellen" icon="bot" href="/de/get-started/editors">
 
-Anmelden, ein Modell wählen und eine Antwort erhalten.
+Einem Agenten eine klare Aufgabe geben und sein erstes Ergebnis prüfen.
 
 </Card>
 
@@ -22,9 +28,9 @@ Chats wiederfinden, mit Quellen arbeiten und ein Projekt öffnen.
 
 </Card>
 
-<Card title="Einen Projektagenten erstellen" icon="bot" href="/de/get-started/editors">
+<Card title="Deine erste Nachricht senden" icon="message-circle" href="/de/get-started/quickstart">
 
-Einem Agenten eine klare Aufgabe geben und sein erstes Ergebnis prüfen.
+Anmelden, ein Modell wählen und eine Antwort erhalten.
 
 </Card>
 

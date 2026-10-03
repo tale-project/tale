@@ -42,10 +42,12 @@ of the box. Set these at deploy time (compose, systemd, K8s), or via a local
 `/changelog` renders two layers of the same GitHub Releases list:
 
 - **Build-time snapshot** — `fetch-releases` writes
-  `app/generated/releases-manifest.ts`, which the prerendered HTML and the
-  SEO/LLM artifacts embed. This is also the offline fallback.
+  the newest 40 releases to `app/generated/releases-manifest.ts`, matching
+  the page's visible history. The prerendered HTML and SEO/LLM artifacts use
+  this snapshot; it also provides the cold-start and offline feed fallback.
 - **Runtime feed** — `GET /api/releases` (`lib/releases/feed.ts`) re-fetches
-  the list on a 30-minute TTL and the page swaps it in after hydration.
+  the full two-page list on a 30-minute TTL and the page swaps it in after
+  hydration, still displaying only the newest 40 releases.
 
 Both layers are needed: release images are built _before_ the release workflow
 publishes the GitHub release, so a snapshot alone is always at least one

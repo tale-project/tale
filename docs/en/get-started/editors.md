@@ -3,7 +3,7 @@ title: Create and test a project agent
 description: Give a project agent a focused job, start it on a task, and review the result.
 ---
 
-A project agent is a reusable brief for work on project tasks. You choose its instructions, runtime, model, and tools, then start it on a task and review what it produces. Until a project has an agent of its own, its tasks can go to the organization's [standard agent](/platform/projects/project-agents#standard-agent).
+Create a project agent for a repeatable job, such as reviewing documents or preparing an operational report. You choose its instructions, runtime, model, and tools, then give it a task with a result you can inspect. This guide uses a launch-brief review to show that path. Until a project has an agent of its own, its tasks can go to the organization's [standard agent](/platform/projects/project-agents#standard-agent).
 
 ## Before you begin
 
@@ -62,3 +62,5 @@ Test a missing-input case as well as a normal task. An agent that asks for a mis
 ## Refine one thing at a time
 
 Improve the instruction that caused a poor result, then try a comparable task. Add tools only when the job needs them, and review the [approval behavior](/platform/approvals/concepts) before enabling external writes. For a longer worked example, follow [your first agent end to end](/tutorials/editor/first-agent-end-to-end).
+
+Once you have a task you can evaluate reliably, use the same agent for similar work. If the process needs scheduled runs, defined stages, or connector approvals, build an [automation](/platform/automations/concepts) around those requirements.

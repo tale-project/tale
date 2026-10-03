@@ -28,6 +28,12 @@ const STAGES: readonly {
   moduleNavKey?: string;
 }[] = [
   {
+    key: 'projects',
+    Demo: HomeProjectsDemo,
+    moduleTo: '/platform/projects',
+    moduleNavKey: 'projects',
+  },
+  {
     key: 'connect',
     Demo: HomeConnectDemo,
     moduleTo: '/platform/agents',
@@ -57,7 +63,6 @@ const STAGES: readonly {
     moduleTo: '/platform/chat',
     moduleNavKey: 'chat',
   },
-  { key: 'projects', Demo: HomeProjectsDemo },
 ];
 
 /**

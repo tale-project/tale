@@ -28,12 +28,13 @@ import {
   groupReleasesByMonth,
   releaseDayOfMonth,
 } from '@/lib/releases/group-by-month';
-import { prerenderedBodyCount } from '@/lib/releases/prerender-budget';
+import {
+  prerenderedBodyCount,
+  RELEASE_DISPLAY_LIMIT,
+} from '@/lib/releases/prerender-budget';
 import type { Release } from '@/lib/releases/types';
 import { absoluteLocalizedUrl } from '@/lib/seo/absolute-url';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
-
-const DISPLAY_LIMIT = 40;
 
 /** True when the GitHub release name is more than a version restatement. */
 function distinctiveReleaseName(release: Release): string | null {
@@ -70,7 +71,7 @@ export function ChangelogPage() {
     fetchedAt: RELEASES_FETCHED_AT,
   });
   const releases = useMemo(
-    () => feed.releases.slice(0, DISPLAY_LIMIT) as Release[],
+    () => feed.releases.slice(0, RELEASE_DISPLAY_LIMIT) as Release[],
     [feed.releases],
   );
 

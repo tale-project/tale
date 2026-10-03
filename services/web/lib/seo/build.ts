@@ -56,16 +56,17 @@ function marketingAlternates(url: string): Record<string, string> {
 
 export const WEB_SITE_TITLE = 'Tale';
 export const WEB_SITE_DESCRIPTION =
-  'Tale — the orchestrator for AI agents, built for data-sensitive organisations. Self-hosted, on your own infrastructure.';
+  'Tale is the open-source workspace for teams and AI agents. Coordinate agents on project boards, assign tasks, and review the results together.';
 
 /**
  * Product facts for `llms.txt` (Pages section intro). Keep factual and
  * aligned with visible homepage / pricing / security copy — no ratings.
  */
 export const WEB_LLMS_PAGES_INTRO = [
-  'Tale is a self-hosted orchestrator for AI agents. Connect Claude Code, Codex, Hermes, OpenClaw, and in-product agents; pool org knowledge with citations; run automations with approvals; govern spend and audit every action.',
-  'Publisher: Ruler GmbH, Seestrasse 4, 3700 Spiez, Switzerland (VAT CHE-186.532.610). License: MIT (Community free to self-host). Enterprise: CHF 12 / EUR 14 per user/month (two months free on yearly billing). Certifications: ISO 27001, SOC 2 Type II.',
-  'Deploy on your infrastructure (Docker/Linux), including air-gapped environments. Documentation: https://tale.dev/docs/llms.txt — source: https://github.com/tale-project/tale',
+  'Tale is the open-source workspace for teams and AI agents. Coordinate people and agents on project boards: assign tasks, follow progress, and review the results together. Give agents project instructions, files, and tools; use automations for repeatable workflows with configured approvals. Project agents can use runtimes including Claude Code and Codex; supported capabilities vary by runtime.',
+  'Publisher: Ruler GmbH, Spiez, Switzerland. License: MIT. Community and Enterprise include the same product features; Enterprise adds professional operation and support. Current plans and terms: https://tale.dev/pricing.',
+  'Self-host with Docker on your infrastructure or use managed Cloud. Choose local or cloud model providers. Data flows depend on the providers, connectors, and external tools you configure.',
+  `Documentation: ${TALE_DOCS_LLMS_TXT} — source: ${TALE_GITHUB_URL}`,
 ].join('\n\n');
 
 export interface SsrRenderer {
