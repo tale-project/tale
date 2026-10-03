@@ -12,6 +12,7 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { blobRefHeld } from '../files/blob-holders.ts';
 import { loadActiveHolds, LegalHoldError } from '../legal_holds/service.ts';
 import { productImageId } from './image-url.ts';
 
@@ -287,7 +288,8 @@ async function loadProductOrThrow(
  * before, or a rolled-back delete would leave a row pointing at nothing.
  * An upload another product still references stays; so does one under a
  * legal hold (the organization's, or the uploader's as custodian): the
- * hold keeps the bytes, the product edit goes through.
+ * hold keeps the bytes, the product edit goes through. Bytes something else
+ * still holds stay too, while the row goes (`deleteFile`'s rule).
  */
 async function releaseManagedImage(
   tx: TransactionSql,
@@ -322,16 +324,13 @@ async function releaseManagedImage(
     return [];
   }
   await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
-  // The files domain's rule: bytes another row or document still serves
-  // survive the row.
+  // The files domain's rule (`blobRefHeld`): bytes another file row, a
+  // document (current or retained version) or a task still holds survive
+  // the row, or the task would list an attachment its every run start finds
+  // missing (#4110).
   const referenced = await tx<{ referenced: boolean }[]>`
-    SELECT EXISTS (
-      SELECT 1 FROM app.file_metadata
-      WHERE org_id = ${organizationId} AND storage_ref = ${row.storageRef}
-    ) OR EXISTS (
-      SELECT 1 FROM app.documents
-      WHERE org_id = ${organizationId} AND file_ref = ${row.storageRef}
-    ) AS referenced
+    SELECT ${blobRefHeld(tx, organizationId, tx`${row.storageRef}`)}
+    AS referenced
   `;
   return (referenced[0]?.referenced ?? false) ? [] : [row.storageRef];
 }

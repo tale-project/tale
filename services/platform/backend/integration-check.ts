@@ -86,6 +86,7 @@ import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexin
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
+import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -58985,6 +58986,18 @@ async function main(): Promise<void> {
         'checkRejectedUploadReclaim',
         () =>
           checkRejectedUploadReclaim(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkProductImageReleaseHolders',
+        () =>
+          checkProductImageReleaseHolders(
             sql,
             baseUrl,
             authCtx,
