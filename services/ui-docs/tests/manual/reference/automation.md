@@ -40,6 +40,7 @@ a spec failure and belongs in the gate, not in a round.
 | Every link a guide renders lands — no 404, no link through a redirect, every fragment an id the target renders — and every link into the guides from the rest of the repository | `tests/links.test.ts`; `bun run lint:links` (`tools/lint-links`) | none |
 | Every published guide address keeps answering (`content/published.json`); `/docs`, section folders and moved guides answer a 301; guessed addresses land on their guide, unknown ones and missing assets stay 404 | `tests/published.test.ts`, `tests/redirects.test.ts` | the answers of the deployed server ([seo.md](../suites/seo.md) `SEO-12`, `SEO-13`) |
 | The sitemap includes the homepage, the LLM index omits its absent Markdown twin, and product docs links use the canonical host | `lib/seo/build.test.ts` | none |
+| Fresh checkouts leave sitemap dates unchanged; pages without reliable content dates omit `lastmod` | `lib/seo/build.test.ts` (changes only fixture file timestamps, then compares compiled sitemap bytes) | none |
 | The built site answers every address its pages, `llms.txt`, sitemap and Markdown exports carry | `tests/prerender/links.test.ts` (`test:prerender`, real server over `dist/`, CI Build job) | none |
 | Phone drawer: open, choose a row, Escape, focus return, viewport release                                                                                                                                                              | —                                                                                                                     | **manual-only** — a focus-trap release timed to an exit animation is what jsdom cannot judge (`DOCS-12`, `DOCS-13`)   |
 | Header strip and rail logo row end on one line, with the page actions in the strip                                                                                                                                                    | `tests/e2e/specs/smoke.spec.ts` › documentation page + `packages/ui/src/components/docs/docs-layout.browser.test.tsx` | the look of the line in both themes (`DOCS-2`)                                                                        |
@@ -63,7 +64,8 @@ titles and 44px phone menu/search/drawer targets are covered by
 - `bun run docker:test:ui-docs` builds the image and probes it on **:13003**;
   it rebuilds `dist/`, `dist-ssr/` and `dist-seo/` inside the image only —
   the working tree's `dist/` (from a local `build`) is untouched.
-- The unit suites never start a server and never write outside `node_modules`.
+- The unit suites never start a server. Artifact and filesystem tests use temporary
+  directories and leave source content unchanged.
 
 ## Moving a box here
 

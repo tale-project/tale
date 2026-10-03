@@ -7,6 +7,9 @@
 import type { ReleaseFeed } from './feed';
 
 export const RELEASES_ROUTE = '/api/releases';
+/** Crawlable alias outside the private `/api/` robots exclusion. */
+export const CHANGELOG_JSON_ROUTE = '/changelog.json';
+export const RELEASES_ROUTES = [RELEASES_ROUTE, CHANGELOG_JSON_ROUTE] as const;
 
 /**
  * Browsers may reuse a response for this long. Well under the feed's own TTL,

@@ -199,6 +199,15 @@ describe('prerender SEO suite', () => {
     expect(total).toBeLessThan(2_500_000);
   });
 
+  for (const path of ['/changelog', '/de/changelog', '/fr/changelog']) {
+    it(`${path} advertises the crawlable live JSON feed without JavaScript`, () => {
+      const html = readHtml(path) ?? '';
+      expect(html).toMatch(
+        /<link rel="alternate" type="application\/json"[^>]*href="https:\/\/tale\.dev\/changelog\.json"/,
+      );
+    });
+  }
+
   describe('JSON-LD regressions', () => {
     it('homepage declares Organization + WebSite + SoftwareApplication + FAQPage', () => {
       const html = readHtml('/');

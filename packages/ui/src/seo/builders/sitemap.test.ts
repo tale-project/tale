@@ -1,6 +1,46 @@
-import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 
-import { buildSitemap } from './sitemap';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { buildSitemap, gitMtimeIso } from './sitemap';
+
+vi.mock('node:child_process', () => {
+  const mockExecFileSync = vi.fn();
+  return {
+    execFileSync: mockExecFileSync,
+    default: { execFileSync: mockExecFileSync },
+  };
+});
+
+describe('gitMtimeIso', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('preserves the known commit date', () => {
+    vi.mocked(execFileSync).mockReturnValue(
+      Buffer.from('2024-01-02T03:04:05+00:00\n'),
+    );
+    expect(gitMtimeIso('guide.md', '/repo')).toBe('2024-01-02T03:04:05+00:00');
+  });
+
+  it('omits lastmod when the file has no known commit', () => {
+    vi.mocked(execFileSync).mockReturnValue(Buffer.from(''));
+    const lastModified = gitMtimeIso('guide.md', '/repo');
+
+    expect(lastModified).toBeUndefined();
+    expect(
+      buildSitemap([{ url: 'https://tale.dev/guide', lastModified }]),
+    ).not.toContain('<lastmod>');
+  });
+
+  it('does not invent a date when Git is unavailable', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('Git is unavailable');
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(gitMtimeIso('guide.md', '/repo')).toBeUndefined();
+  });
+});
 
 describe('buildSitemap', () => {
   it('emits an empty <urlset> when given no pages', () => {

@@ -13,6 +13,18 @@ whose validation and gate have passed.
 | 4. Tag | Push `vX.Y.Z` at the SHA. | `release.yml`, as for every release. |
 | 5. Verify | Check the Release run, the GitHub release and the images. | Their recorded revision. |
 
+## Write the user-facing release notes
+
+Before choosing the candidate, merge a reviewed `.github/release-notes/vX.Y.Z.md` for the intended
+version. Lead with **Highlights** describing verified user outcomes, followed by **Upgrade notes**
+with operator actions and compatibility constraints. The [authoring guide](release-notes/README.md)
+has the structure. Generated API contract notes and the PR list follow these sections.
+
+Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select.
+Only select a candidate containing that reviewed file. The existing candidate gate checks CI
+and source identity; it does not check the prose. Release Prepare independently rejects missing,
+empty or placeholder sections before any image builds. Content-only `sites_only` builds are exempt.
+
 ## 1. Choose the candidate
 
 Choose a merged, reviewed commit on `main`, with the version it becomes. Candidates move
@@ -165,7 +177,8 @@ A version dispatch of `release.yml` builds the head of the ref it runs on. Run o
 
 ## 5. Verify the release
 
-- The Release run for the tag concluded `success`, and the GitHub release exists.
+- The Release run for the tag concluded `success`, and the GitHub release exists. Its notes begin
+  with the reviewed Highlights and Upgrade notes, then API contract changes and the generated PR list.
 - A published image names the candidate:
 
   ```bash
@@ -202,6 +215,13 @@ A published version is not a deployment. Deployments follow their own procedure.
 - **Do not re-run an old `main` Build run** to validate a candidate. It keeps its original group,
   and the next merge cancels it again.
 - **An expired receipt** (after 90 days) makes the gate ask for a new validation.
+- **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
+  the new candidate. If a tag was already pushed without valid notes, keep that tag and release
+  the corrected candidate under the next version; never repair its source by moving the tag.
+- **A release publication retry.** A published release is preserved, including its edited notes
+  and attached assets. A draft with the same tag stops publication for the release lane to
+  reconcile; do not delete or overwrite another maintainer's draft. API/authentication failures
+  remain failures instead of being reported as an existing release.
 - **A failed Release run after the tag.** Never move the tag. Re-run the Release run's failed
   jobs (its concurrency never cancels a release), or release the fix as the next version.
 

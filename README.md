@@ -67,6 +67,26 @@ Select a screenshot to view it at full size. The captures show the English inter
 3. **Coordinate and review.** Follow progress on the board, steer agents with @mentions in task comments, and inspect their reports and files. A [manager agent](https://docs.tale.dev/platform/projects/task-automation#let-a-manager-agent-keep-the-queue-moving) can delegate ready work when granted the required tools.
 4. **Repeat a defined process.** Use a versioned [automation](https://docs.tale.dev/platform/automations/concepts) when the work needs scheduled starts, workflow steps, or connector approvals.
 
+### Example: review a launch brief
+
+With a project agent and compatible model credentials configured, adapt this illustrative task brief to your own source files:
+
+> Compare the attached launch brief and meeting notes. Produce a Markdown report listing conflicting dates, missing owners, and open decisions. Cite the source file and passage for each finding. Separate confirmed facts from questions, and leave the source files unchanged.
+
+Before accepting the result, open the delivered report, verify its citations against both files, and check that each requested category is covered. Ask for corrections in the task when evidence is missing. The [task review guide](https://docs.tale.dev/platform/projects/task-automation) explains how to request changes or accept completed work.
+
+## Evaluate Tale for your team
+
+**Which agent runtimes can I use?** Tale includes Claude Code, Codex, Cursor, Gemini CLI, Hermes, OpenClaw, OpenCode, Pi, and Qwen Code. Availability depends on your deployment, credentials, and sandbox capacity. Check the [runtime compatibility matrix](https://docs.tale.dev/platform/agents/harnesses) for credential paths, tools, and conversation limits.
+
+**Can I use an API key or an existing subscription?** Stored provider API keys use Tale's model gateway. Supported vendor subscriptions work only with compatible runtimes, cannot power ordinary Chat, and bypass Tale's gateway metering and spending caps. Read the [credential and cost details](https://docs.tale.dev/platform/agents/harnesses#understand-credential-exposure-and-cost) before choosing a connection.
+
+**What does self-hosting require?** Start with Docker and Compose, storage for images and persistent data, and credentials for a supported model provider. Production also needs DNS, TLS, backups, and access controls. The [self-hosted quickstart](https://docs.tale.dev/self-hosted/install/quickstart) covers the local setup and links to production preparation.
+
+**Where does my data go?** Application records, searchable knowledge, and original files have separate storage settings. Model providers, connectors, and external tools can process data outside those stores; self-hosting alone does not keep every request local. Review [data residency](https://docs.tale.dev/self-hosted/configuration/data-residency) and the [runtime's credential and network behavior](https://docs.tale.dev/platform/agents/harnesses).
+
+**What differs between Community and Enterprise?** Both include the same product features under the MIT license. Enterprise adds professional operation and support. See [plans and pricing](https://tale.dev/pricing) for the current service terms.
+
 ## Start here
 
 | Your goal | Follow this guide |

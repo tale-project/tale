@@ -84,6 +84,7 @@ export function useTaleDocumentMeta(meta: TaleDocumentMetaInput): void {
     noindex,
     hreflang,
     jsonLd,
+    alternateFormats,
   } = meta;
 
   // Memoize the resolved input so the head effect's deps stay stable when
@@ -103,6 +104,7 @@ export function useTaleDocumentMeta(meta: TaleDocumentMetaInput): void {
         noindex,
         hreflang,
         jsonLd,
+        alternateFormats,
       }),
     [
       locale,
@@ -117,6 +119,7 @@ export function useTaleDocumentMeta(meta: TaleDocumentMetaInput): void {
       noindex,
       hreflang,
       jsonLd,
+      alternateFormats,
     ],
   );
 

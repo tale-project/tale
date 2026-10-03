@@ -40,6 +40,7 @@ import {
   type LegalRoute,
 } from '../../scripts/legal-routes';
 import { localizedPath, SUPPORTED_LOCALES } from '../i18n/locales';
+import { CHANGELOG_JSON_ROUTE } from '../releases/route';
 import { marketingRoutesForLocale } from './marketing-routes';
 
 /** URL-bearing marketing locales — must mirror scripts/prerender.ts. */
@@ -169,6 +170,10 @@ export function webOptionalPages(): OptionalPage[] {
   return [
     { title: 'Documentation', url: TALE_DOCS_LLMS_TXT },
     { title: 'GitHub', url: TALE_GITHUB_URL },
+    {
+      title: 'Current releases (JSON; includes source and fetch time)',
+      url: `${TALE_SITE_URL}${CHANGELOG_JSON_ROUTE}`,
+    },
   ];
 }
 

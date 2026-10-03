@@ -6,6 +6,7 @@ import {
   WEB_LLMS_PAGES_INTRO,
   buildWebSections,
   legalDisallowPaths,
+  webOptionalPages,
   makeWebLoadBody,
 } from './build';
 
@@ -126,5 +127,12 @@ describe('legal SEO contract', () => {
       '/legal/privacy-policy',
       '/de/legal/privacy-policy',
     ]);
+  });
+});
+
+it('directs LLM readers to the current crawlable release feed', () => {
+  expect(webOptionalPages()).toContainEqual({
+    title: 'Current releases (JSON; includes source and fetch time)',
+    url: 'https://tale.dev/changelog.json',
   });
 });

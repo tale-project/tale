@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createReleaseFeed } from './feed';
+import {
+  createReleaseFeed,
+  releaseFeedHealth,
+  RELEASES_STALE_AFTER_MS,
+} from './feed';
 import type { Release } from './types';
 
 function release(version: string): Release {
@@ -154,5 +158,55 @@ describe('createReleaseFeed', () => {
     });
 
     await expect(feed.refresh()).resolves.toBeUndefined();
+  });
+});
+
+describe('release feed freshness', () => {
+  it('reports stale data once, recovers, then reports a later outage', async () => {
+    let clock = Date.parse('2026-08-21T10:00:00Z');
+    const fetchReleases = vi
+      .fn<() => Promise<Release[]>>()
+      .mockRejectedValue(new Error('offline'));
+    const reportStale = vi.fn();
+    const feed = createReleaseFeed({
+      snapshot: SNAPSHOT,
+      snapshotFetchedAt: SNAPSHOT_FETCHED_AT,
+      fetchReleases,
+      reportStale,
+      now: () => clock,
+    });
+    await feed.refresh();
+    await feed.refresh();
+    expect(reportStale).toHaveBeenCalledTimes(1);
+    expect(releaseFeedHealth(feed.read(), clock)).toMatchObject({
+      ok: false,
+      source: 'snapshot',
+      releasesFetchedAt: SNAPSHOT_FETCHED_AT,
+    });
+    fetchReleases.mockResolvedValue(LIVE);
+    await feed.refresh();
+    expect(releaseFeedHealth(feed.read(), clock)).toMatchObject({
+      ok: true,
+      source: 'live',
+      ageSeconds: 0,
+    });
+    fetchReleases.mockRejectedValue(new Error('offline again'));
+    clock += RELEASES_STALE_AFTER_MS;
+    await feed.refresh();
+    expect(reportStale).toHaveBeenCalledTimes(1);
+    clock += 1;
+    await feed.refresh();
+    expect(reportStale).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not claim freshness for invalid or future snapshot dates', () => {
+    for (const fetchedAt of ['invalid', '2030-01-01T00:00:00Z']) {
+      expect(
+        releaseFeedHealth(
+          { releases: SNAPSHOT, fetchedAt, source: 'snapshot' },
+          Date.parse('2026-08-21T10:00:00Z'),
+        ).ok,
+      ).toBe(false);
+    }
   });
 });

@@ -442,13 +442,6 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   fallback (`SECURITY_CONTACT` = `mailto:`/`https:`/`tel:`, optional `SECURITY_POLICY_URL`,
   `Expires` under a year, `Canonical`), its `.env.example` block and environment-reference row,
   a `server.test.ts` case each way, and the operator's decision on the contact.
-- **No changelog feed** — `tale.dev/changelog` prerenders a build-time snapshot and swaps in
-  `/api/releases` after hydration, so `curl` and LLM readers see the image's release; there is
-  no Atom/RSS render and a failing runtime refresh is only a `console.warn` (2026-09, round g).
-  Paying it down means `<link rel="alternate">` to `/api/releases` on the page plus an llms.txt
-  entry, `releasesFetchedAt`/`source` in the web health status reported through
-  `monitoring.capture` when the last good fetch is older than six hours, and optionally a
-  `/changelog.atom` render of the same list.
 - **No SDK, collection or per-code table** — `openapi.json` is the generator-ready contract
   and the error registry (`backend/rest/error-codes.ts`) publishes names only: no per-code
   description or status map exists, so a generated table would be a bare list (2026-09,

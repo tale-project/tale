@@ -8,8 +8,6 @@
  * cluster, which is the one real simplification against `services/docs`.
  */
 
-import { statSync } from 'node:fs';
-
 import type {
   ArtifactRoute,
   ArtifactSection,
@@ -50,15 +48,6 @@ function isNoindex(page: ContentRecord): boolean {
   return page.frontmatter.noindex === true;
 }
 
-function fileMtimeIso(path: string): string {
-  try {
-    return statSync(path).mtime.toISOString();
-  } catch (error) {
-    console.warn(`[ui-docs/seo] fileMtimeIso fallback for ${path}:`, error);
-    return new Date().toISOString();
-  }
-}
-
 function getString(
   fm: Record<string, string | boolean>,
   key: string,
@@ -72,9 +61,8 @@ function toRoute(page: ContentRecord): ArtifactRoute {
     url: pathFor(page.slug),
     title: getString(page.frontmatter, 'title') ?? page.slug,
     description: getString(page.frontmatter, 'description'),
-    // Filesystem mtime — a per-file `git log` across the tree is too slow for
-    // the on-demand walk.
-    lastModified: fileMtimeIso(page.filePath),
+    // Omit lastModified until content carries a reliable change date.
+    // Checkout mtimes and the build clock do not describe page updates.
   };
 }
 
