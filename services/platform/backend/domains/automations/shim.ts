@@ -459,8 +459,10 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         brokerTokenHash?: string | null;
       };
       return sql.begin(async (tx) => {
-        const rows = await tx<{ status: string; checkpoints: unknown }[]>`
-          SELECT status, checkpoints FROM app.automation_runs
+        const rows = await tx<
+          { status: string; checkpoints: unknown; detail: string | null }[]
+        >`
+          SELECT status, checkpoints, detail FROM app.automation_runs
           WHERE id = ${args.runId} AND org_id = ${args.organizationId}
           LIMIT 1
           FOR UPDATE
@@ -497,6 +499,9 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         }
         const { brokerTokenHash: _previousBrokerTokenHash, ...previousAgent } =
           cursor.agent;
+        // A start that waited for sandbox room launched: the run's park
+        // says an agent works now, not that it waits for room.
+        const waitedForRoom = row.detail === `room:${args.nodeId}`;
         await tx`
           UPDATE app.automation_runs SET
             checkpoints = ${tx.json(
@@ -514,9 +519,14 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
                 },
                 executions: checkpoints.executions ?? 0,
               }),
-            )}
+            )},
+            detail = CASE WHEN detail = ${`room:${args.nodeId}`}
+              THEN ${`agent:${args.nodeId}`} ELSE detail END
           WHERE id = ${args.runId}
         `;
+        if (waitedForRoom) {
+          await emitRunHint(tx, args.organizationId, args.runId);
+        }
         return { stamped: true };
       });
     },

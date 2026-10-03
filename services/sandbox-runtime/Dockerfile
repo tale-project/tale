@@ -23,6 +23,18 @@ WORKDIR /build
 COPY services/sandbox-runtime/daemon/ ./
 RUN bun build --target=node src/main.ts --outfile /runnerd.mjs
 
+# --- exec shim build stage: the subreaper runnerd runs every exec under -----
+# Everything an exec starts stays the shim's descendant, so runnerd ends what
+# the exec left even after it moved to a session of its own and dropped the
+# exec's tag (daemon/exec-shim/tale-exec-shim.c). Built on the runtime's own
+# Debian release, so it links against the same glibc.
+FROM debian:bookworm-slim AS exec-shim-build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY services/sandbox-runtime/daemon/exec-shim/tale-exec-shim.c /build/tale-exec-shim.c
+RUN gcc -O2 -Wall -Wextra -Werror -o /tale-exec-shim /build/tale-exec-shim.c
+
 # --- runtime image ----------------------------------------------------------
 FROM python:3.12-slim-bookworm
 
@@ -349,9 +361,30 @@ RUN chmod +x /usr/local/bin/tale-gemini-run
 
 # OpenAI Codex CLI (pinned npm). Driven headlessly by the platform's codex
 # adapter (`codex exec --json`, config via -c overrides) — no wrapper needed;
-# the CLI's native JSONL is the parse contract.
+# the CLI's native JSONL is the parse contract. Its npm launcher is a Node
+# process that stays the native binary's parent for the whole run; `codex` on
+# PATH execs the binary directly instead (codex-launcher.in), resolved the way
+# that launcher resolves it.
+COPY services/sandbox-runtime/codex-launcher.in /tmp/codex-launcher.in
 RUN npm install -g --prefix /opt/agents "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force \
+    && codex_root="$(realpath /opt/agents/lib/node_modules/@openai/codex)" \
+    && codex_bin="$(node -e ' \
+         const path = require("path"); \
+         const root = process.argv[1]; \
+         const req = require("module").createRequire(path.join(root, "bin", "codex.js")); \
+         const triple = { x64: "x86_64-unknown-linux-musl", arm64: "aarch64-unknown-linux-musl" }[process.arch]; \
+         const pkg = { x64: "@openai/codex-linux-x64", arm64: "@openai/codex-linux-arm64" }[process.arch]; \
+         let vendor; \
+         try { vendor = path.join(path.dirname(req.resolve(pkg + "/package.json")), "vendor"); } \
+         catch { vendor = path.join(root, "vendor"); } \
+         console.log(path.join(vendor, triple, "bin", "codex"));' "$codex_root")" \
+    && test -x "$codex_bin" \
+    && sed -e "s|@CODEX_ROOT@|$codex_root|" -e "s|@CODEX_BIN@|$codex_bin|" \
+         /tmp/codex-launcher.in > /opt/agents/bin/codex.direct \
+    && chmod 755 /opt/agents/bin/codex.direct \
+    && mv -f /opt/agents/bin/codex.direct /opt/agents/bin/codex \
+    && rm /tmp/codex-launcher.in \
     && codex --version
 
 # Pi (pinned npm, into /opt/agents like Claude Code) + Tale wrapper that
@@ -438,8 +471,10 @@ RUN echo 'agent:100000:65536' >> /etc/subuid \
     && echo 'agent:100000:65536' >> /etc/subgid
 
 # runnerd — the session control daemon, bundled to a single file in the
-# daemon-build stage and run by the image's Node 24 (session mode only).
+# daemon-build stage and run by the image's Node 24 (session mode only) — and
+# the subreaper shim it runs every exec under.
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
+COPY --from=exec-shim-build /tale-exec-shim /usr/local/bin/tale-exec-shim
 
 # Claude Code managed settings (highest precedence on Linux): disable
 # auto-update + telemetry, suppress Claude commit/PR attribution
@@ -474,10 +509,16 @@ COPY services/sandbox-runtime/tale-plan-gate /usr/local/bin/tale-plan-gate
 # via the session entrypoint; baked here so it exists read-only.
 COPY services/sandbox-runtime/tale-git-credential /usr/local/bin/tale-git-credential
 
-# Playwright MCP launcher shim: appends --proxy-server/--proxy-bypass from the
-# container's HTTPS_PROXY/NO_PROXY (Chromium ignores the env vars) and execs
-# mcp-server-playwright. The agent adapters use this as the MCP command.
+# Playwright MCP launcher: appends --proxy-server/--proxy-bypass from the
+# container's HTTPS_PROXY/NO_PROXY (Chromium ignores the env vars), and answers
+# the start of an agent turn (initialize, tools/list) from manifests of the
+# real server's answers, recorded below for the argument sets the platform
+# passes (playwright-mcp-args.json, held to exec-builder.ts by its test): the
+# server, a Node process holding ~100 MB, starts only once the turn first uses
+# the browser. The agent adapters use this as the MCP command.
 COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright-mcp
+COPY services/sandbox-runtime/playwright-mcp-args.json /opt/tale/playwright-mcp/args.json
+RUN python3 -Es /usr/local/bin/tale-playwright-mcp --write-manifests /opt/tale/playwright-mcp/args.json
 
 # Connector-dispatch MCP bridge: a dependency-free stdio MCP server the agent
 # adapters wire in via --mcp-config. Relays connector({slug,operation,args})

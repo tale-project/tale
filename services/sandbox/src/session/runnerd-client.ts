@@ -190,9 +190,13 @@ async function pumpNdjson(
 export async function runnerdCancelExec(
   opts: RunnerdClientOptions,
   execId: string,
+  mode: { keepLeftovers?: boolean } = {},
 ): Promise<boolean> {
+  // `leftovers=keep`: a rotation — runnerd ends the exec's own process group
+  // and holds what it left outside it for the exec that takes over.
+  const query = mode.keepLeftovers === true ? '?leftovers=keep' : '';
   const res = await fetch(
-    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/cancel`,
+    `${opts.baseUrl}/execs/${encodeURIComponent(execId)}/cancel${query}`,
     {
       method: 'POST',
       headers: authHeaders(opts.token),

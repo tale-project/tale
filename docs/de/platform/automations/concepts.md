@@ -116,7 +116,7 @@ Im Modus **Test** werden externe Aktionen simuliert. **Live** kann sie tatsächl
 
 Eine erforderliche Freigabe hält den Lauf vor einer geschützten Schreibaktion im Status `waiting` an. Die Freigabe erlaubt den Ausführungsversuch, garantiert aber keinen Erfolg. Ablehnen verhindert die Aktion und lässt den Lauf fehlschlagen. Eine Frage pausiert ebenfalls, verlangt jedoch Informationen statt einer Erlaubnis.
 
-Der Status `waiting` kann auch bedeuten, dass ein Agent noch arbeitet oder eine Node ihre Bedingung wiederholt prüft. Lies deshalb `waitingFor`: `approval` und `ask` brauchen eine Person; `agent` und `repeat` setzen normalerweise automatisch fort. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt, wie du die menschlichen Anfragen prüfst und beantwortest.
+Der Status `waiting` kann auch bedeuten, dass ein Agent noch arbeitet, dass ein Agent-Schritt für seinen Start auf einen Sandbox-Platz wartet oder dass eine Node ihre Bedingung wiederholt prüft. Lies deshalb `waitingFor`: `approval` und `ask` brauchen eine Person; `agent`, `room` und `repeat` setzen normalerweise automatisch fort. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt, wie du die menschlichen Anfragen prüfst und beantwortest.
 
 ## Chat, Aufgabe oder Automatisierung wählen
 

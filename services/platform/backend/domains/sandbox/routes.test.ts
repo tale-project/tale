@@ -437,6 +437,57 @@ describe('external-turn metrics', () => {
     expect(rows.reduce((sum, row) => sum + row.timeout, 0)).toBe(body.timeout);
   });
 
+  // Each start of an automation step that waits for sandbox room settles
+  // an op; hundreds an hour crowded every real turn out of a page of the
+  // newest 5000, and the cap read off the folded total said nothing.
+  it.each(['/external-turn-metrics?periodDays=7', '/harness-health'])(
+    'leaves turns that are no outcome out in SQL, before any cap (%s)',
+    async (path) => {
+      query.mockResolvedValueOnce([] as never);
+
+      const response = await app().request(path);
+
+      expect(response.status).toBe(200);
+      const [strings, ...values] = query.mock.calls[0] as unknown as [
+        TemplateStringsArray,
+        ...unknown[],
+      ];
+      const text = strings.join('?').replace(/\s+/g, ' ');
+      expect(text).toContain(
+        'AND (o.agent_result_status IS NULL OR o.agent_result_status <> ALL(?))',
+      );
+      expect(values).toContainEqual(['awaiting_human', 'awaiting_room']);
+    },
+  );
+
+  it('reports the cap the read hit, whatever the fold skipped', async () => {
+    query.mockResolvedValueOnce([
+      ...Array.from({ length: 4999 }, () => ({
+        outcome: 'completed',
+        status: 'completed',
+        harness: 'claude-code',
+        durationMs: 1000,
+        spentCents: 1,
+        recovered: false,
+      })),
+      {
+        outcome: 'awaiting_human',
+        status: 'completed',
+        harness: 'claude-code',
+        durationMs: 1000,
+        spentCents: 1,
+        recovered: false,
+      },
+    ] as never);
+
+    const response = await app().request('/external-turn-metrics?periodDays=7');
+
+    expect(await response.json()).toMatchObject({
+      capped: true,
+      total: 4999,
+    });
+  });
+
   // A project agent's session is standing: created once, resumed for every
   // turn, across the agent's harness switches. Its `agent_kind` names the
   // harness it was created with, so a read keyed on it counted a pi turn as

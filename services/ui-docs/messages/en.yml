@@ -1,6 +1,6 @@
 seo:
-  siteTitle: The Tale design system
-  ogImageAlt: Tale — The Orchestrator for AI Agents
+  siteTitle: 'Tale UI: React component library'
+  ogImageAlt: Tale logo
 nav:
   homeAriaLabel: Tale design system home
   skipToMain: Skip to main content
@@ -26,8 +26,8 @@ demo:
   missingBody: No demo is registered under "{name}". Add
     app/demos/{name}.tsx and reference it from a page.
 home:
-  heroTitle: The Tale design system
-  heroDescription: Build application screens with @tale/ui and public websites with @tale/marketing-ui. Use the guides and live examples to choose and connect the components.
+  heroTitle: Build with the React components behind Tale
+  heroDescription: Build applications and websites with the MIT-licensed React components behind Tale. Explore live examples, themes, translations, and composition guides.
   heroPrimary: Read the docs
   heroSecondary: View on GitHub
   heroMeta: "{count, plural, one {# guide} other {# guides}} · @tale/ui and

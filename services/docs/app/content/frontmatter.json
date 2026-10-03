@@ -199,7 +199,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Tale-Dokumentation",
-      "description": "Tale nutzen, Projektagenten erstellen, Anwendungen anbinden und eine Instanz betreiben.",
+      "description": "Koordiniere Teammitglieder und KI-Agenten in Tales Open-Source-Arbeitsbereich mit Projektaufgaben, Delegation, Sandboxes und prüfbaren Ergebnissen.",
       "kind": "index"
     }
   },
@@ -1360,7 +1360,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Tale documentation",
-      "description": "Learn to use Tale, build project agents, connect applications, and operate an instance.",
+      "description": "Coordinate teammates and AI agents in Tale’s open-source workspace with project tasks, delegation, sandboxes, and reviewable results.",
       "kind": "index"
     }
   },
@@ -2521,7 +2521,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Documentation Tale",
-      "description": "Utilise Tale, crée des agents de projet, connecte des applications et exploite ton instance.",
+      "description": "Coordonne ton équipe et tes agents IA dans l’espace open source de Tale avec des tâches de projet, la délégation, des sandboxes et la revue des résultats.",
       "kind": "index"
     }
   },

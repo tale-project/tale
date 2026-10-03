@@ -55,7 +55,7 @@ Inhaber und Admins können **Arbeitsbereiche** prüfen. Jede Zeile nennt den zug
 
 Die Ausgaben enthalten die gemessenen Kosten abgeschlossener Durchläufe. Ein noch laufender Durchlauf wird nach seinem Ende eingerechnet. Vorübergehende Crawler-Umgebungen zählen zur Kapazität, auch ohne eigene dauerhafte Workspace-Zeile.
 
-Ist die Deployment-Kapazität voll, kann Tale eine nicht angeheftete, inaktive Umgebung zurückfordern, deren Belegung freigegeben ist und die bestätigt, dass keine Arbeit mehr läuft. Die dauerhaften Workspace-Dateien bleiben für den nächsten Start erhalten. Beschäftigte, angeheftete oder nicht erreichbare Umgebungen kommen nicht infrage. Ohne geeigneten Kandidaten braucht neue Arbeit freie Kapazität.
+Ist die Deployment-Kapazität voll, kann Tale eine nicht angeheftete, inaktive Umgebung zurückfordern, deren Belegung freigegeben ist und die bestätigt, dass keine Arbeit mehr läuft. Die dauerhaften Workspace-Dateien bleiben für den nächsten Start erhalten. Beschäftigte, angeheftete oder nicht erreichbare Umgebungen kommen nicht infrage. Ohne geeigneten Kandidaten braucht neue Arbeit freie Kapazität. Eine Umgebung, deren Aufgabe oder Lauf beendet ist, stoppt nach einigen Minuten im Leerlauf, sodass ihr Platz bald nach dem Ende der Arbeit frei wird. Eine Agent-Umgebung, in der Docker läuft, behält ihre volle Leerlaufzeit, damit der nächste Durchgang ihre Images nicht erneut laden muss.
 
 ## Einen bestehenden Arbeitsbereich verwalten
 
@@ -102,6 +102,12 @@ Jeden Arbeitsbereich, den Tale von selbst löscht, aus einem dieser Gründe oder
 
 ## Einen blockierten Start klären
 
-Erhöhe ein Arbeitslimit nur, wenn seine Plätze belegt sind und die neue Summe in die gemeinsame Kapazität passt. Ist das Deployment voll, schafft ein höheres Organisationslimit keine Infrastruktur. Für eigene Kapazität [verbindest du ein Gerät](/de/platform/admin/sandbox-devices): Neue Arbeitsbereiche starten dann darauf. Andernfalls lass den Betreiber Kapazität und Host-Ressourcen prüfen. Ein freier Containerplatz garantiert noch nicht genügend CPU oder Speicher.
+Ein Start ohne freien Platz wartet, und du musst nichts tun. Sind die Limits deiner Organisation belegt oder ist das Deployment voll oder knapp an Arbeitsspeicher oder Speicherplatz, startet die Arbeit von selbst, sobald Platz frei wird. Ist das Deployment selbst voll, geht sein Platz an die Arbeit, die am längsten wartet, egal aus welcher Organisation, und jeder wartende Start erfährt, wann er an der Reihe ist:
+
+- Ein Aufgabenlauf wartet in der Warteschlange. Er wird erneut versucht, sobald eine Sitzung endet, in deiner Organisation oder in einer anderen auf demselben Deployment. Ist das Deployment voll, wird er auch versucht, wenn er an der Reihe ist. Zusätzlich versucht Tale alle zwei Minuten einige wartende Läufe jeder Organisation, die am längsten wartenden zuerst.
+- Der Agent-Schritt einer Automatisierung versucht es erneut, ohne seine Wiederholungen zu verbrauchen: wenn er an der Reihe ist, falls das Deployment voll ist, sonst nach einer Pause, die länger wird, solange der Schritt weiter wartet, bis zu etwa zwei Minuten. Der Lauf zeigt währenddessen **Wartet auf einen Sandbox-Platz**. Findet er zwei Stunden lang keinen Platz, schlägt der Lauf mit diesem Grund fehl.
+- Das Crawling wartet, bis es an der Reihe ist, und setzt dann mit dem nächsten Stapel fort.
+
+Erhöhe ein Arbeitslimit nur, wenn seine Plätze belegt sind und die neue Summe in die gemeinsame Kapazität passt. Ist das Deployment voll, schafft ein höheres Organisationslimit keine Infrastruktur. Für eigene Kapazität [verbindest du ein Gerät](/de/platform/admin/sandbox-devices): Neue Arbeitsbereiche starten dann darauf. Andernfalls lass den Betreiber Kapazität und Host-Ressourcen prüfen. Ein freier Containerplatz garantiert noch nicht genügend CPU, Arbeitsspeicher oder Speicherplatz.
 
 Bei Zugangs- oder Modellproblemen hilft [KI-Provider](/de/platform/admin/providers), bei Ausgabengrenzen [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits). Self-Hosted-Betreiber finden die Deployment-Einstellung in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure).

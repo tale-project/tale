@@ -8,15 +8,25 @@ import {
 import { reportError } from '../error-reporting.ts';
 import { bossDbInTx } from './enqueue.ts';
 import type { BackendTaskList } from './task-list.ts';
-import { TASK_WORKER_BATCH_LIMITS, TASK_WORKER_SLOT_QUEUES } from './tasks.ts';
+import {
+  slotQueueSlots,
+  TASK_WORKER_BATCH_LIMITS,
+  TASK_WORKER_IDLE_POLL_SECONDS,
+  TASK_WORKER_SLOT_QUEUES,
+} from './tasks.ts';
 
 export type WorkerOptions = {
   boss: PgBoss;
   taskList: BackendTaskList;
   /** Max jobs fetched (and processed concurrently) per queue per fetch;
    * `TASK_WORKER_BATCH_LIMITS` lowers it for the queues it names, and a
-   * queue in `TASK_WORKER_SLOT_QUEUES` runs as many one-job slots instead. */
+   * queue in `TASK_WORKER_SLOT_QUEUES` runs as many one-job slots instead
+   * (`slotQueueSlots`). */
   concurrency?: number;
+  /** One-job slots of the agent start queues (AGENT_START_SLOTS). */
+  agentStartSlots?: number | undefined;
+  /** One-job slots of the agent drive queues (AGENT_DRIVE_SLOTS). */
+  agentDriveSlots?: number | undefined;
 } & (
   | { shouldDefer?: undefined; sql?: undefined }
   | {
@@ -128,11 +138,19 @@ async function handOver(
 export async function startWorker(options: WorkerOptions): Promise<void> {
   const concurrency = options.concurrency ?? 5;
   for (const [name, handler] of Object.entries(options.taskList)) {
+    const pollSeconds = TASK_WORKER_IDLE_POLL_SECONDS.get(name) ?? 2;
     await options.boss.work(
       name,
       {
         ...(TASK_WORKER_SLOT_QUEUES.has(name)
-          ? { batchSize: 1, localConcurrency: concurrency }
+          ? {
+              batchSize: 1,
+              localConcurrency: slotQueueSlots(name, {
+                concurrency,
+                agentStartSlots: options.agentStartSlots,
+                agentDriveSlots: options.agentDriveSlots,
+              }),
+            }
           : {
               batchSize: Math.min(
                 concurrency,
@@ -144,12 +162,12 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         // priority, which only the metadata carries.
         includeMetadata: true,
         burstWhenBatchFull: true,
-        pollingIntervalSeconds: 2,
+        pollingIntervalSeconds: pollSeconds,
         // NOTIFY fires on INSERT, not when a delayed job's startAfter
         // passes — the fallback poll is the ONLY thing that surfaces
         // delayed self-chains (deferred-send cadence, automation polls),
         // so it must match the polling interval, not idle at 30s.
-        notifyPollingIntervalSeconds: 2,
+        notifyPollingIntervalSeconds: pollSeconds,
       },
       (jobs) =>
         Promise.all(

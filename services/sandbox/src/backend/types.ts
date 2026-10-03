@@ -5,12 +5,19 @@
 // `SessionBackend` owns the long-lived session container/Pod lifecycle. Both are
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
 
+import type { SessionDiskState } from '../host-disk.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
 export type HealthResult =
   | { ok: true; detail: string }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /** The probe could not ask the backend at all (no docker CLI slot came
+       * free in time): answered as unhealthy, never cached. */
+      transient?: boolean;
+    };
 
 /** A fenced stop found a DIFFERENT incarnation under the session's
  * deterministic name than the one it was asked to stop (`expectedCreatedAtMs`
@@ -163,6 +170,14 @@ export interface CreateSessionResult {
  */
 export type WorkspaceDeletion = 'done' | 'pending' | 'failed' | 'handed_off';
 
+/** What the build-cache upkeep is told about the host. */
+export interface BuildCacheUpkeep {
+  /** The disk the workspaces live on, read now (null when it cannot be):
+   * while it is below its floor, the caches of organizations that are not
+   * building go first. */
+  sessionDisk?: () => Promise<SessionDiskState | null>;
+}
+
 export interface SessionBackend {
   readonly kind: 'docker' | 'kubernetes';
   /**
@@ -254,7 +269,10 @@ export interface SessionBackend {
    * a failure is never fatal. A no-op on backends without a shared build cache
    * (Kubernetes) or when the cache is disabled.
    */
-  reconcileBuildCache(orgIds: readonly string[]): Promise<void>;
+  reconcileBuildCache(
+    orgIds: readonly string[],
+    upkeep?: BuildCacheUpkeep,
+  ): Promise<void>;
   /**
    * Does this backend hold a workspace for the session — a running container
    * or a stopped one's preserved data? The device hub asks before placing a

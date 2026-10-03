@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -178,5 +179,30 @@ def main() -> int:
             shutil.rmtree(stage_dir, ignore_errors=True)
 
 
+class Cancelled(BaseException):
+    """Raised when runnerd ends the exec (a process-group SIGTERM on cancel,
+    at the exec's deadline or when it exits). Python's default SIGTERM
+    disposition runs no `finally`, which left the staged settings and the
+    per-exec context file behind; a BaseException unwinds through them and
+    past the generic `except Exception` in main()."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(signum)
+        self.signum = signum
+
+
+def _cancel(signum: int, _frame: object) -> None:
+    # The cleanup this starts must not be cut short by a second signal (a
+    # group SIGTERM after a Ctrl-C, the session's stop after a cancel).
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, signal.SIG_IGN)
+    raise Cancelled(signum)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(_sig, _cancel)
+    try:
+        raise SystemExit(main())
+    except Cancelled as cancelled:
+        raise SystemExit(128 + cancelled.signum) from None

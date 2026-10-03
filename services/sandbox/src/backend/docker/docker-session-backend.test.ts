@@ -25,8 +25,13 @@ import {
   WorkspaceTrash,
   workspaceTrash,
 } from '../../session/workspace-trash.ts';
+import {
+  DOCKER_CLI_CONCURRENCY,
+  dockerCliLoad,
+  runDocker,
+} from '../../spawn-util.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { DockerBackend } from './docker-backend.ts';
+import { DockerBackend, dockerHealth } from './docker-backend.ts';
 import {
   DockerSessionBackend,
   isDockerNameConflict,
@@ -130,6 +135,12 @@ case "$cmd" in
     fi
     echo "Error response from daemon: No such object: $name" >&2
     exit 1 ;;
+  pull)
+    sleep "$1"
+    exit 0 ;;
+  version)
+    echo "29.0.0"
+    exit 0 ;;
   rm)
     printf '%s\\n' "$@" > "$here/last-rm"
     case "$rm_mode" in
@@ -306,6 +317,54 @@ async function trashEntries(trash: WorkspaceTrash): Promise<string[]> {
   return (await readdir(trash.dir)).sort();
 }
 
+describe('short docker calls beside a burst', () => {
+  test('the health probe and an identity check answer while long calls hold every shared slot', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+      runDocker(['pull', '3'], { timeoutMs: 10_000 }),
+    );
+    expect(await new DockerBackend(backendConfig()).health()).toEqual({
+      ok: true,
+      detail: '29.0.0',
+    });
+    expect(
+      await new DockerSessionBackend(backendConfig()).sessionExists('burst-1'),
+    ).toBe(true);
+    // Both answered while every shared slot was still held: neither waited
+    // for one of the long calls to end.
+    expect(dockerCliLoad()).toEqual({
+      running: DOCKER_CLI_CONCURRENCY,
+      waiting: 0,
+    });
+    await Promise.all(holders);
+  }, 10_000);
+
+  test('a health probe that found no docker CLI slot reads as transient', () => {
+    const answer = {
+      exitCode: 124,
+      stdout: '',
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    };
+    expect(
+      dockerHealth({
+        ...answer,
+        stderr: 'docker version: no docker CLI slot came free within 5000 ms',
+        noSlot: true,
+      }),
+    ).toEqual({
+      ok: false,
+      error: 'docker version: no docker CLI slot came free within 5000 ms',
+      transient: true,
+    });
+    // A daemon that answered (or timed out) is judged as before.
+    expect(dockerHealth({ ...answer, stderr: 'Cannot connect' })).toEqual({
+      ok: false,
+      error: 'Cannot connect',
+    });
+  });
+});
+
 describe('DockerSessionBackend stop/destroy honour the rm result', () => {
   test('pressure stops the observed immutable container and preserves its workspace', async () => {
     await fakeDocker({ present: true, rm: 'ok' });
@@ -351,6 +410,32 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     await fakeDocker({ present: true, rm: 'ok' });
     const backend = new DockerSessionBackend(backendConfig());
     expect(await backend.stopSession('rm-ok')).toBe(true);
+  });
+
+  test('a failed removal of the inner image volume is reported, never silent', async () => {
+    // The fake CLI answers `volume rm` with a non-zero exit.
+    await fakeDocker({ present: true, rm: 'ok' });
+    const warn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      const backend = new DockerSessionBackend({
+        ...backendConfig(),
+        dockerInContainer: true,
+      });
+      expect(await backend.stopSession('dind-volume-kept')).toBe(true);
+    } finally {
+      console.warn = warn;
+    }
+    expect(
+      warnings.some((line) =>
+        line.includes(
+          'dind volume rm tale-dind-dind-volume-kept failed (exit 2)',
+        ),
+      ),
+    ).toBe(true);
   });
 
   test('stopSession is idempotent: an already-gone container resolves false without throwing', async () => {

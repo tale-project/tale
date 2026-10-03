@@ -898,6 +898,7 @@ automations:
       approval: Waiting for approval
       ask: Waiting for your answer
       agent: Agent working
+      room: Waiting for a sandbox slot
       repeat: 'Polling — step {node}'
     startedAt: 'Started {date}'
     finishedAt: 'Finished {date}'

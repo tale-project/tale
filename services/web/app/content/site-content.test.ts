@@ -17,14 +17,8 @@ import { GET_STARTED_URL } from '@/lib/docs-url';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 
 describe('site content contracts', () => {
-  it('keeps certification claim order stable for hero + compliance', () => {
-    expect([...CERTIFICATION_KEYS]).toEqual([
-      'iso27001',
-      'soc2',
-      'gdpr',
-      'mit',
-      'openSource',
-    ]);
+  it('keeps verified provider and licence claims in order', () => {
+    expect([...CERTIFICATION_KEYS]).toEqual(['iso27001', 'mit', 'openSource']);
   });
 
   it('lists the eight external agents from the product docs roster', () => {

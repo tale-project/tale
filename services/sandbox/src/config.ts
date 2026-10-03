@@ -103,6 +103,57 @@ function deploymentSandboxRuntime(): {
   return out;
 }
 
+const CPU_QUANTITY_RE = /^\d+(\.\d+)?m?$/;
+const MEMORY_QUANTITY_RE = /^\d+(\.\d+)?(Ki|Mi|Gi|Ti|k|M|G|T)?$/;
+
+/** An optional Kubernetes quantity from the environment: undefined when
+ * unset, refused at boot when it is not one (a typo would otherwise reach
+ * every Pod create as an apiserver 422). */
+function k8sQuantityEnv(name: string, re: RegExp): string | undefined {
+  const value = process.env[name]?.trim();
+  if (value === undefined || value === '') return undefined;
+  if (!re.test(value)) {
+    throw new Error(
+      `Env var ${name} is not a Kubernetes quantity: ${JSON.stringify(value)}`,
+    );
+  }
+  return value;
+}
+
+/** A Docker-style size of memory or disk from the environment ('2g',
+ * '1536m', bytes), undefined when unset, refused at boot when unreadable. */
+function sizeEnv(name: string): number | undefined {
+  const value = process.env[name]?.trim();
+  if (value === undefined || value === '') return undefined;
+  const m = /^(\d+)([kmg]?)b?$/i.exec(value);
+  if (!m) {
+    throw new Error(
+      `Env var ${name} is not a size such as 2g or 1536m: ${JSON.stringify(value)}`,
+    );
+  }
+  const unit = { '': 1, k: 1024, m: 1024 ** 2, g: 1024 ** 3 }[
+    (m[2] ?? '').toLowerCase()
+  ];
+  return Number(m[1]) * (unit ?? 1);
+}
+
+/** A duration in whole days or hours from the environment (`14d`, `336h`),
+ * `0` or `off` for none: undefined when unset, refused at boot when it is
+ * neither. */
+function retentionEnv(name: string): number | undefined {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (value === undefined || value === '') return undefined;
+  if (value === '0' || value === 'off') return 0;
+  const m = /^(\d+)([dh])$/.exec(value);
+  if (!m) {
+    throw new Error(
+      `Env var ${name} is not a duration such as 14d or 336h (or off): ${JSON.stringify(value)}`,
+    );
+  }
+  const hours = m[2] === 'd' ? Number(m[1]) * 24 : Number(m[1]);
+  return hours * 60 * 60 * 1000;
+}
+
 function numEnv(
   name: string,
   fallback: number,
@@ -191,6 +242,24 @@ export function loadConfig(): SpawnerConfig {
     boolEnvOpt('SANDBOX_DOCKER_IN_CONTAINER') ??
     dindDefaultEnabled(runtimeTier);
   const rawDindInnerPool = process.env.SANDBOX_DIND_INNER_POOL?.trim();
+  const k8sCpuRequest = k8sQuantityEnv(
+    'SANDBOX_K8S_CPU_REQUEST',
+    CPU_QUANTITY_RE,
+  );
+  const k8sMemoryRequest = k8sQuantityEnv(
+    'SANDBOX_K8S_MEMORY_REQUEST',
+    MEMORY_QUANTITY_RE,
+  );
+  const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
+  const minFreeDiskBytes = sizeEnv('SANDBOX_MIN_FREE_DISK');
+  const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');
+  const buildkitdIdleCacheBytes = sizeEnv('SANDBOX_BUILDKITD_IDLE_CACHE');
+  const buildkitdCacheRetentionMs = retentionEnv(
+    'SANDBOX_BUILDKITD_CACHE_RETENTION',
+  );
+  const buildkitdCpus = process.env.SANDBOX_BUILDKITD_CPUS?.trim()
+    ? numEnv('SANDBOX_BUILDKITD_CPUS', 0, { min: 0.1 })
+    : undefined;
   const dindInnerPool = rawDindInnerPool
     ? parseDindInnerPool(rawDindInnerPool)
     : undefined;
@@ -393,6 +462,10 @@ export function loadConfig(): SpawnerConfig {
           : (process.env.SANDBOX_RUNTIME_CLASS ??
             k8sRuntimeClassFor(runtimeTier)),
       workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
+      ...(k8sCpuRequest !== undefined ? { cpuRequest: k8sCpuRequest } : {}),
+      ...(k8sMemoryRequest !== undefined
+        ? { memoryRequest: k8sMemoryRequest }
+        : {}),
     },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
     // The shared HMAC secret every state-changing route is verified against
@@ -416,6 +489,14 @@ export function loadConfig(): SpawnerConfig {
     // the internal net. Overridable for a pinned/mirrored ref in fenced deploys.
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
+    ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
+    ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),
+    ...(buildkitdCacheRetentionMs !== undefined
+      ? { buildkitdCacheRetentionMs }
+      : {}),
+    ...(buildkitdIdleCacheBytes !== undefined
+      ? { buildkitdIdleCacheBytes }
+      : {}),
     // Transparent egress for the session's own processes (default on; resolved +
     // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
     transparentEgress,
@@ -447,6 +528,9 @@ export function loadConfig(): SpawnerConfig {
       // render allocation budgets (defaults 2/2/2), and not a CPU or memory
       // reservation. Operators size this against the host and session profiles.
       maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 }),
+      autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
+      ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
+      ...(minFreeDiskBytes !== undefined ? { minFreeDiskBytes } : {}),
       maxLifetimeMs: numEnv(
         'SANDBOX_SESSION_MAX_LIFETIME_MS',
         24 * 60 * 60 * 1000,
@@ -455,6 +539,14 @@ export function loadConfig(): SpawnerConfig {
       maxIdleMs: numEnv('SANDBOX_SESSION_MAX_IDLE_MS', 30 * 60 * 1000, {
         min: 60_000,
       }),
+      // A released session (its turn or run settled) costs a slot and its
+      // processes' memory while warm, and resumes in well under a second, so
+      // it is stopped after a few idle minutes rather than the full window.
+      releasedIdleMs: numEnv(
+        'SANDBOX_SESSION_RELEASED_IDLE_MS',
+        5 * 60 * 1000,
+        { min: 60_000 },
+      ),
       // How long a drained (lingering) spawner keeps serving its sessions after
       // a deploy before reclaiming their compute itself. 30 min covers a typical
       // long agent turn; the deploy CLI normally tears the spawner down sooner

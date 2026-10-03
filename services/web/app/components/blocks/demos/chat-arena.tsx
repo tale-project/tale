@@ -3,7 +3,7 @@ import { DemoStreamText } from '@tale/marketing-ui/demo-stream-text';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
-import { Bot, ChevronDown, Cpu } from 'lucide-react';
+import { ChevronDown, Cpu } from 'lucide-react';
 import { useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -78,7 +78,6 @@ export function ChatArena({
             <ArenaPane
               show={beat >= BEAT.paneA}
               model={scene.modelA}
-              agent={scene.agent}
               segments={replyA}
               visible={visibleA}
               streaming={beat < BEAT.streamDone && !reduceMotion}
@@ -87,7 +86,6 @@ export function ChatArena({
             <ArenaPane
               show={beat >= BEAT.paneB}
               model={scene.modelB}
-              agent={scene.agent}
               segments={replyB}
               visible={visibleB}
               streaming={beat < BEAT.streamDone && !reduceMotion}
@@ -114,7 +112,6 @@ export function ChatArena({
 function ArenaPane({
   show,
   model,
-  agent,
   segments,
   visible,
   streaming,
@@ -122,7 +119,6 @@ function ArenaPane({
 }: {
   show: boolean;
   model: string;
-  agent: string;
   segments: readonly string[];
   visible: number;
   streaming: boolean;
@@ -146,11 +142,9 @@ function ArenaPane({
       )}
     >
       <div className="text-fg-muted mb-2 flex shrink-0 items-center gap-1.5 text-[11px] font-medium">
-        <Bot className="size-3.5" strokeWidth={1.75} />
-        <span className="truncate">{agent}</span>
-        <ChevronDown className="size-3 opacity-70" />
-        <span className="text-fg-subtle">·</span>
+        <Cpu className="size-3.5" strokeWidth={1.75} />
         <span className="truncate">{model}</span>
+        <ChevronDown className="size-3 opacity-70" />
       </div>
       {visible > 0 ? (
         <DemoStreamText

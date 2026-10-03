@@ -739,9 +739,9 @@ Une fois l’exécution terminée, lis-la en entier pour obtenir `output`, la `t
 `status: waiting` ne signifie pas nécessairement qu’une personne doit intervenir. Consulte `waitingFor` :
 
 - `approval` attend une décision humaine ; `ask` attend une réponse à une question.
-- `agent` attend la fin d’un tour d’agent ; `repeat` attend qu’un nœud atteigne sa condition `repeatUntil`. Ces deux états peuvent durer plusieurs minutes sans anomalie.
+- `agent` attend la fin d’un tour d’agent ; `room` attend qu’un tour d’agent trouve une place de sandbox pour démarrer (depuis le contrat 3.14.0) ; `repeat` attend qu’un nœud atteigne sa condition `repeatUntil`. Ces trois états peuvent durer plusieurs minutes sans anomalie.
 
-Pour repérer les exécutions qui nécessitent une personne, filtre donc sur `waitingFor` égal à `approval` ou `ask`. `detail` identifie le point d’attente, par exemple `approval:<approvalId>`, `agent:<nodeId>` ou `repeat:<nodeId>`. Après un échec, il contient l’explication de cet échec.
+Pour repérer les exécutions qui nécessitent une personne, filtre donc sur `waitingFor` égal à `approval` ou `ask`. `detail` identifie le point d’attente, par exemple `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` ou `repeat:<nodeId>`. Après un échec, il contient l’explication de cet échec.
 
 `POST /api/v1/projects/{id}/runs/{runId}/cancel` arrête l’exécution à la prochaine limite entre nœuds. Il n’annule pas les effets déjà produits.
 

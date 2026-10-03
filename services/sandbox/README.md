@@ -38,8 +38,29 @@ docker exec tale-sandbox bun /app/src/control-cli.ts drain-status   # {draining,
 
 `GET /v1/limits` uses the same HMAC authentication as session operations and
 returns the configured `maxSessions` without requiring a Docker or Kubernetes
-inventory. `SANDBOX_MAX_SESSIONS` defaults to 8 and is the one deployment
-capacity shared by all organizations. Platform adds an organization's three
+inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
+organizations; unset, a Docker spawner that can read its host's memory sizes
+it from that memory (one session per 768 MiB beyond the reserve, or per
+1.5 GiB where agent sessions run Docker inside, at least 8, at most 256; at
+boot, or at the first sweep that can read it), and 8 applies elsewhere. On
+such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
+the host, at least 1 GiB), counting creates still starting at their planned
+working set and sessions started in the last 90 seconds at what they are
+still growing into: a create that would cut into it reclaims a released idle
+session or answers 429 `host_memory`. Admission also keeps
+`SANDBOX_MIN_FREE_DISK` free on the disk the session workspaces live on (a
+twentieth of it, at least 2 GiB, at most 20 GiB; `0` turns it off): below
+that floor every create answers 429 `host_disk`, and the build-cache upkeep
+removes the caches of organizations whose helpers are all stopped, the
+longest-stopped first. Creates refused for room wait in a
+first-come line: freed room goes to the oldest waiter still asking, and each
+429 names the create's place (`queue: { position, waiting }`) with a
+`retry-after` for when it comes up (docs/sessions.md). At most 12 Docker CLI processes run at
+once, each within its own time budget, the wait for a slot included; short
+calls (the health probe's `docker version`, the identity and liveness
+inspects, the build helper and host memory checks) take a free one of those
+or one of 4 more kept for them, and never queue behind long calls. A health
+probe that found no slot in time answers unhealthy without caching it. Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
 There is no independently configured organization runtime ceiling. With
@@ -138,10 +159,11 @@ An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
 sessions build locally.
 
-After no session may still depend on an organization's cache helpers, the
-`SANDBOX_SESSION_MAX_IDLE_MS` window (30 minutes by default) starts. The helpers
-then stop; their network and volumes remain intact and the next build restarts
-them. Legacy global cache helpers retire once their remaining sessions drain,
+After no agent session may still depend on an organization's cache helpers
+(only agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
+minutes by default) starts. The helpers then stop, the builder pruning its cache
+to `SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first; their network and
+volumes remain intact and the next build restarts them. Legacy global cache helpers retire once their remaining sessions drain,
 with their cache volumes retained.
 
 Kubernetes sessions use their inner Docker builder. The Kubernetes backend

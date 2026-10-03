@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ActivityGate } from './activity-gate.ts';
 import { reconcileBakedSkills } from './baked-skills.ts';
+import { exitDaemon } from './daemon-exit.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -242,11 +243,16 @@ async function handleAttach(
     }
   };
   // This attach consumer dropping leaves the exec to its sliding deadline; a
-  // further reattach re-arms it. No grace kill here (see handleExec).
-  req.on('close', () => {
+  // further reattach re-arms it. No grace kill here (see handleExec). The
+  // attach itself ends with its consumer, so it stops counting as work.
+  const consumer = new AbortController();
+  const gone = () => {
     attachClosed = true;
-  });
-  const stream = execManager.attach(execId, emit, sinceSeq);
+    consumer.abort();
+  };
+  req.on('close', gone);
+  res.on('close', gone);
+  const stream = execManager.attach(execId, emit, sinceSeq, consumer.signal);
   if (stream) await stream;
   res.end();
 }
@@ -374,7 +380,12 @@ async function handleOperation(
   const cancelMatch = path.match(EXEC_CANCEL_RE);
   if (req.method === 'POST' && cancelMatch) {
     touch();
-    sendJson(res, 200, { killed: execManager.cancel(cancelMatch[1] ?? '') });
+    // `?leftovers=keep`: a rotation, which hands what the exec left outside
+    // its group to the exec that takes over (ExecManager.cancel).
+    const keepLeftovers = url.searchParams.get('leftovers') === 'keep';
+    sendJson(res, 200, {
+      killed: execManager.cancel(cancelMatch[1] ?? '', { keepLeftovers }),
+    });
     return;
   }
   const attachMatch = path.match(EXEC_ATTACH_RE);
@@ -508,12 +519,21 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  // SIGTERM → graceful close (the container is being torn down; in-flight execs
-  // get their process-group SIGTERM from the orchestrator's container stop).
+  // SIGTERM → graceful close (the container is being torn down). The init's
+  // signal reaches only this daemon's process group, never the execs (each
+  // runs in a group of its own), so pass it on: a harness gets to write its
+  // transcript and a wrapper to remove what it staged before the teardown.
+  // Either exit ends the daemon even past a /proc read that never returns
+  // (daemon-exit.ts).
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
     process.on(sig, () => {
-      server.close(() => process.exit(0));
-      setTimeout(() => process.exit(0), 2_000);
+      setTimeout(() => exitDaemon(0), 2_000);
+      void execManager
+        .terminateAll()
+        .catch((error: unknown) => {
+          console.warn('[runnerd] passing the stop on failed:', error);
+        })
+        .finally(() => server.close(() => exitDaemon(0)));
     });
   }
 
@@ -523,7 +543,7 @@ if (
 
   server.listen(RUNNERD_PORT, '0.0.0.0', () => {
     console.log(
-      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}`,
+      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; execShim=${execManager.execShim ?? 'off'}`,
     );
   });
 }

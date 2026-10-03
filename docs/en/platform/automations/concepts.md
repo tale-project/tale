@@ -116,7 +116,7 @@ If processing yields before the workflow finishes, the same run resumes from its
 
 An approval pauses the run in `waiting` before a protected write. Approving permits the engine to attempt that write; it does not guarantee success. Rejecting blocks it and fails the run. A question also pauses the run, but asks for information rather than permission.
 
-A `waiting` status can also mean that an agent is still working or a node is polling a condition. Check `waitingFor`: `approval` and `ask` require a person, while `agent` and `repeat` normally resume automatically. [Approvals in workflows](/platform/automations/approvals-in-workflows) explains how to inspect and answer each human request.
+A `waiting` status can also mean that an agent is still working, that an agent step waits for a sandbox slot to start, or that a node is polling a condition. Check `waitingFor`: `approval` and `ask` require a person, while `agent`, `room` and `repeat` normally resume automatically. [Approvals in workflows](/platform/automations/approvals-in-workflows) explains how to inspect and answer each human request.
 
 ## Choose a chat, task, or automation
 

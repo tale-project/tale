@@ -14,6 +14,7 @@ import {
   STAGE_BODY_BUDGET_BYTES,
   SpawnerUnreachableError,
   sessionAcquire,
+  sessionCancelExec,
   sessionCreate,
   SessionFileTooLargeError,
   sessionIsAlive,
@@ -21,6 +22,7 @@ import {
   sessionReadFile,
   sessionStageFiles,
   type SessionStageFile,
+  SpawnerBusyError,
 } from './session_client';
 
 const enc = new TextEncoder();
@@ -363,6 +365,64 @@ describe('sessionCreate drain-retry', () => {
   }, 10_000);
 });
 
+describe('sessionCreate at host capacity', () => {
+  function refuse(body: string, retryAfter?: string): void {
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () =>
+      new Response(body, {
+        status: 429,
+        headers: {
+          'content-type': 'application/json',
+          ...(retryAfter !== undefined ? { 'retry-after': retryAfter } : {}),
+        },
+        // oxlint-disable-next-line typescript-eslint/no-explicit-any
+      })) as any;
+  }
+  const create = () =>
+    sessionCreate({
+      sessionId: 'ses-busy',
+      organizationId: 'org-1',
+      profile: 'agent',
+    }).catch((error: unknown) => error);
+
+  test("carries the create's place in the spawner's line with its hint", async () => {
+    refuse(
+      JSON.stringify({
+        error: 'host_memory',
+        message: 'the sandbox host is short of memory',
+        queue: { position: 3, waiting: 7 },
+      }),
+      '42',
+    );
+    const error = await create();
+    expect(error).toBeInstanceOf(SpawnerBusyError);
+    expect(error instanceof SpawnerBusyError && error.retryAfterMs).toBe(
+      42_000,
+    );
+    expect(error instanceof SpawnerBusyError && error.queue).toEqual({
+      position: 3,
+      waiting: 7,
+    });
+  });
+
+  test('names no place for a spawner that keeps no line', async () => {
+    for (const body of [
+      JSON.stringify({ error: 'session_quota', message: 'cap reached' }),
+      JSON.stringify({ error: 'busy', queue: { position: 'next' } }),
+      'Too Many Requests',
+      '',
+    ]) {
+      refuse(body, '10');
+      const error = await create();
+      expect(error).toBeInstanceOf(SpawnerBusyError);
+      expect(error instanceof SpawnerBusyError && error.retryAfterMs).toBe(
+        10_000,
+      );
+      expect(error instanceof SpawnerBusyError && error.queue).toBeUndefined();
+    }
+  });
+});
+
 /** The hub's answer for a session whose device is not connected. */
 function deviceOfflineResponse(deviceId: string): Response {
   return new Response(
@@ -592,6 +652,31 @@ describe('spawner call preconditions', () => {
       /SANDBOX_TOKEN is not set/,
     );
     expect(calls).toBe(0);
+  });
+});
+
+describe('sessionCancelExec', () => {
+  test('a rotation asks for leftovers=keep; a Stop asks for nothing more', async () => {
+    process.env.SANDBOX_URL = 'http://sandbox:8003';
+    const urls: string[] = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (input: string) => {
+      urls.push(input);
+      return new Response(JSON.stringify({ killed: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    expect(
+      await sessionCancelExec('ses-1', 'turn-1', { keepLeftovers: true }),
+    ).toBe(true);
+    expect(await sessionCancelExec('ses-1', 'turn-2')).toBe(true);
+    expect(urls).toEqual([
+      'http://sandbox:8003/v1/sessions/ses-1/exec/turn-1/cancel?leftovers=keep',
+      'http://sandbox:8003/v1/sessions/ses-1/exec/turn-2/cancel',
+    ]);
   });
 });
 

@@ -37,8 +37,7 @@ its content is only as fresh as the last build.
 
 ## Functional tests
 
-- [ ] `PAGE-F1` · **Hub hero** — Open `/platform` → H1 **How does the Tale
-  platform work?** (`platformHub.title`) with its hero demo
+- [ ] `PAGE-F1` · **Hub hero** — Open `/platform` → H1 matching `platformHub.title` with its hero demo
   (`platformHub.demos.hero.label`) telling a hub-specific story — its prompt
   (`platformHub.demos.hero.prompt`) is **not** the homepage's
   (`home.demos.hero.prompt`)
@@ -51,12 +50,10 @@ its content is only as fresh as the last build.
 - [ ] `PAGE-F3` · **Hub grid + FAQ + CTA** — Continue below the tour → A
   module card grid (Chat → Projects → Knowledge → Agents → Automations →
   Governance, labels under `nav.product.*`) linking to the module pages; FAQ
-  accordions (`platformHub.faq.items`); closing CTA block **See Tale on your
-  stack** (`featureShared.ctaTitle`) with **Request a demo** / **Contact us**.
+  accordions (`platformHub.faq.items`); closing CTA block matching `featureShared.ctaTitle` with **Request a demo** / **Contact us**.
 - [ ] `PAGE-F4` · **Module page section stack** — Open `/platform/chat`
   (repeat spot-checks on the other five) → The FeatureHero renders eyebrow
-  **Chats** (`platformChat.eyebrow`) + H1 **Chats in Tale**
-  (`platformChat.title`) + description, then in order: tour rows with demos →
+  `platformChat.eyebrow` + H1 matching `platformChat.title` + description, then in order: tour rows with demos →
   capabilities grid (`platformChat.capabilities.*`) → mini-FAQ → **Related
   modules** → **Read the docs** → CTA (`feature-page-layout.tsx` order)
 - [ ] `PAGE-F5` · **Chat story: Arena** — On `/platform/chat`, find the Arena
@@ -108,7 +105,9 @@ its content is only as fresh as the last build.
   across scenes → Scenes animate (typing/streaming beats) and settle at the
   same end state the reduced-motion path pins; chat-style windows show the
   **Share** chrome (`demo.chrome.share`, shipped by `@tale/marketing-ui`) while non-chat windows
-  (agents/knowledge/automation) do **not**.
+  (agents/knowledge/automations/projects) do **not**; approval scenes use
+  the Automations title, and chat composers and Arena headers show model
+  selectors without a separate project-agent picker.
 
 ## Boundary & error tests
 

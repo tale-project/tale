@@ -1,6 +1,6 @@
 seo:
-  siteTitle: Le design system de Tale
-  ogImageAlt: Tale — l’orchestrateur pour agents IA
+  siteTitle: 'Tale UI : bibliothèque de composants React'
+  ogImageAlt: Logo Tale
 nav:
   homeAriaLabel: Accueil du design system Tale
   skipToMain: Aller au contenu principal
@@ -26,8 +26,8 @@ demo:
   missingBody: Aucun exemple n’est enregistré sous « {name} ». Crée
     app/demos/{name}.tsx et référence-le depuis une page.
 home:
-  heroTitle: Le design system de Tale
-  heroDescription: Construis les écrans de ton application avec @tale/ui et tes sites publics avec @tale/marketing-ui. Les guides et les exemples interactifs t’aident à choisir et à assembler les composants.
+  heroTitle: Construis avec les composants React de Tale
+  heroDescription: Crée des applications et des sites avec les composants React de Tale sous licence MIT. Consulte les exemples interactifs, les thèmes, les traductions et les guides.
   heroPrimary: Lire la doc
   heroSecondary: Voir sur GitHub
   heroMeta: "{count, plural, one {# guide} other {# guides}} · @tale/ui et

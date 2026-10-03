@@ -13,6 +13,7 @@ import {
   launchAgentRun,
   listTaskAgentRunSummaries,
   settleAgentRun,
+  wakeOrganizationParkedAgentRun,
   wakeParkedAgentRuns,
 } from './agent-runs.ts';
 import {
@@ -59,6 +60,10 @@ function fakeTx(answer: (text: string) => Row[]): {
 }
 
 const KEYS = { organizationId: 'org-1', runId: 'run-1', taskId: 'task-1' };
+
+/** The parked-run wake's claim, as its statement opens. */
+const CLAIM =
+  'SELECT id, org_id AS "organizationId", exec_id AS "execId", task_id AS "taskId" FROM app.project_agent_runs';
 
 describe('cancelAgentRunInTx — the run must belong to the authorized task', () => {
   beforeEach(() => {
@@ -554,11 +559,7 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
     const { sql, statements } = fakeSql(() => []);
     const woken = await wakeParkedAgentRuns(sql, 'org-1');
     expect(woken).toBe(0);
-    const claim = statements.find((text) =>
-      text.startsWith(
-        'SELECT id, exec_id AS "execId", task_id AS "taskId" FROM app.project_agent_runs',
-      ),
-    );
+    const claim = statements.find((text) => text.startsWith(CLAIM));
     expect(claim).toBeDefined();
     expect(claim).toContain("status = 'queued'");
     expect(claim).toContain('waiting_for_capacity_at_ms IS NOT NULL');
@@ -569,11 +570,11 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
 
   it('un-parks the claimed run and re-enqueues its turn in the same transaction', async () => {
     const { sql, statements } = fakeSql((text) =>
-      text.startsWith('SELECT id, exec_id AS "execId"')
-        ? [{ id: 'run-1', execId: 'exec-1' }]
+      text.startsWith(CLAIM)
+        ? [{ id: 'run-1', organizationId: 'org-1', execId: 'exec-1' }]
         : [],
     );
-    const woken = await wakeParkedAgentRuns(sql, 'org-1');
+    const woken = await wakeOrganizationParkedAgentRun(sql, 'org-1');
     expect(woken).toBe(1);
     expect(
       statements.some(
@@ -591,6 +592,59 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
         execId: 'exec-1',
       },
     );
+  });
+});
+
+describe('wakeParkedAgentRuns — the release edge reaches every organization', () => {
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  it("claims the organization's oldest parked run, then the oldest of every other organization", async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith(CLAIM)
+        ? [{ id: 'run-1', organizationId: 'org-2', execId: 'exec-1' }]
+        : [],
+    );
+
+    const woken = await wakeParkedAgentRuns(sql, 'org-1');
+
+    expect(woken).toBe(2);
+    const claims = calls.filter((call) => call.text.startsWith(CLAIM));
+    expect(claims.map((call) => call.text)).toEqual([
+      expect.stringContaining(
+        'WHERE CASE WHEN ? THEN org_id = ? ELSE org_id <> ? END',
+      ),
+      expect.stringContaining(
+        'WHERE CASE WHEN ? THEN org_id = ? ELSE org_id <> ? END',
+      ),
+    ]);
+    expect(claims.map((call) => call.values.slice(0, 3))).toEqual([
+      [true, 'org-1', 'org-1'],
+      [false, 'org-1', 'org-1'],
+    ]);
+    // The turn job names the woken run's own organization.
+    expect(addJobInTx).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'task.agent_turn',
+      { organizationId: 'org-2', runId: 'run-1', execId: 'exec-1' },
+    );
+  });
+
+  it('still reaches the other organizations when its own claim fails, and reports the failure', async () => {
+    let first = true;
+    const { sql, calls } = fakeSql((text) => {
+      if (text.startsWith(CLAIM) && first) {
+        first = false;
+        throw new Error('deadlock detected');
+      }
+      return [];
+    });
+
+    await expect(wakeParkedAgentRuns(sql, 'org-1')).rejects.toThrow(
+      'deadlock detected',
+    );
+    expect(calls.filter((call) => call.text.startsWith(CLAIM))).toHaveLength(2);
   });
 });
 
@@ -746,11 +800,18 @@ describe('an open task follows its run: every run write hints the task', () => {
 
   it('a woken parked run hints its task', async () => {
     const { sql, statements } = fakeSql((text) =>
-      text.startsWith('SELECT id, exec_id AS "execId"')
-        ? [{ id: 'run-1', execId: 'exec-1', taskId: 'task-1' }]
+      text.startsWith(CLAIM)
+        ? [
+            {
+              id: 'run-1',
+              organizationId: 'org-1',
+              execId: 'exec-1',
+              taskId: 'task-1',
+            },
+          ]
         : [],
     );
-    await wakeParkedAgentRuns(sql, 'org-1');
+    await wakeOrganizationParkedAgentRun(sql, 'org-1');
     expect(hinted(statements)).toBe(1);
   });
 });

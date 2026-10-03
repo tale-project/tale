@@ -106,7 +106,7 @@ One contract:
 
 - **Composed from the design system.** DOM + `@tale/ui` tokens/primitives only — fidelity comes from
   using the product's own vocabulary (real feature names, the step types from
-  `services/platform/lib/shared/schemas/workflows.ts`, "Auto", agent · model chips). Pin borrowed
+  `services/platform/lib/shared/schemas/workflows.ts`, "Auto", model selectors in chat and agent assignees on task cards). Pin borrowed
   vocabulary with a source comment. Never import app product components.
 - **One timing driver.** Every demo schedules its beats through
   `@tale/marketing-ui/use-demo-timeline`. Motion policy lives there alone: **SSR and `prefers-reduced-motion`
@@ -116,7 +116,7 @@ One contract:
   repeat.
 - **Framed by `DemoShell` — a 1:1 depiction of the app.** The frame reproduces the product's real
   anatomy: browser chrome (marketing-only), icon nav rail matching
-  `use-navigation-items.ts` (MessageCircle → Folder → BrainIcon → Bot → Workflow → Settings;
+  `use-navigation-items.ts` (Home → Knowledge → Automations; Settings,
   Bell + avatar at bottom; `bg-muted` / `surface-site-inset` active, no left bar), and the
   **correct page header for the active nav** — chat demos use `chat-header.tsx`
   (`MessagesSquare`, `Search`, Share **with label** — `demo.chrome.share`, the package's own catalog
@@ -129,7 +129,7 @@ One contract:
   (CLS 0). Elevation uses `shadow-demo` / `shadow-demo-hero`. Demos sit on `DemoStage`
   (atmospheric wash — never a photo). Demo _content_ must match product idioms (chat bubbles,
   RoutingStepRow, SourceCards, composer toolbar, Agents/Documents tables, workflow-step cards,
-  Executions table, in-chat approval cards, project task boards, sandbox Files /
+  Executions table, automation-run approval cards, project task boards, sandbox Files /
   Live panes) — not fictional hub diagrams. Give mobile a taller
   ratio than desktop; size wells against **German**.
 - **Text primitives, not the markdown engine.** `DemoTypingText` / `DemoStreamText` (from the
@@ -238,8 +238,7 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
 - JSON-LD only for **visible** content — the homepage FAQ schema is built from the same `FAQ_KEYS`
   the accordion renders; prices in `SoftwareApplication` come from `lib/pricing/tiers.ts`. Never
   aggregateRating/reviews, never schema for content the page doesn't show.
-- Entity consistency everywhere: **Tale** · **Ruler GmbH** · **MIT** · **ISO 27001** ·
-  **SOC 2 Type II** · agents named exactly (Claude Code, Codex, Cursor).
+- Entity consistency everywhere: **Tale** · **Ruler GmbH** · **MIT** · **Ruler GmbH’s ISO 27001 certification** (Tale Enterprise and professional services) · agents named exactly (Claude Code, Codex, Cursor).
 - New routes register in `lib/seo/route-paths.ts` **and** `lib/seo/marketing-routes.ts`
   (prerender + sitemap + llms.txt; bijection test) — a page is not done until both know it.
 

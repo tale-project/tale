@@ -16,7 +16,16 @@ Headless Chromium and Playwright are available on demand for automation,
 rendering and screenshots. The runtime starts no display server, managed
 browser or viewing tunnel. Configured transparent egress redirects external
 network access through `@tale/sandbox-egress`; Playwright MCP also receives
-the proxy settings through its launcher.
+the proxy settings through its launcher (`tale-playwright-mcp`). Every managed
+agent turn lists the Playwright MCP server, but most never open a browser, and
+the server — a Node process that loads Playwright — holds about 100 MB while it
+runs. So the launcher answers the start of a turn itself (`initialize`,
+`tools/list`, `ping`) from manifests of the real server's answers, recorded at
+image build for the argument sets the platform passes
+([`playwright-mcp-args.json`](playwright-mcp-args.json)), and starts the server
+only on the turn's first tool call, replaying the start to it. Unknown
+arguments or protocol versions, and `TALE_PLAYWRIGHT_MCP_EAGER=1`, start the
+server at once.
 
 Python document libraries are baked into the shared Python 3.12 environment:
 openpyxl and xlrd for spreadsheets, pypdf for PDFs, PyYAML for safe YAML
@@ -112,8 +121,13 @@ bun run --filter @tale/sandbox-runtime docker:build
 with args preserved, which dispatches on mode and `exec`s the daemon so
 signals (SIGTERM) reach it directly. The `daemon` (session) dispatch `exec`s
 `tini -g` with runnerd as its child on every path, so PID 1 reaps the orphans a
-long-lived session accumulates. `install-playwright-browsers.sh` bakes the
-browser bundles at build time. See the script headers for the split rationale.
+long-lived session accumulates. runnerd starts every exec under
+`/usr/local/bin/tale-exec-shim`, built in its own stage from
+`daemon/exec-shim/tale-exec-shim.c`: a child subreaper that keeps whatever the
+exec starts its descendant, so runnerd can end what the exec left
+([sessions](../sandbox/docs/sessions.md)). `install-playwright-browsers.sh`
+bakes the browser bundles at build time. See the script headers for the split
+rationale.
 
 ```bash
 # from repo root

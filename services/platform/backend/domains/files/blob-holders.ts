@@ -15,10 +15,13 @@ import { taskHoldsBlobRef } from '../tasks/blob-holders.ts';
  *
  * ONE predicate for every lane that deletes bytes outside the release seam:
  * `deleteFile` once its own row is gone, the abandoned-upload sweep and the
- * rejected-upload reclaim (`upload-intents.ts`). Each lane used to carry its
- * own copy, and a copy that missed a holder deleted that holder's bytes: the
+ * rejected-upload reclaim (`upload-intents.ts`), and a product's released
+ * managed image (`products/service.ts`). Each lane used to carry its own
+ * copy, and a copy that missed a holder deleted that holder's bytes: the
  * reclaim asked about file rows alone and took a task's attachment
- * (2026-10-03, #4104). A new holder joins here, once, for all of them. The
+ * (2026-10-03, #4104); the product image release asked about file rows and
+ * current documents and took one too (#4110). A new holder joins here, once,
+ * for all of them. The
  * release seam (`knowledge/liveness.ts`) asks a sibling question in the
  * middle of a purge — live rows only, minus the document or file row being
  * purged — and keeps its own statement for that reason.

@@ -27,8 +27,6 @@ export interface ChatScenario {
   routedDetail: string;
   replies: readonly [string, string, string, string];
   citations: readonly [string, string];
-  /** Agent chip after routing resolves (brand/agent name, unlocalized). */
-  agentRouted: string;
   model: string;
 }
 
@@ -49,7 +47,6 @@ export function useChatScenario(
       t(`${prefix}.reply4`),
     ],
     citations: [t(`${prefix}.citation1`), t(`${prefix}.citation2`)],
-    agentRouted: t(`${prefix}.composerAgentRouted`),
     model: t(`${prefix}.composerModel`),
   };
 }
@@ -172,7 +169,6 @@ export function useGovernScenario(
 export interface ArenaScenario {
   label: string;
   prompt: string;
-  agent: string;
   modelA: string;
   modelB: string;
   repliesA: readonly [string, string, string];
@@ -187,7 +183,6 @@ export function useArenaScenario(
   return {
     label: t(`${prefix}.label`),
     prompt: t(`${prefix}.prompt`),
-    agent: t(`${prefix}.agent`),
     modelA: t(`${prefix}.modelA`),
     modelB: t(`${prefix}.modelB`),
     repliesA: [

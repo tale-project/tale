@@ -4,10 +4,12 @@
 
 import { createHash } from 'node:crypto';
 
+import type { BuildCacheUpkeep } from './backend/types.ts';
 import {
   ensureBuildkitNetwork,
   ensureBuildkitVolume,
   inspectBuildkitContainer,
+  inspectBuildkitHelper,
   readDockerMetadata,
   removeBuildkitNetwork,
   removeBuildkitVolume,
@@ -180,11 +182,16 @@ const mirrorInFlight = new Map<string, Promise<void>>();
 const organizationOperations = new Map<string, Promise<void>>();
 const createLeases = new Map<string, number>();
 const idleSince = new Map<string, number>();
+// The prune before an idle stop in flight, by organization: a create that
+// needs the builder cuts it short instead of waiting for it.
+const idlePrunes = new Map<string, AbortController>();
 let idleSweepInFlight: Promise<BuildkitIdleSweepResult> | undefined;
 
 interface BuildkitIdleSweepResult {
   stopped: number;
   organizations: number;
+  /** Organizations whose caches went because the session disk was short. */
+  relieved?: number;
 }
 
 /** Keep helpers available across the gap between ensure and docker run. The
@@ -194,6 +201,9 @@ export function retainBuildkitd(organizationId: string): () => void {
   assertOrg(organizationId);
   createLeases.set(organizationId, (createLeases.get(organizationId) ?? 0) + 1);
   idleSince.delete(organizationId);
+  // The helpers are wanted again: an idle stop under way gives up, and its
+  // prune does not hold the create behind the organization's lock.
+  idlePrunes.get(organizationId)?.abort();
   let released = false;
   return () => {
     if (released) return;
@@ -230,6 +240,224 @@ async function withBuildkitdOperation<T>(
 
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
 
+const MIB = 1024 * 1024;
+
+/** A Docker memory size (`8g`, `1536m`, `4294967296`) in bytes, or null. */
+function dockerMemoryBytes(value: string): number | null {
+  const m = /^(\d+(?:\.\d+)?)([bkmg])?$/i.exec(value.trim());
+  if (!m) return null;
+  const unit = { b: 1, k: 1024, m: MIB, g: 1024 * MIB }[
+    (m[2] ?? 'b').toLowerCase()
+  ];
+  return unit === undefined ? null : Number(m[1]) * unit;
+}
+
+/** The memory one organization's builder may use: the operator's
+ * (SANDBOX_BUILDKITD_MEMORY), else twice an agent session's — every agent
+ * session of the organization builds in it, so it holds a couple of heavy
+ * builds at once. A ceiling, not a reservation: an idle builder uses little. */
+/** What a helper's bounds are read from. */
+type HelperBoundsConfig = Pick<
+  SpawnerConfig,
+  'session' | 'buildkitdCpus' | 'buildkitdMemoryBytes'
+>;
+
+function builderMemory(cfg: HelperBoundsConfig): string {
+  if (cfg.buildkitdMemoryBytes !== undefined) {
+    return `${Math.max(1, Math.floor(cfg.buildkitdMemoryBytes / MIB))}m`;
+  }
+  const agent = cfg.session.agentProfile.memory;
+  const bytes = dockerMemoryBytes(agent);
+  return bytes === null ? agent : `${Math.floor((2 * bytes) / MIB)}m`;
+}
+
+/** The cgroup, process and log bounds a helper runs under. A build's RUN steps
+ * execute inside the builder, outside any session's cgroup: unbounded, one
+ * organization's parallel builds could take the whole host, and under memory
+ * pressure the kernel killed sessions (OOM score 500) before the builder (0).
+ * The builder is shared by every agent session of its organization and gets
+ * {@link builderMemory} and an agent session's CPUs unless the operator sets
+ * SANDBOX_BUILDKITD_CPUS; a mirror idles at about 10 MB. Logging is set in
+ * full, as for a session (docker-session-args.ts): an option left unset falls
+ * through to the host daemon's defaults, which can make the run fail. */
+export function buildkitHelperLimits(
+  cfg: HelperBoundsConfig,
+  role: 'builder' | 'mirror',
+): string[] {
+  const agent = cfg.session.agentProfile;
+  const memory = role === 'builder' ? builderMemory(cfg) : '512m';
+  const cpus = cfg.buildkitdCpus ?? agent.cpus;
+  return [
+    `--cpus=${role === 'builder' ? cpus : 1}`,
+    `--memory=${memory}`,
+    `--memory-swap=${memory}`,
+    `--pids-limit=${role === 'builder' ? Math.max(agent.pidsLimit, 16384) : 256}`,
+    '--oom-score-adj=500',
+    '--log-driver=json-file',
+    '--log-opt',
+    'max-size=10m',
+    '--log-opt',
+    'max-file=1',
+    '--log-opt',
+    'compress=false',
+  ];
+}
+
+/** The label a helper carries with {@link helperStamp}. */
+const HELPER_STAMP_LABEL = 'tale.helper-config';
+
+/** How a helper was launched — its image and bounds — as a short hash: a
+ * running helper whose stamp differs predates the current release or
+ * settings. */
+export function helperStamp(image: string, limits: readonly string[]): string {
+  return createHash('sha256')
+    .update([image, ...limits].join('\n'))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/** The bounds a busy helper takes in place. Never its memory: on cgroup v2 a
+ * limit below what the helper uses OOM-kills its running builds there and
+ * then, so memory waits for the recreate once the helper is idle. */
+const LIVE_LIMIT_FLAGS = ['--cpus=', '--pids-limit='];
+// Running helpers whose bounds were updated in place, with the stamp they were
+// updated to: done once per stamp, not on every ensure.
+const limitsUpdated = new Map<string, string>();
+
+/** Bring a busy helper's CPU and process bounds up to date without a restart
+ * (its memory, image and log options stay as they were until it is
+ * recreated). Best effort. */
+async function updateHelperLimits(
+  name: string,
+  stamp: string,
+  limits: readonly string[],
+): Promise<void> {
+  if (limitsUpdated.get(name) === stamp) return;
+  const live = limits.filter((flag) =>
+    LIVE_LIMIT_FLAGS.some((prefix) => flag.startsWith(prefix)),
+  );
+  const result = await runDocker(['update', ...live, name], {
+    timeoutMs: 10_000,
+  });
+  if (result.exitCode !== 0) {
+    console.warn(
+      `[sandbox.buildkitd] could not update the limits of ${name}: ${result.stderr.trim()}`,
+    );
+    return;
+  }
+  limitsUpdated.set(name, stamp);
+}
+
+// The image id a reference names, briefly remembered: `tale deploy` re-tags
+// `:latest` in place, so a release changes the id, not the reference.
+const IMAGE_ID_TTL_MS = 30_000;
+const imageIds = new Map<string, { id: string; atMs: number }>();
+
+/** The id of the image `reference` names here, or null when there is none. */
+async function currentImageId(reference: string): Promise<string | null> {
+  const known = imageIds.get(reference);
+  if (known !== undefined && Date.now() - known.atMs < IMAGE_ID_TTL_MS) {
+    return known.id;
+  }
+  const result = await runDocker(
+    ['image', 'inspect', '--format', '{{.Id}}', reference],
+    { timeoutMs: 5_000 },
+  );
+  const id = result.exitCode === 0 ? result.stdout.trim() : '';
+  if (id === '') return null;
+  imageIds.set(reference, { id, atMs: Date.now() });
+  return id;
+}
+
+/** Was this running helper launched otherwise than it would be now: other
+ * bounds or another image reference (its stamp), or an image its reference no
+ * longer names? An id that cannot be read is no drift. */
+async function helperDrifted(
+  helper: { stamp: string | undefined; image: string | undefined },
+  stamp: string,
+  imageReference: string,
+): Promise<boolean> {
+  if (helper.stamp !== stamp) return true;
+  if (helper.image === undefined) return false;
+  const id = await currentImageId(imageReference);
+  return id !== null && id !== helper.image;
+}
+
+/** Is no build running in this builder? A record still `STARTED` is a build
+ * under way; an answer that cannot be read counts as busy. */
+async function builderIdle(name: string): Promise<boolean> {
+  const result = await runDocker(
+    ['exec', name, 'buildctl', 'debug', 'histories', '--format', '{{.Type}}'],
+    { timeoutMs: 10_000 },
+  );
+  if (result.exitCode !== 0) return false;
+  return !result.stdout.split('\n').some((line) => line.trim() === 'STARTED');
+}
+
+/** {@link builderIdle}, asked at most once. */
+function idleOnce(name: string): () => Promise<boolean> {
+  let answer: Promise<boolean> | null = null;
+  return () => (answer ??= builderIdle(name));
+}
+
+/** No builder runs, so nothing builds. */
+const NOTHING_BUILDS = () => Promise.resolve(true);
+
+/** The build cache an organization's builder keeps when it stops for want of
+ * agent sessions, unless SANDBOX_BUILDKITD_IDLE_CACHE says otherwise. */
+const DEFAULT_IDLE_CACHE_BYTES = 5 * 1024 ** 3;
+
+/** Bound on the prune before an idle stop: deleting tens of GB of snapshots
+ * takes a while, and the stop goes on either way. */
+const IDLE_PRUNE_TIMEOUT_MS = 120_000;
+
+/** Shrink an idle builder's cache to the idle budget, least recently used
+ * first. BuildKit collects garbage only while it runs — at start and after a
+ * build — so a builder stopped for want of sessions kept its whole cache, up
+ * to the policy's cap, for as long as its organization did not build again,
+ * however full the disk it shares with every session got. Best effort: a
+ * prune that fails or runs out of time is logged and the stop goes on; one a
+ * create cuts short (retainBuildkitd) is left to the builder, which keeps
+ * running. */
+async function pruneIdleBuilderCache(
+  cfg: SpawnerConfig,
+  organizationId: string,
+  builderId: string,
+): Promise<void> {
+  const keepBytes = cfg.buildkitdIdleCacheBytes ?? DEFAULT_IDLE_CACHE_BYTES;
+  const cut = new AbortController();
+  idlePrunes.set(organizationId, cut);
+  try {
+    const pruned = await runDocker(
+      [
+        'exec',
+        builderId,
+        'buildctl',
+        'prune',
+        '--all',
+        // buildctl counts storage in MB of 10^6 bytes.
+        '--keep-storage',
+        String(Math.floor(keepBytes / 1e6)),
+      ],
+      {
+        timeoutMs: IDLE_PRUNE_TIMEOUT_MS,
+        stdoutMaxBytes: 64 * 1024,
+        signal: cut.signal,
+      },
+    );
+    if (cut.signal.aborted) return;
+    if (pruned.exitCode !== 0) {
+      console.warn(
+        `[sandbox.buildkitd] could not prune the idle build cache of ${organizationId} (exit ${pruned.exitCode}; stopping its builder anyway): ${pruned.stderr.trim() || 'no output'}`,
+      );
+    }
+  } finally {
+    if (idlePrunes.get(organizationId) === cut) {
+      idlePrunes.delete(organizationId);
+    }
+  }
+}
+
 async function liveBuildkitOrganizations(
   organizationId?: string,
 ): Promise<Set<string>> {
@@ -241,14 +469,14 @@ async function liveBuildkitOrganizations(
     'label=tale.sandbox-session=1',
     ...(organizationId ? ['--filter', `label=tale.org=${organizationId}`] : []),
     '--format',
-    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}',
+    '{{.ID}}\t{{.State}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}',
   ]);
   if (sessions.exitCode !== 0) {
     throw new Error('buildkitd: cannot establish idle session dependencies');
   }
   const live = new Set<string>();
   for (const line of sessions.stdout.split('\n').filter(Boolean)) {
-    const [id, status, org, extra] = line.split('\t');
+    const [id, status, org, profile, extra] = line.split('\t');
     if (
       !id ||
       !DOCKER_ID_RE.test(id) ||
@@ -259,6 +487,10 @@ async function liveBuildkitOrganizations(
     ) {
       throw new Error('buildkitd: invalid session inventory during idle sweep');
     }
+    // Only agent sessions build: a crawler render or a script session of the
+    // organization kept its helpers running for nothing. A container without
+    // the label predates it and counts, as before.
+    if (profile === 'default') continue;
     // Created, paused, restarting, removing and unrecognized non-terminal
     // states may still use the cache. Pinned/warm runtimes are also retained.
     if (status !== 'exited' && status !== 'dead') live.add(org);
@@ -275,25 +507,77 @@ function organizationHelperNames(organizationId: string): string[] {
   ];
 }
 
+/** How long an organization's stopped helpers keep their caches, unless
+ * SANDBOX_BUILDKITD_CACHE_RETENTION says otherwise. */
+const DEFAULT_CACHE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Remove an organization's helpers and caches when its builder has been
+ * stopped for longer than the retention and nothing may use them now. */
+async function expireStoppedBuildCache(
+  cfg: SpawnerConfig,
+  org: string,
+  builderId: string,
+  nowMs: number,
+  wanted: () => Promise<boolean>,
+): Promise<void> {
+  const retentionMs =
+    cfg.buildkitdCacheRetentionMs ?? DEFAULT_CACHE_RETENTION_MS;
+  if (retentionMs <= 0) return;
+  const builder = await inspectBuildkitHelper(
+    builderId,
+    org,
+    buildkitdNetworkName(org),
+  );
+  if (
+    builder === null ||
+    builder.running ||
+    builder.finishedAtMs === undefined ||
+    nowMs - builder.finishedAtMs < retentionMs
+  ) {
+    return;
+  }
+  if (await wanted()) return;
+  const removed = await removeOrganizationBuildkitUnlocked(org);
+  console.log(
+    `[sandbox.buildkitd] removed ${org}'s build helpers and caches, stopped since ${new Date(builder.finishedAtMs).toISOString()} (${removed.containers} containers, ${removed.volumes} volumes); the next build starts cold`,
+  );
+}
+
+/** At most this many organizations' caches go in one sweep for want of
+ * disk: each removal is measured before the next. */
+const PRESSURE_REMOVALS_PER_SWEEP = 3;
+/** How long removals stay paused once one freed nothing on the session disk
+ * (the build caches live on another disk than the workspaces). */
+const PRESSURE_PAUSE_MS = 6 * 60 * 60 * 1000;
+/** Until when removals for want of disk are paused (epoch ms). */
+let pressurePausedUntilMs = 0;
+
 /** Release only compute after an org has had no live session for the normal
  * session idle grace. A fresh spawner observes a full grace before reclaiming
  * anything. Persistent volumes, private networks and container configuration
- * survive; the next ensure recreates stopped helpers from their caches. */
+ * survive; the next ensure recreates stopped helpers from their caches. While
+ * the disk the workspaces live on is below its floor, the caches of
+ * organizations whose helpers are all stopped go too, the longest-stopped
+ * first (`upkeep.sessionDisk`). */
 export function sweepIdleBuildkitd(
   cfg: SpawnerConfig,
   nowMs = Date.now(),
+  upkeep: BuildCacheUpkeep = {},
 ): Promise<BuildkitIdleSweepResult> {
   if (cfg.backend !== 'docker')
     return Promise.resolve({ stopped: 0, organizations: 0 });
-  idleSweepInFlight ??= sweepIdleBuildkitdUnlocked(cfg, nowMs).finally(() => {
-    idleSweepInFlight = undefined;
-  });
+  idleSweepInFlight ??= sweepIdleBuildkitdUnlocked(cfg, nowMs, upkeep).finally(
+    () => {
+      idleSweepInFlight = undefined;
+    },
+  );
   return idleSweepInFlight;
 }
 
 async function sweepIdleBuildkitdUnlocked(
   cfg: SpawnerConfig,
   nowMs: number,
+  upkeep: BuildCacheUpkeep,
 ): Promise<BuildkitIdleSweepResult> {
   const helpers = await readDockerMetadata([
     'ps',
@@ -334,8 +618,11 @@ async function sweepIdleBuildkitdUnlocked(
   for (const org of idleSince.keys()) {
     if (!byOrg.has(org)) idleSince.delete(org);
   }
-  const result = { stopped: 0, organizations: 0 };
+  const result: BuildkitIdleSweepResult = { stopped: 0, organizations: 0 };
   for (const [org, names] of byOrg) {
+    // One organization's helpers that cannot be judged or stopped (a wedged
+    // container, a stranger under a helper name) must not keep every other
+    // organization's helpers running: it is logged and retried next sweep.
     const stopped = await withBuildkitdOperation(org, async () => {
       if (live.has(org) || createLeases.has(org)) {
         idleSince.delete(org);
@@ -364,14 +651,30 @@ async function sweepIdleBuildkitdUnlocked(
         )
           runningIds.push(id);
       }
+      const builderId = names.get(buildkitdContainerName(org));
+      // Inventory is complete and fresh immediately before each mutation;
+      // a late visible session from any spawner also cancels idle-stop.
+      const wanted = async () => {
+        const latestLive = await liveBuildkitOrganizations(org);
+        if (!latestLive.has(org) && !createLeases.has(org)) return false;
+        idleSince.delete(org);
+        return true;
+      };
+      // Helpers stopped long ago keep their caches only so long: past the
+      // retention, an organization that has not built since gives back the
+      // disk its caches hold, and its next build starts cold.
+      if (runningIds.length === 0 && builderId !== undefined) {
+        await expireStoppedBuildCache(cfg, org, builderId, nowMs, wanted);
+        return 0;
+      }
       let stoppedCount = 0;
       for (const id of runningIds) {
-        // Inventory is complete and fresh immediately before each mutation;
-        // a late visible session from any spawner also cancels idle-stop.
-        const latestLive = await liveBuildkitOrganizations(org);
-        if (latestLive.has(org) || createLeases.has(org)) {
-          idleSince.delete(org);
-          return stoppedCount;
+        if (await wanted()) return stoppedCount;
+        if (id === builderId) {
+          // The last moment the builder can collect its own garbage. The
+          // prune takes a while, so the helpers are judged again after it.
+          await pruneIdleBuilderCache(cfg, org, id);
+          if (await wanted()) return stoppedCount;
         }
         const stopResult = await runDocker(['stop', '--time', '30', id], {
           timeoutMs: 35_000,
@@ -382,13 +685,134 @@ async function sweepIdleBuildkitdUnlocked(
       }
       idleSince.delete(org);
       return stoppedCount;
+    }).catch((error: unknown) => {
+      console.warn(
+        `[sandbox.buildkitd] idle sweep of ${org}'s helpers failed (next sweep retries):`,
+        error,
+      );
+      return 0;
     });
     if (stopped > 0) {
       result.stopped += stopped;
       result.organizations++;
     }
   }
+  if (upkeep.sessionDisk !== undefined && nowMs >= pressurePausedUntilMs) {
+    const relieved = await relieveDiskPressure(
+      byOrg,
+      live,
+      upkeep.sessionDisk,
+      nowMs,
+    );
+    if (relieved > 0) result.relieved = relieved;
+  }
   return result;
+}
+
+/** The session disk is below its floor: give back the caches of the
+ * organizations whose helpers are all stopped and that nothing may use now,
+ * the longest-stopped first, retention or not, until the disk is above its
+ * floor again or {@link PRESSURE_REMOVALS_PER_SWEEP} have gone. A removal
+ * that frees no space there means the caches live on another disk: no more
+ * go for {@link PRESSURE_PAUSE_MS}. Returns how many organizations' caches
+ * went. */
+async function relieveDiskPressure(
+  byOrg: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  live: ReadonlySet<string>,
+  sessionDisk: NonNullable<BuildCacheUpkeep['sessionDisk']>,
+  nowMs: number,
+): Promise<number> {
+  let disk = await sessionDisk();
+  if (disk === null || !disk.short) return 0;
+  const candidates: Array<{
+    org: string;
+    builderId: string;
+    finishedAtMs: number;
+  }> = [];
+  for (const [org, names] of byOrg) {
+    if (live.has(org) || createLeases.has(org)) continue;
+    const builderId = names.get(buildkitdContainerName(org));
+    if (builderId === undefined) continue;
+    try {
+      const network = buildkitdNetworkName(org);
+      let anyRunning = false;
+      for (const name of organizationHelperNames(org)) {
+        const id = names.get(name);
+        if (
+          id !== undefined &&
+          id !== builderId &&
+          (await inspectBuildkitContainer(id, org, network)) === 'running'
+        ) {
+          anyRunning = true;
+          break;
+        }
+      }
+      const builder = await inspectBuildkitHelper(builderId, org, network);
+      if (
+        anyRunning ||
+        builder === null ||
+        builder.running ||
+        builder.finishedAtMs === undefined
+      ) {
+        continue;
+      }
+      candidates.push({ org, builderId, finishedAtMs: builder.finishedAtMs });
+    } catch (error) {
+      console.warn(
+        `[sandbox.buildkitd] cannot judge ${org}'s stopped helpers for the short session disk (next sweep retries):`,
+        error,
+      );
+    }
+  }
+  candidates.sort((a, b) => a.finishedAtMs - b.finishedAtMs);
+  let relieved = 0;
+  for (const candidate of candidates) {
+    if (relieved >= PRESSURE_REMOVALS_PER_SWEEP) break;
+    const before = disk.availableBytes;
+    const removed = await withBuildkitdOperation(candidate.org, async () => {
+      // Judged again under the organization's lock: a session or a create
+      // that came since keeps the caches.
+      const latestLive = await liveBuildkitOrganizations(candidate.org);
+      if (latestLive.has(candidate.org) || createLeases.has(candidate.org)) {
+        return null;
+      }
+      const builder = await inspectBuildkitHelper(
+        candidate.builderId,
+        candidate.org,
+        buildkitdNetworkName(candidate.org),
+      );
+      if (builder === null || builder.running) return null;
+      return removeOrganizationBuildkitUnlocked(candidate.org);
+    }).catch((error: unknown) => {
+      console.warn(
+        `[sandbox.buildkitd] could not remove ${candidate.org}'s build caches for the short session disk (next sweep retries):`,
+        error,
+      );
+      return null;
+    });
+    if (removed === null) continue;
+    relieved++;
+    const after = await sessionDisk();
+    console.log(
+      `[sandbox.buildkitd] the session disk is short: removed ${candidate.org}'s build helpers and caches, stopped since ${new Date(candidate.finishedAtMs).toISOString()} (${removed.containers} containers, ${removed.volumes} volumes); its next build starts cold`,
+    );
+    if (after === null) break;
+    if (after.availableBytes <= before) {
+      pressurePausedUntilMs = nowMs + PRESSURE_PAUSE_MS;
+      console.warn(
+        `[sandbox.buildkitd] removing ${candidate.org}'s build caches freed no space on the session disk: the caches live on another disk, and no more are removed for want of it for ${PRESSURE_PAUSE_MS / 3_600_000} h`,
+      );
+      break;
+    }
+    disk = after;
+    if (!disk.short) break;
+  }
+  return relieved;
+}
+
+/** Forget a pause of the removals for want of disk (tests). */
+export function resetDiskPressurePause(): void {
+  pressurePausedUntilMs = 0;
 }
 
 /**
@@ -411,61 +835,68 @@ export async function removeOrganizationBuildkit(
         `buildkitd: a session create of ${organizationId} still holds its build helpers`,
       );
     }
-    const result = { containers: 0, volumes: 0, networks: 0 };
-    const listed = await readDockerMetadata([
-      'ps',
-      '--all',
-      '--no-trunc',
-      '--filter',
-      'label=tale.buildkitd=1',
-      '--filter',
-      `label=tale.org=${organizationId}`,
-      '--format',
-      '{{.ID}}\t{{.Names}}',
-    ]);
-    if (listed.exitCode !== 0) {
-      throw new Error('buildkitd: cannot inventory the organization helpers');
-    }
-    const helperNames = organizationHelperNames(organizationId);
-    for (const line of listed.stdout.split('\n').filter(Boolean)) {
-      const [id, name, extra] = line.split('\t');
-      if (!id || !DOCKER_ID_RE.test(id) || !name || extra !== undefined) {
-        throw new Error('buildkitd: invalid helper inventory during teardown');
-      }
-      if (!helperNames.includes(name)) {
-        console.warn(
-          `[sandbox.buildkitd] leaving ${name}: labelled for ${organizationId} but not one of its helpers`,
-        );
-        continue;
-      }
-      const removed = await runDocker(['rm', '--force', id], {
-        timeoutMs: 35_000,
-      });
-      if (removed.exitCode !== 0 && !/no such container/i.test(removed.stderr))
-        throw new Error(`buildkitd: failed to remove helper ${name}`);
-      result.containers++;
-    }
-    if (
-      await removeBuildkitNetwork(
-        buildkitdNetworkName(organizationId),
-        organizationId,
-      )
-    ) {
-      result.networks++;
-    }
-    for (const volume of [
-      buildkitdCacheVolumeName(organizationId),
-      ...MIRROR_REGISTRIES.map((registry) =>
-        buildkitdMirrorVolumeName(organizationId, registry),
-      ),
-    ]) {
-      if (await removeBuildkitVolume(volume, organizationId)) {
-        result.volumes++;
-      }
-    }
-    idleSince.delete(organizationId);
-    return result;
+    return removeOrganizationBuildkitUnlocked(organizationId);
   });
+}
+
+/** {@link removeOrganizationBuildkit} inside the organization's operation. */
+async function removeOrganizationBuildkitUnlocked(
+  organizationId: string,
+): Promise<{ containers: number; volumes: number; networks: number }> {
+  const result = { containers: 0, volumes: 0, networks: 0 };
+  const listed = await readDockerMetadata([
+    'ps',
+    '--all',
+    '--no-trunc',
+    '--filter',
+    'label=tale.buildkitd=1',
+    '--filter',
+    `label=tale.org=${organizationId}`,
+    '--format',
+    '{{.ID}}\t{{.Names}}',
+  ]);
+  if (listed.exitCode !== 0) {
+    throw new Error('buildkitd: cannot inventory the organization helpers');
+  }
+  const helperNames = organizationHelperNames(organizationId);
+  for (const line of listed.stdout.split('\n').filter(Boolean)) {
+    const [id, name, extra] = line.split('\t');
+    if (!id || !DOCKER_ID_RE.test(id) || !name || extra !== undefined) {
+      throw new Error('buildkitd: invalid helper inventory during teardown');
+    }
+    if (!helperNames.includes(name)) {
+      console.warn(
+        `[sandbox.buildkitd] leaving ${name}: labelled for ${organizationId} but not one of its helpers`,
+      );
+      continue;
+    }
+    const removed = await runDocker(['rm', '--force', id], {
+      timeoutMs: 35_000,
+    });
+    if (removed.exitCode !== 0 && !/no such container/i.test(removed.stderr))
+      throw new Error(`buildkitd: failed to remove helper ${name}`);
+    result.containers++;
+  }
+  if (
+    await removeBuildkitNetwork(
+      buildkitdNetworkName(organizationId),
+      organizationId,
+    )
+  ) {
+    result.networks++;
+  }
+  for (const volume of [
+    buildkitdCacheVolumeName(organizationId),
+    ...MIRROR_REGISTRIES.map((registry) =>
+      buildkitdMirrorVolumeName(organizationId, registry),
+    ),
+  ]) {
+    if (await removeBuildkitVolume(volume, organizationId)) {
+      result.volumes++;
+    }
+  }
+  idleSince.delete(organizationId);
+  return result;
 }
 
 /**
@@ -478,11 +909,14 @@ export async function removeOrganizationBuildkit(
 async function ensureBuildkitdMirrors(
   cfg: SpawnerConfig,
   organizationId: string,
+  /** Is the organization's builder idle? A drifted mirror is recreated only
+   * then: the pulls through it come from that builder's builds. */
+  idle: () => Promise<boolean>,
 ): Promise<string> {
   const pairs: string[] = [];
   for (const registry of MIRROR_REGISTRIES) {
     try {
-      await ensureOneMirror(cfg, organizationId, registry);
+      await ensureOneMirror(cfg, organizationId, registry, idle);
       pairs.push(`${registry}=${buildkitdMirrorRef(organizationId, registry)}`);
     } catch (err) {
       console.warn(
@@ -499,6 +933,7 @@ async function ensureOneMirror(
   cfg: SpawnerConfig,
   organizationId: string,
   registry: string,
+  idle: () => Promise<boolean>,
 ): Promise<void> {
   const name = buildkitdMirrorContainerName(organizationId, registry);
   const existing = mirrorInFlight.get(name);
@@ -508,6 +943,7 @@ async function ensureOneMirror(
     organizationId,
     registry,
     name,
+    idle,
   ).finally(() => {
     mirrorInFlight.delete(name);
   });
@@ -520,18 +956,33 @@ async function ensureOneMirrorUnlocked(
   organizationId: string,
   registry: string,
   name: string,
+  idle: () => Promise<boolean>,
 ): Promise<void> {
-  const state = await inspectBuildkitContainer(
+  const limits = buildkitHelperLimits(cfg, 'mirror');
+  const stamp = helperStamp(cfg.buildkitdMirrorImage, limits);
+  const helper = await inspectBuildkitHelper(
     name,
     organizationId,
     cfg.egressNetwork,
   );
-  if (state !== null) {
-    if (state === 'running') return;
+  if (helper !== null) {
+    if (helper.running) {
+      if (!(await helperDrifted(helper, stamp, cfg.buildkitdMirrorImage))) {
+        return;
+      }
+      // A mirror launched otherwise than now keeps serving while a build
+      // may pull through it, with the bounds that apply in place.
+      if (!(await idle())) {
+        if (helper.stamp !== stamp) {
+          await updateHelperLimits(name, stamp, limits);
+        }
+        return;
+      }
+    }
     const rm = await runDocker(['rm', '-f', name]);
     if (rm.exitCode !== 0) {
       console.warn(
-        `[sandbox.buildkitd] could not reap dead mirror ${name}: ${rm.stderr.trim()}`,
+        `[sandbox.buildkitd] could not reap mirror ${name}: ${rm.stderr.trim()}`,
       );
     }
   }
@@ -549,8 +1000,11 @@ async function ensureOneMirrorUnlocked(
       'tale.buildkitd=1',
       '--label',
       `tale.org=${organizationId}`,
+      '--label',
+      `${HELPER_STAMP_LABEL}=${stamp}`,
       '--restart',
       'unless-stopped',
+      ...limits,
       // On this organization's network so buildkit reaches it by name; it pulls upstream
       // through the egress proxy (so the mirror itself needs no external DNS).
       '--network',
@@ -708,24 +1162,44 @@ async function ensureBuildkitdOnNetwork(
   // a stack restart moved sandbox-egress to a new IP, silently serves builds
   // with no working DNS/egress (RUN steps fail to resolve any external host) —
   // recreate it. See buildkitdEgressHealthy.
-  const state = await inspectBuildkitContainer(
+  const limits = buildkitHelperLimits(cfg, 'builder');
+  const stamp = helperStamp(cfg.buildkitdImage, limits);
+  const helper = await inspectBuildkitHelper(
     name,
     organizationId,
     cfg.egressNetwork,
   );
-  if (state !== null) {
-    if (state === 'running') {
+  if (helper !== null) {
+    if (helper.running) {
       if (await buildkitdEgressHealthy(cfg, name)) {
-        // A partial idle-stop/crash may have stopped mirrors while the builder
-        // stayed healthy. Reusing the builder must revive those caches too.
-        await ensureBuildkitdMirrors(cfg, organizationId);
-        return endpoint;
+        // A builder launched by an earlier release or with other bounds runs
+        // its old image (and with it the old cache policy): it is recreated
+        // once no build is under way, and meanwhile gets the bounds that
+        // apply in place.
+        const idle = idleOnce(name);
+        const drifted = await helperDrifted(helper, stamp, cfg.buildkitdImage);
+        if (!drifted || !(await idle())) {
+          if (helper.stamp !== stamp) {
+            await updateHelperLimits(name, stamp, limits);
+          }
+          // A partial idle-stop/crash may have stopped mirrors while the
+          // builder stayed healthy. Reusing the builder must revive those
+          // caches too.
+          await ensureBuildkitdMirrors(cfg, organizationId, idle);
+          return endpoint;
+        }
+        console.log(
+          `[sandbox.buildkitd] recreating ${name}: it was launched with another ` +
+            `image or other bounds and no build is running. The persistent ` +
+            `cache volume is preserved.`,
+        );
+      } else {
+        console.warn(
+          `[sandbox.buildkitd] ${name} is running but its egress fence is missing or ` +
+            `stale; recreating so build RUN steps regain internet. The persistent ` +
+            `cache volume is preserved.`,
+        );
       }
-      console.warn(
-        `[sandbox.buildkitd] ${name} is running but its egress fence is missing or ` +
-          `stale; recreating so build RUN steps regain internet. The persistent ` +
-          `cache volume is preserved.`,
-      );
     }
     // Stopped/dead OR running-but-egress-broken: reap it so the `run --name`
     // below recreates it. The cache lives in the volume, not the container, so
@@ -746,7 +1220,11 @@ async function ensureBuildkitdOnNetwork(
 
   // Bring up the pull-through mirrors first (buildkit pulls base images from them
   // by name, sidestepping its broken external-name DNS — see MIRROR_REGISTRIES).
-  const mirrors = await ensureBuildkitdMirrors(cfg, organizationId);
+  const mirrors = await ensureBuildkitdMirrors(
+    cfg,
+    organizationId,
+    NOTHING_BUILDS,
+  );
 
   const run = await runDocker(
     [
@@ -758,9 +1236,12 @@ async function ensureBuildkitdOnNetwork(
       'tale.buildkitd=1',
       '--label',
       `tale.org=${organizationId}`,
+      '--label',
+      `${HELPER_STAMP_LABEL}=${stamp}`,
       // Long-lived shared infra: survive a daemon crash + host docker restart.
       '--restart',
       'unless-stopped',
+      ...limits,
       // Only this organization's sessions can reach the builder. RUN-step
       // egress goes through the proxy attached to this private bridge.
       '--network',

@@ -4,7 +4,7 @@ description: The technical and organizational measures Ruler GmbH applies to pro
 noindex: true
 ---
 
-**Last updated:** 01.05.2026
+**Last updated:** 03.10.2026
 
 This document describes the technical and organizational measures ("TOMs") that Ruler GmbH ("Tale") implements to protect Personal Data processed on behalf of its customers, as referenced in Section 7 of the [Data Processing Agreement](/legal/data-processing-agreement). It applies to Tale Cloud. Self-hosted deployments are operated by the Customer; for those, the Customer determines and applies its own measures, while Tale provides hardened defaults and documented controls.
 
@@ -114,9 +114,9 @@ a) Tale commissions an external penetration test at least annually. Findings are
 
 ### 4.3 Audits and certifications
 
-a) Tale maintains ISO/IEC 27001 and SOC 2 Type II certifications (or equivalent standards) for Tale Cloud.
+a) Ruler GmbH maintains ISO/IEC 27001 certification covering Tale Enterprise and professional services.
 
-b) Customers may request copies of the current SOC 2 Type II report and ISO 27001 certificate by contacting support; both are provided under NDA.
+b) Customers may request the current ISO 27001 certificate and its scope by contacting support; these are provided under NDA.
 
 ### 4.4 Internal review
 

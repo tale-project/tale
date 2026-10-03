@@ -3,7 +3,7 @@
 // Importing the router does not start a listener or contact Docker/Kubernetes.
 // Exercise the actual route dispatch plus HMAC and fail-closed configuration.
 
-import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
+import { afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 
 import {
   NONCE_HEADER,
@@ -14,6 +14,7 @@ import {
   verify,
 } from './auth.ts';
 import { loadConfig } from './config.ts';
+import { SessionRoutes } from './session/session-routes.ts';
 
 describe('session HTTP routes', () => {
   let router: typeof import('./server.ts').router;
@@ -43,6 +44,45 @@ describe('session HTTP routes', () => {
       );
       expect(response.status).toBe(404);
       expect(await response.json()).toEqual({ error: 'not_found' });
+    }
+  });
+
+  test('an exec cancel passes leftovers=keep on, and only that', async () => {
+    const cancel = spyOn(
+      SessionRoutes.prototype,
+      'handleExecCancel',
+    ).mockImplementation(async () => Response.json({ killed: true }));
+    try {
+      for (const query of ['?leftovers=keep', '', '?leftovers=all']) {
+        const path = `/v1/sessions/sess1/exec/exec1/cancel${query}`;
+        const timestamp = String(Date.now());
+        const nonce = crypto.randomUUID();
+        const response = await router(
+          new Request(`http://sandbox${path}`, {
+            method: 'POST',
+            headers: {
+              [SIGNATURE_HEADER]: sign(
+                'POST',
+                path,
+                timestamp,
+                '',
+                'route-test-secret',
+                nonce,
+              ),
+              [TIMESTAMP_HEADER]: timestamp,
+              [NONCE_HEADER]: nonce,
+            },
+          }),
+        );
+        expect(response.status).toBe(200);
+      }
+      expect(cancel.mock.calls).toEqual([
+        ['sess1', 'exec1', { keepLeftovers: true }],
+        ['sess1', 'exec1', { keepLeftovers: false }],
+        ['sess1', 'exec1', { keepLeftovers: false }],
+      ]);
+    } finally {
+      cancel.mockRestore();
     }
   });
 

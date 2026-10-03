@@ -1,18 +1,24 @@
 ---
 title: Documentation Tale
-description: Utilise Tale, crée des agents de projet, connecte des applications et exploite ton instance.
+description: Coordonne ton équipe et tes agents IA dans l’espace open source de Tale avec des tâches de projet, la délégation, des sandboxes et la revue des résultats.
 kind: index
 ---
 
-Tale réunit conversations, projets, connaissances et automatisations dans un espace de travail. Pars de la tâche que tu veux accomplir : tu n’as pas besoin de connaître toutes les fonctions pour commencer.
+Tale est un espace de travail open source pour les équipes et les agents IA. Planifie le travail sur un tableau de tâches commun, attribue-le à des personnes ou à des agents, coordonne les prochaines étapes et examine les rapports et les fichiers livrés. Les connaissances et les instructions du projet donnent leur contexte aux tâches.
+
+## De la tâche au résultat vérifié
+
+Pars d’un problème, comme créer un site web, mener une recherche pour une décision ou préparer une campagne marketing. Crée une [tâche de projet](/fr/platform/projects/tasks) avec le résultat attendu et les sources, attribue-la à un [agent de projet](/fr/get-started/editors), démarre la tâche, puis suis son avancement et [examine le résultat](/fr/platform/projects/task-automation). Un agent coordinateur peut déléguer les tâches prêtes s’il dispose des outils nécessaires. Utilise une [automatisation](/fr/platform/automations/concepts) lorsque le processus nécessite des démarrages planifiés ou des étapes définies.
+
+Choisis le guide qui correspond à ta prochaine étape. Tu peux héberger Tale sur ton infrastructure ou utiliser le service Cloud géré.
 
 ## Faire tes premiers pas
 
 <CardGroup cols="2">
 
-<Card title="Envoyer ton premier message" icon="message-circle" href="/fr/get-started/quickstart">
+<Card title="Créer un agent de projet" icon="bot" href="/fr/get-started/editors">
 
-Connecte-toi, choisis un modèle et obtiens une réponse.
+Confie une tâche précise à un agent et examine son premier résultat.
 
 </Card>
 
@@ -22,9 +28,9 @@ Retrouve tes chats, consulte les sources et rejoins un projet.
 
 </Card>
 
-<Card title="Créer un agent de projet" icon="bot" href="/fr/get-started/editors">
+<Card title="Envoyer ton premier message" icon="message-circle" href="/fr/get-started/quickstart">
 
-Confie une tâche précise à un agent et examine son premier résultat.
+Connecte-toi, choisis un modèle et obtiens une réponse.
 
 </Card>
 

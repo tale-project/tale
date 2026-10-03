@@ -96,6 +96,8 @@ export async function removeCacheVolumes(
     npmCacheVolumeName(cfg, organizationId),
     bunCacheVolumeName(cfg, organizationId),
   ]) {
+    // The next create of the organization asks the daemon again.
+    ensuredAt.delete(name);
     const inspected = await runDocker(
       ['volume', 'inspect', '--format', '{{json .Labels}}', name],
       { timeoutMs: 15_000 },
@@ -133,6 +135,15 @@ export async function removeCacheVolumes(
 // first's settle instead of repeating the work.
 const ensureInFlight = new Map<string, Promise<void>>();
 
+/** How long a cache volume found or made ready is taken to still be: every
+ * session create of the organization would otherwise ask the daemon again,
+ * one docker CLI process per volume. A volume removed behind the spawner's
+ * back (a `docker volume prune` while none of the organization's sessions
+ * ran) is made ready again once this has passed. */
+const ENSURED_FOR_MS = 5 * 60_000;
+/** When each cache volume was last found or made ready, by name. */
+const ensuredAt = new Map<string, number>();
+
 /**
  * Lazy idempotent create. New volumes are root-owned by default, but the
  * per-org cache is shared by BOTH session profiles — the one-shot default
@@ -144,12 +155,22 @@ const ensureInFlight = new Map<string, Promise<void>>();
  * so intra-org world-write is acceptable. Subsequent calls are no-ops (detected
  * via `docker volume inspect`).
  */
-export async function ensureCacheVolume(name: string): Promise<void> {
+export async function ensureCacheVolume(
+  name: string,
+  nowMs = Date.now(),
+): Promise<void> {
+  const at = ensuredAt.get(name);
+  if (at !== undefined && nowMs - at < ENSURED_FOR_MS && nowMs >= at) return;
   const existing = ensureInFlight.get(name);
   if (existing) return existing;
-  const work = ensureCacheVolumeUnlocked(name).finally(() => {
-    ensureInFlight.delete(name);
-  });
+  const work = (async () => {
+    try {
+      await ensureCacheVolumeUnlocked(name);
+      ensuredAt.set(name, nowMs);
+    } finally {
+      ensureInFlight.delete(name);
+    }
+  })();
   ensureInFlight.set(name, work);
   return work;
 }

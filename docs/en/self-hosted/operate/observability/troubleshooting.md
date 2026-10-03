@@ -75,6 +75,8 @@ Inspect `sandbox-egress` and the target URL. A configured `SANDBOX_EGRESS_ALLOWL
 
 A healthy egress process does not prove that the remote host, DNS, certificate, or account is available. Keep the specific request error with the incident report.
 
+When many sessions install packages or load pages at once and connections fail with resets while the proxy stays healthy, the proxy may have reached `SANDBOX_EGRESS_MAX_CLIENTS`, the connections it serves at once for all sessions together. Its log then reports that the maximum number of connections was reached. Raise the value, together with the egress container's process and open-file limits, and recreate the egress service.
+
 ## Writes fail or storage fills up
 
 Check application-database connectivity, free space, connection usage, and locks. Stop avoidable growth and follow your database procedure to recover capacity. Do not delete volume contents, reset encryption keys, or assume failed writes will replay after a restart. Retry the original operation only after checking whether it persisted.

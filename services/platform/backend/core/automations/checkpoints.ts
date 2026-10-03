@@ -66,10 +66,23 @@ export interface AgentTurnResult {
    * announced one — the auto-retry resumes that conversation over the
    * preserved workspace instead of starting the node's reasoning again. */
   agentSessionId?: string;
+  /** The answered question a delivery refused before it launched was to
+   * bring to the conversation `agentSessionId` names (no sandbox room for
+   * the answered-ask resume): the re-kick resumes that conversation with
+   * the answer. */
+  undeliveredAskId?: string;
   /** No retry can start before this, epoch ms: the start met a
    * subscription broker whose every account was cooling down after a rate
-   * limit, and this is when the first one is back. */
+   * limit, and this is when the first one is back — or found no sandbox
+   * room, and this is when the refusal's retry hint has passed. */
   retryAtMs?: number;
+  /** The retry hint of a start refused for want of sandbox room, ms: the
+   * delay of the waiting node's next start grows from it
+   * (`sandboxRoomRetryAtMs`). */
+  retryAfterMs?: number;
+  /** The refusal named the start's place in the spawner's first-come line
+   * for host room: the next start comes back at the hint itself. */
+  roomQueued?: boolean;
   text: string;
   files: AgentTurnFile[];
   /** Outputs the harvest could not bring back (over a cap, unreadable,
@@ -127,10 +140,24 @@ export interface AgentCursor {
   /** Why the conversation it resumed was cut, carried so a retry of a start
    * that never launched resumes it with the same words. */
   resumeReason?: string;
+  /** The answered question this attempt delivers to the conversation it
+   * resumed (`resumedFrom`), carried for the same retry: a delivery that
+   * never launched has not given the conversation its answer yet. */
+  resumeAskId?: string;
   /** This attempt retries one that ended on a 429 — the rate limit that
    * cooled its broker pool — so a start of it refused while the pool cools
    * down spends no attempt (`planWorkflowAgentRetry`). */
   retriedRateLimit?: boolean;
+  /** When this node began waiting for sandbox room: the first start of a
+   * streak refused for want of it (`sandbox_capacity`). Re-kicks while it
+   * waits spend no execution of the run's guard; the wait itself ends after
+   * `SANDBOX_ROOM_MAX_WAIT_MS`, or with a start that launches — a stamp
+   * older than `launchedAt` belongs to a wait that is over
+   * (`planWorkflowAgentRetry`). */
+  waitingForRoomSince?: number;
+  /** The refusals in a row of that wait: the next start's delay grows with
+   * them (`sandboxRoomRetryAtMs`). */
+  roomRefusals?: number;
   result?: AgentTurnResult;
 }
 

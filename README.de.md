@@ -13,31 +13,37 @@
 
 </div>
 
-# Tale
+# Tale — Der Open-Source-Arbeitsbereich für Teams und KI-Agenten
 
-Tale verbindet KI-Chat, Projektarbeit, Wissen und Automatisierungen in einem Arbeitsbereich. Stelle Fragen zu deinen Dokumenten, gib einem Agenten eine konkrete Aufgabe und prüfe das Ergebnis mit deinem Team. Du wählst die Modellanbieter und betreibst Tale auf eigener Infrastruktur oder nutzt den verwalteten Cloud-Dienst.
+**Mache aus Problemen im Unternehmen Aufgaben, die dein Team gemeinsam mit KI-Agenten lösen kann.**
 
-Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselben Produktfunktionen; Enterprise ergänzt professionellen Betrieb und Support. Das aktuelle Angebot findest du unter [Tarife und Preise](https://tale.dev/pricing).
+Tale gibt Teammitgliedern und KI-Agenten einen gemeinsamen Projektarbeitsbereich. Erstelle Aufgaben auf dem Board, weise sie Personen oder Agenten zu, verfolge die Arbeit und prüfe Berichte und gelieferte Dateien. Auftrag, Diskussionen, Projektwissen und Ergebnisse bleiben zusammen. Lass Agenten recherchieren, Dokumente prüfen, Berichte und Marketingmaterial erstellen oder eine Website, App oder ein internes Werkzeug entwickeln.
+
+Wähle für jeden Agenten Laufzeit, Modell, Skills und Werkzeuge. Statte einen koordinierenden Agenten so aus, dass er bereite Aufgaben delegieren und Folgearbeiten abstimmen kann. Agenten arbeiten in dauerhaften Sandbox-Arbeitsbereichen; deine eingerichtete Kapazität begrenzt die gleichzeitige Ausführung.
+
+Nutze eigene API-Schlüssel der Anbieter oder unterstützte Abonnements mit kompatiblen Agentenlaufzeiten. Die [Übersicht der Laufzeiten und Zugangsdaten](https://docs.tale.dev/de/platform/agents/harnesses) zeigt die verfügbaren Kombinationen.
+
+Betreibe Tale auf eigener Infrastruktur oder nutze den verwalteten Cloud-Dienst. Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselben Produktfunktionen; Enterprise ergänzt professionellen Betrieb und Support. Das aktuelle Angebot findest du unter [Tarife und Preise](https://tale.dev/pricing).
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena zeigt zwei Antworten auf denselben Prompt und die Bewertungsaktionen." width="100%"></a>
-      <br><a href="https://docs.tale.dev/de/platform/chat/arena-mode"><b>Chat und Arena</b></a><br><sub>Vergleiche zwei Modellantworten nebeneinander.</sub>
-    </td>
-    <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/projects-task-board.webp"><img src=".github/assets/readme-gallery-tasks.webp" alt="Das Task-Board des Projekts Website relaunch gruppiert Karten nach Status." width="100%"></a>
       <br><a href="https://docs.tale.dev/de/platform/projects/tasks"><b>Projektaufgaben</b></a><br><sub>Organisiere die Arbeit und prüfe ihren Fortschritt.</sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/project-agents-models.webp"><img src=".github/assets/readme-gallery-project-agents.webp" alt="Der Agents-Tab des Projekts zeigt benannte Agents mit Laufzeit und Modell." width="100%"></a>
       <br><a href="https://docs.tale.dev/de/platform/projects/project-agents"><b>Projekt-Agents</b></a><br><sub>Wähle Anweisungen, Laufzeit, Modell und Tools.</sub>
     </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Automatisierungseditor zeigt verbundene Schritte und die Einstellungen des ausgewählten Knotens." width="100%"></a>
       <br><a href="https://docs.tale.dev/de/platform/automations/editor"><b>Workflow-Editor</b></a><br><sub>Prüfe Schritte, Testeingaben und Laufprotokolle.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="services/docs/public/images/platform/chat-arena-split.webp"><img src=".github/assets/readme-gallery-chat-arena.webp" alt="Arena zeigt zwei Antworten auf denselben Prompt und die Bewertungsaktionen." width="100%"></a>
+      <br><a href="https://docs.tale.dev/de/platform/chat/arena-mode"><b>Chat und Arena</b></a><br><sub>Vergleiche zwei Modellantworten nebeneinander.</sub>
     </td>
   </tr>
   <tr>
@@ -53,6 +59,13 @@ Der Code steht unter der MIT-Lizenz. Community und Enterprise enthalten dieselbe
 </table>
 
 Öffne einen Screenshot, um ihn in voller Größe anzusehen. Die Aufnahmen zeigen die englische Oberfläche.
+
+## Von der Aufgabe zum geprüften Ergebnis
+
+1. **Die Arbeit beschreiben.** Erstelle eine [Projektaufgabe](https://docs.tale.dev/de/platform/projects/tasks) mit dem Problem, den Quelldateien und den Abnahmekriterien.
+2. **Personen und Agenten zuweisen.** Richte [Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents) für die Arbeit ein, wähle ihre Werkzeuge und starte die Aufgaben, die sie übernehmen sollen.
+3. **Koordinieren und prüfen.** Verfolge den Fortschritt auf dem Board, steuere Agenten mit @Erwähnungen in Aufgabenkommentaren und prüfe Berichte und Dateien. Ein [koordinierender Agent](https://docs.tale.dev/de/platform/projects/task-automation) kann bereite Aufgaben delegieren, wenn er die nötigen Werkzeuge hat.
+4. **Einen festen Prozess wiederholen.** Nutze eine versionierte [Automatisierung](https://docs.tale.dev/de/platform/automations/concepts), wenn die Arbeit geplante Starts, festgelegte Schritte oder Genehmigungen für Connector-Aktionen braucht.
 
 ## Finde deinen Einstieg
 

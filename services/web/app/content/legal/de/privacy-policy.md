@@ -4,7 +4,7 @@ description: Wie die Ruler GmbH deine personenbezogenen Daten erhebt, nutzt, spe
 noindex: true
 ---
 
-**Letzte Aktualisierung:** 01.04.2026
+**Letzte Aktualisierung:** 03.10.2026
 
 ## 1. Einleitung
 
@@ -117,7 +117,7 @@ Sollten wir künftig Cookies oder Drittanbieter-Dienste einführen, die eine Ein
 
 ## 10. Datensicherheit
 
-Wir treffen angemessene technische und organisatorische Maßnahmen, um deine personenbezogenen Daten vor unbefugtem Zugriff, Verlust, Missbrauch oder Zerstörung zu schützen. Dazu gehören Verschlüsselung in der Übertragung (TLS/SSL), Zugriffssteuerungen und eine gehärtete, selbst betriebene Hosting-Infrastruktur. Ruler GmbH ist ISO-27001- und SOC-2-zertifiziert.
+Wir treffen angemessene technische und organisatorische Maßnahmen, um deine personenbezogenen Daten vor unbefugtem Zugriff, Verlust, Missbrauch oder Zerstörung zu schützen. Dazu gehören Verschlüsselung in der Übertragung (TLS/SSL), Zugriffssteuerungen und eine gehärtete, selbst betriebene Hosting-Infrastruktur. Ruler GmbH ist ISO-27001-zertifiziert. Der Geltungsbereich umfasst Tale Enterprise und professionelle Dienstleistungen.
 
 ## 11. Datenschutz für Kinder
 

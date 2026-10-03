@@ -26,9 +26,9 @@ import { listAllContent, type ContentRecord } from '../../scripts/walk-content';
 import { BASE_LOCALES } from '../i18n/locales';
 import { DEFAULT_DOCS_SITE_URL } from '../site-url';
 
-export const DOCS_SITE_TITLE = 'Tale';
+export const DOCS_SITE_TITLE = 'Tale documentation';
 export const DOCS_SITE_DESCRIPTION =
-  'The orchestration layer for AI agents — local AI models, agents, skills, and workflows on your own infrastructure.';
+  'Use Tale, the open-source workspace for teams and AI agents: coordinate project tasks, configure agents, review their work, and manage your deployment.';
 
 /**
  * How to read the index, for the agents that start here. The German and

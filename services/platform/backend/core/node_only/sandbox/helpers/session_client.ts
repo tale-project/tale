@@ -88,17 +88,60 @@ export class SessionDuplicateError extends Error {
   }
 }
 
-/** The spawner is at its global host capacity (HTTP 429, `session_quota`).
- * Distinct from the platform's per-workload `QUOTA_EXCEEDED`: the host is
- * shared across organizations. The retry hint lets each workload apply its
- * own failure/retry policy; an earlier capacity read reserves no compute. */
-class SpawnerBusyError extends Error {
+/** Where a refused create stands in the spawner's first-come line for host
+ * room: its place, and how many creates wait in the line. */
+export interface SpawnerQueuePlace {
+  position: number;
+  waiting: number;
+}
+
+/** The spawner is at its global host capacity (HTTP 429: `session_quota`,
+ * `host_memory` when the host is short of memory, or `host_disk` when the
+ * disk the workspaces live on is short of space), or a destroy of the id
+ * is still under way. Distinct from the platform's per-workload
+ * `QUOTA_EXCEEDED`: the host is shared across organizations. The retry hint
+ * lets each workload apply its own wait; an earlier capacity read reserves
+ * no compute. A spawner that keeps a first-come line for host room says
+ * where the create stands in it (`queue`), and its hint is then the moment
+ * that place comes up: a waiter that asks later loses its turn to the ones
+ * behind it, so it comes back exactly then. */
+export class SpawnerBusyError extends Error {
   readonly retryAfterMs: number | undefined;
-  constructor(retryAfterMs: number | undefined) {
+  readonly queue: SpawnerQueuePlace | undefined;
+  constructor(retryAfterMs: number | undefined, queue?: SpawnerQueuePlace) {
     super('sandbox spawner at host capacity (429)');
     this.name = 'SpawnerBusyError';
     this.retryAfterMs = retryAfterMs;
+    this.queue = queue;
   }
+}
+
+/** The `queue` field of a 429 body, as a boundary: a body that is not JSON,
+ * names no line or names one out of shape is an older spawner's answer, and
+ * the create waits as it always did. */
+const spawnerQueueBodySchema = z.object({
+  queue: z.object({
+    position: z.number().int().nonnegative(),
+    waiting: z.number().int().nonnegative(),
+  }),
+});
+
+/** The refusal a 429 to a create is, with its place in the spawner's line
+ * when the body names one. */
+async function spawnerBusyErrorOf(res: Response): Promise<SpawnerBusyError> {
+  const retryAfterMs = parseRetryAfterMs(res);
+  const text = await safeText(res);
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return new SpawnerBusyError(retryAfterMs);
+  }
+  const parsed = spawnerQueueBodySchema.safeParse(body);
+  return new SpawnerBusyError(
+    retryAfterMs,
+    parsed.success ? parsed.data.queue : undefined,
+  );
 }
 
 /**
@@ -515,7 +558,7 @@ export async function sessionCreate(
       signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
     });
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
-    if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
+    if (res.status === 429) throw await spawnerBusyErrorOf(res);
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
     // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
     // offline device is final for this create: the session's workspace lives
@@ -749,14 +792,23 @@ export async function sessionSetPinned(
 }
 
 /** POST /v1/sessions/:id/exec/:execId/cancel — SIGTERM→SIGKILL the exec's
- * process group in the sandbox. Idempotent (false if the exec/session is gone).
+ * processes in the sandbox. Idempotent (false if the exec/session is gone).
  * The Stop-button path for external-agent turns; the run's own finalize then
- * persists the partial timeline + marks the message failed. */
+ * persists the partial timeline + marks the message failed.
+ *
+ * `keepLeftovers` is a rotation's cancel (a steer's restart, which continues
+ * the conversation in a new exec over the same workspace): only the exec's
+ * own process group ends, and what the turn started outside it — a dev
+ * server its shell tool backgrounded — is kept for the exec that takes over.
+ * A spawner or runtime that predates the flag ignores it and ends
+ * everything. */
 export async function sessionCancelExec(
   sessionId: string,
   execId: string,
+  opts: { keepLeftovers?: boolean } = {},
 ): Promise<boolean> {
-  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel`;
+  const query = opts.keepLeftovers === true ? '?leftovers=keep' : '';
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}/cancel${query}`;
   const res = await spawnerFetch('POST', path, {
     body: '',
     signal: AbortSignal.timeout(30_000),

@@ -1,7 +1,6 @@
 import { DemoStage } from '@tale/marketing-ui/demo-stage';
 
 import { HomeHeroDemo } from '@/app/components/blocks/demos/content';
-import { TrustCertifications } from '@/app/components/blocks/trust-certifications';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import {
   CtaPair,
@@ -9,15 +8,18 @@ import {
   Reveal,
   SectionHeading,
 } from '@/app/components/marketing';
-import { CONTACT_PATH, REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { getSelfHostedQuickstartUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 /**
  * Homepage hero — Cursor-style left-aligned composition: brand-scale
- * headline, dual CTAs, trust line, then a full-bleed product stage.
+ * headline, dual CTAs, product facts, then a full-bleed task board.
  */
 export function HeroHeadline() {
   const { t } = useT('home');
+  const locale = useCurrentLocale();
 
   return (
     <section className="relative overflow-hidden pt-14 md:pt-24">
@@ -28,6 +30,7 @@ export function HeroHeadline() {
               bare
               size="display"
               align="start"
+              eyebrow={t('hero.eyebrow')}
               title={t('hero.title')}
               description={t('hero.subtitle')}
             />
@@ -41,12 +44,12 @@ export function HeroHeadline() {
               }}
               secondary={{
                 label: t('hero.ctaSecondary'),
-                to: CONTACT_PATH,
+                href: getSelfHostedQuickstartUrl(locale),
               }}
             />
           </Reveal>
           <Reveal onMount y={12} delay={0.18} duration={0.6}>
-            <TrustCertifications variant="line" />
+            <p className="text-fg-subtle text-sm">{t('hero.proof')}</p>
           </Reveal>
         </MarketingStack>
       </SiteContainer>

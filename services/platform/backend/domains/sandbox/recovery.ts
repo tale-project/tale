@@ -24,6 +24,37 @@ export const RECOVERY_STALE_MS = (() => {
 })();
 
 /**
+ * Whether a drive job for this exec is already on its way: queued (or
+ * waiting out a retry) for a worker slot, or running and started inside the
+ * staleness window. A live chain bumps the op heartbeat only when a window
+ * ends, so a turn whose next window waits behind a full worker reads as
+ * silent while its chain is alive; re-attaching it would start a second
+ * chain beside the first, and a third on a later sweep. A running job that
+ * started before the window, with the op silent since, belongs to a worker
+ * that died with it: drive jobs carry no heartbeat and expire only after
+ * twelve hours, so the re-attach must not wait for it.
+ */
+export async function driveJobPending(
+  sql: Sql,
+  args: {
+    queue: 'task.agent_drive' | 'automation.agent_drive';
+    execId: string;
+    staleBeforeMs: number;
+  },
+): Promise<boolean> {
+  const rows = await sql<{ pending: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM pgboss.job
+      WHERE name = ${args.queue} AND data ->> 'execId' = ${args.execId}
+        AND (state IN ('created', 'retry')
+          OR (state = 'active'
+            AND started_on >= to_timestamp(${args.staleBeforeMs / 1000})))
+    ) AS pending
+  `;
+  return rows[0]?.pending ?? false;
+}
+
+/**
  * Claim the resume for one turn. Returns false when something signed the
  * op's lease after the listing read it — a live chain's bump, a concurrent
  * sweep, or a settle still proving life.

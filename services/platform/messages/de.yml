@@ -938,6 +938,7 @@ automations:
       approval: Wartet auf Freigabe
       ask: Wartet auf deine Antwort
       agent: Agent arbeitet
+      room: Wartet auf einen Sandbox-Platz
       repeat: 'Pollt — Schritt {node}'
     startedAt: 'Gestartet {date}'
     finishedAt: 'Beendet {date}'

@@ -49,7 +49,7 @@ DevTools / the browser context.
   `index.html` script reads `localStorage['tale-theme']` and applies the
   `dark` class pre-hydration; same check with system-dark + no stored value.
 - [ ] `THEME-F5` · **Demo scenes + head assets follow the theme** — On `/`,
-  toggle Light ↔ Dark and inspect the hero demo (`home.demos.hero.label`) and
+  toggle Light ↔ Dark and inspect the hero demo (`home.demos.tasks.label`) and
   one tour demo; read `document.head` → The demo windows restyle with the
   design tokens (dark surfaces/borders/text — no unreadable hardcoded colours
   inside `DemoShell` chrome or scene content; there is **no** light/dark image

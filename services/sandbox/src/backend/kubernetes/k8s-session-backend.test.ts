@@ -271,6 +271,7 @@ function badRequest(): Promise<never> {
 }
 
 interface Calls {
+  pvcReads: number;
   pvcCreated: boolean;
   pvcDeleted: boolean;
   podDeleted: boolean;
@@ -330,11 +331,20 @@ describe('Kubernetes destroy of a stopped session', () => {
 function stub(
   createSecret: () => Promise<unknown>,
   createPod: () => Promise<unknown> = () => Promise.resolve({}),
+  existing: {
+    /** The Secret a `list` by name finds (none: an empty list). */
+    secret?: { uid: string; createdAt: Date; createdAtMs?: number };
+    /** What reading the Pod returns (none: 404). */
+    pod?: object;
+    /** The bodies Secret deletes were sent with. */
+    secretDeletes?: unknown[];
+  } = {},
 ): {
   client: K8sClient;
   calls: Calls;
 } {
   const calls: Calls = {
+    pvcReads: 0,
     pvcCreated: false,
     pvcDeleted: false,
     podDeleted: false,
@@ -342,7 +352,10 @@ function stub(
   };
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- test stub
   const core = {
-    readNamespacedPersistentVolumeClaim: () => notFound(),
+    readNamespacedPersistentVolumeClaim: () => {
+      calls.pvcReads += 1;
+      return notFound();
+    },
     createNamespacedPersistentVolumeClaim: () => {
       calls.pvcCreated = true;
       return Promise.resolve({});
@@ -353,13 +366,39 @@ function stub(
     },
     createNamespacedSecret: createSecret,
     createNamespacedPod: createPod,
-    readNamespacedPod: () => notFound(),
+    readNamespacedPod: () =>
+      existing.pod === undefined ? notFound() : Promise.resolve(existing.pod),
+    listNamespacedSecret: (request: { fieldSelector?: string }) =>
+      Promise.resolve({
+        items:
+          existing.secret === undefined
+            ? []
+            : [
+                {
+                  metadata: {
+                    name: request.fieldSelector?.replace('metadata.name=', ''),
+                    uid: existing.secret.uid,
+                    creationTimestamp: existing.secret.createdAt,
+                    ...(existing.secret.createdAtMs === undefined
+                      ? {}
+                      : {
+                          annotations: {
+                            'tale.dev/created-at': String(
+                              existing.secret.createdAtMs,
+                            ),
+                          },
+                        }),
+                  },
+                },
+              ],
+      }),
     deleteNamespacedPod: () => {
       calls.podDeleted = true;
       return Promise.resolve({});
     },
-    deleteNamespacedSecret: () => {
+    deleteNamespacedSecret: (request: { body?: unknown }) => {
       calls.secretDeleted += 1;
+      existing.secretDeletes?.push(request.body);
       return Promise.resolve({});
     },
   } as unknown as CoreV1Api;
@@ -508,6 +547,114 @@ describe('KubernetesSessionBackend.createSession — a 409 name conflict is not 
     expect(calls.podDeleted).toBe(false);
     expect(calls.pvcDeleted).toBe(false);
     expect(calls.secretDeleted).toBe(1);
+  });
+});
+
+describe('KubernetesSessionBackend.createSession — a render session has no volume', () => {
+  test('a default-profile create provisions no PVC and reads none', async () => {
+    const { client, calls } = stub(
+      () => Promise.resolve({}),
+      () => Promise.reject(Object.assign(new Error('halt'), { code: 400 })),
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession({
+        ...spec,
+        profile: 'default',
+      }),
+    );
+    expect(err?.message).toBe('halt');
+    expect(calls.pvcReads).toBe(0);
+    expect(calls.pvcCreated).toBe(false);
+  });
+});
+
+describe('KubernetesSessionBackend.createSession — an orphaned Secret or a Pod of its own', () => {
+  const named = (secret: { uid: string; createdAt: Date }) => secret;
+
+  test('a Secret no Pod holds, older than a create, is removed by its UID and the create goes on', async () => {
+    let secretCreates = 0;
+    const secretDeletes: unknown[] = [];
+    const { client } = stub(
+      () => {
+        secretCreates += 1;
+        return secretCreates === 1 ? conflict() : Promise.resolve({});
+      },
+      // Halt before the readiness wait (no runnerd in a unit test).
+      () => Promise.reject(Object.assign(new Error('halt'), { code: 400 })),
+      {
+        secret: named({
+          uid: 'orphan-uid',
+          createdAt: new Date(Date.now() - 600_000),
+        }),
+        secretDeletes,
+      },
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err?.message).toBe('halt');
+    expect(secretCreates).toBe(2);
+    expect(secretDeletes[0]).toEqual({ preconditions: { uid: 'orphan-uid' } });
+  });
+
+  test("a young Pod-less Secret is a peer's create in flight: a conflict, nothing deleted", async () => {
+    const { client, calls } = stub(conflict, undefined, {
+      secret: named({ uid: 'peer-uid', createdAt: new Date() }),
+    });
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err?.message).toMatch(/session sess_c4 already exists/);
+    expect(calls.secretDeleted).toBe(0);
+    expect(calls.podDeleted).toBe(false);
+  });
+
+  test("a Secret 409 on this create's own Secret, stored by a timed-out first attempt, goes on to the Pod", async () => {
+    let podCreates = 0;
+    const { client, calls } = stub(
+      conflict,
+      () => {
+        podCreates += 1;
+        // Halt before the readiness wait (no runnerd in a unit test).
+        return Promise.reject(Object.assign(new Error('halt'), { code: 400 }));
+      },
+      {
+        secret: {
+          uid: 'own-uid',
+          createdAt: new Date(),
+          createdAtMs: spec.createdAtMs,
+        },
+      },
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err?.message).toBe('halt');
+    expect(podCreates).toBe(1);
+    expect(err?.message).not.toMatch(/already exists/);
+    // The failed Pod create cleans up what this create made, its Secret too.
+    expect(calls.secretDeleted).toBeGreaterThan(0);
+  });
+
+  test("a Pod 409 on this create's own Pod keeps its Secret and waits for readiness", async () => {
+    const { client } = stub(() => Promise.resolve({}), conflict, {
+      pod: {
+        metadata: {
+          annotations: { 'tale.dev/created-at': String(spec.createdAtMs) },
+        },
+        status: { phase: 'Pending' },
+      },
+    });
+    const quick = {
+      ...cfg,
+      session: { ...cfg.session, createHealthTimeoutMs: 200 },
+    };
+    const err = await rejection(
+      new KubernetesSessionBackend(quick, client).createSession(spec),
+    );
+    // It went on to the readiness wait instead of reporting a conflict.
+    expect(err).not.toBeNull();
+    expect(err?.message).not.toMatch(/already exists/);
   });
 });
 

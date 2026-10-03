@@ -2,7 +2,6 @@ import { DemoShell } from '@tale/marketing-ui/demo-shell';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
 import { cn } from '@tale/ui/cn';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
-import { Bot } from 'lucide-react';
 import { useRef, type ReactNode } from 'react';
 
 import {
@@ -28,21 +27,26 @@ const BEAT = {
 /**
  * D8 — Projects task board (kanban). Mirrors `KanbanBoard` /
  * `BoardColumn` / `TaskCard` idioms: status lanes, identifier + title cards,
- * agent assignee row. Product also has Backlog + Cancelled — omitted here so
+ * assignee row. Product also has Backlog + Cancelled — omitted here so
  * the fixed marketing frame stays readable (see `BOARD_TASK_STATUSES`).
  */
 export function TaskBoard({
   scenario,
+  elevation = 'default',
 }: {
   /** Story override — defaults to the homepage relaunch board. */
   scenario?: TaskBoardScenario;
+  elevation?: 'default' | 'hero';
 }) {
   const { t } = useT('home');
   const homeScenario = useTaskBoardScenario();
   const scene = scenario ?? homeScenario;
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-15%' });
-  const beat = useDemoTimeline({ beats: BEATS, start: inView });
+  const beat = useDemoTimeline({
+    beats: BEATS,
+    start: elevation === 'hero' || inView,
+  });
   const reduceMotion = useReducedMotion();
 
   const columns: readonly {
@@ -85,6 +89,7 @@ export function TaskBoard({
         label={scene.label}
         title={t('demos.tasks.windowTitle')}
         activeNav="projects"
+        elevation={elevation}
         className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/10]"
       >
         <div className="flex h-full flex-col gap-3 p-3 md:gap-4 md:p-4">
@@ -143,11 +148,6 @@ export function TaskBoard({
                               {card.title}
                             </p>
                             <p className="text-fg-muted mt-1.5 flex min-w-0 items-center gap-1 text-[10px] md:text-[11px]">
-                              <Bot
-                                aria-hidden
-                                className="size-3 shrink-0"
-                                strokeWidth={1.75}
-                              />
                               <span className="truncate">{card.assignee}</span>
                             </p>
                           </motion.article>

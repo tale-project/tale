@@ -16,14 +16,18 @@ import type {
   CompileToDiskParams,
   OptionalPage,
 } from '@tale/ui/seo';
-import { TALE_GITHUB_URL, TALE_SITE_URL } from '@tale/ui/seo/globals';
+import {
+  TALE_DOCS_URL,
+  TALE_GITHUB_URL,
+  TALE_SITE_URL,
+} from '@tale/ui/seo/globals';
 
 import { listAllContent, type ContentRecord } from '../../scripts/walk-content';
 import { DEFAULT_UI_DOCS_SITE_URL } from '../site-url';
 
-export const UI_DOCS_SITE_TITLE = 'The Tale design system';
+export const UI_DOCS_SITE_TITLE = 'Tale UI: React component library';
 export const UI_DOCS_SITE_DESCRIPTION =
-  'Documentation for @tale/ui and @tale/marketing-ui — the components, tokens and patterns every Tale interface is built from.';
+  'Build applications and websites with the MIT-licensed React components behind Tale. Explore live examples, themes, translations, and composition guides.';
 
 /** Site-relative URL for a slug. The home page is the only route outside
  *  `/docs`, and it carries no markdown body. */
@@ -98,9 +102,25 @@ export async function buildUiDocsSeo(): Promise<BuiltUiDocsSeo> {
     sectionMap.set(heading, list);
   }
 
-  const sections: ArtifactSection[] = [...sectionMap.entries()].map(
-    ([heading, routes]) => ({ heading, routes }),
-  );
+  const sections: ArtifactSection[] = [
+    {
+      heading: 'Home',
+      // The React landing page is indexable, but has no Markdown twin.
+      // Include it in the sitemap without advertising an absent index.md.
+      hideFromIndex: true,
+      routes: [
+        {
+          url: '/',
+          title: UI_DOCS_SITE_TITLE,
+          description: UI_DOCS_SITE_DESCRIPTION,
+        },
+      ],
+    },
+    ...[...sectionMap.entries()].map(([heading, routes]) => ({
+      heading,
+      routes,
+    })),
+  ];
   if (noindexRoutes.length > 0) {
     sections.push({
       heading: 'Unlisted',
@@ -128,7 +148,7 @@ export function uiDocsSiteUrl(): string {
 
 export function uiDocsOptionalPages(): OptionalPage[] {
   return [
-    { title: 'Tale documentation', url: `${TALE_SITE_URL}/docs` },
+    { title: 'Tale documentation', url: TALE_DOCS_URL },
     { title: 'GitHub', url: TALE_GITHUB_URL },
   ];
 }

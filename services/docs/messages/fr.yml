@@ -1,6 +1,6 @@
 seo:
   siteTitle: Documentation Tale
-  ogImageAlt: Tale — l’orchestrateur pour agents IA
+  ogImageAlt: Logo Tale
 nav:
   homeAriaLabel: Accueil de la documentation Tale
   sidebarAriaLabel: Documentation
@@ -40,7 +40,7 @@ nav:
 docs:
   home: Accueil
 footer:
-  copyrightLine1: © {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2.
+  copyrightLine1: © {year} Tale par Ruler GmbH
   copyrightLine2:
     Tale est sous licence MIT — libre d'utilisation, de modification
     et de distribution.

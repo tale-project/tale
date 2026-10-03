@@ -55,7 +55,7 @@ Owners and Admins can inspect **Workspaces**. A row identifies its agent or work
 
 **Spend** adds the metered cost of finished turns. A turn still running is included when it ends. Temporary crawler environments appear in capacity counts even without a standing workspace row.
 
-When deployment capacity is full, Tale may reclaim an unpinned idle environment whose allocation is released and which confirms it has no ongoing work. Its persistent workspace files remain for the next start. Busy, pinned or unresponsive environments are not candidates. If there is no safe candidate, new work must wait for capacity.
+When deployment capacity is full, Tale may reclaim an unpinned idle environment whose allocation is released and which confirms it has no ongoing work. Its persistent workspace files remain for the next start. Busy, pinned or unresponsive environments are not candidates. If there is no safe candidate, new work must wait for capacity. An environment whose task or run has finished stops after a few idle minutes, so its room frees soon after the work ends. An agent environment that runs Docker inside keeps its full idle time, so the next turn does not have to pull its images again.
 
 ## Manage an existing workspace
 
@@ -102,6 +102,12 @@ Every workspace Tale deletes on its own, for one of these reasons or for being u
 
 ## Resolve a blocked start
 
-Raise a workload limit only when its allocations are full and the new total fits shared capacity. If the deployment itself is full, increasing an organization limit cannot create infrastructure. To add capacity of your own, [connect a device](/platform/admin/sandbox-devices): new workspaces start on it. Otherwise, ask the operator to inspect capacity and host resources; a free container slot alone does not guarantee enough CPU or memory.
+A start that finds no room waits, and needs nothing from you. When your organization's limits are in use, or the deployment is full or short of memory or disk space, the work starts on its own once room frees. When the deployment itself is full, its room goes to the work that has waited longest, whichever organization it belongs to, and each waiting start is told when its turn comes:
+
+- A task run waits in the queue. It is tried again as soon as a session ends, in your organization or in another one on the same deployment. When the deployment is full, it is also tried when its turn comes. Every two minutes, Tale also tries a few of each organization's waiting runs, the longest-waiting first.
+- An automation's agent step tries again without using up its retries: when its turn comes if the deployment is full, otherwise after a pause that grows while the step keeps waiting, up to about two minutes. The run shows **Waiting for a sandbox slot** meanwhile. After two hours without room, the run fails with that reason.
+- Crawling waits for its turn, then continues with its next batch.
+
+Raise a workload limit only when its allocations are full and the new total fits shared capacity. If the deployment itself is full, increasing an organization limit cannot create infrastructure. To add capacity of your own, [connect a device](/platform/admin/sandbox-devices): new workspaces start on it. Otherwise, ask the operator to inspect capacity and host resources; a free container slot alone does not guarantee enough CPU, memory or disk space.
 
 For a credential or model refusal, use [AI providers](/platform/admin/providers). For a spending refusal, use [Policies and limits](/platform/admin/governance/policies-and-limits). Self-hosted operators can inspect the deployment setting in the [environment reference](/self-hosted/configuration/environment-reference#sandbox-infrastructure).
