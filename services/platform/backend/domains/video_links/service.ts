@@ -20,7 +20,11 @@ import {
   reportBrowserSessionResult,
 } from '../browser_sessions/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
-import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
+import {
+  deleteOrgBlobRefs,
+  deleteUnheldOrgBlobRefs,
+  putOrgBlobBytes,
+} from '../files/service.ts';
 import { loadBudgetSubject } from '../governance/budget-gate.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import { checkTtsBudget } from '../tts/service.ts';
@@ -234,15 +238,22 @@ async function cleanupCancelledVideoLink(
   const job = await getJob(sql, jobId);
   if (!job) return;
   if (job.messageBoundAt !== null) return;
-  if (job.storageRef !== null) {
-    await deleteOrgBlobRefs(sql, job.organizationId, [job.storageRef]);
-  }
   if (job.fileMetadataId !== null) {
+    // A row a document took over (`documents/from-blob-upload`) is the
+    // document's file now, whatever its transcription did.
     await sql`
       DELETE FROM app.file_metadata
       WHERE id = ${job.fileMetadataId}
         AND transcription_status IS DISTINCT FROM 'completed'
+        AND document_id IS NULL
     `;
+  }
+  // The row first, then the bytes, and only when nothing holds them: the
+  // ref is its paster's own row's ref, handed to the chip as `storageId`, so
+  // a task may list it and a document may have taken it over — and a
+  // completed transcript row, which the cleanup keeps, holds it too (#4110).
+  if (job.storageRef !== null) {
+    await deleteUnheldOrgBlobRefs(sql, job.organizationId, [job.storageRef]);
   }
 }
 
@@ -501,7 +512,8 @@ const HANDOFF_ORPHAN_WINDOW_MS = 35 * 60_000;
  * handoff rows whose transcription already settled (the safety net under
  * the settle cascade — and the heal for rows parked by older deployments),
  * fail handoff rows whose file row is gone, and reap terminal-but-unbound
- * rows older than 7 days (blob + non-completed file row + job).
+ * rows older than 7 days (the file row unless a document took it over, the
+ * blob unless something still holds it, and the job).
  */
 export async function runVideoLinkWatchdog(sql: Sql): Promise<void> {
   const now = Date.now();
@@ -599,11 +611,16 @@ export async function runVideoLinkWatchdog(sql: Sql): Promise<void> {
   for (const row of gcRows) {
     const job = await getJob(sql, row.id);
     if (!job || job.messageBoundAt !== null) continue;
-    if (job.storageRef !== null) {
-      await deleteOrgBlobRefs(sql, job.organizationId, [job.storageRef]);
-    }
+    // The cleanup's order and rule: the row goes unless a document took it
+    // over, then the bytes, unless something still holds them (#4110).
     if (job.fileMetadataId !== null) {
-      await sql`DELETE FROM app.file_metadata WHERE id = ${job.fileMetadataId}`;
+      await sql`
+        DELETE FROM app.file_metadata
+        WHERE id = ${job.fileMetadataId} AND document_id IS NULL
+      `;
+    }
+    if (job.storageRef !== null) {
+      await deleteUnheldOrgBlobRefs(sql, job.organizationId, [job.storageRef]);
     }
     await sql`DELETE FROM app.video_link_jobs WHERE id = ${row.id}`;
     await hintVideoJobs(sql, [job]);

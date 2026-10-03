@@ -17,16 +17,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { deleteOrgBlobRefs } from '../files/service.ts';
+import {
+  deleteOrgBlobRefs,
+  deleteUnheldOrgBlobRefs,
+} from '../files/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import {
   cancelVideoLink,
   finalizeClonedTranscript,
   insertSyntheticFileMetadata,
+  runVideoLinkWatchdog,
 } from './service.ts';
 
 vi.mock('../files/service.ts', () => ({
   deleteOrgBlobRefs: vi.fn(() => Promise.resolve()),
+  deleteUnheldOrgBlobRefs: vi.fn(() => Promise.resolve([])),
   putOrgBlobBytes: vi.fn(),
 }));
 vi.mock('../knowledge/service.ts', () => ({
@@ -85,6 +90,8 @@ function jobRow(overrides: Record<string, unknown>): Record<string, unknown> {
 function fakeJobs(script: {
   jobs: Record<string, unknown>[];
   updates: { id: string }[][];
+  /** The watchdog's aged, unbound, terminal jobs. */
+  gc?: { id: string }[];
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -112,6 +119,10 @@ function fakeJobs(script: {
       rows = script.updates.shift() ?? [];
     } else if (text.startsWith('SELECT id FROM app.video_link_jobs WHERE id')) {
       rows = [{ id: 'job-1' }];
+    } else if (
+      text.startsWith('SELECT id FROM app.video_link_jobs WHERE status IN')
+    ) {
+      rows = script.gc ?? [];
     }
     return Promise.resolve(rows);
   };
@@ -283,6 +294,7 @@ describe('cancelVideoLink', () => {
     expect(patches[0]?.values).toContain('skipped');
     expect(patches[0]?.values).toContain('indexing');
     expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
+    expect(deleteUnheldOrgBlobRefs).not.toHaveBeenCalled();
     expect(
       fake.statements.some((s) =>
         s.text.startsWith('DELETE FROM app.file_metadata'),
@@ -311,5 +323,81 @@ describe('cancelVideoLink', () => {
     expect(patches[0]?.values).toContain('fetching_captions');
     expect(patches[1]?.values).toContain('indexing');
     expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The cleanup and the unbound GC used to delete the job's ref outright: it
+ * is its paster's own transcript row's ref, so a task could list it and a
+ * document could have taken the row over. The row goes first (never a
+ * document's), and the bytes only when nothing holds them (#4110).
+ */
+describe('a video link’s reclaim', () => {
+  const cancelArgs = {
+    organizationId: 'org-1',
+    userId: 'user-1',
+    jobId: 'job-1',
+  };
+  const held = { storageRef: 's3:acme/t', fileMetadataId: 'fm-1' };
+
+  function recordReclaim(statements: Statement[]): void {
+    vi.mocked(deleteUnheldOrgBlobRefs).mockImplementation(async () => {
+      statements.push({ text: 'RECLAIM', values: [] });
+      return [];
+    });
+  }
+
+  it('drops the transcript row before the bytes on a cancel, and reclaims only bytes nothing holds', async () => {
+    const fake = fakeJobs({
+      jobs: [
+        jobRow({ status: 'failed', ...held }),
+        // The cleanup's own read after the cancel landed.
+        jobRow({ status: 'skipped', ...held }),
+      ],
+      updates: [[{ id: 'job-1' }]],
+    });
+    recordReclaim(fake.statements);
+
+    await cancelVideoLink(fake.sql, cancelArgs);
+
+    const texts = fake.statements.map((s) => s.text);
+    const rowDelete = texts.findIndex((t) =>
+      t.startsWith('DELETE FROM app.file_metadata'),
+    );
+    expect(texts[rowDelete]).toContain(
+      "transcription_status IS DISTINCT FROM 'completed'",
+    );
+    expect(texts[rowDelete]).toContain('document_id IS NULL');
+    expect(texts.indexOf('RECLAIM')).toBeGreaterThan(rowDelete);
+    expect(deleteUnheldOrgBlobRefs).toHaveBeenCalledWith(fake.sql, 'org-1', [
+      's3:acme/t',
+    ]);
+    expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
+  });
+
+  it('reaps an aged unbound job: its row unless a document took it over, then only bytes nothing holds', async () => {
+    const fake = fakeJobs({
+      jobs: [jobRow({ status: 'completed', ...held })],
+      updates: [],
+      gc: [{ id: 'job-1' }],
+    });
+    recordReclaim(fake.statements);
+
+    await runVideoLinkWatchdog(fake.sql);
+
+    const texts = fake.statements.map((s) => s.text);
+    const rowDelete = texts.findIndex((t) =>
+      t.startsWith('DELETE FROM app.file_metadata'),
+    );
+    expect(texts[rowDelete]).toContain('document_id IS NULL');
+    const reclaim = texts.indexOf('RECLAIM');
+    expect(reclaim).toBeGreaterThan(rowDelete);
+    expect(
+      texts.findIndex((t) => t.startsWith('DELETE FROM app.video_link_jobs')),
+    ).toBeGreaterThan(reclaim);
+    expect(deleteUnheldOrgBlobRefs).toHaveBeenCalledWith(fake.sql, 'org-1', [
+      's3:acme/t',
+    ]);
+    expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
   });
 });

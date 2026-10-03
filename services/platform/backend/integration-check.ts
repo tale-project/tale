@@ -76,6 +76,11 @@ import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
+import {
+  checkStagedBundlesUnnameable,
+  checkTaskReleaseKeepsProductImage,
+  checkVideoLinkHeldBlobs,
+} from './domains/files/held-blob-cleanups.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
@@ -58998,6 +59003,42 @@ async function main(): Promise<void> {
         'checkProductImageReleaseHolders',
         () =>
           checkProductImageReleaseHolders(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkVideoLinkHeldBlobs',
+        () =>
+          checkVideoLinkHeldBlobs(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkStagedBundlesUnnameable',
+        () =>
+          checkStagedBundlesUnnameable(
+            sql,
+            baseUrl,
+            authCtx,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
+      ],
+      [
+        'checkTaskReleaseKeepsProductImage',
+        () =>
+          checkTaskReleaseKeepsProductImage(
             sql,
             baseUrl,
             authCtx,

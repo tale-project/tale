@@ -178,6 +178,11 @@ export async function claimRejectedUpload(
  * blob — and neither the abandoned-upload sweep nor the rejected-upload
  * reclaim may take the bytes of a ref that was vouched for. A stamp inside a
  * bind transaction rolls back with a refusal.
+ *
+ * Only a `file` intent proves anything here. A skill or automation bundle's
+ * intent is consumed by the lane its purpose names, which deletes the
+ * staged zip on every path: a task, document or mail that took the zip
+ * would list bytes about to go (#4110).
  */
 export async function ownsUploadedBlob(
   sql: Sql | TransactionSql,
@@ -189,6 +194,7 @@ export async function ownsUploadedBlob(
     WHERE s3_ref = ${args.storageRef}
       AND org_id = ${args.organizationId}
       AND user_id = ${args.userId}
+      AND purpose = 'file'
       AND expires_at_ms > ${now}
     RETURNING id
   `;

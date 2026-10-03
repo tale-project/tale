@@ -185,6 +185,9 @@ export async function releaseUnlistedTaskBlobRefs(
   `;
   const releasedRefs = orphaned.map((row) => row.ref);
   if (releasedRefs.length > 0) {
+    // A product's image row is the product's, not the task's: the product
+    // domain ends it (`releaseManagedImage`). Trashed here, the release
+    // took the bytes and the row of an image a product still shows (#4110).
     await tx`
       UPDATE app.file_metadata SET
         lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()}
@@ -192,6 +195,7 @@ export async function releaseUnlistedTaskBlobRefs(
         AND storage_ref = ANY(${releasedRefs})
         AND document_id IS NULL AND thread_id IS NULL
         AND conversation_id IS NULL
+        AND source IS DISTINCT FROM 'product-image'
         AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
     `;
     await queueRefRelease(tx, organizationId, releasedRefs);

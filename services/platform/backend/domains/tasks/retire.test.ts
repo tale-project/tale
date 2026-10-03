@@ -152,6 +152,25 @@ describe('retireTasksInTx', () => {
 });
 
 describe('releaseUnlistedTaskBlobRefs', () => {
+  it('trashes the tasks’ own unbound rows of a dropped ref, never a product’s image row (#4110)', async () => {
+    const { tx, statements } = fakeTx();
+
+    await expect(
+      releaseUnlistedTaskBlobRefs(tx, 'org_1', ['s3:only-mine']),
+    ).resolves.toEqual(['s3:only-mine']);
+
+    const trash = statements.find((s) =>
+      s.text.startsWith('UPDATE app.file_metadata SET'),
+    );
+    expect(trash?.text).toContain(
+      'document_id IS NULL AND thread_id IS NULL AND conversation_id IS NULL',
+    );
+    expect(trash?.text).toContain(
+      "AND source IS DISTINCT FROM 'product-image'",
+    );
+    expect(trash?.values).toContainEqual(['s3:only-mine']);
+  });
+
   it('queues a large release in bounded jobs, as every lane releasing more than one ref does', async () => {
     // A project's whole task tree can release thousands of refs at once.
     const refs = Array.from(
