@@ -15,8 +15,26 @@ Any other argument exits 65 (there is no per-call language lane).
 runnerd disconnects an exec or attach output reader once its pending writes
 would exceed 8 MiB, releasing the connection and its request activity while
 the command continues. A reader can reconnect through attach using its last
-sequence number and the retained 256 KiB output ring. Session idle and TTL
-cleanup atomically checks the current work generation and activity clock
+sequence number. Recent output comes from a 256 KiB memory ring; older output
+is replayed from a workspace-backed journal, limited to 64 MiB of encoded
+events per live exec. The last 16 completed execs retain at most 64 MiB of
+journals in total. Eviction removes their journal files; restarting the
+container clears all journals with its exec temporary directory. At most eight
+attach readers run at once, and disk replay waits for each reader's writable
+buffer to drain. If a cursor needs output lost to the journal limit, a disk
+failure or missing history, attach reports `REPLAY_GAP`; it never passes a
+partial history off as a complete replay. The original live stream continues
+past the journal limit.
+
+File staging admits two concurrent requests. URL inputs stream to temporary
+files under a 100 MiB per-file cap and replace their destination atomically
+only after a successful download. Inline files retain their 1 MiB cap. The
+whole staging batch has a 25-second deadline; caller disconnect cancels its
+fetches and removes partial files, preserving an existing destination. A full
+staging pool returns `503 staging_busy`; the spawner retries that explicit refusal
+within the same 30-second RPC deadline.
+
+Session idle and TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
 Headless Chromium and Playwright are available on demand for automation,

@@ -350,9 +350,13 @@ export interface SessionCreateBody {
    * (the hub picks one with room, else the server). Absent = the server. A
    * session keeps the machine it first started on either way. */
   placement?: 'device' | 'server';
+  /** Explicit build-daemon capability; absent preserves deployment defaults. */
+  dockerInContainer?: boolean;
 }
 
 export interface SessionInfo {
+  /** Absent on a runtime too old to attest its build capability. */
+  dockerInContainer?: boolean;
   sessionId: string;
   organizationId: string;
   profile: 'default' | 'agent';
@@ -591,17 +595,44 @@ export async function sessionCreate(
 /** GET /v1/sessions/:id — is the session alive spawner-side? `false` ONLY on
  * a definitive 404 (the phantom-session signal); transport errors throw so a
  * spawner blip is never misread as "session gone". */
-export async function sessionIsAlive(sessionId: string): Promise<boolean> {
+async function sessionResponse(sessionId: string): Promise<Response | null> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}`;
   const res = await spawnerFetch('GET', path, {
     signal: AbortSignal.timeout(15_000),
   });
-  if (res.status === 404) return false;
+  if (res.status === 404) return null;
   await throwIfDeviceOffline(res);
   if (!res.ok) {
     throw new Error(`sandbox session get failed (${res.status})`);
   }
-  return true;
+  return res;
+}
+
+export async function sessionIsAlive(sessionId: string): Promise<boolean> {
+  return (await sessionResponse(sessionId)) !== null;
+}
+
+/** Read the runtime's actual capabilities, including adopted warm sessions. */
+export async function sessionInfo(
+  sessionId: string,
+): Promise<SessionInfo | null> {
+  const response = await sessionResponse(sessionId);
+  if (response === null) return null;
+  return z
+    .object({
+      session: z.object({
+        sessionId: z.string(),
+        organizationId: z.string(),
+        profile: z.enum(['default', 'agent']),
+        state: z.string(),
+        backend: z.string(),
+        createdAtMs: z.number(),
+        expiresAtMs: z.number(),
+        idleTimeoutMs: z.number(),
+        dockerInContainer: z.boolean().optional(),
+      }),
+    })
+    .parse(await response.json()).session;
 }
 
 /** Returns true when the spawner destroyed a live session, false when it had
@@ -835,10 +866,17 @@ export type ExecLiveness =
 export async function sessionExecStatus(
   sessionId: string,
   execId: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<ExecLiveness> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec/${encodeURIComponent(execId)}`;
   const res = await spawnerFetch('GET', path, {
-    signal: AbortSignal.timeout(30_000),
+    signal:
+      options.signal === undefined
+        ? AbortSignal.timeout(options.timeoutMs ?? 30_000)
+        : AbortSignal.any([
+            options.signal,
+            AbortSignal.timeout(options.timeoutMs ?? 30_000),
+          ]),
   });
   if (res.status === 404) return { state: 'gone' };
   if (!res.ok) {
@@ -1186,6 +1224,10 @@ export interface SessionExecResult {
 export interface SessionExecCallbacks {
   onStdout?: (text: string) => void;
   onStderr?: (text: string) => void;
+  /** A journal-capable runtime announces attach history before replaying it. */
+  onReplayStart?: () => void;
+  /** An attach has rebuilt all historical output and now follows live data. */
+  onReplayComplete?: () => void;
 }
 
 /**
@@ -1384,6 +1426,10 @@ async function consumeExecSse(
       }
       if (event === 'stdout') callbacks.onStdout?.(text);
       else callbacks.onStderr?.(text);
+    } else if (event === 'phase') {
+      const parsed = parseData<{ phase?: string }>(data);
+      if (parsed?.phase === 'replay-start') callbacks.onReplayStart?.();
+      if (parsed?.phase === 'replay-complete') callbacks.onReplayComplete?.();
     } else if (event === 'result') {
       const parsed = parseData<SessionExecResult>(data);
       if (parsed) result = parsed;

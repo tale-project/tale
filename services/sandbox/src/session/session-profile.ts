@@ -22,6 +22,7 @@ import type { SandboxSessionProfile } from '../wire.ts';
 export function sessionDindEnabled(
   cfg: SpawnerConfig,
   profile: SandboxSessionProfile,
+  requested?: boolean,
 ): boolean {
-  return cfg.dockerInContainer && profile === 'agent';
+  return cfg.dockerInContainer && profile === 'agent' && requested !== false;
 }

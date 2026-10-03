@@ -27,6 +27,10 @@ const transport = vi.hoisted(() => ({
   cancelled: [] as string[],
   exitAfterStdout: false,
   exitCode: 0,
+  errorCode: undefined as string | undefined,
+  replayComplete: true,
+  replayStart: true,
+  beforeReplayComplete: undefined as (() => Promise<void>) | undefined,
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
@@ -43,11 +47,19 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     callbacks: {
       onStdout?: (chunk: string) => void;
       onStderr?: (chunk: string) => void;
+      onReplayStart?: () => void;
+      onReplayComplete?: () => void;
     },
+    options?: { resumeSinceSeq?: number },
   ) => {
+    if (options?.resumeSinceSeq !== undefined && transport.replayStart)
+      callbacks.onReplayStart?.();
     callbacks.onStdout?.(transport.stdout);
     if (transport.stderr !== '') callbacks.onStderr?.(transport.stderr);
-    if (transport.exitAfterStdout) return { exitCode: transport.exitCode };
+    await transport.beforeReplayComplete?.();
+    if (transport.replayComplete) callbacks.onReplayComplete?.();
+    if (transport.exitAfterStdout)
+      return { exitCode: transport.exitCode, errorCode: transport.errorCode };
     // A live exec: the drain only ends when the window (or the cut) aborts.
     await new Promise<never>((_resolve, reject) => {
       signal.addEventListener('abort', () => reject(signal.reason), {
@@ -123,6 +135,10 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.cancelled = [];
     transport.exitAfterStdout = false;
     transport.exitCode = 0;
+    transport.errorCode = undefined;
+    transport.replayComplete = true;
+    transport.replayStart = true;
+    transport.beforeReplayComplete = undefined;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -168,6 +184,78 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       // The window still reports what it saw: the tool call is on the timeline.
       expect(result.timeline.map((part) => part.type)).toEqual(['tool-bash']);
       expect(result.agentSessionId).toBe('pi-live-session');
+    }
+  });
+
+  it('publishes a resumed transcript only after replay catches up', async () => {
+    transport.stdout = PI_MID_TOOL;
+    const onTimeline = vi.fn();
+    transport.beforeReplayComplete = async () => {
+      expect(onTimeline).not.toHaveBeenCalled();
+    };
+    await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'replaying-pi',
+      harness: 'pi',
+      windowMs: 50,
+      onTimeline,
+    });
+    expect(onTimeline).toHaveBeenCalledTimes(1);
+    expect(onTimeline.mock.calls[0]?.[0]).toMatchObject([
+      { toolCallId: 'slow-tool' },
+    ]);
+  });
+
+  it('does not settle or publish an incomplete replay with a historical result', async () => {
+    transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    transport.replayComplete = false;
+    const onText = vi.fn();
+    const onTimeline = vi.fn();
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'replaying-claude',
+      harness: 'claude-code',
+      windowMs: 50,
+      onText,
+      onTimeline,
+    });
+    expect(result.kind).toBe('running');
+    expect(onText).not.toHaveBeenCalled();
+    expect(onTimeline).not.toHaveBeenCalled();
+    expect(transport.cancelled).toEqual([]);
+  });
+
+  it('settles a legacy held-stdin runtime without negotiated replay markers', async () => {
+    transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    transport.replayStart = false;
+    transport.replayComplete = false;
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'legacy-claude',
+      harness: 'claude-code',
+      windowMs: 5000,
+    });
+    expect(result.kind).toBe('terminal');
+    expect(transport.cancelled).toEqual(['legacy-claude']);
+  });
+
+  it('reaps an exec whose retained output cannot rebuild the full ledger', async () => {
+    transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    transport.replayComplete = false;
+    transport.exitAfterStdout = true;
+    transport.errorCode = 'REPLAY_GAP';
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'truncated-claude',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(transport.cancelled).toEqual(['truncated-claude']);
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.ended).toBeUndefined();
+      expect(result.timeline).toEqual([]);
+      expect(classifyHarnessEnd(result).errored).toBe(true);
     }
   });
 
@@ -365,6 +453,10 @@ describe('classifyHarnessEnd', () => {
     transport.cancelled = [];
     transport.exitAfterStdout = false;
     transport.exitCode = 0;
+    transport.errorCode = undefined;
+    transport.replayComplete = true;
+    transport.replayStart = true;
+    transport.beforeReplayComplete = undefined;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -719,5 +811,32 @@ describe('spend refusal (402) classification', () => {
     const reason = spendRefusalReason(long);
     expect(reason.endsWith('API Error: 402 tail')).toBe(true);
     expect(reason.length).toBeLessThan(400);
+  });
+});
+
+describe('incomplete replay refusal', () => {
+  it('never accepts an earlier successful result from an incomplete replay', () => {
+    const result = classifyHarnessEnd({
+      text: 'old output',
+      timeline: [],
+      exited: true,
+      ended: {
+        type: 'turn-ended',
+        status: 'completed',
+        finalText: 'old answer',
+      },
+      execResult: {
+        status: 'failed',
+        exitCode: null,
+        durationMs: 0,
+        stdoutBase64: '',
+        stderrBase64: '',
+        truncated: { stdout: false, stderr: false },
+        errorCode: 'REPLAY_GAP',
+        errorMessage: 'missing replay',
+      },
+    });
+    expect(result.errored).toBe(true);
+    expect(result.reason).toContain('replay');
   });
 });

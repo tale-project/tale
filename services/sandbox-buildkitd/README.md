@@ -112,3 +112,15 @@ network for operator review.
 
 Resource creation, refusal, reuse, and guarded legacy retirement are covered by
 [the provisioning tests](../sandbox/src/buildkit-resources.test.ts).
+
+Solver parallelism is bounded to the builder CPU limit rounded down, with a
+minimum of one. The spawner passes this as `TALE_BUILDKITD_MAX_PARALLELISM`; the
+entrypoint regenerates `max-parallelism` on each start. It is part of the helper
+configuration stamp, so busy helpers finish their builds before recreation
+applies a changed setting. The existing memory limit still bounds the entire
+builder, including its build steps.
+
+Optional provisioning shares a 15-second budget across Docker calls and mirror
+setup (`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS`, 100–60000 ms). Independent
+registry mirrors initialize concurrently. Expiry falls back to the session's
+local builder; any queued expired setup is skipped before it can mutate Docker.

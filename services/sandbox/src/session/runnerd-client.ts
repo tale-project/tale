@@ -5,6 +5,8 @@
 // layer forwards to the platform. No kubectl exec anywhere — this is ordinary
 // fetch, which is what keeps the K8s backend exec-free.
 
+import { setTimeout as delay } from 'node:timers/promises';
+
 import {
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
@@ -282,12 +284,15 @@ export async function runnerdAttach(
 export async function runnerdEnvPatch(
   opts: RunnerdClientOptions,
   patch: { set?: Record<string, string>; unset?: string[] },
+  signal?: AbortSignal,
 ): Promise<string[]> {
   const res = await fetch(`${opts.baseUrl}/env`, {
     method: 'POST',
     headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
     body: JSON.stringify(patch),
-    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS)])
+      : AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`runnerd /env ${res.status}`);
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -305,16 +310,47 @@ interface RunnerdStageResult {
 export async function runnerdStageFiles(
   opts: RunnerdClientOptions,
   files: Array<{ path: string; url?: string; contentBase64?: string }>,
+  request: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<RunnerdStageResult> {
-  const res = await fetch(`${opts.baseUrl}/files/stage`, {
-    method: 'POST',
-    headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
-    body: JSON.stringify({ files }),
-    signal: AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`runnerd /files/stage ${res.status}`);
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  return (await res.json()) as RunnerdStageResult;
+  const timeout = AbortSignal.timeout(
+    request.timeoutMs ?? RUNNERD_RPC_TIMEOUT_MS,
+  );
+  const signal = request.signal
+    ? AbortSignal.any([request.signal, timeout])
+    : timeout;
+  const body = JSON.stringify({ files });
+  for (;;) {
+    const res = await fetch(`${opts.baseUrl}/files/stage`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(opts.token),
+        'content-type': 'application/json',
+      },
+      body,
+      signal,
+    });
+    if (res.ok) {
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      return (await res.json()) as RunnerdStageResult;
+    }
+    if (res.status === 503) {
+      const refusal: unknown = await res.json().catch(() => null);
+      if (
+        refusal !== null &&
+        typeof refusal === 'object' &&
+        'error' in refusal &&
+        refusal.error === 'staging_busy'
+      ) {
+        // No file was attempted. Retry admission under the SAME deadline;
+        // generic errors may follow a partial write and must not be replayed.
+        await delay(100, undefined, { signal });
+        continue;
+      }
+    } else {
+      await res.body?.cancel();
+    }
+    throw new Error(`runnerd /files/stage ${res.status}`);
+  }
 }
 
 interface RunnerdDeleteResult {

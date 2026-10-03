@@ -84,6 +84,8 @@ export interface SessionSpec {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  /** Optional opt-out of the deployment's agent-only inner Docker capability. */
+  dockerInContainer?: boolean;
   /** Clamped by the route layer to cfg.session.maxLifetimeMs / maxIdleMs. */
   ttlMs: number;
   idleTimeoutMs: number;
@@ -101,6 +103,8 @@ export interface BackendSession {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  /** Actual capability; absent only on objects created before it was recorded. */
+  dockerInContainer?: boolean;
   createdAtMs: number;
   ttlMs: number;
   idleTimeoutMs: number;

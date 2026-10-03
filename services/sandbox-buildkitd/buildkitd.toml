@@ -15,6 +15,9 @@ enabled = true
 # "host" — the alternative "bridge" default (newer BuildKit) gives RUN steps
 # their own subnet that bypasses the redirect, so they'd have no egress.
 networkMode = "host"
+# Overridden at boot to the builder CPU limit rounded down (minimum one).
+# Bound concurrent solver work so small hosts do not OOM during parallel builds.
+max-parallelism = 2
 gc = true
 
 # Keep the cache bounded so a runaway build can't fill the host disk. The

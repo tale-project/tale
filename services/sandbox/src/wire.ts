@@ -52,6 +52,7 @@ export const sandboxErrorCodeLiterals = [
   // fails the runnerd realpath-under-/agent check (no silent mkdir).
   'SESSION_LOST',
   'INVALID_CWD',
+  'REPLAY_GAP',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
@@ -136,6 +137,8 @@ export interface SessionInfo {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  /** Actual inner-Docker capability of this runtime, including explicit opt-out. */
+  dockerInContainer: boolean;
   state: SandboxSessionState;
   backend: 'docker' | 'kubernetes';
   createdAtMs: number;

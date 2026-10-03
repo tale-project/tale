@@ -33,6 +33,7 @@ interface SessionPodInput {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  dockerInContainer?: boolean;
   createdAtMs: number;
 }
 
@@ -160,7 +161,7 @@ export function buildSessionPod(
   // `default` Pod must never run untrusted content as root/privileged, and the
   // entrypoint's DinD branch drops to uid 10001 which cannot write the
   // 65534-group workspace — the Pod would never become ready.
-  const dind = sessionDindEnabled(cfg, inp.profile);
+  const dind = sessionDindEnabled(cfg, inp.profile, inp.dockerInContainer);
   const dindPrivileged = dindCapabilityOf(cfg.runtimeTier) === 'privileged';
   const dindSecurityContext = {
     runAsUser: 0,
@@ -278,6 +279,7 @@ export function buildSessionPod(
         'tale.dev/session-id': inp.sessionId,
         'tale.dev/organization-id': inp.organizationId,
         'tale.dev/profile': inp.profile,
+        'tale.dev/docker-in-container': String(dind),
         'tale.dev/created-at': String(inp.createdAtMs),
         // AppArmor unconfined for the inner dockerd (the userns/VM is the real
         // boundary). Annotation form for broad node-version compatibility.

@@ -161,10 +161,12 @@ export interface RunnerdStdinWriteResponse {
  * `seq` is a monotonic per-exec counter assigned to every emitted event. A
  * consumer that drops its stream reconnects via `GET /attach?sinceSeq=<lastSeq>`
  * and the daemon replays only events with a higher seq — making reconnect
- * idempotent (no missed or double-counted lines). Optional only because the
- * pre-spawn `fail` lines (which can never be reconnected to) skip the counter. */
+ * idempotent within retained history. Cursors outside the bounded disk journal
+ * and memory ring receive REPLAY_GAP, never an incomplete successful replay.
+ * Optional because pre-spawn refusals and replay gaps have no exec sequence. */
 export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
+  | { t: 'replay-start' | 'replay-end' }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
   | {
@@ -188,8 +190,13 @@ export type RunnerdExecEvent = (
     }
   | {
       t: 'fail';
-      /** Structured pre-spawn failures (the process never ran). */
-      code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
+      /** Pre-spawn refusals, or an explicit gap in reconnect history. */
+      code:
+        | 'INVALID_CWD'
+        | 'EXEC_LIMIT'
+        | 'DUPLICATE_EXEC'
+        | 'BAD_REQUEST'
+        | 'REPLAY_GAP';
       message: string;
     }
 ) & { seq?: number };

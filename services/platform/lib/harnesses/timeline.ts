@@ -3,10 +3,11 @@
  * of it.
  *
  * A turn's drain windows each rebuild their projection from scratch (fresh
- * parser over the exec's 256 KB ring buffer), so any single flush is a
- * bounded, possibly much shorter view of the turn: entries routinely vanish
- * from its head, and a fresh window can open with almost nothing. Every
- * holder of a transcript therefore MERGES flushes instead of replacing —
+ * parser over the exec's durable output journal), so any single flush is a
+ * bounded view of the turn: entries routinely vanish from its head. Resumed
+ * windows publish only once the journal catches up, so historical prefixes
+ * cannot reintroduce evicted entries. Every holder of a transcript therefore
+ * MERGES flushes instead of replacing —
  * the op row (`upsertSessionOp`, under its row lock) and the run views'
  * client accumulator both fold each flush in through this module, so neither
  * ever loses an entry it already held.
@@ -42,11 +43,9 @@ export interface TimelineEntry {
 /** Entries a stored transcript keeps, newest wins. Sized for a long
  * tool-heavy turn to stay readable end to end. */
 export const TIMELINE_MAX_ENTRIES = 400;
-/** Byte budget of a stored transcript (serialized). Keeps the op row well
- * under Convex's 1 MB document cap next to `progressText`, and — being
- * larger than the exec's 256 KB ring buffer — guarantees a replay can never
- * re-deliver an entry old enough to have been evicted (which would re-append
- * it out of order). */
+/** Byte budget of a stored transcript (serialized), independently of the
+ * daemon's replay journal. Keeps reactive op-row payloads bounded alongside
+ * `progressText`. Caught-up projections have the same budget before merging. */
 const TIMELINE_MAX_JSON_BYTES = 600_000;
 
 const encoder = new TextEncoder();

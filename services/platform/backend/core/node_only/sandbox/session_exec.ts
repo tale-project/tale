@@ -406,9 +406,9 @@ export async function harvestSessionOutput(
     // Backend-aware store: harvested outputs are org-user-persistent thread
     // files — a BYO-bucket org's outputs land in its own bucket. A rejected
     // store (quota, validation) leaves no blob behind to reap.
-    const ab = new ArrayBuffer(buf.byteLength);
-    new Uint8Array(ab).set(buf);
-    const harvestBytes = new Uint8Array(ab);
+    // The read already owns an ArrayBuffer; use its view without another
+    // artifact-sized allocation while the object-store upload is in flight.
+    const harvestBytes = new Uint8Array(read.bytes);
     let storageId: string;
     try {
       storageId = await putBlob(orgSlug, harvestBytes, contentType);

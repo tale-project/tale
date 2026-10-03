@@ -3,14 +3,16 @@
 // under the workspace root (no traversal, no symlink escape) — the same
 // boundary the exec cwd check enforces.
 
+import { randomUUID } from 'node:crypto';
 import {
   mkdir,
+  open,
+  rename,
   readdir,
   readFile,
   realpath,
   rm,
   stat,
-  writeFile,
 } from 'node:fs/promises';
 import { dirname, join, normalize } from 'node:path';
 
@@ -69,105 +71,163 @@ const INLINE_MAX_BYTES = 1 * 1024 * 1024;
  * the batch waited behind it. */
 const STAGE_FETCH_TIMEOUT_MS = 25_000;
 
-/** Write each item under the workspace (inline bytes, or fetched from its
- * URL). Skips (never throws) on a bad path, fetch failure, timeout, or
- * oversize, reporting a structured reason. */
+/** Stream each input into an owned temporary file, then publish with rename.
+ * Neither a failed fetch nor a disconnected caller can leave a partial target.
+ * The batch shares one deadline below the spawner's 30 s RPC bound. */
 export async function stageFiles(
   items: StageItem[],
-  opts: { fetchTimeoutMs?: number } = {},
+  opts: {
+    fetchTimeoutMs?: number;
+    batchTimeoutMs?: number;
+    fetchMaxBytes?: number;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<StageResult> {
-  const fetchTimeoutMs = opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS;
+  const deadline = new AbortController();
+  const timer = setTimeout(
+    () => deadline.abort(),
+    opts.batchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
+  );
+  const signal = opts.signal
+    ? AbortSignal.any([opts.signal, deadline.signal])
+    : deadline.signal;
   const staged: StageResult['staged'] = [];
   const skipped: StageResult['skipped'] = [];
-  for (const item of items) {
-    const abs = resolveUnderWorkspace(item.path);
-    if (abs === null) {
-      skipped.push({ path: item.path, reason: 'unsafe_path' });
-      continue;
-    }
-    try {
-      let buf: Buffer | number | 'too_large' | 'no_body';
-      if (item.contentBase64 !== undefined) {
-        buf = Buffer.from(item.contentBase64, 'base64');
-        if (buf.byteLength > INLINE_MAX_BYTES) {
-          skipped.push({ path: item.path, reason: 'too_large' });
-          continue;
-        }
-      } else if (item.url !== undefined) {
-        const ac = new AbortController();
-        const deadline = setTimeout(() => ac.abort(), fetchTimeoutMs);
-        try {
-          buf = await fetchBounded(item.url, ac.signal);
-        } finally {
-          clearTimeout(deadline);
-        }
-        if (buf === 'too_large' || buf === 'no_body') {
-          skipped.push({ path: item.path, reason: buf });
-          continue;
-        }
-        if (typeof buf === 'number') {
-          skipped.push({ path: item.path, reason: `http_${buf}` });
-          continue;
-        }
-      } else {
-        skipped.push({ path: item.path, reason: 'no_source' });
+  try {
+    for (const item of items) {
+      if (signal.aborted) {
+        skipped.push({
+          path: item.path,
+          reason: opts.signal?.aborted ? 'cancelled' : 'timeout',
+        });
         continue;
       }
-      // node target — the daemon bundles with --target=node, so no Bun
-      // globals. Bun.write created parent dirs; mkdir -p keeps that contract.
-      await mkdir(dirname(abs), { recursive: true });
-      await writeFile(abs, buf);
-      staged.push({ path: item.path, bytes: buf.byteLength });
-    } catch (err) {
-      skipped.push({
-        path: item.path,
-        reason:
-          err instanceof Error
-            ? err.name === 'AbortError'
+      const abs = resolveUnderWorkspace(item.path);
+      if (abs === null || abs === workspaceRoot()) {
+        skipped.push({ path: item.path, reason: 'unsafe_path' });
+        continue;
+      }
+      const itemAbort = new AbortController();
+      const itemTimer = setTimeout(
+        () => itemAbort.abort(),
+        opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
+      );
+      const itemSignal = AbortSignal.any([signal, itemAbort.signal]);
+      let temporary: string | undefined;
+      try {
+        const parent = dirname(abs);
+        // Check existing ancestors before mkdir, then the completed parent.
+        let ancestor = parent;
+        while ((await realpathUnderRoot(ancestor)) === null) {
+          try {
+            await realpath(ancestor);
+            throw new Error('unsafe_path');
+          } catch (error) {
+            if (
+              !(
+                error instanceof Error &&
+                'code' in error &&
+                error.code === 'ENOENT'
+              )
+            )
+              throw error;
+          }
+          const next = dirname(ancestor);
+          if (next === ancestor) throw new Error('unsafe_path');
+          ancestor = next;
+        }
+        await mkdir(parent, { recursive: true });
+        if ((await realpathUnderRoot(parent)) === null)
+          throw new Error('unsafe_path');
+        temporary = join(parent, `.tale-stage-${randomUUID()}`);
+        const target = await open(temporary, 'wx', 0o600);
+        let bytes = 0;
+        try {
+          if (item.contentBase64 !== undefined) {
+            // Refuse before decoding: an oversized base64 string should not
+            // allocate its entire decoded counterpart merely to reject it.
+            if (item.contentBase64.length > Math.ceil(INLINE_MAX_BYTES / 3) * 4)
+              throw new Error('too_large');
+            const content = Buffer.from(item.contentBase64, 'base64');
+            if (content.byteLength > INLINE_MAX_BYTES)
+              throw new Error('too_large');
+            itemSignal.throwIfAborted();
+            await target.writeFile(content);
+            bytes = content.byteLength;
+          } else if (item.url !== undefined) {
+            const response = await fetch(item.url, { signal: itemSignal });
+            const limit = opts.fetchMaxBytes ?? FETCH_MAX_BYTES;
+            try {
+              if (!response.ok) throw new Error(`http_${response.status}`);
+              const declared = Number(
+                response.headers.get('content-length') ?? '',
+              );
+              if (Number.isFinite(declared) && declared > limit)
+                throw new Error('too_large');
+              if (response.body === null) throw new Error('no_body');
+              const reader = response.body.getReader();
+              try {
+                for (;;) {
+                  itemSignal.throwIfAborted();
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  bytes += value.byteLength;
+                  if (bytes > limit) throw new Error('too_large');
+                  let offset = 0;
+                  while (offset < value.byteLength) {
+                    itemSignal.throwIfAborted();
+                    const written = await target.write(
+                      value,
+                      offset,
+                      value.byteLength - offset,
+                    );
+                    if (written.bytesWritten === 0)
+                      throw new Error('write_failed');
+                    offset += written.bytesWritten;
+                  }
+                }
+              } finally {
+                reader.releaseLock();
+              }
+            } finally {
+              // Includes non-2xx and declared-oversize bodies: releasing a
+              // reader's lock alone does not close the upstream connection.
+              await response.body?.cancel().catch(() => {});
+            }
+          } else {
+            throw new Error('no_source');
+          }
+        } finally {
+          await target.close();
+        }
+        itemSignal.throwIfAborted();
+        if ((await realpathUnderRoot(dirname(abs))) === null)
+          throw new Error('unsafe_path');
+        await rename(temporary, abs);
+        temporary = undefined;
+        staged.push({ path: item.path, bytes });
+      } catch (error) {
+        skipped.push({
+          path: item.path,
+          reason: opts.signal?.aborted
+            ? 'cancelled'
+            : itemSignal.aborted
               ? 'timeout'
-              : err.message
-            : 'fetch_failed',
-      });
+              : error instanceof Error
+                ? error.message
+                : 'fetch_failed',
+        });
+      } finally {
+        clearTimeout(itemTimer);
+        itemAbort.abort();
+        if (temporary !== undefined)
+          await rm(temporary, { force: true }).catch(() => {});
+      }
     }
+  } finally {
+    clearTimeout(timer);
   }
   return { staged, skipped };
-}
-
-/** GET a stage URL under `signal`, stream-accumulating under FETCH_MAX_BYTES.
- * Returns the bytes, a non-2xx status, or a structured skip reason. */
-async function fetchBounded(
-  url: string,
-  signal: AbortSignal,
-): Promise<Buffer | number | 'too_large' | 'no_body'> {
-  const res = await fetch(url, { signal });
-  if (!res.ok) return res.status;
-  // Reject up front on a declared length over the cap (cheap, no body
-  // read). A truthful Content-Length avoids streaming a huge body at all.
-  const declared = Number(res.headers.get('content-length') ?? '');
-  if (Number.isFinite(declared) && declared > FETCH_MAX_BYTES) {
-    return 'too_large';
-  }
-  if (res.body === null) return 'no_body';
-  // Stream-accumulate so a missing/lying Content-Length can't OOM the
-  // daemon: cancel the reader the instant the running total crosses the
-  // cap (don't buffer the whole body first). The abort signal also rejects
-  // reader.read(), so a trickling body is bounded by the same deadline.
-  const reader = res.body.getReader();
-  const parts: Buffer[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value === undefined) continue;
-    const part = Buffer.from(value);
-    total += part.byteLength;
-    if (total > FETCH_MAX_BYTES) {
-      await reader.cancel();
-      return 'too_large';
-    }
-    parts.push(part);
-  }
-  return Buffer.concat(parts);
 }
 
 interface DeleteResult {

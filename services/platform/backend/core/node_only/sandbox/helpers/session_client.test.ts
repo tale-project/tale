@@ -99,6 +99,31 @@ function restoreEnv(name: string, value: string | undefined): void {
 }
 
 describe('drainSessionExecResilient', () => {
+  test('reports the replay boundary between historical and live output', async () => {
+    globalThis.fetch = Object.assign(async () =>
+      sseResponse([
+        'event: phase\ndata: {"phase":"replay-start"}\n\n',
+        'event: stdout\ndata: {"text":"past","seq":2}\n\n',
+        'event: phase\ndata: {"phase":"replay-complete"}\n\n',
+        'event: stdout\ndata: {"text":"live","seq":3}\n\n',
+        RESULT_OK,
+      ]),
+    );
+    const events: string[] = [];
+    await drainSessionExecResilient(
+      'ses-1',
+      { execId: 'exec-1' },
+      new AbortController().signal,
+      {
+        onStdout: (text) => events.push(text),
+        onReplayStart: () => events.push('replaying'),
+        onReplayComplete: () => events.push('caught-up'),
+      },
+      { resumeSinceSeq: 0 },
+    );
+    expect(events).toEqual(['replaying', 'past', 'caught-up', 'live']);
+  });
+
   test('re-attaches after a mid-turn drop and feeds each delta once', async () => {
     const calls: string[] = [];
     let n = 0;

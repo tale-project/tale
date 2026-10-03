@@ -490,6 +490,11 @@ export function loadConfig(): SpawnerConfig {
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? 'registry:2',
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
+    buildkitdProvisionTimeoutMs: numEnv(
+      'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
+      15_000,
+      { min: 100, max: 60_000 },
+    ),
     ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),
     ...(buildkitdCacheRetentionMs !== undefined
       ? { buildkitdCacheRetentionMs }

@@ -43,6 +43,8 @@ import {
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
+const MAX_STAGING_REQUESTS = 2;
+let stagingRequests = 0;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
 const bootedAtMs = Date.now();
@@ -160,6 +162,19 @@ function execConsumer(
   return {
     signal: consumer.signal,
     closed,
+    ready: () => {
+      if (consumer.signal.aborted || !res.writableNeedDrain)
+        return Promise.resolve();
+      return new Promise<void>((settle) => {
+        const finish = () => {
+          res.removeListener('drain', finish);
+          consumer.signal.removeEventListener('abort', finish);
+          settle();
+        };
+        res.once('drain', finish);
+        consumer.signal.addEventListener('abort', finish, { once: true });
+      });
+    },
     emit: (event: RunnerdExecEvent) => {
       if (consumer.signal.aborted || res.destroyed || res.writableEnded) return;
       const line = `${JSON.stringify(event)}\n`;
@@ -276,6 +291,7 @@ async function handleAttach(
       consumer.emit,
       sinceSeq,
       consumer.signal,
+      consumer.ready,
     );
     if (stream) await stream;
   } finally {
@@ -488,16 +504,49 @@ async function handleOperation(
     return;
   }
   if (req.method === 'POST' && path === '/files/stage') {
-    const stageBody = await readJsonBody(req);
-    if (!stageBody.ok) {
-      sendJson(res, stageBody.status, { error: stageBody.error });
+    if (stagingRequests >= MAX_STAGING_REQUESTS) {
+      req.resume();
+      sendJson(res, 503, { error: 'staging_busy' });
       return;
     }
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const body = stageBody.value as { files?: StageItem[] };
-    touch();
-    const result = await stageFiles(body.files ?? []);
-    sendJson(res, 200, result);
+    stagingRequests += 1;
+    const cancellation = new AbortController();
+    const disconnected = () => cancellation.abort();
+    req.once('aborted', disconnected);
+    res.once('close', disconnected);
+    try {
+      const stageBody = await readJsonBody(req);
+      if (!stageBody.ok) {
+        sendJson(res, stageBody.status, { error: stageBody.error });
+        return;
+      }
+      const body = stageBody.value;
+      if (
+        !isObject(body) ||
+        !Array.isArray(body.files) ||
+        !body.files.every(
+          (item: unknown): item is StageItem =>
+            isObject(item) &&
+            typeof item.path === 'string' &&
+            ((typeof item.url === 'string' &&
+              item.contentBase64 === undefined) ||
+              (typeof item.contentBase64 === 'string' &&
+                item.url === undefined)),
+        )
+      ) {
+        sendJson(res, 400, { error: 'bad_request' });
+        return;
+      }
+      touch();
+      const result = await stageFiles(body.files, {
+        signal: cancellation.signal,
+      });
+      if (!res.destroyed) sendJson(res, 200, result);
+    } finally {
+      stagingRequests -= 1;
+      req.removeListener('aborted', disconnected);
+      res.removeListener('close', disconnected);
+    }
     return;
   }
   if (req.method === 'POST' && path === '/files/delete') {

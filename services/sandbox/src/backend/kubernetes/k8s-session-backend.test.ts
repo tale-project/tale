@@ -767,6 +767,28 @@ describe('KubernetesSessionBackend durable pin (Pod annotation)', () => {
 });
 
 describe('KubernetesSessionBackend.listSessions', () => {
+  test('reports the actual Docker capability while preserving unlabeled legacy objects', async () => {
+    const backend = backendOver({
+      listNamespacedPod: async () => ({
+        items: ['true', 'false', undefined].map((value, index) => ({
+          metadata: {
+            annotations: {
+              'tale.dev/session-id': `capability-${index}`,
+              'tale.dev/profile': 'agent',
+              ...(value === undefined
+                ? {}
+                : { 'tale.dev/docker-in-container': value }),
+            },
+          },
+          status: { phase: 'Running' },
+        })),
+      }),
+    });
+    expect(
+      (await backend.listSessions()).map((s) => s.dockerInContainer),
+    ).toEqual([true, false, undefined]);
+  });
+
   test('THROWS on an API failure instead of reporting "no sessions"', async () => {
     // An apiserver hiccup laundered into [] would leave every running session
     // Pod unregistered (unroutable, never reaped) until the next successful

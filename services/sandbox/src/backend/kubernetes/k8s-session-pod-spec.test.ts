@@ -52,6 +52,21 @@ const input = {
 };
 
 describe('buildSessionPod', () => {
+  test('an agent opt-out retains the hardened runner and lighter memory request', () => {
+    const pod = buildSessionPod(
+      { ...cfg, dockerInContainer: true },
+      { ...input, dockerInContainer: false },
+    );
+    const runner = pod.spec?.containers[0];
+    expect(runner?.securityContext?.readOnlyRootFilesystem).toBe(true);
+    expect(runner?.securityContext?.runAsNonRoot).toBe(true);
+    expect(runner?.resources?.requests?.memory).toBe('512Mi');
+    expect(runner?.env?.some((env) => env.name === 'TALE_DIND')).toBe(false);
+    expect(pod.metadata?.annotations?.['tale.dev/docker-in-container']).toBe(
+      'false',
+    );
+  });
+
   test('passes an operator inner pool only to DinD runners without Docker build-cache wiring or unsafe sysctls', () => {
     const configured: SpawnerConfig = {
       ...cfg,

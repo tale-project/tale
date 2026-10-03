@@ -26,6 +26,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import { escapeForXmlTag } from '../../../lib/chat/untrusted-content';
+import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
@@ -2367,35 +2368,70 @@ export function liveProgressSink(
    * final transcript snapshot. */
   flush: () => Promise<void>;
 } {
-  // Serialized like the chat lane's stream chain: each write carries the full
-  // state-so-far, so in-order landing is what keeps the tail monotonic.
-  let chain: Promise<void> = Promise.resolve();
-  const write = (patch: {
+  // At most one write and one bounded pending snapshot. A slow database must
+  // not retain every full transcript produced while its previous write waits.
+  type ProgressPatch = {
     progressText?: string;
     liveTimeline?: HarnessTimelinePart[];
-  }) => {
-    chain = chain.then(() =>
-      ctx
-        .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          execId: args.execId,
-          kind,
-          status: 'running',
-          lastEventAt: Date.now(),
-          ...(visionModelRef !== undefined && { visionModelRef }),
-          ...patch,
-        })
-        .then(() => undefined)
-        .catch((err) =>
-          console.warn('[agent-host] live progress write failed:', err),
-        ),
-    );
+    lastEventAt: number;
+  };
+  let pending: ProgressPatch | undefined;
+  let writing: Promise<void> | undefined;
+  const schedule = () => {
+    if (writing !== undefined) return;
+    // Coalesce this tick's text and timeline callbacks into one mutation.
+    writing = Promise.resolve()
+      .then(async () => {
+        while (pending !== undefined) {
+          const patch = pending;
+          pending = undefined;
+          try {
+            await ctx.runMutation(
+              internal.sandbox.session_mutations.upsertSessionOp,
+              {
+                organizationId: args.organizationId,
+                sessionId: args.sessionId,
+                execId: args.execId,
+                kind,
+                status: 'running',
+                // The event's clock, not the delayed write's clock.
+                heartbeatAt: patch.lastEventAt,
+                ...(visionModelRef !== undefined && { visionModelRef }),
+                ...patch,
+              },
+            );
+          } catch (err) {
+            console.warn('[agent-host] live progress write failed:', err);
+          }
+        }
+      })
+      .finally(() => {
+        writing = undefined;
+        if (pending !== undefined) schedule();
+      });
   };
   return {
-    onText: (text) => write({ progressText: text }),
-    onTimeline: (liveTimeline) => write({ liveTimeline }),
-    flush: () => chain,
+    onText: (progressText) => {
+      pending = { ...pending, progressText, lastEventAt: Date.now() };
+      schedule();
+    },
+    onTimeline: (parts) => {
+      pending = {
+        ...pending,
+        // A projection can be disjoint from the previous window: preserve
+        // its tool events while discarding superseded intermediate snapshots.
+        liveTimeline: mergeTimelineParts(pending?.liveTimeline, parts),
+        lastEventAt: Date.now(),
+      };
+      schedule();
+    },
+    flush: async () => {
+      for (;;) {
+        const current = writing;
+        if (current === undefined) return;
+        await current;
+      }
+    },
   };
 }
 

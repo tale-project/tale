@@ -35,6 +35,7 @@ import {
   memoryReserveBytes,
 } from './host-memory.ts';
 import { jsonResponse } from './http-util.ts';
+import { ImageWarmup } from './image-warmup.ts';
 import { createRequestAuth } from './request-auth.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
@@ -42,6 +43,7 @@ const cfg = loadConfig();
 // Host lifecycle backend (docker | kubernetes), chosen once at boot. Constructing
 // it has no side effects; init() runs the docker lock + boot sweep in main().
 const backend = createHostBackend(cfg);
+const imageWarmup = new ImageWarmup(() => backend.warmImage());
 
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
@@ -253,6 +255,16 @@ async function handleSessionRoutes(
 
   // POST /v1/sessions (create)
   if (req.method === 'POST' && path === '/v1/sessions') {
+    if (imageWarmup.pending()) {
+      return jsonResponse(
+        {
+          error: 'runtime_image',
+          message: 'the sandbox runtime image is being prepared; retry shortly',
+        },
+        429,
+        { 'retry-after': '5' },
+      );
+    }
     return getSessionRoutes().handleCreate(body);
   }
   // GET /v1/sessions?organizationId=… (list)
@@ -334,7 +346,11 @@ async function handleSessionRoutes(
   // POST /v1/sessions/:id/files/stage
   const stageMatch = path.match(SESSION_FILES_STAGE_RE);
   if (req.method === 'POST' && stageMatch) {
-    return getSessionRoutes().handleFilesStage(stageMatch[1] ?? '', body);
+    return getSessionRoutes().handleFilesStage(
+      stageMatch[1] ?? '',
+      body,
+      req.signal,
+    );
   }
   // POST /v1/sessions/:id/files/delete
   const deleteMatch = path.match(SESSION_FILES_DELETE_RE);
@@ -524,15 +540,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Warm the runtime image so the first session create doesn't pay a
-  // cold registry round-trip. Non-fatal: if the daemon is unreachable at
-  // boot the spawner still starts (its /health probe will surface the
-  // real problem). Failure is logged inside the backend.
+  // Warm beside startup: control, health and existing sessions stay available
+  // while a cold registry transfer runs. Only local creates wait (429 above).
   // `SANDBOX_SKIP_IMAGE_WARMUP=1` skips the pull entirely — used by the
   // local `bun run dev` script where the runtime image is built ad-hoc
   // and never published to a registry, so the pull is guaranteed to 404.
   if (process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1') {
-    await backend.warmImage();
+    void imageWarmup.start();
   }
 
   hostMemory?.start();

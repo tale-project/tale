@@ -112,6 +112,7 @@ export interface RunnerdStdinWriteResponse {
 
 export type RunnerdExecEvent = (
   | { t: 'start'; execId: string; startedAtMs: number }
+  | { t: 'replay-start' | 'replay-end' }
   | { t: 'stdout'; b64: string }
   | { t: 'stderr'; b64: string }
   | {
@@ -134,7 +135,12 @@ export type RunnerdExecEvent = (
     }
   | {
       t: 'fail';
-      code: 'INVALID_CWD' | 'EXEC_LIMIT' | 'DUPLICATE_EXEC' | 'BAD_REQUEST';
+      code:
+        | 'INVALID_CWD'
+        | 'EXEC_LIMIT'
+        | 'DUPLICATE_EXEC'
+        | 'BAD_REQUEST'
+        | 'REPLAY_GAP';
       message: string;
     }
 ) & { seq?: number };

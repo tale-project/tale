@@ -123,6 +123,26 @@ nowhere. `SANDBOX_TOKEN` is required (the spawner refuses to boot without it —
 `loadConfig` fails closed), so every session carries a real token and runnerd
 always verifies; there is no unsigned mode.
 
+Image warming runs beside control startup and session adoption. While a cold
+runtime image is being pulled, new local creates return `429 runtime_image`
+with `Retry-After: 5`; health, limits and existing-session operations remain
+available. A failed warmup ends that wait, and subsequent creates report their
+own backend result. Device-placed creates follow the target device's readiness.
+
+Docker create failures remove only a container bearing that attempt's private
+ownership label, using its immutable container ID. A concurrent replacement
+and its workspace survive. Every workspace directory and owner marker,
+including an empty directory created during failed setup, remains for retry
+or explicit destroy. Ambiguous inner-Docker volumes remain for ordinary
+orphan cleanup.
+
+A session absent from this spawner's registry is resolved from the backend.
+If that inventory or endpoint lookup fails, or an existing nonterminal runtime
+is still starting, session routes return `503 session_unavailable` with
+`Retry-After: 1`. A local create still in progress answers the same way. The caller retries without
+declaring the running session lost or recreating it. A confirmed missing or
+stopped session still returns 404 so its preserved workspace can be resumed.
+
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions
@@ -173,9 +193,34 @@ Exec and attach output consumers each have an 8 MiB pending-write ceiling.
 When a reader falls behind that ceiling, runnerd disconnects that reader and
 releases its socket, buffered writes, subscription and request activity. The
 exec continues under its existing deadline; reconnect through
-`/execs/:id/attach?sinceSeq=<last-seen-seq>` to replay the retained output from
-the 256 KiB ring. Other readers continue receiving output. A dropped consumer
-does not cancel the command or keep an idle session busy after the command ends.
+`/execs/:id/attach?sinceSeq=<last-seen-seq>` to replay retained output. The
+256 KiB memory ring handles recent cursors; a disk journal retains up to 64 MiB
+of encoded events per live exec. Completed execs share a 64 MiB journal budget
+and the existing 16-exec retention limit. Evicted journal files are removed,
+and container restart clears the temporary journal directory. At most eight
+attach readers can run concurrently, and disk replay honors each reader's
+backpressure. A cursor outside available history receives `REPLAY_GAP`, not a
+silently incomplete stream; the platform treats it as a terminal output failure.
+Other readers continue receiving output. A dropped consumer does not cancel
+the command or keep an idle session busy after the command ends.
+
+Complete journal replay requires the runtime image, spawner and platform to all
+be updated. An updated runtime brackets attach history with unsequenced
+`replay-start` and `replay-end` markers; the spawner forwards these as SSE phases
+`replay-start` and `replay-complete`. The platform pauses progress publication
+only after the start marker and resumes when caught up, so historical turns
+cannot temporarily replace newer progress. During a rolling upgrade, an older
+runtime retains its earlier ring-only replay behavior. Missing markers preserve
+the platform's earlier streaming behavior and do not block held-stdin turn
+completion while waiting for a marker an older runtime cannot send.
+
+The staging endpoint admits two concurrent requests and returns
+`503 staging_busy` when both slots are occupied. URL files stream under the
+100 MiB file limit; inline inputs retain their 1 MiB limit. A successful input
+atomically replaces its target, while a failed, oversized or cancelled input
+removes only its own partial file. One 25-second deadline covers the whole
+batch, below the spawner's 30-second RPC deadline. Caller disconnect cancels
+outstanding downloads and releases the staging slot.
 
 The build-cache upkeep — the reconcile for the organizations whose agent
 sessions adoption just registered, the retirement of legacy helpers and the
@@ -279,8 +324,13 @@ place up, a destroy of the id takes it out, and the line keeps at most
 afresh, and each Kubernetes replica keeps its own.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
-enforce the shared namespace count on a best-effort basis; use ResourceQuota
-for hard namespace resource bounds.
+read namespace occupancy before admitting a create. Pending, unknown and
+terminating session Pods occupy slots even when runnerd cannot be addressed;
+confirmed terminal Pods do not. A failed inventory refuses the create with
+503. Local creates still in flight, including one that completes while the
+inventory is being read, count once. Simultaneous creates on different
+replicas still have no distributed reservation: use ResourceQuota for hard
+namespace resource bounds.
 
 ### Stop vs destroy — the data-preservation contract
 
@@ -468,6 +518,21 @@ session (automation, workflow) or an owner with a blank name/email
 resolves to no injection rather than a placeholder identity.
 
 ## Resource profiles
+
+The create body accepts `dockerInContainer: false` for an `agent` session
+that does not need to build or run containers. Omitting the field keeps the
+deployment's current profile default. Explicit `true` is accepted only when
+the deployment supports inner Docker and the profile is `agent`; a request
+cannot grant itself a capability the deployment disabled.
+
+An opt-out keeps the hardened runner, skips inner-daemon and build-helper
+provisioning, and uses the shared per-organization dependency caches on Docker.
+Its admission estimate is 512 MiB, and its released idle window is the normal
+five-minute default. An agent with inner Docker uses the 1.5 GiB admission
+estimate and retains the full idle window. These estimates are admission
+headroom, not memory limits. The actual capability is returned as
+`session.dockerInContainer` and recorded on the container or Pod so a spawner
+restart preserves that session's behavior.
 
 `default` uses uid 65534 with the hardened code/render profile. `agent` uses
 uid 10001, a named non-root account for git/ssh and coding CLIs. Its defaults

@@ -31,10 +31,20 @@ import type { SpawnerConfig } from './types.ts';
 // A fake Docker CLI exercises real resource orchestration, including inspect
 // failures and pre-existing resources. No network/volume on the host is touched.
 const FAKE_DOCKER = String.raw`#!/usr/bin/env bun
-import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const dir = dirname(process.argv[1]);
 const path = join(dir, 'state.json');
+// Independent mirror CLI calls can overlap. Serialize the fake daemon's
+// metadata read/modify/write, just as Docker does for its resource registry.
+const lock = join(dir, 'state.lock');
+for (;;) {
+  try { mkdirSync(lock); break; } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    await Bun.sleep(2);
+  }
+}
+process.on('exit', () => rmSync(lock, {recursive:true,force:true}));
 const s = JSON.parse(readFileSync(path, 'utf8'));
 const a = process.argv.slice(2);
 appendFileSync(join(dir, 'calls.jsonl'), JSON.stringify(a) + '\n');

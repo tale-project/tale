@@ -49,6 +49,16 @@ describe('runnerd protocol mirror', () => {
     expect(extra).toEqual([]);
   });
 
+  test('both copies carry unsequenced replay boundary markers', () => {
+    const markers = [
+      { t: 'replay-start' },
+      { t: 'replay-end' },
+    ] satisfies canonical.RunnerdExecEvent[];
+    const mirrored: mirror.RunnerdExecEvent[] = markers;
+    expect(mirrored).toEqual([{ t: 'replay-start' }, { t: 'replay-end' }]);
+    expect(markers.every((event) => !('seq' in event))).toBe(true);
+  });
+
   test('the daemon-local values match their spawner-side homes', () => {
     expect(mirror.ID_ALPHABET_RE.toString()).toBe(ID_ALPHABET_RE.toString());
     expect(mirror.WORKSPACE_ROOT).toBe('/agent');

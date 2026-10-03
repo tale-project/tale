@@ -14,6 +14,7 @@ import {
   verify,
 } from './auth.ts';
 import { loadConfig } from './config.ts';
+import { ImageWarmup } from './image-warmup.ts';
 import { SessionRoutes } from './session/session-routes.ts';
 
 describe('session HTTP routes', () => {
@@ -44,6 +45,95 @@ describe('session HTTP routes', () => {
       );
       expect(response.status).toBe(404);
       expect(await response.json()).toEqual({ error: 'not_found' });
+    }
+  });
+
+  test('image warmup queues only new local sessions while existing sessions remain addressable', async () => {
+    const pending = spyOn(ImageWarmup.prototype, 'pending').mockReturnValue(
+      true,
+    );
+    const create = spyOn(
+      SessionRoutes.prototype,
+      'handleCreate',
+    ).mockImplementation(async () => Response.json({}));
+    const get = spyOn(SessionRoutes.prototype, 'handleGet').mockImplementation(
+      async () => Response.json({ session: { sessionId: 'existing' } }),
+    );
+    const request = (method: string, path: string, body = '') => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request(`http://sandbox${path}`, {
+          method,
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              method,
+              path,
+              timestamp,
+              body,
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+          ...(body ? { body } : {}),
+        }),
+      );
+    };
+    try {
+      const warming = await request('POST', '/v1/sessions', '{}');
+      expect(warming.status).toBe(429);
+      expect(warming.headers.get('retry-after')).toBe('5');
+      expect(await warming.json()).toMatchObject({ error: 'runtime_image' });
+      expect(create).not.toHaveBeenCalled();
+      expect((await request('GET', '/v1/sessions/existing')).status).toBe(200);
+      expect((await request('GET', '/v1/limits')).status).toBe(200);
+      expect(get).toHaveBeenCalledWith('existing');
+      pending.mockReturnValue(false);
+      expect((await request('POST', '/v1/sessions', '{}')).status).toBe(200);
+      expect(create).toHaveBeenCalledTimes(1);
+    } finally {
+      pending.mockRestore();
+      create.mockRestore();
+      get.mockRestore();
+    }
+  });
+
+  test('staging forwards the incoming cancellation signal', async () => {
+    const stage = spyOn(
+      SessionRoutes.prototype,
+      'handleFilesStage',
+    ).mockImplementation(async () =>
+      Response.json({ staged: [], skipped: [] }),
+    );
+    const path = '/v1/sessions/sess1/files/stage';
+    const body = JSON.stringify({ files: [] });
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const abort = new AbortController();
+    const request = new Request(`http://sandbox${path}`, {
+      method: 'POST',
+      body,
+      signal: abort.signal,
+      headers: {
+        [SIGNATURE_HEADER]: sign(
+          'POST',
+          path,
+          timestamp,
+          body,
+          'route-test-secret',
+          nonce,
+        ),
+        [TIMESTAMP_HEADER]: timestamp,
+        [NONCE_HEADER]: nonce,
+      },
+    });
+    try {
+      expect((await router(request)).status).toBe(200);
+      expect(stage).toHaveBeenCalledWith('sess1', body, request.signal);
+    } finally {
+      stage.mockRestore();
     }
   });
 

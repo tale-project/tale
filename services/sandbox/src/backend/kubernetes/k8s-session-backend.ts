@@ -166,6 +166,7 @@ export class KubernetesSessionBackend implements SessionBackend {
               sessionId: spec.sessionId,
               organizationId: spec.organizationId,
               profile: spec.profile,
+              dockerInContainer: spec.dockerInContainer,
               createdAtMs: spec.createdAtMs,
             }),
           },
@@ -772,6 +773,13 @@ export class KubernetesSessionBackend implements SessionBackend {
         sessionId,
         organizationId: org,
         profile: ann['tale.dev/profile'] === 'agent' ? 'agent' : 'default',
+        ...(['true', 'false'].includes(
+          ann['tale.dev/docker-in-container'] ?? '',
+        )
+          ? {
+              dockerInContainer: ann['tale.dev/docker-in-container'] === 'true',
+            }
+          : {}),
         createdAtMs: Number(ann['tale.dev/created-at']) || 0,
         ttlMs: this.cfg.session.maxLifetimeMs,
         idleTimeoutMs: this.cfg.session.maxIdleMs,

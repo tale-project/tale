@@ -15,11 +15,13 @@ import {
   RUNNERD_ENV_MAX_VALUE_BYTES,
   isDeniedEnvName,
 } from './runnerd-protocol.ts';
+import { sessionDindEnabled } from './session-profile.ts';
 
 interface CreateSessionRequest {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  dockerInContainer: boolean;
   ttlMs: number;
   idleTimeoutMs: number;
   env: Record<string, string>;
@@ -103,6 +105,23 @@ export function validateCreateSession(
   // here after the guard above).
   const profile: SandboxSessionProfile =
     rawProfile === 'agent' ? 'agent' : 'default';
+  if (
+    raw.dockerInContainer !== undefined &&
+    typeof raw.dockerInContainer !== 'boolean'
+  ) {
+    return { ok: false, error: 'dockerInContainer must be a boolean' };
+  }
+  if (raw.dockerInContainer === true && !sessionDindEnabled(cfg, profile)) {
+    return {
+      ok: false,
+      error: 'inner Docker is not available for this session profile',
+    };
+  }
+  const dockerInContainer = sessionDindEnabled(
+    cfg,
+    profile,
+    raw.dockerInContainer,
+  );
   // ttl/idle clamped to the configured ceilings (a caller may request less).
   const ttlMs = clampPositive(
     raw.ttlMs,
@@ -122,6 +141,7 @@ export function validateCreateSession(
       sessionId: raw.sessionId,
       organizationId: raw.organizationId,
       profile,
+      dockerInContainer,
       ttlMs,
       idleTimeoutMs,
       env: env.value,

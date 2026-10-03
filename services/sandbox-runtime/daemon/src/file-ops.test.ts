@@ -1,5 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { readFile, readdir } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -119,6 +127,141 @@ describe('file-ops', () => {
       ).toBe('staged-content');
     } finally {
       await server.stop(true);
+    }
+  });
+});
+
+describe('atomic bounded staging', () => {
+  test('a cancelled download preserves the old target and removes its partial file', async () => {
+    const sent = Promise.withResolvers<void>();
+    const source = createServer((_req, res) => {
+      res.writeHead(200);
+      res.write('partial replacement');
+      sent.resolve();
+    });
+    await new Promise<void>((resolve) =>
+      source.listen(0, '127.0.0.1', resolve),
+    );
+    const address = source.address();
+    if (address === null || typeof address === 'string')
+      throw new Error('no port');
+    writeFileSync(join(ROOT, 'atomic.txt'), 'original');
+    const controller = new AbortController();
+    try {
+      const staging = stageFiles(
+        [{ path: 'atomic.txt', url: `http://127.0.0.1:${address.port}` }],
+        { signal: controller.signal },
+      );
+      await sent.promise;
+      controller.abort();
+      expect((await staging).skipped).toEqual([
+        { path: 'atomic.txt', reason: 'cancelled' },
+      ]);
+      expect(await readFile(join(ROOT, 'atomic.txt'), 'utf8')).toBe('original');
+      expect(
+        (await readdir(ROOT)).filter((name) => name.startsWith('.tale-stage-')),
+      ).toEqual([]);
+    } finally {
+      source.closeAllConnections();
+      await new Promise<void>((resolve) => source.close(() => resolve()));
+    }
+  });
+
+  test('a batch deadline stops later downloads as well as its current item', async () => {
+    let requests = 0;
+    const source = createServer((_req, _res) => {
+      requests += 1;
+    });
+    await new Promise<void>((resolve) =>
+      source.listen(0, '127.0.0.1', resolve),
+    );
+    const address = source.address();
+    if (address === null || typeof address === 'string')
+      throw new Error('no port');
+    const url = `http://127.0.0.1:${address.port}`;
+    try {
+      const result = await stageFiles(
+        [
+          { path: 'slow-a', url },
+          { path: 'slow-b', url },
+        ],
+        { fetchTimeoutMs: 1_000, batchTimeoutMs: 50 },
+      );
+      expect(result.skipped).toEqual([
+        { path: 'slow-a', reason: 'timeout' },
+        { path: 'slow-b', reason: 'timeout' },
+      ]);
+      expect(requests).toBe(1);
+    } finally {
+      source.closeAllConnections();
+      await new Promise<void>((resolve) => source.close(() => resolve()));
+    }
+  });
+
+  test('streaming oversize rejection preserves the target and releases the upstream', async () => {
+    let closed = false;
+    const source = createServer((_req, res) => {
+      res.on('close', () => {
+        closed = true;
+      });
+      res.writeHead(200);
+      res.write('x'.repeat(4096));
+    });
+    await new Promise<void>((resolve) =>
+      source.listen(0, '127.0.0.1', resolve),
+    );
+    const address = source.address();
+    if (address === null || typeof address === 'string')
+      throw new Error('no port');
+    writeFileSync(join(ROOT, 'oversize.txt'), 'original');
+    try {
+      const result = await stageFiles(
+        [{ path: 'oversize.txt', url: `http://127.0.0.1:${address.port}` }],
+        { fetchMaxBytes: 1024 },
+      );
+      expect(result.skipped).toEqual([
+        { path: 'oversize.txt', reason: 'too_large' },
+      ]);
+      expect(await readFile(join(ROOT, 'oversize.txt'), 'utf8')).toBe(
+        'original',
+      );
+      const deadline = Date.now() + 1000;
+      while (Date.now() < deadline) {
+        if (closed) break;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(closed).toBe(true);
+    } finally {
+      source.closeAllConnections();
+      await new Promise<void>((resolve) => source.close(() => resolve()));
+    }
+  });
+  test('rejects an escaping parent symlink and replaces a destination symlink without following it', async () => {
+    const outside = realpathSync(
+      mkdtempSync(`${tmpdir()}/runnerd-stage-outside-`),
+    );
+    writeFileSync(join(outside, 'target'), 'outside original');
+    symlinkSync(outside, join(ROOT, 'outside-parent'));
+    symlinkSync(join(outside, 'target'), join(ROOT, 'destination-link'));
+    try {
+      const result = await stageFiles([
+        { path: 'outside-parent/new-file', contentBase64: 'bmV3' },
+        { path: 'destination-link', contentBase64: 'bmV3' },
+      ]);
+      expect(result.skipped).toEqual([
+        { path: 'outside-parent/new-file', reason: 'unsafe_path' },
+      ]);
+      expect(result.staged).toEqual([{ path: 'destination-link', bytes: 3 }]);
+      expect(await readFile(join(outside, 'target'), 'utf8')).toBe(
+        'outside original',
+      );
+      expect(await readdir(outside)).toEqual(['target']);
+      expect(await readFile(join(ROOT, 'destination-link'), 'utf8')).toBe(
+        'new',
+      );
+    } finally {
+      rmSync(join(ROOT, 'outside-parent'));
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 });

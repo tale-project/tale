@@ -14,6 +14,10 @@ import {
   mkdtempSync,
   openSync,
   realpathSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -1177,7 +1181,11 @@ describe('ExecManager', () => {
     const replayed = collect();
     await mgr.attach('eq2', replayed.emit, cursor);
     expect(replayed.events.length).toBeGreaterThan(0);
-    expect(replayed.events.every((e) => (e.seq ?? 0) > cursor)).toBe(true);
+    expect(
+      replayed.events
+        .filter((event) => event.seq !== undefined)
+        .every((event) => (event.seq ?? 0) > cursor),
+    ).toBe(true);
     // The full replay (cursor 0) returns strictly more events.
     const all = collect();
     await mgr.attach('eq2', all.emit, 0);
@@ -1517,4 +1525,342 @@ describe('ExecManager stdinMode hold + writeStdin', () => {
       reason: 'NOT_FOUND',
     });
   });
+});
+
+describe('durable output replay', () => {
+  test('limits concurrent attachments and releases admission when a reader leaves', async () => {
+    const manager = new ExecManager(new EnvStore(), () => {});
+    const original = collect();
+    const run = manager.run(
+      {
+        ...base,
+        execId: 'journal-readers',
+        command: ['sleep', '30'],
+        cwd: ROOT,
+      },
+      original.emit,
+    );
+    while (original.events.length === 0)
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    const controllers = Array.from({ length: 8 }, () => new AbortController());
+    const attachments = controllers.map((controller) => {
+      const attachment = manager.attach(
+        'journal-readers',
+        () => {},
+        0,
+        controller.signal,
+      );
+      if (attachment === null) throw new Error('live exec disappeared');
+      return attachment;
+    });
+    try {
+      const refused = collect();
+      await manager.attach('journal-readers', refused.emit);
+      expect(refused.events).toEqual([
+        { t: 'fail', code: 'EXEC_LIMIT', message: expect.any(String) },
+      ]);
+      controllers[0]?.abort();
+      await attachments[0];
+      const replacement = new AbortController();
+      const accepted = collect();
+      const attachment = manager.attach(
+        'journal-readers',
+        accepted.emit,
+        0,
+        replacement.signal,
+      );
+      expect(accepted.events[0]?.t).toBe('replay-start');
+      replacement.abort();
+      await attachment;
+    } finally {
+      for (const controller of controllers) controller.abort();
+      await Promise.all(attachments);
+      manager.cancel('journal-readers');
+      await run;
+    }
+  });
+
+  test('rejects malformed and future replay cursors before announcing history', async () => {
+    const manager = new ExecManager(new EnvStore(), () => {});
+    await manager.run(
+      { ...base, execId: 'journal-cursor', command: ['true'], cwd: ROOT },
+      () => {},
+    );
+    for (const cursor of [-1, 0.5, Number.NaN, Number.MAX_SAFE_INTEGER]) {
+      const replay = collect();
+      await manager.attach('journal-cursor', replay.emit, cursor);
+      expect(replay.events).toEqual([
+        { t: 'fail', code: 'REPLAY_GAP', message: expect.any(String) },
+      ]);
+    }
+  });
+
+  test('replays complete JSONL past the memory ring without splitting or losing records', async () => {
+    const manager = new ExecManager(new EnvStore(), () => {});
+    const payload =
+      Array.from({ length: 2048 }, (_, i) =>
+        JSON.stringify({ i, text: 'x'.repeat(512) }),
+      ).join('\n') + '\n';
+    const original = collect();
+    await manager.run(
+      {
+        ...base,
+        execId: 'journal-full',
+        command: ['cat'],
+        cwd: ROOT,
+        stdinBase64: Buffer.from(payload).toString('base64'),
+        stdoutMaxBytes: 0,
+      },
+      original.emit,
+    );
+    const replay = collect();
+    await manager.attach('journal-full', replay.emit);
+    expect(decode(replay.events, 'stdout') === payload).toBe(true);
+    expect(
+      replay.events
+        .filter((event) => event.seq !== undefined)
+        .map((event) => event.seq),
+    ).toEqual(original.events.map((event) => event.seq));
+  });
+
+  test('reports a replay gap when bounded disk retention cannot satisfy the cursor', async () => {
+    const manager = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      { journalMaxBytes: 1024 },
+    );
+    await manager.run(
+      {
+        ...base,
+        execId: 'journal-gap',
+        command: ['cat'],
+        cwd: ROOT,
+        stdinBase64: Buffer.alloc(400_000, 120).toString('base64'),
+      },
+      () => {},
+    );
+    const replay = collect();
+    await manager.attach('journal-gap', replay.emit);
+    expect(replay.events).toEqual([
+      { t: 'replay-start' },
+      { t: 'fail', code: 'REPLAY_GAP', message: expect.any(String) },
+    ]);
+  });
+  test('a slow replay catches concurrent output and exit exactly once', async () => {
+    const manager = new ExecManager(new EnvStore(), () => {});
+    const original = collect();
+    const payload = 'x'.repeat(1_200_000);
+    const run = manager.run(
+      {
+        ...base,
+        execId: 'journal-concurrent',
+        command: ['sh', '-c', 'cat; sleep 0.05; printf tail; sleep 0.05'],
+        cwd: ROOT,
+        stdoutMaxBytes: 0,
+        stdinBase64: Buffer.from(payload).toString('base64'),
+      },
+      original.emit,
+    );
+    while (decode(original.events, 'stdout').length < payload.length)
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    const replay = collect();
+    await manager.attach(
+      'journal-concurrent',
+      replay.emit,
+      0,
+      undefined,
+      () => new Promise((resolve) => setTimeout(resolve, 10)),
+    );
+    await run;
+    expect(decode(replay.events, 'stdout') === `${payload}tail`).toBe(true);
+    expect(
+      replay.events
+        .filter((event) => event.seq !== undefined)
+        .map((event) => event.seq),
+    ).toEqual(original.events.map((event) => event.seq));
+  });
+
+  test('a failed journal reports a gap while live output and process completion remain usable', async () => {
+    const isolated = realpathSync(
+      mkdtempSync(`${tmpdir()}/runnerd-journal-fail-`),
+    );
+    mkdirSync(`${isolated}/.runtime/tmp`, { recursive: true });
+    writeFileSync(`${isolated}/.runtime/tmp/runnerd-output`, 'not a directory');
+    process.env.TALE_WORKSPACE_ROOT = isolated;
+    try {
+      const manager = new ExecManager(new EnvStore(), () => {});
+      const original = collect();
+      const payload = 'x'.repeat(500_000);
+      await manager.run(
+        {
+          ...base,
+          execId: 'journal-write-failed',
+          command: ['cat'],
+          cwd: isolated,
+          stdinBase64: Buffer.from(payload).toString('base64'),
+        },
+        original.emit,
+      );
+      expect(decode(original.events, 'stdout') === payload).toBe(true);
+      const replay = collect();
+      await manager.attach('journal-write-failed', replay.emit);
+      expect(replay.events.map((event) => event.t)).toEqual([
+        'replay-start',
+        'fail',
+      ]);
+      expect(replay.events[1]).toMatchObject({ code: 'REPLAY_GAP' });
+    } finally {
+      process.env.TALE_WORKSPACE_ROOT = ROOT;
+      rmSync(isolated, { recursive: true, force: true });
+    }
+  });
+
+  test('recent journal eviction removes disk output within the aggregate budget', async () => {
+    const isolated = realpathSync(
+      mkdtempSync(`${tmpdir()}/runnerd-journal-retain-`),
+    );
+    process.env.TALE_WORKSPACE_ROOT = isolated;
+    try {
+      const manager = new ExecManager(
+        new EnvStore(),
+        () => {},
+        () => {},
+        {},
+        { recentJournalMaxBytes: 2048 },
+      );
+      for (const execId of ['journal-old', 'journal-new'])
+        await manager.run(
+          {
+            ...base,
+            execId,
+            command: ['cat'],
+            cwd: isolated,
+            stdinBase64: Buffer.alloc(1200, 120).toString('base64'),
+          },
+          () => {},
+        );
+      expect(manager.canAttach('journal-old')).toBe(false);
+      const directory = `${isolated}/.runtime/tmp/runnerd-output`;
+      const deadline = Date.now() + 1000;
+      while (readdirSync(directory).length > 1 && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(readdirSync(directory)).toHaveLength(1);
+      const replay = collect();
+      await manager.attach('journal-new', replay.emit);
+      expect(decode(replay.events, 'stdout').length).toBe(1200);
+    } finally {
+      process.env.TALE_WORKSPACE_ROOT = ROOT;
+      rmSync(isolated, { recursive: true, force: true });
+    }
+  });
+  test('an unreadable retained journal reports a gap instead of throwing a stream error', async () => {
+    const isolated = realpathSync(
+      mkdtempSync(`${tmpdir()}/runnerd-journal-missing-`),
+    );
+    process.env.TALE_WORKSPACE_ROOT = isolated;
+    try {
+      const manager = new ExecManager(new EnvStore(), () => {});
+      await manager.run(
+        {
+          ...base,
+          execId: 'journal-missing',
+          command: ['cat'],
+          cwd: isolated,
+          stdinBase64: Buffer.alloc(500_000, 120).toString('base64'),
+        },
+        () => {},
+      );
+      // Wait for writer completion via a successful replay before removing
+      // this test's own journal, simulating a filesystem read failure.
+      await manager.attach('journal-missing', () => {});
+      const directory = `${isolated}/.runtime/tmp/runnerd-output`;
+      for (const name of readdirSync(directory)) rmSync(`${directory}/${name}`);
+      const replay = collect();
+      await manager.attach('journal-missing', replay.emit);
+      expect(replay.events).toEqual([
+        { t: 'replay-start' },
+        { t: 'fail', code: 'REPLAY_GAP', message: expect.any(String) },
+      ]);
+    } finally {
+      process.env.TALE_WORKSPACE_ROOT = ROOT;
+      rmSync(isolated, { recursive: true, force: true });
+    }
+  });
+  test('marks historical replay complete before forwarding new live events', async () => {
+    const manager = new ExecManager(new EnvStore(), () => {});
+    const original = collect();
+    const run = manager.run(
+      {
+        ...base,
+        execId: 'journal-marker',
+        command: ['sh', '-c', 'printf history; sleep 30'],
+        cwd: ROOT,
+      },
+      original.emit,
+    );
+    while (decode(original.events, 'stdout') !== 'history')
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    const caughtUp = Promise.withResolvers<void>();
+    const replay = collect();
+    const attachment = manager.attach('journal-marker', (event) => {
+      replay.emit(event);
+      if (event.t === 'replay-end') caughtUp.resolve();
+    });
+    try {
+      await caughtUp.promise;
+      expect(replay.events.map((event) => event.t)).toEqual([
+        'replay-start',
+        'start',
+        'stdout',
+        'replay-end',
+      ]);
+      expect(replay.events[0]?.seq).toBeUndefined();
+      expect(replay.events.at(-1)?.seq).toBeUndefined();
+    } finally {
+      manager.cancel('journal-marker');
+      await run;
+      await attachment;
+    }
+    expect(replay.events.at(-1)?.t).toBe('exit');
+  });
+  for (const replacement of ['file', 'symlink', 'fifo'] as const) {
+    test(`rejects a journal replaced by a different ${replacement}`, async () => {
+      const isolated = realpathSync(
+        mkdtempSync(`${tmpdir()}/runnerd-journal-replaced-`),
+      );
+      process.env.TALE_WORKSPACE_ROOT = isolated;
+      try {
+        const manager = new ExecManager(new EnvStore(), () => {});
+        await manager.run(
+          {
+            ...base,
+            execId: 'journal-replaced',
+            command: ['cat'],
+            cwd: isolated,
+            stdinBase64: Buffer.alloc(500_000, 120).toString('base64'),
+          },
+          () => {},
+        );
+        await manager.attach('journal-replaced', () => {});
+        const directory = `${isolated}/.runtime/tmp/runnerd-output`;
+        const journal = `${directory}/${readdirSync(directory)[0]}`;
+        renameSync(journal, `${journal}.old`);
+        if (replacement === 'symlink') symlinkSync(`${journal}.old`, journal);
+        else if (replacement === 'fifo')
+          expect(spawnSync('mkfifo', [journal]).status).toBe(0);
+        else writeFileSync(journal, readFileSync(`${journal}.old`));
+        const replay = collect();
+        await manager.attach('journal-replaced', replay.emit);
+        expect(replay.events).toEqual([
+          { t: 'replay-start' },
+          { t: 'fail', code: 'REPLAY_GAP', message: expect.any(String) },
+        ]);
+      } finally {
+        process.env.TALE_WORKSPACE_ROOT = ROOT;
+        rmSync(isolated, { recursive: true, force: true });
+      }
+    });
+  }
 });

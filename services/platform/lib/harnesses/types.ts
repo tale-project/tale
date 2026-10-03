@@ -299,8 +299,8 @@ export type HarnessEvent =
        * reads and cache writes alike, the way the chat lane books a turn. A
        * CLI's own turn totals are taken as they are; a parser that sums the
        * turn's model calls itself (OpenCode, Pi) sums the calls its drain
-       * window replays, and a window replays only the last 256 KB of output
-       * (see the contract debt ledger). The usage ledger books them, and
+       * window replays, and a window replays the daemon's durable output journal from the start
+       * or fails explicitly when its retained history is incomplete. The usage ledger books them, and
        * `classifyHarnessEnd` reads their output tokens as model output. */
       usageTotals?: Pick<
         HarnessUsage,
