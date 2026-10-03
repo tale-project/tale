@@ -6,6 +6,13 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/publish-package.ts",
+        "$TURBO_ROOT$/LICENSE",
+        "$TURBO_ROOT$/packages/ui/package.json",
+        "$TURBO_ROOT$/packages/ui/README.md",
+        "$TURBO_ROOT$/packages/marketing-ui/package.json",
+        "$TURBO_ROOT$/packages/marketing-ui/README.md",
+        "$TURBO_ROOT$/.github/workflows/publish-packages.yml",
         "$TURBO_ROOT$/docs/*/self-hosted/install/cli-install.md",
         "$TURBO_ROOT$/.github/workflows/build.yml",
         "$TURBO_ROOT$/.github/workflows/checks.yml",

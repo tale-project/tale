@@ -226,7 +226,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
   `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
   release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
-  `runtime-test-helper.ts`). Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
+  `runtime-test-helper.ts`). The package publication suite also reads the publisher, root
+  `LICENSE`, both published packages’ manifests and READMEs, and `publish-packages.yml`.
+  Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
 `turbo.json` to hold the two-entry prefix, since the dry run hashes the same files with or

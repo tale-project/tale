@@ -17,6 +17,8 @@
  * so existing consumers stay happy.
  */
 
+import { normalizeMarkdownLinks } from './markdown-links';
+
 export interface LlmsFullTxtPage {
   title: string;
   /** Absolute URL of the canonical HTML page. */
@@ -28,9 +30,13 @@ export interface LlmsFullTxtPage {
 export function buildLlmsFullTxt(pages: readonly LlmsFullTxtPage[]): string {
   return pages
     .map((page) =>
-      [`# ${page.title}`, `Source: ${page.url}`, '', page.body.trim(), ''].join(
-        '\n',
-      ),
+      [
+        `# ${page.title}`,
+        `Source: ${page.url}`,
+        '',
+        normalizeMarkdownLinks(page.body, page.url).trim(),
+        '',
+      ].join('\n'),
     )
     .join('\n');
 }

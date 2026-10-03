@@ -3,12 +3,12 @@
 Shared React components, hooks, tokens, translations, and Markdown rendering for Tale’s app
 interfaces. Consumers import explicit `@tale/ui/<subpath>` exports; their application build
 compiles the TypeScript source. Marketing pages use the additional
-[`@tale/marketing-ui`](../marketing-ui/README.md) layer.
+[`@tale/marketing-ui`](https://github.com/tale-project/tale/blob/main/packages/marketing-ui/README.md) layer.
 
 ## Find an existing component
 
-Start with the [design contract](../../design/docs/README.md) and the
-[design-system guides](../../services/ui-docs/content/README.md). The
+Start with the [design contract](https://github.com/tale-project/tale/blob/main/design/docs/README.md) and the
+[design-system guides](https://ui.tale.dev/docs/getting-started/introduction). The
 [`package.json` exports map](package.json) defines the public imports; component sources, tests,
 and stories live together under `src/components/<family>/`.
 
@@ -22,7 +22,7 @@ and stories live together under `src/components/<family>/`.
 | Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
 
-Browse interactive stories locally:
+Browse interactive stories from a Tale source checkout:
 
 ```bash
 bun run --filter @tale/ui storybook # http://localhost:6006
@@ -68,10 +68,10 @@ remain the host’s responsibility.
 
 ## Install from another repository
 
-The [package publishing workflow](../../.github/workflows/publish-packages.yml) exports each
+The [package publishing workflow](https://github.com/tale-project/tale/blob/main/.github/workflows/publish-packages.yml) exports each
 package as a repository-root snapshot. Install the `dist/ui` branch with
 `github:tale-project/tale#dist/ui`, or select a published `ui-v<version>` tag for a reproducible
-release. These are Git dependencies, not npm registry releases. Install the required peers
+release. Each snapshot includes the [MIT license](https://github.com/tale-project/tale/blob/main/LICENSE). These are Git dependencies, not npm registry releases. Install the required peers
 `react`, `react-dom`, and `tailwindcss` as well; see `peerDependencies` in `package.json`.
 
 The consuming build must process TypeScript, React JSX, CSS, and YAML. Tale uses Vite and
@@ -95,10 +95,10 @@ stylesheet. Optional PWA and Storybook imports need the corresponding optional p
 Shared labels belong in `src/i18n/messages/{en,de,fr}.yml`, with sparse Swiss German overrides
 in `de-CH.yml`. The host merges package catalogs beneath its own keys, so a service override can
 hide a shared correction. Check the rendered label as well as key and ICU parity, following the
-[translation skill](../../.agents/skills/write-translations/SKILL.md).
+[translation skill](https://github.com/tale-project/tale/blob/main/.agents/skills/write-translations/SKILL.md).
 
-Both documentation sites — [docs.tale.dev](../../services/docs/README.md) and
-[ui.tale.dev](../../services/ui-docs/README.md) — render the `docs/*` frame: the rail, the
+Both documentation sites — [docs.tale.dev](https://github.com/tale-project/tale/blob/main/services/docs/README.md) and
+[ui.tale.dev](https://github.com/tale-project/tale/blob/main/services/ui-docs/README.md) — render the `docs/*` frame: the rail, the
 phone drawer, the header strip, the article with its outline, the footer, the 404 and the
 static-index search palette. A site resolves its navigation tree, search index and footer
 copy, and passes them in; it does not fork the frame. The rail’s logo row and the header strip
@@ -110,9 +110,31 @@ Pass that registry to `Markdown` when rendering documentation components. Keep `
 on their own lines, separated from their contents by blank lines. The renderer protects the
 tag from HTML’s obsolete `frame` element so the figure and caption survive parsing; code
 examples remain literal.
-Product documentation follows the [product docs contract](../../docs/AGENTS.md); component
-examples follow the [design-system docs contract](../../services/ui-docs/content/README.md).
+Product documentation follows the [product docs contract](https://github.com/tale-project/tale/blob/main/docs/AGENTS.md); component
+examples follow the [design-system docs contract](https://github.com/tale-project/tale/blob/main/services/ui-docs/content/README.md).
 Keep prop names, defaults, imports, and keyboard behavior aligned with the actual component.
+
+## Publish alternate page formats
+
+Per-page downloads, page copies and `llms-full.txt` resolve Markdown links and HTML resource
+attributes against each source page's URL, so navigation still works outside the site. Code
+examples remain literal. Pass the canonical `pageUrl` to `pageAsMarkdown` when the body contains
+page-relative destinations or section links; `siteUrl` remains the fallback for existing callers.
+`PageActions` accepts a `markdown` callback as well as a string. Use the callback to prepare an
+export only when the reader clicks **Copy page**, keeping parsing out of page rendering.
+
+The shared `seo/*` compiler and artifact servers give each per-page Markdown export an
+HTTP `Link` header pointing to its equivalent HTML page with `rel="canonical"`. The target
+comes from the configured site URL and registered route, including its language and deployment
+prefix. Cached and conditional responses preserve the same target. Aggregate `llms.txt` and
+`llms-full.txt` files have no equivalent HTML page and receive no canonical header.
+
+The optional `canonicalUrl` artifact metadata survives compilation in the v1 manifest; older
+manifests still load without it. Only absolute HTTP(S) URLs without credentials, fragments or
+control characters are accepted, and URLs are serialized before entering headers. The runtime
+parity and validation cases are in [`canonical.test.ts`](src/seo/runtime/canonical.test.ts).
+This declares a preferred representation; it does not guarantee indexing. See
+[Google's HTTP canonical guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls#rel-canonical-header).
 
 ## Validate a change
 
@@ -128,4 +150,4 @@ bun run --filter @tale/ui test:browser
 The unit project includes component, catalog, and dependency checks. The browser
 project exercises controls in Chromium. Run relevant stories and then verify the consuming app’s
 real workflow, including keyboard access, accessible names, focus, loading, disabled states, and
-error recovery. Follow the [repository contract](../../.agents/repo.md) for the remaining gates.
+error recovery. Follow the [repository contract](https://github.com/tale-project/tale/blob/main/.agents/repo.md) for the remaining gates.

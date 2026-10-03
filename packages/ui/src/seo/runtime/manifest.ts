@@ -14,6 +14,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { isCanonicalUrl } from './canonical-url';
+
 export const MANIFEST_FILE = 'manifest.json';
 export const MANIFEST_VERSION = 1;
 
@@ -32,6 +34,8 @@ export interface ManifestEntry {
   cacheControl: string;
   /** Byte length of the file body. */
   byteLength: number;
+  /** Optional in v1 so previously compiled artifacts keep loading. */
+  canonicalUrl?: string;
 }
 
 export interface Manifest {
@@ -97,7 +101,8 @@ function isManifestEntry(value: unknown): value is ManifestEntry {
     hasStringProp(value, 'etag') &&
     hasStringProp(value, 'contentType') &&
     hasStringProp(value, 'cacheControl') &&
-    hasNumberProp(value, 'byteLength')
+    hasNumberProp(value, 'byteLength') &&
+    (!('canonicalUrl' in value) || isCanonicalUrl(value.canonicalUrl))
   );
 }
 
