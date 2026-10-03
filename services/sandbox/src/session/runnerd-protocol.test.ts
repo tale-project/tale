@@ -53,4 +53,44 @@ describe('runnerd protocol mirror', () => {
     expect(mirror.ID_ALPHABET_RE.toString()).toBe(ID_ALPHABET_RE.toString());
     expect(mirror.WORKSPACE_ROOT).toBe('/agent');
   });
+
+  test('both boundaries accept the same complete events and refuse corrupt fields', () => {
+    const exit = {
+      t: 'exit',
+      exitCode: 0,
+      durationMs: 1,
+      truncated: { stdout: false, stderr: false },
+      timedOut: false,
+      cancelled: false,
+    };
+    const cases: Array<[unknown, boolean]> = [
+      [{ t: 'start', execId: 'exec_1', startedAtMs: 1, seq: 1 }, true],
+      [{ t: 'stdout', b64: '', seq: 2 }, true],
+      [{ t: 'stderr', b64: 'YQ==', extra: 'allowed' }, true],
+      [{ t: 'replay-start' }, true],
+      [{ t: 'replay-complete', throughSeq: 0 }, true],
+      [exit, true],
+      [{ t: 'fail', code: 'OUTPUT_LIMIT', message: 'storage full' }, true],
+      [null, false],
+      [[], false],
+      [{ t: 'stdout', b64: 'YQ' }, false],
+      [{ t: 'stdout', b64: 'AAAA=' }, false],
+      [{ t: 'stdout', b64: '!!==' }, false],
+      [{ t: 'stdout', b64: 'YQ==', seq: 0 }, false],
+      [{ t: 'stdout', b64: 'YQ==', seq: Number.MAX_SAFE_INTEGER + 1 }, false],
+      [{ t: 'start', execId: '', startedAtMs: 1 }, false],
+      [{ t: 'start', execId: 'exec', startedAtMs: Infinity }, false],
+      [{ t: 'replay-complete', throughSeq: 1.5 }, false],
+      [{ t: 'replay-complete', throughSeq: -1 }, false],
+      [{ ...exit, truncated: {} }, false],
+      [{ ...exit, exitCode: 1.5 }, false],
+      [{ ...exit, durationMs: -1 }, false],
+      [{ ...exit, durationMs: NaN }, false],
+      [{ t: 'fail', code: 'unknown', message: '' }, false],
+    ];
+    for (const [event, accepted] of cases) {
+      expect(canonical.isRunnerdExecEvent(event)).toBe(accepted);
+      expect(mirror.isRunnerdExecEvent(event)).toBe(accepted);
+    }
+  });
 });

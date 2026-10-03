@@ -79,6 +79,9 @@ const stagedSources = new Map<string, { sourceId: string; digest: string }>();
 
 export interface StageOptions {
   fetchTimeoutMs?: number;
+  /** Whole batch, including cache verification and final reconciliation; kept
+   * below the spawner's 30-second RPC deadline. */
+  batchTimeoutMs?: number;
   signal?: AbortSignal;
   /** An explicit final reconciliation, sent only after every batch succeeded. */
   replaceRoots?: string[];
@@ -192,6 +195,15 @@ export async function stageFiles(
   }
   activeStages += 1;
   if (opts.replaceRoots?.length) reconcilingStage = true;
+  const batch = new AbortController();
+  const batchDeadline = setTimeout(
+    () => batch.abort(),
+    opts.batchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
+  );
+  const batchSignal = opts.signal
+    ? AbortSignal.any([opts.signal, batch.signal])
+    : batch.signal;
+  const abortReason = () => (opts.signal?.aborted ? 'cancelled' : 'timeout');
   try {
     for (const item of items) {
       const abs = resolveUnderWorkspace(item.path);
@@ -203,8 +215,8 @@ export async function stageFiles(
       let parentHandle: FileHandle | undefined;
       const controller = new AbortController();
       const abort = () => controller.abort();
-      opts.signal?.addEventListener('abort', abort, { once: true });
-      if (opts.signal?.aborted) abort();
+      batchSignal.addEventListener('abort', abort, { once: true });
+      if (batchSignal.aborted) abort();
       const deadline = setTimeout(
         abort,
         opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
@@ -301,16 +313,14 @@ export async function stageFiles(
         skipped.push({
           path: item.path,
           reason: signal.aborted
-            ? opts.signal?.aborted
-              ? 'cancelled'
-              : 'timeout'
+            ? abortReason()
             : error instanceof Error
               ? error.message
               : 'fetch_failed',
         });
       } finally {
         clearTimeout(deadline);
-        opts.signal?.removeEventListener('abort', abort);
+        batchSignal.removeEventListener('abort', abort);
         // Also stops an unread non-2xx/oversized body and releases its socket.
         controller.abort();
         if (temporary !== undefined)
@@ -322,8 +332,9 @@ export async function stageFiles(
       await reconcileStageRoots(
         opts.replaceRoots,
         opts.keepPaths ?? [],
-        opts.signal,
+        batchSignal,
         skipped,
+        abortReason,
       );
     }
     return {
@@ -334,6 +345,7 @@ export async function stageFiles(
         : {}),
     };
   } finally {
+    clearTimeout(batchDeadline);
     activeStages -= 1;
     if (opts.replaceRoots?.length) reconcilingStage = false;
   }
@@ -344,6 +356,7 @@ async function reconcileStageRoots(
   paths: string[],
   signal: AbortSignal | undefined,
   skipped: StageResult['skipped'],
+  abortReason: () => string,
 ): Promise<void> {
   const invalid = paths.find((path) => resolveUnderWorkspace(path) === null);
   if (invalid !== undefined) {
@@ -411,7 +424,7 @@ async function reconcileStageRoots(
       skipped.push({
         path: root,
         reason: signal?.aborted
-          ? 'cancelled'
+          ? abortReason()
           : error instanceof Error
             ? error.message
             : 'reconcile_failed',

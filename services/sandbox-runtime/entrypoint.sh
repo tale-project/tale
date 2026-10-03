@@ -57,6 +57,8 @@ _IP6TABLES=/usr/sbin/ip6tables
 # route (see _ensure_default_route). Also in /usr/sbin (dropped from PATH).
 _IP=/usr/sbin/ip
 _GETENT=/usr/bin/getent
+_DOCKER=/usr/bin/docker
+_DOCKERD=/usr/bin/dockerd
 
 # The organization bridge attaches after readiness, so the spawner supplies its
 # inspected IPv4 subnets before startup. Legacy spawners already attached both
@@ -618,6 +620,46 @@ setup_cgroup_nesting() {
     echo "[entrypoint] WARN: could not delegate the cgroup memory controller; inner containers with mem_limit/pids_limit may fail to start (cgroupv2 threaded mode)" >&2
 }
 
+# Bound the whole readiness wait, including a hung Docker client. Counted
+# sleeps alone never bounded `docker info`. The immutable Python interpreter
+# also keeps workspace modules and Docker contexts out of this root probe.
+wait_inner_dockerd() {
+  /usr/local/bin/python3 -I - "${TALE_DOCKERD_PID}" "${_DOCKER}" "${1:-30}" <<'PY'
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+pid, docker, budget = int(sys.argv[1]), sys.argv[2], float(sys.argv[3])
+deadline = time.monotonic() + budget
+env = {k: v for k, v in os.environ.items()
+       if k not in ('DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH')}
+with tempfile.TemporaryDirectory(prefix="tale-docker-probe-", dir="/tmp") as config:
+    env["DOCKER_CONFIG"] = config
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            sys.exit('inner dockerd exited during startup')
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            result = subprocess.run(
+                [docker, '--host=unix:///var/run/docker.sock', 'info'],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, env=env, timeout=min(2, remaining),
+            )
+            if result.returncode == 0:
+                sys.exit(0)
+        except subprocess.TimeoutExpired:
+            pass
+        time.sleep(max(0, min(0.5, deadline - time.monotonic())))
+sys.exit('inner dockerd readiness deadline exceeded')
+PY
+}
+
 # Start an inner dockerd and block until it's ready. Fails closed (exit 1) on
 # any of: fence install failure, a non-remapped userns on the sysbox tier
 # (would mean container-root == host-root), dockerd dying, or a readiness
@@ -656,7 +698,7 @@ start_inner_dockerd() {
   # which the image ENV drops. Scope the widened PATH to dockerd only — runnerd
   # is exec'd later with the unmodified (sbin-free) agent PATH.
   # shellcheck disable=SC2086 # _dns_flags must word-split: empty, or one --dns flag
-  PATH="/usr/sbin:/sbin:${PATH}" dockerd \
+  PATH="/usr/sbin:/sbin:${PATH}" "${_DOCKERD}" \
     --host=unix:///var/run/docker.sock \
     --data-root=/var/lib/docker \
     --bip="${TALE_DIND_INNER_BIP}" \
@@ -666,25 +708,15 @@ start_inner_dockerd() {
     >/var/log/dockerd.log 2>&1 &
   TALE_DOCKERD_PID=$!
 
-  _i=0
-  while [ "$_i" -lt 60 ]; do
-    if ! kill -0 "$TALE_DOCKERD_PID" 2>/dev/null; then
-      echo "[entrypoint] FATAL: inner dockerd exited during startup:" >&2
-      tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
-      exit 1
-    fi
-    if docker info >/dev/null 2>&1; then
-      # DOCKER-USER exists now that dockerd is up — install the IMDS fence and
-      # the transparent-egress redirect (both need the daemon's chains/bridge).
-      apply_inner_egress_fence
-      protect_shared_cache_network
-      setup_inner_transparent_egress
-      echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
-      return 0
-    fi
-    _i=$((_i + 1))
-    sleep 0.5
-  done
+  if wait_inner_dockerd; then
+    # DOCKER-USER exists now that dockerd is up — install the IMDS fence and
+    # the transparent-egress redirect (both need the daemon's chains/bridge).
+    apply_inner_egress_fence
+    protect_shared_cache_network
+    setup_inner_transparent_egress
+    echo "[entrypoint] inner dockerd ready (tier=${TALE_RUNTIME_TIER:-?}, pid=${TALE_DOCKERD_PID})"
+    return 0
+  fi
   echo "[entrypoint] FATAL: inner dockerd not ready within 30s:" >&2
   tail -n 20 /var/log/dockerd.log >&2 2>/dev/null || true
   exit 1

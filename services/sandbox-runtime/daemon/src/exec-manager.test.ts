@@ -1013,7 +1013,15 @@ describe('ExecManager', () => {
     try {
       const long = collect();
       const longDone = mgr.run(
-        { ...base, execId: 'prune-long', shell: 'sleep 30', cwd: ROOT },
+        {
+          ...base,
+          execId: 'prune-long',
+          // Keep the session alive throughout all 256 spawns even on a busy
+          // host; the ordinary five-second exec deadline tests another path.
+          timeoutMs: 30_000,
+          shell: 'sleep 30',
+          cwd: ROOT,
+        },
         long.emit,
       );
       while (mgr.status('prune-long')?.state !== 'running') {
