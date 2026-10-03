@@ -4534,7 +4534,8 @@ governance:
       harnessInvalid: Le harness choisi n'est pas disponible, l'agent standard ne peut donc pas démarrer. Choisis un autre harness ou Automatique.
       noModel: Aucun modèle que tu peux utiliser ne peut faire fonctionner l'agent standard. Ajoute un accès dans Fournisseurs IA, ou vérifie l'accès aux modèles.
       pinUnavailable: Le modèle choisi ne t'est pas accessible, l'agent standard ne peut donc pas démarrer pour toi. Choisis un autre modèle ou Automatique. Tale ne passe pas à un autre modèle tant que ce choix est enregistré.
-    invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Enregistre-les à nouveau pour les réparer.
+    invalidPolicy: Les réglages enregistrés de l'agent standard ne sont pas valides. Dans Modèle, choisis un modèle ou Automatique, puis enregistre pour les réparer.
+    invalidSelection: Configuration enregistrée invalide
     savedUnavailable: La sélection enregistrée est actuellement indisponible
     searchHarnesses: Rechercher un harness
     noHarnessesFound: Aucun harness correspondant
