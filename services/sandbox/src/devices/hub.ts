@@ -87,6 +87,9 @@ export interface HubOptions {
   isLocalSession: (sessionId: string) => Promise<boolean>;
   fetch?: (input: string, init: RelayFetchInit) => Promise<Response>;
   now?: () => number;
+  /** How often the hub sweeps (tickets, silent devices, deleting
+   * placements); tests shorten it. */
+  sweepIntervalMs?: number;
 }
 
 /** A relay fetch's options: Bun's `decompress: false` keeps the upstream's
@@ -212,7 +215,7 @@ export class DeviceHub {
     this.sweep = setInterval(() => {
       this.closeStale();
       void this.recheckDeleting();
-    }, TICKET_SWEEP_MS);
+    }, this.opts.sweepIntervalMs ?? TICKET_SWEEP_MS);
   }
 
   /**
@@ -233,19 +236,24 @@ export class DeviceHub {
         this.deletingAskedAtMs.delete(sessionId);
       }
     }
-    const asks: Array<Promise<void>> = [];
-    for (const { sessionId, deviceId } of this.placements.deleting()) {
-      if (asks.length >= DELETING_RECHECKS_PER_SWEEP) break;
-      const device = this.devices.get(deviceId);
-      if (device === undefined || !this.compatible(device)) continue;
-      const askedAtMs = this.deletingAskedAtMs.get(sessionId);
-      if (askedAtMs !== undefined && now - askedAtMs < DELETING_RECHECK_MS) {
-        continue;
-      }
-      this.deletingAskedAtMs.set(sessionId, now);
-      asks.push(this.askDeleting(sessionId));
-    }
-    await Promise.all(asks);
+    // Least recently asked first, never asked before all: however many
+    // stay unresolved, every one is asked in its turn.
+    const askedAt = (sessionId: string) =>
+      this.deletingAskedAtMs.get(sessionId) ?? Number.NEGATIVE_INFINITY;
+    const due = this.placements
+      .deleting()
+      .filter(({ sessionId, deviceId }) => {
+        const device = this.devices.get(deviceId);
+        return (
+          device !== undefined &&
+          this.compatible(device) &&
+          now - askedAt(sessionId) >= DELETING_RECHECK_MS
+        );
+      })
+      .sort((a, b) => askedAt(a.sessionId) - askedAt(b.sessionId))
+      .slice(0, DELETING_RECHECKS_PER_SWEEP);
+    for (const { sessionId } of due) this.deletingAskedAtMs.set(sessionId, now);
+    await Promise.all(due.map(({ sessionId }) => this.askDeleting(sessionId)));
   }
 
   private async askDeleting(sessionId: string): Promise<void> {
@@ -531,12 +539,15 @@ export class DeviceHub {
           this.freeSlots(b) - this.freeSlots(a),
       );
     for (const device of candidates) {
+      // Counted before the placement is written: a destroy (the hub's own
+      // ask included) answered while the write is under way must find the
+      // id created anew and leave this session's placement alone.
+      this.countCreate(create.sessionId);
       await this.placements.set(create.sessionId, {
         deviceId: device.deviceId,
         organizationId: create.organizationId,
         placedAtMs: this.now(),
       });
-      this.countCreate(create.sessionId);
       device.inflightCreates++;
       let res: Response;
       try {

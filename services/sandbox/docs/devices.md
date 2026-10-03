@@ -87,13 +87,17 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   in `placements.json`: no session lives there (the capacity overlay leaves it
   out), but the platform's next destroy of the id, an erasure's Retry
   included, still reaches the device that holds them. Nobody has to ask again
-  for the route to end: on its 30 s sweep the hub itself asks each connected,
-  compatible device about such a placement, at most every 5 minutes and 8 a
-  sweep, with the cleanup's conditional destroy
-  (`?if_idle=1&if_stopped=1&await_deletion=1` — with no session under the id
-  it only reads the trash and has it attempted again; with a create or compute
-  under way it answers busy and touches nothing), and lets the placement go on
-  `done`. A route therefore lasts exactly as long as the bytes it leads to; a
+  for the route to end: on its 30 s sweep the hub itself asks each connected
+  device on its own release about such a placement — at most every 5 minutes
+  per placement and 8 a sweep, least recently asked first, so a backlog is
+  worked through in turn — with the cleanup's conditional destroy
+  (`?if_idle=1&if_stopped=1&await_deletion=1`: the whole idempotent destroy,
+  one Docker round trip, which with no session under the id finds nothing to
+  remove, reads the trash and has what is left attempted again, and with a
+  create or compute under way answers busy and touches nothing), and lets the
+  placement go on `done`. A create under the id is counted before its new
+  placement is written, so an answer that lands meanwhile leaves that new
+  placement alone. A route therefore lasts exactly as long as the bytes it leads to; a
   device older than the contract keeps its entries until it updates. A fresh
   create under the id is placed like any other create, with every fallback,
   but tries that device first; placed anywhere else, the route to the old
