@@ -33,7 +33,7 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * dependency to hash those, which `.agents/repo.md` records as a gap of its
  * own. A suite that reads a package's files as text is an outside read like
  * any other: the accent palette's test reads `@tale/ui`'s stylesheet, and
- * the error-message guard all of `packages/ui/src`.
+ * the error-message and reduced-motion pulse guards all of `packages/ui/src`.
  *
  * `@tale/ui` is the exception to that gap. The component suites (`test:ui`
  * in jsdom, `test:browser` in Chromium) render its components, stylesheet
@@ -109,9 +109,11 @@ const OUTSIDE_READS = [
     readers: 'lib/utils/color.test.ts',
   },
   {
-    // Read as text too: every toast and Alert text the design system builds.
+    // Read as text too: every toast and Alert text the design system builds,
+    // and every pulse it writes.
     path: 'packages/ui/src',
-    readers: 'tests/guards/error-message-description.guard.test.ts',
+    readers:
+      'tests/guards/error-message-description.guard.test.ts and tests/guards/reduced-motion-pulse.guard.test.ts',
   },
   {
     path: ENSURE_SANDBOX_RUNTIME_SCRIPT,

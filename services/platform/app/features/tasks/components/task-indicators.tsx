@@ -147,7 +147,9 @@ export function SubtaskProgress({
 /**
  * Pulsing "agent is working" glyph — shown while the task has a live agent
  * run (`getTaskOpsIndicators`). The pulse is the acknowledgment signal of
- * the task-ops pack: assignment should never look dead.
+ * the task-ops pack: assignment should never look dead. It lasts as long as
+ * the run, so under `prefers-reduced-motion: reduce` the glyph stays and the
+ * pulse stops (WCAG 2.2.2), as `StatusIndicator`'s does.
  */
 export function AgentWorkingIndicator({
   working,
@@ -164,7 +166,10 @@ export function AgentWorkingIndicator({
         className={cn('text-primary inline-flex items-center', className)}
         aria-label={t('agentRuns.working')}
       >
-        <Bot className="size-3.5 shrink-0 animate-pulse" aria-hidden="true" />
+        <Bot
+          className="size-3.5 shrink-0 animate-pulse motion-reduce:animate-none"
+          aria-hidden="true"
+        />
       </span>
     </Tooltip>
   );

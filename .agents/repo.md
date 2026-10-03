@@ -209,7 +209,7 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
-  knowledge-db migrations, `packages/ui/src` (two suites read it as text), `checks.yml` (the
+  knowledge-db migrations, `packages/ui/src` (three suites read it as text), `checks.yml` (the
   integration scope guard) and other outside files; its `test:ui` and `test:browser` list `packages/ui/src` as well, since their
   component suites render it, and all three list `@tale/ui`'s `package.json` and every file
   it exports from outside `src/` (`tailwind-preset.ts`). Its guard is

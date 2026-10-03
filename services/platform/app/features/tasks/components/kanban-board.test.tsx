@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import type { TaskDoc } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
+import { TaskBoardProvider } from './task-board-context';
 
 type TaskRow = TaskDoc;
 
@@ -231,5 +232,30 @@ describe('KanbanBoard card semantics', () => {
       expect(fireEvent.keyUp(title, { key: 'Enter' })).toBe(true);
     }
     expect(onOpenTask).not.toHaveBeenCalled();
+  });
+});
+
+// The working glyph was the board's one pulse without a reduced-motion stop
+// (#4128): under `prefers-reduced-motion: reduce` it still ran `pulse`, held
+// to a single 0.01 ms iteration only by the stylesheet's global rule. jsdom
+// applies no stylesheet, so the card is held to the classes Tailwind compiles
+// to the pulse and to its `prefers-reduced-motion: reduce` stop.
+describe('KanbanBoard working card under reduced motion', () => {
+  it('keeps the working glyph and stops its pulse', () => {
+    const task = makeTask('Busy task', 'in_progress', 'a0');
+    render(
+      <TaskBoardProvider
+        tasks={[task]}
+        dependencyEdges={[]}
+        runningTaskIds={[task._id]}
+      >
+        <KanbanBoard tasks={[task]} />
+      </TaskBoardProvider>,
+    );
+    const glyph = screen
+      .getByLabelText('Agent is working…')
+      .querySelector('svg');
+    expect(glyph).not.toBeNull();
+    expect(glyph).toHaveClass('animate-pulse', 'motion-reduce:animate-none');
   });
 });

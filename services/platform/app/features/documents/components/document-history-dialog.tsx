@@ -5,6 +5,7 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { HStack, Stack } from '@tale/ui/layout';
+import { SKELETON_PULSE } from '@tale/ui/skeleton';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -170,7 +171,7 @@ export function DocumentHistoryDialog({
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="bg-muted h-12 animate-pulse rounded-md"
+              className={cn('h-12 rounded-md', SKELETON_PULSE)}
               aria-hidden="true"
             />
           ))}
