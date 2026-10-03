@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   sessionAcquire,
+  sessionDestroyIfIdle,
+  sessionObserve,
   sessionReleaseIdle,
   sessionReleaseTicket,
   SpawnerBusyError,
@@ -19,6 +21,25 @@ afterEach(() => {
 });
 
 describe('runtime acquisition and release transport', () => {
+  it('forwards watchdog cancellation into the signed cleanup request', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ destroyed: false, busy: true }));
+    vi.stubGlobal('fetch', fetcher);
+    const controller = new AbortController();
+    await expect(
+      sessionDestroyIfIdle('session-1', { signal: controller.signal }),
+    ).resolves.toEqual({ destroyed: false, busy: true });
+    const signal = fetcher.mock.calls[0]?.[1]?.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal?.aborted).toBe(false);
+    const reason = new Error('watchdog pass deadline');
+    controller.abort(reason);
+    expect(signal?.aborted).toBe(true);
+    expect(signal?.reason).toBe(reason);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it('parks a warm acquisition refused for capacity instead of treating it as gone', async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -133,4 +154,41 @@ describe('runtime acquisition and release transport', () => {
     await expect(sessionReleaseTicket('session-1')).rejects.toThrow();
     await expect(sessionReleaseIdle('session-1', 'use-1')).rejects.toThrow();
   });
+});
+
+it('classifies warm-acquire memory refusal as capacity parking with the retry hint', async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      Response.json(
+        { error: 'host_memory' },
+        { status: 429, headers: { 'retry-after': '5' } },
+      ),
+    );
+  vi.stubGlobal('fetch', fetcher);
+  await expect(sessionAcquire('warm')).rejects.toMatchObject({
+    name: 'SpawnerBusyError',
+    retryAfterMs: 5000,
+  });
+  await expect(sessionAcquire('warm')).rejects.toBeInstanceOf(SpawnerBusyError);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+it('reads liveness and runtime pin in one GET, preserving unknown older shapes', async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({ session: { pinned: true } }))
+    .mockResolvedValueOnce(Response.json({ session: { pinned: false } }))
+    .mockResolvedValueOnce(Response.json({ sessionId: 'old' }))
+    .mockResolvedValueOnce(new Response(null, { status: 404 }));
+  vi.stubGlobal('fetch', fetcher);
+  expect(await sessionObserve('pinned')).toEqual({
+    pinned: true,
+  });
+  expect(await sessionObserve('unpinned')).toEqual({
+    pinned: false,
+  });
+  expect(await sessionObserve('legacy')).toEqual({});
+  expect(await sessionObserve('gone')).toBeNull();
+  expect(fetcher).toHaveBeenCalledTimes(4);
 });

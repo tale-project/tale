@@ -61,7 +61,7 @@ send authorization headers, measure browser rendering, or inspect server RSS.
 | Shared process utilities | 100,000 lines into a bounded ring; 16 MiB unterminated line in 4 KiB chunks | Other utilities and Postgres transaction/retry contention |
 | Platform engine/telemetry | Cold/cached validation of 100-item automation inputs; 1000 bounded metric updates and worker spans with tracing disabled/enabled, on Node | API/worker/knowledge/chat with real Postgres, storage and controlled model responses; authenticated UI |
 | Sandbox spawner | 1000 exec boundary validations with 128 environment values; 1000-event SSE burst | Docker/Kubernetes provisioning, concurrent session admission, image warmup |
-| Sandbox daemon/runtime | Real Node process output, 1 MiB stream and bounded replay | Linux subreaper, sustained reconnects, container resource ceilings and image-only document dependencies |
+| Sandbox daemon/runtime | Real Node process output, 1 MiB stream and complete disk replay beyond the memory tail | Linux subreaper, sustained reconnects, container resource ceilings and image-only document dependencies |
 | AI gateway | Read/validate/decrypt 100 file-backed accounts and atomic update | OAuth, provider refresh, controlled credential-pool traffic |
 | UI and marketing UI | 100-button SSR, including marketing wrappers | Browser layout/hydration, all other components and animation |
 | Web/docs/UI docs | Shared server: 100 HTTP requests in batches of ten; cold/cached 250-page SEO artifact bursts | Service content/search/build/prerender and browser navigation; shared code is labelled `shared-library-only` |

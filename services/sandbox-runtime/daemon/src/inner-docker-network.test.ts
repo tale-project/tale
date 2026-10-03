@@ -32,7 +32,9 @@ const helpers = source
   .replaceAll('/var/log/dockerd.log', join(root, 'dockerd.log'))
   .replaceAll('/etc/redsocks.conf', join(root, 'redsocks.conf'))
   .replaceAll('/var/log/redsocks.log', join(root, 'redsocks.log'))
-  .replaceAll('/usr/sbin/redsocks', join(bin, 'redsocks'));
+  .replaceAll('/usr/sbin/redsocks', join(bin, 'redsocks'))
+  .replaceAll('/usr/bin/dockerd', join(bin, 'dockerd'))
+  .replaceAll('/usr/bin/docker', join(bin, 'docker'));
 writeFileSync(
   join(bin, 'ip'),
   `#!/usr/bin/env bun
@@ -495,6 +497,28 @@ setup_inner_transparent_egress
     );
     expect(calls).not.toContain('-s 172.31.0.0/16');
   });
+  test('later engine activations reuse the protected selection despite retained Docker routes', () => {
+    const { result } = run(`
+select_inner_docker_pool
+_chosen_pool="$TALE_DIND_INNER_POOL"
+select_inner_docker_pool() { echo UNEXPECTED_RESELECTION >&2; exit 1; }
+setup_cgroup_nesting() { :; }
+resolve_egress_endpoint() { TALE_EGRESS_IP=''; }
+apply_inner_egress_fence() { :; }
+protect_shared_cache_network() { :; }
+setup_inner_transparent_egress() { :; }
+mkdir() { :; }
+trap 'kill "$TALE_DOCKERD_PID" 2>/dev/null || true' EXIT
+start_inner_dockerd /private/engine.sock
+printf 'POOL=%s\\n' "$TALE_DIND_INNER_POOL"
+`);
+    expect(result.status).toBe(0);
+    expect(result.stderr).not.toContain('UNEXPECTED_RESELECTION');
+    expect(readFileSync(log, 'utf8')).toContain(
+      '--host=unix:///private/engine.sock',
+    );
+  });
+
   test('dockerd receives the selected bip and address pool before any readiness work', () => {
     const { result, calls } = run(
       `

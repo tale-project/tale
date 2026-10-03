@@ -123,7 +123,7 @@ export async function waitForRunnerd(
 export async function runnerdExec(
   opts: RunnerdClientOptions,
   req: RunnerdExecRequest,
-  onEvent: (event: RunnerdExecEvent) => void,
+  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch(`${opts.baseUrl}/execs`, {
@@ -141,46 +141,100 @@ export async function runnerdExec(
   await pumpNdjson(res.body, onEvent);
 }
 
+/** Lost history cannot be retried into a trustworthy result. */
+export class RunnerdOutputGapError extends Error {
+  readonly code = 'OUTPUT_GAP';
+}
+
 /** Read an NDJSON body, invoking `onEvent` per parsed line in order (trailing
  * partial buffered until the next chunk; final unterminated line flushed at
  * EOF). Shared by runnerdExec + runnerdAttach. */
 async function pumpNdjson(
   body: ReadableStream<Uint8Array>,
-  onEvent: (event: RunnerdExecEvent) => void,
+  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
+  sinceSeq = 0,
 ): Promise<void> {
+  let cursor = sinceSeq;
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buf = '';
-  const emitLine = (line: string): void => {
+  const emitLine = async (line: string): Promise<void> => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    // Parse errors and sequence gaps are fatal: skipping either could discard
+    // task-started and later interpret a foreground result as all work done.
+    let value: unknown;
     try {
-      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-      onEvent(JSON.parse(trimmed) as RunnerdExecEvent);
-    } catch (err) {
-      console.warn('[sandbox.session] bad NDJSON line from runnerd:', err);
+      value = JSON.parse(trimmed);
+    } catch {
+      throw new RunnerdOutputGapError('Exec output contains invalid NDJSON');
     }
+    if (
+      value === null ||
+      typeof value !== 'object' ||
+      !('t' in value) ||
+      ![
+        'start',
+        'stdout',
+        'stderr',
+        'exit',
+        'fail',
+        'replay-start',
+        'replay-complete',
+      ].includes(String(value.t))
+    ) {
+      throw new RunnerdOutputGapError('Exec output contains an invalid event');
+    }
+    // The known peer's union is checked for its discriminator and sequence.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const event = value as RunnerdExecEvent;
+    if (
+      event.t === 'fail' &&
+      ['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'].includes(event.code)
+    ) {
+      throw new RunnerdOutputGapError(event.message);
+    }
+    if (
+      event.seq === undefined &&
+      !['fail', 'replay-start', 'replay-complete'].includes(event.t)
+    ) {
+      throw new RunnerdOutputGapError('Exec output is missing its sequence');
+    }
+    if (event.seq !== undefined) {
+      if (!Number.isSafeInteger(event.seq) || event.seq !== cursor + 1) {
+        throw new RunnerdOutputGapError(
+          'Exec output sequence has a gap; refusing incomplete replay',
+        );
+      }
+      cursor = event.seq;
+    }
+    await onEvent(event);
   };
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl = buf.indexOf('\n');
-    while (nl !== -1) {
-      emitLine(buf.slice(0, nl));
-      buf = buf.slice(nl + 1);
-      nl = buf.indexOf('\n');
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl = buf.indexOf('\n');
+      while (nl !== -1) {
+        await emitLine(buf.slice(0, nl));
+        buf = buf.slice(nl + 1);
+        nl = buf.indexOf('\n');
+      }
+      // Bound the residual partial line: a daemon streaming without newlines
+      // would otherwise grow `buf` until the spawner OOMs. Abort the pump (the
+      // route's catch sends `error` + evicts a gone backend).
+      if (buf.length > MAX_NDJSON_BUFFER_BYTES) {
+        throw new Error(
+          `runnerd NDJSON exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes without a newline`,
+        );
+      }
     }
-    // Bound the residual partial line: a daemon streaming without newlines
-    // would otherwise grow `buf` until the spawner OOMs. Abort the pump (the
-    // route's catch sends `error` + evicts a gone backend).
-    if (buf.length > MAX_NDJSON_BUFFER_BYTES) {
-      throw new Error(
-        `runnerd NDJSON exceeded ${MAX_NDJSON_BUFFER_BYTES} bytes without a newline`,
-      );
-    }
+    await emitLine(buf + decoder.decode());
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  emitLine(buf);
 }
 
 /** POST /execs/:id/cancel. A transport failure THROWS (the route turns it into
@@ -262,7 +316,7 @@ export async function runnerdWriteStdin(
 export async function runnerdAttach(
   opts: RunnerdClientOptions,
   execId: string,
-  onEvent: (event: RunnerdExecEvent) => void,
+  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
   signal?: AbortSignal,
   sinceSeq = 0,
 ): Promise<boolean> {
@@ -273,7 +327,7 @@ export async function runnerdAttach(
   );
   if (res.status === 404) return false;
   if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
-  await pumpNdjson(res.body, onEvent);
+  await pumpNdjson(res.body, onEvent, sinceSeq);
   return true;
 }
 

@@ -47,6 +47,7 @@ import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import {
   recreatePinnedSession,
+  syncSessionPin,
   teardownSession,
 } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
@@ -512,6 +513,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
   };
 
   return {
+    'sandbox.sync_pin': async (payload) => {
+      await syncSessionPin(deps.sql, destroySessionSchema.parse(payload));
+    },
     'sandbox.release_idle': async (payload) => {
       await releaseIdleSession(
         deps.sql,

@@ -17,13 +17,22 @@
  * called tools, only reasoned, or only reported output tokens is not.
  */
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ExecJournal,
+  JournalBudget,
+} from '../../../../sandbox-runtime/daemon/src/exec-journal';
 import { readFixture } from '../../../lib/harnesses/test-helpers';
 
 const transport = vi.hoisted(() => ({
   stdout: '' as string,
   stderr: '' as string,
+  replayTail: '' as string,
   cancelled: [] as string[],
   exitAfterStdout: false,
   exitCode: 0,
@@ -44,10 +53,16 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     callbacks: {
       onStdout?: (chunk: string) => void;
       onStderr?: (chunk: string) => void;
+      onReplayStarted?: () => void;
       onReplayComplete?: () => void;
     },
   ) => {
+    if (transport.replayTail !== '') callbacks.onReplayStarted?.();
     callbacks.onStdout?.(transport.stdout);
+    if (transport.replayTail !== '') {
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      callbacks.onStdout?.(transport.replayTail);
+    }
     if (transport.replayComplete) callbacks.onReplayComplete?.();
     if (transport.stderr !== '') callbacks.onStderr?.(transport.stderr);
     if (transport.exitAfterStdout) return { exitCode: transport.exitCode };
@@ -123,11 +138,72 @@ describe('drainHarnessWindow end-of-turn rules', () => {
   beforeEach(() => {
     transport.stdout = '';
     transport.stderr = '';
+    transport.replayTail = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;
     transport.exitCode = 0;
     transport.replayComplete = true;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  it('returns the complete final report beyond the display text cap', async () => {
+    const report = 'first-line\n' + 'x'.repeat(80_000) + '\nlast-line';
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      { ...CLAUDE_RESULT, result: report },
+    ]);
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'large-report',
+      harness: 'claude-code',
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.ended?.finalText).toBe(report);
+      expect(classifyHarnessEnd(result).errored).toBe(false);
+    }
+  });
+
+  it('keeps the exact streamed narrative as settlement fallback while progress stays bounded', async () => {
+    const report = 'first-line\n' + 'x'.repeat(80_000) + '\nlast-line';
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      {
+        type: 'stream_event',
+        event: { delta: { type: 'text_delta', text: report } },
+      },
+      { type: 'result', subtype: 'success', session_id: 'claude-1' },
+    ]);
+    transport.exitAfterStdout = true;
+    const onText = vi.fn();
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'narrative-only',
+      harness: 'claude-code',
+      onText,
+    });
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.text).toBe(report);
+      expect(result.ended?.finalText).toBeUndefined();
+      expect(classifyHarnessEnd(result).errored).toBe(false);
+    }
+    expect(onText).toHaveBeenCalledOnce();
+    expect(onText.mock.calls[0]?.[0].length).toBeLessThanOrEqual(32_000);
+  });
+
+  it('does not finish on a historical terminal marker before replay catches up', async () => {
+    transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    transport.replayTail = ndjson([CLAUDE_TASK_STARTED]);
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'replaying',
+      harness: 'claude-code',
+      windowMs: 1750,
+    });
+    expect(result.kind).toBe('running');
+    expect(transport.cancelled).toEqual([]);
   });
 
   it('carries the harness’s stderr tail on a window that exited without a turn', async () => {
@@ -401,6 +477,93 @@ describe('drainHarnessWindow end-of-turn rules', () => {
 
     expect(result.kind).toBe('running');
     expect(transport.cancelled).toEqual([]);
+  });
+
+  it('preserves Claude background control through real disk replay after the RAM ring overflowed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'claude-journal-'));
+    const journal = new ExecJournal(
+      new JournalBudget(),
+      () => {},
+      () => {},
+      undefined,
+      directory,
+    );
+    const replayIntoTransport = async () => {
+      const controller = new AbortController();
+      await journal.replay(
+        (event) => {
+          if (event.t === 'stdout')
+            transport.stdout += Buffer.from(event.b64, 'base64').toString(
+              'utf8',
+            );
+          if (event.t === 'replay-complete') controller.abort();
+        },
+        0,
+        controller.signal,
+      );
+    };
+    try {
+      const filler = {
+        type: 'stream_event',
+        event: { delta: { type: 'text_delta', text: 'x'.repeat(8192) } },
+      };
+      const bytes = Buffer.from(
+        ndjson([
+          CLAUDE_INIT,
+          CLAUDE_TASK_STARTED,
+          ...Array.from({ length: 128 }, () => filler),
+          CLAUDE_RESULT,
+        ]),
+      );
+      expect(bytes.byteLength).toBeGreaterThan(1024 * 1024);
+      let seq = 0;
+      for (let offset = 0; offset < bytes.byteLength; offset += 16 * 1024) {
+        if (
+          !journal.append(
+            `${JSON.stringify({
+              t: 'stdout',
+              seq: ++seq,
+              b64: bytes
+                .subarray(offset, offset + 16 * 1024)
+                .toString('base64'),
+            })}\n`,
+          )
+        ) {
+          await journal.drain();
+        }
+      }
+      await replayIntoTransport();
+      const running = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'journal-background',
+        harness: 'claude-code',
+        windowMs: 1750,
+      });
+      expect(running.kind).toBe('running');
+      expect(transport.cancelled).toEqual([]);
+
+      // A later drain rebuilds from the same full journal plus settlement.
+      journal.append(
+        `${JSON.stringify({
+          t: 'stdout',
+          seq: ++seq,
+          b64: Buffer.from(ndjson([CLAUDE_TASK_SETTLED])).toString('base64'),
+        })}\n`,
+      );
+      transport.stdout = '';
+      await replayIntoTransport();
+      const terminal = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'journal-background',
+        harness: 'claude-code',
+        windowMs: 10000,
+      });
+      expect(terminal.kind).toBe('terminal');
+      expect(transport.cancelled).toEqual(['journal-background']);
+    } finally {
+      await journal.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('ends a claude turn once its background task settles', async () => {

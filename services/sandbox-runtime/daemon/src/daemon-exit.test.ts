@@ -47,6 +47,44 @@ describe('exitDaemon', () => {
   });
 
   test.skipIf(!hasNode)(
+    'the forced deadline ends Node while untracked filesystem I/O is blocked',
+    async () => {
+      const root = mkdtempSync(`${tmpdir()}/runnerd-io-exit-`);
+      roots.push(root);
+      const fifo = `${root}/blocked-journal`;
+      expect(spawnSync('mkfifo', [fifo]).status).toBe(0);
+      writeFileSync(
+        `${root}/entry.ts`,
+        [
+          `import { readFile } from 'node:fs/promises';`,
+          `import { exitDaemon } from '${import.meta.dir}/daemon-exit.ts';`,
+          `void readFile(process.argv[2]);`,
+          `setTimeout(() => exitDaemon(0, { force: true }), 100);`,
+        ].join('\n'),
+      );
+      const built = await Bun.build({
+        entrypoints: [`${root}/entry.ts`],
+        outdir: `${root}/dist`,
+        target: 'node',
+      });
+      expect(built.success).toBe(true);
+      const child = spawn('node', [`${root}/dist/entry.js`, fifo], {
+        stdio: 'ignore',
+      });
+      const ended = await new Promise<string>((resolve) => {
+        const timer = setTimeout(() => resolve('still running'), 5000);
+        child.on('exit', (code, signal) => {
+          clearTimeout(timer);
+          resolve(signal ?? `code ${code}`);
+        });
+      });
+      if (ended === 'still running') child.kill('SIGKILL');
+      expect(ended).toBe('SIGKILL');
+    },
+    15000,
+  );
+
+  test.skipIf(!hasNode)(
     'under Node, the daemon ends even though a read of a stuck process never returns',
     async () => {
       const root = mkdtempSync(`${tmpdir()}/runnerd-exit-`);
