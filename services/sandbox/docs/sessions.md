@@ -32,16 +32,88 @@ agent and script nodes within one execution share that session.
 A session is a long-lived container (Docker) / Pod (K8s) running **runnerd**, a
 small control daemon (`services/sandbox-runtime/daemon`, bundled to a single
 `runnerd.mjs` and run by the image's Node 24), under the image's `tini` init as
-PID 1 on every dispatch path — a long-lived container needs a real reaper, since
-cancelled exec trees leave orphans that node (which
-never `wait()`s children it did not spawn) would otherwise accumulate as zombies
-against `pids-limit`. The spawner proxies every in-session operation to runnerd
+PID 1 on every dispatch path — a long-lived container needs a real reaper: what
+an exec orphans goes to the exec's subreaper shim (below), but what a shim
+killed outright leaves, and what the entrypoint's own daemons orphan, reaches
+PID 1, where node (which never `wait()`s children it did not spawn) would let
+it accumulate as zombies against `pids-limit`. The spawner proxies every in-session operation to runnerd
 over plain HTTP on `:8200`:
 
 - Docker: container DNS name `tale-sbx-ses-<id>` on `tale-sandbox-net`; an id
   that would outgrow the 63-character DNS label (a member's workspace session)
   is replaced by the first 16 hex digits of its SHA-1, as the K8s backend does.
 - K8s: the Pod IP (read from `status.podIP`).
+
+**An exec's leftover processes are ended.** runnerd starts each exec under
+`tale-exec-shim` (`services/sandbox-runtime/daemon/exec-shim/`), a small shim
+that runs the command in a process group of its own and is a child subreaper
+(`PR_SET_CHILD_SUBREAPER`): every process the command's tree orphans is
+reparented to the shim, not to PID 1, so whatever the exec starts stays the
+shim's descendant — a server that double-forked into a session of its own
+and replaced its environment included. The shim tells runnerd on a status
+pipe the command's pid, how it ended, or why it could not be run; it keeps
+none of the command's output pipes and exits, with the command's status, once
+nothing below it runs. runnerd also puts the exec id in the environment
+(`TALE_EXEC_ID`), which every descendant inherits. When the exec's command
+exits, runnerd sends SIGTERM to what it left running — the group as a whole,
+and on its own each process below the shim, or carrying the id, that moved to
+a group or session of its own (such as a browser its driver started detached)
+— then SIGKILL five seconds later. While another exec of the session still runs, the
+leftovers wait: that exec may be using what the earlier one started (a dev
+server, a build daemon), so they end when the session's last running exec
+ends; meanwhile they keep their output pipes, whose output runnerd reads and
+drops. A cancel or the deadline ends the exec's processes at once, what it
+left waiting included, and the SIGKILL reaches its group while its own
+process still runs even if no process there shows the id. A
+backgrounded server, a `nohup` worker or a browser therefore no longer runs on
+in a session that reads idle until the container stops. Each process gets one
+SIGTERM, so a second signal never cuts short the cleanup the first one started.
+A group's number can be reused once the group is gone, so a signal that comes
+after the exec's end reaches the group only while the group is provably still
+the exec's: a process carrying the id is in it, or a process runnerd recorded
+in it (pid and start time, from `/proc/<pid>/stat`) still is. The record is
+taken when the exec ends while its leftovers wait, and by each SIGTERM round
+for the SIGKILL that follows, so a leftover that stayed in the group without
+the id (started with `env -i`, or a server that rewrote its environment) is
+ended too.
+Out of reach: the daemons the entrypoint starts (redsocks, the inner dockerd),
+the containers an exec runs under the inner dockerd, and — where an exec runs
+without the shim (a kernel that refuses the subreaper, which runnerd logs
+once; a development host that is not Linux) — a process that both left the
+exec's group and replaced its environment. runnerd's startup line names the
+shim it uses (`execShim=`). On SIGTERM, runnerd passes the signal on to every
+live exec, and to what exited execs left waiting, before it exits.
+
+Reading another process's environment waits on that process's memory lock,
+which a process stuck under memory pressure can hold for minutes. While every
+exec a round covers still has its shim, the round reads `/proc/<pid>/stat`
+alone — parent, group and start time — and no environment. Otherwise runnerd
+signals a group it knows is the exec's (a live exec, one whose own process
+just exited) before it reads the process table, a scan answers with what it
+read after two seconds, and a process whose read did not come back is skipped
+until the read returns or the process is gone. While such a read is still out,
+runnerd ends itself by SIGKILL when it exits: `process.exit` would wait for
+the read. A cancel that comes before the shim has named the command's group
+waits for it — the shim does so as soon as it has forked — so the group still
+gets its signal as a whole.
+
+**A rotation keeps what the turn started.** A steer's restart cancels a
+running turn and continues the conversation in a new exec over the same
+workspace, so the platform sends that cancel as a rotation:
+`POST /v1/sessions/:id/exec/:execId/cancel?leftovers=keep`, which the spawner
+forwards to runnerd's `POST /execs/:id/cancel?leftovers=keep`. runnerd then
+ends only the exec's own process group (SIGTERM, then SIGKILL five seconds
+later while its own process still runs) and holds what it left outside the
+group, such as a dev server a harness's tool call started in a session of its
+own, for the exec that takes over. The hold lifts when an exec started after
+the cancel ends; the leftovers then end with the session's last running exec,
+as above, or when runnerd stops. A hold that sees no successor within ten
+minutes (a restart whose new exec never started) lifts too, and with no exec
+running its leftovers end at once. A later cancel of the handed-over exec (the
+platform's superseded drive still reaps the exec it no longer owns) ends none
+of what it holds; a person's Stop goes to the exec that took over, and its
+end ends them. A plain cancel ends everything; a spawner or runnerd that
+predates the flag ignores it and does the same.
 
 **No `kubectl exec`/attach anywhere** — runnerd is reached by ordinary HTTP, so
 the exec-free K8s constraint holds. runnerd auth is the per-session token

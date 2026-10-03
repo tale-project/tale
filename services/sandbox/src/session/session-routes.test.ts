@@ -65,6 +65,8 @@ const created = new Set<string>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
+// Each POST /execs/:id/cancel runnerd received, path and query.
+const cancelRequests: string[] = [];
 // Captures each POST /execs body the spawner sends to runnerd, so tests can
 // assert the per-exec stdoutMaxBytes/stderrMaxBytes the spawner chose.
 const execRequests: Array<{
@@ -201,6 +203,7 @@ beforeAll(() => {
         );
       }
       if (url.pathname.endsWith('/cancel') && req.method === 'POST') {
+        cancelRequests.push(url.pathname + url.search);
         return Response.json({ killed: true });
       }
       // GET /execs/:id — per-exec status (no path suffix). The execId prefix
@@ -1255,6 +1258,27 @@ describe('SessionRoutes (fake runnerd)', () => {
       // (The transport-error → evict → 404 branch is exercised by the env/stdin/
       // sweep zombie tests; runnerdCancelExec swallows a non-OK response as
       // killed:false rather than throwing, so it can't drive eviction here.)
+    });
+
+    test('handleExecCancel: a rotation’s cancel reaches runnerd as leftovers=keep, a Stop without it', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess-rotate', organizationId: 'org_c' }),
+      );
+      cancelRequests.length = 0;
+      const rotated = await routes.handleExecCancel('sess-rotate', 'turn-1', {
+        keepLeftovers: true,
+      });
+      expect(await rotated.json()).toMatchObject({ killed: true });
+      await routes.handleExecCancel('sess-rotate', 'turn-2');
+      await routes.handleExecCancel('sess-rotate', 'turn-3', {
+        keepLeftovers: false,
+      });
+      expect(cancelRequests).toEqual([
+        '/execs/turn-1/cancel?leftovers=keep',
+        '/execs/turn-2/cancel',
+        '/execs/turn-3/cancel',
+      ]);
     });
 
     test('handleExecStatus: running/exited → 200, gone → 404, unknown → 404, transient blip → 502', async () => {

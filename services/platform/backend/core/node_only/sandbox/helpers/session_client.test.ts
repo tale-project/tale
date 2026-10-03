@@ -14,6 +14,7 @@ import {
   STAGE_BODY_BUDGET_BYTES,
   SpawnerUnreachableError,
   sessionAcquire,
+  sessionCancelExec,
   sessionCreate,
   SessionFileTooLargeError,
   sessionIsAlive,
@@ -602,6 +603,31 @@ describe('spawner call preconditions', () => {
       /SANDBOX_TOKEN is not set/,
     );
     expect(calls).toBe(0);
+  });
+});
+
+describe('sessionCancelExec', () => {
+  test('a rotation asks for leftovers=keep; a Stop asks for nothing more', async () => {
+    process.env.SANDBOX_URL = 'http://sandbox:8003';
+    const urls: string[] = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (input: string) => {
+      urls.push(input);
+      return new Response(JSON.stringify({ killed: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    expect(
+      await sessionCancelExec('ses-1', 'turn-1', { keepLeftovers: true }),
+    ).toBe(true);
+    expect(await sessionCancelExec('ses-1', 'turn-2')).toBe(true);
+    expect(urls).toEqual([
+      'http://sandbox:8003/v1/sessions/ses-1/exec/turn-1/cancel?leftovers=keep',
+      'http://sandbox:8003/v1/sessions/ses-1/exec/turn-2/cancel',
+    ]);
   });
 });
 
