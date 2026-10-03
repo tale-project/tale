@@ -156,6 +156,52 @@ describe('buildSessionPod', () => {
     expect(c?.volumeMounts?.some((m) => m.mountPath === '/agent')).toBe(true);
   });
 
+  test("a render session's workspace is a sized emptyDir: it is never resumed", () => {
+    const pod = buildSessionPod(cfg, { ...input, profile: 'default' });
+    const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
+    expect(ws?.persistentVolumeClaim).toBeUndefined();
+    expect(ws?.emptyDir?.sizeLimit).toBe(cfg.k8s.workspaceSizeLimit);
+  });
+
+  test('requests follow the profile working set, never above the limit', () => {
+    const runner = (pod: ReturnType<typeof buildSessionPod>) =>
+      pod.spec?.containers[0]?.resources;
+    expect(runner(buildSessionPod(cfg, input))?.requests).toEqual({
+      cpu: '250m',
+      memory: '512Mi',
+    });
+    expect(
+      runner(buildSessionPod(cfg, { ...input, profile: 'default' }))?.requests,
+    ).toEqual({ cpu: '250m', memory: '512Mi' });
+    // An operator override applies to every Pod, clamped to each limit.
+    const tuned = {
+      ...cfg,
+      k8s: { ...cfg.k8s, cpuRequest: '1500m', memoryRequest: '2Gi' },
+    };
+    expect(
+      runner(buildSessionPod(tuned, { ...input, profile: 'default' })),
+    ).toEqual({
+      requests: { cpu: '1', memory: '1500Mi' },
+      limits: { cpu: '1', memory: '1500Mi' },
+    });
+    const small = {
+      ...cfg,
+      session: {
+        ...cfg.session,
+        agentProfile: { ...cfg.session.agentProfile, memory: '384m' },
+      },
+    };
+    expect(runner(buildSessionPod(small, input))?.requests?.memory).toBe(
+      '384Mi',
+    );
+  });
+
+  test('a resume does not re-chown the whole workspace', () => {
+    expect(
+      buildSessionPod(cfg, input).spec?.securityContext?.fsGroupChangePolicy,
+    ).toBe('OnRootMismatch');
+  });
+
   test('default profile maps to uid 65534', () => {
     const pod = buildSessionPod(cfg, { ...input, profile: 'default' });
     expect(pod.spec?.containers[0]?.securityContext?.runAsUser).toBe(65534);
@@ -319,6 +365,12 @@ describe('buildSessionPod', () => {
       expect(egress?.args).toEqual(['egress-sidecar']);
       // Native sidecar: started before (and runs alongside) the runner.
       expect(egress?.restartPolicy).toBe('Always');
+      // Explicit resources, so a namespace ResourceQuota admits the Pod.
+      expect(egress?.resources?.requests).toEqual({
+        cpu: '10m',
+        memory: '16Mi',
+      });
+      expect(egress?.resources?.limits?.memory).toBe('64Mi');
       // NET_ADMIN lives ONLY in the sidecar (which runs only redsocks).
       expect(egress?.securityContext?.runAsUser).toBe(0);
       expect(egress?.securityContext?.capabilities?.add).toEqual([

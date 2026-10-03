@@ -55,7 +55,7 @@ Inhaber und Admins können **Arbeitsbereiche** prüfen. Jede Zeile nennt den zug
 
 Die Ausgaben enthalten die gemessenen Kosten abgeschlossener Durchläufe. Ein noch laufender Durchlauf wird nach seinem Ende eingerechnet. Vorübergehende Crawler-Umgebungen zählen zur Kapazität, auch ohne eigene dauerhafte Workspace-Zeile.
 
-Ist die Deployment-Kapazität voll, kann Tale eine nicht angeheftete, inaktive Umgebung zurückfordern, deren Belegung freigegeben ist und die bestätigt, dass keine Arbeit mehr läuft. Die dauerhaften Workspace-Dateien bleiben für den nächsten Start erhalten. Beschäftigte, angeheftete oder nicht erreichbare Umgebungen kommen nicht infrage. Ohne geeigneten Kandidaten braucht neue Arbeit freie Kapazität.
+Ist die Deployment-Kapazität voll, kann Tale eine nicht angeheftete, inaktive Umgebung zurückfordern, deren Belegung freigegeben ist und die bestätigt, dass keine Arbeit mehr läuft. Die dauerhaften Workspace-Dateien bleiben für den nächsten Start erhalten. Beschäftigte, angeheftete oder nicht erreichbare Umgebungen kommen nicht infrage. Ohne geeigneten Kandidaten braucht neue Arbeit freie Kapazität. Eine Umgebung, deren Aufgabe oder Lauf beendet ist, stoppt nach einigen Minuten im Leerlauf, sodass ihr Platz bald nach dem Ende der Arbeit frei wird. Eine Agent-Umgebung, in der Docker läuft, behält ihre volle Leerlaufzeit, damit der nächste Durchgang ihre Images nicht erneut laden muss.
 
 ## Einen bestehenden Arbeitsbereich verwalten
 

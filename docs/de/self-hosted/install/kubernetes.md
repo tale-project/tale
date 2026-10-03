@@ -471,6 +471,8 @@ Zwei Alternativen behalten denselben Pod:
 
 Der Egress-Proxy braucht den Capability-Satz aus dem Compose-Vertrag und keine Sysctls: Der Entrypoint installiert die IPv6-Firewall mit ip6tables, wenn der Node-Kernel sie anbietet, und deaktiviert IPv6 andernfalls im eigenen Netzwerk-Namespace. Ein Cluster, der beides verweigert, blockiert den Pod beim Start; erlaube in dem Fall die Sysctls `net.ipv6.conf.*` auf dem Kubelet. Der Spawner legt Sitzungs-Pods, Secrets und Workspace-Claims über die Kubernetes-API an und läuft deshalb mit einer namespacegebundenen Role und ohne Docker-Socket.
 
+Der Proxy bedient `SANDBOX_EGRESS_MAX_CLIENTS` Verbindungen gleichzeitig (standardmäßig 2000) für alle Sessions zusammen, jede mit einem Thread und zwei offenen Dateien. Eine Pod-Spezifikation kann keine Grenzen für Prozesse oder offene Dateien setzen: Beim Start hebt der Proxy seine Grenze für offene Dateien auf das an, was seine Verbindungen brauchen, so weit die harte Grenze der Container-Runtime es erlaubt, und warnt in seinem Log, wenn sie zu niedrig ist. Seine Threads zählen gegen das `podPidsLimit` des Kubelets; setzen deine Nodes eines, halte es über der Verbindungsgrenze oder senke `SANDBOX_EGRESS_MAX_CLIENTS` passend.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -494,6 +496,8 @@ spec:
       containers:
         - name: egress
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          env:
+            - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
           securityContext:
             runAsUser: 0
             capabilities:
@@ -638,7 +642,8 @@ spec:
 | `SANDBOX_K8S_NAMESPACE` | Der Namespace, in dem Sitzungs-Pods, Secrets und Workspace-Claims entstehen; in dieser Aufteilung der Namespace des Spawners selbst. Standard `tale-sandbox`. |
 | `SANDBOX_RUNTIME_IMAGE` | Das passende Tale-Sandbox-Runtime-Image, für jeden Node verfügbar. |
 | `NODE_EXTRA_CA_CERTS` | Die CA-Datei des Clusters, im Spawner normalerweise `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`. Sie ist der einzige CA-Vertrauensweg, den der Spawner beachtet; lass die TLS-Prüfung eingeschaltet. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | Die Größe jedes `/agent`-Workspace-Claims, Standard `4Gi`; begrenzt bei aktiviertem innerem Docker auch dessen temporären Speicher. |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | Die Größe des `/agent`-Workspace-Claims jeder Agent-Session, Standard `4Gi`; begrenzt auch den temporären Workspace eines Crawler-Renders, der ohne Claim auskommt, weil er nie fortgesetzt wird, und bei aktiviertem innerem Docker dessen temporären Speicher. |
+| `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST` | Was jeder Session-Pod beim Scheduler anfordert, als Kubernetes-Mengenangaben. Ohne Angabe fordert ein Agent-Pod `250m` und `512Mi` an (`1Gi` mit Docker in der Sandbox), ein Crawler-Render `250m` und `512Mi`; eine Anforderung liegt nie über der Grenze des Pods. Erhöhe die Werte, wenn Agents auf deinen Nodes schwerere Builds ausführen, damit der Scheduler nicht mehr Sessions auf einen Node legt, als er tragen kann. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS` | Die StorageClass der Workspace-Claims; ohne Wert gilt der Cluster-Standard. |
 | `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | Eine unterstützte Laufzeitstufe und bei Bedarf der Name der installierten RuntimeClass. |
 | `SANDBOX_EGRESS_PROXY` | Der Egress-Service, den die Sitzungen nutzen, Standard `http://sandbox-egress:3128`. |

@@ -58,6 +58,10 @@ function conflictError(sessionId: string, cause: unknown): Error {
   );
 }
 
+/** Margin past a create's budget before a Pod-less Secret counts as an
+ * orphan rather than a peer replica's create in flight. */
+const ORPHAN_SECRET_SLACK_MS = 60_000;
+
 export class KubernetesSessionBackend implements SessionBackend {
   readonly kind = 'kubernetes' as const;
   private readonly client: K8sClient;
@@ -79,7 +83,11 @@ export class KubernetesSessionBackend implements SessionBackend {
     // A pre-existing workspace PVC means this is a RESUME of a stopped session.
     // A failed create here must NOT delete that PVC (it holds the user's
     // preserved data) — stop instead. Fresh creates clean up fully.
-    const preexisting = await this.workspacePvcExists(spec.sessionId);
+    // Only agent sessions keep a workspace volume; a crawler render's
+    // workspace lives and dies with its Pod (k8s-session-pod-spec.ts).
+    const durable = spec.profile === 'agent';
+    const preexisting =
+      durable && (await this.workspacePvcExists(spec.sessionId));
     // On a resume (preexisting PVC) a Pod that died out-of-band can still hold
     // the deterministic Pod/Secret name and would 409 the create below — one
     // wasted, user-visible failed turn before the failed-create cleanup reaps
@@ -88,7 +96,9 @@ export class KubernetesSessionBackend implements SessionBackend {
     // failed-create cleanup envelope remains the backstop for anything this
     // misses.
     if (preexisting) await this.reapTerminalPod(spec.sessionId);
-    await this.ensureWorkspacePvc(spec.sessionId, spec.organizationId);
+    if (durable) {
+      await this.ensureWorkspacePvc(spec.sessionId, spec.organizationId);
+    }
 
     const secret: V1Secret = {
       apiVersion: 'v1',
@@ -106,13 +116,29 @@ export class KubernetesSessionBackend implements SessionBackend {
           : {}),
       },
     };
-    try {
-      await withRetry('create-session-secret', () =>
+    const createSecret = () =>
+      withRetry('create-session-secret', () =>
         this.client.core.createNamespacedSecret(
           { namespace: this.cfg.k8s.namespace, body: secret },
           apiTimeout(),
         ),
       );
+    try {
+      try {
+        await createSecret();
+      } catch (err) {
+        if (httpStatusCode(err) !== 409) throw err;
+        // A first attempt that timed out client-side can still have been
+        // stored: the Secret under the name is then this create's own, and
+        // the create goes on to its Pod.
+        if (!(await this.isOwnSecret(spec.sessionId, spec.createdAtMs))) {
+          // A Secret whose Pod is long gone (deleted under the spawner by a
+          // node drain or PodGC) would 409 every create of this session for
+          // good: remove that orphan and try once more.
+          if (!(await this.removeOrphanSecret(spec.sessionId))) throw err;
+          await createSecret();
+        }
+      }
     } catch (err) {
       // A 409 means the deterministic Secret name is TAKEN — a peer replica's
       // concurrent create (the route's `creating` set is per replica) or a
@@ -147,15 +173,21 @@ export class KubernetesSessionBackend implements SessionBackend {
       );
     } catch (err) {
       if (httpStatusCode(err) === 409) {
-        // The Pod name is taken (a peer's Pod, or one still Terminating from a
-        // stop/destroy in flight). Leave the Pod and the PVC alone — only the
-        // Secret THIS call created is ours, and leaving it behind would 409
-        // every future create of this session forever.
-        await this.deleteOwnSecret(spec.sessionId);
-        throw conflictError(spec.sessionId, err);
+        // A first attempt that timed out client-side can still have been
+        // stored: a 409 on the retry is then this create's own Pod, which
+        // needs the Secret it references. Carry on to the readiness wait.
+        if (!(await this.isThisIncarnation(spec.sessionId, spec.createdAtMs))) {
+          // The Pod name is taken (a peer's Pod, or one still Terminating
+          // from a stop/destroy in flight). Leave the Pod and the PVC alone —
+          // only the Secret THIS call created is ours, and leaving it behind
+          // would 409 every future create of this session forever.
+          await this.deleteOwnSecret(spec.sessionId);
+          throw conflictError(spec.sessionId, err);
+        }
+      } else {
+        await this.cleanupFailedCreate(spec.sessionId, preexisting);
+        throw err;
       }
-      await this.cleanupFailedCreate(spec.sessionId, preexisting);
-      throw err;
     }
 
     // Poll runnerd readiness via the Pod IP (which appears once scheduled).
@@ -175,6 +207,120 @@ export class KubernetesSessionBackend implements SessionBackend {
       throw err;
     }
     return { resumed: preexisting };
+  }
+
+  /** Is the Pod under the session's name the incarnation this create made
+   * (its creation stamp, not being deleted)? A read that fails is "no". */
+  private async isThisIncarnation(
+    sessionId: string,
+    createdAtMs: number,
+  ): Promise<boolean> {
+    try {
+      const pod = await this.readPod(sessionId);
+      return (
+        pod.metadata?.deletionTimestamp == null &&
+        pod.metadata?.annotations?.['tale.dev/created-at'] ===
+          String(createdAtMs)
+      );
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] cannot tell whose pod holds ${sessionId}'s name:`,
+        error,
+      );
+      return false;
+    }
+  }
+
+  /** The session's Secret, read through `list`, which the Role grants (not
+   * `get`): undefined when there is none, null when it cannot be read. */
+  private async readSessionSecret(
+    sessionId: string,
+  ): Promise<V1Secret | undefined | null> {
+    const secretName = sessionSecretNameFor(sessionId);
+    try {
+      const secrets = await this.client.core.listNamespacedSecret(
+        {
+          namespace: this.cfg.k8s.namespace,
+          fieldSelector: `metadata.name=${secretName}`,
+        },
+        apiTimeout(),
+      );
+      return secrets.items.find((item) => item.metadata?.name === secretName);
+    } catch (error) {
+      console.warn(
+        `[sandbox.session] cannot read ${sessionId}'s secret:`,
+        error,
+      );
+      return null;
+    }
+  }
+
+  /** Is the Secret under the session's name the one this create stored (its
+   * creation stamp, not being deleted)? A read that fails is "no". */
+  private async isOwnSecret(
+    sessionId: string,
+    createdAtMs: number,
+  ): Promise<boolean> {
+    const secret = await this.readSessionSecret(sessionId);
+    return (
+      secret != null &&
+      secret.metadata?.deletionTimestamp == null &&
+      secret.metadata?.annotations?.['tale.dev/created-at'] ===
+        String(createdAtMs)
+    );
+  }
+
+  /** Remove the session's Secret when it is an orphan: no Pod holds the name,
+   * and it is older than a whole create's budget, so no create — a peer
+   * replica's included — can still be making it. Fenced by its UID. Read
+   * through `list`, which the Role grants (not `get`). Returns whether the
+   * name is free now. */
+  private async removeOrphanSecret(sessionId: string): Promise<boolean> {
+    try {
+      await this.readPod(sessionId);
+      return false;
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) {
+        console.warn(
+          `[sandbox.session] cannot tell whether ${sessionId}'s secret is an orphan:`,
+          error,
+        );
+        return false;
+      }
+    }
+    const secretName = sessionSecretNameFor(sessionId);
+    const secret = await this.readSessionSecret(sessionId);
+    if (secret === null) return false;
+    if (secret === undefined) return true;
+    const uid = secret.metadata?.uid;
+    const created = secret.metadata?.creationTimestamp;
+    const ageMs =
+      created === undefined
+        ? Number.NaN
+        : Date.now() - new Date(created).getTime();
+    if (
+      !uid ||
+      !Number.isFinite(ageMs) ||
+      ageMs < this.cfg.session.createHealthTimeoutMs + ORPHAN_SECRET_SLACK_MS
+    ) {
+      return false;
+    }
+    try {
+      await this.client.core.deleteNamespacedSecret(
+        {
+          name: secretName,
+          namespace: this.cfg.k8s.namespace,
+          body: { preconditions: { uid } },
+        },
+        apiTimeout(),
+      );
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) throw error;
+    }
+    console.warn(
+      `[sandbox.session] removed ${sessionId}'s orphaned secret (its pod was deleted outside the spawner)`,
+    );
+    return true;
   }
 
   /** Remove ONLY the per-session Secret this create made (a Pod-name 409

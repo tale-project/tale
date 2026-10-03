@@ -49,8 +49,18 @@ read node capacity or the metrics API, and the spawner Pod's own resources
 would not describe the cluster.
 
 **Resource bounds:** the runner container enforces the profile's cpu/memory
-limits; the workspace PVC is sized by `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`
-(default `4Gi`), which under DinD also bounds the inner-docker `emptyDir`.
+limits and requests its typical working set rather than its ceiling: an agent
+Pod `250m` / `512Mi` (`1Gi` under DinD), a crawler render `250m` / `512Mi`,
+overridable for every Pod by `SANDBOX_K8S_CPU_REQUEST` /
+`SANDBOX_K8S_MEMORY_REQUEST` and never above the limit (an idle session uses
+~60 MB; the old flat `500m` / `1Gi` capped a node's sessions by CPU they
+never used). The transparent-egress sidecar requests `10m` / `16Mi` (limit
+`250m` / `64Mi`), so a namespace ResourceQuota admits the Pod. The workspace
+PVC of an agent session is sized by `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`
+(default `4Gi`), which under DinD also bounds the inner-docker `emptyDir`; a
+crawler render, never resumed, gets a sized `emptyDir` instead of a PVC.
+`fsGroupChangePolicy: OnRootMismatch` keeps the kubelet from re-chowning a
+whole workspace on every resume.
 `SANDBOX_RUNTIME` selects the RuntimeClass per tier (gVisor / sysbox / kata;
 runc omits the field). DinD is an agent-profile capability:
 a `default`-profile Pod (run_code, crawler renders) stays fully
@@ -110,6 +120,7 @@ stream. Keep it out so a stray exec call fails closed.
 | `NODE_EXTRA_CA_CERTS`                                             | in-cluster | Point at the SA `ca.crt` (`/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`). **This is the only working CA-trust mechanism under Bun** — see [Bun TLS note](#bun-tls-contract) below. |
 | `SANDBOX_RUNTIME`                                                 | optional   | Runtime tier (`runc` default, `gvisor`/`runsc`, `sysbox`, `kata`); sets the Pod `runtimeClassName`, overridable via `SANDBOX_RUNTIME_CLASS` for a non-runc tier.                            |
 | `SANDBOX_DIND_INNER_POOL` | optional | Canonical RFC1918 IPv4 `/16` for the agent's inner Docker daemon. Unset selects automatically; configure a range outside the cluster's Pod, Service and VPC CIDRs. Known overlap remains an error. See [Inner Docker networking](#inner-docker-networking). |
+| `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST`          | optional   | What every session Pod requests (K8s quantities), overriding the per-profile defaults; clamped to the Pod's limit. A malformed value fails the spawner at boot. |
 | `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | Size of the per-session `/agent` workspace PVC (default `4Gi`) and, under DinD, the `sizeLimit` of the inner-docker `emptyDir`. Bounds deps + temp + outputs.                                |
 | `SANDBOX_K8S_CACHE_STORAGECLASS`                                  | optional   | StorageClass for the workspace PVCs (`ReadWriteOnce`). Unset ⇒ the cluster default. On a multi-node cluster use a class whose volumes can re-bind where a resume Pod schedules.               |
 | `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` (default `http://sandbox-egress:3128`); also what the transparent-egress sidecar tunnels to.                                                         |

@@ -58,8 +58,11 @@ export async function readDockerMetadata(
   return result;
 }
 
-async function inspect(args: string[]): Promise<string | null> {
-  const result = await readDockerMetadata(args);
+async function inspect(
+  args: string[],
+  options: Parameters<typeof runDocker>[1] = {},
+): Promise<string | null> {
+  const result = await readDockerMetadata(args, options);
   if (result.exitCode === 0) return result.stdout.trim();
   if (
     /no such (?:network|volume|object|container)|not found/i.test(result.stderr)
@@ -224,6 +227,14 @@ export async function listBuildkitOrganizations(): Promise<string[]> {
   return [...organizations];
 }
 
+/** A container's `State.FinishedAt` as a time, or undefined for one that
+ * never stopped (Docker reports the zero time `0001-01-01T00:00:00Z`). */
+function stoppedAtMs(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && ms > 0 ? ms : undefined;
+}
+
 /** A daemon/mirror may listen only on its own organization network, without
  * published ports. A name match alone is insufficient evidence of ownership. */
 export async function inspectBuildkitContainer(
@@ -231,12 +242,36 @@ export async function inspectBuildkitContainer(
   organizationId: string,
   network: string,
 ): Promise<'running' | 'stopped' | null> {
-  const raw = await inspect([
-    'inspect',
-    '--format',
-    '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}}}',
-    name,
-  ]);
+  const helper = await inspectBuildkitHelper(name, organizationId, network);
+  if (helper === null) return null;
+  return helper.running ? 'running' : 'stopped';
+}
+
+/** {@link inspectBuildkitContainer}, with the stamp of how the helper was
+ * launched (its `tale.helper-config` label; absent on one from before it) and
+ * the id of the image it runs. */
+export async function inspectBuildkitHelper(
+  name: string,
+  organizationId: string,
+  network: string,
+): Promise<{
+  running: boolean;
+  stamp: string | undefined;
+  image: string | undefined;
+  /** When it last stopped; undefined when it never has, or cannot tell. */
+  finishedAtMs: number | undefined;
+} | null> {
+  // A short call: a create must not lose its build cache to a burst of
+  // creates holding every shared docker CLI slot.
+  const raw = await inspect(
+    [
+      'inspect',
+      '--format',
+      '{"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}},"running":{{json .State.Running}},"image":{{json .Image}},"finishedAt":{{json .State.FinishedAt}}}',
+      name,
+    ],
+    { priority: true },
+  );
   if (raw === null) return null;
   const data = parsedObject(raw);
   assertOwner(data.labels, organizationId, name);
@@ -251,7 +286,13 @@ export async function inspectBuildkitContainer(
   if (typeof data.running !== 'boolean') {
     throw new Error(`buildkitd: invalid container state for ${name}`);
   }
-  return data.running ? 'running' : 'stopped';
+  const stamp = object(data.labels)['tale.helper-config'];
+  return {
+    running: data.running,
+    stamp: typeof stamp === 'string' ? stamp : undefined,
+    image: typeof data.image === 'string' ? data.image : undefined,
+    finishedAtMs: stoppedAtMs(data.finishedAt),
+  };
 }
 
 async function egressContainer(

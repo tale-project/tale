@@ -6,10 +6,16 @@
 // ReadableStream API drift along with the cap semantics.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
+  DOCKER_CLI_CONCURRENCY,
+  DOCKER_CLI_PRIORITY_CONCURRENCY,
   IMAGE_PULL_TIMEOUT_MS,
   RUN_DOCKER_DEFAULT_TIMEOUT_MS,
+  dockerCliLoad,
   ensureImage,
   resolveDockerTimeoutMs,
   runDocker,
@@ -159,5 +165,138 @@ describe('runDocker — default timeout', () => {
       { args: ['image', 'inspect', 'tale/runtime:test'], timeoutMs: undefined },
       { args: ['pull', 'tale/runtime:test'], timeoutMs: IMAGE_PULL_TIMEOUT_MS },
     ]);
+  });
+});
+
+describe('docker CLI concurrency', () => {
+  test('at most DOCKER_CLI_CONCURRENCY docker processes run at once; the rest wait their turn', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep 0.3\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      const calls = Array.from({ length: DOCKER_CLI_CONCURRENCY + 6 }, () =>
+        runDocker(['info']),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 6,
+      });
+      const results = await Promise.all(calls);
+      expect(results.every((result) => result.stdout.trim() === 'done')).toBe(
+        true,
+      );
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a call that waits past its budget for a slot answers as a timeout', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep "$2"\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      // Long pulls hold every slot.
+      const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+        runDocker(['pull', '1.5'], { timeoutMs: 10_000 }),
+      );
+      const startedAtMs = Date.now();
+      const probe = await runDocker(['inspect', '0'], { timeoutMs: 300 });
+      expect(probe.exitCode).toBe(124);
+      expect(probe.noSlot).toBe(true);
+      expect(Date.now() - startedAtMs).toBeLessThan(1_000);
+      expect(dockerCliLoad().waiting).toBe(0);
+      // A call whose wait used part of its budget runs on what is left.
+      const late = runDocker(['inspect', '1'], { timeoutMs: 1_800 });
+      expect((await late).exitCode).toBe(124);
+      const results = await Promise.all(holders);
+      expect(results.every((result) => result.exitCode === 0)).toBe(true);
+      expect(results.some((result) => result.noSlot === true)).toBe(false);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a short call never queues behind long ones holding every shared slot', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep "$2"\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+        runDocker(['pull', '3'], { timeoutMs: 10_000 }),
+      );
+      // Queued behind them, an ordinary call waits for the first to end.
+      const queued = runDocker(['inspect', '0'], { timeoutMs: 10_000 });
+      const short = await runDocker(['inspect', '0'], {
+        timeoutMs: 2_000,
+        priority: true,
+      });
+      // It ran, and ended while every shared slot was still held and the
+      // ordinary call still waited.
+      expect(short.exitCode).toBe(0);
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 1,
+      });
+      await Promise.all([...holders, queued]);
+      expect(dockerCliLoad('priority')).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 10_000);
+
+  test('short calls take a free shared slot first, and their own lane is bounded too', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const bin = join(dir, 'docker');
+    await writeFile(bin, '#!/bin/sh\nsleep "$2"\necho done\n');
+    await chmod(bin, 0o755);
+    const previous = process.env.DOCKER_BIN;
+    process.env.DOCKER_BIN = bin;
+    try {
+      const calls = Array.from(
+        { length: DOCKER_CLI_CONCURRENCY + DOCKER_CLI_PRIORITY_CONCURRENCY },
+        () =>
+          runDocker(['inspect', '1'], { timeoutMs: 10_000, priority: true }),
+      );
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 0,
+      });
+      expect(dockerCliLoad('priority')).toEqual({
+        running: DOCKER_CLI_PRIORITY_CONCURRENCY,
+        waiting: 0,
+      });
+      const late = await runDocker(['inspect', '0'], {
+        timeoutMs: 300,
+        priority: true,
+      });
+      expect(late.exitCode).toBe(124);
+      expect(late.noSlot).toBe(true);
+      const results = await Promise.all(calls);
+      expect(results.every((result) => result.exitCode === 0)).toBe(true);
+      expect(dockerCliLoad()).toEqual({ running: 0, waiting: 0 });
+      expect(dockerCliLoad('priority')).toEqual({ running: 0, waiting: 0 });
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

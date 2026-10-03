@@ -17,7 +17,8 @@ image; the only thing that varies is _when the session is destroyed_:
 Per-org fairness is the governance `sandbox_quota` policy (separate project-agent,
 workflow and render budgets, default 2 each). Their total is derived, and saving
 the policy requires that total to fit the current deployment capacity,
-`SANDBOX_MAX_SESSIONS` (default 8), plus the slots of the organization's
+`SANDBOX_MAX_SESSIONS` (sized from host memory on a local Docker host when
+unset, at least 8; 8 elsewhere), plus the slots of the organization's
 connected [devices](devices.md). There is no independent organization runtime
 ceiling. Concurrent executions of the same workflow each own a separate session;
 agent and script nodes within one execution share that session.
@@ -53,9 +54,50 @@ always verifies; there is no unsigned mode.
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions
-(`SessionRoutes.adoptExisting`); a periodic reaper (`sweepExpired`) **stops**
-sessions past their TTL (registry check) or idle timeout (runnerd `/healthz`
-`lastActivityAtMs`).
+(`SessionRoutes.adoptExisting`); a maintenance pass every minute
+(`SessionRoutes.maintain`: adoption, then the reaper `sweepExpired`; a pass
+still running is joined, never stacked) **stops**:
+
+- sessions past their TTL (registry check) or idle timeout (runnerd `/healthz`
+  `lastActivityAtMs`);
+- a **released** session — one the platform released after its turn or run
+  settled, with no work holding it — once it has been idle for
+  `SANDBOX_SESSION_RELEASED_IDLE_MS` (5 minutes by default), through runnerd's
+  atomic claim, so a turn that acquires it meanwhile keeps it. A resume costs
+  well under a second on a warm image, so holding the slot and the memory of an
+  idle session for the full idle window bought little. Agent sessions with
+  Docker inside keep the full window: their resume starts the inner daemon on
+  an empty image store;
+- a running session whose runnerd has not answered five sweeps in a row (a
+  wedged daemon used to hold its slot and limits until the 24 h TTL); a sweep
+  that cannot probe it — pinned, or an exec running through this spawner —
+  starts the count over;
+- compute whose process ended for good — a container exited or dead after a
+  host reboot or an OOM-killed init, a Pod Failed or evicted — which adoption
+  never registers and which used to stay (with, on Docker, its inner image
+  volume) until a resume or a destroy. Their removal runs beside the API,
+  eight at a time: after a host reboot every session container has ended.
+  A create of an id whose ended compute is still being removed — the
+  platform resuming it at once — waits for that removal, up to 30 seconds
+  (else it answers 429 busy and the caller retries): past the fenced
+  container removal, the removal's steps are keyed by the session's name
+  (the inner image volume, the pin marker) and would otherwise remove what
+  the new container uses. The removal
+  belongs to the ended incarnation: it never holds up an acquire of a
+  session registered under the id, nor counts as that session's stop.
+
+Every such stop is fenced to the incarnation the registry or listing
+describes, and keeps the workspace. The pass probes at most eight daemons at a
+time, so a few hung ones bound it rather than the sum of every probe.
+
+The build-cache upkeep — the reconcile for the organizations whose agent
+sessions adoption just registered, the retirement of legacy helpers and the
+stop of idle ones — is a background job of its own: a pass starts it, or joins
+the one under way, and never waits for it. A release that changes the helpers'
+image makes every organization's helpers drifted, and recreating them takes
+seconds per organization, one organization after another; the sweep goes on
+every minute meanwhile. Organizations adopted while the job runs are
+reconciled by a run right after it.
 
 ### Capacity and idle reclamation
 
@@ -76,12 +118,24 @@ that belong to work before a reacquire.
 
 When admission reaches deployment capacity, runnerd can atomically freeze a
 released, unpinned session only if no request, file operation, staging operation
-or exec is in flight. The freeze blocks new work while the spawner removes
+or exec is in flight. The candidates are tried idle-longest first, and each
+create at capacity claims a session of its own: a burst of creates meeting a
+fleet of released sessions is admitted at once instead of one per retry. The freeze blocks new work while the spawner removes
 compute through `stopSession`, preserving the workspace. Busy, unresponsive and
 older daemons without this protocol are ineligible. The reclaim runs outside
 the admission lock — creates that still have room never queue behind a probe
 or a backend stop — and a daemon that fails its probe is skipped for a short
-back-off instead of costing every create at capacity a health timeout. A stop
+back-off instead of costing every create at capacity a health timeout. Nearly
+every running turn is a candidate by the spawner's own count (the platform
+ends each exec stream at its drain window and follows the turn by attach), so
+the walk spares the busy ones: a daemon that answered, to a reclaim probe or
+to the sweep's, that its session cannot be reclaimed (held by a turn, working,
+pinned, or too old for the claim), or whose session a turn acquired through
+this spawner, is not asked again for 15 seconds unless the platform releases
+that session through this spawner; a walk probes at most eight daemons, the
+sessions last seen released first, then idle-longest first; and for three
+seconds after a walk that found nothing, the creates refused at capacity are
+answered at once. A stop
 failure retains occupied capacity and the frozen gate until a retry succeeds;
 it does not unfreeze work under a pending stop. Once runnerd has acknowledged
 the claim, the retry (the next sweep, or the next acquire for that session,
@@ -94,6 +148,48 @@ Role grants) and waits for the original Pod to disappear before admitting a
 replacement. A different incarnation found under the name is never counted as
 freed. An acquire for a session whose create is still in flight waits for
 that create (bounded) rather than answering a false not-found.
+
+Where the spawner can read the Docker host's memory (the local socket, the
+same kernel and total as the daemon reports), admission also holds every
+create to the host's free memory: with each create still starting counted at
+its planned working set (agent 512 MiB, with Docker inside 1.5 GiB, crawler
+render 512 MiB), and each session started in the last 90 seconds at the part
+of it a linear decay leaves (its turn is still growing into it while
+MemAvailable shows only the idle footprint), the host must keep
+`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB). Short of it,
+the create reclaims a released idle session like one at capacity, then
+answers 429 `host_memory`. The decision is taken under the
+admission lock from a reading the probe refreshes every second, so a burst
+sees each create admitted before it. Unknown memory never refuses a create,
+and the check cannot stop sessions already running from growing past it.
+
+On the Docker backend, admission also keeps a floor of free space on the disk
+the workspaces live on — the session root, read with `statfs` every five
+seconds (`host-disk.ts`): `SANDBOX_MIN_FREE_DISK`, a twentieth of the disk,
+at least 2 GiB and at most 20 GiB (`0` turns it off). Below it every create
+answers 429 `host_disk`; no idle session is reclaimed for it, since a stopped
+session keeps its workspace. The spawner logs the disk going below its floor
+and coming back. Meanwhile each build-cache upkeep removes the helpers and
+caches of organizations whose helpers are all stopped and that no session or
+create may use, the longest-stopped first, at most three a run and only while
+the disk stays short; a removal that frees nothing on that disk (the caches
+live on another one) pauses the removals for six hours.
+
+**Room goes first come, first served.** A create refused for room (429
+`session_quota`, `host_memory` or `host_disk`) waits in a line, by session id, in the
+order of its first refusal; asking again keeps its place. Room that frees
+next is the oldest waiters': a create gets in ahead of them only where there
+is a free slot for each of them as well, and memory for their planned
+working sets beside its own (a waiter whose working set this host could
+never fit beside its reserve holds no memory). The refusal says where the create stands —
+`queue: { position, waiting }` in the body — and when that place comes up:
+`retry-after` is 5 s for the front and 5 s more per place behind it, up to
+60 s, so a waiter that comes back when told is first when room frees, and
+one that asks rarely no longer loses to every one that asks often. A waiter
+that stops asking (twice its hint and 15 s more without a word) gives its
+place up, a destroy of the id takes it out, and the line keeps at most
+10,000 waiters. It lives in the spawner's memory: a restart starts it
+afresh, and each Kubernetes replica keeps its own.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
 enforce the shared namespace count on a best-effort basis; use ResourceQuota
@@ -113,7 +209,8 @@ continue (the platform keeps the same incarnation `createdAt`). Only
 (management page) and by the platform's [workspace cleanup](#workspace-cleanup);
 `evictIfBackendGone` evicts a stale registry entry without touching the
 workspace. Pinned ("always-on") and live-exec sessions are exempt from the
-reaper entirely.
+reaper entirely, except that compute which has already ended is removed (the
+pin's own reconcile recreates a pinned session).
 
 A destroy does not wait for the workspace's data to go. On Docker, once the
 container is confirmed gone, the `ses-<id>` dir is renamed into
@@ -265,7 +362,9 @@ initContainer / harvest sidecar. `automountServiceAccountToken: false`,
 readiness probe on the unauthenticated `/readyz`, per-session Secret
 (`<pod>-spec`) carrying the runnerd token + seed env via `envFrom`.
 
-The workspace is a **per-session PVC** (`<pod>-ws`, `ReadWriteOnce`, sized by
+A crawler render (the `default` profile) is created for one batch and
+destroyed after it, so its workspace is a sized `emptyDir`; an agent
+session's workspace is a **per-session PVC** (`<pod>-ws`, `ReadWriteOnce`, sized by
 `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, storage class from
 `SANDBOX_K8S_CACHE_STORAGECLASS`), `ensure`d before the Pod (read-before-create,
 409-tolerant so a concurrent create on a peer replica wins cleanly). It is the durable home

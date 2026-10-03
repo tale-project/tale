@@ -73,6 +73,7 @@ import {
   SessionIncarnationChangedError,
   type BackendSession,
   type BackendWorkspace,
+  type BuildCacheUpkeep,
   type CreateSessionResult,
   type OrganizationTeardownResult,
   type SessionBackend,
@@ -470,15 +471,19 @@ export class DockerSessionBackend implements SessionBackend {
     containerName: string,
     opts: { baseUrl: string; token: string },
     deadlineMs: number,
-    pollIntervalMs = 500,
+    // runnerd answers ~0.3 s after `docker run`: a short poll keeps that
+    // from becoming half a second more per create, and the container is
+    // inspected for an early exit only every fifth miss.
+    pollIntervalMs = 100,
   ): Promise<void> {
     const start = Date.now();
-    for (;;) {
+    for (let miss = 1; ; miss += 1) {
       try {
         await runnerdHealth(opts);
         return;
       } catch {
-        const status = await this.containerStatus(containerName);
+        const status =
+          miss % 5 === 0 ? await this.containerStatus(containerName) : null;
         if (status !== null && isReapableContainerStatus(status)) {
           const logs = await runDocker(
             ['logs', '--tail', '10', containerName],
@@ -508,7 +513,7 @@ export class DockerSessionBackend implements SessionBackend {
     const containerName = sessionContainerName(sessionId);
     const inspect = await runDocker(
       ['inspect', '--format', '{{.State.Running}}', containerName],
-      { timeoutMs: 5_000 },
+      { timeoutMs: 5_000, priority: true },
     );
     if (inspect.exitCode === 0) return inspect.stdout.trim() === 'true';
     // Only a definitive "the object is gone" answer may return false; any
@@ -570,10 +575,14 @@ export class DockerSessionBackend implements SessionBackend {
         [
           'inspect',
           '--format',
-          '{{.Id}}\t{{index .Config.Labels "tale.created"}}',
+          // `with`: a missing label prints nothing; a bare `index` prints
+          // `<no value>`.
+          '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
           containerName,
         ],
-        { timeoutMs: 5_000 },
+        // Short calls: a stop must not miss its fence behind a burst of
+        // creates holding every shared docker CLI slot.
+        { timeoutMs: 5_000, priority: true },
       );
       if (observed.exitCode !== 0) {
         if (isDockerNoSuchObject(observed.stderr)) return false;
@@ -602,7 +611,7 @@ export class DockerSessionBackend implements SessionBackend {
     try {
       const inspect = await runDocker(
         ['inspect', '--format', '{{.Id}}', containerName],
-        { timeoutMs: 5_000 },
+        { timeoutMs: 5_000, priority: true },
       );
       existed = inspect.exitCode === 0;
     } catch {
@@ -668,11 +677,19 @@ export class DockerSessionBackend implements SessionBackend {
 
   private async removeDindVolume(sessionId: string): Promise<void> {
     const name = this.dindStorageVolumeName(sessionId);
-    await runDocker(['volume', 'rm', '--force', name], {
+    // runDocker resolves on a failed command too: read the exit, or a refused
+    // or timed-out removal leaves a multi-GB inner image store unnoticed.
+    const removal = await runDocker(['volume', 'rm', '--force', name], {
       timeoutMs: 10_000,
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       console.warn(`[sandbox.session] dind volume rm ${name} failed:`, err);
+      return null;
     });
+    if (removal !== null && removal.exitCode !== 0) {
+      console.warn(
+        `[sandbox.session] dind volume rm ${name} failed (exit ${removal.exitCode}): ${removal.stderr.trim() || 'no output'}`,
+      );
+    }
   }
 
   async destroySession(sessionId: string): Promise<boolean> {
@@ -960,19 +977,24 @@ export class DockerSessionBackend implements SessionBackend {
    * flag (no daemon otherwise); per-org best-effort — the cache is an
    * optimization, so a failure is logged, never thrown.
    */
-  async reconcileBuildCache(orgIds: readonly string[]): Promise<void> {
+  async reconcileBuildCache(
+    orgIds: readonly string[],
+    upkeep: BuildCacheUpkeep = {},
+  ): Promise<void> {
     await retireLegacyBuildkitd().catch((error: unknown) => {
       console.warn(
         '[sandbox.session] legacy build-cache retirement deferred:',
         error,
       );
     });
-    await sweepIdleBuildkitd(this.cfg).catch((error: unknown) => {
-      console.warn(
-        '[sandbox.session] idle build-cache cleanup deferred:',
-        error,
-      );
-    });
+    await sweepIdleBuildkitd(this.cfg, Date.now(), upkeep).catch(
+      (error: unknown) => {
+        console.warn(
+          '[sandbox.session] idle build-cache cleanup deferred:',
+          error,
+        );
+      },
+    );
     if (!(this.cfg.dockerInContainer && this.cfg.dockerBuildCache)) return;
     for (const organizationId of new Set(orgIds)) {
       try {

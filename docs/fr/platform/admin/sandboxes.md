@@ -55,7 +55,7 @@ Les Propriétaires et Admins peuvent examiner les espaces de travail. Chaque lig
 
 Les dépenses additionnent le coût mesuré des échanges terminés. Un échange en cours est ajouté lorsqu’il se termine. Les environnements temporaires du crawler comptent dans la capacité même sans ligne d’espace de travail permanent.
 
-Si le déploiement est plein, Tale peut récupérer un environnement inactif non épinglé, dont l’allocation est libérée et qui confirme n’avoir aucun travail en cours. Ses fichiers persistants restent disponibles au prochain démarrage. Les environnements occupés, épinglés ou sans réponse sont exclus. Sans candidat approprié, le nouveau travail doit attendre de la capacité.
+Si le déploiement est plein, Tale peut récupérer un environnement inactif non épinglé, dont l’allocation est libérée et qui confirme n’avoir aucun travail en cours. Ses fichiers persistants restent disponibles au prochain démarrage. Les environnements occupés, épinglés ou sans réponse sont exclus. Sans candidat approprié, le nouveau travail doit attendre de la capacité. Un environnement dont la tâche ou l’exécution est terminée s’arrête après quelques minutes d’inactivité, si bien que sa place se libère peu après la fin du travail. Un environnement d’agent qui fait tourner Docker garde tout son délai d’inactivité, pour que le tour suivant n’ait pas à retélécharger ses images.
 
 ## Gérer un espace de travail existant
 

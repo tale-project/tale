@@ -91,9 +91,13 @@ LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
 
+# Bun caps fetch at 256 requests in flight by default, and every live exec
+# and attach stream holds one to its runnerd for its whole life: past 256 the
+# health probes, creates and cancels behind them queue until they time out.
 ENV TALE_VERSION=${VERSION} \
     SANDBOX_PORT=8003 \
-    DO_NOT_TRACK=1
+    DO_NOT_TRACK=1 \
+    BUN_CONFIG_MAX_HTTP_REQUESTS=1024
 
 EXPOSE 8003
 
