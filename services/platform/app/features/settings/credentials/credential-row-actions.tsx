@@ -10,6 +10,7 @@ import { useToast } from '@tale/ui/use-toast';
 import { KeyRound, Pencil, Power, Star, Trash2 } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import {
   type CredentialAdapter,
@@ -122,6 +123,10 @@ export function CredentialRowActions<
       toast({ title: t('credentials.deletedToast') });
       dialogs.setOpen.delete(false);
     } catch (err) {
+      if (backendErrorCode(err) === 'CREDENTIAL_NOT_FOUND') {
+        dialogs.setOpen.delete(false);
+        return;
+      }
       console.error(`${adapter.logTag}: delete credential failed`, err);
       toast({
         title: t('credentials.deleteFailed', {
