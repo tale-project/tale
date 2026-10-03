@@ -114,6 +114,16 @@ export class PlacementStore {
     await this.persist();
   }
 
+  /** The destroyed sessions whose bytes their devices have not confirmed
+   * gone. */
+  deleting(): Array<{ sessionId: string; deviceId: string }> {
+    const out: Array<{ sessionId: string; deviceId: string }> = [];
+    for (const [sessionId, p] of this.placements) {
+      if (p.deleting === true) out.push({ sessionId, deviceId: p.deviceId });
+    }
+    return out;
+  }
+
   /** Keep a destroyed session's route to its device until the device
    * confirms the workspace's bytes are gone. */
   async markDeleting(sessionId: string): Promise<void> {

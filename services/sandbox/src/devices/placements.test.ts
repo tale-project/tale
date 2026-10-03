@@ -60,6 +60,7 @@ describe('PlacementStore', () => {
     });
     expect(again.get('missing')).toBeUndefined();
     expect(again.forOrganization('o')).toEqual([]);
+    expect(again.deleting()).toEqual([{ sessionId: 'pa-1', deviceId: 'd1' }]);
   });
 
   test('an unreadable file is moved aside, not trusted and not fatal', async () => {

@@ -86,9 +86,19 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   answer says nothing about the bytes — keeps the placement, marked deleting
   in `placements.json`: no session lives there (the capacity overlay leaves it
   out), but the platform's next destroy of the id, an erasure's Retry
-  included, still reaches the device that holds them. A fresh create under the
-  id goes back to that device while it is connected with room, and is placed
-  anew otherwise, letting go of that route.
+  included, still reaches the device that holds them. Nobody has to ask again
+  for the route to end: on its 30 s sweep the hub itself asks each connected,
+  compatible device about such a placement, at most every 5 minutes and 8 a
+  sweep, with the cleanup's conditional destroy
+  (`?if_idle=1&if_stopped=1&await_deletion=1` — with no session under the id
+  it only reads the trash and has it attempted again; with a create or compute
+  under way it answers busy and touches nothing), and lets the placement go on
+  `done`. A route therefore lasts exactly as long as the bytes it leads to; a
+  device older than the contract keeps its entries until it updates. A fresh
+  create under the id is placed like any other create, with every fallback,
+  but tries that device first; placed anywhere else, the route to the old
+  bytes is let go. A hub from before this contract reads a deleting entry as a
+  live placement.
 - Only placements the hub made route anywhere: a device's report of what it
   holds never claims a session id (another organization's included), and the
   capacity overlay only shows reported sessions the hub placed there. If the

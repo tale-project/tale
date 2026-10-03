@@ -683,6 +683,24 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect((await pending).status).toBe(201);
     });
 
+    test('a destroy whose deletion state cannot be read answers pending, never done', async () => {
+      const unreadable: SessionBackend = {
+        ...fakeBackend,
+        async workspaceDeletion() {
+          throw new Error('EACCES: permission denied, scandir');
+        },
+      };
+      const routes = new SessionRoutes(cfg, unreadable);
+      const res = await routes.handleDestroy('unknown-trash', {
+        awaitDeletion: true,
+      });
+      expect(await res.json()).toEqual({
+        destroyed: false,
+        busy: false,
+        deletion: 'pending',
+      });
+    });
+
     test('a failed in-flight create releases its quota share', async () => {
       const failing: SessionBackend = {
         ...fakeBackend,

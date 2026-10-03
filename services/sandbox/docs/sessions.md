@@ -329,10 +329,12 @@ background — and the platform reads it as unconfirmed, never as done.
 The device hub keeps a destroyed session's placement, marked deleting, until
 its device answers `done`: while the device is still deleting (`pending`,
 `failed`), or is too old to say, the destroy that asks again reaches the device
-holding the bytes rather than the hub's own backend. Such a placement is no
-session — the capacity view leaves it out — and a fresh session under the id
-goes back to that device while it can take one, or is placed anew when it
-cannot, so a new session never waits on an old workspace's bytes.
+holding the bytes rather than the hub's own backend. The hub asks again itself,
+every 5 minutes per placement, so a placement ends once its bytes are gone even
+when nothing destroys or creates the id again (a run's reclaim never does).
+Such a placement is no session — the capacity view leaves it out — and a fresh
+session under the id is placed like any other, trying that device first, so a
+new session never waits on an old workspace's bytes.
 
 ### Workspace cleanup
 
