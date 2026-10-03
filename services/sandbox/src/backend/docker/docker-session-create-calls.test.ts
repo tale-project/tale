@@ -19,8 +19,13 @@ const success = {exitCode:0, stdout:'', stderr:'', stdoutTruncated:false, stderr
 let calls = [];
 const spawnPath = join(source,'spawn-util.ts');
 const realSpawn = await import(spawnPath);
+// Every cache volume is there, with its label.
+const labelled = {...success, stdout:'{"tale.sandbox-cache":"1"}'};
 mock.module(spawnPath, () => ({...realSpawn,
-  runDocker: async (args) => { calls.push(args); return success; },
+  runDocker: async (args) => {
+    calls.push(args);
+    return args[0] === 'volume' && args[1] === 'inspect' ? labelled : success;
+  },
 }));
 mock.module(join(source,'session/runnerd-client.ts'), () => ({
   runnerdHealth: async () => ({}),
