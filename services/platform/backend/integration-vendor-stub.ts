@@ -295,6 +295,16 @@ export interface VendorRouteOptions {
   readonly onOffBox: (request: OffBoxRequest) => void;
 }
 
+/** The abort signal a fetch call carries: its init's (`null` too), else
+ * the signal of the Request it was given. */
+function callerSignal(
+  input: Parameters<typeof globalThis.fetch>[0],
+  init: RequestInit | undefined,
+): AbortSignal | null {
+  if (init?.signal !== undefined) return init.signal;
+  return input instanceof Request ? input.signal : null;
+}
+
 /** What fetch asks of the dispatcher it is given. */
 type FetchDispatcher = Pick<Dispatcher, 'dispatch'> & {
   readonly isMockActive: boolean;
@@ -317,8 +327,8 @@ type FetchDispatcher = Pick<Dispatcher, 'dispatch'> & {
  *    whatever the host would have answered — the lane's verdict never
  *    depends on it.
  *
- * Methods, bodies, headers, redirect modes and the response, clones
- * included, stay fetch's own. A `data:` or `blob:` URL never reaches a
+ * Methods, bodies, headers, redirect modes, the caller's abort signal and
+ * the response, clones included, stay fetch's own. A `data:` or `blob:` URL never reaches a
  * dispatcher. A dispatcher a Request carries itself (none in the codebase)
  * gives way to the global one. Like `fetch` it answers a bad input with a
  * rejected promise, never a throw.
@@ -378,6 +388,14 @@ export function routeVendorFetch(
       // what fetch would have sent.
       referrer: request.referrer,
       referrerPolicy: request.referrerPolicy,
+      // The caller's own signal, never `request.signal`: undici makes a
+      // request's signal follow the one it was built from through a weak
+      // reference to an AbortController that only that request holds, and
+      // nothing holds `request` once fetch has answered (fetch keeps its OWN
+      // request alive, nodejs/undici#4627). A collection in between and the
+      // caller's abort never reached the connection: a closed `/events`
+      // tail went on reading heartbeats, and its lane waited forever (#4112).
+      signal: callerSignal(input, init),
     };
     return realFetch(request, gated);
   };
