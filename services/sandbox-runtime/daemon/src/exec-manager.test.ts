@@ -10,6 +10,7 @@ import {
   closeSync,
   constants,
   existsSync,
+  fstatSync,
   mkdirSync,
   mkdtempSync,
   openSync,
@@ -21,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { PassThrough } from 'node:stream';
 
 import { EnvStore } from './env-store.ts';
+import { ExecJournal, JournalBudget } from './exec-journal.ts';
 import { ExecManager, isStdinWritable } from './exec-manager.ts';
 import { pendingProcReads } from './process-reaper.ts';
 import type { RunnerdExecEvent, RunnerdExecRequest } from './protocol.ts';
@@ -110,7 +112,7 @@ const base: Omit<RunnerdExecRequest, 'execId' | 'command' | 'shell' | 'cwd'> = {
 
 describe('ExecManager', () => {
   test('streams stdout in order, exits 0', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'e1', command: ['echo', 'hi'], cwd: ROOT },
@@ -123,7 +125,7 @@ describe('ExecManager', () => {
   });
 
   test('flushes all output before the terminal exit event (ordering contract)', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     // A large stdout burst immediately followed by exit: `cat` echoes the
     // piped payload then EOFs and exits. The close-based finalize must deliver
@@ -151,7 +153,7 @@ describe('ExecManager', () => {
   });
 
   test('exit durationMs is the runner-measured process wall-clock (spawn → drained exit)', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const beforeMs = Date.now();
     await mgr.run(
@@ -177,7 +179,7 @@ describe('ExecManager', () => {
   });
 
   test('shell form runs via bash -lc, propagates non-zero exit', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run({ ...base, execId: 'e2', shell: 'exit 3', cwd: ROOT }, emit);
     expect(events[events.length - 1]).toMatchObject({ t: 'exit', exitCode: 3 });
@@ -186,7 +188,7 @@ describe('ExecManager', () => {
   test('runs beforeSpawn ahead of every child (the built-in skill links)', async () => {
     let calls = 0;
     const marker = `${ROOT}/before-spawn-marker`;
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       () => {
@@ -206,7 +208,7 @@ describe('ExecManager', () => {
   });
 
   test('per-exec env overlay reaches the child; deny-list blocked', async () => {
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore({ SESSION_VAR: 'base' }),
       () => {},
     );
@@ -228,7 +230,7 @@ describe('ExecManager', () => {
   });
 
   test('reads prompt from stdinBase64', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       {
@@ -244,7 +246,7 @@ describe('ExecManager', () => {
   });
 
   test('rejects cwd outside the workspace root', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'e5', command: ['echo', 'x'], cwd: '/etc' },
@@ -254,7 +256,7 @@ describe('ExecManager', () => {
   });
 
   test('rejects when neither/both of command and shell given', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const both = collect();
     await mgr.run(
       { ...base, execId: 'e6', command: ['echo'], shell: 'echo', cwd: ROOT },
@@ -268,7 +270,7 @@ describe('ExecManager', () => {
   });
 
   test('invalid execId rejected', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'bad id!', command: ['echo', 'x'], cwd: ROOT },
@@ -278,7 +280,7 @@ describe('ExecManager', () => {
   });
 
   test('timeout kills the process group and flags timedOut', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'e8', timeoutMs: 200, shell: 'sleep 30', cwd: ROOT },
@@ -290,7 +292,7 @@ describe('ExecManager', () => {
   });
 
   test('cancel terminates a live exec', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'e9', shell: 'sleep 30', cwd: ROOT },
@@ -304,7 +306,7 @@ describe('ExecManager', () => {
   });
 
   test('an exec carries its id in the environment of every process', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'etag', shell: 'echo "$TALE_EXEC_ID"', cwd: ROOT },
@@ -314,7 +316,7 @@ describe('ExecManager', () => {
   });
 
   test('what an exec left running ends with it, and its exit is not held back', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     // The background sleep inherits stdout: before, it outlived the exec and
     // held the pipe, so the exit waited out the drain grace.
@@ -337,7 +339,7 @@ describe('ExecManager', () => {
   test.skipIf(!existsSync('/proc/self/environ'))(
     'a descendant in a session of its own is found by its tag and ended too',
     async () => {
-      const mgr = new ExecManager(new EnvStore(), () => {});
+      using mgr = new ExecManager(new EnvStore(), () => {});
       const { events, emit } = collect();
       await mgr.run(
         {
@@ -362,7 +364,7 @@ describe('ExecManager', () => {
   test.skipIf(!existsSync('/proc/self/environ'))(
     'what an exec left waiting in its group ends with the last exec, tag or not',
     async () => {
-      const mgr = new ExecManager(new EnvStore(), () => {});
+      using mgr = new ExecManager(new EnvStore(), () => {});
       const long = collect();
       const longDone = mgr.run(
         { ...base, execId: 'eulong', shell: 'sleep 30', cwd: ROOT },
@@ -397,7 +399,7 @@ describe('ExecManager', () => {
   test.skipIf(!existsSync('/proc/self/environ'))(
     'an untagged process in the group of an exec that ended alone still gets the SIGKILL',
     async () => {
-      const mgr = new ExecManager(new EnvStore(), () => {});
+      using mgr = new ExecManager(new EnvStore(), () => {});
       const { events, emit } = collect();
       await mgr.run(
         {
@@ -424,7 +426,7 @@ describe('ExecManager', () => {
   );
 
   test('a cancelled exec ends its background processes too', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const done = mgr.run(
       {
@@ -452,7 +454,7 @@ describe('ExecManager', () => {
 
   test('a cancel signals each process of the exec once', async () => {
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
+    using mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
       kill: (pid, signal) => {
         sent.push([pid, signal]);
         process.kill(pid, signal);
@@ -494,7 +496,7 @@ describe('ExecManager', () => {
     const sent: Array<[number, NodeJS.Signals]> = [];
     // The scan of tags, as without the subreaper shim: under it, a scan
     // reads no environment while every exec's shim runs.
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -533,7 +535,7 @@ describe('ExecManager', () => {
   });
 
   test('what an exec left running waits while another exec of the session runs', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const long = collect();
     const longDone = mgr.run(
       { ...base, execId: 'elong', shell: 'sleep 30', cwd: ROOT },
@@ -573,7 +575,7 @@ describe('ExecManager', () => {
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
     // Found by its tag alone: no shim of the exec's is its ancestor here.
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -633,7 +635,7 @@ describe('ExecManager', () => {
       '99993 (server) S 1 99993 99993 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4343 0 0\n',
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -680,7 +682,7 @@ describe('ExecManager', () => {
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
     // Found by its tag alone: no shim of the exec's is its ancestor here.
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -741,7 +743,7 @@ describe('ExecManager', () => {
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
     // Found by its tag alone: no shim of the exec's is its ancestor here.
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -785,7 +787,7 @@ describe('ExecManager', () => {
   test.skipIf(!existsSync('/proc/self/environ'))(
     'a server a turn started in a session of its own survives the turn’s rotation, until the next turn ends',
     async () => {
-      const mgr = new ExecManager(new EnvStore(), () => {});
+      using mgr = new ExecManager(new EnvStore(), () => {});
       const { events, emit } = collect();
       const done = mgr.run(
         {
@@ -812,7 +814,7 @@ describe('ExecManager', () => {
   );
 
   test('a daemon going down ends every live exec and what exited ones left', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const done = mgr.run(
       {
@@ -832,7 +834,7 @@ describe('ExecManager', () => {
   });
 
   test('a cancelled exec whose leader the scan cannot see still gets its SIGKILL', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     // A scrubbed environment carries no exec tag, and the leader ignores
     // SIGTERM: only the group SIGKILL ends it.
@@ -868,10 +870,18 @@ describe('ExecManager', () => {
   }, 15_000);
 
   test('a leftover that writes output keeps its pipes while another exec runs', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const long = collect();
     const longDone = mgr.run(
-      { ...base, execId: 'ewlong', shell: 'sleep 30', cwd: ROOT },
+      // This test needs an active peer, not its deadline; login-shell startup
+      // and the output-drain grace can consume the default five-second budget.
+      {
+        ...base,
+        timeoutMs: 30_000,
+        execId: 'ewlong',
+        shell: 'sleep 30',
+        cwd: ROOT,
+      },
       long.emit,
     );
     const short = collect();
@@ -905,7 +915,7 @@ describe('ExecManager', () => {
   }, 15_000);
 
   test('a cancel during the drain of an exec whose leftovers wait ends them at once', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const long = collect();
     const longDone = mgr.run(
       { ...base, execId: 'edlong', shell: 'sleep 30', cwd: ROOT },
@@ -936,7 +946,7 @@ describe('ExecManager', () => {
   }, 15_000);
 
   test('a daemon going down ends what exited execs left waiting, not only the live ones', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const long = collect();
     // Shrugs off SIGTERM: what it holds up must not wait for its SIGKILL.
     const longDone = mgr.run(
@@ -986,7 +996,7 @@ describe('ExecManager', () => {
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
     // Found by its tag alone: no shim of the exec's is its ancestor here.
-    const mgr = new ExecManager(
+    using mgr = new ExecManager(
       new EnvStore(),
       () => {},
       undefined,
@@ -1034,7 +1044,7 @@ describe('ExecManager', () => {
   }, 30_000);
 
   test('a consumer that goes away stops following and settles its attach at once', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'edrop', shell: 'sleep 30', cwd: ROOT },
@@ -1063,7 +1073,7 @@ describe('ExecManager', () => {
   });
 
   test('repeated disconnected consumers leave no abort listeners or live subscriptions', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const done = mgr.run(
       { ...base, execId: 'ereconnect', shell: 'sleep 30', cwd: ROOT },
       () => {},
@@ -1096,7 +1106,7 @@ describe('ExecManager', () => {
   });
 
   test('an exec finishing releases its attached consumers from their abort signals', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const done = mgr.run(
       { ...base, execId: 'eattachcleanup', shell: 'sleep 30', cwd: ROOT },
       () => {},
@@ -1113,14 +1123,14 @@ describe('ExecManager', () => {
     }
   });
 
-  test('attach replays the ring of a just-finished exec', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+  test('attach replays the journal of a just-finished exec', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     await mgr.run(
       { ...base, execId: 'e10', command: ['echo', 'replay-me'], cwd: ROOT },
       emit,
     );
-    // Exec already exited; attach replays from the retained ring.
+    // Exec already exited; attach replays from the retained journal.
     const replayed = collect();
     const stream = mgr.attach('e10', replayed.emit);
     expect(stream).not.toBeNull();
@@ -1130,7 +1140,7 @@ describe('ExecManager', () => {
   });
 
   test('attach to a live exec follows new events to exit', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'e11', shell: 'sleep 0.3; echo late', cwd: ROOT },
@@ -1147,12 +1157,12 @@ describe('ExecManager', () => {
   });
 
   test('attach to an unknown exec returns null', () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     expect(mgr.attach('nope', () => {})).toBeNull();
   });
 
   test('assigns a monotonic seq to every emitted event', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'eq1', command: ['echo', 'hi'], cwd: ROOT },
@@ -1165,7 +1175,7 @@ describe('ExecManager', () => {
   });
 
   test('attach(sinceSeq) replays only events newer than the cursor', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await mgr.run(
       { ...base, execId: 'eq2', command: ['echo', 'replay-me'], cwd: ROOT },
@@ -1177,15 +1187,226 @@ describe('ExecManager', () => {
     const replayed = collect();
     await mgr.attach('eq2', replayed.emit, cursor);
     expect(replayed.events.length).toBeGreaterThan(0);
-    expect(replayed.events.every((e) => (e.seq ?? 0) > cursor)).toBe(true);
+    expect(
+      replayed.events
+        .filter((e) => e.t !== 'replay-start' && e.t !== 'replay-complete')
+        .every((e) => (e.seq ?? 0) > cursor),
+    ).toBe(true);
     // The full replay (cursor 0) returns strictly more events.
     const all = collect();
     await mgr.attach('eq2', all.emit, 0);
     expect(all.events.length).toBeGreaterThan(replayed.events.length);
   });
 
+  test('the complete protocol survives diagnostic ring rollover and keeps its cursor', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    const original = collect();
+    await mgr.run(
+      {
+        ...base,
+        execId: 'journal-rollover',
+        command: [
+          process.execPath,
+          '-e',
+          "process.stdout.write('BEGIN\\n'+ 'x'.repeat(2*1024*1024)+'\\nEND\\n')",
+        ],
+        cwd: ROOT,
+        stdoutMaxBytes: 0,
+      },
+      original.emit,
+    );
+    const replay = collect();
+    await mgr.attach('journal-rollover', replay.emit);
+    expect(decode(replay.events, 'stdout')).toBe(
+      decode(original.events, 'stdout'),
+    );
+    expect(decode(replay.events, 'stdout')).toStartWith('BEGIN\n');
+    expect(replay.events[0]).toEqual({ t: 'replay-start' });
+    expect(replay.events.some((event) => event.t === 'replay-complete')).toBe(
+      true,
+    );
+    expect(replay.events.at(-1)?.t).toBe('exit');
+    const cursor = original.events[3]?.seq ?? 0;
+    const resumed = collect();
+    await mgr.attach('journal-rollover', resumed.emit, cursor);
+    expect(
+      resumed.events.filter(
+        (event) => event.t !== 'replay-start' && event.t !== 'replay-complete',
+      ),
+    ).toEqual(
+      original.events
+        .filter(
+          (event) =>
+            event.t !== 'replay-start' && event.t !== 'replay-complete',
+        )
+        .filter((event) => (event.seq ?? 0) > cursor),
+    );
+  });
+
+  test('an output limit is explicit and ends the writer, never a successful truncated replay', async () => {
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      { journalMaxBytes: 1024 },
+    );
+    const original = collect();
+    await mgr.run(
+      {
+        ...base,
+        execId: 'journal-limit',
+        command: [
+          process.execPath,
+          '-e',
+          "process.stdout.write('x'.repeat(65536));setInterval(()=>{},1000)",
+        ],
+        cwd: ROOT,
+        stdoutMaxBytes: 0,
+      },
+      original.emit,
+    );
+    expect(
+      original.events.some(
+        (event) => event.t === 'fail' && event.code === 'OUTPUT_LIMIT',
+      ),
+    ).toBe(true);
+    expect(mgr.status('journal-limit')).toEqual({
+      state: 'exited',
+      exitCode: -1,
+    });
+    const replay = collect();
+    await mgr.attach('journal-limit', replay.emit);
+    expect(replay.events).toMatchObject([
+      { t: 'replay-start' },
+      { t: 'fail', code: 'OUTPUT_LIMIT' },
+    ]);
+  });
+
+  test('completed journals evict under the session budget without losing exit status', async () => {
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      { journalBudgetBytes: 10_000 },
+    );
+    for (const execId of ['budget-old', 'budget-new'])
+      await mgr.run(
+        {
+          ...base,
+          execId,
+          command: [
+            process.execPath,
+            '-e',
+            "process.stdout.write('x'.repeat(4096))",
+          ],
+          cwd: ROOT,
+        },
+        () => {},
+      );
+    const replay = collect();
+    await mgr.attach('budget-old', replay.emit);
+    expect(replay.events).toMatchObject([
+      { t: 'replay-start' },
+      { t: 'fail', code: 'REPLAY_UNAVAILABLE' },
+    ]);
+    expect(mgr.status('budget-old')).toEqual({ state: 'exited', exitCode: 0 });
+    const newer = collect();
+    await mgr.attach('budget-new', newer.emit);
+    expect(decode(newer.events, 'stdout')).toHaveLength(4096);
+  });
+
+  test('eviction closes a stalled replay descriptor before reusing its disk budget', async () => {
+    const maxBytes = 40_000;
+    const budget = new JournalBudget(maxBytes);
+    const journals: ExecJournal[] = [];
+    const handles: unknown[] = [];
+    const replays: Promise<void>[] = [];
+    const failures: string[] = [];
+    const release = Promise.withResolvers<void>();
+    let finished = 0;
+    try {
+      for (let index = 0; index < 8; index += 1) {
+        const journal = new ExecJournal(
+          budget,
+          () => {},
+          (code) => failures.push(code),
+          maxBytes,
+        );
+        journals.push(journal);
+        journal.append(
+          `${JSON.stringify({ t: 'stdout', seq: 1, b64: 'x'.repeat(30_000) })}\n`,
+        );
+        await journal.drain();
+        journal.finish();
+        // Inspect the actual descriptors, not the budget's own counter: the
+        // regression released accounting while an unlinked file remained open.
+        const handle: unknown = await Reflect.get(journal, 'ready');
+        handles.push(handle);
+        const entered = Promise.withResolvers<void>();
+        replays.push(
+          journal
+            .replay(async (event) => {
+              if (event.t === 'stdout') {
+                entered.resolve();
+                await release.promise;
+              }
+            }, 0)
+            .then(() => {
+              finished += 1;
+              return undefined;
+            }),
+        );
+        await entered.promise;
+        let physicalBytes = 0;
+        for (const file of handles) {
+          if (typeof file !== 'object' || file === null)
+            throw new Error('missing journal handle');
+          const fd: unknown = Reflect.get(file, 'fd');
+          if (typeof fd !== 'number')
+            throw new Error('missing journal descriptor');
+          if (fd >= 0) physicalBytes += fstatSync(fd).size;
+        }
+        expect(physicalBytes).toBeLessThanOrEqual(maxBytes);
+      }
+      // Eviction, not an eventual socket timeout, released the old readers.
+      expect(finished).toBe(7);
+      expect(failures).toEqual([]);
+    } finally {
+      release.resolve();
+      await Promise.all(journals.map((journal) => journal.dispose()));
+      await Promise.all(replays);
+    }
+  });
+
+  test('a journal open failure cannot report success from a fast command', async () => {
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      { journalDirectory: ROOT + '/missing-parent' },
+    );
+    const original = collect();
+    await mgr.run(
+      { ...base, execId: 'journal-disk-fail', command: ['true'], cwd: ROOT },
+      original.emit,
+    );
+    expect(
+      original.events.some(
+        (event) => event.t === 'fail' && event.code === 'REPLAY_UNAVAILABLE',
+      ),
+    ).toBe(true);
+    expect(
+      original.events.some(
+        (event) => event.t === 'exit' && event.exitCode === 0,
+      ),
+    ).toBe(false);
+  });
+
   test('an orphaned exec (no re-attach) is reaped at its sliding deadline', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     // Short window, no attach → the deadline is the sole orphan reaper.
     await mgr.run(
@@ -1198,7 +1419,7 @@ describe('ExecManager', () => {
   });
 
   test('a re-attach slides the deadline forward (exec outlives its window)', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     // Wide window: a loaded runner's 100ms sleep can overshoot a 150ms
     // deadline and reap the exec before attach. Wait until live first so
@@ -1231,7 +1452,7 @@ describe('ExecManager', () => {
   });
 
   test('status() reports running, then exited with the real exit code, then gone', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'st1', shell: 'sleep 0.3; exit 3', cwd: ROOT },
@@ -1268,7 +1489,7 @@ describe('ExecManager output caps', () => {
   }
 
   test('stdoutMaxBytes <= 0 ⇒ UNLIMITED: forwards past the old cap, never truncates', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const warns = await withWarnCapture(() =>
       mgr.run(
@@ -1291,7 +1512,7 @@ describe('ExecManager output caps', () => {
   });
 
   test('a positive stdoutMaxBytes still truncates and warns exactly once per exec', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const warns = await withWarnCapture(() =>
       mgr.run(
@@ -1319,7 +1540,7 @@ describe('ExecManager output caps', () => {
     // so the first chunk (a 64KB pipe buffer) was emitted in full — overshooting
     // a 100B cap by ~640x. The fix clips the crossing chunk to the remaining
     // budget, so total emitted output is EXACTLY the cap, never more.
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     await withWarnCapture(() =>
       mgr.run(
@@ -1340,7 +1561,7 @@ describe('ExecManager output caps', () => {
   });
 
   test('stderr honors the same unlimited sentinel and one-time truncation warn', async () => {
-    const unlMgr = new ExecManager(new EnvStore(), () => {});
+    using unlMgr = new ExecManager(new EnvStore(), () => {});
     const unl = collect();
     await unlMgr.run(
       {
@@ -1356,7 +1577,7 @@ describe('ExecManager output caps', () => {
     const unlExit = unl.events[unl.events.length - 1];
     if (unlExit?.t === 'exit') expect(unlExit.truncated.stderr).toBe(false);
 
-    const capMgr = new ExecManager(new EnvStore(), () => {});
+    using capMgr = new ExecManager(new EnvStore(), () => {});
     const cap = collect();
     const warns = await withWarnCapture(() =>
       capMgr.run(
@@ -1381,7 +1602,7 @@ describe('ExecManager stdinMode hold + writeStdin', () => {
     Buffer.from(`${JSON.stringify(obj)}\n`).toString('base64');
 
   test('hold: initial payload + appended lines reach the child; eof exits', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const done = mgr.run(
       {
@@ -1405,7 +1626,7 @@ describe('ExecManager stdinMode hold + writeStdin', () => {
   });
 
   test('write after eof reports STDIN_CLOSED; after exit reports NOT_FOUND', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'h2', command: ['cat'], cwd: ROOT, stdinMode: 'hold' },
@@ -1448,7 +1669,7 @@ describe('ExecManager stdinMode hold + writeStdin', () => {
   });
 
   test('close-mode exec refuses writes (legacy semantics unchanged)', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'h3', shell: 'sleep 5', cwd: ROOT },
@@ -1468,7 +1689,7 @@ describe('ExecManager stdinMode hold + writeStdin', () => {
   });
 
   test('BAD_LINE: missing newline, interior newline, invalid JSON, oversized', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'h4', command: ['cat'], cwd: ROOT, stdinMode: 'hold' },
@@ -1499,7 +1720,7 @@ describe('ExecManager stdinMode hold + writeStdin', () => {
   });
 
   test('cancel while stdin held cleans up (no wedge, cancelled exit)', async () => {
-    const mgr = new ExecManager(new EnvStore(), () => {});
+    using mgr = new ExecManager(new EnvStore(), () => {});
     const { events, emit } = collect();
     const done = mgr.run(
       { ...base, execId: 'h5', command: ['cat'], cwd: ROOT, stdinMode: 'hold' },

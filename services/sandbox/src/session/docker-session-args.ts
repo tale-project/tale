@@ -31,6 +31,7 @@ interface DockerSessionRunInput {
   sessionId: string;
   organizationId: string;
   profile: SandboxSessionProfile;
+  docker?: boolean;
   /** Host dir bind-mounted 1:1 at /agent (survives container death). */
   workspaceHostDir: string;
   /** Per-org pip/npm/bun cache volume names (pip/npm reused from one-shot). */
@@ -139,7 +140,7 @@ export function buildDockerSessionRunArgs(
   //     root). config.ts allows this only with a loud trusted-only warning.
   // When !dind every conditional collapses to today's hardened argv (byte-for-
   // byte, unit-tested).
-  const dind = sessionDindEnabled(cfg, inp.profile);
+  const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const dindMode = dindCapabilityOf(cfg.runtimeTier);
 
   // Transparent egress for the session's OWN processes. The entrypoint installs
@@ -387,6 +388,8 @@ export function buildDockerSessionRunArgs(
     `tale.org=${inp.organizationId}`,
     '--label',
     `tale.profile=${inp.profile}`,
+    '--label',
+    `tale.docker=${dind}`,
     '--label',
     `tale.created=${inp.createdAtMs}`,
     ...networkArgs,
