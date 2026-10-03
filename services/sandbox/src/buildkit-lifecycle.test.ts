@@ -25,6 +25,7 @@ import {
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from './buildkitd.ts';
+import { withDockerDeadline } from './docker-deadline.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -118,6 +119,7 @@ if (a[0] === 'exec') {
     if (s.pruneGate) {
       writeFileSync(join(dir, 'pruning'), a[1]);
       while (!existsSync(join(dir, 'release-prune'))) await Bun.sleep(5);
+      console.log('Total:\t0B'); process.exit(0);
     }
     done('Total:\t0B');
   }
@@ -225,7 +227,11 @@ function seed(organizationId: string): FakeState {
   const network = buildkitdNetworkName(organizationId);
   // Helpers launched by this release with these settings.
   const stamps = [
-    helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder')),
+    helperStamp(
+      cfg.buildkitdImage,
+      buildkitHelperLimits(cfg, 'builder'),
+      `solver-parallelism=${Math.max(1, Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus))}`,
+    ),
     ...MIRROR_REGISTRIES.map(() =>
       helperStamp(
         cfg.buildkitdMirrorImage,
@@ -326,6 +332,11 @@ beforeAll(async () => {
   process.env.DOCKER_BIN = executable;
 });
 beforeEach(async () => {
+  await Promise.all(
+    ['stopping', 'release-stop', 'pruning', 'release-prune'].map((name) =>
+      rm(join(root, name), { force: true }),
+    ),
+  );
   await writeFile(join(root, 'calls.jsonl'), '');
 });
 afterAll(async () => {
@@ -410,7 +421,11 @@ describe('organization build-cache lifecycle', () => {
       initial.containers[builder]?.id,
     );
     expect(final.containers[builder]?.labels['tale.helper-config']).toBe(
-      helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder')),
+      helperStamp(
+        cfg.buildkitdImage,
+        buildkitHelperLimits(cfg, 'builder'),
+        `solver-parallelism=${Math.max(1, Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus))}`,
+      ),
     );
     expect(final.volumes).toEqual(initial.volumes);
     // Bounds already applied are not applied again.
@@ -1110,6 +1125,66 @@ describe('organization build-cache lifecycle', () => {
       Object.values(final.containers).every((container) => container.running),
     ).toBe(true);
     expect(final.volumes).toEqual(initial.volumes);
+  });
+
+  test('an expired ensure waiting behind idle-stop never launches helpers later', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.stopGate = true;
+    await save(initial);
+    const now = Date.now();
+    await sweepIdleBuildkitd(cfg, now);
+    const sweep = sweepIdleBuildkitd(cfg, now + 1000);
+    const deadline = Date.now() + 2000;
+    while (!(await Bun.file(join(root, 'stopping')).exists())) {
+      if (Date.now() > deadline) throw new Error('stop gate timed out');
+      await Bun.sleep(5);
+    }
+    const error = await rejection(
+      withDockerDeadline(30, () => ensureBuildkitd(cfg, org)),
+    );
+    expect(error).toContain('deadline');
+    await writeFile(join(root, 'release-stop'), '1');
+    await sweep;
+    await Bun.sleep(30);
+    expect((await calls()).filter((args) => args[0] === 'run')).toEqual([]);
+    expect(
+      Object.values((await state()).containers).every((c) => !c.running),
+    ).toBe(true);
+  });
+
+  test('a cancelled joiner leaves a shared ensure available to its first caller', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.stopGate = true;
+    await save(initial);
+    const now = Date.now();
+    await sweepIdleBuildkitd(cfg, now);
+    const sweep = sweepIdleBuildkitd(cfg, now + 1000);
+    const deadline = Date.now() + 2000;
+    while (!(await Bun.file(join(root, 'stopping')).exists())) {
+      if (Date.now() > deadline) throw new Error('stop gate timed out');
+      await Bun.sleep(5);
+    }
+    const first = ensureBuildkitd(cfg, org);
+    const joined = rejection(
+      withDockerDeadline(30, () => ensureBuildkitd(cfg, org)),
+    );
+    try {
+      // The first caller owns the shared work; the joiner owns only its wait.
+      expect(
+        await Promise.race([
+          joined,
+          Bun.sleep(250).then(() => 'still waiting'),
+        ]),
+      ).toContain('deadline');
+    } finally {
+      await writeFile(join(root, 'release-stop'), '1');
+      await sweep;
+      await joined;
+      expect(await first).toBe(buildkitdEndpoint(org));
+    }
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
   });
 
   test('Kubernetes never invokes Docker and disabling build cache still reaps old idle helpers', async () => {

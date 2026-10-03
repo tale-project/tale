@@ -4,6 +4,25 @@ import { HarnessProjection, HARNESS_TEXT_MAX_CHARS } from './projection';
 import { TIMELINE_MAX_ENTRIES, TIMELINE_MAX_JSON_BYTES } from './timeline';
 
 describe('bounded harness display projection', () => {
+  it('serializes a large tool payload once as it arrives, never per snapshot', () => {
+    const p = new HarnessProjection();
+    let serialized = 0;
+    p.accept({
+      type: 'tool-use',
+      toolUseId: 'huge',
+      toolName: 'read',
+      input: {
+        toJSON: () => {
+          serialized++;
+          return 'x'.repeat(100_000);
+        },
+      },
+    });
+    p.timeline();
+    p.timeline();
+    expect(serialized).toBe(1);
+  });
+
   it('refuses huge tool identifiers instead of retaining an oversized singleton entry', () => {
     const p = new HarnessProjection();
     expect(() =>

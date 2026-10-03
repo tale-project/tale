@@ -79,6 +79,7 @@ const stagedSources = new Map<string, { sourceId: string; digest: string }>();
 
 export interface StageOptions {
   fetchTimeoutMs?: number;
+  batchTimeoutMs?: number;
   signal?: AbortSignal;
   /** An explicit final reconciliation, sent only after every batch succeeded. */
   replaceRoots?: string[];
@@ -147,7 +148,10 @@ async function fileDigest(
 ): Promise<{ digest: string; bytes: number } | null> {
   let file: FileHandle | undefined;
   try {
-    file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    file = await open(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
     const info = await file.stat();
     if (!info.isFile() || info.size > FETCH_MAX_BYTES) return null;
     const hash = createHash('sha256');
@@ -190,6 +194,18 @@ export async function stageFiles(
       ).map((path) => ({ path, reason: 'busy' })),
     };
   }
+  const batchTimeout = new AbortController();
+  const batchDeadline = setTimeout(
+    () =>
+      batchTimeout.abort(
+        new DOMException('Stage batch deadline exceeded', 'TimeoutError'),
+      ),
+    opts.batchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
+  );
+  const batchSignal = AbortSignal.any([
+    batchTimeout.signal,
+    ...(opts.signal ? [opts.signal] : []),
+  ]);
   activeStages += 1;
   if (opts.replaceRoots?.length) reconcilingStage = true;
   try {
@@ -203,8 +219,8 @@ export async function stageFiles(
       let parentHandle: FileHandle | undefined;
       const controller = new AbortController();
       const abort = () => controller.abort();
-      opts.signal?.addEventListener('abort', abort, { once: true });
-      if (opts.signal?.aborted) abort();
+      batchSignal.addEventListener('abort', abort, { once: true });
+      if (batchSignal.aborted) abort();
       const deadline = setTimeout(
         abort,
         opts.fetchTimeoutMs ?? STAGE_FETCH_TIMEOUT_MS,
@@ -260,6 +276,7 @@ export async function stageFiles(
                 offset,
                 chunk.byteLength - offset,
               );
+              if (result.bytesWritten === 0) throw new Error('write_failed');
               offset += result.bytesWritten;
             }
           };
@@ -310,7 +327,7 @@ export async function stageFiles(
         });
       } finally {
         clearTimeout(deadline);
-        opts.signal?.removeEventListener('abort', abort);
+        batchSignal.removeEventListener('abort', abort);
         // Also stops an unread non-2xx/oversized body and releases its socket.
         controller.abort();
         if (temporary !== undefined)
@@ -322,7 +339,7 @@ export async function stageFiles(
       await reconcileStageRoots(
         opts.replaceRoots,
         opts.keepPaths ?? [],
-        opts.signal,
+        batchSignal,
         skipped,
       );
     }
@@ -334,6 +351,7 @@ export async function stageFiles(
         : {}),
     };
   } finally {
+    clearTimeout(batchDeadline);
     activeStages -= 1;
     if (opts.replaceRoots?.length) reconcilingStage = false;
   }
@@ -411,7 +429,10 @@ async function reconcileStageRoots(
       skipped.push({
         path: root,
         reason: signal?.aborted
-          ? 'cancelled'
+          ? signal.reason instanceof DOMException &&
+            signal.reason.name === 'TimeoutError'
+            ? 'timeout'
+            : 'cancelled'
           : error instanceof Error
             ? error.message
             : 'reconcile_failed',
@@ -523,7 +544,7 @@ export async function streamWorkspaceFile(
     parentHandle = parent.handle;
     file = await open(
       join(anchoredDirectory(parentHandle, parent.path), basename(abs)),
-      constants.O_RDONLY | constants.O_NOFOLLOW,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
     const info = await file.stat();
     if (!info.isFile() || info.size > maxBytes) {

@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
+  constants,
+  openSync,
   mkdtempSync,
   realpathSync,
   renameSync,
@@ -112,6 +116,84 @@ describe('file-ops', () => {
     } finally {
       await stalled.stop(true);
       await live.stop(true);
+    }
+  });
+
+  test('one batch deadline stops later files and leaves the staging slot reusable', async () => {
+    let requests = 0;
+    const stalled = Bun.serve({
+      port: 0,
+      fetch: () => {
+        requests += 1;
+        return new Promise<Response>(() => {});
+      },
+    });
+    try {
+      const result = await stageFiles(
+        [
+          { path: 'batch-first', url: stalled.url.href },
+          { path: 'batch-second', url: stalled.url.href },
+          { path: 'batch-inline', contentBase64: 'YQ==' },
+        ],
+        { batchTimeoutMs: 50, fetchTimeoutMs: 150 },
+      );
+      expect(requests).toBe(1);
+      expect(result.staged).toEqual([]);
+      expect(result.skipped).toEqual([
+        { path: 'batch-first', reason: 'timeout' },
+        { path: 'batch-second', reason: 'timeout' },
+        { path: 'batch-inline', reason: 'timeout' },
+      ]);
+      expect(
+        (await stageFiles([{ path: 'batch-recovered', contentBase64: 'YQ==' }]))
+          .staged,
+      ).toEqual([{ path: 'batch-recovered', bytes: 1 }]);
+    } finally {
+      await stalled.stop(true);
+    }
+  });
+
+  test('a cached destination replaced by a FIFO cannot block source verification or its deadline', async () => {
+    const path = 'cached-fifo';
+    const sourceId = 'cached-fifo-source';
+    await stageFiles([{ path, sourceId, contentBase64: 'YQ==' }]);
+    rmSync(join(ROOT, path));
+    expect(spawnSync('mkfifo', [join(ROOT, path)]).status).toBe(0);
+    const pending = stageFiles([{ path, sourceId }], { batchTimeoutMs: 50 });
+    try {
+      const result = await Promise.race([
+        pending,
+        Bun.sleep(300).then(() => 'blocked'),
+      ]);
+      expect(result).toEqual({
+        staged: [],
+        skipped: [{ path, reason: 'no_source' }],
+      });
+    } finally {
+      // Release the baseline's blocking open even when the regression fails.
+      const release = openSync(
+        join(ROOT, path),
+        constants.O_RDWR | constants.O_NONBLOCK,
+      );
+      await pending;
+      closeSync(release);
+      rmSync(join(ROOT, path));
+    }
+  });
+
+  test('streamed reads reject a FIFO without waiting for a writer', async () => {
+    const path = join(ROOT, 'stream-fifo');
+    expect(spawnSync('mkfifo', [path]).status).toBe(0);
+    const pending = streamWorkspaceFile('stream-fifo', 1024);
+    try {
+      expect(
+        await Promise.race([pending, Bun.sleep(300).then(() => 'blocked')]),
+      ).toBeNull();
+    } finally {
+      const release = openSync(path, constants.O_RDWR | constants.O_NONBLOCK);
+      await pending;
+      closeSync(release);
+      rmSync(path);
     }
   });
 

@@ -99,18 +99,20 @@ describe('isReapableContainerStatus', () => {
 // ---------------------------------------------------------------------------
 
 const FAKE_DOCKER = `#!/usr/bin/env bash
-# Fake docker CLI for tests. Reads five lines from ./mode next to this script:
+# Fake docker CLI for tests. Reads six lines from ./mode next to this script:
 #   line 1: 1 when the container exists, else 0
 #   line 2: rm outcome — ok | removes (ok, and the container is gone after) |
 #           nosuch | busy
 #   line 3: comma-separated session ids \`docker ps\` lists (may be empty)
 #   line 4: ps outcome — ok | fail (a daemon hiccup: non-zero exit + stderr)
 #   line 5: the host source of the container's /agent mount (may be empty)
+#   line 6: the session's Docker-in-container capability (may be empty)
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
 listed="$(sed -n 3p "$here/mode")"
 ps_mode="$(sed -n 4p "$here/mode")"
+dind="$(sed -n 6p "$here/mode")"
 cmd="$1"; shift
 case "$cmd" in
   ps)
@@ -120,7 +122,7 @@ case "$cmd" in
     fi
     IFS=',' read -ra ids <<< "$listed"
     for id in "\${ids[@]}"; do
-      [ -n "$id" ] && printf '%s\torg_fake\tagent\t1700000000000\trunning\n' "$id"
+      [ -n "$id" ] && printf '%s\torg_fake\tagent\t1700000000000\trunning\t\t%s\n' "$id" "$dind"
     done
     exit 0 ;;
   inspect)
@@ -149,8 +151,7 @@ case "$cmd" in
     case "$rm_mode" in
       ok) exit 0 ;;
       removes)
-        sed '1s/.*/0/' "$here/mode" > "$here/mode.next" &&
-          mv "$here/mode.next" "$here/mode"
+        sed '1s/.*/0/' "$here/mode" > "$here/mode.next" && mv "$here/mode.next" "$here/mode" || exit 1
         exit 0 ;;
       nosuch)
         echo "Error response from daemon: No such container: $2" >&2
@@ -178,10 +179,11 @@ async function fakeDocker(scenario: {
   listed?: string[];
   ps?: 'ok' | 'fail';
   mount?: string;
+  dind?: boolean;
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n`,
   );
 }
 
@@ -856,6 +858,23 @@ describe('DockerSessionBackend.destroySession after the session root moved', () 
 });
 
 describe('DockerSessionBackend.listSessions', () => {
+  test.each([true, false, undefined])(
+    'reads the recorded Docker capability (%p)',
+    async (dind) => {
+      await fakeDocker({
+        present: true,
+        rm: 'ok',
+        listed: ['capability'],
+        dind,
+      });
+      const backend = new DockerSessionBackend({
+        ...backendConfig(),
+        dockerInContainer: true,
+      });
+      expect((await backend.listSessions())[0]?.docker).toBe(dind);
+    },
+  );
+
   test('THROWS on a failed `docker ps` instead of reporting "no sessions"', async () => {
     // A daemon blip laundered into [] would leave every running session
     // unregistered (unroutable, never reaped) until the next successful list.

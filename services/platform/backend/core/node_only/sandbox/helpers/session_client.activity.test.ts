@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   sessionAcquire,
+  sessionExecStatus,
   sessionReleaseIdle,
   sessionReleaseTicket,
   SpawnerBusyError,
@@ -132,5 +133,50 @@ describe('runtime acquisition and release transport', () => {
     await expect(sessionAcquire('session-1')).rejects.toThrow();
     await expect(sessionReleaseTicket('session-1')).rejects.toThrow();
     await expect(sessionReleaseIdle('session-1', 'use-1')).rejects.toThrow();
+  });
+});
+
+describe('recovery status probe budget', () => {
+  it('forwards recovery cancellation and preserves running/exited/gone responses', async () => {
+    const controller = new AbortController();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ state: 'running', startedAtMs: 12 }),
+      )
+      .mockResolvedValueOnce(Response.json({ state: 'exited', exitCode: 7 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+    vi.stubGlobal('fetch', fetcher);
+    expect(
+      await sessionExecStatus('s', 'e', {
+        signal: controller.signal,
+        timeoutMs: 1000,
+      }),
+    ).toEqual({ state: 'running', startedAtMs: 12 });
+    const signal = fetcher.mock.calls[0]?.[1]?.signal;
+    expect(signal?.aborted).toBe(false);
+    controller.abort();
+    expect(signal?.aborted).toBe(true);
+    expect(await sessionExecStatus('s', 'e')).toEqual({
+      state: 'exited',
+      exitCode: 7,
+    });
+    expect(await sessionExecStatus('s', 'e')).toEqual({ state: 'gone' });
+  });
+
+  it('uses the recovery caller’s remaining deadline', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json({ state: 'running' })),
+    );
+    try {
+      await sessionExecStatus('s', 'e', { timeoutMs: 123 });
+      expect(timeout).toHaveBeenCalledWith(123);
+    } finally {
+      timeout.mockRestore();
+    }
   });
 });

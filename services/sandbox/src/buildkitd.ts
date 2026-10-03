@@ -15,6 +15,7 @@ import {
   removeBuildkitVolume,
   retireLegacyBuildkitd,
 } from './buildkit-resources.ts';
+import { dockerDeadlineSignal } from './docker-deadline.ts';
 import { runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -223,19 +224,38 @@ async function withBuildkitdOperation<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   const previous = organizationOperations.get(organizationId);
-  const result = (previous ?? Promise.resolve()).then(operation);
+  const signal = dockerDeadlineSignal();
+  let started = false;
+  const result = (previous ?? Promise.resolve()).then(() => {
+    signal?.throwIfAborted();
+    started = true;
+    return operation();
+  });
   const settled = result.then(
     () => undefined,
     () => undefined,
   );
   organizationOperations.set(organizationId, settled);
-  try {
-    return await result;
-  } finally {
+  void settled.then(() => {
     if (organizationOperations.get(organizationId) === settled) {
       organizationOperations.delete(organizationId);
     }
-  }
+    return undefined;
+  });
+  // A cancelled queued operation stays in the serialization chain but cannot
+  // mutate anything once it obtains the lock. Active Docker calls themselves
+  // observe the same signal and are drained before the next operation starts.
+  if (!signal) return result;
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      if (!started) reject(signal.reason);
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+    void result
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', abort));
+  });
 }
 
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
@@ -309,9 +329,15 @@ const HELPER_STAMP_LABEL = 'tale.helper-config';
 /** How a helper was launched — its image and bounds — as a short hash: a
  * running helper whose stamp differs predates the current release or
  * settings. */
-export function helperStamp(image: string, limits: readonly string[]): string {
+export function helperStamp(
+  image: string,
+  limits: readonly string[],
+  configuration = '',
+): string {
   return createHash('sha256')
-    .update([image, ...limits].join('\n'))
+    .update(
+      [image, ...limits, ...(configuration ? [configuration] : [])].join('\n'),
+    )
     .digest('hex')
     .slice(0, 16);
 }
@@ -1060,7 +1086,7 @@ export async function ensureBuildkitd(
 ): Promise<string> {
   const name = buildkitdContainerName(organizationId);
   const existing = ensureInFlight.get(name);
-  if (existing) return existing;
+  if (existing) return waitForSharedBuildkitd(existing);
   const release = retainBuildkitd(organizationId);
   const work = withBuildkitdOperation(organizationId, () =>
     ensureBuildkitdUnlocked(cfg, organizationId, name),
@@ -1070,6 +1096,31 @@ export async function ensureBuildkitd(
   });
   ensureInFlight.set(name, work);
   return work;
+}
+
+/** A joining caller can exhaust its own create budget before the caller
+ * provisioning the shared helper does. Stop only its wait; the initiating
+ * caller still owns cancellation, draining, and the organization lock. */
+function waitForSharedBuildkitd(work: Promise<string>): Promise<string> {
+  const signal = dockerDeadlineSignal();
+  if (!signal) return work;
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const aborted = () => reject(signal.reason);
+    signal.addEventListener('abort', aborted, { once: true });
+    void work.then(
+      (value) => {
+        signal.removeEventListener('abort', aborted);
+        resolve(value);
+        return undefined;
+      },
+      (error) => {
+        signal.removeEventListener('abort', aborted);
+        reject(error);
+        return undefined;
+      },
+    );
+  });
 }
 
 /**
@@ -1167,7 +1218,15 @@ async function ensureBuildkitdOnNetwork(
   // with no working DNS/egress (RUN steps fail to resolve any external host) —
   // recreate it. See buildkitdEgressHealthy.
   const limits = buildkitHelperLimits(cfg, 'builder');
-  const stamp = helperStamp(cfg.buildkitdImage, limits);
+  const parallelism = Math.max(
+    1,
+    Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus),
+  );
+  const stamp = helperStamp(
+    cfg.buildkitdImage,
+    limits,
+    `solver-parallelism=${parallelism}`,
+  );
   const helper = await inspectBuildkitHelper(
     name,
     organizationId,
@@ -1263,6 +1322,8 @@ async function ensureBuildkitdOnNetwork(
       // `registry=ref` pair.
       '--env',
       `TALE_BUILDKITD_MIRRORS=${mirrors}`,
+      '--env',
+      `TALE_BUILDKITD_MAX_PARALLELISM=${parallelism}`,
       '--env',
       `HTTPS_PROXY=${cfg.egressProxy}`,
       '--env',

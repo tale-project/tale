@@ -24,7 +24,9 @@ held through file descriptors: stopping or restarting the runtime loses them,
 while the workspace remains persistent.
 
 An exec output reader is disconnected before its pending writes exceed 8 MiB.
-Attach replay waits for socket drain, disconnecting a reader stalled for two
+At most eight attach readers are admitted at once. Excess attaches receive a
+retryable busy response without changing the exec; invalid or future replay
+cursors fail explicitly. Attach replay waits for socket drain, disconnecting a reader stalled for two
 seconds, so historical output cannot fill memory faster than the client reads.
 The command continues under its existing deadline. Reconnect through attach
 with the last sequence number. `replay-start` precedes journal history;
@@ -43,7 +45,9 @@ File staging streams each URL into a temporary file beside its destination
 and replaces the destination only after a complete, bounded download. Cancelling
 or failing a download preserves the previous file. At most two stage requests
 are admitted at once, including their JSON intake; excess requests report
-`busy`. URL inputs retain their 100 MiB limit and 25-second per-file deadline;
+`busy`. The whole batch has a 25-second deadline, and cancellation propagates
+through the platform and spawner to the active transfer. URL inputs retain
+their 100 MiB limit and 25-second per-file deadline;
 inline inputs retain their 1 MiB limit. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer only after
 rehashing the current destination; a changed file is repaired. Explicit final

@@ -123,6 +123,26 @@ nowhere. `SANDBOX_TOKEN` is required (the spawner refuses to boot without it —
 `loadConfig` fails closed), so every session carries a real token and runnerd
 always verifies; there is no unsigned mode.
 
+Image warming runs beside control startup and session adoption. While a cold
+runtime image is being pulled, new local creates return `429 runtime_image`
+with `Retry-After: 5`; health, limits and existing-session operations remain
+available. A failed warmup ends that wait, and subsequent creates report their
+own backend result. Device-placed creates follow the target device's readiness.
+
+Docker create failures remove only a container bearing that attempt's private
+ownership label, using its immutable container ID. A concurrent replacement
+and its workspace survive. Every workspace directory and owner marker,
+including an empty directory created during failed setup, remains for retry
+or explicit destroy. Ambiguous inner-Docker volumes remain for ordinary
+orphan cleanup.
+
+A session absent from this spawner's registry is resolved from the backend.
+If that inventory or endpoint lookup fails, or an existing nonterminal runtime
+is still starting, session routes return `503 session_unavailable` with
+`Retry-After: 1`. A local create still in progress answers the same way. The caller retries without
+declaring the running session lost or recreating it. A confirmed missing or
+stopped session still returns 404 so its preserved workspace can be resumed.
+
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions
@@ -187,13 +207,15 @@ protocol history. A runtime restart loses its journals and execs; these files
 do not extend the persistent workspace's lifecycle.
 
 An attach sends `replay-start` before journal history and `replay-complete`
-with `throughSeq` after delivering the
-historical prefix that existed when attachment began. Clients must reconstruct
+with `throughSeq` after delivering the historical prefix that existed when
+attachment began. Clients must reconstruct
 protocol state through that boundary before treating a historical turn result
 as completion; a process `exit` is authoritative independently. Older runtimes
 omit these markers. Consumers retain their legacy completion behavior only
 while replay sequence continuity is verified; an observed gap fails the replay
-rather than treating a suffix as complete history.
+rather than treating a suffix as complete history. Complete journal replay
+requires the runtime, spawner and platform to be upgraded together; older
+runtimes retain their bounded ring replay during a rolling upgrade.
 
 The initial exec consumer releases its callback and HTTP objects on disconnect.
 Body intake drops its raw upload buffers after parsing, and completed commands
@@ -351,8 +373,13 @@ place up, a destroy of the id takes it out, and the line keeps at most
 afresh, and each Kubernetes replica keeps its own.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
-enforce the shared namespace count on a best-effort basis; use ResourceQuota
-for hard namespace resource bounds.
+read namespace occupancy before admitting a create. Pending, unknown and
+terminating session Pods occupy slots even when runnerd cannot be addressed;
+confirmed terminal Pods do not. A failed inventory refuses the create with
+503. Local creates still in flight, including one that completes while the
+inventory is being read, count once. Simultaneous creates on different
+replicas still have no distributed reservation: use ResourceQuota for hard
+namespace resource bounds.
 
 ### Stop vs destroy — the data-preservation contract
 
@@ -549,6 +576,22 @@ session (automation, workflow) or an owner with a blank name/email
 resolves to no injection rather than a placeholder identity.
 
 ## Resource profiles
+
+The create body accepts `docker: false` for an `agent` session
+that does not need to build or run containers. Omitting the field keeps the
+deployment's profile and workload policy. The optional `workload` field is
+`project` or `workflow`; `SANDBOX_DOCKER_WORKLOADS` controls which workloads
+may use inner Docker. An explicit `true` cannot grant a capability the
+deployment or workload policy disabled.
+
+An opt-out keeps the hardened runner, skips inner-daemon and build-helper
+provisioning, and uses the shared per-organization dependency caches on Docker.
+Its admission estimate is 512 MiB, and its released idle window is the normal
+five-minute default. An agent with inner Docker uses the 1.5 GiB admission
+estimate and retains the full idle window. These estimates are admission
+headroom, not memory limits. The actual capability is returned as
+`session.docker` and recorded on the container or Pod so a spawner
+restart preserves that session's behavior.
 
 `default` uses uid 65534 with the hardened code/render profile. `agent` uses
 uid 10001, a named non-root account for git/ssh and coding CLIs. Its defaults

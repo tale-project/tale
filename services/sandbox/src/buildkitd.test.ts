@@ -1,6 +1,10 @@
 // Organization isolation and resource naming for persistent build caches.
 
 import { describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   BUILDKITD_LIVE_TOML,
@@ -46,6 +50,19 @@ describe('buildkitd naming seam', () => {
     expect(buildkitdCacheVolumeName('org-a')).not.toBe('tale-buildkitd-cache');
     expect(buildkitdContainerName('a'.repeat(128))).toMatch(
       /^[a-z0-9-]{1,63}$/,
+    );
+  });
+
+  test('unchanged helpers retain their deployed configuration stamp', () => {
+    const image = 'mirror:1';
+    const limits = ['--cpus', '1', '--memory', '128m'];
+    const deployed = createHash('sha256')
+      .update([image, ...limits].join('\n'))
+      .digest('hex')
+      .slice(0, 16);
+    expect(helperStamp(image, limits)).toBe(deployed);
+    expect(helperStamp(image, limits, 'solver-parallelism=1')).not.toBe(
+      deployed,
     );
   });
 
@@ -153,7 +170,7 @@ describe('buildkitd cache garbage collection', () => {
     const toml = await Bun.file(
       new URL('../../sandbox-buildkitd/buildkitd.toml', import.meta.url),
     ).text();
-    expect(toml).toMatch(/^max-parallelism = 4$/m);
+    expect(toml).toMatch(/^max-parallelism = 2$/m);
     const rules = toml
       .split('[[worker.oci.gcpolicy]]')
       .slice(1)
@@ -204,4 +221,40 @@ describe('buildkitd egress drift detection', () => {
       parseDnsNameserver('[registry."docker.io"]\n  mirrors = ["x:5000"]\n'),
     ).toBeNull();
   });
+});
+
+test('builder boot bounds solver parallelism and regenerates config on restart', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tale-buildkit-config-'));
+  try {
+    const script = await Bun.file(
+      new URL('../../sandbox-buildkitd/docker-entrypoint.sh', import.meta.url),
+    ).text();
+    const init = script.match(/init_base_config\(\) \{[\s\S]*?\n\}/)?.[0];
+    if (!init) throw new Error('missing config bootstrap');
+    const base = new URL(
+      '../../sandbox-buildkitd/buildkitd.toml',
+      import.meta.url,
+    ).pathname;
+    const live = join(root, 'live.toml');
+    for (const parallelism of ['3', '1']) {
+      const child = Bun.spawn(['/bin/sh', '-c', `${init}\ninit_base_config`], {
+        env: {
+          ...process.env,
+          BASE_TOML: base,
+          LIVE_TOML: live,
+          TALE_BUILDKITD_MAX_PARALLELISM: parallelism,
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(await child.exited).toBe(0);
+      expect(Bun.TOML.parse(await readFile(live, 'utf8'))).toMatchObject({
+        worker: {
+          oci: { 'max-parallelism': Number(parallelism), networkMode: 'host' },
+        },
+      });
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -22,6 +22,13 @@ behind is disconnected; cancelling its response also stops the upstream read
 and keepalive immediately. The exec keeps running and can be reattached through
 the session API. Late output is discarded without repeated log messages.
 
+Cold runtime-image warming runs in the background. New local sessions wait
+with `429 runtime_image` and `Retry-After: 5`, while control, health and existing
+sessions remain available. Session lookups whose backend inventory or endpoint
+cannot be read, or whose nonterminal runtime is still starting, answer
+`503 session_unavailable` and `Retry-After: 1`; callers retry without treating
+that temporary uncertainty as a lost session.
+
 ## Authentication
 
 Every route except `GET /health` is HMAC-signed with the shared `SANDBOX_TOKEN`
@@ -180,7 +187,15 @@ network namespace with a read-only filesystem, no capabilities and no mounts;
 this works against remote Docker without borrowing the spawner host's routes.
 An unused invalid owned network is recreated; an in-use or foreign network is
 never removed. If host observation fails or no safe subnet is available,
-sessions build locally.
+sessions build locally. Optional cache provisioning has one 15-second budget
+(`SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS`, 100–60000 ms), including waiting for
+Docker slots and helper operations. Its independent registry mirrors initialize
+concurrently. Expiry cancels provisioning and uses the local builder. Docker
+session creation has one `SANDBOX_SESSION_CREATE_TIMEOUT_MS` budget (180 seconds
+by default) covering provisioning through environment delivery; failed creation
+has a separate 10-second Docker cleanup budget and preserves resumed workspaces.
+BuildKit solver parallelism follows the helper's CPU limit rounded down, at
+least one, and changes when an idle helper is recreated.
 
 After no agent session may still depend on an organization's cache helpers
 (only Docker-enabled agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30

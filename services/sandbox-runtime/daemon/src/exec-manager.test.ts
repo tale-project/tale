@@ -3,7 +3,7 @@
 // cwd validation, dedup, and timeout/cancel. TALE_WORKSPACE_ROOT points the
 // cwd-safety check at a temp dir so the happy path is hermetic.
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { getEventListeners } from 'node:events';
 import {
@@ -1170,9 +1170,27 @@ describe('ExecManager', () => {
     const streams = consumers.map((consumer) =>
       mgr.attach('eattachcleanup', () => {}, 0, consumer.signal),
     );
+    // Handle every refusal immediately, before cancelling or yielding to the
+    // process. Admission rejects two readers without attaching any listeners.
+    const settled = Promise.allSettled(
+      streams.map((stream) => Promise.resolve(stream)),
+    );
     expect(streams.every((stream) => stream !== null)).toBe(true);
     expect(mgr.cancel('eattachcleanup')).toBe(true);
-    await Promise.all([done, ...streams]);
+    await done;
+    const outcomes = await settled;
+    expect(outcomes.map((outcome) => outcome.status)).toEqual([
+      ...Array.from({ length: 8 }, () => 'fulfilled' as const),
+      'rejected',
+      'rejected',
+    ]);
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        expect(outcome.reason).toMatchObject({
+          message: 'attachment limit reached',
+        });
+      }
+    }
     for (const consumer of consumers) {
       expect(getEventListeners(consumer.signal, 'abort')).toHaveLength(0);
     }
@@ -1253,6 +1271,71 @@ describe('ExecManager', () => {
     expect(all.events.length).toBeGreaterThan(replayed.events.length);
   });
 
+  test('replay rejects invalid or future cursors without suppressing the transcript', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    await mgr.run(
+      { ...base, execId: 'invalid-cursor', command: ['true'], cwd: ROOT },
+      () => {},
+    );
+    for (const cursor of [
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER,
+    ]) {
+      const output = collect();
+      await mgr.attach('invalid-cursor', output.emit, cursor);
+      expect(output.events).toEqual([
+        {
+          t: 'fail',
+          code: 'REPLAY_UNAVAILABLE',
+          message: 'Invalid execution replay cursor.',
+        },
+      ]);
+    }
+  });
+
+  test('eight stalled replay readers bound admission and cancellation frees a slot', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    await mgr.run(
+      { ...base, execId: 'reader-limit', command: ['true'], cwd: ROOT },
+      () => {},
+    );
+    const controllers = Array.from({ length: 8 }, () => new AbortController());
+    const pending = controllers.map((controller) =>
+      mgr.attach(
+        'reader-limit',
+        () => new Promise<void>(() => {}),
+        0,
+        controller.signal,
+      ),
+    );
+    const refused = collect();
+    const extra = new AbortController();
+    try {
+      expect(mgr.hasAttachCapacity).toBe(false);
+      const refusal = mgr
+        .attach('reader-limit', refused.emit, 0, extra.signal)
+        ?.catch((error: unknown) => error);
+      // Baseline has no admission guard; abort prevents a hanging red test.
+      extra.abort();
+      expect(await refusal).toMatchObject({
+        message: 'attachment limit reached',
+      });
+      expect(refused.events).toEqual([]);
+      controllers[0]!.abort();
+      await pending[0];
+      expect(mgr.hasAttachCapacity).toBe(true);
+      const accepted = collect();
+      await mgr.attach('reader-limit', accepted.emit);
+      expect(accepted.events.at(-1)?.t).toBe('exit');
+    } finally {
+      controllers.forEach((controller) => controller.abort());
+      await Promise.all(pending.map((stream) => Promise.resolve(stream)));
+    }
+  });
+
   test('the complete protocol survives diagnostic ring rollover and keeps its cursor', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const original = collect();
@@ -1296,6 +1379,61 @@ describe('ExecManager', () => {
         )
         .filter((event) => (event.seq ?? 0) > cursor),
     );
+  });
+
+  test('a stalled journal writer pauses child output before queued buffers can grow', async () => {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    // Called below with the original JournalBudget receiver.
+    // oxlint-disable-next-line typescript-eslint/unbound-method
+    const reserve = JournalBudget.prototype.reserve;
+    const stalled = spyOn(
+      JournalBudget.prototype,
+      'reserve',
+    ).mockImplementation(async function (this: JournalBudget, bytes: number) {
+      entered.resolve();
+      await release.promise;
+      return reserve.call(this, bytes);
+    });
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    let received = 0;
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'slow-journal',
+        command: [
+          process.execPath,
+          '-e',
+          "process.stdout.write('x'.repeat(2*1024*1024))",
+        ],
+        cwd: ROOT,
+        stdoutMaxBytes: 0,
+      },
+      (event) => {
+        if (event.t === 'stdout')
+          received += Buffer.from(event.b64, 'base64').length;
+      },
+    );
+    try {
+      await entered.promise;
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        if (received > 0) break;
+        await Bun.sleep(10);
+      }
+      await Bun.sleep(100);
+      expect(received).toBeGreaterThan(0);
+      // Production Node emits pipe chunks up to 64 KiB; leave headroom for
+      // host Bun's larger chunks while detecting an unbounded writer queue.
+      expect(received).toBeLessThan(1024 * 1024);
+      release.resolve();
+      await done;
+      expect(received).toBe(2 * 1024 * 1024);
+    } finally {
+      release.resolve();
+      stalled.mockRestore();
+      await done;
+    }
   });
 
   test('an output limit is explicit and ends the writer, never a successful truncated replay', async () => {

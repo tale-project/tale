@@ -232,6 +232,8 @@ export class ExecJournal {
               bytes.length - offset,
               this.committedBytes,
             );
+            if (written.bytesWritten === 0)
+              throw new Error('journal write made no progress');
             offset += written.bytesWritten;
             this.committedBytes += written.bytesWritten;
           }
@@ -273,6 +275,22 @@ export class ExecJournal {
     signal?: AbortSignal,
   ): Promise<void> {
     if (signal?.aborted) return;
+    if (
+      !Number.isSafeInteger(sinceSeq) ||
+      sinceSeq < 0 ||
+      sinceSeq > this.lastSeq
+    ) {
+      await this.deliver(
+        emit,
+        {
+          t: 'fail',
+          code: 'REPLAY_UNAVAILABLE',
+          message: 'Invalid execution replay cursor.',
+        },
+        signal,
+      );
+      return;
+    }
     const throughSeq = this.lastSeq;
     let caughtUp = false;
     this.readers += 1;

@@ -2395,6 +2395,7 @@ export function liveProgressSink(
   type Patch = {
     progressText?: string;
     liveTimeline?: HarnessTimelinePart[];
+    lastEventAt: number;
   };
   let pending: Patch | undefined;
   let writing: Promise<void> | undefined;
@@ -2413,7 +2414,8 @@ export function liveProgressSink(
             execId: args.execId,
             kind,
             status: 'running',
-            lastEventAt: Date.now(),
+            // Queueing a delayed write is not a fresh sign of agent life.
+            heartbeatAt: patch.lastEventAt,
             ...(visionModelRef !== undefined && { visionModelRef }),
             ...patch,
           },
@@ -2424,10 +2426,11 @@ export function liveProgressSink(
     }
     writing = undefined;
   };
-  const write = (patch: Patch) => {
+  const write = (patch: Omit<Patch, 'lastEventAt'>) => {
     pending = {
       ...pending,
       ...patch,
+      lastEventAt: Date.now(),
       ...(patch.liveTimeline !== undefined
         ? {
             liveTimeline: mergeTimelineParts(

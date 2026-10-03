@@ -39,6 +39,7 @@ import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import {
   drainSessionExecResilient,
+  ExecStreamProtocolError,
   SessionNotFoundError,
   sessionCancelExec,
   sessionStageFiles,
@@ -594,8 +595,21 @@ export async function drainHarnessWindow(args: {
       args.start ? {} : { resumeSinceSeq: 0 },
     );
     exited = true;
+    if (unreplayableExecResult(execResult)) {
+      // A refused stream does not prove that its process has stopped. Never
+      // leave an agent writing after losing the ledger that fences its end.
+      await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
+        console.warn('[harness-window] replay-gap reap failed:', err),
+      );
+    }
   } catch (err) {
     if (err instanceof SessionNotFoundError) return { kind: 'gone' };
+    if (err instanceof ExecStreamProtocolError) {
+      await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+        console.warn('[harness-window] invalid-stream reap failed:', cancelErr),
+      );
+      throw err;
+    }
     if (!drainSignal.aborted) throw err;
     // Window elapsed with the exec still live, or the turn ended under a
     // lingering exec — either way not a drain failure.
@@ -608,13 +622,17 @@ export async function drainHarnessWindow(args: {
   // live exec is not an EOF: flushing it would turn a mid-tool assistant stop
   // into a completed turn and cut the process under it. The next window
   // re-parses from seq 0, so nothing buffered here is lost.
-  if (exited) {
+  const replayGap = unreplayableExecResult(execResult);
+  if (exited && !replayGap) {
     for (const e of parser.end()) acceptEvent(e);
     disarmTurnEndedCut();
   }
 
-  const text = projection.text;
-  const timeline = projection.timeline();
+  // A partial historical prefix cannot replace the persisted transcript or
+  // supply a trustworthy final result/accounting total after replay fails.
+  const text = replayGap ? '' : projection.text;
+  const timeline = replayGap ? [] : projection.timeline();
+  if (replayGap) ended = undefined;
   // Reply in, background ledger still open: the harness is still working
   // (a deliverable may be mid-write) — keep draining, never reap.
   const lingeringOnTasks =
@@ -654,8 +672,20 @@ export async function drainHarnessWindow(args: {
     ...(agentSessionId !== undefined ? { agentSessionId } : {}),
     ...(stderrTail !== '' ? { stderrTail } : {}),
     ...(harnessError !== undefined ? { harnessError } : {}),
-    outputTokens,
+    ...(!replayGap ? { outputTokens } : {}),
   };
+}
+
+/** Older spawners return protocol failures as result records; the current
+ * transport raises ExecStreamProtocolError for their named error events. */
+function unreplayableExecResult(
+  result: SessionExecResult | undefined,
+): boolean {
+  return (
+    result?.errorCode === 'REPLAY_GAP' ||
+    result?.errorCode === 'REPLAY_UNAVAILABLE' ||
+    result?.errorCode === 'OUTPUT_LIMIT'
+  );
 }
 
 /** How much of the harness's stderr a window keeps. */
@@ -775,6 +805,14 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
   emptyAnswer: boolean;
 } {
   const { ended, execResult } = window;
+  if (unreplayableExecResult(execResult)) {
+    return {
+      errored: true,
+      emptyAnswer: false,
+      reason:
+        'The sandbox could not replay the complete agent output. Retry the run to continue from the preserved workspace.',
+    };
+  }
   if (ended === undefined) {
     if (!window.exited) return { errored: false, emptyAnswer: false };
     const crashed =
