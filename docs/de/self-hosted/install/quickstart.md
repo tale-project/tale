@@ -42,7 +42,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 Prüfe die Installation im selben Terminal mit `tale --version`. Fehlt der Befehl, folge den `PATH`-Hinweisen des Installers und öffne bereits laufende Terminals neu. Die [CLI-Installation](/de/self-hosted/install/cli-install) beschreibt feste Versionen und eigene Installationsverzeichnisse.
 
-Mit `tale doctor` kannst du den Rechner schon vor dem Anlegen eines Projekts prüfen. Der Befehl untersucht Docker, Compose, Container-Architektur und lokale Ports, ohne Software zu installieren oder Dateien zu ändern. Folge den angezeigten Hinweisen; ein erfolgreicher Check bestätigt weder Image-Downloads noch den Modellzugriff.
+Prüfe mit `tale --help`, ob `doctor` verfügbar ist. Fehlt der Befehl, prüfe Docker und Compose mit `docker info` und `docker compose version`. Falls verfügbar, untersucht `tale doctor` zusätzlich die Container-Architektur und lokale Ports, ohne Software zu installieren oder Dateien zu ändern. Folge den angezeigten Hinweisen; ein erfolgreicher Check bestätigt weder Image-Downloads noch den Modellzugriff.
 
 ## Initialisieren und starten
 
@@ -76,7 +76,7 @@ Eine vollständige Antwort bestätigt, dass Konto, Anbieter und gewähltes Model
 
 Drücke im Terminal mit `tale dev` die Tastenkombination `Ctrl-C`, um die Instanz im Vordergrund zu stoppen. Starte später im selben Projektverzeichnis erneut `tale dev`; die bisherigen Daten bleiben erhalten.
 
-Für den Betrieb im Hintergrund und das spätere Stoppen:
+Prüfe `tale dev --help`, bevor du die folgenden Befehle für den Hintergrundbetrieb nutzt. Fehlt dort `--stop`, lass `tale dev` im Vordergrund laufen und stoppe es mit `Ctrl-C`.
 
 ```bash
 tale dev --detach
@@ -93,7 +93,7 @@ Das Stoppen erhält Projekt, Geheimnisse und dauerhafte Daten. Verwende weiterhi
 | Docker startet nicht | Öffne Docker Desktop oder starte den Daemon. Prüfe im selben Terminal `docker info` und versuche es dann erneut. |
 | Compose fehlt | Prüfe `docker compose version`; installiere das Compose-Plugin oder aktualisiere Docker Desktop. |
 | Ein Image-Download ist langsam oder scheitert | Prüfe die gemeldeten Registry- oder Netzwerkfehler und den freien Speicher. Starte nach der Korrektur `tale dev` im selben Verzeichnis erneut. |
-| Der HTTPS-Port ist belegt | Prüfe den Prozess oder verwende `tale dev --port 8443`. Öffne dann die angezeigte Adresse. |
+| Der HTTPS-Port ist belegt | Prüfe, welcher Prozess Port `443` belegt. Gib bei der veröffentlichten CLI-Version v0.5.70 diesen Port frei, bevor du es erneut versuchst. |
 | Port `8003` ist belegt | Stoppe die andere lokale Tale-Instanz oder den Dienst auf diesem Port. `--port` ändert nur HTTPS. |
 | Ein Container startet ständig neu | Führe `tale status` aus, danach `tale logs backend-api --tail 100` oder `tale logs platform --tail 100`. Suche die Ursache in den Protokollen des gemeldeten Dienstes. |
 | Statt der Einrichtung erscheint die Anmeldung | Es gibt bereits ein Konto. Melde dich damit an; setze die Daten nicht zurück, um die Einrichtung zu wiederholen. |

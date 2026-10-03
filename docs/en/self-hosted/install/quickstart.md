@@ -42,7 +42,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 Run `tale --version` in the same terminal to confirm installation. If the command is missing, follow the installer’s `PATH` guidance and reopen any terminals that were already open. The [CLI installation guide](/self-hosted/install/cli-install) covers pinned versions and custom installation directories.
 
-You can check the machine before creating a project with `tale doctor`. It inspects Docker, Compose, container architecture and local ports without installing software or changing files. Follow any reported recovery steps; a passing check does not verify image downloads or model access.
+Check `tale --help` before using `tale doctor`. If `doctor` is not listed, run `docker info` and `docker compose version` to check Docker and Compose. When available, `tale doctor` also checks container architecture and local ports without installing software or changing files. Follow any reported recovery steps; a passing check does not verify image downloads or model access.
 
 ## Initialize and start
 
@@ -76,7 +76,7 @@ A completed reply confirms that the account, provider and chosen model work toge
 
 Press `Ctrl-C` in the terminal running `tale dev` to stop the foreground instance. From the same project directory, run `tale dev` again to resume it with its existing data.
 
-To run in the background and stop it later:
+Check `tale dev --help` before using the background commands below. If it does not list `--stop`, keep `tale dev` in the foreground and stop it with `Ctrl-C`.
 
 ```bash
 tale dev --detach
@@ -93,7 +93,7 @@ Stopping preserves the project, secrets and persistent data. Keep using the same
 | Docker cannot start | Open Docker Desktop or start the daemon. Confirm `docker info` works in the same terminal, then retry. |
 | Compose is missing | Check `docker compose version`; install the Compose plugin or update Docker Desktop. |
 | An image pull is slow or fails | Check the reported registry/network error and free disk space. After fixing the cause, rerun `tale dev` in the same directory. |
-| HTTPS port is busy | Inspect the process using it or select `tale dev --port 8443`, then open the printed address. |
+| HTTPS port is busy | Inspect the process using port `443`. With the published v0.5.70 CLI, free that port before retrying. |
 | Port `8003` is busy | Stop the other local Tale stack or service using it. Changing `--port` changes HTTPS only. |
 | A container keeps restarting | Run `tale status`, then `tale logs backend-api --tail 100` or `tale logs platform --tail 100`. Use the reported service’s logs to find the cause. |
 | Login appears instead of first-time setup | An account already exists. Sign in with it; do not reset the data to repeat setup. |

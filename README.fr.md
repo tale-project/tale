@@ -112,9 +112,9 @@ tale dev
 
 Il te faut Docker avec Compose, de la place pour plusieurs Go d’images et tes données, ainsi que les identifiants d’un fournisseur de modèles pour tester la première réponse. Docker Desktop inclut l’émulation amd64 nécessaire au stockage objet fourni sur Apple Silicon. Sur ARM64 Linux, configure l’émulation avant de démarrer.
 
-La CLI peut aider à installer ou démarrer Docker. Utilise `tale doctor` pour vérifier les prérequis sans modifier ta machine. Au démarrage, ouvre l’URL affichée, crée le premier compte et l’organisation, puis ajoute des identifiants sous **Paramètres > Fournisseurs IA** et [envoie ton premier message](https://docs.tale.dev/fr/get-started/quickstart).
+La CLI peut aider à installer ou démarrer Docker. Au démarrage, ouvre l’URL affichée, crée le premier compte et l’organisation, puis ajoute des identifiants sous **Paramètres > Fournisseurs IA** et [envoie ton premier message](https://docs.tale.dev/fr/get-started/quickstart).
 
-Appuie sur `Ctrl-C` pour arrêter l’instance ; relance `tale dev` dans le même répertoire pour reprendre avec tes données. Pour fonctionner en arrière-plan, démarre avec `tale dev --detach` et arrête avec `tale dev --stop`.
+Appuie sur `Ctrl-C` pour arrêter l’instance ; relance `tale dev` dans le même répertoire pour reprendre avec tes données.
 
 Le [guide de démarrage](https://docs.tale.dev/fr/self-hosted/install/quickstart) couvre Windows, les certificats, les prérequis d’architecture et le dépannage. Le [guide CLI](tools/cli/README.md) présente les commandes. Avant d’ouvrir l’accès à ton équipe, suis la [préparation de la production](https://docs.tale.dev/fr/self-hosted/install/quickstart#preparer-la-production) : `tale deploy` utilise des volumes distincts de l’instance locale de développement.
 

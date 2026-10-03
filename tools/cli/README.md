@@ -5,11 +5,15 @@ configuration and releases automation packs from client-owned repositories. Use
 the [CLI reference](../../docs/en/self-hosted/install/cli-install.md) for complete
 options and deployment specifications.
 
+This README includes commands in the current source code. Published v0.5.70 lacks
+`tale doctor` and `tale dev --stop`; check `tale --help` and `tale dev --help` before
+using them.
+
 ## Choose your task
 
 | Task | Start here |
 | --- | --- |
-| Check the machine before installing an instance | `tale doctor` (read-only; no project needed). |
+| Check the machine before installing an instance | `tale doctor` when listed by `tale --help`; otherwise `docker info` and `docker compose version`. |
 | Try Tale locally | [Quickstart](../../docs/en/self-hosted/install/quickstart.md): `tale init`, then `tale dev`. |
 | Deploy a workspace | `tale deploy`; use `tale status` to inspect the result. |
 | Upgrade an existing workspace | [Upgrades](../../docs/en/self-hosted/operate/upgrades.md): `tale update`, then `tale deploy`. |
@@ -33,7 +37,6 @@ installed version and available commands before using a runbook:
 
 ```bash
 tale --version
-tale doctor
 tale --help
 tale deploy --help
 tale config --help
@@ -60,12 +63,13 @@ Open the printed URL, create the owner account and organization, then connect a
 credential under **Settings > AI providers**. Verify a finished reply with
 [Send your first message](../../docs/en/get-started/quickstart.md).
 
-`Ctrl-C` stops the foreground run. `tale dev --detach` runs in the background;
-`tale dev --stop` stops that project's local containers while preserving their
-volumes. Run `tale dev` from the same directory to resume. The production deployment
-uses separate data volumes and does not import the local instance's data.
+`Ctrl-C` stops the foreground run. Run `tale dev` from the same directory to
+resume. If `tale dev --help` lists `--stop`, you can start in the background with
+`tale dev --detach` and stop with `tale dev --stop`, preserving the data. Otherwise,
+keep the foreground run. The production deployment uses separate data volumes and
+does not import the local instance's data.
 
-`doctor` checks Docker, Compose, daemon architecture and local port availability
+When available, `doctor` checks Docker, Compose, daemon architecture and local port availability
 without installing dependencies or changing files. Use `tale doctor --port 8443`
 when selecting another HTTPS port, or `tale doctor --json` for structured output.
 Its warnings include limitations such as ARM64 emulation; a successful check is

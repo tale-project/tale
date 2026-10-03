@@ -42,7 +42,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 Vérifie l’installation avec `tale --version` dans le même terminal. Si la commande est introuvable, suis les indications de l’installateur pour le `PATH` et rouvre les terminaux déjà ouverts. Le [guide CLI](/fr/self-hosted/install/cli-install) couvre les versions fixées et le choix du répertoire d’installation.
 
-Tu peux vérifier la machine avant de créer un projet avec `tale doctor`. La commande examine Docker, Compose, l’architecture des conteneurs et les ports locaux sans installer de logiciel ni modifier de fichiers. Suis les solutions proposées ; un résultat positif ne vérifie ni les téléchargements d’images ni l’accès aux modèles.
+Consulte `tale --help` avant d’utiliser `tale doctor`. Si `doctor` n’y figure pas, lance `docker info` et `docker compose version` pour vérifier Docker et Compose. Lorsqu’elle est disponible, la commande `tale doctor` examine aussi l’architecture des conteneurs et les ports locaux sans installer de logiciel ni modifier de fichiers. Suis les solutions proposées ; un résultat positif ne vérifie ni les téléchargements d’images ni l’accès aux modèles.
 
 ## Initialiser et démarrer
 
@@ -76,7 +76,7 @@ Une réponse complète confirme que le compte, le fournisseur et le modèle choi
 
 Appuie sur `Ctrl-C` dans le terminal qui exécute `tale dev` pour arrêter l’instance au premier plan. Relance `tale dev` depuis le même répertoire de projet pour reprendre avec les données existantes.
 
-Pour démarrer en arrière-plan et arrêter l’instance plus tard :
+Consulte `tale dev --help` avant d’utiliser les commandes ci-dessous pour le fonctionnement en arrière-plan. Si `--stop` n’y figure pas, garde `tale dev` au premier plan et arrête-le avec `Ctrl-C`.
 
 ```bash
 tale dev --detach
@@ -93,7 +93,7 @@ L’arrêt conserve le projet, les secrets et les données persistantes. Continu
 | Docker ne démarre pas | Ouvre Docker Desktop ou démarre le daemon. Vérifie que `docker info` fonctionne dans le même terminal, puis réessaie. |
 | Compose manque | Vérifie `docker compose version` ; installe le plugin Compose ou mets Docker Desktop à jour. |
 | Une image se télécharge lentement ou échoue | Vérifie l’erreur réseau ou du registre et l’espace disque libre. Après correction, relance `tale dev` dans le même répertoire. |
-| Le port HTTPS est occupé | Identifie le processus ou utilise `tale dev --port 8443`, puis ouvre l’adresse affichée. |
+| Le port HTTPS est occupé | Vérifie quel processus utilise le port `443`. Avec la CLI publiée en version v0.5.70, libère ce port avant de réessayer. |
 | Le port `8003` est occupé | Arrête l’autre instance Tale locale ou le service qui utilise ce port. `--port` ne change que HTTPS. |
 | Un conteneur redémarre en boucle | Lance `tale status`, puis `tale logs backend-api --tail 100` ou `tale logs platform --tail 100`. Cherche la cause dans les logs du service signalé. |
 | La connexion apparaît à la place de la configuration initiale | Un compte existe déjà. Connecte-toi avec ce compte ; ne réinitialise pas les données pour répéter la configuration. |

@@ -7,7 +7,7 @@ La CLI `tale` permet d’installer Tale, de le déployer et d’en assurer l’e
 
 La même CLI gère les opérations du workspace sur les conteneurs, les déploiements depuis des commits source exacts et les releases de configuration client. Ton automatisation choisit la destination, les références et les références d’identifiants, puis appelle la CLI. [Publier les configurations d’un client](/fr/self-hosted/configuration/config-releases) traite les contenus conservés dans son propre repository.
 
-Pour ta première instance, suis le [démarrage rapide](/fr/self-hosted/install/quickstart). Le parcours habituel est `tale init`, puis `tale dev` ; `tale doctor` vérifie la machine avant de commencer. Une spécification de déploiement géré n’est nécessaire que si ton automatisation doit fixer les commits source exacts du runtime et du client.
+Pour ta première instance, suis le [démarrage rapide](/fr/self-hosted/install/quickstart). Le parcours habituel est `tale init`, puis `tale dev`. Une spécification de déploiement géré n’est nécessaire que si ton automatisation doit fixer les commits source exacts du runtime et du client.
 
 ## Avant de commencer
 
@@ -53,7 +53,7 @@ Définis `VERSION` pour choisir une version précise et `INSTALL_DIR` pour chang
 tale --version
 ```
 
-La CLI affiche la version installée. Si la commande est introuvable, vérifie le répertoire indiqué par l’installeur et ajoute-le au `PATH`. Sous Windows, ouvre un nouveau terminal après l’installation. Si le téléchargement échoue, vérifie l’accès aux destinations réseau ci-dessus. La variable d’environnement facultative `GITHUB_TOKEN` authentifie la recherche de version lorsque GitHub limite les appels anonymes à son API.
+La CLI affiche la version installée. Si la commande est introuvable, vérifie le répertoire indiqué par l’installeur et ajoute-le au `PATH`. Si un terminal Windows déjà ouvert ne trouve toujours pas `tale`, rouvre-le. Si le téléchargement échoue, vérifie l’accès aux destinations réseau ci-dessus. La variable d’environnement facultative `GITHUB_TOKEN` authentifie la recherche de version lorsque GitHub limite les appels anonymes à son API.
 
 ## Vérifier la configuration
 
@@ -84,7 +84,7 @@ La CLI regroupe ses commandes selon ce que tu fais, comme le fait `tale --help`.
 - Une option de la forme `--option <valeur>` **exige une valeur** quand tu l'utilises (p. ex. `--port 8443`) ; une option seule comme `--detach` est un commutateur booléen.
 - Les **valeurs par défaut** figurent entre parenthèses après la description. Aucune valeur par défaut signifie que l'option est désactivée, ou que la valeur est résolue depuis `.env` / le contexte.
 
-Lance `tale <commande> --help` pour la liste de référence de ta version installée.
+Cette référence décrit aussi les commandes du code source actuel. La CLI publiée en version v0.5.70 ne contient ni `tale doctor` ni `tale dev --stop`. Consulte `tale --help` et `tale <commande> --help` pour connaître les commandes et options disponibles dans ta version installée.
 
 **Les options globales** fonctionnent sur chaque commande :
 
