@@ -6,6 +6,9 @@
  * `de` while `de-CH` kept "bessere Preise"). So every override must equal its
  * `de` value with ß written as ss, unless its key is listed below as a real
  * regional variant — Swiss vocabulary, or «…» quotation marks.
+ *
+ * Keys the overlay names but `de` lacks are the shared parity suite's job
+ * (`messages.test.ts`).
  */
 
 import { readFileSync } from 'node:fs';
@@ -23,8 +26,12 @@ const MESSAGES_DIR = path.resolve(
 /** Keys whose Swiss text may differ from `de` beyond ß → ss, with the reason. */
 const REGIONAL_VARIANTS: Readonly<Record<string, string>> = {};
 
-function readLeaves(file: string): Map<string, unknown> {
-  const leaves = new Map<string, unknown>();
+/**
+ * Every value of a catalog by its dotted key. An array is one value: an
+ * override replaces it whole, as i18next returns it.
+ */
+function readValues(file: string): Map<string, unknown> {
+  const values = new Map<string, unknown>();
   const walk = (node: unknown, prefix: string) => {
     if (node && typeof node === 'object' && !Array.isArray(node)) {
       for (const [key, value] of Object.entries(node)) {
@@ -32,49 +39,58 @@ function readLeaves(file: string): Map<string, unknown> {
       }
       return;
     }
-    leaves.set(prefix, node);
+    values.set(prefix, node);
   };
   walk(parse(readFileSync(path.join(MESSAGES_DIR, file), 'utf8')), '');
-  return leaves;
+  return values;
 }
 
-const swiss = (german: string) => german.replaceAll('ß', 'ss');
+/** A `de` value as Swiss readers get it: ß as ss in every string it holds. */
+function swiss(value: unknown): unknown {
+  if (typeof value === 'string') return value.replaceAll('ß', 'ss');
+  if (Array.isArray(value)) return value.map(swiss);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, swiss(item)]),
+    );
+  }
+  return value;
+}
+
+const same = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 describe('de-CH overlay', () => {
-  const german = readLeaves('de.yml');
-  const overrides = readLeaves('de-CH.yml');
-
-  it('overrides only keys that exist in de', () => {
-    expect([...overrides.keys()].filter((key) => !german.has(key))).toEqual([]);
-  });
+  const german = readValues('de.yml');
+  const overrides = [...readValues('de-CH.yml')].filter(([key]) =>
+    german.has(key),
+  );
 
   it('writes each override as its de text with ss for ß', () => {
-    const stale = [...overrides]
-      .filter(([key]) => !(key in REGIONAL_VARIANTS))
-      .flatMap(([key, value]) => {
-        const source = german.get(key);
-        if (typeof source !== 'string') return [];
-        const expected = swiss(source);
-        return value === expected ? [] : [{ key, expected, actual: value }];
-      });
+    const stale = overrides
+      .filter(([key]) => !Object.hasOwn(REGIONAL_VARIANTS, key))
+      .filter(([key, value]) => !same(value, swiss(german.get(key))))
+      .map(([key, value]) => ({
+        key,
+        expected: swiss(german.get(key)),
+        actual: value,
+      }));
     expect(stale).toEqual([]);
   });
 
   it('keeps no override that repeats de, which would shadow later fixes', () => {
     expect(
-      [...overrides]
-        .filter(([key, value]) => value === german.get(key))
+      overrides
+        .filter(([key, value]) => same(value, german.get(key)))
         .map(([key]) => key),
     ).toEqual([]);
   });
 
   it('lists only regional variants that still differ from de', () => {
+    const values = new Map(overrides);
     for (const key of Object.keys(REGIONAL_VARIANTS)) {
-      const value = overrides.get(key);
-      const source = german.get(key);
-      expect(typeof value, key).toBe('string');
-      expect(typeof source, key).toBe('string');
-      expect(value, key).not.toBe(swiss(source as string));
+      expect(values.has(key), key).toBe(true);
+      expect(same(values.get(key), swiss(german.get(key))), key).toBe(false);
     }
   });
 });

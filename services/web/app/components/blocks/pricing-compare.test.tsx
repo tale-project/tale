@@ -15,6 +15,22 @@ vi.mock('@/app/components/marketing', () => ({
 
 const LOCALES = ['en', 'de', 'fr'] as const;
 
+/**
+ * Every product feature ships in both editions, so a row Community lacks
+ * must name a service: hosting, a contract, support or roadmap influence.
+ */
+const ENTERPRISE_SERVICES = [
+  'compare.rows.cloud',
+  'compare.rows.localDataCenters',
+  'compare.rows.dpa',
+  'compare.rows.iso',
+  'compare.rows.customDpa',
+  'compare.rows.emailSupport',
+  'compare.rows.phoneSupport',
+  'compare.rows.remoteSupport',
+  'compare.categories.roadmap',
+] as const;
+
 /** Each data row of the table as `label → [Community, Enterprise]`. */
 async function renderRows(locale: string) {
   await i18n.changeLanguage(locale);
@@ -34,15 +50,28 @@ async function renderRows(locale: string) {
 
 describe('pricing comparison', () => {
   it.each(LOCALES)(
-    'keeps Enterprise-only compliance rows to services in %s',
+    'leaves Community without services only, in %s',
+    async (locale) => {
+      const rows = await renderRows(locale);
+      const t = i18n.getFixedT(locale, 'pricing');
+      const notIncluded = t('compare.cellLabels.no');
+
+      expect(
+        [...rows]
+          .filter(([, [community]]) => community === notIncluded)
+          .map(([label]) => label),
+      ).toEqual(ENTERPRISE_SERVICES.map((key) => t(key)));
+    },
+  );
+
+  it.each(LOCALES)(
+    'names the agreement Ruler GmbH signs as processor, on the card too, in %s',
     async (locale) => {
       const rows = await renderRows(locale);
       const t = i18n.getFixedT(locale, 'pricing');
       const included = t('compare.cellLabels.yes');
       const notIncluded = t('compare.cellLabels.no');
 
-      // Every product feature ships in Community, so a data-protection row
-      // Community lacks must name the agreement Ruler GmbH signs as processor.
       const dpa = t('compare.rows.dpa');
       expect(dpa).toMatch(locale === 'de' ? /\(AVV\)$/ : /\(DPA\)$/);
       expect(rows.get(dpa)).toEqual([notIncluded, included]);
@@ -50,7 +79,6 @@ describe('pricing comparison', () => {
         included,
         included,
       ]);
-      // The Enterprise card names the same service as the table.
       expect(t('enterprise.feature3')).toBe(dpa);
     },
   );
