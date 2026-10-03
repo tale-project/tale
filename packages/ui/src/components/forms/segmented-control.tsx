@@ -51,6 +51,7 @@ export function SegmentedControl({
   const generatedId = useId();
   const id = providedId ?? generatedId;
   const isNavigationKeyPressed = useRef(false);
+  const navigationKeyGeneration = useRef(0);
 
   const handleValueChange = (next: string) => {
     // Radix calls this with '' when the user re-clicks the active item.
@@ -76,6 +77,7 @@ export function SegmentedControl({
         onValueChange={handleValueChange}
         disabled={disabled}
         onKeyDown={(event) => {
+          const generation = ++navigationKeyGeneration.current;
           isNavigationKeyPressed.current = [
             'ArrowRight',
             'ArrowLeft',
@@ -86,7 +88,10 @@ export function SegmentedControl({
           ].includes(event.key);
           if (isNavigationKeyPressed.current) {
             setTimeout(() => {
-              isNavigationKeyPressed.current = false;
+              // A newer key can arrive before this older reset runs.
+              if (navigationKeyGeneration.current === generation) {
+                isNavigationKeyPressed.current = false;
+              }
             });
           }
         }}
