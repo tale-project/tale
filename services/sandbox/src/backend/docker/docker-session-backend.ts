@@ -78,6 +78,7 @@ import {
   type OrganizationTeardownResult,
   type SessionBackend,
   type SessionSpec,
+  type WorkspaceDeletion,
 } from '../types.ts';
 
 /** Does a `docker run` stderr report a container-name collision? */
@@ -771,6 +772,19 @@ export class DockerSessionBackend implements SessionBackend {
     }
     await this.clearOwnerMarker(sessionId);
     return existed || hadWorkspace;
+  }
+
+  /** The trash entries of the id's workspaces, wherever they were rooted:
+   * `discard` names each after the workspace dir (`ses-<id>.<uuid>`), so a
+   * fresh workspace under the id never counts. */
+  async workspaceDeletion(
+    sessionId: string,
+    waitMs = 0,
+  ): Promise<WorkspaceDeletion> {
+    const name = this.workspaceDir(sessionId);
+    return waitMs > 0
+      ? this.trash.settle(name, waitMs)
+      : this.trash.deletion(name);
   }
 
   async stopSession(

@@ -126,7 +126,12 @@ authentication as the session routes. See the
 
 On Docker a destroy moves the workspace into the session root's `.trash/` and
 deletes it in the background, so it answers at once however much the workspace
-holds; the next start empties whatever a restart or crash left there. See
+holds; the next start empties whatever a restart or crash left there. Every answer
+says how far the bytes came (`deletion`: `done`, `pending` or `failed`; on
+Kubernetes `handed_off`), and `?await_deletion=1` waits a bounded time for
+them: the platform's cleanup and erasure settle a deletion only on an explicit
+`done` or `handed_off`, never on an answer without it (a spawner or device
+older than the contract). See
 [stop vs destroy](docs/sessions.md#stop-vs-destroy--the-data-preservation-contract).
 
 Docker admission serializes creates through the host's single spawner.

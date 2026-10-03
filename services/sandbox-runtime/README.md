@@ -146,6 +146,57 @@ rationale.
 docker build -f services/sandbox-runtime/Dockerfile .
 ```
 
+### Harness upgrades
+
+The Dockerfile pins every bundled harness and the Node patch version. Refresh
+the complete set together after checking each upstream's supported release
+channel and runtime requirements. Claude uses its `stable` channel; Hermes uses
+the PyPI distribution, whose version can differ from the GitHub release. Keep
+installs at image build time so a new agent never downloads or updates its CLI
+during startup. An image update does not add models to the platform catalog;
+deploy the matching platform release before selecting newly supported models.
+
+BuildKit keeps native-addon headers and the built-in skill's Bun package cache
+outside runtime layers. The October harness refresh grows the amd64 image to
+about 6.0 GB; its image-validation budget is 6,600 MB (roughly 10% headroom).
+The complete upstream runtimes and diagnostics ship in the image, which is
+shared by concurrent sessions. This increases image pull and base-image disk
+cost; it does not duplicate the base image for every worker.
+
+Run the wrapper regression tests and the real image conformance suite before
+shipping a refresh:
+
+```bash
+bun run --filter @tale/sandbox-runtime-daemon test
+bun run docker:test:sandbox-runtime
+```
+
+To test a previously built image, set `IMAGE=<ref>` and `SKIP_BUILD=true` on
+the second command. The image suite checks every registry harness against its
+exact Dockerfile pin, from separate empty homes with networking disabled, a
+read-only root and all capabilities dropped. Each version probe has a
+60-second cold-start deadline and reports its elapsed time. It also exercises
+the real wrapper flags and SDK signatures, managed executions against a stub
+model, baked skills, process cleanup, and lazy browser startup. These checks
+need no provider credentials; live subscription authentication still requires
+verification after rollout. CI runs the image conformance gate on amd64.
+
+Hermes keeps SDK diagnostics on stderr so stdout remains NDJSON and disables
+the SDK's artificial delay between tool calls. Provider retry and backoff stay
+enabled. OpenClaw's wrapper treats a structured error as a failed execution
+even when the CLI itself exits successfully.
+
+Gemini requires its system settings and every ancestor directory to be owned
+by root and not writable by group or others. The image generates immutable
+policy files from the platform's existing harness interpreter; the wrapper
+selects the file matching the incoming settings and supplies only the bridge
+URL and a unique context filename through environment substitution. Repository
+settings cannot override that system policy. A platform/image policy mismatch
+fails before the CLI starts and asks for a runtime update. Agent execution
+remains non-root, and cancellation removes the private per-execution context
+file. Keep the harness catalog and runtime image aligned when changing Gemini
+settings.
+
 ### Built-in skills
 
 The image bakes Tale's built-in skills under `/opt/agents/skills/<name>` — today

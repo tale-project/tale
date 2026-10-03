@@ -342,12 +342,46 @@ The disk space comes back when the background deletion finishes; one that took
 a second or more is logged (`[sandbox.trash] removed …`). What a restart or a
 crash cut short goes at the next start (the boot sweep), and an entry that
 could not be removed is logged and retried by the next pass and the
-five-minute sweep. `.trash/` is a dot-dir: the workspace inventory, the
-host-dir sweep and the resume resolver never take it for a workspace. Where the
-rename cannot happen (another filesystem, a disk too full for the directory
-entry), the workspace is deleted in place before the answer, as it was before
-the trash, and a failure there answers 502. On Kubernetes the PVC delete
-already hands the volume to its provisioner.
+five-minute sweep.
+
+Out of use is not deleted, so every destroy answer that is not busy says how
+far the bytes came, in `deletion`: `done` once no trash entry of the id is
+left, `pending` while one waits or is being deleted, `failed` while the last
+attempt at one failed. It is read from the trash itself, so a restart turns
+nothing still on disk into `done` (a failure is remembered in memory only:
+after a restart the entry reads `pending` until a pass has tried it again).
+Only the id's own entries count (`ses-<id>.<uuid>`), never a fresh `ses-<id>`
+a later session laid out. `?await_deletion=1` — the platform's
+[workspace cleanup](#workspace-cleanup) sends it — has the entries attempted
+now, a failed one again, and waits up to 10 s for them before answering; an
+interactive Destroy does not wait.
+
+`.trash/` is a dot-dir: the workspace inventory, the host-dir sweep and the
+resume resolver never take it for a workspace. Where the rename cannot happen
+(another filesystem, a disk too full for the directory entry), the workspace is
+deleted in place before the answer, as it was before the trash, and a failure
+there answers 502.
+
+On Kubernetes the destroy's deletion is the PVC delete: once the API accepted
+it, Kubernetes removes the claim when nothing mounts it, and the volume is its
+storage provisioner's to delete under the StorageClass's `reclaimPolicy` —
+bytes the spawner cannot observe. So it answers `deletion: handed_off`, never
+`done`, and the platform records which contract a deletion settled on. Every
+backend states its contract (`SessionBackend.workspaceDeletion` is required):
+an answer without `deletion` comes from a spawner or device older than this
+contract — one that already renamed into its trash and deleted in the
+background — and the platform reads it as unconfirmed, never as done.
+
+The device hub keeps a destroyed session's placement, marked deleting, until
+its device answers `done`: while the device is still deleting (`pending`,
+`failed`), or is too old to say, the destroy that asks again reaches the device
+holding the bytes rather than the hub's own backend. The hub asks again itself,
+at most every 5 minutes per placement and least recently asked first, so a
+placement ends once its bytes are gone even when nothing destroys or creates
+the id again (a run's reclaim never does). Such a placement is no session — the
+capacity view leaves it out — and a fresh session under the id is placed like
+any other, trying that device first, so a new session never waits on an old
+workspace's bytes.
 
 ### Workspace cleanup
 
@@ -398,11 +432,19 @@ The spawner's part:
   either existed names none. Leaving a workspace out is always safe: the
   platform only deletes what the list names and its records disown. A list
   that cannot be read is a 503.
-- `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1` — the cleanup's destroy:
-  `if_stopped` refuses (`{busy:true}`) while any compute runs under the id or a
-  create of it is in flight; `if_idle` rides along so a spawner or device that
-  predates `if_stopped` still refuses a live exec. Destroys of one id run one
-  after another, and a create of an id waits for a destroy of it under way —
+- `DELETE /v1/sessions/:id?if_idle=1&if_stopped=1&await_deletion=1` — the
+  cleanup's destroy: `if_stopped` refuses (`{busy:true}`) while any compute runs
+  under the id or a create of it is in flight; `if_idle` rides along so a
+  spawner or device that predates `if_stopped` still refuses a live exec. An
+  erasure sends neither condition, and an owner's deletion `if_idle` alone.
+  `await_deletion` waits a bounded time for the bytes; the platform settles a
+  deletion — the rows destroyed, the audit row, the erasure's count — only on
+  `deletion: done` (or Kubernetes' `handed_off`, recorded as such). `pending`,
+  `failed` and an answer without `deletion` leave the workspace for the next
+  attempt (the sweep defers it, the owner's and the organization's jobs throw
+  for the queue's retry, an erasure's pass fails so the receipt reads
+  partial), and `failed` is audited as a failed deletion. Destroys of one id
+  run one after another, and a create of an id waits for a destroy of it under way —
   up to two minutes; past that it answers 429 busy (`retry-after`), so a
   destroy wedged on its filesystem never holds the create and its capacity
   slot for ever.

@@ -1,8 +1,8 @@
 # Sandbox harness — Pi, driven through the tale-pi-run wrapper (prompt +
 # per-exec config as one JSON object on stdin, staged to disk before the CLI
 # starts — process lists leak argv, and a prompt starting with '-' would
-# parse as a flag). Pi has no MCP support at all, so no MCP-delivered
-# tooling (browser server, connector bridge) reaches it. Its
+# parse as a flag). This adapter does not stage Pi's MCP configuration, so
+# MCP-delivered tooling (browser server, connector bridge) is unavailable. Its
 # bring-your-own backend is commonly OpenRouter-style and speaks the
 # catalog's vendor-prefixed ids, so refs resolve in the catalog dialect.
 #

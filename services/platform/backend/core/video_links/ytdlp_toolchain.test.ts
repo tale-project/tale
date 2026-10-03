@@ -7,7 +7,7 @@
  * the processes it started.
  */
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import fs from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -41,13 +41,11 @@ const FAST = {
   killGraceMs: 200,
 };
 
-/** Alive and not a zombie: an unreaped orphan must not count as stopped. */
+/** A zombie is already stopped, even before its parent reaps it. */
 function isAlive(pid: number): boolean {
-  const stat = `/proc/${pid}/stat`;
-  if (existsSync('/proc/self/stat')) {
-    if (!existsSync(stat)) return false;
-    const state = readFileSync(stat, 'utf8').split(') ')[1]?.[0];
-    return state !== undefined && state !== 'Z';
+  if (fs.existsSync('/proc/self/stat')) {
+    const state = procStat(pid)?.state;
+    return state !== undefined && state !== '' && state !== 'Z';
   }
   try {
     process.kill(pid, 0);
@@ -86,7 +84,7 @@ function procStat(
 ): { comm: string; state: string; sid: number; startTime: string } | undefined {
   let stat: string;
   try {
-    stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'ENOENT' || code === 'ESRCH') return undefined;
@@ -350,6 +348,42 @@ async function stallingScript(
   };
 }
 
+describe('process liveness observations', () => {
+  it.each(['ENOENT', 'ESRCH'])(
+    'counts a child that disappears during the stat read as gone (%s)',
+    (code) => {
+      // Force the procfs path on every host. Even a successful existence
+      // probe cannot guarantee the child remains alive until the read.
+      const exists = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      const read = vi.spyOn(fs, 'readFileSync').mockImplementationOnce(() => {
+        throw Object.assign(new Error('process disappeared'), { code });
+      });
+      try {
+        expect(isAlive(12345)).toBe(false);
+      } finally {
+        read.mockRestore();
+        exists.mockRestore();
+      }
+    },
+  );
+
+  it('does not report an unreadable live process as gone', () => {
+    const error = Object.assign(new Error('permission denied'), {
+      code: 'EACCES',
+    });
+    const exists = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const read = vi.spyOn(fs, 'readFileSync').mockImplementationOnce(() => {
+      throw error;
+    });
+    try {
+      expect(() => isAlive(12345)).toThrow(error);
+    } finally {
+      read.mockRestore();
+      exists.mockRestore();
+    }
+  });
+});
+
 describe('downloadTo bounds', () => {
   it('rejects a body that stops arriving, naming the body stage', async () => {
     const url = await stub('stall-body');
@@ -366,7 +400,7 @@ describe('downloadTo bounds', () => {
       /^\[video-toolchain\] yt-dlp download body: timed out after \d+ ms \(deadline 500 ms\)$/,
     );
     expect(Date.now() - startedAt).toBeLessThan(5_000);
-    expect(existsSync(join(scratch, 'yt-dlp'))).toBe(false);
+    expect(fs.existsSync(join(scratch, 'yt-dlp'))).toBe(false);
   });
 
   it('rejects a server that never answers, naming the response stage', async () => {

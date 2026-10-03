@@ -18,6 +18,7 @@ import {
   sessionCreate,
   SessionFileTooLargeError,
   sessionIsAlive,
+  sessionDestroyWorkspace,
   sessionReadFile,
   sessionStageFiles,
   type SessionStageFile,
@@ -435,6 +436,54 @@ function deviceOfflineResponse(deviceId: string): Response {
     },
   );
 }
+
+describe('sessionDestroyWorkspace', () => {
+  const urls: string[] = [];
+  function answer(body: unknown) {
+    urls.length = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+  }
+
+  test('asks the spawner to await the deletion, under each condition', async () => {
+    answer({ destroyed: true, busy: false, deletion: 'done' });
+    await sessionDestroyWorkspace('pa-1', { ifIdle: true, ifStopped: true });
+    await sessionDestroyWorkspace('pa-1', { ifIdle: true });
+    await sessionDestroyWorkspace('pa-1');
+    expect(urls.map((url) => new URL(url).search)).toEqual([
+      '?if_idle=1&if_stopped=1&await_deletion=1',
+      '?if_idle=1&await_deletion=1',
+      '?await_deletion=1',
+    ]);
+  });
+
+  test('answers how far the deletion came, and nothing from a spawner that predates it', async () => {
+    answer({ destroyed: true, busy: false, deletion: 'pending' });
+    expect(await sessionDestroyWorkspace('pa-1')).toEqual({
+      destroyed: true,
+      busy: false,
+      deletion: 'pending',
+    });
+    answer({ destroyed: true, busy: false, deletion: 'handed_off' });
+    expect(await sessionDestroyWorkspace('pa-1')).toMatchObject({
+      deletion: 'handed_off',
+    });
+    // A spawner older than the contract: no state, which the cleanup reads
+    // as unconfirmed, never as done.
+    answer({ destroyed: true, busy: false });
+    expect(await sessionDestroyWorkspace('pa-1')).toEqual({
+      destroyed: true,
+      busy: false,
+    });
+  });
+});
 
 describe('sessions on connected devices', () => {
   const calls: Array<{ url: string; init: RequestInit | undefined }> = [];

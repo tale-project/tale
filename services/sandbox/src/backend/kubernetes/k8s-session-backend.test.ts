@@ -14,6 +14,7 @@ import type {
   V1Pod,
 } from '@kubernetes/client-node';
 
+import { SessionRoutes } from '../../session/session-routes.ts';
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { SessionIncarnationChangedError, type SessionSpec } from '../types.ts';
@@ -303,6 +304,27 @@ describe('Kubernetes destroy of a stopped session', () => {
     });
     const backend = new KubernetesSessionBackend(cfg, base.client);
     expect(await backend.destroySession('gone-k8s')).toBe(false);
+  });
+
+  test("states its own deletion contract: the volume handed to its provisioner, never Docker's done", async () => {
+    // An answer without a deletion state reads as a spawner older than the
+    // contract (unconfirmed), so this backend says what its destroy did.
+    const base = stub(async () => ({}));
+    Object.assign(base.client.core, {
+      deleteNamespacedPod: () => notFound(),
+      deleteNamespacedSecret: () => notFound(),
+    });
+    const backend = new KubernetesSessionBackend(cfg, base.client);
+    const routes = new SessionRoutes(cfg, backend);
+    const res = await routes.handleDestroy('stopped-k8s', {
+      awaitDeletion: true,
+    });
+    expect(await res.json()).toEqual({
+      destroyed: true,
+      busy: false,
+      deletion: 'handed_off',
+    });
+    expect(await backend.workspaceDeletion()).toBe('handed_off');
   });
 });
 
