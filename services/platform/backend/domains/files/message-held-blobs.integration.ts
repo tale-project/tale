@@ -90,6 +90,7 @@ export async function checkMessageHeldBlobs(
     (await s3HeadObject(store, keyOf(ref))) !== null;
   const refs: string[] = [];
   const conversationIds: string[] = [];
+  const replyIds: string[] = [];
   const threadId = randomUUID();
   /** The UI lane: presign, PUT, register — a file row the owner uploaded. */
   const uploadAndRegister = async (label: string) => {
@@ -181,6 +182,7 @@ export async function checkMessageHeldBlobs(
     const parsed = z
       .object({ messageId: z.string() })
       .safeParse(await response.json().catch(() => null));
+    if (parsed.success) replyIds.push(parsed.data.messageId);
     return {
       status: response.status,
       messageId: parsed.success ? parsed.data.messageId : null,
@@ -407,8 +409,15 @@ export async function checkMessageHeldBlobs(
       process.env.CONVERSATION_UNDO_SEND_DELAY_MS = previousDelay;
     }
     // Leave no probe bytes or rows behind. The conversations cascade their
-    // messages (a queued send's job then finds nothing to claim), the thread
-    // its messages.
+    // messages, the thread its messages. Each email reply scheduled its send
+    // an undo window (ten minutes, above) out: those jobs would wait there,
+    // with nothing left to claim, while a later lane drains every
+    // `conversation.send_message` job — so the lane drops its own.
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'conversation.send_message'
+        AND data ->> 'messageId' = ANY(${replyIds})
+    `;
     for (const ref of refs) {
       await s3DeleteObject(store, keyOf(ref)).catch((error: unknown) =>
         console.warn('[itest] message-held probe cleanup failed:', error),
