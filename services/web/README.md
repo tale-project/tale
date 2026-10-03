@@ -68,7 +68,9 @@ release behind. Reads never block on GitHub — a failed refresh keeps the last
 good list (or the snapshot) and backs off. Both JSON routes cache responses for five minutes.
 `/api/health` exposes `checks.releases` with the source, fetch time and age in seconds. After six
 hours without fresh data its `ok` becomes false, and a failed refresh reports one monitoring
-error per stale episode. Release freshness is advisory: it does not make site readiness fail.
+error per stale episode. A server that starts on an older snapshot reports only after it has
+itself gone six hours without a successful refresh, so one failed refresh after a deploy is not
+an error. Release freshness is advisory: it does not make site readiness fail.
 A successful refresh resets the report so a later outage can be detected.
 
 ## Optional error reporting
