@@ -21,6 +21,7 @@ import { join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { checkCodexRoundTrip } from './lib/codex-round-trip';
 import { sleep } from './lib/docker';
 import { capture, ok, projectRoot, stdoutOf, stream } from './lib/exec';
 import { BOLD, GREEN, NC, RED } from './lib/log';
@@ -101,6 +102,14 @@ if (process.env.SKIP_BUILD !== 'true' && !process.env.IMAGE_PREBUILT) {
     process.exit(1);
   }
 }
+
+console.log('');
+console.log('--- build-only caches stay outside runtime layers ---');
+await assertOk(
+  'Bun package and node-gyp header caches are not baked into the image',
+  0,
+  `python3 -c 'from pathlib import Path; assert not any(p.is_file() for root in ("/root/.bun/install/cache", "/root/.cache/node-gyp") for p in Path(root).rglob("*"))'`,
+);
 
 console.log('');
 console.log('--- default session profile (uid 65534) ---');
@@ -225,11 +234,105 @@ const { chromium } = require('/opt/agents/lib/node_modules/@playwright/mcp/node_
 NODEEOF`,
   );
 }
-// Pinned versions resolve (a broken install would non-zero here).
-await assertOk('claude --version runs', 10001, 'claude --version');
-await assertOk('opencode --version runs', 10001, 'opencode --version');
-await assertOk('hermes --version runs', 10001, 'hermes --version');
-await assertOk('codex --version runs', 10001, 'codex --version');
+// Every bundled harness must start offline from an empty HOME as the agent,
+// report its exact source pin, and finish within a generous cold-start bound.
+// Print timings so upgrades expose startup regressions without a noisy
+// machine-speed microbenchmark. Separate homes prevent one CLI warming another.
+{
+  const dockerfile = readFileSync(
+    join(PROJECT_ROOT, 'services/sandbox-runtime/Dockerfile'),
+    'utf8',
+  );
+  const harnessPins = [
+    ['claude-code', 'claude', 'CLAUDE_CODE_VERSION'],
+    ['codex', 'codex', 'CODEX_VERSION'],
+    ['cursor', 'agent', 'CURSOR_AGENT_VERSION'],
+    ['gemini', 'gemini', 'GEMINI_CLI_VERSION'],
+    ['hermes', 'hermes', 'HERMES_AGENT_VERSION'],
+    ['openclaw', 'openclaw', 'OPENCLAW_VERSION'],
+    ['opencode', 'opencode', 'OPENCODE_VERSION'],
+    ['pi', 'pi', 'PI_CODING_AGENT_VERSION'],
+    ['qwen-code', 'qwen', 'QWEN_CODE_VERSION'],
+  ] as const;
+  const registrySlugs = readdirSync(
+    join(PROJECT_ROOT, 'configs/platform/system/harnesses'),
+    { withFileTypes: true },
+  )
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  if (
+    JSON.stringify(registrySlugs) !==
+    JSON.stringify(harnessPins.map(([slug]) => slug))
+  ) {
+    fail('every registry harness has an exact-version startup probe');
+  }
+  const probes: { slug: string; binary: string; version: string }[] =
+    harnessPins.map(([slug, binary, pin]) => {
+      const version = dockerfile.match(
+        new RegExp(`^ARG ${pin}=([^\\s]+)$`, 'm'),
+      )?.[1];
+      if (!version) throw new Error(`Missing exact image pin ${pin}`);
+      return { slug, binary, version };
+    });
+  const nodeVersion = dockerfile.match(
+    /COPY --from=node:([\d.]+)-bookworm-slim/,
+  )?.[1];
+  if (!nodeVersion) throw new Error('Missing exact Node image pin');
+  probes.unshift({ slug: 'node', binary: 'node', version: nodeVersion });
+  const probeScript = String.raw`
+import json, os, re, signal, subprocess, sys, time
+
+failures = 0
+for probe in json.loads(sys.argv[1]):
+    home = '/workspace/' + probe['slug']
+    os.mkdir(home)
+    env = dict(os.environ, HOME=home, XDG_CACHE_HOME=home + '/.cache',
+               XDG_CONFIG_HOME=home + '/.config', XDG_DATA_HOME=home + '/.local/share')
+    started = time.monotonic()
+    proc = subprocess.Popen([probe['binary'], '--version'], cwd=home, env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, start_new_session=True)
+    try:
+        output, _ = proc.communicate(timeout=60)
+        pattern = r'(?<![\w.-])v?' + re.escape(probe['version']) + r'(?![\w.-])'
+        assert proc.returncode == 0, f'exit {proc.returncode}: {output[-2000:]}'
+        assert re.search(pattern, output), f'expected {probe["version"]}: {output[-2000:]}'
+        elapsed = round((time.monotonic() - started) * 1000)
+        print(f'{probe["slug"]} {probe["version"]}: {elapsed} ms', flush=True)
+    except (subprocess.TimeoutExpired, AssertionError) as error:
+        failures += 1
+        print(f'{probe["slug"]}: {error}', file=sys.stderr, flush=True)
+    finally:
+        # Also reap CLI background children after an otherwise successful probe.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate(timeout=5)
+sys.exit(1 if failures else 0)
+`;
+  const result = await capture([
+    'docker',
+    'run',
+    '--rm',
+    '--network=none',
+    '--read-only',
+    '--cap-drop=ALL',
+    '--user=10001:10001',
+    '--tmpfs=/workspace:uid=10001,gid=10001',
+    '--tmpfs=/tmp:mode=1777',
+    '--entrypoint=python3',
+    IMAGE,
+    '-c',
+    probeScript,
+    JSON.stringify(probes),
+  ]);
+  console.log(result.combined.trim());
+  if (result.exitCode === 0)
+    pass('all exact harness pins start offline within 60 seconds each');
+  else fail('exact harness versions or bounded offline startup');
+}
 // The npm launcher is a Node process that would stay the binary's parent for
 // the whole run; `codex` on PATH execs the native binary directly.
 await assertOk(
@@ -237,42 +340,20 @@ await assertOk(
   10001,
   'head -n1 "$(command -v codex)" | grep -qx "#!/bin/sh"',
 );
-await assertOk('gemini --version runs', 10001, 'gemini --version');
-await assertOk('pi --version runs', 10001, 'pi --version');
-await assertOk('openclaw --version runs', 10001, 'openclaw --version');
-await assertOk('qwen --version runs', 10001, 'qwen --version');
 await assertOk(
   'tale-qwen-run wrapper present',
   10001,
   'test -x /usr/local/bin/tale-qwen-run',
 );
-// The pinned Codex accepts the managed argv shape and gets as far as its
-// own protocol: with its state root present it announces the thread before
-// it ever reaches a model (the provider here is unreachable on purpose).
-// Without the root it dies on stderr with "Error finding codex home", exit
-// 1 and no JSON at all — what every managed Codex run hit while the
-// entrypoint never created the directory (2026-09-26 evaluation, C-08).
-await assertContains(
-  'codex exec starts against its state root and speaks its protocol',
-  10001,
-  '"type":"thread.started"',
-  // The managed argv of `lib/harnesses/fixtures/exec/codex.yml` (TOML values
-  // quoted, the prompt on stdin), pointed at a port nothing listens on.
-  [
-    'mkdir -p /workspace/.codex && cd /workspace && echo ping |',
-    'CODEX_HOME=/workspace/.codex TALE_GATEWAY_TOKEN=unused codex exec',
-    '--json --skip-git-repo-check',
-    `-c 'approval_policy="never"' -c 'sandbox_mode="danger-full-access"'`,
-    `-c 'web_search="disabled"' -c 'model_provider="tale"'`,
-    `-c 'model_providers.tale.name="Tale Gateway"'`,
-    `-c 'model_providers.tale.base_url="http://127.0.0.1:9/openai/v1"'`,
-    `-c 'model_providers.tale.env_key="TALE_GATEWAY_TOKEN"'`,
-    `-c 'model_providers.tale.wire_api="responses"'`,
-    `-c 'model_providers.tale.request_max_retries=0'`,
-    `-c 'model_providers.tale.stream_max_retries=0'`,
-    '-m probe - 2>&1 || true',
-  ].join(' '),
-);
+// Exercise startup, native tool execution and completion against a bounded
+// loopback Responses server. Codex now waits for network recovery on a refused
+// connection, so an unreachable port cannot serve as a terminating probe.
+try {
+  await checkCodexRoundTrip(IMAGE);
+  pass('codex completes a native tool round trip with parsed text and usage');
+} catch (error) {
+  fail(`codex native tool round trip: ${String(error)}`);
+}
 // The entrypoint creates every harness state root a harness.yml points at
 // under HOME, or the harness refuses to start (Codex above). Registry and
 // entrypoint are pinned to each other here, in the lane that cannot run
@@ -384,7 +465,6 @@ print("HERMES_WRAPPER_SIGNATURE_OK")
     `python3 - <<'PYEOF'\n${sigCheck}\nPYEOF`,
   );
 }
-await assertOk('gemini --version runs', 10001, 'gemini --version');
 // The wrapper's gemini-cli integration: ast-parse tale-gemini-run (also
 // proves it is valid Python), collect every long flag it passes on the
 // `gemini` command line, and assert the PINNED CLI's real --help lists each
@@ -439,21 +519,22 @@ print("GEMINI_WRAPPER_FLAGS_OK")
 // (2026-09-30). The harness YAML turns on dynamic model configuration, whose
 // resolveModelId passes an unknown id through. Drive the real wrapper with
 // those settings against a loopback stand-in for the gateway and read the
-// request path — no key, no network. The stand-in answers 400 (not retried)
-// so the CLI stops after its first call. The control run without the
-// setting proves the rewrite is still there: a CLI bump that drops it turns
-// this red on purpose — remove the fragment from harness.yml with the bump.
+// request path and first request's policy — no key, no network. The stand-in
+// answers 400 (not retried) so the CLI stops after its first call. A hostile
+// workspace settings file must not override the immutable system policy.
+// Keep the dynamic-model setting for older platform images during rollout;
+// upstream also stopped rewriting unrelated flash IDs in 0.61.0.
 {
   const modelIdCheck = `
-import http.server, json, os, subprocess, threading
+import http.server, json, os, pathlib, stat, subprocess, tempfile, threading
 
 seen = []
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
-        seen.append(self.path)
-        self.rfile.read(int(self.headers.get("content-length") or 0))
+        request = json.loads(self.rfile.read(int(self.headers.get("content-length") or 0)))
+        seen.append((self.path, request))
         body = json.dumps(
             {"error": {"code": 400, "message": "probe", "status": "INVALID_ARGUMENT"}}
         ).encode()
@@ -477,32 +558,56 @@ env = dict(
 MODEL = "probe-provider/probe-model-flash"
 
 
-def request_path(settings):
+def request_path(settings, workdir):
     del seen[:]
-    payload = json.dumps({"prompt": "probe", "settings": settings})
-    subprocess.run(
-        ["tale-gemini-run", "--workdir", os.environ["HOME"], "--model", MODEL],
+    payload = json.dumps({"prompt": "probe", "settings": settings, "system_prompt": "TALE_GEMINI_CONTEXT_PROBE"})
+    result = subprocess.run(
+        ["tale-gemini-run", "--workdir", workdir, "--model", MODEL],
         input=payload.encode(),
         env=env,
         capture_output=True,
         timeout=120,
     )
-    assert len(seen) == 1, f"expected one model call, saw {seen}"
-    return seen[0].split(":", 1)[0]
+    assert len(seen) == 1, f"expected one model call, saw {len(seen)}: {result.stderr.decode()} {result.stdout.decode()}"
+    assert b"Security Warning: Skipping" not in result.stderr, result.stderr.decode()
+    request = seen[0][1]
+    assert "TALE_GEMINI_CONTEXT_PROBE" in json.dumps(request), "appended instructions missing"
+    tool_names = {
+        declaration.get("name")
+        for tool in request.get("tools", [])
+        for declaration in tool.get("functionDeclarations", [])
+    }
+    assert not ({"google_web_search", "web_fetch"} & tool_names), tool_names
+    assert not any("googleSearch" in tool for tool in request.get("tools", [])), request.get("tools")
+    return seen[0][0].split(":", 1)[0]
 
 
 base = {
     "security": {"auth": {"selectedType": "gemini-api-key"}},
     "privacy": {"usageStatisticsEnabled": False},
-    "model": {"maxSessionTurns": 1},
+    "model": {"maxSessionTurns": 200},
+    "tools": {"exclude": ["google_web_search", "web_fetch"]},
+    "experimental": {"dynamicModelConfiguration": True},
 }
-kept = request_path({**base, "experimental": {"dynamicModelConfiguration": True}})
-assert kept == f"/v1beta/models/{MODEL}", f"model id rewritten to {kept}"
-rewritten = request_path(base)
-assert rewritten != f"/v1beta/models/{MODEL}", (
-    "the pinned CLI no longer rewrites a flash-suffixed id: drop the "
-    "experimental.dynamicModelConfiguration fragment from harness.yml"
-)
+policies = list(pathlib.Path("/usr/local/share/tale/gemini-settings").glob("*.json"))
+assert len(policies) == 6, f"missing built Gemini policies: {policies}"
+for policy in policies:
+    for entry in (policy, *policy.parents):
+        info = entry.stat()
+        assert info.st_uid == 0 and not (stat.S_IMODE(info.st_mode) & 0o022), str(entry)
+    assert not os.access(policy, os.W_OK), str(policy)
+with tempfile.TemporaryDirectory(prefix="gemini-policy-probe-") as workspace:
+    repo_config = pathlib.Path(workspace) / ".gemini"
+    repo_config.mkdir()
+    (repo_config / "settings.json").write_text(json.dumps({
+        "security": {"auth": {"selectedType": "oauth-personal"}},
+        "privacy": {"usageStatisticsEnabled": True},
+        "model": {"maxSessionTurns": 0},
+        "tools": {"exclude": []},
+        "context": {"fileName": "unrelated.md"},
+    }))
+    kept = request_path(base, workspace)
+    assert kept == f"/v1beta/models/{MODEL}", f"model id rewritten to {kept}"
 
 print("GEMINI_MODEL_ID_KEPT")
 `;
@@ -513,7 +618,6 @@ print("GEMINI_MODEL_ID_KEPT")
     `python3 - <<'PYEOF'\n${modelIdCheck}\nPYEOF`,
   );
 }
-await assertOk('pi --version runs', 10001, 'pi --version');
 // Same wrapper/CLI drift guard for tale-pi-run: every long flag the wrapper
 // passes on the `pi` command line must exist in the pinned CLI's --help.
 {
@@ -558,7 +662,6 @@ print("PI_WRAPPER_FLAGS_OK")
     `python3 - <<'PYEOF'\n${flagCheck}\nPYEOF`,
   );
 }
-await assertOk('openclaw --version runs', 10001, 'openclaw --version');
 // The wrapper's openclaw integration: ast-parse tale-openclaw-run (also
 // proves it is valid Python), collect every long flag it passes on the
 // `openclaw agent` command line, and assert the PINNED CLI's real
@@ -598,7 +701,6 @@ print("OPENCLAW_WRAPPER_FLAGS_OK")
   );
 }
 await assertOk('agent on PATH', 10001, 'command -v agent');
-await assertOk('agent --version runs', 10001, 'agent --version');
 // External agents (session role) shell out to the same vision CLI.
 await assertOk(
   'tale-vision usable at agent uid',

@@ -5,7 +5,7 @@
 The platform adapter sends ONE JSON object on stdin:
   {"prompt": ..., "system_prompt"?: ..., "settings"?: {...}}
 Qwen Code is a gemini-cli fork, so this is tale-gemini-run's shape with the
-fork's deltas (verified against @qwen-code/qwen-code 0.23.3):
+fork's deltas (verified against @qwen-code/qwen-code 0.24.7):
 
   - settings (auth-type pin, tools.exclude, mcpServers, maxSessionTurns) —
     staged to a private per-exec file and pointed at via

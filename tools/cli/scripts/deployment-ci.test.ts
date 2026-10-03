@@ -646,6 +646,32 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     },
   );
 
+  test.each(['image-validate', 'image-validate-fork'])(
+    '%s installs workspace dependencies before running image checks',
+    async (id) => {
+      const job = (await workflow()).jobs[id]!;
+      const setupIndex = job.steps.findIndex(
+        (entry) => entry.uses === './.github/actions/setup-turbo',
+      );
+      expect(setupIndex).toBeGreaterThanOrEqual(0);
+      const setup = job.steps[setupIndex]!;
+      expect(setup.if).toBeUndefined();
+      expect(setup.with?.['start-turbo-cache']).toBe('false');
+      // Inherit the shared Bun pin and its frozen install. The conformance
+      // helpers import workspace packages, which Bun alone cannot resolve.
+      expect(setup.with?.['bun-version']).toBeUndefined();
+      for (const entrypoint of [
+        'container-image-test.ts',
+        'container-sandbox-runtime-test.ts',
+      ]) {
+        const checkIndex = job.steps.findIndex((entry) =>
+          entry.run?.includes(entrypoint),
+        );
+        expect(checkIndex).toBeGreaterThan(setupIndex);
+      }
+    },
+  );
+
   describe.each(['smoke-test', 'image-validate'])('%s', (id) => {
     const pull = async () => {
       const job = (await workflow()).jobs[id]!;

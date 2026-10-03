@@ -39,6 +39,10 @@ else
   printf '<absent>' > "$FAKE_SEEN"
 fi
 if [ "$FAKE_MODE" = "hang" ]; then sleep 60; exit 0; fi
+if [ "$FAKE_MODE" = "error" ]; then
+  printf '%s' '{"payloads":[],"meta":{"error":{"message":"Provider refused the turn"}}}'
+  exit 0
+fi
 printf '%s' '{"payloads":[{"text":"hi"}],"meta":{"durationMs":1,"agentMeta":{"sessionId":"s","model":"m","usage":{"input":1,"output":1}}}}'
 `;
 
@@ -68,7 +72,10 @@ interface RunResult {
   stderr: string;
 }
 
-function startWrapper(opts: { mode: 'ok' | 'hang'; systemPrompt?: string }) {
+function startWrapper(opts: {
+  mode: 'ok' | 'hang' | 'error';
+  systemPrompt?: string;
+}) {
   const payload: Record<string, unknown> = {
     prompt: 'hello',
     config: { agents: { defaults: { workspace } } },
@@ -144,6 +151,28 @@ function filesWithContent(dir: string, content: string): string[] {
 }
 
 describe('tale-openclaw-run AGENTS.md safety', () => {
+  pyTest(
+    'a returned error fails the wrapper even when the CLI exits zero',
+    async () => {
+      writeFileSync(join(workspace, 'AGENTS.md'), ORIGINAL);
+
+      const res = await startWrapper({ mode: 'error', systemPrompt: PROMPT_V1 })
+        .done;
+
+      expect(res.code).toBe(1);
+      expect(agentsMd()).toBe(ORIGINAL);
+      const events = res.stdout
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      expect(events.at(-1)).toMatchObject({
+        type: 'run_end',
+        status: 'error',
+        error: 'Provider refused the turn',
+      });
+    },
+  );
+
   pyTest(
     'clean run: the CLI sees the system prompt, the user file comes back',
     async () => {

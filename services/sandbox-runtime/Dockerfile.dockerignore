@@ -119,6 +119,20 @@ compose.*.yml
 services/db/
 services/docs/
 services/platform/
+# Only the pure harness interpreter and its runtime imports feed the Gemini
+# policy build stage. No platform app, tests, server or dependencies are copied.
+!services/platform/
+services/platform/*
+!services/platform/lib/
+services/platform/lib/*
+!services/platform/lib/harnesses/
+services/platform/lib/harnesses/*
+!services/platform/lib/harnesses/exec-builder.ts
+!services/platform/lib/harnesses/types.ts
+!services/platform/lib/harnesses/jsonl.ts
+!services/platform/lib/harnesses/parsers/
+services/platform/lib/harnesses/parsers/*
+!services/platform/lib/harnesses/parsers/claude-stream-json.ts
 services/proxy/
 services/sandbox/
 services/sandbox-egress/

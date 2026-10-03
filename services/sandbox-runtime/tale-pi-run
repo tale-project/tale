@@ -6,7 +6,7 @@ The platform adapter (pi/adapter.ts) sends ONE JSON object on stdin:
   {"prompt": ..., "system_prompt"?: ..., "models"?: {...}, "settings"?: {...}}
 and pi/parse.ts normalizes the CLI's JSON event stream into AgentEvent[]. The
 wrapper exists because three inputs have no safe CLI flag and must be ON DISK
-before the CLI starts (verified @earendil-works/pi-coding-agent 0.80.3):
+before the CLI starts (verified @earendil-works/pi-coding-agent 1.0.1):
 
   - models.json (managed gateway provider: baseUrl <gateway>/openai/v1 +
     apiKey "$TALE_GATEWAY_TOKEN" env interpolation, so the file never holds
