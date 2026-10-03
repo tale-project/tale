@@ -7,7 +7,7 @@ import { constants } from 'node:fs';
 import { mkdir, open, rm, type FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export const EXEC_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
+const EXEC_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
 export const RECENT_JOURNAL_MAX_BYTES = 64 * 1024 * 1024;
 
 export class ExecOutput {
