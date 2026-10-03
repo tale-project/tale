@@ -502,6 +502,30 @@ describe('HomeNavigator when a read fails', () => {
     );
   });
 
+  it('says so on the phone screen too, where Chats keeps its own New chat', async () => {
+    homeData.current = data({
+      items: data().items.filter((item) => item.kind !== 'chat'),
+      failed: failed({ chats: true }),
+      attention: { chats: null, tasks: 1, inbox: 1 },
+    });
+    location.current = { pathname: '/dashboard/org-1/home', search: {} };
+    const { user } = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+
+    await user.click(screen.getByRole('radio', { name: /Chats/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load your chats.",
+    );
+    expect(screen.queryByText('No chats yet')).not.toBeInTheDocument();
+    // The view's own way to a new chat stays: it claims nothing about the
+    // list, unlike an empty state's offer.
+    expect(screen.getByRole('link', { name: 'New chat' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/chat',
+    );
+  });
+
   it('passes an axe audit, with a read failed beside rows and with nothing loaded', async () => {
     homeData.current = data({
       items: data().items.filter((item) => item.kind !== 'task'),

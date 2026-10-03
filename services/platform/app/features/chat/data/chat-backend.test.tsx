@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@/tests/utils/render';
 
 import {
+  useArchivedThreads,
   useChatGeneration,
   useChatQuery,
   useChatSend,
@@ -192,6 +193,64 @@ describe('useChatThreadsRetry', () => {
         true,
       );
       expect(urls.some((url) => url.includes('/archived'))).toBe(false);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('asks again for the first archived page alone when that read failed', async () => {
+    let archivedStatus = 503;
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const archived =
+        typeof input === 'string' && input.includes('/chat/threads/archived');
+      const status = archived ? archivedStatus : 200;
+      const body = !archived
+        ? { threads: [] }
+        : status === 200
+          ? { rows: [], nextCursor: null }
+          : { error: 'Unavailable' };
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    function ArchivedProbe() {
+      const threads = useChatThreads('org-retry-archived');
+      const archived = useArchivedThreads('org-retry-archived', {
+        enabled: true,
+      });
+      const retry = useChatThreadsRetry('org-retry-archived');
+      return (
+        <button
+          type="button"
+          onClick={() => void retry({ threads: false, archived: true })}
+        >
+          {`${threads.status}/${archived.status}`}
+        </button>
+      );
+    }
+    try {
+      const { user } = render(
+        <QueryClientProvider client={client}>
+          <ArchivedProbe />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('ready/unavailable');
+      const asked = fetchSpy.mock.calls.length;
+
+      archivedStatus = 200;
+      await user.click(screen.getByRole('button'));
+      await screen.findByText('ready/ready');
+      const urls = fetchSpy.mock.calls
+        .slice(asked)
+        .map(([input]) => (typeof input === 'string' ? input : ''));
+      expect(urls).toHaveLength(1);
+      expect(urls[0]).toContain('/api/app/chat/threads/archived');
     } finally {
       fetchSpy.mockRestore();
     }
