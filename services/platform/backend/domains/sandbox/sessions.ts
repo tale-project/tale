@@ -229,7 +229,7 @@ export async function reserveSessionSlot(
 }
 
 export async function getSessionBySessionId(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   sessionId: string,
 ): Promise<SessionRow | null> {
@@ -238,7 +238,7 @@ export async function getSessionBySessionId(
   const rows = await sql<SessionRow[]>`
     SELECT ${sql.unsafe(SESSION_COLUMNS)} FROM app.sandbox_sessions
     WHERE session_id = ${sessionId} AND org_id = ${organizationId}
-    ORDER BY created_at_ms DESC
+    ORDER BY created_at_ms DESC, id DESC
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -298,7 +298,7 @@ export async function markRecreatedSessionActive(
  * workspace cleanup's window starts over (`workspace-cleanup.ts`) instead of
  * taking a long-pinned workspace within the hour. */
 export async function setSessionPinned(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   args: { organizationId: string; sessionId: string; pinned: boolean },
 ): Promise<boolean> {
   const now = Date.now();

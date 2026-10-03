@@ -8,6 +8,7 @@ import {
   chunkStageFiles,
   drainSessionExecResilient,
   ExecStreamProtocolError,
+  ExecOutputGapError,
   SandboxDeviceOfflineError,
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
@@ -149,6 +150,82 @@ describe('drainSessionExecResilient', () => {
     ).rejects.toThrow();
     expect(calls).toBe(1);
   });
+
+  test.each([
+    ['exec', 'malformed'],
+    ['attach', 'malformed'],
+    ['exec', 'consumer'],
+    ['attach', 'consumer'],
+  ])(
+    '%s releases a %s failure without awaiting cancellation acknowledgement',
+    async (mode, failure) => {
+      const cancelStarted = Promise.withResolvers<void>();
+      const cancelAcknowledged = Promise.withResolvers<void>();
+      const consumerError = new Error('consumer refused the record');
+      const caller = new AbortController();
+      const cursor = { lastSeq: 0 };
+      const stdout: string[] = [];
+      const methods: (string | undefined)[] = [];
+      let requestSignal: AbortSignal | null | undefined;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            enc.encode(
+              'event: stdout\ndata: {"seq":2,"text":"verified"}\n\n' +
+                (failure === 'malformed'
+                  ? 'event: stdout\ndata: {\n\n'
+                  : 'event: stdout\ndata: {"seq":3,"text":"refused"}\n\n') +
+                'event: stdout\ndata: {"seq":4,"text":"must not arrive"}\n\n',
+            ),
+          );
+        },
+        cancel() {
+          cancelStarted.resolve();
+          return cancelAcknowledged.promise;
+        },
+      });
+      globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+        methods.push(init?.method);
+        requestSignal = init?.signal;
+        return new Response(body);
+      }) as unknown as typeof fetch;
+      let outcome: unknown;
+      const draining = drainSessionExecResilient(
+        's',
+        { execId: 'e', command: ['fixture'] },
+        caller.signal,
+        {
+          onStdout: (text) => {
+            if (text === 'refused') throw consumerError;
+            stdout.push(text);
+          },
+        },
+        { cursor, ...(mode === 'attach' ? { resumeSinceSeq: 0 } : {}) },
+      ).catch((error: unknown) => {
+        outcome = error;
+      });
+      try {
+        await cancelStarted.promise;
+        // Drain the microtasks without releasing the transport's acknowledgement.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(outcome).toBeInstanceOf(ExecStreamProtocolError);
+        expect(outcome).toMatchObject(
+          failure === 'consumer'
+            ? { message: consumerError.message, cause: consumerError }
+            : { message: 'Invalid sandbox stdout event' },
+        );
+        expect(body.locked).toBe(false);
+        expect(requestSignal?.aborted).toBe(true);
+        expect(caller.signal.aborted).toBe(false);
+        expect(cursor.lastSeq).toBe(2);
+        expect(stdout).toEqual(['verified']);
+        expect(methods).toEqual([mode === 'attach' ? 'GET' : 'POST']);
+      } finally {
+        cancelAcknowledged.reject(new Error('late cancellation refusal'));
+        await draining;
+      }
+    },
+  );
 
   test.each([
     ['stdout', ''],
@@ -682,7 +759,13 @@ describe('drainSessionExecResilient', () => {
     const frame = (event: string, seq: number, bytes: Uint8Array) =>
       `event: ${event}\ndata: ${JSON.stringify({ seq, b64: Buffer.from(bytes).toString('base64'), text: 'legacy replacement' })}\n\n`;
     let calls = 0;
-    globalThis.fetch = (async () => {
+    globalThis.fetch = (async (
+      _url: unknown,
+      init: RequestInit | undefined,
+    ) => {
+      expect(new Headers(init?.headers).get('accept')).toBe(
+        'text/event-stream; tale-output=base64',
+      );
       calls += 1;
       return calls === 1
         ? sseResponse([
@@ -768,6 +851,31 @@ describe('drainSessionExecResilient', () => {
     expect(phases).toEqual(['started', 'complete']);
     expect(requests).toBe(1);
   });
+
+  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'])(
+    'fails %s terminally without retrying missing or refused history',
+    async (code) => {
+      let requests = 0;
+      globalThis.fetch = (async () => {
+        requests++;
+        return sseResponse([
+          `event: error\ndata: ${JSON.stringify({ code, message: 'history unavailable' })}\n\n`,
+        ]);
+      }) as unknown as typeof fetch;
+      await expect(
+        drainSessionExecResilient(
+          's',
+          { execId: 'e' },
+          new AbortController().signal,
+          {},
+          { resumeSinceSeq: 0 },
+        ),
+      ).rejects.toBeInstanceOf(
+        code === 'OUTPUT_GAP' ? ExecOutputGapError : ExecStreamProtocolError,
+      );
+      expect(requests).toBe(1);
+    },
+  );
 
   test('does not advance past a refused harness record and cancels its reader', async () => {
     let cancelled = false;

@@ -151,6 +151,11 @@ const OUTSIDE_READS = [
     readers: 'scripts/dev-sandbox-runtime.test.ts',
   },
   {
+    path: 'services/sandbox-runtime/daemon/src/exec-journal.ts',
+    readers:
+      'backend/core/chat/external_turn_shared.test.ts proves the real journal and harness control ledger together',
+  },
+  {
     path: 'services/sandbox-runtime/daemon/src/file-ops.ts',
     readers:
       'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
@@ -158,7 +163,7 @@ const OUTSIDE_READS = [
   {
     path: 'services/sandbox-runtime/daemon/src/protocol.ts',
     readers:
-      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof',
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof; backend/core/chat/external_turn_shared.test.ts imports the journal protocol',
   },
 ];
 

@@ -44,11 +44,37 @@ describe('runnerd protocol mirror', () => {
       { t: 'replay-start' },
       { t: 'replay-complete', throughSeq: 42 },
       { t: 'fail', code: 'OUTPUT_LIMIT', message: 'limit' },
+      { t: 'fail', code: 'OUTPUT_GAP', message: 'gap' },
       { t: 'fail', code: 'REPLAY_UNAVAILABLE', message: 'unavailable' },
     ];
     const mirrored: MirrorEvent[] = events;
     const roundTrip: CanonicalEvent[] = mirrored;
     expect(roundTrip).toEqual(events);
+  });
+
+  test.each([
+    null,
+    '0',
+    '1',
+    '123',
+    '001',
+    '',
+    '-1',
+    '1.5',
+    'NaN',
+    'Infinity',
+    '9007199254740992',
+    '1e3',
+    ' 2',
+  ])('sequence parser agrees for %s', (raw) => {
+    const expected =
+      raw === null
+        ? 0
+        : /^[0-9]+$/.test(raw) && Number.isSafeInteger(Number(raw))
+          ? Number(raw)
+          : null;
+    expect(canonical.parseRunnerdSequence(raw)).toBe(expected);
+    expect(mirror.parseRunnerdSequence(raw)).toBe(expected);
   });
 
   test('every canonical constant is mirrored with the same value', () => {

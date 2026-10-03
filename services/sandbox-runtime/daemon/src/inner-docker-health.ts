@@ -1,5 +1,8 @@
 import { request } from 'node:http';
 
+/** Root-owned control socket; probing it never activates the Docker engine. */
+export const LAZY_DOCKER_HEALTH_SOCKET = '/var/run/tale-docker-health.sock';
+
 /** Observe the inner engine directly. A Docker CLI can wait indefinitely and
  * read user-controlled contexts/plugins; the daemon's fixed local socket is
  * the capability runnerd actually promises. Health calls share one bounded

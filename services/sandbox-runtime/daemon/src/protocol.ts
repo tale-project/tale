@@ -49,7 +49,7 @@ export function isDeniedEnvName(name: string): boolean {
 
 export interface RunnerdHealth {
   ok: true;
-  /** DinD /_ping readiness. False keeps liveness healthy but blocks new work. */
+  /** DinD capability readiness without activation. False blocks new work. */
   dockerReady?: boolean;
   bootedAtMs: number;
   lastActivityAtMs: number;
@@ -144,7 +144,8 @@ export type RunnerdExecEvent = (
         | 'DUPLICATE_EXEC'
         | 'BAD_REQUEST'
         | 'OUTPUT_LIMIT'
-        | 'REPLAY_UNAVAILABLE';
+        | 'REPLAY_UNAVAILABLE'
+        | 'OUTPUT_GAP';
       message: string;
     }
 ) & { seq?: number };
@@ -196,7 +197,8 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
           value.code === 'DUPLICATE_EXEC' ||
           value.code === 'BAD_REQUEST' ||
           value.code === 'OUTPUT_LIMIT' ||
-          value.code === 'REPLAY_UNAVAILABLE')
+          value.code === 'REPLAY_UNAVAILABLE' ||
+          value.code === 'OUTPUT_GAP')
       );
     default:
       return false;
@@ -247,3 +249,11 @@ export interface RunnerdError {
 
 export const WORKSPACE_ROOT = '/agent';
 export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+/** Missing cursor starts at zero; malformed cursors must never skip history. */
+export function parseRunnerdSequence(value: string | null): number | null {
+  if (value === null) return 0;
+  if (!/^[0-9]+$/.test(value)) return null;
+  const sequence = Number(value);
+  return Number.isSafeInteger(sequence) ? sequence : null;
+}

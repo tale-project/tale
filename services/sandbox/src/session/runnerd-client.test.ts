@@ -1,4 +1,12 @@
-import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from 'bun:test';
 import { rejects } from 'node:assert/strict';
 
 import {
@@ -9,6 +17,8 @@ import {
   RunnerdStageBusyError,
   runnerdEnvPatch,
   waitForRunnerd,
+  RunnerdOutputGapError,
+  RunnerdProtocolError,
 } from './runnerd-client.ts';
 import type { RunnerdExecEvent } from './runnerd-protocol.ts';
 
@@ -150,7 +160,9 @@ for (const mode of ['exec', 'attach'] as const) {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(
-            new TextEncoder().encode(`${JSON.stringify(completed)}\n`),
+            new TextEncoder().encode(
+              `${JSON.stringify({ ...completed, seq: 1 })}\n`,
+            ),
           );
           controller.close();
         },
@@ -183,6 +195,7 @@ for (const mode of ['exec', 'attach'] as const) {
         code: 'BAD_REQUEST',
         message: 'é',
         extra: true,
+        seq: 1,
       } as const;
       const bytes = new TextEncoder().encode(
         `${JSON.stringify(first)}\n${JSON.stringify(completed)}`,
@@ -257,7 +270,7 @@ async function rejection(promise: Promise<unknown>): Promise<Error> {
 }
 
 const readers = {
-  exec: (onEvent: (event: RunnerdExecEvent) => void) =>
+  exec: (onEvent: (event: RunnerdExecEvent) => void | Promise<void>) =>
     runnerdExec(
       opts,
       {
@@ -269,7 +282,7 @@ const readers = {
       },
       onEvent,
     ),
-  attach: (onEvent: (event: RunnerdExecEvent) => void) =>
+  attach: (onEvent: (event: RunnerdExecEvent) => void | Promise<void>) =>
     runnerdAttach(opts, 'exec-test', onEvent),
 };
 
@@ -373,30 +386,58 @@ describe('runnerd response reader ownership', () => {
     },
   );
 
-  test('releases a completed stream and preserves event order', async () => {
+  test('releases a completed stream and preserves split records and a final unterminated event', async () => {
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(encoder.encode('{"t":"sta'));
         controller.enqueue(
           encoder.encode(
-            'rt","execId":"exec-test","startedAtMs":1}\n{"t":"stdout","b64":"b2s="}',
+            'rt","execId":"exec-test","startedAtMs":1,"seq":1}\n{"t":"stdout","b64":"b2s=","seq":2}',
           ),
         );
         controller.close();
       },
     });
     const events: RunnerdExecEvent[] = [];
-    try {
-      respond(body);
-      await runnerdAttach(opts, 'exec-test', (event) => events.push(event));
-      expect(events).toEqual([
-        { t: 'start', execId: 'exec-test', startedAtMs: 1 },
-        { t: 'stdout', b64: 'b2s=' },
-      ]);
-      expect(body.locked).toBe(false);
-    } finally {
-      mock.restore();
-    }
+    respond(body);
+    await runnerdAttach(opts, 'exec-test', (event) => {
+      events.push(event);
+    });
+    expect(events).toEqual([
+      { t: 'start', execId: 'exec-test', startedAtMs: 1, seq: 1 },
+      { t: 'stdout', b64: 'b2s=', seq: 2 },
+    ]);
+    expect(body.locked).toBe(false);
+  });
+
+  test('malformed history stops delivery and cancels its producer before any later terminal event', async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            '{"t":"start","execId":"exec-test","startedAtMs":1,"seq":1}\nnot-json\n{"t":"exit","exitCode":0,"seq":2}\n',
+          ),
+        );
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const events: RunnerdExecEvent[] = [];
+    respond(body);
+    expect(
+      await rejection(
+        runnerdAttach(opts, 'exec-test', (event) => {
+          events.push(event);
+        }),
+      ),
+    ).toBeInstanceOf(RunnerdProtocolError);
+    expect(events).toEqual([
+      { t: 'start', execId: 'exec-test', startedAtMs: 1, seq: 1 },
+    ]);
+    expect(cancelled).toBe(true);
+    expect(body.locked).toBe(false);
   });
 
   test('releases a failed transport without replacing its error', async () => {
@@ -420,7 +461,9 @@ describe('runnerd response reader ownership', () => {
       let cancelled = false;
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
-          controller.enqueue(encoder.encode('{"t":"stdout","b64":"b2s="}\n'));
+          controller.enqueue(
+            encoder.encode('{"t":"stdout","b64":"b2s=","seq":1}\n'),
+          );
         },
         cancel() {
           cancelled = true;
@@ -437,6 +480,47 @@ describe('runnerd response reader ownership', () => {
       ).toBe(failure);
       expect(cancelled).toBe(true);
       expect(body.locked).toBe(false);
+    },
+  );
+  test.each(Object.entries(readers))(
+    '%s releases a rejected consumer and aborts fetch before upstream cancellation acknowledges',
+    async (_name, consume) => {
+      const failure = new Error('SSE output consumer rejected');
+      const cancelling = Promise.withResolvers<void>();
+      const acknowledge = Promise.withResolvers<void>();
+      let observed: unknown;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode('{"t":"stdout","b64":"b2s=","seq":1}\n'),
+          );
+        },
+        cancel() {
+          cancelling.resolve();
+          return acknowledge.promise;
+        },
+      });
+      const fetching = spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(body),
+      );
+      const settled = consume(async () => {
+        throw failure;
+      }).catch((error: unknown) => {
+        observed = error;
+      });
+      try {
+        await cancelling.promise;
+        // Give the rejected consumer and its outer finally a turn to finish;
+        // the upstream acknowledgement deliberately remains unresolved.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(observed).toBe(failure);
+        const signal = fetching.mock.calls[0]?.[1]?.signal;
+        expect(signal?.aborted).toBe(true);
+        expect(body.locked).toBe(false);
+      } finally {
+        acknowledge.resolve();
+        await settled;
+      }
     },
   );
 });
@@ -611,4 +695,125 @@ test('session creation cancellation reaches the environment patch request', asyn
     abort.abort();
     await server.stop(true);
   }
+});
+
+const bodies = new Map<string, string>();
+const server = Bun.serve({
+  port: 0,
+  fetch(req) {
+    return new Response(bodies.get(new URL(req.url).pathname) ?? '', {
+      headers: { 'content-type': 'application/x-ndjson' },
+    });
+  },
+});
+afterAll(() => server.stop(true));
+const options = {
+  baseUrl: server.url.toString().replace(/\/$/, ''),
+  token: 'test-only',
+};
+function setReplayBody(id: string, events: unknown[]): void {
+  bodies.set(
+    `/execs/${id}/attach`,
+    events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+  );
+}
+
+describe('runnerd replay continuity', () => {
+  test('older ring-only runtime cannot silently replay a truncated tail as successful', async () => {
+    setReplayBody('legacy-gap', [
+      { t: 'stdout', b64: 'eA==', seq: 30 },
+      { t: 'exit', seq: 31, exitCode: 0 },
+    ]);
+    const seen: RunnerdExecEvent[] = [];
+    expect(
+      await runnerdAttach(options, 'legacy-gap', (event) => {
+        seen.push(event);
+      }).catch((error: unknown) => error),
+    ).toBeInstanceOf(RunnerdOutputGapError);
+    expect(seen).toEqual([]);
+  });
+  test('a cursor reconnect accepts exactly the next sequence', async () => {
+    setReplayBody('cursor', [{ t: 'stdout', b64: 'eA==', seq: 30 }]);
+    const seen: RunnerdExecEvent[] = [];
+    expect(
+      await runnerdAttach(
+        options,
+        'cursor',
+        (event) => {
+          seen.push(event);
+        },
+        undefined,
+        29,
+      ),
+    ).toBe(true);
+    expect(seen).toHaveLength(1);
+  });
+  test('new runtime journal exhaustion is terminal, not a generic transport retry', async () => {
+    setReplayBody('journal-gap', [
+      { t: 'fail', code: 'OUTPUT_GAP', message: 'bounded journal exhausted' },
+    ]);
+    expect(
+      await runnerdAttach(options, 'journal-gap', () => {}).catch(
+        (error: unknown) => error,
+      ),
+    ).toBeInstanceOf(RunnerdOutputGapError);
+  });
+  test('a gap in the middle stops delivery before a later terminal result', async () => {
+    setReplayBody('middle', [
+      { t: 'stdout', b64: 'eA==', seq: 3 },
+      { ...completed, seq: 5 },
+    ]);
+    const seen: RunnerdExecEvent[] = [];
+    expect(
+      await runnerdAttach(
+        options,
+        'middle',
+        (event) => {
+          seen.push(event);
+        },
+        undefined,
+        2,
+      ).catch((error: unknown) => error),
+    ).toBeInstanceOf(RunnerdOutputGapError);
+    expect(seen.map((event) => event.seq)).toEqual([3]);
+  });
+});
+
+test('an unsequenced output cannot silently bypass replay continuity', async () => {
+  setReplayBody('missing-sequence', [
+    { t: 'stdout', b64: 'eA==' },
+    { t: 'exit', seq: 1, exitCode: 0 },
+  ]);
+  const seen: RunnerdExecEvent[] = [];
+  expect(
+    await runnerdAttach(options, 'missing-sequence', (event) => {
+      seen.push(event);
+    }).catch((error: unknown) => error),
+  ).toBeInstanceOf(RunnerdOutputGapError);
+  expect(seen).toEqual([]);
+});
+
+test('replay delivery awaits downstream consumers before parsing later events', async () => {
+  setReplayBody('backpressure', [
+    { t: 'stdout', b64: 'eA==', seq: 1 },
+    { t: 'stdout', b64: 'eQ==', seq: 2 },
+  ]);
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const seen: number[] = [];
+  const pumping = runnerdAttach(options, 'backpressure', async (event) => {
+    seen.push(event.seq ?? 0);
+    if (event.seq === 1) {
+      entered.resolve();
+      await release.promise;
+    }
+  });
+  try {
+    await entered.promise;
+    expect(seen).toEqual([1]);
+  } finally {
+    release.resolve();
+  }
+  await pumping;
+  expect(seen).toEqual([1, 2]);
 });

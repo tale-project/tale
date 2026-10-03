@@ -104,8 +104,20 @@ const healthProbes = new Map<string, number>();
 // Per-daemon activity clocks (by session token), over fakeHealth's shared one.
 const daemonLastActivity = new Map<string, number>();
 
-function ndjson(lines: object[]): string {
-  return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+function ndjson(
+  lines: Array<{ t: string; seq?: number; [key: string]: unknown }>,
+): string {
+  let seq = 0;
+  return (
+    lines
+      .map((line) => {
+        if (['fail', 'replay-start', 'replay-complete'].includes(line.t))
+          return JSON.stringify(line);
+        seq = line.seq ?? seq + 1;
+        return JSON.stringify({ ...line, seq });
+      })
+      .join('\n') + '\n'
+  );
 }
 
 function replayGapResponse(): Response {
@@ -357,6 +369,9 @@ beforeAll(() => {
         return new Response('file-bytes', {
           headers: { 'content-type': 'application/octet-stream' },
         });
+      }
+      if (url.pathname.endsWith('/attach') && url.pathname.includes('/gap-')) {
+        return new Response(ndjson([{ t: 'stdout', b64: 'eA==', seq: 19 }]));
       }
       if (url.pathname.endsWith('/attach')) {
         if (url.pathname.includes('/gap/')) return replayGapResponse();
@@ -814,6 +829,80 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect((await routes.handleGet('sess1')).status).toBe(404);
   });
 
+  test('negotiated binary output preserves bytes on both exec and replay', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'binary', organizationId: 'org_binary' }),
+    );
+    const headers = { accept: 'text/event-stream; tale-output=base64' };
+    const exec = await routes.handleExec(
+      new Request('http://x/v1/sessions/binary/exec', {
+        method: 'POST',
+        headers,
+      }),
+      'binary',
+      JSON.stringify({ execId: 'binary-exec', command: ['echo', '🙂'] }),
+    );
+    const initial = (await readSse(exec)).events.find(
+      (event) => event.event === 'stdout',
+    );
+    expect(initial?.data).toEqual({
+      b64: Buffer.from('🙂\n').toString('base64'),
+      seq: 2,
+    });
+    const attach = await routes.handleExecAttach(
+      new Request('http://x/v1/sessions/binary/exec/binary-exec/attach', {
+        headers,
+      }),
+      'binary',
+      'binary-exec',
+    );
+    expect(
+      (await readSse(attach)).events.find((event) => event.event === 'stdout')
+        ?.data,
+    ).toEqual({ b64: Buffer.from('replayed').toString('base64'), seq: 1 });
+  });
+
+  test('refuses malformed replay cursors before opening an event stream', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'cursor', organizationId: 'org_cursor' }),
+    );
+    for (const cursor of [
+      '-1',
+      '1.5',
+      'Infinity',
+      'invalid',
+      '9007199254740992',
+    ]) {
+      const response = await routes.handleExecAttach(
+        new Request(`http://x/attach?sinceSeq=${cursor}`),
+        'cursor',
+        'exec',
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalid_since_seq' });
+    }
+  });
+
+  test('lost replay history reaches the platform as a typed error with no successful result', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'replay-gap', organizationId: 'org_gap' }),
+    );
+    const response = await routes.handleExecAttach(
+      new Request('http://x/v1/sessions/replay-gap/exec/gap-exec/attach'),
+      'replay-gap',
+      'gap-exec',
+    );
+    const { events } = await readSse(response);
+    expect(events.find((event) => event.event === 'error')?.data.code).toBe(
+      'OUTPUT_GAP',
+    );
+    expect(events.some((event) => event.event === 'result')).toBe(false);
+    expect(events.some((event) => event.event === 'stdout')).toBe(false);
+  });
+
   test('result forwards runnerd exit durationMs VERBATIM (the runner-measured wall-clock)', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -1261,7 +1350,7 @@ describe('SessionRoutes (fake runnerd)', () => {
   });
 
   test.each(['start', 'attach'])(
-    'replay storage failures on %s preserve their fatal SSE code before the compatibility result',
+    'replay storage failures on %s propagate a fatal output gap without a successful result',
     async (mode) => {
       const routes = new SessionRoutes(cfg, fakeBackend);
       await routes.handleCreate(
@@ -1289,11 +1378,8 @@ describe('SessionRoutes (fake runnerd)', () => {
       const failure = events.findIndex((event) => event.event === 'error');
       const result = events.findIndex((event) => event.event === 'result');
       expect(failure).toBeGreaterThanOrEqual(0);
-      expect(result).toBeGreaterThan(failure);
-      expect(events[failure]?.data.code).toBe(
-        mode === 'start' ? 'OUTPUT_LIMIT' : 'REPLAY_UNAVAILABLE',
-      );
-      expect(events[result]?.data.status).toBe('failed');
+      expect(result).toBe(-1);
+      expect(events[failure]?.data.code).toBe('OUTPUT_GAP');
     },
   );
 
@@ -1613,6 +1699,83 @@ describe('SessionRoutes (fake runnerd)', () => {
       setSystemTime(Date.now() + 1000);
       await routes.handleSetPinned('pin-ttl', '{"pinned":false}');
       expect(await expiry()).toBe(renewed);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('failed durable Unpin converges on retry, then restart reads the acknowledged false', async () => {
+    let rejectUnpin = true;
+    const backend: SessionBackend = {
+      ...fakeBackend,
+      async setPinned(sessionId, pinned) {
+        if (!pinned && rejectUnpin) throw new Error('pin storage unavailable');
+        await fakeBackend.setPinned(sessionId, pinned);
+      },
+    };
+    const routes = new SessionRoutes(cfg, backend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'pin-retry', organizationId: 'org_pin' }),
+    );
+    await routes.handleSetPinned('pin-retry', JSON.stringify({ pinned: true }));
+    expect(backendPins.get('pin-retry')).toBe(true);
+    expect(
+      (
+        await routes.handleSetPinned(
+          'pin-retry',
+          JSON.stringify({ pinned: false }),
+        )
+      ).status,
+    ).toBe(503);
+    expect(backendPins.get('pin-retry')).toBe(true);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route fixture's response shape is asserted below
+    const before = (await (await routes.handleGet('pin-retry')).json()) as {
+      session: { expiresAtMs: number };
+    };
+    rejectUnpin = false;
+    setSystemTime(new Date(Date.now() + 60_000));
+    try {
+      expect(
+        (
+          await routes.handleSetPinned(
+            'pin-retry',
+            JSON.stringify({ pinned: false }),
+          )
+        ).status,
+      ).toBe(200);
+      expect(backendPins.get('pin-retry')).toBe(false);
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route fixture's response shape is asserted below
+      const after = (await (await routes.handleGet('pin-retry')).json()) as {
+        session: { expiresAtMs: number };
+      };
+      expect(after.session.expiresAtMs).toBeGreaterThan(
+        before.session.expiresAtMs,
+      );
+      await routes.handleSetPinned(
+        'pin-retry',
+        JSON.stringify({ pinned: false }),
+      );
+      expect(await (await routes.handleGet('pin-retry')).json()).toMatchObject({
+        session: { expiresAtMs: after.session.expiresAtMs },
+      });
+      // Restart observes the acknowledged durable false, not the stale pin.
+      const restarted = new SessionRoutes(cfg, {
+        ...backend,
+        async listSessions() {
+          return [
+            {
+              ...mkBackendSession('pin-retry', 'org_pin'),
+              pinned: backendPins.get('pin-retry') === true,
+            },
+          ];
+        },
+      });
+      await restarted.adoptExisting();
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the restarted route's pinned response is the assertion under test
+      const observed = (await (
+        await restarted.handleGet('pin-retry')
+      ).json()) as { session: { pinned: boolean } };
+      expect(observed.session.pinned).toBe(false);
     } finally {
       setSystemTime();
     }
@@ -5103,6 +5266,121 @@ describe('memory-aware admission', () => {
     },
   );
 
+  const releaseWarm = async (routes: SessionRoutes, id: string) => {
+    const ticket: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    expect(
+      (await routes.handleActivity(id, 'release', JSON.stringify(ticket)))
+        .status,
+    ).toBe(200);
+    return ticket;
+  };
+
+  test('a low-memory warm acquisition parks without changing its release generation', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-short')).status).toBe(201);
+    const ticket = await releaseWarm(routes, 'warm-short');
+    available = 2;
+    const refused = await routes.handleActivity('warm-short', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toMatchObject({ error: 'host_memory' });
+    expect(
+      await (await routes.handleActivity('warm-short', 'ticket')).json(),
+    ).toEqual(ticket);
+    expect(stopped.has('warm-short')).toBe(false);
+    available = 8;
+    expect((await routes.handleActivity('warm-short', 'acquire')).status).toBe(
+      200,
+    );
+    // The admitted use still invalidates the old completion ticket.
+    expect(
+      await (
+        await routes.handleActivity(
+          'warm-short',
+          'release',
+          JSON.stringify(ticket),
+        )
+      ).json(),
+    ).toEqual({ released: false });
+  });
+
+  test('concurrent warm acquisitions reserve working sets before the telemetry changes', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    const ids = ['warm-burst-1', 'warm-burst-2', 'warm-burst-3'];
+    for (const id of ids) {
+      expect((await create(routes, id)).status).toBe(201);
+      await releaseWarm(routes, id);
+    }
+    setSystemTime(new Date(Date.now() + 91_000));
+    try {
+      available = 3; // 1.6 GiB floor: two 512 MiB working sets fit, three do not.
+      const acquired = await Promise.all(
+        ids.map((id) => routes.handleActivity(id, 'acquire')),
+      );
+      expect(
+        acquired.map((response) => response.status).sort((a, b) => a - b),
+      ).toEqual([200, 200, 429]);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('reacquiring a young released sandbox replaces its existing reservation without double counting', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => 2.2),
+    );
+    expect((await create(routes, 'warm-young')).status).toBe(201);
+    await releaseWarm(routes, 'warm-young');
+    expect((await routes.handleActivity('warm-young', 'acquire')).status).toBe(
+      200,
+    );
+  });
+
+  test('memory pressure does not refuse already-held work or delay its release', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-held')).status).toBe(201);
+    available = 1;
+    expect((await routes.handleActivity('warm-held', 'acquire')).status).toBe(
+      200,
+    );
+    await releaseWarm(routes, 'warm-held');
+  });
+
+  test('unknown host memory adds no daemon health round trip to acquisition', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    expect((await create(routes, 'warm-unknown')).status).toBe(201);
+    await releaseWarm(routes, 'warm-unknown');
+    const token = deriveRunnerdToken(cfg.sandboxToken, 'warm-unknown');
+    const before = healthProbes.get(token) ?? 0;
+    expect(
+      (await routes.handleActivity('warm-unknown', 'acquire')).status,
+    ).toBe(200);
+    expect(healthProbes.get(token) ?? 0).toBe(before);
+  });
+
   test('a create that would leave the host under its reserve is refused with host_memory', async () => {
     // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at
     // 512 MiB, so 2 GiB available is not enough.
@@ -5737,10 +6015,20 @@ test('busy replay admission stays nonterminal and preserves invalid cursor valid
       'busy-attach',
       'e',
     );
-    const stream = await response.text();
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_since_seq' });
+    expect(queries).toEqual([]);
+    const busy = await routes.handleExecAttach(
+      new Request(
+        'http://sandbox/v1/sessions/busy-attach/exec/e/attach?sinceSeq=7',
+      ),
+      'busy-attach',
+      'e',
+    );
+    const stream = await busy.text();
     expect(stream).toContain('ATTACH_BUSY');
     expect(stream).not.toContain('event: result');
-    expect(queries).toEqual(['NaN']);
+    expect(queries).toEqual(['7']);
     expect(existsChecks).toBe(0);
   } finally {
     await upstream.stop(true);

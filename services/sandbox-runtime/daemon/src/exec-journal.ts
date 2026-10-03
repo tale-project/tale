@@ -1,17 +1,22 @@
 // Full exec protocol, bounded on disk. Files are unlinked after open: only
 // runnerd's fd names them, and a restart leaves no stale transcripts on disk.
+import { randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
 import {
-  mkdtemp,
+  mkdir,
   open,
-  rmdir,
+  realpath,
   unlink,
   type FileHandle,
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 
-import { isRunnerdExecEvent, type RunnerdExecEvent } from './protocol.ts';
+import {
+  isRunnerdExecEvent,
+  WORKSPACE_ROOT,
+  type RunnerdExecEvent,
+} from './protocol.ts';
 
 const EXEC_BYTES = 64 * 1024 * 1024;
 const SESSION_BYTES = 256 * 1024 * 1024;
@@ -19,7 +24,7 @@ const WRITE_WATERMARK = 128 * 1024;
 const WRITE_VECTORS = 64;
 const READ_CHUNK = 64 * 1024;
 
-type Failure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE';
+type Failure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE' | 'OUTPUT_GAP';
 
 /** Shared by a session's live and retained execs. Completed history goes first
  * under pressure; an evicted transcript fails replay explicitly. */
@@ -95,6 +100,8 @@ export class ExecJournal {
   private failure: Failure | undefined;
   private readers = 0;
   private closed = false;
+  private pendingReads = 0;
+  private writeDeadline: ReturnType<typeof setTimeout> | undefined;
   private readonly waiters = new Set<() => void>();
   private readonly disposeWaiters = new Set<() => void>();
   private readonly released = Promise.withResolvers<void>();
@@ -104,26 +111,106 @@ export class ExecJournal {
     private readonly onDrain: () => void,
     private readonly onFailure: (failure: Failure) => void,
     private readonly maxBytes = EXEC_BYTES,
-    directory = tmpdir(),
+    directory?: string,
+    private readonly ioTimeoutMs = 5_000,
   ) {
     this.ready = this.openFile(directory);
     void this.ready.catch(() => this.fail('REPLAY_UNAVAILABLE'));
   }
 
-  private async openFile(directory: string): Promise<FileHandle> {
-    const root = await mkdtemp(join(directory, 'tale-exec-'));
-    const path = join(root, 'events');
+  private async openFile(directory?: string): Promise<FileHandle> {
+    // /tmp is a small tmpfs in production. Keep anonymous transcript bytes on
+    // the workspace volume, and hold each directory while descending so a
+    // workspace symlink swap cannot redirect creation outside the session.
+    const root = await realpath(
+      directory ?? process.env.TALE_WORKSPACE_ROOT ?? WORKSPACE_ROOT,
+    );
+    let parent = await open(
+      root,
+      constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+    );
+    let path = root;
     try {
-      const file = await open(path, 'wx+', 0o600);
+      if (directory === undefined) {
+        for (const name of ['.runtime', 'tmp']) {
+          const anchor =
+            process.platform === 'linux' ? `/proc/self/fd/${parent.fd}` : path;
+          const childPath = join(anchor, name);
+          await mkdir(childPath, { mode: 0o700 }).catch((error: unknown) => {
+            if (
+              !(
+                error instanceof Error &&
+                'code' in error &&
+                error.code === 'EEXIST'
+              )
+            )
+              throw error;
+          });
+          const child = await open(
+            childPath,
+            constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+          );
+          await parent.close();
+          parent = child;
+          path = join(path, name);
+        }
+      }
+      const anchor =
+        process.platform === 'linux' ? `/proc/self/fd/${parent.fd}` : path;
+      const filename = join(anchor, `runnerd-journal-${randomUUID()}`);
+      const file = await open(filename, 'wx+', 0o600);
       try {
-        await unlink(path);
+        await unlink(filename);
       } catch (error) {
         await file.close();
         throw error;
       }
       return file;
     } finally {
-      await rmdir(root);
+      await parent.close();
+    }
+  }
+
+  private armWriteDeadline(): void {
+    clearTimeout(this.writeDeadline);
+    this.writeDeadline = setTimeout(
+      () => this.fail('REPLAY_UNAVAILABLE'),
+      this.ioTimeoutMs,
+    );
+    this.writeDeadline.unref();
+  }
+
+  /** Abort/timeout detaches a reader promptly, but never releases the actual
+   * file or its disk reservation until the kernel operation has settled. */
+  private async readIO<T>(
+    operation: Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    this.pendingReads += 1;
+    void operation
+      .finally(() => {
+        this.pendingReads -= 1;
+        this.closeIfUnused();
+      })
+      .catch(() => {});
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let abort = () => {};
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<never>((_, reject) => {
+          abort = () => reject(new Error('replay aborted'));
+          timer = setTimeout(() => {
+            this.fail('REPLAY_UNAVAILABLE');
+            reject(new Error('replay I/O stalled'));
+          }, this.ioTimeoutMs);
+          signal?.addEventListener('abort', abort, { once: true });
+          if (signal?.aborted) abort();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
     }
   }
 
@@ -218,6 +305,7 @@ export class ExecJournal {
   private async flush(): Promise<void> {
     if (this.writing || this.disposed || this.failure !== undefined) return;
     this.writing = true;
+    this.armWriteDeadline();
     try {
       const file = await this.ready;
       while (
@@ -253,6 +341,7 @@ export class ExecJournal {
               this.committedBytes,
             );
             if (bytesWritten === 0) throw new Error('incomplete journal write');
+            this.armWriteDeadline();
             this.committedBytes += bytesWritten;
             let remaining = bytesWritten;
             let written = 0;
@@ -275,13 +364,17 @@ export class ExecJournal {
     } catch {
       this.fail('REPLAY_UNAVAILABLE');
     } finally {
+      clearTimeout(this.writeDeadline);
+      this.writeDeadline = undefined;
       this.writing = false;
       this.wake();
       this.closeIfUnused();
     }
   }
 
-  private replayPosition(seq: number): number {
+  private replayCheckpoint(
+    seq: number,
+  ): { seq: number; position: number } | undefined {
     let low = 0;
     let high = this.checkpoints.length;
     while (low < high) {
@@ -290,7 +383,7 @@ export class ExecJournal {
       if (checkpoint !== undefined && checkpoint.seq <= seq) low = middle + 1;
       else high = middle;
     }
-    return this.checkpoints[low - 1]?.position ?? 0;
+    return this.checkpoints[low - 1];
   }
 
   private wake(): void {
@@ -333,7 +426,7 @@ export class ExecJournal {
       );
       return;
     }
-    const throughSeq = this.lastSeq;
+    let seenSeq = 0;
     let caughtUp = false;
     this.readers += 1;
     try {
@@ -341,11 +434,16 @@ export class ExecJournal {
       // matching replay-complete before interpreting historical turn results.
       await this.deliver(emit, { t: 'replay-start' }, signal);
       if (signal?.aborted) return;
-      const file = await this.ready;
+      const file = await this.readIO(this.ready, signal);
       const buffer = Buffer.alloc(READ_CHUNK);
-      // Include the captured prefix's final record even when the cursor has
-      // reached it: replay-complete still belongs before subsequent live data.
-      let position = this.replayPosition(Math.min(sinceSeq + 1, throughSeq));
+      // Seek only to complete record boundaries. Validate the chosen suffix
+      // against the checkpoint's sequence, including a cursor at the current
+      // head; catch-up still waits for every event appended during replay.
+      const checkpoint = this.replayCheckpoint(
+        Math.min(sinceSeq + 1, this.lastSeq),
+      );
+      let position = checkpoint?.position ?? 0;
+      seenSeq = (checkpoint?.seq ?? 1) - 1;
       let pending = '';
       const decoder = new StringDecoder('utf8');
       for (;;) {
@@ -363,11 +461,14 @@ export class ExecJournal {
           return;
         }
         if (position < this.committedBytes) {
-          const { bytesRead } = await file.read(
-            buffer,
-            0,
-            Math.min(buffer.length, this.committedBytes - position),
-            position,
+          const { bytesRead } = await this.readIO(
+            file.read(
+              buffer,
+              0,
+              Math.min(buffer.length, this.committedBytes - position),
+              position,
+            ),
+            signal,
           );
           if (bytesRead === 0) throw new Error('incomplete journal');
           position += bytesRead;
@@ -380,36 +481,42 @@ export class ExecJournal {
             const line = pending.slice(0, end);
             pending = pending.slice(end + 1);
             const event: unknown = JSON.parse(line);
-            if (!isRunnerdExecEvent(event))
-              throw new Error('invalid journal event');
+            if (!isRunnerdExecEvent(event) || event.seq !== seenSeq + 1)
+              throw new Error('invalid journal event sequence');
+            seenSeq = event.seq;
             if (
               !caughtUp &&
               event.t === 'exit' &&
-              (event.seq ?? 0) >= throughSeq &&
+              seenSeq === this.lastSeq &&
               !signal?.aborted
             ) {
               caughtUp = true;
               await this.deliver(
                 emit,
-                { t: 'replay-complete', throughSeq },
+                { t: 'replay-complete', throughSeq: seenSeq },
                 signal,
               );
             }
             if ((event.seq ?? 0) > sinceSeq && !signal?.aborted)
               await this.deliver(emit, event, signal);
-            if (
-              !caughtUp &&
-              (event.seq ?? 0) >= throughSeq &&
-              !signal?.aborted
-            ) {
+            if (!caughtUp && seenSeq === this.lastSeq && !signal?.aborted) {
               caughtUp = true;
               await this.deliver(
                 emit,
-                { t: 'replay-complete', throughSeq },
+                { t: 'replay-complete', throughSeq: seenSeq },
                 signal,
               );
             }
           }
+          continue;
+        }
+        if (!caughtUp && seenSeq === this.lastSeq && !signal?.aborted) {
+          caughtUp = true;
+          await this.deliver(
+            emit,
+            { t: 'replay-complete', throughSeq: seenSeq },
+            signal,
+          );
           continue;
         }
         if (this.complete && !this.writing && this.queued.length === 0) return;
@@ -433,7 +540,13 @@ export class ExecJournal {
   }
 
   private closeIfUnused(): void {
-    if (!this.disposed || this.writing || this.readers > 0 || this.closed)
+    if (
+      !this.disposed ||
+      this.writing ||
+      this.readers > 0 ||
+      this.pendingReads > 0 ||
+      this.closed
+    )
       return;
     this.closed = true;
     void this.ready

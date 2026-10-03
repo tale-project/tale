@@ -372,7 +372,7 @@ export class DockerSessionBackend implements SessionBackend {
       try {
         await withDockerDeadline(
           Math.min(
-            this.cfg.buildkitdProvisionTimeoutMs ?? 15_000,
+            this.cfg.buildkitdProvisionTimeoutMs ?? 5_000,
             this.cfg.session.createHealthTimeoutMs / 4,
           ),
           async (cacheSignal) => {

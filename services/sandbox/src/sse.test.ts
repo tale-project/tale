@@ -131,6 +131,65 @@ describe('sandbox SSE lifecycle and memory', () => {
     }
   });
 
+  test('awaited replay crosses the byte ceiling without dropping output', async () => {
+    let sent = 0;
+    let producerSignal: AbortSignal | undefined;
+    const text = 'x'.repeat(RUNNERD_CONSUMER_BUFFER_MAX_BYTES / 4);
+    const response = sseResponse(async ({ send, signal }) => {
+      producerSignal = signal;
+      for (let i = 0; i < 12; i++) {
+        await send('stdout', { text, seq: i + 1 });
+        sent++;
+      }
+      await send('result', { exitCode: 0 });
+    });
+    // Let the producer fill the queue before the reader starts.
+    await Bun.sleep(20);
+    expect(sent).toBeLessThan(4);
+    const output = await response.text();
+    expect(sent).toBe(12);
+    expect(output.split('event: stdout').length - 1).toBe(12);
+    expect(output.endsWith('event: result\ndata: {"exitCode":0}\n\n')).toBe(
+      true,
+    );
+    expect(producerSignal?.aborted).toBe(false);
+  });
+
+  test('cancelling releases a producer waiting for drain', async () => {
+    let completed = false;
+    let producerSignal: AbortSignal | undefined;
+    const response = sseResponse(async ({ send, signal }) => {
+      producerSignal = signal;
+      await send('stdout', {
+        text: 'x'.repeat(RUNNERD_CONSUMER_BUFFER_MAX_BYTES),
+      });
+      completed = true;
+    });
+    expect(completed).toBe(false);
+    await response.body?.cancel();
+    expect(completed).toBe(true);
+    expect(producerSignal?.aborted).toBe(true);
+  });
+
+  test('a stalled awaited reader aborts and releases the producer', async () => {
+    const completed = Promise.withResolvers<void>();
+    let producerSignal: AbortSignal | undefined;
+    const response = sseResponse(async ({ send, signal }) => {
+      producerSignal = signal;
+      await send('stdout', {
+        text: 'x'.repeat(RUNNERD_CONSUMER_BUFFER_MAX_BYTES),
+      });
+      completed.resolve();
+    });
+    await completed.promise;
+    expect(producerSignal?.aborted).toBe(true);
+    expect(
+      await response.text().catch((error: unknown) => error),
+    ).toMatchObject({
+      message: 'SSE consumer stalled while draining',
+    });
+  });
+
   test('a synchronous producer throw also fails the stream cleanly', async () => {
     const failure = new Error('producer failed before returning');
     const response = sseResponse(() => {
