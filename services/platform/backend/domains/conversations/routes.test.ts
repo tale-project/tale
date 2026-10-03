@@ -437,11 +437,14 @@ describe('conversations route — an email that carries only files', () => {
 
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual({ messageId: 'm1' });
-    // The files are still checked as the sender's own uploads.
+    // The files are still checked as the sender's own uploads — early and
+    // without a stamp: the send's transaction proves them again and stamps
+    // there, so a refused send leaves no stamp behind (#4111).
     expect(firstForeignUpload).toHaveBeenCalledWith(
       expect.anything(),
       { organizationId: 'o1', userId: 'u1' },
       ['blob-1'],
+      { stamp: false },
     );
     expect(replyToConversation).toHaveBeenCalledWith(
       expect.anything(),

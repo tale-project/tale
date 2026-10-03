@@ -107,7 +107,7 @@ export function PricingCompare({ region }: PricingCompareProps) {
     { kind: 'section', label: t('compare.categories.compliance') },
     {
       kind: 'data',
-      label: t('compare.rows.gdpr'),
+      label: t('compare.rows.dpa'),
       cells: { community: dash, enterprise: check },
     },
     {

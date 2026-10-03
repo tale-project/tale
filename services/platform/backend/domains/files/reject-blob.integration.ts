@@ -26,7 +26,13 @@ import {
   s3HeadObject,
 } from '../../lib/object-store.ts';
 import { ensureDefaultObjectStore } from '../object_storage/bootstrap.ts';
-import { firstForeignUpload, ownsUploadedBlob } from './upload-intents.ts';
+import {
+  claimRejectedUpload,
+  consumeUploadIntent,
+  firstForeignUpload,
+  ownsUploadedBlob,
+  sweepUploadIntents,
+} from './upload-intents.ts';
 
 interface Actor {
   cookie: string;
@@ -306,6 +312,44 @@ export async function checkRejectedUploadReclaim(
       `document file_ref=${heldAnswers[0]}/kept=${heldKept[0]}, document history_files=${heldAnswers[1]}/kept=${heldKept[1]}, task outputs=${heldAnswers[2]}/kept=${heldKept[2]} (want false/true each)`,
     );
 
+    // Each claim condition on its own (#4111), which the exact-SQL unit
+    // assertions alone pinned: a file row holds the bytes while the intent
+    // is still open and unstamped (no bind touched it), and a consumed
+    // intent is never the caller's to reclaim, whatever holds the blob —
+    // here nothing does.
+    const rowOnly = await upload('held-file-row-only');
+    await sql`
+      INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
+                                     content_type, size, uploaded_by,
+                                     created_at_ms)
+      VALUES (${orgId}, ${rowOnly}, 'row-only.txt', 'text/plain', 24,
+              ${owner.userId}, ${Date.now()})
+    `;
+    const rowOnlyIntent = await intentState(rowOnly);
+    const rowOnlyAnswer = await reject(owner, rowOnly);
+    const rowOnlyKept = await present(rowOnly);
+    const consumedOnly = await upload('consumed-no-holder');
+    const consumed = await consumeUploadIntent(sql, {
+      organizationId: orgId,
+      userId: owner.userId,
+      storageRef: consumedOnly,
+      purpose: 'file',
+    });
+    const consumedIntent = await intentState(consumedOnly);
+    const consumedAnswer = await reject(owner, consumedOnly);
+    const consumedKept = await present(consumedOnly);
+    record(
+      'reject-blob refuses a ref only a file row holds, and a consumed intent nothing holds (#4111)',
+      rowOnlyIntent === 'bound=false,consumed=false' &&
+        rowOnlyAnswer === 'false' &&
+        rowOnlyKept &&
+        consumed &&
+        consumedIntent === 'bound=false,consumed=true' &&
+        consumedAnswer === 'false' &&
+        consumedKept,
+      `file row only: intent ${rowOnlyIntent} (want bound=false,consumed=false), reject=${rowOnlyAnswer}/kept=${rowOnlyKept} (want false/true); consumed, no holder: consume=${consumed} (want true), intent ${consumedIntent} (want bound=false,consumed=true), reject=${consumedAnswer}/kept=${consumedKept} (want false/true)`,
+    );
+
     // A non-consuming proof that leaves no row of its own — the outbound
     // mail door's — vouches for the blob through the stamp alone.
     const vouched = await upload('vouched-mail');
@@ -334,6 +378,33 @@ export async function checkRejectedUploadReclaim(
       'a reclaimed upload can no longer be attached to a task',
       reclaimedAnswer === 'true' && reclaimedAttach.status === 403,
       `reject=${reclaimedAnswer} (want true), intent ${reclaimedIntent}, attach=${reclaimedAttach.status} (want 403)`,
+    );
+
+    // A reclaim whose store delete failed after the claim (#4111): the claim
+    // leaves a tombstone, not nothing, so the bytes are not orphaned — no
+    // bind can take the ref, and the abandoned-upload sweep (the org's next
+    // mint runs it) deletes the bytes and then the row. The claim runs
+    // alone here, as the door's would before a delete that failed.
+    const orphan = await upload('reclaim-delete-failed');
+    const orphanClaimed = await claimRejectedUpload(sql, {
+      organizationId: orgId,
+      userId: owner.userId,
+      storageRef: orphan,
+    });
+    const tombstone = await intentState(orphan);
+    const orphanAttach = await attach(orphan, 'tombstoned');
+    const swept = await sweepUploadIntents(sql, { organizationId: orgId });
+    const orphanGone = !(await present(orphan));
+    const orphanRow = await intentState(orphan);
+    record(
+      'a reclaim whose delete failed leaves the bytes to the abandoned-upload sweep (#4111)',
+      orphanClaimed &&
+        tombstone === 'bound=false,consumed=false' &&
+        orphanAttach.status === 403 &&
+        swept.reclaimed >= 1 &&
+        orphanGone &&
+        orphanRow === 'gone',
+      `claim=${orphanClaimed} (want true), intent after the claim ${tombstone} (want bound=false,consumed=false), attach=${orphanAttach.status} (want 403), sweep reclaimed=${swept.reclaimed} (want ≥1), gone=${orphanGone} (want true), intent after the sweep ${orphanRow} (want gone)`,
     );
 
     // A bind whose transaction stamped the intent and is still open (a
