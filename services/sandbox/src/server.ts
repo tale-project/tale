@@ -108,7 +108,6 @@ async function sizeSessionCapacity(): Promise<void> {
   if (capacitySized || hostMemory === null) return;
   const memory = await hostMemory.read();
   if (memory === null || capacitySized) return;
-  capacitySized = true;
   cfg.session.maxSessions = autoSessionCapacity(
     memory.totalBytes,
     memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
@@ -116,6 +115,7 @@ async function sizeSessionCapacity(): Promise<void> {
     cfg.dockerWorkloads,
     hostMemory.cpus(),
   );
+  capacitySized = true;
   const cpus = hostMemory.cpus();
   console.log(
     `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB${cpus === null ? '' : ` and ${cpus} CPUs`} (set SANDBOX_MAX_SESSIONS to fix it)`,

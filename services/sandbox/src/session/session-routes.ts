@@ -1013,11 +1013,14 @@ export class SessionRoutes {
   /** Would starting a session of this working set, beside every create in
    * flight at theirs and what the sessions that just started are still
    * growing into, leave the host less than its reserve? Unknown memory never
-   * refuses. */
+   * refuses, and neither does an explicit SANDBOX_MAX_SESSIONS: the operator
+   * sized the host, so the count, disk and CPU guards still apply but memory
+   * admission does not. */
   private memoryShort(
     workingSetBytes: number,
     reacquiringSessionId?: string,
   ): boolean {
+    if (this.cfg.session.autoMaxSessions === false) return false;
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -1135,6 +1138,9 @@ export class SessionRoutes {
           { 'retry-after': retryAfter },
         );
       }
+      console.warn(
+        `[sandbox.session] refusing ${sessionId}: host_memory (queue position ${place.position})`,
+      );
       return jsonResponse(
         {
           error: 'host_memory',

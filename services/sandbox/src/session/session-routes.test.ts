@@ -6873,6 +6873,47 @@ describe('memory-aware admission', () => {
     expect(healthProbes.get(token) ?? 0).toBe(before);
   });
 
+  test('an explicit session cap overrides memory admission, but still enforces the cap', async () => {
+    const explicit = {
+      ...cfg,
+      session: { ...cfg.session, autoMaxSessions: false, maxSessions: 1 },
+    };
+    const routes = new SessionRoutes(
+      explicit,
+      fakeBackend,
+      undefined,
+      host(() => 0),
+    );
+    expect((await create(routes, 'explicit-1')).status).toBe(201);
+    expect(await (await create(routes, 'explicit-2')).json()).toMatchObject({
+      error: 'session_quota',
+    });
+  });
+
+  test('adaptive memory admission remains enabled by default', async () => {
+    const adaptive = {
+      ...cfg,
+      session: { ...cfg.session, autoMaxSessions: true },
+    };
+    const routes = new SessionRoutes(
+      adaptive,
+      fakeBackend,
+      undefined,
+      host(() => 0),
+    );
+    const warning = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await (await create(routes, 'adaptive-1')).json()).toMatchObject({
+        error: 'host_memory',
+      });
+      expect(warning).toHaveBeenCalledWith(
+        expect.stringContaining('host_memory'),
+      );
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   test('a create that would leave the host under its reserve is refused with host_memory', async () => {
     // 16 GiB host: the reserve is 1.6 GiB; an agent session is planned at
     // 512 MiB, so 2 GiB available is not enough.
@@ -7154,6 +7195,37 @@ describe('memory-aware admission', () => {
         expect(
           (await routes.handleActivity('cpu-warm', 'acquire')).status,
         ).toBe(200);
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test('an explicit session cap ignores memory but still paces starts under CPU pressure', async () => {
+      const startMs = Date.now();
+      let pressure = 0;
+      try {
+        const routes = new SessionRoutes(
+          { ...cfg, session: { ...cfg.session, autoMaxSessions: false } },
+          fakeBackend,
+          undefined,
+          // No memory left at all: only the explicit cap's rule admits.
+          { ...host(() => 0), cpuPressure: () => pressure },
+        );
+        expect((await create(routes, 'cap-cpu-warm')).status).toBe(201);
+        await releaseWarm(routes, 'cap-cpu-warm');
+        pressure = 75;
+        expect((await create(routes, 'cap-cpu-first')).status).toBe(201);
+        const refused = await routes.handleActivity('cap-cpu-warm', 'acquire');
+        expect(refused.status).toBe(429);
+        expect(await refused.json()).toMatchObject({ error: 'host_cpu' });
+        setSystemTime(new Date(startMs + 11_000));
+        expect(
+          (await routes.handleActivity('cap-cpu-warm', 'acquire')).status,
+        ).toBe(200);
+        // The warm start took the turn: a create right behind it waits too.
+        expect(
+          await (await create(routes, 'cap-cpu-second')).json(),
+        ).toMatchObject({ error: 'host_cpu' });
       } finally {
         setSystemTime();
       }

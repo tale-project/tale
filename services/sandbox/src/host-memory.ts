@@ -76,6 +76,11 @@ export function autoSessionCapacity(
   dockerWorkloads?: SpawnerConfig['dockerWorkloads'],
   cpus: number | null = null,
 ): number {
+  if (reserveBytes >= totalBytes) {
+    throw new Error(
+      'SANDBOX_MIN_FREE_MEMORY must be below the Docker host total memory',
+    );
+  }
   const perSession = Math.max(
     SIZING_BYTES_PER_SESSION,
     sessionWorkingSetBytes(
