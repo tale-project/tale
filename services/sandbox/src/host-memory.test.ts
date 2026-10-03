@@ -10,6 +10,14 @@ import {
 const GIB = 1024 ** 3;
 
 describe('sizing from the host', () => {
+  test.each([16, 17])(
+    'rejects an impossible %s GiB reserve at boot sizing',
+    (reserve) => {
+      expect(() => autoSessionCapacity(16 * GIB, reserve * GIB)).toThrow(
+        'SANDBOX_MIN_FREE_MEMORY',
+      );
+    },
+  );
   test('the reserve is a tenth of the host, at least 1 GiB, unless configured', () => {
     expect(memoryReserveBytes(4 * GIB)).toBe(GIB);
     expect(memoryReserveBytes(64 * GIB)).toBe(Math.floor((64 * GIB) / 10));

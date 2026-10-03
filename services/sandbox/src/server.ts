@@ -48,7 +48,9 @@ const backend = createHostBackend(cfg);
 // The Docker host's memory, read where /proc describes it (a local Docker
 // spawner; never Kubernetes, a remote daemon or a device's own host checks).
 const hostMemory =
-  cfg.backend === 'docker' && cfg.deviceConfigPath === null
+  cfg.backend === 'docker' &&
+  cfg.deviceConfigPath === null &&
+  cfg.session.autoMaxSessions !== false
     ? new HostMemoryProbe()
     : null;
 // The disk the session workspaces live on (the session root, which this
@@ -67,12 +69,12 @@ async function sizeSessionCapacity(): Promise<void> {
   if (capacitySized || hostMemory === null) return;
   const memory = await hostMemory.read();
   if (memory === null || capacitySized) return;
-  capacitySized = true;
   cfg.session.maxSessions = autoSessionCapacity(
     memory.totalBytes,
     memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
     cfg.dockerInContainer,
   );
+  capacitySized = true;
   console.log(
     `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
   );

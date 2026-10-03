@@ -551,6 +551,9 @@ const PRESSURE_REMOVALS_PER_SWEEP = 3;
 const PRESSURE_PAUSE_MS = 6 * 60 * 60 * 1000;
 /** Until when removals for want of disk are paused (epoch ms). */
 let pressurePausedUntilMs = 0;
+const PRESSURE_MIN_GAIN_BYTES = 1024 * 1024;
+const PRESSURE_LOW_GAINS_BEFORE_PAUSE = 3;
+let pressureLowGains = 0;
 
 /** Release only compute after an org has had no live session for the normal
  * session idle grace. A fresh spawner observes a full grace before reclaiming
@@ -612,6 +615,7 @@ async function sweepIdleBuildkitdUnlocked(
   }
   if (byOrg.size === 0) {
     idleSince.clear();
+    pressureLowGains = 0;
     return { stopped: 0, organizations: 0 };
   }
   const live = await liveBuildkitOrganizations();
@@ -713,8 +717,9 @@ async function sweepIdleBuildkitdUnlocked(
  * organizations whose helpers are all stopped and that nothing may use now,
  * the longest-stopped first, retention or not, until the disk is above its
  * floor again or {@link PRESSURE_REMOVALS_PER_SWEEP} have gone. A removal
- * that frees no space there means the caches live on another disk: no more
- * go for {@link PRESSURE_PAUSE_MS}. Returns how many organizations' caches
+ * with a sub-threshold net gain may reflect concurrent writes or delayed
+ * accounting; only repeated low gains pause relief for {@link PRESSURE_PAUSE_MS}.
+ * Returns how many organizations' caches
  * went. */
 async function relieveDiskPressure(
   byOrg: ReadonlyMap<string, ReadonlyMap<string, string>>,
@@ -722,8 +727,11 @@ async function relieveDiskPressure(
   sessionDisk: NonNullable<BuildCacheUpkeep['sessionDisk']>,
   nowMs: number,
 ): Promise<number> {
-  let disk = await sessionDisk();
-  if (disk === null || !disk.short) return 0;
+  const disk = await sessionDisk();
+  if (disk === null || !disk.short) {
+    pressureLowGains = 0;
+    return 0;
+  }
   const candidates: Array<{
     org: string;
     builderId: string;
@@ -768,8 +776,7 @@ async function relieveDiskPressure(
   let relieved = 0;
   for (const candidate of candidates) {
     if (relieved >= PRESSURE_REMOVALS_PER_SWEEP) break;
-    const before = disk.availableBytes;
-    const removed = await withBuildkitdOperation(candidate.org, async () => {
+    const result = await withBuildkitdOperation(candidate.org, async () => {
       // Judged again under the organization's lock: a session or a create
       // that came since keeps the caches.
       const latestLive = await liveBuildkitOrganizations(candidate.org);
@@ -782,7 +789,14 @@ async function relieveDiskPressure(
         buildkitdNetworkName(candidate.org),
       );
       if (builder === null || builder.running) return null;
-      return removeOrganizationBuildkitUnlocked(candidate.org);
+      const before = await sessionDisk();
+      if (before === null || !before.short) {
+        pressureLowGains = 0;
+        return null;
+      }
+      const removed = await removeOrganizationBuildkitUnlocked(candidate.org);
+      const after = await sessionDisk();
+      return { removed, before, after };
     }).catch((error: unknown) => {
       console.warn(
         `[sandbox.buildkitd] could not remove ${candidate.org}'s build caches for the short session disk (next sweep retries):`,
@@ -790,22 +804,32 @@ async function relieveDiskPressure(
       );
       return null;
     });
-    if (removed === null) continue;
+    if (result === null) continue;
+    const { removed, before, after } = result;
     relieved++;
-    const after = await sessionDisk();
     console.log(
       `[sandbox.buildkitd] the session disk is short: removed ${candidate.org}'s build helpers and caches, stopped since ${new Date(candidate.finishedAtMs).toISOString()} (${removed.containers} containers, ${removed.volumes} volumes); its next build starts cold`,
     );
-    if (after === null) break;
-    if (after.availableBytes <= before) {
+    if (after === null) {
+      pressureLowGains = 0;
+      break;
+    }
+    pressureLowGains =
+      after.availableBytes - before.availableBytes < PRESSURE_MIN_GAIN_BYTES
+        ? pressureLowGains + 1
+        : 0;
+    if (!after.short) {
+      pressureLowGains = 0;
+      break;
+    }
+    if (pressureLowGains >= PRESSURE_LOW_GAINS_BEFORE_PAUSE) {
       pressurePausedUntilMs = nowMs + PRESSURE_PAUSE_MS;
+      pressureLowGains = 0;
       console.warn(
-        `[sandbox.buildkitd] removing ${candidate.org}'s build caches freed no space on the session disk: the caches live on another disk, and no more are removed for want of it for ${PRESSURE_PAUSE_MS / 3_600_000} h`,
+        `[sandbox.buildkitd] ${PRESSURE_LOW_GAINS_BEFORE_PAUSE} consecutive build-cache removals had sub-threshold net gains (less than ${PRESSURE_MIN_GAIN_BYTES} bytes) on the session disk; concurrent writes, delayed accounting or another cache disk may explain it. Disk relief pauses for ${PRESSURE_PAUSE_MS / 3_600_000} h`,
       );
       break;
     }
-    disk = after;
-    if (!disk.short) break;
   }
   return relieved;
 }
@@ -813,6 +837,7 @@ async function relieveDiskPressure(
 /** Forget a pause of the removals for want of disk (tests). */
 export function resetDiskPressurePause(): void {
   pressurePausedUntilMs = 0;
+  pressureLowGains = 0;
 }
 
 /**
