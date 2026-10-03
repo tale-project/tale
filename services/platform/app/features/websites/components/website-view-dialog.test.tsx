@@ -8,7 +8,7 @@ import {
   isSkippedPageKind,
 } from '@/backend/core/websites/types';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { WebsiteViewDialog } from './website-view-dialog';
 
@@ -18,6 +18,8 @@ const scanNowMutate = vi.hoisted(() => vi.fn());
 const answerAction = vi.hoisted(
   () => new Map<string, (data: unknown) => void>(),
 );
+/** Each action's hook-level error handler, to fail a request later. */
+const failAction = vi.hoisted(() => new Map<string, () => void>());
 const pagesPayload = {
   current: null as null | {
     pages: CrawlerPage[];
@@ -73,9 +75,10 @@ vi.mock('@/app/hooks/use-backend-action', () => {
   return {
     useBackendAction: (
       name: string,
-      options?: { onSuccess?: (data: unknown) => void },
+      options?: { onSuccess?: (data: unknown) => void; onError?: () => void },
     ) => {
       if (options?.onSuccess) onSuccessByName.set(name, options.onSuccess);
+      if (options?.onError) failAction.set(name, options.onError);
       let mutate = mutateByName.get(name);
       if (!mutate) {
         mutate = vi.fn((args: unknown) => {
@@ -507,7 +510,10 @@ describe('WebsiteViewDialog', () => {
           crawledPageCount: 1,
           failedPageCount: 1,
           metadata: {
-            lastSyncError: 'Host does not resolve: docs.example.com',
+            // What the crawl action stores for a host that does not
+            // resolve: its tally of the pages it attempted.
+            lastSyncError:
+              'No page could be stored: 1 of 1 attempted pages failed (dns_failed)',
           },
         }}
       />,
@@ -910,6 +916,88 @@ describe('WebsiteViewDialog', () => {
         within(dialog).getByRole('radio', { name: 'Failed (1)' }),
       ).toBeInTheDocument();
       expect(within(dialog).queryByRole('alert')).toBeNull();
+    });
+
+    // A reason no page explains — a lost knowledge database, a sitemap that
+    // timed out — was hidden in every view once any page had failed or been
+    // skipped, and the Alert is the only place a scan's reason shows.
+    it.each([
+      'Connection terminated unexpectedly',
+      'Reading the sitemap timed out',
+    ])('keeps "%s" in every view beside skipped pages', async (reason) => {
+      listPages([
+        ...times(25, indexedPage),
+        ...times(3, (index) =>
+          unstoredPage(
+            `private-${index}`,
+            'The page asks not to be indexed',
+            'robots_noindex',
+          ),
+        ),
+      ]);
+      expect(
+        await alertPerView({
+          ...dnsFailedSite,
+          crawledPageCount: 25,
+          failedPageCount: 0,
+          metadata: { lastSyncError: reason },
+        }),
+      ).toEqual({
+        All: true,
+        'All + Load more 1': true,
+        'Failed (0)': true,
+        'Skipped (3)': true,
+      });
+    });
+
+    it('leaves it out over a site whose every page was skipped', async () => {
+      listPages(
+        times(3, (index) =>
+          unstoredPage(
+            `private-${index}`,
+            'The page asks not to be indexed',
+            'robots_noindex',
+          ),
+        ),
+      );
+      expect(
+        await alertPerView({
+          ...dnsFailedSite,
+          crawledPageCount: 3,
+          failedPageCount: 0,
+          metadata: {
+            lastSyncError:
+              'No page could be stored: 0 of 3 attempted pages failed and 3 were skipped (robots_noindex)',
+          },
+        }),
+      ).toEqual({ All: false, 'Failed (0)': false, 'Skipped (3)': false });
+    });
+
+    // While the first read is out, the row's own count stands in, so the
+    // Alert does not flash over a site whose pages say why; a read that
+    // failed leaves no page to say anything, so the Alert says it.
+    it('stands on the row while the first read is out, and shows once it failed', () => {
+      render(
+        <WebsiteViewDialog
+          isOpen
+          onClose={vi.fn()}
+          website={{
+            ...dnsFailedSite,
+            crawledPageCount: 2,
+            failedPageCount: 2,
+            metadata: {
+              lastSyncError:
+                'No page could be stored: 2 of 2 attempted pages failed (http_error)',
+            },
+          }}
+        />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      expect(within(dialog).queryByRole('alert')).toBeNull();
+
+      act(() => failAction.get('websites/actions:fetchPages')?.());
+
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
     });
 
     it('keeps it however far the list is read when no page says why', async () => {

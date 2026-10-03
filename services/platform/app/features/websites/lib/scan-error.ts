@@ -140,14 +140,26 @@ export function isHollowSiteScan(
 }
 
 /**
- * Whether the site's own pages say why its scan failed: a page the crawler
- * failed or skipped carries its reason on its row. The site's counts decide
- * it — those every pages answer carries, whichever state the list is
- * narrowed to, and the row's failed count until the first answer comes —
- * never the rows one window of the list holds: a filter or "Load more"
- * showed and hid the same scan's Alert (#4068).
+ * Whether the reason is the crawl action's tally of the pages it attempted
+ * ("No page could be stored: 2 of 2 attempted pages failed …"): the one
+ * reason the page rows explain themselves. A lost database, a sitemap that
+ * timed out or a failed registration is not theirs to explain, however many
+ * pages failed or were skipped beside it.
  */
-export function pagesExplainScanFailure(
+export function isPageTallyReason(message: string): boolean {
+  return /no page could be stored: \d+ of \d+ attempted pages failed/i.test(
+    message,
+  );
+}
+
+/**
+ * Whether the site has a page the crawler failed or skipped, by the site's
+ * counts — those every pages answer carries, whichever state the list is
+ * narrowed to, or the row's failed count while the first read is out
+ * (null) — never by the rows one window of the list holds: a filter or
+ * "Load more" showed and hid the same scan's Alert (#4068).
+ */
+export function hasFailedOrSkippedPages(
   website: { failedPageCount?: number },
   counts: { failed: number; skipped: number } | null,
 ): boolean {
