@@ -491,14 +491,22 @@ describe('ExecManager', () => {
     const fifo = `${procRoot}/41/environ`;
     expect(spawnSync('mkfifo', [fifo]).status).toBe(0);
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
-      procRoot,
-      scanDeadlineMs: 500,
-      kill: (pid, signal) => {
-        sent.push([pid, signal]);
-        process.kill(pid, signal);
+    // The scan of tags, as without the subreaper shim: under it, a scan
+    // reads no environment while every exec's shim runs.
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        scanDeadlineMs: 500,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+          process.kill(pid, signal);
+        },
       },
-    });
+      { execShim: null },
+    );
     try {
       const { events, emit } = collect();
       const done = mgr.run(
@@ -563,14 +571,21 @@ describe('ExecManager', () => {
       '99992 (server) S 1 99992 99992 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4343 0 0\n',
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
-      procRoot,
-      // Real groups are the test's own execs; the fake pid is only recorded.
-      kill: (pid, signal) => {
-        sent.push([pid, signal]);
-        if (pid < 0) process.kill(pid, signal);
+    // Found by its tag alone: no shim of the exec's is its ancestor here.
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        // Real groups are the test's own execs; the fake pid is only recorded.
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+          if (pid < 0) process.kill(pid, signal);
+        },
       },
-    });
+      { execShim: null },
+    );
     try {
       const { events, emit } = collect();
       const done = mgr.run(
@@ -628,7 +643,8 @@ describe('ExecManager', () => {
           if (pid < 0) process.kill(pid, signal);
         },
       },
-      { holdMaxMs: 400 },
+      // Found by its tag alone: no shim of the exec's is its ancestor here.
+      { holdMaxMs: 400, execShim: null },
     );
     try {
       const done = mgr.run(
@@ -662,13 +678,20 @@ describe('ExecManager', () => {
       '99994 (server) S 1 99994 99994 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4545 0 0\n',
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
-      procRoot,
-      kill: (pid, signal) => {
-        sent.push([pid, signal]);
-        if (pid < 0) process.kill(pid, signal);
+    // Found by its tag alone: no shim of the exec's is its ancestor here.
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+          if (pid < 0) process.kill(pid, signal);
+        },
       },
-    });
+      { execShim: null },
+    );
     let holder = 0;
     try {
       const { events, emit } = collect();
@@ -716,13 +739,20 @@ describe('ExecManager', () => {
       '99993 (server) S 1 99993 99993 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4444 0 0\n',
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
-      procRoot,
-      kill: (pid, signal) => {
-        sent.push([pid, signal]);
-        if (pid < 0) process.kill(pid, signal);
+    // Found by its tag alone: no shim of the exec's is its ancestor here.
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+          if (pid < 0) process.kill(pid, signal);
+        },
       },
-    });
+      { execShim: null },
+    );
     try {
       // Started before the hold: its end is no successor's.
       const earlier = mgr.run(
@@ -946,14 +976,21 @@ describe('ExecManager', () => {
       '99991 (dev) S 1 99991 99991 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4242 0 0\n',
     );
     const sent: Array<[number, NodeJS.Signals]> = [];
-    const mgr = new ExecManager(new EnvStore(), () => {}, undefined, {
-      procRoot,
-      // Real groups are the test's own execs; the fake pid is only recorded.
-      kill: (pid, signal) => {
-        sent.push([pid, signal]);
-        if (pid < 0) process.kill(pid, signal);
+    // Found by its tag alone: no shim of the exec's is its ancestor here.
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      undefined,
+      {
+        procRoot,
+        // Real groups are the test's own execs; the fake pid is only recorded.
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+          if (pid < 0) process.kill(pid, signal);
+        },
       },
-    });
+      { execShim: null },
+    );
     try {
       const long = collect();
       const longDone = mgr.run(

@@ -1,11 +1,12 @@
-// The reaper finds an exec's processes by the tag in their environment and
-// signals each of them once: the exec's process group as a whole, and on
-// their own only the tagged processes that left it. A fake process table
-// stands in for /proc, so this runs on any host.
+// The reaper finds an exec's processes by the tag in their environment, and
+// below the exec's subreaper shim, and signals each of them once: the exec's
+// process group as a whole, and on their own only the processes that left
+// it. A fake process table stands in for /proc, so this runs on any host.
 
 import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   closeSync,
   constants,
   mkdirSync,
@@ -36,6 +37,8 @@ interface FakeProcess {
   env: string[] | null;
   /** Process group; defaults to the process's own pid. */
   pgrp?: number;
+  /** Parent; defaults to init. */
+  ppid?: number;
   /** Command name as `stat` shows it, parentheses and spaces included. */
   comm?: string;
   /** Start time in clock ticks since boot; defaults to 1000 + pid. */
@@ -56,23 +59,29 @@ function procTable(processes: Record<string, FakeProcess>): string {
   return root;
 }
 
-/** A `stat` line as Linux writes it: the group is field 5, the start time
- * field 22. */
+/** A `stat` line as Linux writes it: the parent is field 4, the group
+ * field 5, the start time field 22. */
 function writeStat(root: string, pid: string, proc: FakeProcess): void {
+  const ppid = proc.ppid ?? 1;
   const pgrp = proc.pgrp ?? pid;
   const comm = proc.comm ?? 'sleep';
   const startTime = proc.startTime ?? 1000 + Number(pid);
   writeFileSync(
     `${root}/${pid}/stat`,
-    `${pid} (${comm}) S 1 ${pgrp} ${pgrp} 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 ${startTime} 1000 100\n`,
+    `${pid} (${comm}) S ${ppid} ${pgrp} ${pgrp} 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 ${startTime} 1000 100\n`,
   );
 }
 
 /** A process whose environment read does not come back — a FIFO no one
  * writes stands in for a process stuck holding its memory lock. */
-function stallEnviron(root: string, pid: string, pgrp: number): string {
+function stallEnviron(
+  root: string,
+  pid: string,
+  pgrp: number,
+  ppid?: number,
+): string {
   mkdirSync(`${root}/${pid}`);
-  writeStat(root, pid, { env: null, pgrp });
+  writeStat(root, pid, { env: null, pgrp, ppid });
   const fifo = `${root}/${pid}/environ`;
   const made = spawnSync('mkfifo', [fifo]);
   if (made.status !== 0)
@@ -195,6 +204,25 @@ describe('processesLeft', () => {
         procRoot: '/nonexistent-proc-root',
       }),
     ).toBeNull();
+  });
+
+  test('a target whose shim still runs has processes left while the shim has a descendant', async () => {
+    const procRoot = procTable({
+      // e5's shim, and a process below it that dropped the tag.
+      '60': tagged('e5', 60),
+      '62': { env: ['PATH=/bin'], pgrp: 62, ppid: 60 },
+      // e6's shim, with nothing below it: the shim alone is not a leftover.
+      '70': tagged('e6', 70),
+    });
+    const alive = () => true;
+    const left = await processesLeft(
+      [
+        { execId: 'e5', groupId: 61, rootPid: 60, rootAlive: alive },
+        { execId: 'e6', groupId: 71, rootPid: 70, rootAlive: alive },
+      ],
+      { procRoot },
+    );
+    expect(left).toEqual([true, false]);
   });
 });
 
@@ -456,6 +484,124 @@ describe('signalExecProcesses', () => {
       console.warn = warn;
     }
   });
+
+  test('below a running shim, a process that left the group, its session and its tag is still the exec’s', async () => {
+    const procRoot = procTable({
+      // The shim, the command leading the exec's group, and what the
+      // command started: a double-forked `setsid env -i` server, reparented
+      // to the shim, with a child of its own.
+      '60': tagged('e8', 60),
+      '61': { env: ['PATH=/bin'], pgrp: 61, ppid: 60 },
+      '62': { env: ['PATH=/bin'], pgrp: 62, ppid: 60 },
+      '63': { env: ['PATH=/bin'], pgrp: 62, ppid: 62 },
+      // Someone else's, in no relation to the shim.
+      '70': { env: ['PATH=/bin'], pgrp: 70, ppid: 1 },
+    });
+    const { sent, kill } = recorder();
+    await signalExecProcesses(
+      [
+        {
+          execId: 'e8',
+          groupId: 61,
+          groupKnown: true,
+          rootPid: 60,
+          rootAlive: () => true,
+        },
+      ],
+      'SIGTERM',
+      { procRoot, kill },
+    );
+    // The group once, the two outside it on their own; never the shim.
+    expect(sent).toEqual([
+      [-61, 'SIGTERM'],
+      [62, 'SIGTERM'],
+      [63, 'SIGTERM'],
+    ]);
+  });
+
+  test('while every target’s shim runs, a scan reads no environment', async () => {
+    const procRoot = procTable({ '60': tagged('e9', 60) });
+    // Below the shim, a process whose environment read would hang.
+    const fifo = stallEnviron(procRoot, '62', 62, 60);
+    const { sent, kill } = recorder();
+    try {
+      const startedAt = Date.now();
+      await signalExecProcesses(
+        [
+          {
+            execId: 'e9',
+            groupId: 61,
+            rootPid: 60,
+            rootAlive: () => true,
+          },
+        ],
+        'SIGKILL',
+        { procRoot, kill, scanDeadlineMs: 2_000 },
+      );
+      expect(Date.now() - startedAt).toBeLessThan(1_000);
+      expect(pendingProcReads()).toBe(0);
+      expect(sent).toEqual([[62, 'SIGKILL']]);
+    } finally {
+      await release(fifo);
+    }
+  });
+
+  test('once its shim has exited, a target is found by its tag again', async () => {
+    const procRoot = procTable({
+      // The pid the shim had, someone else's now, with a child of its own.
+      '60': { env: ['PATH=/bin'], pgrp: 60 },
+      '64': { env: ['PATH=/bin'], pgrp: 64, ppid: 60 },
+      '65': tagged('e10', 65),
+    });
+    const { sent, kill } = recorder();
+    await signalExecProcesses(
+      [
+        {
+          execId: 'e10',
+          groupId: 61,
+          rootPid: 60,
+          rootAlive: () => false,
+        },
+      ],
+      'SIGTERM',
+      { procRoot, kill },
+    );
+    expect(sent).toEqual([[65, 'SIGTERM']]);
+  });
+
+  test.skipIf(process.getuid?.() === 0)(
+    'a process whose environment is not ours to read still leads the walk to its children',
+    async () => {
+      const procRoot = procTable({
+        '60': tagged('e11', 60),
+        // A setuid helper: its environment cannot be read.
+        '62': { env: ['PATH=/bin'], pgrp: 62, ppid: 60 },
+        '63': { env: ['PATH=/bin'], pgrp: 63, ppid: 62 },
+        '80': tagged('e12', 80),
+      });
+      chmodSync(`${procRoot}/62/environ`, 0o000);
+      const { sent, kill } = recorder();
+      await signalExecProcesses(
+        [
+          {
+            execId: 'e11',
+            groupId: 61,
+            rootPid: 60,
+            rootAlive: () => true,
+          },
+          // A target without a shim makes the scan read the environments.
+          { execId: 'e12', groupId: 81 },
+        ],
+        'SIGTERM',
+        { procRoot, kill },
+      );
+      expect(sent).toEqual([
+        [62, 'SIGTERM'],
+        [63, 'SIGTERM'],
+        [80, 'SIGTERM'],
+      ]);
+    },
+  );
 
   test('never signals init or a group id of 1', async () => {
     const { sent, kill } = recorder();

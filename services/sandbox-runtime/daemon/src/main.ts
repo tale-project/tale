@@ -543,7 +543,7 @@ if (
 
   server.listen(RUNNERD_PORT, '0.0.0.0', () => {
     console.log(
-      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}`,
+      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; execShim=${execManager.execShim ?? 'off'}`,
     );
   });
 }

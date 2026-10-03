@@ -8,11 +8,16 @@
 // stops, while the session reads idle.
 //
 // Each process is signalled ONCE per round: the group as a whole, and
-// individually only the tagged processes that left it — a second SIGTERM
+// individually only the exec's processes that left it — a second SIGTERM
 // lands inside a handler the first one started (a wrapper's cleanup, a
-// harness writing its transcript) and cuts it short. A process that both left
-// the group and rewrote its environment (a `setsid` server that sets its own
-// title) is out of reach; a per-exec cgroup would be the way to catch it.
+// harness writing its transcript) and cuts it short.
+//
+// Where the exec runs under its subreaper shim (tale-exec-shim), its
+// processes are the shim's descendants: a process that leaves the group,
+// moves to a session of its own and rewrites its environment and title is
+// still reparented to the shim, and found by walking down from it. Without
+// the shim, the environment tag is what finds such a process, and one that
+// both left the group and rewrote its environment is out of reach.
 //
 // A group's number is the exec's only while the group lives: once its last
 // process is gone, the number may be reused. A round that comes later than
@@ -59,6 +64,11 @@ export interface GroupMember {
 export interface ReapTarget {
   execId: string;
   groupId: number | undefined;
+  /** The exec's subreaper shim: every process the exec started is its
+   * descendant. Walked only while `rootAlive()` holds — the shim waits until
+   * its last descendant is gone, so until it has exited its pid names it. */
+  rootPid?: number;
+  rootAlive?: () => boolean;
   /** The group is certainly still the exec's: the round comes as its leader
    * exits (or while it runs), before the number can be reused. Otherwise the
    * group is signalled only while a process tagged with the exec, or one of
@@ -80,6 +90,8 @@ function errorCode(err: unknown): string | undefined {
 
 interface ProcessEntry {
   pid: number;
+  /** Its parent, the line descendants are walked along. */
+  ppid: number;
   pgrp: number;
   /** When the process started (`stat` field 22, in clock ticks since boot):
    * with the pid, it names one process even after the pid is reused. */
@@ -89,19 +101,23 @@ interface ProcessEntry {
   execId?: string;
 }
 
-/** The process group and start time of a `/proc/<pid>/stat` line: the fifth
- * and the twenty-second field, read after the command name, which may itself
- * hold spaces and parentheses. */
-function parseStat(stat: string): { pgrp: number; startTime: string } | null {
+/** The parent, process group and start time of a `/proc/<pid>/stat` line:
+ * the fourth, fifth and twenty-second field, read after the command name,
+ * which may itself hold spaces and parentheses. */
+function parseStat(
+  stat: string,
+): { ppid: number; pgrp: number; startTime: string } | null {
   const end = stat.lastIndexOf(')');
   if (end === -1) return null;
   // The fields after the command name start with the third, the state.
   const fields = stat.slice(end + 2).split(' ');
+  const ppid = Number(fields[1]);
   const pgrp = Number(fields[2]);
   const startTime = fields[19];
+  if (!Number.isInteger(ppid) || ppid < 0) return null;
   if (!Number.isInteger(pgrp) || pgrp <= 0) return null;
   if (startTime === undefined || !/^\d+$/.test(startTime)) return null;
-  return { pgrp, startTime };
+  return { ppid, pgrp, startTime };
 }
 
 /** A read that did not come back within its scan, until it does. */
@@ -237,9 +253,13 @@ async function scanProcessTable(
       try {
         environ = await read;
       } catch (err) {
-        if (!VANISHED.has(errorCode(err) ?? '')) {
+        const code = errorCode(err) ?? '';
+        if (!VANISHED.has(code)) {
           console.warn(`[runnerd] cannot read process ${pid}:`, err);
         }
+        // One whose environment is not ours to read still stands in its
+        // parent's line: a shim's descendants are walked through it.
+        if (code === 'EACCES' || code === 'EPERM') found.push(entry);
         return;
       }
       const tag = environ.split('\0').find((e) => e.startsWith(prefix));
@@ -327,6 +347,61 @@ function memberStillIn(
 const groupOf = ({ groupId }: ReapTarget): number | null =>
   groupId !== undefined && groupId > 1 ? groupId : null;
 
+/** Whether a target's shim may be walked: it has one, and it still runs. */
+function rootOf(target: ReapTarget): number | null {
+  if (target.rootPid === undefined || target.rootPid <= 1) return null;
+  return target.rootAlive?.() === false ? null : target.rootPid;
+}
+
+/** The descendants of `root` in the table, the root itself left out. */
+function descendantsOf(
+  root: number,
+  table: readonly ProcessEntry[],
+): ProcessEntry[] {
+  const children = new Map<number, ProcessEntry[]>();
+  for (const proc of table) {
+    const siblings = children.get(proc.ppid);
+    if (siblings === undefined) children.set(proc.ppid, [proc]);
+    else siblings.push(proc);
+  }
+  const found: ProcessEntry[] = [];
+  const queue = [root];
+  const seen = new Set<number>([root]);
+  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+    for (const child of children.get(next) ?? []) {
+      if (seen.has(child.pid)) continue;
+      seen.add(child.pid);
+      found.push(child);
+      queue.push(child.pid);
+    }
+  }
+  return found;
+}
+
+/** A target's processes in the table: the ones tagged with the exec and
+ * the descendants of its shim, each once. */
+function processesOf(
+  target: ReapTarget,
+  table: readonly ProcessEntry[],
+): ProcessEntry[] {
+  const owned = new Map<number, ProcessEntry>();
+  for (const proc of table) {
+    if (proc.execId === target.execId) owned.set(proc.pid, proc);
+  }
+  const root = rootOf(target);
+  if (root !== null) {
+    for (const proc of descendantsOf(root, table)) owned.set(proc.pid, proc);
+  }
+  owned.delete(root ?? -1);
+  return [...owned.values()];
+}
+
+/** Whether every target is found by its shim: the scan then reads `stat`
+ * alone and takes no process's memory lock. */
+function rootsSuffice(targets: readonly ReapTarget[]): boolean {
+  return targets.every((target) => rootOf(target) !== null);
+}
+
 /** Per target, whether any of its processes is left: one tagged with the
  * exec, or a recorded member still in its group. Null when there is no
  * process table here. */
@@ -335,12 +410,12 @@ export async function processesLeft(
   deps: ReaperDeps = {},
 ): Promise<boolean[] | null> {
   const [table, recorded] = await Promise.all([
-    readProcessTable(deps),
+    readProcessTable(deps, !rootsSuffice(targets)),
     Promise.all(targets.map(recordedMembers)),
   ]);
   if (table === null) return null;
   return targets.map((target, index) => {
-    if (table.some((proc) => proc.execId === target.execId)) return true;
+    if (processesOf(target, table).length > 0) return true;
     const group = groupOf(target);
     return group !== null && memberStillIn(group, recorded[index] ?? [], table);
   });
@@ -415,26 +490,24 @@ export async function signalExecProcesses(
     return true;
   });
   const [table, recorded] = await Promise.all([
-    readProcessTable(deps),
+    readProcessTable(deps, !rootsSuffice(targets)),
     Promise.all(targets.map(recordedMembers)),
   ]);
   const members = targets.map((target, index) => {
     const group = groupOf(target);
-    const tagged = (table ?? []).filter(
-      (proc) => proc.execId === target.execId,
-    );
+    const owned = table === null ? [] : processesOf(target, table);
     let groupReached = groupSent[index] === true;
     if (
       !groupReached &&
       group !== null &&
       (table === null ||
-        tagged.some((proc) => proc.pgrp === group) ||
+        owned.some((proc) => proc.pgrp === group) ||
         memberStillIn(group, recorded[index] ?? [], table))
     ) {
       send(-group, `pgroup ${group}`);
       groupReached = true;
     }
-    for (const proc of tagged) {
+    for (const proc of owned) {
       if (groupReached && proc.pgrp === group) continue;
       send(proc.pid, `pid ${proc.pid}`);
     }

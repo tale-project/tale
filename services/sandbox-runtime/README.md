@@ -112,8 +112,13 @@ bun run --filter @tale/sandbox-runtime docker:build
 with args preserved, which dispatches on mode and `exec`s the daemon so
 signals (SIGTERM) reach it directly. The `daemon` (session) dispatch `exec`s
 `tini -g` with runnerd as its child on every path, so PID 1 reaps the orphans a
-long-lived session accumulates. `install-playwright-browsers.sh` bakes the
-browser bundles at build time. See the script headers for the split rationale.
+long-lived session accumulates. runnerd starts every exec under
+`/usr/local/bin/tale-exec-shim`, built in its own stage from
+`daemon/exec-shim/tale-exec-shim.c`: a child subreaper that keeps whatever the
+exec starts its descendant, so runnerd can end what the exec left
+([sessions](../sandbox/docs/sessions.md)). `install-playwright-browsers.sh`
+bakes the browser bundles at build time. See the script headers for the split
+rationale.
 
 ```bash
 # from repo root

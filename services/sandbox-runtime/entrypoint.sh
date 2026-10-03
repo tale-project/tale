@@ -801,11 +801,12 @@ fi
 # session/docker-session-args.ts + the K8s pod spec); any other arg fails
 # closed at the tail of this file. PID 1 of a session container is tini,
 # exec'd here with runnerd as its only child — on EVERY path (plain,
-# transparent-egress, DinD). A long-lived container needs a real init: every
-# cancelled/timed-out exec tree and every SIGKILLed Chromium recycle leaves
-# orphans that reparent to PID 1, and node never wait()s children it did not
-# spawn, so as PID 1 it would let them pile up as zombies against pids-limit
-# until fork() fails. `tini -g` forwards container-stop SIGTERM to runnerd's
+# transparent-egress, DinD). A long-lived container needs a real init: what an
+# exec orphans goes to the exec's subreaper shim (tale-exec-shim), but what a
+# shim killed outright leaves, and what the daemons started here orphan,
+# reparent to PID 1, and node never wait()s children it did not spawn, so as
+# PID 1 it would let them pile up as zombies against pids-limit until fork()
+# fails. `tini -g` forwards container-stop SIGTERM to runnerd's
 # process group; runnerd passes it on to every live exec (each runs in a
 # group of its own) before it exits.
 # ---------------------------------------------------------------------------

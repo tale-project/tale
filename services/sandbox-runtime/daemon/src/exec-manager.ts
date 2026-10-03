@@ -6,15 +6,18 @@
 // Each exec runs in its own process group (detached) and carries its id in
 // the environment, so ending it — at exit, on cancel, at its deadline —
 // reaches the whole tree (a shell that forked rg/node/etc., a backgrounded
-// server, a browser its driver spawned detached; process-reaper.ts). What an
-// exec leaves running ends with it, or — while another exec of the session
-// still runs and may be using it — once the session's last exec ends. A
-// cancel that hands the exec over (a steer's restart) ends only its own
-// group and holds the rest for the exec that takes over.
+// server, a browser its driver spawned detached; process-reaper.ts). In the
+// runtime image it also runs under a subreaper shim (tale-exec-shim), which
+// keeps everything the exec starts its descendant, even a process that left
+// the group and rewrote its environment. What an exec leaves running ends
+// with it, or — while another exec of the session still runs and may be
+// using it — once the session's last exec ends. A cancel that hands the exec
+// over (a steer's restart) ends only its own group and holds the rest for
+// the exec that takes over.
 
 import { spawn } from 'node:child_process';
-import { realpathSync } from 'node:fs';
-import type { Writable } from 'node:stream';
+import { accessSync, constants as fsConstants, realpathSync } from 'node:fs';
+import { Readable, type Writable } from 'node:stream';
 
 import type { EnvStore } from './env-store.ts';
 import {
@@ -74,6 +77,30 @@ interface Leftover extends ReapTarget {
   heldSince?: number;
 }
 
+/** Where the per-exec subreaper shim is installed in the runtime image. */
+const EXEC_SHIM_PATH = '/usr/local/bin/tale-exec-shim';
+
+/**
+ * The subreaper shim every exec runs under, or null where there is none (a
+ * development host that is not Linux, an image without it): execs then run
+ * directly, and their leftovers are found by group and tag alone.
+ * TALE_EXEC_SHIM names another path; empty, it turns the shim off.
+ */
+export function resolveExecShim(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  if (platform !== 'linux') return null;
+  const path = env.TALE_EXEC_SHIM ?? EXEC_SHIM_PATH;
+  if (path === '') return null;
+  try {
+    accessSync(path, fsConstants.X_OK);
+    return path;
+  } catch {
+    return null;
+  }
+}
+
 interface LiveExec {
   startedAtMs: number;
   /** This exec's place in the order the session's execs started. */
@@ -87,6 +114,17 @@ interface LiveExec {
   terminated: boolean;
   /** The child itself exited (its 'exit' fired). */
   leaderExited: boolean;
+  /** The exec's subreaper shim, when it runs under one: every process it
+   * started is the shim's descendant. */
+  rootPid: number | undefined;
+  /** The shim exited: no descendant of it is left, and its pid may name
+   * another process now. */
+  rootExited: boolean;
+  /** The shim has yet to name the command's group on its status pipe. */
+  groupPending: boolean;
+  /** What waits for the shim to name the command's group: a cancel that
+   * came before it did. */
+  awaitingGroup: Array<() => void>;
   /** A rotation's cancel handed what the exec left to the exec that takes
    * over: a later cancel or deadline of this one ends none of it. */
   handedOver: boolean;
@@ -151,8 +189,19 @@ export class ExecManager {
      * links, `baked-skills.ts`); must not throw. */
     private readonly beforeSpawn: () => void = () => {},
     private readonly reaper: ReaperDeps = {},
-    private readonly options: { holdMaxMs?: number } = {},
-  ) {}
+    private readonly options: {
+      holdMaxMs?: number;
+      /** The subreaper shim to run execs under; unset, {@link
+       * resolveExecShim}'s, and null for none. */
+      execShim?: string | null;
+    } = {},
+  ) {
+    this.execShim =
+      options.execShim === undefined ? resolveExecShim() : options.execShim;
+  }
+
+  /** The subreaper shim execs run under, or null: they run directly. */
+  readonly execShim: string | null;
 
   liveCount(): number {
     return this.live.size;
@@ -304,13 +353,26 @@ export class ExecManager {
     this.onActivity();
     this.beforeSpawn();
     const startedAtMs = Date.now();
-    const child = spawn(cmd, args, {
-      cwd,
-      env,
-      // Own process group so we can signal the whole tree on timeout/cancel.
-      detached: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    // Under the subreaper shim, the command runs as its child in a process
+    // group of its own and everything it starts stays the shim's descendant;
+    // the shim says on its status pipe (fd 3) when the command started,
+    // exited or could not be executed. Without it, the command is the child,
+    // in its own process group, so the whole tree can still be signalled.
+    const shim = this.execShim;
+    const child =
+      shim !== null
+        ? spawn(shim, ['--', cmd, ...args], {
+            cwd,
+            env,
+            detached: true,
+            stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
+          })
+        : spawn(cmd, args, {
+            cwd,
+            env,
+            detached: true,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          });
 
     let stdoutBytes = 0;
     let stderrBytes = 0;
@@ -331,7 +393,12 @@ export class ExecManager {
     const record: LiveExec = {
       startedAtMs,
       ordinal: this.started,
-      groupId: child.pid,
+      // Under the shim the group is the command's, named on the status pipe.
+      groupId: shim !== null ? undefined : child.pid,
+      rootPid: shim !== null ? child.pid : undefined,
+      rootExited: false,
+      groupPending: shim !== null,
+      awaitingGroup: [],
       exitCode: null,
       ring: [],
       ringBytes: 0,
@@ -350,7 +417,9 @@ export class ExecManager {
       terminate: () => {
         if (record.terminated) return;
         record.terminated = true;
-        void this.reap([this.liveTarget(req.execId, record)]);
+        this.withGroup(record, () => {
+          void this.reap([this.liveTarget(req.execId, record)]);
+        });
       },
     };
     this.live.set(req.execId, record);
@@ -507,13 +576,17 @@ export class ExecManager {
     this.armDeadline(record);
 
     await new Promise<void>((resolve) => {
-      // Finalize on 'close' (every stdio stream drained → the terminal 'exit'
-      // event can't race a trailing stdout/stderr chunk), with a bounded
-      // fallback armed on 'exit': a backgrounded grandchild that inherited the
-      // pipe would otherwise hold 'close' off until the whole timeoutMs kills
-      // the group.
+      // Finalize once the command exited and its output pipes closed (every
+      // stdout/stderr chunk delivered → the terminal 'exit' event can't race
+      // a trailing one), with a bounded fallback armed on the exit: a
+      // backgrounded grandchild that inherited the pipe would otherwise hold
+      // the close off until the whole timeoutMs kills the group. The pipes'
+      // own close is watched, not the child's: under the shim the child
+      // process outlives the command for as long as anything it started does.
       let exited = false;
       let closed = false;
+      let stdoutClosed = false;
+      let stderrClosed = false;
       let exitCode = -1;
       let drainTimer: ReturnType<typeof setTimeout> | null = null;
       const finish = (code: number) => {
@@ -550,22 +623,34 @@ export class ExecManager {
         resolveDone();
         resolve();
       };
-      child.on('error', (err) => {
+      // The command could not be executed: nothing of it is left to end.
+      let couldNotRun = false;
+      const spawnFailed = (message: string) => {
         if (settled) return;
         settled = true;
+        couldNotRun = true;
         if (record.timer) clearTimeout(record.timer);
         if (drainTimer) clearTimeout(drainTimer);
         ringEmit({
           t: 'fail',
           code: 'BAD_REQUEST',
-          message: `spawn failed: ${err.message}`,
+          message: `spawn failed: ${message}`,
         });
         this.dropLive(req.execId);
         this.retainRecent(req.execId, record.ring, null);
         resolveDone();
         resolve();
+      };
+      child.on('error', (err) => {
+        spawnFailed(err.message);
       });
-      child.on('exit', (code, signal) => {
+      let commandExited = false;
+      const commandExit = (
+        code: number | null,
+        signal: NodeJS.Signals | null,
+      ) => {
+        if (commandExited || couldNotRun) return;
+        commandExited = true;
         // 128 + signal number is the conventional shell exit for a signal.
         exitCode = code ?? (signal ? 128 + (SIGNAL_NUMBERS[signal] ?? 15) : -1);
         exited = true;
@@ -582,18 +667,23 @@ export class ExecManager {
         // process in it carries the tag.
         if (!record.terminated) {
           record.terminated = true;
-          const self: ReapTarget = {
+          const self: Reaping = {
             execId: req.execId,
             groupId: record.groupId,
+            ...this.rootOf(record),
           };
           const othersLive = [...this.live.keys()].some(
             (id) => id !== req.execId,
           );
           this.liftHolds(record.ordinal);
           if (othersLive) {
+            // Under the shim its descendants are the proof; without it, a
+            // record of the group's processes as the leader leaves them.
             const waiting: Leftover = {
               ...self,
-              members: this.recordGroup(req.execId, record.groupId),
+              ...(record.rootPid === undefined
+                ? { members: this.recordGroup(req.execId, record.groupId) }
+                : {}),
             };
             record.deferred = waiting;
             this.deferLeftovers(waiting);
@@ -609,12 +699,93 @@ export class ExecManager {
         if (closed) finish(exitCode);
         else
           drainTimer = setTimeout(() => finish(exitCode), EXIT_DRAIN_GRACE_MS);
-      });
-      child.on('close', () => {
-        // All stdio streams closed: every 'data' event has been delivered, so
-        // the terminal 'exit' event is now guaranteed last and complete.
+      };
+      if (shim !== null) {
+        // The shim's status pipe: the command's pid (its group), its exit,
+        // or why it could not be executed. The pipe, not the shim's own
+        // exit, says how the command ended: the shim outlives it for as
+        // long as anything it started runs, and its exit can be seen
+        // before the last line is read. Only a pipe that ended without the
+        // command's end (the shim was killed) leaves it to the shim's exit.
+        const status = child.stdio[3];
+        let statusEnded = !(status instanceof Readable);
+        let shimExit: {
+          code: number | null;
+          signal: NodeJS.Signals | null;
+        } | null = null;
+        const shimOver = () => {
+          if (!statusEnded || shimExit === null) return;
+          this.groupSettled(record);
+          commandExit(shimExit.code, shimExit.signal);
+        };
+        if (status instanceof Readable) {
+          let pending = '';
+          status.on('data', (chunk: Buffer) => {
+            pending += chunk.toString('latin1');
+            for (
+              let end = pending.indexOf('\n');
+              end !== -1;
+              end = pending.indexOf('\n')
+            ) {
+              const [kind, value = ''] = pending.slice(0, end).split(' ');
+              pending = pending.slice(end + 1);
+              if (kind === 'pid') {
+                const pid = Number(value);
+                if (Number.isInteger(pid) && pid > 1) record.groupId = pid;
+                this.groupSettled(record);
+              } else if (kind === 'no-subreaper') {
+                // What the command starts is reparented to init, not to
+                // the shim: its leftovers are found by group and tag.
+                record.rootPid = undefined;
+                warnNoSubreaper(value);
+              } else if (kind === 'exit' || kind === 'signal') {
+                // A line that is no number is left to the shim's own exit.
+                const number = Number(value);
+                if (!Number.isInteger(number) || number < 0) continue;
+                // 128 + signal number, as for a command run directly.
+                commandExit(kind === 'exit' ? number : 128 + number, null);
+              } else if (kind === 'spawn-error') {
+                spawnFailed(`spawn ${cmd} ${value}`);
+              }
+            }
+          });
+          status.on('error', (err) => {
+            console.warn('[runnerd] exec shim status pipe error:', err.message);
+          });
+          status.on('close', () => {
+            statusEnded = true;
+            this.groupSettled(record);
+            shimOver();
+          });
+        } else {
+          // Without its status pipe, no group will be named.
+          this.groupSettled(record);
+        }
+        child.on('exit', (code, signal) => {
+          // The shim waits until nothing it adopted is left.
+          record.rootExited = true;
+          shimExit = { code, signal };
+          shimOver();
+        });
+      } else {
+        child.on('exit', (code, signal) => {
+          commandExit(code, signal);
+        });
+      }
+      const outputClosed = () => {
+        if (!stdoutClosed || !stderrClosed) return;
+        // Both output pipes closed: every 'data' event has been delivered,
+        // so the terminal 'exit' event is now guaranteed last and complete.
         closed = true;
         if (exited) finish(exitCode);
+      };
+      child.stdout.on('close', () => {
+        stdoutClosed = true;
+        outputClosed();
+      });
+      child.stderr.on('close', () => {
+        stderrClosed = true;
+        outputClosed();
       });
     });
   }
@@ -653,17 +824,40 @@ export class ExecManager {
     if (rec.terminated) return;
     rec.terminated = true;
     rec.handedOver = true;
-    const group = rec.groupId;
-    signalGroup(group, 'SIGTERM', this.reaper);
-    setTimeout(() => {
-      if (!rec.leaderExited) signalGroup(group, 'SIGKILL', this.reaper);
-    }, SIGKILL_GRACE_MS).unref();
-    const held: Leftover = { execId, groupId: group };
+    const held: Leftover = {
+      execId,
+      groupId: rec.groupId,
+      ...this.rootOf(rec),
+    };
     this.holdForSuccessor(held);
     // Kept as the exec's deferred leftovers, so its pipes stay open for
     // them while it drains.
     rec.deferred = held;
     this.deferLeftovers(held);
+    this.withGroup(rec, () => {
+      const group = rec.groupId;
+      held.groupId = group;
+      signalGroup(group, 'SIGTERM', this.reaper);
+      setTimeout(() => {
+        if (!rec.leaderExited) signalGroup(group, 'SIGKILL', this.reaper);
+      }, SIGKILL_GRACE_MS).unref();
+    });
+  }
+
+  /** Run `then` once the exec's group is known: at once, unless the exec
+   * runs under a shim that has not named it yet — then as soon as the shim
+   * does, or is gone. A cancel that comes in that moment so still reaches
+   * the group as a whole, in one signal. */
+  private withGroup(rec: LiveExec, then: () => void): void {
+    if (rec.groupPending) rec.awaitingGroup.push(then);
+    else then();
+  }
+
+  /** The shim named the command's group, or never will: run what waited
+   * for it. */
+  private groupSettled(rec: LiveExec): void {
+    rec.groupPending = false;
+    for (const then of rec.awaitingGroup.splice(0)) then();
   }
 
   /** Hold what a handed-over exec left for an exec started after now — at
@@ -707,7 +901,14 @@ export class ExecManager {
       groupId: rec.groupId,
       groupKnown: true,
       leaderRunning: () => !rec.leaderExited,
+      ...this.rootOf(rec),
     };
+  }
+
+  /** The exec's subreaper shim as a reaping root, while it runs. */
+  private rootOf(rec: LiveExec): Pick<ReapTarget, 'rootPid' | 'rootAlive'> {
+    if (rec.rootPid === undefined) return {};
+    return { rootPid: rec.rootPid, rootAlive: () => !rec.rootExited };
   }
 
   /** The daemon is going down: every live exec, and what exited execs left
@@ -810,25 +1011,36 @@ export class ExecManager {
       });
     const term = round(
       'SIGTERM',
-      targets.map(({ execId, groupId, groupKnown, members }) => ({
-        execId,
-        groupId,
-        groupKnown,
-        members,
-      })),
+      targets.map(
+        ({ execId, groupId, groupKnown, members, rootPid, rootAlive }) => ({
+          execId,
+          groupId,
+          groupKnown,
+          members,
+          rootPid,
+          rootAlive,
+        }),
+      ),
     );
     setTimeout(() => {
       void round(
         'SIGKILL',
-        targets.map(({ execId, groupId, leaderRunning, members }, index) => ({
-          execId,
-          groupId,
-          groupKnown: leaderRunning?.() === true,
-          members: Promise.all([term, members]).then(([seen, recorded]) => [
-            ...(seen?.members[index] ?? []),
-            ...(recorded ?? []),
-          ]),
-        })),
+        targets.map(
+          (
+            { execId, groupId, leaderRunning, members, rootPid, rootAlive },
+            index,
+          ) => ({
+            execId,
+            groupId,
+            groupKnown: leaderRunning?.() === true,
+            members: Promise.all([term, members]).then(([seen, recorded]) => [
+              ...(seen?.members[index] ?? []),
+              ...(recorded ?? []),
+            ]),
+            rootPid,
+            rootAlive,
+          }),
+        ),
       );
     }, SIGKILL_GRACE_MS).unref();
     await term;
@@ -968,6 +1180,17 @@ function emitRingLine(line: string, emit: ExecSubscriber, sinceSeq = 0): void {
   } catch (err) {
     console.warn('[runnerd] bad ring line during attach replay:', err);
   }
+}
+
+let noSubreaperWarned = false;
+
+/** Said once per daemon: the kernel refused the shim the subreaper. */
+function warnNoSubreaper(error: string): void {
+  if (noSubreaperWarned) return;
+  noSubreaperWarned = true;
+  console.warn(
+    `[runnerd] the exec shim cannot become a subreaper (${error}): what an exec leaves is found by its group and tag alone`,
+  );
 }
 
 const SIGNAL_NUMBERS: Record<string, number> = {

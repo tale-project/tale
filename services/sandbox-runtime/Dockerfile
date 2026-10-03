@@ -23,6 +23,18 @@ WORKDIR /build
 COPY services/sandbox-runtime/daemon/ ./
 RUN bun build --target=node src/main.ts --outfile /runnerd.mjs
 
+# --- exec shim build stage: the subreaper runnerd runs every exec under -----
+# Everything an exec starts stays the shim's descendant, so runnerd ends what
+# the exec left even after it moved to a session of its own and dropped the
+# exec's tag (daemon/exec-shim/tale-exec-shim.c). Built on the runtime's own
+# Debian release, so it links against the same glibc.
+FROM debian:bookworm-slim AS exec-shim-build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY services/sandbox-runtime/daemon/exec-shim/tale-exec-shim.c /build/tale-exec-shim.c
+RUN gcc -O2 -Wall -Wextra -Werror -o /tale-exec-shim /build/tale-exec-shim.c
+
 # --- runtime image ----------------------------------------------------------
 FROM python:3.12-slim-bookworm
 
@@ -438,8 +450,10 @@ RUN echo 'agent:100000:65536' >> /etc/subuid \
     && echo 'agent:100000:65536' >> /etc/subgid
 
 # runnerd — the session control daemon, bundled to a single file in the
-# daemon-build stage and run by the image's Node 24 (session mode only).
+# daemon-build stage and run by the image's Node 24 (session mode only) — and
+# the subreaper shim it runs every exec under.
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
+COPY --from=exec-shim-build /tale-exec-shim /usr/local/bin/tale-exec-shim
 
 # Claude Code managed settings (highest precedence on Linux): disable
 # auto-update + telemetry, suppress Claude commit/PR attribution
