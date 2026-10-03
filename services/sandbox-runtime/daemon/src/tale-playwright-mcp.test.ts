@@ -96,7 +96,7 @@ describe('headless Playwright MCP launcher', () => {
 // the real server's SDK does, and writes every message it receives to its
 // log, behind a `started` line.
 const STAND_IN = String.raw`#!/usr/bin/env python3
-import json, os, sys
+import json, os, sys, time
 log = open(os.environ['STAND_IN_LOG'], 'a')
 log.write('started ' + ' '.join(sys.argv[1:]) + '\n'); log.flush()
 SUPPORTED = os.environ.get('STAND_IN_VERSIONS', '2025-06-18,2024-11-05').split(',')
@@ -108,6 +108,8 @@ for line in sys.stdin:
     log.write(json.dumps(msg) + '\n'); log.flush()
     method, id_ = msg.get('method'), msg.get('id')
     if method == 'initialize':
+        if os.environ.get('STAND_IN_HANG'):
+            time.sleep(30)
         asked = msg['params']['protocolVersion']
         roots = 'roots' in msg['params'].get('capabilities', {})
         send({'jsonrpc': '2.0', 'id': id_, 'result': {
@@ -166,9 +168,12 @@ describe('the start of a turn without the server', () => {
       : [];
 
   /** A client of the launcher: send lines, await answers by id. */
-  function client(env: Record<string, string | undefined> = {}) {
+  function client(
+    env: Record<string, string | undefined> = {},
+    run: string[] = [launcher],
+  ) {
     rmSync(standInLog, { force: true });
-    const proc = spawn(python, ['-Es', launcher, ...ARGS], {
+    const proc = spawn(python, ['-Es', ...run, ...ARGS], {
       env: { ...baseEnv, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -485,6 +490,32 @@ describe('the start of a turn without the server', () => {
     await mcp.close();
     expect(received()[0]).toBe(`started ${ARGS.join(' ')}`);
     expect(JSON.parse(received()[1] ?? '{}').id).toBe(1);
+  });
+
+  test('a server that never answers the replayed start is ended at the deadline', async () => {
+    // The launcher, with a deadline of one second in place of its own.
+    const mcp = client({ STAND_IN_HANG: '1' }, [
+      '-c',
+      [
+        'import importlib.machinery, importlib.util, sys',
+        "loader = importlib.machinery.SourceFileLoader('launcher', sys.argv[1])",
+        "launcher = importlib.util.module_from_spec(importlib.util.spec_from_loader('launcher', loader))",
+        'loader.exec_module(launcher)',
+        'launcher.START_TIMEOUT_S = 1',
+        'sys.argv = sys.argv[1:]',
+        'launcher.main()',
+      ].join('\n'),
+      launcher,
+    ]);
+    mcp.send(initialize('2025-06-18'));
+    await mcp.answer(1);
+    mcp.send(toolCall(2));
+    // Ended by SIGKILL: the launcher exits with it, the call unanswered.
+    expect(await mcp.close()).toBe(137);
+    expect(mcp.lines.map((line) => line.id)).toEqual([1]);
+    expect(await mcp.stderr()).toBe(
+      '[tale-playwright-mcp] the server did not answer its start within 1 s, ending it\n',
+    );
   });
 
   test('a protocol version the manifest has no answer for gets the server at once', async () => {

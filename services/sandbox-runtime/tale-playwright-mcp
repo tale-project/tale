@@ -10,7 +10,9 @@ server that advertises neither (Qwen Code asks for them at the start of every
 turn) — from a manifest recorded from the real server when the image was
 built, and starts the real server only when the turn first asks for anything
 else (a tool call). It then replays the client's `initialize` to it and passes
-every message through, both ways. Where no manifest matches the server
+every message through, both ways; a server that does not answer that
+`initialize` within START_TIMEOUT_S is ended, and the launcher exits with it.
+Where no manifest matches the server
 arguments, the server on PATH is not the one the manifest was recorded from,
 PLAYWRIGHT_MCP_* settings in the environment may change its tools, or the
 client asks for a protocol version the manifest has no answer for, the real
@@ -67,6 +69,10 @@ METHOD_NOT_FOUND = {'code': -32601, 'message': 'Method not found'}
 REPLAYED_INIT_ID = 'tale-playwright-mcp-initialize'
 # How long the image build waits for the real server to answer.
 PROBE_TIMEOUT_S = 120
+# How long a turn waits for the server it started to answer the replayed
+# `initialize`. Then the server is ended, and the launcher with it, so the
+# client sees the server gone instead of waiting on its tool call.
+START_TIMEOUT_S = 120
 
 
 def log(message):
@@ -307,6 +313,9 @@ class LazyServer:
             self.argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=self.env
         )
         if self.version is not None:
+            deadline = threading.Timer(START_TIMEOUT_S, self.end_unanswered)
+            deadline.daemon = True
+            deadline.start()
             self.send(encode({
                 'jsonrpc': '2.0',
                 'id': REPLAYED_INIT_ID,
@@ -316,6 +325,7 @@ class LazyServer:
             for line in self.server.stdout:
                 msg = message(line)
                 if msg is not None and msg.get('id') == REPLAYED_INIT_ID:
+                    deadline.cancel()
                     result = msg.get('result')
                     spoken = result.get('protocolVersion') if isinstance(result, dict) else None
                     if spoken != self.told:
@@ -331,6 +341,10 @@ class LazyServer:
             self.held = []
         self.pump = threading.Thread(target=self.relay_server, daemon=True)
         self.pump.start()
+
+    def end_unanswered(self):
+        log(f'the server did not answer its start within {START_TIMEOUT_S} s, ending it')
+        self.server.kill()
 
     def send(self, data):
         try:

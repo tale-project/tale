@@ -25,7 +25,9 @@ server for, with the server's own `Method not found` while it advertises
 neither) from manifests of the real server's answers, recorded at image build
 for the argument sets the platform passes
 ([`playwright-mcp-args.json`](playwright-mcp-args.json)), and starts the server
-only on the turn's first tool call, replaying the start to it. Unknown
+only on the turn's first tool call, replaying the start to it (a server that
+does not answer it within two minutes is ended, and the launcher with it, so
+the tool call fails instead of waiting). Unknown
 arguments or protocol versions, a server on `PATH` other than the image's (one
 the session installed), `PLAYWRIGHT_MCP_*` settings in the environment, and
 `TALE_PLAYWRIGHT_MCP_EAGER=1`, start the server at once.
