@@ -24,7 +24,9 @@
  *
  * Each on organizations of its own. The candidate read is global, so the
  * rows here are queued before the epoch (negative queue times) and lead
- * every batch, whatever other rows the database holds.
+ * every batch, whatever other rows the database holds. For the same reason
+ * every tick here must be the only sweep running: the harness takes the
+ * sweep's own clock off, and the first check reads that it is off.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -51,10 +53,37 @@ export async function checkRagWatchdogBatch(
   sql: Sql,
   record: Record,
 ): Promise<void> {
+  await checkNoScheduledSweep(sql, record);
   await checkSettledFailures(sql, record);
   await checkHeldRowLock(sql, record);
   await checkFailedRotation(sql, record);
   await checkErrorCodePairs(sql, record);
+}
+
+/**
+ * The checks below count what their own ticks did, so no other sweep may run
+ * beside them: one the job runner starts reads the same rows, which lead its
+ * batch too. The harness takes the `watchdog.rag_indexing` clock off at boot.
+ * Its tick in the 2-59/5 slot once queued behind the row the lock check
+ * holds, and failed it as soon as the check let go, before the check read
+ * back the row its own tick had deferred (#4113). A clock that comes back
+ * fails here by name, not as a row another sweep settled. pg-boss's tables
+ * are internal; these reads are pinned to v12 like the harness's own.
+ */
+async function checkNoScheduledSweep(sql: Sql, record: Record): Promise<void> {
+  const [clock] = await sql<{ schedules: string; ticks: string }[]>`
+    SELECT
+      (SELECT count(*) FROM pgboss.schedule
+        WHERE name = 'watchdog.rag_indexing')::text AS schedules,
+      (SELECT count(*) FROM pgboss.job
+        WHERE name = 'watchdog.rag_indexing'
+          AND state IN ('created', 'retry', 'active'))::text AS ticks
+  `;
+  record(
+    'rag watchdog: no scheduled sweep runs beside the ticks these checks count',
+    clock?.schedules === '0' && clock.ticks === '0',
+    `watchdog.rag_indexing schedules=${clock?.schedules} (want 0), queued or running ticks=${clock?.ticks} (want 0)`,
+  );
 }
 
 async function insertOrganization(
@@ -278,7 +307,12 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
     const lockTaken = new Promise<void>((resolve) => {
       taken = resolve;
     });
+    let holderPid = -1;
     holder = sql.begin(async (tx) => {
+      const [self] = await tx<{ pid: number }[]>`
+        SELECT pg_backend_pid() AS pid
+      `;
+      holderPid = self?.pid ?? -1;
       await tx`
         SELECT id FROM app.file_metadata WHERE id = ${locked?.id ?? ''}
         FOR UPDATE
@@ -297,6 +331,13 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
       }),
     ]);
     const elapsedMs = Date.now() - started;
+    // Nothing may wait on the row once the tick is back: a write left queued
+    // behind the lock lands as soon as the lock is let go, and the read below
+    // would race it.
+    const [waiting] = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pg_stat_activity
+      WHERE ${holderPid}::int = ANY(pg_blocking_pids(pid))
+    `;
     release();
     await holder;
     const outcome = await sweep;
@@ -310,10 +351,11 @@ async function checkHeldRowLock(sql: Sql, record: Record): Promise<void> {
       'rag watchdog: a row lock held past the settle lock timeout defers that row alone',
       returned &&
         elapsedMs < 10_000 &&
+        waiting?.count === '0' &&
         statusOf('first.pdf') === 'failed' &&
         statusOf('locked.pdf') === 'running' &&
         statusOf('after.pdf') === 'failed',
-      `returned while the lock was held=${returned} after ${elapsedMs} ms (want < 10000), first=${statusOf('first.pdf')} locked=${statusOf('locked.pdf')} (want running) after=${statusOf('after.pdf')}, tick=${JSON.stringify(outcome)}`,
+      `returned while the lock was held=${returned} after ${elapsedMs} ms (want < 10000), still waiting on the lock=${waiting?.count} (want 0), first=${statusOf('first.pdf')} locked=${statusOf('locked.pdf')} (want running) after=${statusOf('after.pdf')}, tick=${JSON.stringify(outcome)}`,
     );
   } finally {
     release();

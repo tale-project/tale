@@ -6,7 +6,8 @@ import {
   describeDatabaseError,
   type DatabaseErrorOrigin,
 } from './db/unavailable.ts';
-import { routeClass } from './telemetry.ts';
+import { methodClass, routeClass } from './telemetry.ts';
+import { configureBackendTracing, scrubTransaction } from './tracing.ts';
 
 /**
  * Sentry-compatible error reporting for the 0.5 backend (api + worker roles).
@@ -16,8 +17,10 @@ import { routeClass } from './telemetry.ts';
  * reaches the backend containers (both compose lanes mount `env_file: .env`);
  * this module is what makes the process honor it.
  *
- * Errors only, deliberately: this module sets no `tracesSampleRate`, and
- * nothing outbound is ours to trace.
+ * Errors by default. BACKEND_SENTRY_TRACES_SAMPLE_RATE opts into manual
+ * request and worker spans, independently of the browser's sampling knob.
+ * Automatic performance integrations are excluded: they collect SQL, URLs
+ * and payloads outside the bounded operational data our manual spans need.
  *
  * `tracePropagationTargets: []` because the SDK otherwise stamps
  * `sentry-trace` and `baggage` — release, public key, environment — onto
@@ -38,7 +41,7 @@ import { routeClass } from './telemetry.ts';
  *
  * `registerEsmLoaderHooks: false` because the backend already runs under its
  * own resolve hook (`node-loader.mjs`); stacking import-in-the-middle's
- * loader onto that chain buys nothing without tracing and risks resolver
+ * loader onto that chain buys nothing for manual spans and risks resolver
  * interplay.
  *
  * The unhandled-rejection integration is pinned to `mode: 'strict'`: any
@@ -147,6 +150,7 @@ export interface ErrorReportingOptions {
   dsn: string | undefined;
   /** Process role (`api` | `worker` | `all`) — tagged on every event. */
   role: string;
+  tracesSampleRate?: number;
 }
 
 export function initErrorReporting(options: ErrorReportingOptions): boolean {
@@ -156,11 +160,14 @@ export function initErrorReporting(options: ErrorReportingOptions): boolean {
       dsn: options.dsn,
       release: process.env.TALE_VERSION,
       registerEsmLoaderHooks: false,
+      tracesSampleRate: options.tracesSampleRate ?? 0,
+      defaultIntegrations: Sentry.getDefaultIntegrationsWithoutPerformance(),
       // No outgoing request carries our trace headers (see the module note).
       tracePropagationTargets: [],
       // No credential leaves with an event (see the module note).
       sendDefaultPii: false,
       beforeSend: (event) => scrubEvent(event),
+      beforeSendTransaction: scrubTransaction,
       integrations: (defaults) => [
         ...defaults.filter((i) => !REPLACED_DEFAULT_INTEGRATIONS.has(i.name)),
         // The request lanes without OpenTelemetry's span instrumentation:
@@ -176,6 +183,7 @@ export function initErrorReporting(options: ErrorReportingOptions): boolean {
       initialScope: { tags: { 'tale.role': options.role } },
     });
     enabled = true;
+    configureBackendTracing((options.tracesSampleRate ?? 0) > 0);
   } catch (error) {
     // A malformed DSN must never take the backend down with it.
     console.warn(
@@ -235,7 +243,7 @@ export function reportRequestError(err: Error, c: Context): void {
   const requestId = requestIdOf(c);
   reportError(err, {
     tags: {
-      'http.method': c.req.method,
+      'http.method': methodClass(c.req.method),
       // The bounded route vocabulary, never the raw path — same cardinality
       // rule as the Prometheus labels.
       'http.route_class': routeClass(c.req.path),

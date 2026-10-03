@@ -67,7 +67,8 @@
     "gen:migration": "bun run gen migration",
     "gen:episode": "bun run gen video-episode",
     "generate:icons": "bun scripts/generate-connector-icons.ts",
-    "prepare": "bunx husky"
+    "prepare": "bunx husky",
+    "test:performance": "bun test scripts/performance/*.test.ts && bun scripts/performance/run.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

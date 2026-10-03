@@ -15,7 +15,7 @@ entries:
   - 'nav.requestDemo'
   - 'nav.getStarted'
 
-  # Connector marquee tooltips — `tCompanies(entry.companyKey)` over
+  # Connector company titles — `tCompanies(companyKey)` over
   # `INTEGRATION_LOGOS` in content/connectors.ts.
   - 'companies'
 

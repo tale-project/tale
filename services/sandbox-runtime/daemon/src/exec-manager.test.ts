@@ -5,6 +5,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { getEventListeners } from 'node:events';
 import {
   closeSync,
   constants,
@@ -874,25 +875,33 @@ describe('ExecManager', () => {
       long.emit,
     );
     const short = collect();
-    // A dev server logging to the stdout it inherited.
-    await mgr.run(
-      {
-        ...base,
-        execId: 'ewshort',
-        shell: '(while :; do echo tick; sleep 0.2; done) & echo $!',
-        cwd: ROOT,
-      },
-      short.emit,
-    );
-    const pid = Number(decode(short.events, 'stdout').split('\n')[0]);
-    expect(pid).toBeGreaterThan(1);
-    // Past the drain grace, its next lines must not hit a closed pipe.
-    await new Promise((r) => setTimeout(r, 1_000));
-    expect(isAlive(pid)).toBe(true);
-    expect(mgr.cancel('ewlong')).toBe(true);
-    await longDone;
-    await waitGone(pid);
-    expect(isAlive(pid)).toBe(false);
+    try {
+      // A dev server logging to the stdout it inherited. Keep the control PID
+      // on stderr: the background child's first tick can precede its parent's
+      // echo, so the first stdout line is not guaranteed to be the PID.
+      await mgr.run(
+        {
+          ...base,
+          execId: 'ewshort',
+          shell: '(while :; do echo tick; sleep 0.2; done) & echo $! >&2',
+          cwd: ROOT,
+        },
+        short.emit,
+      );
+      const pid = Number(decode(short.events, 'stderr').trim());
+      expect(pid).toBeGreaterThan(1);
+      expect(decode(short.events, 'stdout')).toContain('tick');
+      // Past the drain grace, its next lines must not hit a closed pipe.
+      await new Promise((r) => setTimeout(r, 1_000));
+      expect(isAlive(pid)).toBe(true);
+      expect(mgr.cancel('ewlong')).toBe(true);
+      await longDone;
+      await waitGone(pid);
+      expect(isAlive(pid)).toBe(false);
+    } finally {
+      await mgr.terminateAll();
+      await longDone;
+    }
   }, 15_000);
 
   test('a cancel during the drain of an exec whose leftovers wait ends them at once', async () => {
@@ -1051,6 +1060,57 @@ describe('ExecManager', () => {
     await done;
     // The exit event went to the live consumer only, not to the one gone.
     expect(follower.events.length).toBe(seen);
+  });
+
+  test('repeated disconnected consumers leave no abort listeners or live subscriptions', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const done = mgr.run(
+      { ...base, execId: 'ereconnect', shell: 'sleep 30', cwd: ROOT },
+      () => {},
+    );
+    let followed = 0;
+    try {
+      for (let i = 0; i < 1000; i++) {
+        const consumer = new AbortController();
+        const stream = mgr.attach(
+          'ereconnect',
+          () => {
+            followed++;
+          },
+          0,
+          consumer.signal,
+        );
+        expect(stream).not.toBeNull();
+        consumer.abort();
+        await stream;
+        expect(getEventListeners(consumer.signal, 'abort')).toHaveLength(0);
+      }
+      const replayed = followed;
+      expect(mgr.cancel('ereconnect')).toBe(true);
+      await done;
+      expect(followed).toBe(replayed);
+    } finally {
+      mgr.cancel('ereconnect');
+      await done;
+    }
+  });
+
+  test('an exec finishing releases its attached consumers from their abort signals', async () => {
+    const mgr = new ExecManager(new EnvStore(), () => {});
+    const done = mgr.run(
+      { ...base, execId: 'eattachcleanup', shell: 'sleep 30', cwd: ROOT },
+      () => {},
+    );
+    const consumers = Array.from({ length: 10 }, () => new AbortController());
+    const streams = consumers.map((consumer) =>
+      mgr.attach('eattachcleanup', () => {}, 0, consumer.signal),
+    );
+    expect(streams.every((stream) => stream !== null)).toBe(true);
+    expect(mgr.cancel('eattachcleanup')).toBe(true);
+    await Promise.all([done, ...streams]);
+    for (const consumer of consumers) {
+      expect(getEventListeners(consumer.signal, 'abort')).toHaveLength(0);
+    }
   });
 
   test('attach replays the ring of a just-finished exec', async () => {

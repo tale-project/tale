@@ -108,7 +108,7 @@ compose.*.yml
 **/Dockerfile.dockerignore
 
 # =============================================================================
-# Docs-specific: image needs only services/docs + packages/ui workspace.
+# Docs-specific: image needs services/docs + packages/ui + packages/marketing-ui.
 # All other service trees stay out of the build context — `bun install`
 # only needs each workspace's package.json (re-included below).
 # =============================================================================

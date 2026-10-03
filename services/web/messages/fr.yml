@@ -165,15 +165,14 @@ address:
   country: Suisse
 home:
   hero:
-    title: Un espace de travail pour ton équipe et tes agents IA
+    title: Ton équipe et tes agents avancent ensemble.
     subtitle:
-      Planifie le travail avec ton équipe, délègue les tâches aux agents IA et
-      examine les résultats avec elle. Du développement logiciel aux campagnes
-      marketing, Tale réunit ta flotte d’agents, les échanges et les livrables
-      dans un espace partagé.
+      Planifie tes projets, délègue les tâches aux agents IA et examine les
+      résultats avec ton équipe. Consignes, fichiers et échanges restent liés
+      au travail.
     ctaPrimary: Demander une démo
     ctaSecondary: Auto-héberger Tale
-    eyebrow: Gestion de projet collaborative avec des agents IA
+    eyebrow: Espace de projet open source
     proof: Tâches partagées · Délégation aux agents · Sandboxes en parallèle ·
       Licence MIT
   demos:
@@ -358,26 +357,34 @@ home:
       liveTab: Live
       treeRoot: workspace
       liveHint: Vue navigateur live
-      label: 'Démo animée : un tour de harness ouvre le volet Files sur une CLI
-        Python, puis passe à la vue Live du navigateur de l’app en cours.'
+      label: 'Démo animée : un agent crée une page web, montre son code HTML
+        dans le volet Files, puis ouvre la page dans la vue Live du navigateur.'
       prompt:
-        Scaffold une petite CLI Python et ouvre-la dans le navigateur pour que
-        je puisse cliquer.
+        Crée une petite page de projet et ouvre-la dans le navigateur pour que
+        je puisse la vérifier.
       agent: Claude Code
       model: Claude Opus
-      reply: cli.py et un aperçu local sont prêts — Files montre l’arbre ; Live
-        streame le navigateur.
-      file1: cli.py
-      file2: pyproject.toml
-      file3: tests/test_cli.py
+      reply: index.html et un aperçu local sont prêts. Vérifie le code dans Files
+        et la page dans Live.
+      file1: index.html
+      file2: styles.css
+      file3: tests/preview.spec.ts
       file4: README.md
-      activeFile: cli.py
-      code1: import click
-      code2: '@click.command()'
-      code3: 'def main():'
-      code4: '    click.echo("ready")'
+      activeFile: index.html
+      code1: "<main><h1>Northwind</h1><p>Portail client</p>"
+      code2: "<section><h2>Consignes</h2><p>Périmètre et objectifs</p></section>"
+      code3: "<section><h2>Fichiers</h2><p>Code source et tests</p></section>"
+      code4: "<section><h2>Vérification</h2><p>Prêt pour les retours</p></section></main>"
       browserUrl: http://127.0.0.1:5173
-      browserTitle: Aperçu CLI · localhost
+      browserTitle: Aperçu du projet · localhost
+      previewTitle: "Northwind"
+      previewDescription: "Portail client"
+      previewItem1: "Consignes"
+      previewDetail1: "Périmètre et objectifs"
+      previewItem2: "Fichiers"
+      previewDetail2: "Code source et tests"
+      previewItem3: "Vérification"
+      previewDetail3: "Prêt pour les retours"
   tour:
     title: De la tâche partagée au résultat vérifié
     subtitle: Attribue le travail, donne aux agents le contexte nécessaire et garde
@@ -437,6 +444,7 @@ home:
         sur le tableau.
     explore: Explorer {module}
   tagline:
+    eyebrow: Ton espace de travail, tes choix
     title: Ton infrastructure. Tes données. Tes règles.
     subtitle:
       Choisis où fonctionne ton espace de travail et quels modèles utilisent
@@ -467,11 +475,8 @@ home:
       identifiants, puis accorde aux agents et aux workflows les accès
       nécessaires à leur travail.
   agents:
-    title: Choisis le moteur de chaque agent
-    subtitle:
-      Utilise Claude Code, Codex, Hermes, OpenClaw et d’autres moteurs pris en
-      charge. Ajoute tes identifiants pour utiliser un abonnement compatible,
-      ou choisis des modèles facturés par API.
+    title: Tes agents, à ta façon
+    subtitle: Utilise un moteur compatible avec tes identifiants ou des modèles facturés par API.
   compliance:
     eyebrow: SÉCURITÉ
     title: Un accompagnement pour ton déploiement
@@ -546,8 +551,10 @@ home:
     ownHardwareModels:
       q: Puis-je utiliser mon propre matériel et mes propres modèles d’IA ?
       a:
-        Oui. Tale est agnostique au matériel et aux modèles — tu peux utiliser les
-        tiens.
+        Oui. Héberge Tale sur ta propre infrastructure et connecte un serveur
+        de modèles local, comme Ollama ou vLLM, via une API compatible.
+        Vérifie les prérequis de déploiement et teste le modèle avec le moteur
+        de ton agent avant de lui confier du travail.
     customTraining:
       q: L’entraînement de modèles d’IA sur mesure est-il proposé ?
       a:
@@ -1205,14 +1212,14 @@ platformAgents:
       members4: '7'
     sandbox:
       label:
-        'Démo animée : Hermes édite install_offline.py dans le volet Files, puis
-        le navigateur Live montre la checklist d’install air-gap.'
+        'Démo animée : Hermes modifie install_offline.py dans le volet Files, puis
+        la vue Live affiche la liste de vérification pour une installation hors ligne.'
       prompt:
-        Corrige le script d’install offline et montre-moi la checklist dans le
-        navigateur live.
+        Corrige le script d’installation hors ligne et montre-moi la liste de
+        vérification dans la vue Live du navigateur.
       agent: Hermes
       model: Claude Sonnet
-      reply: Chemin du registry corrigé — Files a le diff ; Live est sur la checklist.
+      reply: Le chemin du registre est corrigé. Consulte les modifications dans Files et la liste de vérification dans Live.
       file1: install_offline.py
       file2: registry.json
       file3: docs/checklist.md
@@ -1223,7 +1230,15 @@ platformAgents:
       code3: '    if not root.exists():'
       code4: '        raise SystemExit("missing registry")'
       browserUrl: http://127.0.0.1:8787/checklist
-      browserTitle: Checklist d’install air-gap
+      browserTitle: Vérifications pour l’installation hors ligne
+      previewTitle: "Installation hors ligne"
+      previewDescription: "Liste de préparation"
+      previewItem1: "Registre local"
+      previewDetail1: "Vérifier le chemin du registre"
+      previewItem2: "Dépendances"
+      previewDetail2: "Rassembler les paquets requis"
+      previewItem3: "Installation"
+      previewDetail3: "Lancer sans accès réseau"
 platformAutomations:
   eyebrow: Automations
   title: Que sont les Automations dans Tale ?

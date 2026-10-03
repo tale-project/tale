@@ -6,6 +6,7 @@ import {
   isDatabaseUnavailable,
 } from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
+import { traceBackendTask, traceWorkerPhase } from '../tracing.ts';
 import { bossDbInTx } from './enqueue.ts';
 import type { BackendTaskList } from './task-list.ts';
 import {
@@ -171,71 +172,76 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
       },
       (jobs) =>
         Promise.all(
-          jobs.map(async (job): Promise<JobResult> => {
-            try {
-              if (
-                options.shouldDefer !== undefined &&
-                (await options.shouldDefer())
-              ) {
-                // Completing a `retryLimit: 0` job without a successor
-                // would drop it: the hand-over completes it and queues its
-                // successor together (the batch's own completion then finds
-                // it done and changes nothing — as it does a claim that had
-                // already ended, since pg-boss completes active jobs only).
-                if (typeof job.data !== 'object') {
-                  throw new Error(
-                    `task ${name} (job ${job.id}) payload is not an object`,
+          jobs.map((job): Promise<JobResult> =>
+            traceBackendTask(name, async (span): Promise<JobResult> => {
+              try {
+                if (
+                  options.shouldDefer !== undefined &&
+                  (await traceWorkerPhase('check_drain', () =>
+                    options.shouldDefer?.(),
+                  ))
+                ) {
+                  // Completing a `retryLimit: 0` job without a successor
+                  // would drop it: the hand-over completes it and queues its
+                  // successor together (the batch's own completion then finds
+                  // it done and changes nothing — as it does a claim that had
+                  // already ended, since pg-boss completes active jobs only).
+                  if (typeof job.data !== 'object') {
+                    throw new Error(
+                      `task ${name} (job ${job.id}) payload is not an object`,
+                    );
+                  }
+                  const sql = options.sql;
+                  const data = job.data;
+                  const outcome = await traceWorkerPhase('handover', () =>
+                    handOver(options.boss, sql, name, job, data),
                   );
+                  if (outcome === 'claim_ended') {
+                    console.log(
+                      `[backend] task ${name} (job ${job.id}) not handed over: the claim was no longer active (cancelled, completed or expired)`,
+                    );
+                  }
+                  return { id: job.id, status: 'completed' };
                 }
-                const outcome = await handOver(
-                  options.boss,
-                  options.sql,
-                  name,
-                  job,
-                  job.data,
+                // pg-boss aborts `job.signal` once the batch outlives the
+                // queue's `expireInSeconds` and retries the job; a handler that
+                // honours it stops instead of running beside its retry.
+                await traceWorkerPhase('handler', () =>
+                  handler(job.data, { signal: job.signal, jobId: job.id }),
                 );
-                if (outcome === 'claim_ended') {
-                  console.log(
-                    `[backend] task ${name} (job ${job.id}) not handed over: the claim was no longer active (cancelled, completed or expired)`,
-                  );
-                }
                 return { id: job.id, status: 'completed' };
+              } catch (error) {
+                span?.setStatus({ code: 2, message: 'internal_error' });
+                if (isDatabaseUnavailable(error)) {
+                  // A database restart fails whatever was running. The failed
+                  // job is retried under its queue's policy once the database
+                  // is back (a `retryLimit: 0` lane is its watchdog's to
+                  // recover), so this is an operational event, not a defect.
+                  console.warn(
+                    `[backend] task ${name} (job ${job.id}) failed, database unavailable: ${describeDatabaseError(error)}`,
+                  );
+                } else {
+                  console.error(
+                    `[backend] task ${name} (job ${job.id}) failed:`,
+                    error,
+                  );
+                  // Queue names are a bounded vocabulary — safe as a tag.
+                  reportError(error, {
+                    tags: { 'tale.task': name },
+                    extra: { jobId: job.id },
+                  });
+                }
+                return {
+                  id: job.id,
+                  status: 'failed',
+                  output: {
+                    message:
+                      error instanceof Error ? error.message : String(error),
+                  },
+                };
               }
-              // pg-boss aborts `job.signal` once the batch outlives the
-              // queue's `expireInSeconds` and retries the job; a handler that
-              // honours it stops instead of running beside its retry.
-              await handler(job.data, { signal: job.signal, jobId: job.id });
-              return { id: job.id, status: 'completed' };
-            } catch (error) {
-              if (isDatabaseUnavailable(error)) {
-                // A database restart fails whatever was running. The failed
-                // job is retried under its queue's policy once the database
-                // is back (a `retryLimit: 0` lane is its watchdog's to
-                // recover), so this is an operational event, not a defect.
-                console.warn(
-                  `[backend] task ${name} (job ${job.id}) failed, database unavailable: ${describeDatabaseError(error)}`,
-                );
-              } else {
-                console.error(
-                  `[backend] task ${name} (job ${job.id}) failed:`,
-                  error,
-                );
-                // Queue names are a bounded vocabulary — safe as a tag.
-                reportError(error, {
-                  tags: { 'tale.task': name },
-                  extra: { jobId: job.id },
-                });
-              }
-              return {
-                id: job.id,
-                status: 'failed',
-                output: {
-                  message:
-                    error instanceof Error ? error.message : String(error),
-                },
-              };
-            }
-          }),
+            }),
+          ),
         ),
     );
   }

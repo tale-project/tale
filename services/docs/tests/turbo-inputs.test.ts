@@ -71,7 +71,13 @@ function uiI18nFiles(): string[] {
   const framework = filesUnder(`${UI_I18N}/tests`).filter(
     (file) => !/\.test\.tsx?$/.test(file),
   );
-  return [...catalogs, ...framework];
+  return [
+    ...catalogs,
+    ...filesUnder('packages/marketing-ui/src/i18n/messages').filter((file) =>
+      file.endsWith('.yml'),
+    ),
+    ...framework,
+  ];
 }
 
 /** Every page the structural suite walks, plus the nav and redirect maps. */

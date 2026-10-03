@@ -50,7 +50,13 @@ export type WorkflowAgentFailureCode =
    * refusal's retry hint and spends no attempt and no execution of the run's
    * guard, for at most {@link SANDBOX_ROOM_MAX_WAIT_MS} in a row
    * ({@link planWorkflowAgentRetry}). */
-  | 'sandbox_capacity';
+  | 'sandbox_capacity'
+  /** The start found the run's workspace being deleted: an administrator's
+   * Destroy of its session was queued, retrying or running. No wait for
+   * room and no retry: once the Destroy settles, a re-kick would continue
+   * the run in a fresh, empty workspace, without what its earlier steps
+   * left there. */
+  | 'sandbox_destroying';
 
 /** The longest an agent node waits for sandbox room before its run fails:
  * room frees as other work settles, but a deployment whose capacity is
@@ -106,14 +112,16 @@ export function sandboxRoomRetryAtMs(args: {
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
- * turn would only ask again. Everything else — provider errors, crashes,
- * vanished sessions, harvest hiccups — retries by DEFAULT, including an
- * absent code, so a future failure producer inherits the retry posture
- * without opting in. */
+ * turn would only ask again — or worse than waste: the run's workspace is
+ * being destroyed, and a retry after the Destroy would start over an empty
+ * one. Everything else — provider errors, crashes, vanished sessions,
+ * harvest hiccups — retries by DEFAULT, including an absent code, so a
+ * future failure producer inherits the retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
   'ask_expired',
   'budget_exceeded',
+  'sandbox_destroying',
 ] satisfies WorkflowAgentFailureCode[]);
 
 export function isWorkflowAgentRetryable(code: string | undefined): boolean {

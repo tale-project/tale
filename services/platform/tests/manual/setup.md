@@ -21,8 +21,9 @@ canned replies are byte-stable, no keys, no cost.
 Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
 reply plus Prism-mocked AI endpoints and connector APIs — so chat, AI, and
-connectors all work offline with no API keys and no cost. Every new
-org is seeded with the `E2E Assistant` agent and the mock provider.
+connectors all work offline with no API keys and no cost. A new org is
+**not** wired to the mock provider: wire it once per org before any chat box
+(**Wire the mock provider** below).
 (The fixture dir's automation fixtures are in the retired pre-rewrite
 format, so a mode-A org seeds **zero** automation packs — the Automations
 list opens on its empty state; see automations.md Prerequisites.)
@@ -44,30 +45,74 @@ cd services/platform && \
 ```
 
 (The values mirror `services/platform/playwright.config.ts` — keep them in sync
-with that file and `tests/e2e/fixtures/config/default/providers/e2e-mock.json`.
-`TALE_CONFIG_BUILTIN_DIR` pins the built-in catalog to the fixture's `default/`
-org dir, so every new org — wizard-created or API-minted — scaffolds from the
-hermetic fixtures (the `e2e-mock` provider, the **E2E Assistant** agent) instead
-of the real `builtin-configs/` catalog; without it, `scaffoldNewOrganization`
-falls back to the real catalog and `save-auth-state.ts`'s wait for "E2E
-Assistant" never resolves. `TALE_MOCK_CONNECTORS_BASE` redirects connector
-connectors' outbound HTTP to the gateway so you can connect/test connectors
-offline. `TALE_CONTACT_SUPPORT_URL` points the error screens' **contact
-support** link at a placeholder help desk, as `navigation.spec.ts` expects.
-The connector catalog in the fixtures is a symlink to the real
-`builtin-configs/connectors`.)
+with that file and `tests/e2e/fixtures/config/default/providers/e2e-mock.yml`.
+`TALE_CONFIG_BUILTIN_DIR` pins the per-org seed catalog to the fixture's
+`default/` org dir instead of the repo's `configs/platform/custom/`, so every
+new org — wizard-created or API-minted — scaffolds from the hermetic fixtures.
+The scaffold seeds only the domains `lib/shared/config/registry.ts` gives a
+scaffold kind (today `governance/` and `skills/`, both empty in the
+fixture). Providers are not among them, so no org gets `e2e-mock` on its
+own, and the fixture's `agents/` dir seeds nothing: the chat assistant is
+built in (`lib/chat/assistant.ts`). `TALE_MOCK_CONNECTORS_BASE` redirects connectors'
+outbound HTTP to the gateway so you can connect/test connectors offline.
+`TALE_CONTACT_SUPPORT_URL` points the error screens' **contact support** link
+at a placeholder help desk, as `navigation.spec.ts` expects. The connector and
+AI-provider catalogs are not fixtures: both come from the shipped system tree,
+`configs/platform/system/` (`connectors/`, `providers/`), which no mode-A
+variable redirects; a `providers/*.yml` in an org's config dir adds a provider
+beside them.)
 
-> **Wizard-created orgs are NOT provider-wired anymore** (observed live
-> 2026-08-04, var set as above): a wizard-minted org lands on chat's **No AI
-> provider connected yet** empty state with zero provider credentials — the
-> pre-rewrite behaviour of inheriting the fixture `e2e-mock` provider is gone.
-> To chat in mode A on a wizard org, add the mock provider's credential under
-> **Settings → AI providers** first (or mint the org via
-> `save-auth-state.ts`, which seeds it). The org's live config lands under
-> `tests/e2e/fixtures/config/<org-slug>/` — **pick an org name whose slug
-> doesn't collide with a tracked fixture org** (e.g. `qa-guides-org` is
-> tracked; a colliding wizard org overwrites those files in your working
-> tree).
+**Wire the mock provider — once per org, before any chat box.** Chat answers
+only through a provider the org holds a credential for. A new mode-A org sees
+the shipped vendors but not the mock, and holds no credential, so chat opens
+on **No AI provider connected yet** (`chat.providerSetup.title`). Make the
+two moves the docs-screenshot seed makes (`ensureMockProvider` in
+`tests/docs-screenshots/seed-demo-org.ts`):
+
+1. **Wait for the scaffold.** Create the org (the create-org wizard below, or
+   `save-auth-state.ts`, which wires no provider either) and wait until
+   `/dashboard/{org}/projects` lists **Getting started** (reload: the list
+   doesn't update live). The org-create scaffold empties the org's config dir
+   before it seeds, so a file copied earlier is lost.
+2. **Read the org's slug** — the config dir is keyed by slug, not by the
+   `{org}` id. The **Manage account** menu (`auth.userButton.manageAccount`)
+   → **Organization** (`navigation.orgSwitcher.label`) lists each org as
+   `@<slug> · <role>`.
+3. **Copy the provider definition** into that org's config dir, from
+   `services/platform`:
+
+   ```bash
+   slug=<org-slug>
+   mkdir -p "tests/e2e/fixtures/config/$slug/providers"
+   cp tests/e2e/fixtures/config/default/providers/e2e-mock.yml \
+     "tests/e2e/fixtures/config/$slug/providers/"
+   ```
+
+4. **Add its credential.** **Settings → AI providers**
+   (`navigation.providers`) → **Add credential**
+   (`settings.credentials.addCredential`) → **E2E Mock Gateway**. Set
+   **Authentication method** (`settings.credentials.method`) to **Environment
+   variable** (`settings.providers.authMethod.env`), keep the suggested
+   **Provider name** (`settings.providers.custom.nameLabel`), and enter
+   `E2E_MOCK` as the **Environment variable**
+   (`settings.providers.dialog.envName`). The field takes the suffix:
+   `TALE_PROVIDER_KEY_` is fixed beside it, and the boot command above sets
+   `TALE_PROVIDER_KEY_E2E_MOCK`. Then **Add credential**
+   (`settings.credentials.create`).
+
+The catalog offers **E2E Mock Gateway** only once step 3's file is in place.
+The backend reads the file on every request, but the page keeps the vendor
+list it first loaded: if **AI providers** was open before step 3, reload it
+(or press **Refresh catalogs**, `settings.providers.catalogs.refresh`) before
+**Add credential**. A prompt with no trigger in a new chat then returns the
+canned reply (§3): the wiring works. If chat still shows **No AI provider
+connected yet**, check that Terminal 1's gateway is up, then press **Refresh
+catalogs**.
+
+The org's live config lands under `tests/e2e/fixtures/config/<org-slug>/` —
+**pick an org name whose slug doesn't collide with a tracked fixture org**
+(`qa-guides-org`, `docs-demo`): the create-time scaffold deletes that org's
+whole dir in your working tree.
 
 ### B. Full local dev (real provider, full feature set)
 
@@ -81,7 +126,7 @@ bun run dev          # repo root: turbo dev for platform + backing services (exc
 bun run --filter @tale/platform dev:fast
 ```
 
-Then configure a model provider in **Settings → Providers** (an OpenRouter key)
+Then configure a model provider in **Settings → AI providers** (an OpenRouter key)
 so the AI can respond. Without a provider, chat and tool tests fail with a
 provider error — that's environment, not a chat bug; note the distinction.
 
@@ -110,13 +155,18 @@ bun run docker:dev:down   # tear down when finished
   default-on via `TALE_DEV_SEED_USER=1` in `compose.dev.yml`, loopback-only by
   design — [`lib/utils/dev-seed-config.ts`](../../lib/utils/dev-seed-config.ts)).
   Skip the wizard and sign in at `/log-in`.
-- **Real chat needs one env var in the shell that invokes `docker:dev`**:
-  `TALE_PROVIDER_KEY_OPENROUTER=<key>`. The invoker's environment is forwarded
-  into the platform container
-  ([`scripts/docker-dev-env-override.ts`](../../../../scripts/docker-dev-env-override.ts))
-  and pushed into the Convex deployment env, where the builtin OpenRouter
-  provider reads it (`secretsEnv` in
-  [`builtin-configs/providers/openrouter.json`](../../../../builtin-configs/providers/openrouter.json)).
+- **Real chat needs an OpenRouter credential**, and the seed creates none.
+  Add one under **Settings → AI providers** for the shipped OpenRouter
+  provider
+  ([`configs/platform/system/providers/openrouter/provider.yml`](../../../../configs/platform/system/providers/openrouter/provider.yml))
+  with the **API key** method. To keep the key out of the database instead,
+  put `TALE_PROVIDER_KEY_OPENROUTER=<key>` in the repo-root `.env`, which
+  `backend-api` and `backend-worker` read (`env_file` in `compose.yml`), and
+  add an **Environment variable** credential naming `OPENROUTER` as in mode
+  A's step 4. A variable exported in the shell that runs `docker:dev` reaches
+  only the web-tier `platform` container
+  ([`scripts/docker-dev-env-override.ts`](../../../../scripts/docker-dev-env-override.ts)),
+  not the backends that resolve credentials.
   This is **operator prep, not a tester step** — a tester session starts with
   the environment already configured, so "No API key configured" during a run
   is a reportable defect, not an environment note.
@@ -147,8 +197,11 @@ actions) → **Go to Home**. A user who already has an org goes straight to
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
 writes a Playwright `storageState` file so the browser starts signed in. By default it mints
-a fresh owner + org (modes A/B); set `QA_AUTH_EMAIL` / `QA_AUTH_PASSWORD` to
-sign in as an existing account instead — e.g. the mode C seeded login:
+a fresh owner + org (modes A/B) and waits for the org's starter project
+(**Getting started**). It wires no provider, so in mode A follow §1.A's **Wire
+the mock provider** steps 2–4 for that org next. Set `QA_AUTH_EMAIL` /
+`QA_AUTH_PASSWORD` to sign in as an existing account instead — e.g. the mode C
+seeded login:
 
 ```bash
 E2E_BASE_URL=https://localhost \

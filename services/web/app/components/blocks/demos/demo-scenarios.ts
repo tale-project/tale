@@ -274,6 +274,9 @@ export interface SandboxScenario {
   codeLines: readonly [string, string, string, string];
   browserUrl: string;
   browserTitle: string;
+  previewTitle: string;
+  previewDescription: string;
+  previewItems: readonly { title: string; detail: string }[];
 }
 
 export function useSandboxScenario(
@@ -302,5 +305,11 @@ export function useSandboxScenario(
     ],
     browserUrl: t(`${prefix}.browserUrl`),
     browserTitle: t(`${prefix}.browserTitle`),
+    previewTitle: t(`${prefix}.previewTitle`),
+    previewDescription: t(`${prefix}.previewDescription`),
+    previewItems: [1, 2, 3].map((index) => ({
+      title: t(`${prefix}.previewItem${index}`),
+      detail: t(`${prefix}.previewDetail${index}`),
+    })),
   };
 }

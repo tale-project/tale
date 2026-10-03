@@ -136,14 +136,20 @@ import { checkTaskSourceThread } from './domains/tasks/source-thread.integration
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
+import { closeServerGracefully } from './http-shutdown.ts';
 import {
+  connectSse,
   cookieHeaderFrom,
+  errorText,
   fullCoverageBlockers,
   isSkippedCheck,
   itestObjectStore,
   recordSkip,
   requestedLanes,
+  settleTeardown,
   signUpUser,
+  withinDeadline,
+  type SseEvent,
 } from './integration-lane-helpers.ts';
 import {
   itestResolve,
@@ -156,6 +162,7 @@ import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import type { TaskIdentifier } from './jobs/tasks.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -405,64 +412,6 @@ async function checkPickupLatency(sql: Sql, boss: PgBoss): Promise<void> {
   );
 }
 
-interface SseEvent {
-  event: string;
-  id: string | null;
-  data: string;
-}
-
-/** Minimal SSE client: collects events until aborted. */
-function connectSse(
-  url: string,
-  headers: Record<string, string>,
-): { events: SseEvent[]; abort: () => void; done: Promise<void> } {
-  const controller = new AbortController();
-  const events: SseEvent[] = [];
-
-  const done = (async () => {
-    const response = await fetch(url, { signal: controller.signal, headers });
-    const body = response.body;
-    if (!body) {
-      throw new Error('SSE response has no body');
-    }
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    for (;;) {
-      const { done: finished, value } = await reader.read();
-      if (finished) {
-        break;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      let boundary = buffer.indexOf('\n\n');
-      while (boundary !== -1) {
-        const frame = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        let event = 'message';
-        let id: string | null = null;
-        const dataLines: string[] = [];
-        for (const line of frame.split('\n')) {
-          if (line.startsWith('event:')) {
-            event = line.slice(6).trim();
-          } else if (line.startsWith('id:')) {
-            id = line.slice(3).trim();
-          } else if (line.startsWith('data:')) {
-            dataLines.push(line.slice(5).trim());
-          }
-        }
-        events.push({ event, id, data: dataLines.join('\n') });
-        boundary = buffer.indexOf('\n\n');
-      }
-    }
-  })().catch((error: unknown) => {
-    if (!(error instanceof Error && error.name === 'AbortError')) {
-      throw error;
-    }
-  });
-
-  return { events, abort: () => controller.abort(), done };
-}
-
 async function waitFor(
   predicate: () => boolean | Promise<boolean>,
   timeoutMs: number,
@@ -698,8 +647,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const lastId = [...first.events].reverse().find((e) => e.id)?.id ?? null;
-  first.abort();
-  await first.done;
+  await first.close();
 
   await sql.begin(async (tx) => {
     await emitHintInTx(tx, { orgId, entity: 'task', entityId: 't2' });
@@ -714,8 +662,7 @@ async function checkAuthAndSse(
     3_000,
   );
   const noDuplicate = !second.events.some((e) => e.data.includes('"t1"'));
-  second.abort();
-  await second.done;
+  await second.close();
 
   record(
     'authorized outbox → SSE',
@@ -762,8 +709,7 @@ async function checkAuthAndSse(
     endedWithForbidden(kickedStream),
     endedWithForbidden(revokedStream),
   ]);
-  kickedStream.abort();
-  revokedStream.abort();
+  await Promise.all([kickedStream.close(), revokedStream.close()]);
   await sql`
     DELETE FROM "member" WHERE "id" IN (${kicked.memberId}, ${revoked.memberId})
   `;
@@ -886,10 +832,7 @@ async function checkOutboxRetention(
   );
   const intactReplayed = intact.events.some((e) => e.data.includes('"skewed"'));
   const intactResynced = intact.events.some((e) => e.event === 'resync');
-  gapped.abort();
-  intact.abort();
-  await gapped.done;
-  await intact.done;
+  await Promise.all([gapped.close(), intact.close()]);
 
   record(
     'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
@@ -945,8 +888,7 @@ async function checkNotifications(
       ),
     5_000,
   );
-  stream.abort();
-  await stream.done;
+  await stream.close();
 
   const countAfterCreate = z
     .object({ count: z.number() })
@@ -38544,6 +38486,466 @@ async function checkAutomationAgentNode(
 }
 
 /**
+ * An automation step whose run's workspace an administrator is destroying
+ * fails with the reason at once, #4122. While the Destroy of a workflow
+ * run's session is queued, retrying or running, its admission refuses the
+ * run's next start (#4095). That refusal was read as a spent budget: the
+ * step waited up to two hours for room, and once the Destroy had settled it
+ * started over in a fresh, empty workspace, without what the run's earlier
+ * steps left there. A real two-step run on a fake spawner: the first step's
+ * turn is held while the run's session is destroyed through the Sandboxes
+ * page's route, the spawner refusing the delete so the Destroy stays
+ * pending between attempts; then the turn ends. The second step's start
+ * must fail the run with the Destroy's reason while the Destroy is still
+ * pending, and once it has settled nothing may start in the run again.
+ */
+async function checkAutomationStepDestroyPending(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { sessionIdForWorkflowExecution } =
+    await import('./core/sandbox/session_naming.ts');
+  const { SANDBOX_DESTROY_PENDING_MESSAGE } =
+    await import('./core/sandbox/session_constants.ts');
+  const sessions = await import('./domains/sandbox/sessions.ts');
+
+  // The steps run on `itestagent`: the provider the turn-drive lane left in
+  // the suite org, or one of this lane's own when it runs alone.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const orgSlug = orgRow?.slug ?? '';
+  const providerSeeded = await stat(
+    path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'providers',
+      'itestagent.yml',
+    ),
+  ).then(
+    () => true,
+    () => false,
+  );
+  const agentProvider = providerSeeded
+    ? null
+    : await seedItestAgentProvider({
+        base,
+        cookie,
+        orgId,
+        orgSlug,
+        displayName: 'Itest Agent Destroy',
+        credentialName: 'Agent destroy key',
+        secret: 'sk-itest-agent-destroy',
+      });
+
+  // The spawner: every create and exec counted; the first exec (the first
+  // step's turn) held until the lane lets it end; a delete refused while
+  // `failDeletes` holds.
+  const spawned = { creates: 0, execs: 0, deletes: 0 };
+  let failDeletes = false;
+  let firstExecStarted = (): void => {};
+  const firstExec = new Promise<void>((resolve) => {
+    firstExecStarted = resolve;
+  });
+  let releaseFirstExec = (): void => {};
+  const firstExecGate = new Promise<void>((resolve) => {
+    releaseFirstExec = resolve;
+  });
+  const writeExecStream = (res: ServerResponse): void => {
+    res.setHeader('content-type', 'text/event-stream');
+    const lines = [
+      { type: 'system', subtype: 'init', session_id: 'wfconv-destroy' },
+      {
+        type: 'assistant',
+        message: {
+          id: 'wd1',
+          model: 'itest-agent-model',
+          content: [{ type: 'text', text: 'Drafted the notes.' }],
+          usage: { input_tokens: 40, output_tokens: 10 },
+        },
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        session_id: 'wfconv-destroy',
+        result: 'Drafted the notes into the workspace.',
+        duration_ms: 200,
+      },
+    ];
+    lines.forEach((line, index) => {
+      res.write(
+        `event: stdout\ndata: ${JSON.stringify({ text: `${JSON.stringify(line)}\n`, seq: index + 1 })}\n\n`,
+      );
+    });
+    res.write(
+      `event: result\ndata: ${JSON.stringify({ exitCode: 0, stdoutBase64: '', stderrBase64: '' })}\n\n`,
+    );
+    res.end();
+  };
+  const spawner = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = new URL(req.url ?? '', 'http://x');
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (method === 'POST' && url.pathname === '/v1/sessions') {
+        spawned.creates += 1;
+        const parsed = z
+          .object({ sessionId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        res.end(
+          JSON.stringify({
+            session: {
+              sessionId: parsed.success ? parsed.data.sessionId : '',
+              organizationId: orgId,
+              profile: 'agent',
+              state: 'ready',
+              backend: 'itest',
+              createdAtMs: Date.now(),
+              expiresAtMs: Date.now() + 3_600_000,
+              idleTimeoutMs: 600_000,
+            },
+          }),
+        );
+        return;
+      }
+      if (method === 'POST' && url.pathname.endsWith('/exec')) {
+        spawned.execs += 1;
+        if (spawned.execs === 1) {
+          firstExecStarted();
+          void firstExecGate.then(() => writeExecStream(res));
+          return;
+        }
+        writeExecStream(res);
+        return;
+      }
+      if (url.pathname.endsWith('/files/stage')) {
+        res.end(JSON.stringify({ staged: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/delete')) {
+        res.end(JSON.stringify({ deleted: [], skipped: [] }));
+        return;
+      }
+      if (/\/v1\/sessions\/[^/]+\/files$/.test(url.pathname)) {
+        res.end(JSON.stringify({ entries: [] }));
+        return;
+      }
+      if (/\/exec\/[^/]+\/cancel$/.test(url.pathname)) {
+        res.end('{"cancelled":true}');
+        return;
+      }
+      if (method === 'PATCH' && url.pathname.endsWith('/pin')) {
+        res.end('{"pinned":false}');
+        return;
+      }
+      if (method === 'GET' && /^\/v1\/sessions\/[^/]+$/.test(url.pathname)) {
+        res.end('{"session":{"state":"ready"}}');
+        return;
+      }
+      if (method === 'DELETE') {
+        spawned.deletes += 1;
+        if (failDeletes) {
+          res.statusCode = 500;
+          res.end('{"error":"itest delete failure"}');
+          return;
+        }
+        res.end('{"destroyed":true}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const spawnerAddress = spawner.address();
+  const spawnerPort =
+    spawnerAddress !== null && typeof spawnerAddress === 'object'
+      ? spawnerAddress.port
+      : 0;
+  // The gateway: the provider keys the platform syncs, each turn's key
+  // minted and revoked, nothing spent.
+  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
+  const gateway = createServer((req, res) => {
+    let gatewayBody = '';
+    req.on('data', (chunk: unknown) => {
+      gatewayBody += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (url === '/api/config') {
+        res.end(JSON.stringify({ client_config: {} }));
+        return;
+      }
+      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
+      if (keysMatch) {
+        const provider = decodeURIComponent(keysMatch[1] ?? '');
+        const list = providerKeys.get(provider) ?? [];
+        if (method !== 'GET') {
+          const parsed = z
+            .looseObject({ name: z.string() })
+            .safeParse(JSON.parse(gatewayBody || '{}'));
+          if (
+            parsed.success &&
+            !list.some((k) => k.name === parsed.data.name)
+          ) {
+            list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
+          }
+          providerKeys.set(provider, list);
+          res.end('{}');
+          return;
+        }
+        res.end(JSON.stringify({ keys: list }));
+        return;
+      }
+      if (url.startsWith('/api/governance/pricing-overrides')) {
+        res.end(
+          method === 'GET'
+            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
+            : '{}',
+        );
+        return;
+      }
+      if (url === '/api/governance/virtual-keys' && method === 'POST') {
+        const id = `vk-destroy-${randomUUID()}`;
+        res.end(
+          JSON.stringify({
+            virtual_key: {
+              id,
+              value: `sk-bf-${id}`,
+              budgets: [{ id: `budget-${id}`, max_limit: 5, current_usage: 0 }],
+            },
+          }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/governance/virtual-keys/')) {
+        res.end(
+          method === 'DELETE'
+            ? '{}'
+            : JSON.stringify({
+                virtual_key: { budgets: [{ current_usage: 0 }] },
+              }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/providers')) {
+        res.end('{}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const gatewayAddress = gateway.address();
+  const gatewayPort =
+    gatewayAddress !== null && typeof gatewayAddress === 'object'
+      ? gatewayAddress.port
+      : 0;
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: 'itest-destroy-spawner',
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
+
+  let sessionId = '';
+  try {
+    const post = (route: string, payload?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+      });
+    const name = `ops/destroy-pending-${randomUUID().slice(0, 8)}`;
+    const saved = z.object({ version: z.number() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/save?orgId=${orgId}`, {
+          document: {
+            version: 1,
+            name,
+            nodes: [
+              {
+                id: 'draft',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Draft notes on {{ input.subject }} into the workspace.',
+              },
+              {
+                id: 'publish',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Publish the notes you drafted: {{ nodes.draft.output.text }}',
+              },
+            ],
+            output: '{{ nodes.publish.output }}',
+          },
+        })
+      ).json(),
+    );
+    const deployed = await post(
+      `/api/app/automations/${name}/deploy?orgId=${orgId}`,
+      { version: saved.success ? saved.data.version : 0 },
+    );
+    const started = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/start?orgId=${orgId}`, {
+          input: { subject: 'the quarter' },
+          mode: 'live',
+        })
+      ).json(),
+    );
+    const runId = started.success ? started.data.runId : '';
+    sessionId = sessionIdForWorkflowExecution(runId);
+    const runRow = async () =>
+      (
+        await sql<
+          {
+            status: string;
+            detail: string | null;
+            failureCode: string | null;
+          }[]
+        >`
+          SELECT status, detail, failure_code AS "failureCode"
+          FROM app.automation_runs WHERE id = ${runId}
+        `
+      )[0];
+    const destroyJobStates = async () =>
+      (
+        await sql<{ state: string }[]>`
+          SELECT state::text AS state FROM pgboss.job
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'organizationId' = ${orgId}
+            AND data ->> 'sessionId' = ${sessionId}
+          ORDER BY created_on
+        `
+      ).map((job) => job.state);
+
+    // The first step's turn runs in the run's workspace...
+    const firstStepRunning = await Promise.race([
+      firstExec.then(() => true),
+      sleep(30_000).then(() => false),
+    ]);
+    // ...when an administrator destroys it. The spawner refuses the delete,
+    // so the Destroy waits for its next attempt: pending.
+    failDeletes = true;
+    const destroyRes = await post(
+      `/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+    );
+    const destroyPending = await waitFor(
+      async () => (await destroyJobStates()).includes('retry'),
+      15_000,
+    );
+    // The first step's turn ends; the run moves on to the second step.
+    const releasedAt = Date.now();
+    releaseFirstExec();
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        (['success', 'failed', 'cancelled'].includes(row.status) ||
+          row.detail === 'room:publish')
+      );
+    }, 30_000);
+    const atRefusal = await runRow();
+    const refusedAfterMs = Date.now() - releasedAt;
+    const destroyStillPending = (await destroyJobStates()).includes('retry');
+
+    // The Destroy settles: the spawner deletes, the retry runs now.
+    failDeletes = false;
+    await sql`
+      UPDATE pgboss.job SET start_after = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'organizationId' = ${orgId}
+        AND data ->> 'sessionId' = ${sessionId} AND state = 'retry'
+    `;
+    const destroySettled = await waitFor(
+      async () =>
+        (await destroyJobStates()).every((state) => state === 'completed') &&
+        (await sessions.getSessionBySessionId(sql, orgId, sessionId))
+          ?.status === 'destroyed',
+      15_000,
+    );
+    // Whatever was still waiting comes back within its backoff, at most
+    // half a minute after a first refusal: give it that long to show.
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        ['success', 'failed', 'cancelled'].includes(row.status)
+      );
+    }, 40_000);
+    const afterwards = await runRow();
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE org_id = ${orgId} AND session_id = ${sessionId}
+      ORDER BY created_at_ms
+    `;
+    record(
+      'automation step: a pending Destroy of the run’s workspace fails the next step with its reason, never a wait for room or a fresh, empty workspace',
+      saved.success &&
+        deployed.status === 200 &&
+        firstStepRunning &&
+        destroyRes.status === 202 &&
+        destroyPending &&
+        atRefusal?.status === 'failed' &&
+        atRefusal.failureCode === 'start_failed' &&
+        (atRefusal.detail ?? '').startsWith('publish: ') &&
+        (atRefusal.detail ?? '').includes(SANDBOX_DESTROY_PENDING_MESSAGE) &&
+        !(atRefusal.detail ?? '').includes('sandbox room') &&
+        destroyStillPending &&
+        destroySettled &&
+        afterwards?.status === 'failed' &&
+        rows.length === 1 &&
+        rows[0]?.status === 'destroyed' &&
+        spawned.creates === 1 &&
+        spawned.execs === 1,
+      `deploy=${deployed.status}, first step running=${firstStepRunning}, destroy=${destroyRes.status}, pending=${destroyPending}; ${refusedAfterMs} ms after the first step ended: run=${atRefusal?.status ?? 'missing'}/${atRefusal?.failureCode ?? '-'} (want failed/start_failed) "${(atRefusal?.detail ?? '').slice(0, 160)}", Destroy still pending then=${destroyStillPending}; Destroy settled=${destroySettled}, then run=${afterwards?.status ?? 'missing'} (want failed), session rows=${rows.map((row) => row.status).join(',')} (want destroyed: no fresh incarnation), spawner creates=${spawned.creates} execs=${spawned.execs} (want 1/1: the second step never ran)`,
+    );
+  } finally {
+    releaseFirstExec();
+    failDeletes = false;
+    restoreEnv();
+    if (sessionId !== '') {
+      // Hand back the workflow budget whatever happened above.
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'sessionId' = ${sessionId}
+          AND state::text IN ('created', 'retry')
+      `;
+      await sessions.markSessionDestroyed(sql, {
+        organizationId: orgId,
+        sessionId,
+      });
+    }
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+    await agentProvider?.cleanup();
+  }
+}
+
+/**
  * Sandbox session substrate: per-owner and per-budget caps, the slot a
  * hibernated session frees, hibernate/resume slot accounting, and the
  * hash-only token lifecycle (minted → looked up by hash → revoked by the
@@ -45284,102 +45686,107 @@ async function checkBellHintWire(
   const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
     cookie: mateCookie,
   });
-  await sleep(500); // both tails established
-  const startId = await latestOutboxId(sql);
+  try {
+    await sleep(500); // both tails established
+    const startId = await latestOutboxId(sql);
 
-  // The row is about a real task of an organization-wide project, which the
-  // teammate can open: a task-bound row is written only for its readers.
-  await sql`
-    INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
-                              updated_at_ms)
-    VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
-            ${Date.now()})
-  `;
-  await sql`
-    INSERT INTO app.tasks (
-      id, org_id, project_id, title, status, rank, number, created_by,
-      created_by_type, created_at_ms, updated_at_ms
-    ) VALUES (
-      'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
-      ${userId}, 'user', ${Date.now()}, ${Date.now()}
-    )
-  `;
-  const { writeCoalescedNotification } =
-    await import('./domains/collab/service.ts');
-  await sql.begin((tx) =>
-    writeCoalescedNotification(tx, {
-      userId: mateId,
-      organizationId: orgId,
-      type: 'task_status_changed',
-      titleKey: 'taskStatusChanged',
-      bodyKey: 'taskStatusChangedBody',
-      params: {
-        title: 'Bell wire',
-        from: 'todo',
-        to: 'in_progress',
-        projectId: 'p-bell-wire',
-      },
-      resourceType: 'task',
-      resourceId: 'itest-bell-wire',
-      taskId: 'itest-bell-wire',
-      actorType: 'user',
-      actorId: userId,
-    }),
-  );
-  const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
-  const isBellHint = (e: SseEvent): boolean =>
-    e.event === 'hint' && e.data === bellHint;
-  const mateGotIt = await waitFor(
-    () => mateStream.events.some(isBellHint),
-    5_000,
-  );
-  await sleep(700); // two poll cycles — the owner's stream had every chance
-  const ownerSpared = !ownerStream.events.some(isBellHint);
-  const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
-    SELECT user_id AS "userId", entity FROM app_realtime.outbox
-    WHERE org_id = ${orgId} AND id > ${startId}::bigint
-      AND entity IN ('notification', 'user_notification')
-  `;
-  const narrowed =
-    outboxRows.length === 1 &&
-    outboxRows[0]?.entity === 'notification' &&
-    outboxRows[0].userId === mateId;
+    // The row is about a real task of an organization-wide project, which the
+    // teammate can open: a task-bound row is written only for its readers.
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES ('p-bell-wire', ${orgId}, 'Bell wire', ${userId}, ${Date.now()},
+              ${Date.now()})
+    `;
+    await sql`
+      INSERT INTO app.tasks (
+        id, org_id, project_id, title, status, rank, number, created_by,
+        created_by_type, created_at_ms, updated_at_ms
+      ) VALUES (
+        'itest-bell-wire', ${orgId}, 'p-bell-wire', 'Bell wire', 'todo', 'b0', 1,
+        ${userId}, 'user', ${Date.now()}, ${Date.now()}
+      )
+    `;
+    const { writeCoalescedNotification } =
+      await import('./domains/collab/service.ts');
+    await sql.begin((tx) =>
+      writeCoalescedNotification(tx, {
+        userId: mateId,
+        organizationId: orgId,
+        type: 'task_status_changed',
+        titleKey: 'taskStatusChanged',
+        bodyKey: 'taskStatusChangedBody',
+        params: {
+          title: 'Bell wire',
+          from: 'todo',
+          to: 'in_progress',
+          projectId: 'p-bell-wire',
+        },
+        resourceType: 'task',
+        resourceId: 'itest-bell-wire',
+        taskId: 'itest-bell-wire',
+        actorType: 'user',
+        actorId: userId,
+      }),
+    );
+    const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
+    const isBellHint = (e: SseEvent): boolean =>
+      e.event === 'hint' && e.data === bellHint;
+    const mateGotIt = await waitFor(
+      () => mateStream.events.some(isBellHint),
+      5_000,
+    );
+    await sleep(700); // two poll cycles — the owner's stream had every chance
+    const ownerSpared = !ownerStream.events.some(isBellHint);
+    const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
+      SELECT user_id AS "userId", entity FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND id > ${startId}::bigint
+        AND entity IN ('notification', 'user_notification')
+    `;
+    const narrowed =
+      outboxRows.length === 1 &&
+      outboxRows[0]?.entity === 'notification' &&
+      outboxRows[0].userId === mateId;
 
-  // The recipient reads everything → their own streams are told as well.
-  const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
-  const markAll = await post(
-    `/api/app/collab/notifications/read-all?orgId=${orgId}`,
-    undefined,
-    mateCookie,
-  );
-  const mateToldOfRead = await waitFor(
-    () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
-    5_000,
-  );
-  ownerStream.abort();
-  mateStream.abort();
-  await ownerStream.done;
-  await mateStream.done;
-  const row = await sql<{ read: boolean }[]>`
-    SELECT read FROM app.user_notifications
-    WHERE org_id = ${orgId} AND user_id = ${mateId}
-      AND resource_id = 'itest-bell-wire'
-  `;
-  record(
-    'personal bell hint wire: app entity, recipient-only, read-all hints',
-    joined.ok &&
-      mateGotIt &&
-      ownerSpared &&
-      narrowed &&
-      markAll.ok &&
-      mateToldOfRead &&
-      (row[0]?.read ?? false),
-    `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
-  );
-  // Later lanes count the organization's projects.
-  await sql`
-    DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
-  `;
+    // The recipient reads everything → their own streams are told as well.
+    const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+    const markAll = await post(
+      `/api/app/collab/notifications/read-all?orgId=${orgId}`,
+      undefined,
+      mateCookie,
+    );
+    const mateToldOfRead = await waitFor(
+      () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+      5_000,
+    );
+    const row = await sql<{ read: boolean }[]>`
+      SELECT read FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${mateId}
+        AND resource_id = 'itest-bell-wire'
+    `;
+    record(
+      'personal bell hint wire: app entity, recipient-only, read-all hints',
+      joined.ok &&
+        mateGotIt &&
+        ownerSpared &&
+        narrowed &&
+        markAll.ok &&
+        mateToldOfRead &&
+        (row[0]?.read ?? false),
+      `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
+    );
+  } finally {
+    // On every path: both tails end (a tail that will not fails the lane in
+    // seconds, naming it, instead of holding it to the lane deadline), and
+    // the project goes, since later lanes count the organization's projects.
+    try {
+      await Promise.all([ownerStream.close(), mateStream.close()]);
+    } finally {
+      await sql`
+        DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
+      `;
+    }
+  }
 }
 
 /**
@@ -55251,6 +55658,8 @@ async function checkWatchdogs(
   // session whose run the retention purge deleted (reclaimed), a LIVE run's
   // active AND hibernated sessions (both survive — a resume is coming), and
   // an ended run whose session the spawner reports busy (waits a tick).
+  // An unrelated lane's old orphan is also reclaimable: the scripted
+  // spawner must leave it alone, even when a full run exceeds the grace.
   const wdRun = async (
     name: string,
     status: 'success' | 'running' | 'cancelled',
@@ -55289,6 +55698,9 @@ async function checkWatchdogs(
        ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-reclaim-busy', 'stopped', 'workflow_run',
        ${`${busyRunId}:@workflow`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-unrelated-reclaim', 'stopped', 'workflow_run',
+       'itest-wd-unrelated-run:@workflow', 'itest:wd', ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000})
   `;
   const probed: string[] = [];
@@ -55305,9 +55717,9 @@ async function checkWatchdogs(
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
       destroyAsked.push(sessionId);
       return Promise.resolve(
-        sessionId === 'wd-reclaim-busy'
-          ? { destroyed: false, busy: true }
-          : { destroyed: true, busy: false },
+        sessionId === 'wd-reclaim-ended' || sessionId === 'wd-reclaim-purged'
+          ? { destroyed: true, busy: false }
+          : { destroyed: false, busy: true },
       );
     },
   };
@@ -55332,6 +55744,7 @@ async function checkWatchdogs(
   const reclaimRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id LIKE 'wd-reclaim-%'
+      OR session_id = 'wd-unrelated-reclaim'
   `;
   const statusOf = (sessionId: string): string | undefined =>
     reclaimRows.find((r) => r.sessionId === sessionId)?.status;
@@ -55358,6 +55771,9 @@ async function checkWatchdogs(
       // …and the busy one was asked, refused, and left for a later tick.
       destroyAskedSet.has('wd-reclaim-busy') &&
       statusOf('wd-reclaim-busy') === 'stopped' &&
+      // Other lanes' reclaimable fixtures must not affect these counters.
+      destroyAskedSet.has('wd-unrelated-reclaim') &&
+      statusOf('wd-unrelated-reclaim') === 'stopped' &&
       tick1.reclaimed === 2 &&
       tick2.reclaimed === 0,
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
@@ -57985,49 +58401,15 @@ interface LaneSummary {
   filter: string | null;
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error
-    ? `${error.name}: ${error.message}`
-    : String(error);
-}
-
-/** Does the suite's shared session still resolve to its user? Better Auth's
- * own door, outside every org-scoped gate, so a policy probe (2FA
- * enforcement, idle windows) cannot false-alarm it. */
 /** The longest a single lane may run — the slowest lanes take well under
  * two minutes, and a lane that passes this is not slow but stuck. */
 const LANE_DEADLINE_MS = 10 * 60_000;
 /** The post-lane probes are one request and one query each. */
 const PROBE_DEADLINE_MS = 2 * 60_000;
 
-/**
- * Settles `work`, or rejects naming `what` once `ms` have passed — so a
- * lane (or a probe between lanes) that never settles truncates the run
- * under its own name instead of holding the job until CI's wall clock
- * kills it 30 minutes later, with nothing in the log to say which lane.
- */
-async function withinDeadline<T>(
-  work: Promise<T>,
-  ms: number,
-  what: string,
-): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(
-        new Error(
-          `${what} did not settle within ${Math.round(ms / 60_000)} min`,
-        ),
-      );
-    }, ms);
-  });
-  try {
-    return await Promise.race([work, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
+/** Does the suite's shared session still resolve to its user? Better Auth's
+ * own door, outside every org-scoped gate, so a policy probe (2FA
+ * enforcement, idle windows) cannot false-alarm it. */
 async function sharedSessionAlive(
   base: string,
   ctx: { cookie: string; userId: string },
@@ -58362,21 +58744,37 @@ async function main(): Promise<void> {
     triggerSchedules.length === 1 && triggerSchedules[0]?.cron === '* * * * *',
     `schedules=${triggerSchedules.length}, cron=${triggerSchedules[0]?.cron}`,
   );
-  // The delivery lanes drive the real scan explicitly, including overlapping
-  // workers and fleets across pages. A wall-clock tick competing with those
-  // calls makes their per-scan counts depend on the host's minute boundary.
-  // Disable only that recurring clock, before starting any worker; any tick
+  // Lanes drive the work of these recurring jobs explicitly, and a wall-clock
+  // tick competing with those calls makes their outcome depend on the host's
+  // minute boundary:
+  //
+  //  - `automation.trigger_scan`: the delivery lanes drive the real scan,
+  //    including overlapping workers and fleets across pages, and count what
+  //    each scan fired;
+  //  - `watchdog.rag_indexing`: the RAG watchdog lanes drive the real sweep,
+  //    whose candidate read is global and led by their rows. A tick in its
+  //    slot (2-59/5) settled those rows too: it queued behind the row the
+  //    lock lane holds and failed it as soon as the lane let go, before the
+  //    lane read back the row its own tick had deferred (#4113).
+  //
+  // Disable only those recurring clocks, before starting any worker; any tick
   // queued during schedule registration is cancelled as well.
-  await boss.unschedule('automation.trigger_scan');
-  const queuedScans = await sql<{ id: string }[]>`
-    SELECT id FROM pgboss.job WHERE name = 'automation.trigger_scan'
-      AND state IN ('created', 'retry')
-  `;
-  if (queuedScans.length > 0) {
-    await boss.cancel(
-      'automation.trigger_scan',
-      queuedScans.map((job) => job.id),
-    );
+  const laneDrivenSchedules: readonly TaskIdentifier[] = [
+    'automation.trigger_scan',
+    'watchdog.rag_indexing',
+  ];
+  for (const name of laneDrivenSchedules) {
+    await boss.unschedule(name);
+    const queued = await sql<{ id: string }[]>`
+      SELECT id FROM pgboss.job WHERE name = ${name}
+        AND state IN ('created', 'retry')
+    `;
+    if (queued.length > 0) {
+      await boss.cancel(
+        name,
+        queued.map((job) => job.id),
+      );
+    }
   }
   setEnqueueBoss(boss);
   // No itest job may ever open a real IMAP/SMTP connection.
@@ -59363,6 +59761,10 @@ async function main(): Promise<void> {
         () =>
           checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
+      [
+        'checkAutomationStepDestroyPending',
+        () => checkAutomationStepDestroyPending(sql, baseUrl, authCtx),
+      ],
       ['checkAskAnswer', () => checkAskAnswer(sql, baseUrl, authCtx)],
       [
         'checkAnsweredAskRecovery',
@@ -59492,13 +59894,20 @@ async function main(): Promise<void> {
       `RUN TRUNCATED before the lanes: ${errorText(error)}`,
     );
   } finally {
-    await boss.stop({ graceful: false });
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
-    await vendorStub.close();
-    await sql`DROP TABLE IF EXISTS itest_counter`;
-    await sql.end({ timeout: 5 });
+    // Bounded step by step, so a run a lane left hanging still prints its
+    // tally and exits with its code. The backend closes the way the
+    // deployment does: a bare `server.close()` waits for every connection,
+    // and an `/events` tail a stuck lane still holds never ends on its own.
+    await settleTeardown(
+      [
+        ['stops pg-boss', () => boss.stop({ graceful: false })],
+        ['closes the backend', () => closeServerGracefully(server)],
+        ['closes the vendor stub', () => vendorStub.close()],
+        ['drops itest_counter', () => sql`DROP TABLE IF EXISTS itest_counter`],
+        ['ends the database pool', () => sql.end({ timeout: 5 })],
+      ],
+      record,
+    );
   }
 
   // The run's traffic off the box, as evidence in the log. A refused

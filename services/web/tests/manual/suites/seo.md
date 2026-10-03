@@ -56,12 +56,12 @@ nothing here.
 - [ ] `SEO-F5` · **Sitemap** — `curl -s {base}/sitemap.xml` → Lists every
   marketing page (en + localised variants) with `xhtml:link rel="alternate"
   hreflang` for `en`/`de`/`fr`/`x-default`; **legal pages are excluded** (they
-  are `noindex` and live only in robots.disallow + llms.txt); no unknown or
+  are `noindex` and remain discoverable through llms.txt); no unknown or
   dead URLs (spot-check a few return the right page)
 - [ ] `SEO-F6` · **Robots + LLM artifacts** — `curl -s {base}/robots.txt`,
   `/llms.txt`, `/llms-full.txt` → robots: `Allow: /`, `Disallow: /api/`,
-  `Disallow: /_search/`, **`Disallow:` for every legal URL** (e.g.
-  `/legal/privacy-policy`, `/de/legal/…`), and **two** sitemap lines
+  `Disallow: /_search/`, **no legal URL exclusions** (crawlers must read their
+  `noindex` metadata), and **two** sitemap lines
   (`https://tale.dev/sitemap.xml` + `https://docs.tale.dev/sitemap.xml`); both
   llms files serve plaintext markdown summaries (HTTP 200, non-empty) and are
   linked from the footer bottom bar (`footer.llmsTxtLabel`,

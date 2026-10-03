@@ -16,6 +16,12 @@ bun run --filter @tale/sandbox dev    # bun --hot src/server.ts (local session r
 bun run --filter @tale/sandbox test   # bun test
 ```
 
+Exec and attach streams bound their pending output to 8 MiB plus at most one
+event (a collected terminal result can be larger). A consumer that stays
+behind is disconnected; cancelling its response also stops the upstream read
+and keepalive immediately. The exec keeps running and can be reattached through
+the session API. Late output is discarded without repeated log messages.
+
 ## Authentication
 
 Every route except `GET /health` is HMAC-signed with the shared `SANDBOX_TOKEN`
@@ -60,7 +66,9 @@ once, each within its own time budget, the wait for a slot included; short
 calls (the health probe's `docker version`, the identity and liveness
 inspects, the build helper and host memory checks) take a free one of those
 or one of 4 more kept for them, and never queue behind long calls. A health
-probe that found no slot in time answers unhealthy without caching it. Platform adds an organization's three
+probe that found no slot in time answers unhealthy without caching it.
+Cancelling a queued call removes its waiter immediately; it consumes no slot
+and never starts the Docker command. Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
 There is no independently configured organization runtime ceiling. With

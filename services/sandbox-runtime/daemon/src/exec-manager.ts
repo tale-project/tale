@@ -139,8 +139,9 @@ interface LiveExec {
   cancelRequested: boolean;
   /** Concurrent attach() consumers fanned the live event stream. */
   subscribers: Set<ExecSubscriber>;
-  /** Resolves when the exec emits its terminal event. */
-  done: Promise<void>;
+  /** Removable completion waiters: detached consumers must not leave promise
+   * reactions retained until a potentially multi-hour exec finishes. */
+  completions: Set<() => void>;
   /** Monotonic per-exec event counter (assigned in ringEmit). Lets a
    * reconnecting consumer request `/attach?sinceSeq=` and skip replayed lines. */
   seq: number;
@@ -241,12 +242,16 @@ export class ExecManager {
       for (const line of liveRec.ring) emitRingLine(line, emit, sinceSeq);
       if (signal?.aborted) return Promise.resolve();
       liveRec.subscribers.add(emit);
-      const gone = new Promise<void>((resolve) => {
-        signal?.addEventListener('abort', () => resolve(), { once: true });
+      return new Promise<void>((resolve) => {
+        const finish = () => {
+          liveRec.subscribers.delete(emit);
+          liveRec.completions.delete(finish);
+          signal?.removeEventListener('abort', finish);
+          resolve();
+        };
+        liveRec.completions.add(finish);
+        signal?.addEventListener('abort', finish, { once: true });
       });
-      return Promise.race([liveRec.done, gone]).finally(() =>
-        liveRec.subscribers.delete(emit),
-      );
     }
     const recentRec = this.recent.get(execId);
     if (recentRec) {
@@ -384,11 +389,6 @@ export class ExecManager {
     let stdoutTruncLogged = false;
     let stderrTruncLogged = false;
     let settled = false;
-    let resolveDone: () => void = () => {};
-    const done = new Promise<void>((r) => {
-      resolveDone = r;
-    });
-
     this.started += 1;
     const record: LiveExec = {
       startedAtMs,
@@ -404,7 +404,7 @@ export class ExecManager {
       ringBytes: 0,
       cancelRequested: false,
       subscribers: new Set(),
-      done,
+      completions: new Set(),
       seq: 0,
       timeoutMs: req.timeoutMs,
       timer: null,
@@ -620,7 +620,7 @@ export class ExecManager {
         });
         this.dropLive(req.execId);
         this.retainRecent(req.execId, record.ring, code);
-        resolveDone();
+        for (const complete of record.completions) complete();
         resolve();
       };
       // The command could not be executed: nothing of it is left to end.
@@ -638,7 +638,7 @@ export class ExecManager {
         });
         this.dropLive(req.execId);
         this.retainRecent(req.execId, record.ring, null);
-        resolveDone();
+        for (const complete of record.completions) complete();
         resolve();
       };
       child.on('error', (err) => {

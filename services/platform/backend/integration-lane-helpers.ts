@@ -161,3 +161,198 @@ export async function signUpUser(
     email,
   };
 }
+
+/** A thrown value as `Name: message`, whatever was thrown. */
+export function errorText(error: unknown): string {
+  return error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : String(error);
+}
+
+/** `ms` as the harness names a deadline: whole minutes, else seconds. */
+function deadlineText(ms: number): string {
+  return ms >= 60_000 && ms % 60_000 === 0
+    ? `${ms / 60_000} min`
+    : `${ms / 1_000} s`;
+}
+
+/**
+ * Settles `work`, or rejects naming `what` once `ms` have passed — so a
+ * lane (or a probe between lanes) that never settles truncates the run
+ * under its own name instead of holding the job until CI's wall clock
+ * kills it 30 minutes later, with nothing in the log to say which lane.
+ */
+export async function withinDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  what: string,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${what} did not settle within ${deadlineText(ms)}`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** One server-sent event, as {@link connectSse} collects it. */
+export interface SseEvent {
+  event: string;
+  id: string | null;
+  data: string;
+}
+
+/** An open SSE tail, collecting events until it is closed. */
+export interface SseTail {
+  /** Every event so far, in arrival order. */
+  readonly events: SseEvent[];
+  /** Settles once the stream has ended: the server ended it, or
+   * {@link SseTail.close} did. Rejects only with another failure, naming
+   * the tail. */
+  readonly done: Promise<void>;
+  /** Ends the tail and waits for {@link SseTail.done}, at most
+   * {@link SSE_CLOSE_DEADLINE_MS}: a tail that does not end fails the lane
+   * in seconds, naming the stream. */
+  close: () => Promise<void>;
+}
+
+/** How long a closed tail may take to settle; a healthy one ends at once. */
+const SSE_CLOSE_DEADLINE_MS = 5_000;
+
+/**
+ * Minimal SSE client for the lanes: collects events until closed.
+ *
+ * `close` cancels the body reader before it aborts the request, so the read
+ * ends on this side whether or not the abort reaches the connection. An
+ * abort alone travels the signal chain fetch builds, and a wrapper that drops
+ * a link in it (the harness boundary once did, see `routeVendorFetch`) left a
+ * closed `/events` tail reading heartbeats forever: its lane waited on
+ * `done` until the lane deadline, and the open socket then held the
+ * harness's own teardown (#4112).
+ */
+export function connectSse(
+  url: string,
+  headers: Record<string, string>,
+  options: {
+    fetch?: (url: string, init: RequestInit) => Promise<Response>;
+    closeWithinMs?: number;
+  } = {},
+): SseTail {
+  const fetchSse = options.fetch ?? ((at, init) => globalThis.fetch(at, init));
+  const closeWithinMs = options.closeWithinMs ?? SSE_CLOSE_DEADLINE_MS;
+  const parsed = new URL(url);
+  const name = `the SSE tail ${parsed.pathname}${parsed.search}`;
+  const controller = new AbortController();
+  const events: SseEvent[] = [];
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let ended = false;
+
+  const done = (async () => {
+    const response = await fetchSse(url, {
+      signal: controller.signal,
+      headers,
+    });
+    const body = response.body;
+    if (!body) {
+      throw new Error('SSE response has no body');
+    }
+    reader = body.getReader();
+    if (controller.signal.aborted) {
+      // Closed while the response was on its way: nothing more to read.
+      await reader.cancel();
+      return;
+    }
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+      const { done: finished, value } = await reader.read();
+      if (finished) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary !== -1) {
+        const frame = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        let event = 'message';
+        let id: string | null = null;
+        const dataLines: string[] = [];
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event:')) {
+            event = line.slice(6).trim();
+          } else if (line.startsWith('id:')) {
+            id = line.slice(3).trim();
+          } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trim());
+          }
+        }
+        events.push({ event, id, data: dataLines.join('\n') });
+        boundary = buffer.indexOf('\n\n');
+      }
+    }
+  })()
+    .catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      throw new Error(`${name} failed: ${errorText(error)}`, { cause: error });
+    })
+    .finally(() => {
+      ended = true;
+    });
+  // A tail that fails while nothing awaits it (the backend dropped the
+  // connection mid-lane) must not end the harness as an unhandled
+  // rejection, with no lane named and no tally: the failure is logged here
+  // and `done` still rejects, for `close()` or the lane to throw.
+  void done.catch((error: unknown) => {
+    console.warn(`[itest] ${errorText(error)}`);
+  });
+
+  const close = async (): Promise<void> => {
+    // Cancel first: the pending read ends at once, and the abort below then
+    // finds no live body to error. A tail that has ended has none to cancel.
+    if (!ended) {
+      reader?.cancel().catch((error: unknown) => {
+        console.warn(`[itest] cancelling ${name} failed: ${errorText(error)}`);
+      });
+    }
+    controller.abort();
+    await withinDeadline(done, closeWithinMs, `closing ${name}`);
+  };
+
+  return { events, done, close };
+}
+
+/** One step of the harness's teardown: what it does, and the work. */
+export type TeardownStep = readonly [what: string, run: () => Promise<unknown>];
+
+/** The longest one teardown step may take. Each is a close or one query. */
+const TEARDOWN_STEP_DEADLINE_MS = 60_000;
+
+/**
+ * Runs the harness's teardown steps in order, each bounded by `stepMs`. A
+ * step that throws or does not settle is recorded as a failed check naming
+ * it, and the next step runs anyway: a run a lane left hanging (an open
+ * `/events` tail, a held connection) still reaches its tally and its exit
+ * code, instead of CI's step timeout with no tally at all (#4112).
+ */
+export async function settleTeardown(
+  steps: readonly TeardownStep[],
+  record: RecordCheck,
+  stepMs: number = TEARDOWN_STEP_DEADLINE_MS,
+): Promise<void> {
+  for (const [what, run] of steps) {
+    try {
+      await withinDeadline(run(), stepMs, `the teardown step that ${what}`);
+    } catch (error) {
+      record(
+        `harness: the teardown step that ${what} settles`,
+        false,
+        `${errorText(error)} — the harness went on to its tally regardless`,
+      );
+    }
+  }
+}

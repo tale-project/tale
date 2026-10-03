@@ -24,7 +24,7 @@ export interface FooterColumn {
 }
 
 interface SiteFooterProps {
-  /** Logo + home link slot. Shown above the link grid when columns exist. */
+  /** Logo + home link slot. Sits beside the desktop link grid, above it on phones. */
   logo?: ReactNode;
   /**
    * Optional `<address>` or structured contact info. Rendered in the
@@ -32,7 +32,7 @@ interface SiteFooterProps {
    * via `FooterColumn.body`.
    */
   address?: ReactNode;
-  /** Optional slot beside the logo (e.g. GitHub). */
+  /** Optional slot grouped with the logo (e.g. GitHub). */
   brandTrailing?: ReactNode;
   /** Link columns. When empty, the footer collapses to a single bottom bar. */
   columns?: FooterColumn[];
@@ -149,9 +149,15 @@ export function SiteFooter({
       ) : (
         <>
           <SiteContainer className={containerClassName}>
-            <div className="flex flex-col gap-10 py-12 sm:gap-12 sm:py-16">
+            <div
+              className={cn(
+                'grid gap-9 py-12 sm:gap-12 sm:py-16 lg:gap-16',
+                (logo || brandTrailing) &&
+                  'lg:grid-cols-[minmax(0,0.65fr)_minmax(0,2fr)]',
+              )}
+            >
               {(logo || brandTrailing) && (
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-start lg:justify-start lg:gap-6">
                   {logo}
                   {brandTrailing}
                 </div>
@@ -170,7 +176,7 @@ export function SiteFooter({
                     className={cn('flex min-w-0 flex-col gap-4', col.className)}
                   >
                     <h3
-                      className="text-fg-base text-sm font-medium"
+                      className="text-fg-base text-xs font-semibold tracking-[0.03em]"
                       style={{ letterSpacing: '-0.14px' }}
                     >
                       {col.heading}

@@ -1,5 +1,10 @@
 import { SUPPORTED_LOCALES, type SupportedLocale } from '@tale/ui/i18n/locales';
 
+/** Visible headings omit the site suffix retained in search metadata. */
+export function marketingContentHeading(title: string): string {
+  return title.replace(/ \| Tale$/, '');
+}
+
 export const MARKETING_CONTENT_CATEGORIES = [
   'comparisons',
   'use-cases',

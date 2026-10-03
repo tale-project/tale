@@ -1,14 +1,16 @@
-// SSE response builder shared by /v1/execute and /v1/sessions/:id/exec.
+// SSE response builder shared by the session exec and attach routes.
 //
-// Wraps the ReadableStream + keepalive + enqueue-after-close handling that
-// previously lived inline in server.ts:handleExecute. The handler receives a
-// `send(event, data)` function and runs to completion; the helper owns the
+// The handler receives `send(event, data)` and a signal to stop reading from
+// runnerd when its consumer disconnects or falls behind. The helper owns the
 // keepalive timer (Bun's per-connection idleTimeout maxes at 255 s — a
 // comment line every 20 s resets the idle clock through silent stretches
-// like `pip install` or a thinking agent) and always closes the stream.
+// like `pip install` or a thinking agent) and bounds the buffered bytes.
+
+import { RUNNERD_CONSUMER_BUFFER_MAX_BYTES } from './session/runnerd-protocol.ts';
 
 interface SseHandle {
   send: (event: string, data: unknown) => void;
+  signal: AbortSignal;
 }
 
 const SSE_KEEPALIVE_INTERVAL_MS = 20_000;
@@ -17,40 +19,68 @@ export function sseResponse(
   run: (handle: SseHandle) => Promise<void>,
   extraHeaders?: Record<string, string>,
 ): Response {
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const enc = new TextEncoder();
-      const send = (event: string, data: unknown) => {
-        try {
+  const consumer = new AbortController();
+  let closed = false;
+  let keepalive: ReturnType<typeof setInterval> | undefined;
+  const stop = () => {
+    closed = true;
+    clearInterval(keepalive);
+  };
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      start(controller) {
+        const enc = new TextEncoder();
+        const fail = (error: unknown) => {
+          if (closed) return;
+          stop();
+          controller.error(error);
+          consumer.abort(error);
+        };
+        const canSend = () => {
+          if (closed) return false;
+          // Permit one-event overshoot: a terminal collected-output result can
+          // exceed 8 MiB on its own. The next enqueue disconnects a consumer
+          // that still has not drained it, without cutting that result in half.
+          if ((controller.desiredSize ?? 0) <= 0) {
+            fail(new Error('SSE consumer exceeded its buffered output limit'));
+            return false;
+          }
+          return true;
+        };
+        const send = (event: string, data: unknown) => {
+          if (!canSend()) return;
           controller.enqueue(
             enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
           );
-        } catch (err) {
-          // Stream already closed — common when the caller aborted; the
-          // handler keeps draining so its cleanup paths run.
-          console.warn('[sandbox] SSE enqueue after close:', err);
-        }
-      };
-      const sendKeepalive = () => {
+        };
+        const sendKeepalive = () => {
+          if (canSend()) controller.enqueue(enc.encode(`: keepalive\n\n`));
+        };
+        keepalive = setInterval(sendKeepalive, SSE_KEEPALIVE_INTERVAL_MS);
         try {
-          controller.enqueue(enc.encode(`: keepalive\n\n`));
-        } catch (err) {
-          console.warn('[sandbox] SSE keepalive enqueue after close:', err);
+          // start must return immediately: a pending producer must not block
+          // ReadableStream.cancel from detaching it. Own both promise outcomes.
+          void run({ send, signal: consumer.signal }).then(() => {
+            if (!closed) {
+              stop();
+              controller.close();
+            }
+            return undefined;
+          }, fail);
+        } catch (error) {
+          fail(error);
         }
-      };
-      const keepalive = setInterval(sendKeepalive, SSE_KEEPALIVE_INTERVAL_MS);
-      try {
-        await run({ send });
-      } finally {
-        clearInterval(keepalive);
-        try {
-          controller.close();
-        } catch (err) {
-          console.warn('[sandbox] SSE close failed:', err);
-        }
-      }
+      },
+      cancel(reason) {
+        stop();
+        consumer.abort(reason);
+      },
     },
-  });
+    {
+      highWaterMark: RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
+      size: (chunk) => chunk?.byteLength ?? 0,
+    },
+  );
   return new Response(stream, {
     status: 200,
     // Core SSE headers spread LAST so a caller's `extraHeaders` can add fields

@@ -131,10 +131,13 @@ test.describe('web marketing smoke', () => {
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(prefix || '/');
-        const install = page.getByRole('link', {
-          name: tLocale('home.hero.ctaSecondary'),
-          exact: true,
-        });
+        const install = page
+          .locator('main section')
+          .first()
+          .getByRole('link', {
+            name: tLocale('home.hero.ctaSecondary'),
+            exact: true,
+          });
         await expect(install).toBeVisible();
         await expect(install).toHaveAttribute(
           'href',

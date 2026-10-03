@@ -12,6 +12,13 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 
 Any other argument exits 65 (there is no per-call language lane).
 
+runnerd disconnects an exec or attach output reader once its pending writes
+would exceed 8 MiB, releasing the connection and its request activity while
+the command continues. A reader can reconnect through attach using its last
+sequence number and the retained 256 KiB output ring. Session idle and TTL
+cleanup atomically checks the current work generation and activity clock
+before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
+
 Headless Chromium and Playwright are available on demand for automation,
 rendering and screenshots. The runtime starts no display server, managed
 browser or viewing tunnel. Configured transparent egress redirects external
@@ -20,12 +27,17 @@ the proxy settings through its launcher (`tale-playwright-mcp`). Every managed
 agent turn lists the Playwright MCP server, but most never open a browser, and
 the server — a Node process that loads Playwright — holds about 100 MB while it
 runs. So the launcher answers the start of a turn itself (`initialize`,
-`tools/list`, `ping`) from manifests of the real server's answers, recorded at
-image build for the argument sets the platform passes
+`tools/list`, `ping`, and the prompt and resource lists Qwen Code asks every
+server for, with the server's own `Method not found` while it advertises
+neither) from manifests of the real server's answers, recorded at image build
+for the argument sets the platform passes
 ([`playwright-mcp-args.json`](playwright-mcp-args.json)), and starts the server
-only on the turn's first tool call, replaying the start to it. Unknown
-arguments or protocol versions, and `TALE_PLAYWRIGHT_MCP_EAGER=1`, start the
-server at once.
+only on the turn's first tool call, replaying the start to it (a server that
+does not answer it within two minutes is ended, and the launcher with it, so
+the tool call fails instead of waiting). Unknown
+arguments or protocol versions, a server on `PATH` other than the image's (one
+the session installed), `PLAYWRIGHT_MCP_*` settings in the environment, and
+`TALE_PLAYWRIGHT_MCP_EAGER=1`, start the server at once.
 
 Python document libraries are baked into the shared Python 3.12 environment:
 openpyxl and xlrd for spreadsheets, pypdf for PDFs, PyYAML for safe YAML

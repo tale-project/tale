@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { visibleMarketingContent } from './model';
+import { marketingContentHeading, visibleMarketingContent } from './model';
 import { parseMarketingContent } from './parse';
 import { readMarketingContent } from './server';
 
@@ -27,6 +27,17 @@ function page(locale: 'en' | 'de' | 'fr', draft = true) {
 }
 
 describe('marketing content boundary', () => {
+  it('omits only the trailing site suffix from visible headings', () => {
+    expect(
+      marketingContentHeading('AI agents for marketing teams | Tale'),
+    ).toBe('AI agents for marketing teams');
+    expect(marketingContentHeading('Tale | Team workflows')).toBe(
+      'Tale | Team workflows',
+    );
+    expect(marketingContentHeading('Projekte gemeinsam planen')).toBe(
+      'Projekte gemeinsam planen',
+    );
+  });
   it('parses YAML with validated identity, metadata, body and localized paths', () => {
     const document = page('de');
     expect(document.path).toBe('/compare/tale-vs-example');

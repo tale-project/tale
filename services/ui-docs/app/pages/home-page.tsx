@@ -1,21 +1,22 @@
 import { MarketingCard } from '@tale/marketing-ui/card';
 import { CtaPair } from '@tale/marketing-ui/cta-group';
+import { FeatureHero } from '@tale/marketing-ui/feature-hero';
 import { MarketingLink } from '@tale/marketing-ui/link';
 import { PageSection } from '@tale/marketing-ui/page-section';
-import { MarketingPanel } from '@tale/marketing-ui/panel';
 import { Reveal } from '@tale/marketing-ui/reveal';
 import { SectionHeading } from '@tale/marketing-ui/section-heading';
-import { SiteContainer } from '@tale/marketing-ui/site-container';
-import { cn } from '@tale/ui/cn';
 import { CodeBlock } from '@tale/ui/code-block';
 import {
   buildBreadcrumbListJsonLd,
   buildWebSiteJsonLd,
 } from '@tale/ui/seo/builders/json-ld';
 import { SkipLink } from '@tale/ui/skip-link';
+import { Tabs } from '@tale/ui/tabs';
 import {
+  ArrowRight,
   Blocks,
-  Command,
+  Check,
+  Code2,
   LayoutTemplate,
   Megaphone,
   Palette,
@@ -28,24 +29,18 @@ import {
   SiteFooterBar,
   SiteHeaderBar,
 } from '@/app/components/home/site-chrome';
-import { firstNavSlug, flattenNav, navGroupPageCount } from '@/lib/content/nav';
+import { flattenNav, navGroupPageCount } from '@/lib/content/nav';
 import { docPath, SITE_URL } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
-import { TALE_REPO_URL } from '@/lib/site-url';
 
-/** Keep this pasteable block in step with packages/ui/README.md. */
-const INSTALL_SNIPPET = `{
-  "dependencies": {
-    "@tale/ui": "github:tale-project/tale#dist/ui",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
-    "tailwindcss": "4.2.2"
-  }
-}`;
+/** Source installs from content/getting-started/installation.md, not npm releases. */
+const INSTALL_APP =
+  "bun add 'github:tale-project/tale#dist/ui' react@19 react-dom@19 tailwindcss@4";
+const INSTALL_MARKETING =
+  "bun add 'github:tale-project/tale#dist/ui' 'github:tale-project/tale#dist/marketing-ui' react@19 react-dom@19 tailwindcss@4";
 
-/** The featured introduction plus four equally weighted reference sections. */
-const SECTION_CARDS = [
+const SECTIONS = [
   {
     slug: 'getting-started/introduction',
     labelKey: 'gettingStarted',
@@ -78,12 +73,11 @@ const SECTION_CARDS = [
   },
 ] as const;
 
-/** The public shop window; /docs keeps the shared application documentation frame. */
+/** The component studio; /docs keeps the shared application documentation frame. */
 export function HomePage() {
   const { t } = useT('home');
   const { t: tNav } = useT('nav');
   const { t: tSeo } = useT('seo');
-  const docsHref = docPath(firstNavSlug());
   const guideCount = flattenNav().length;
 
   const jsonLd = useMemo(
@@ -110,187 +104,244 @@ export function HomePage() {
       />
       <SiteHeaderBar />
       <main id="main" tabIndex={-1} className="relative flex-1">
-        <section className="pt-12 pb-12 sm:pt-16 sm:pb-16 lg:pt-24 lg:pb-20">
-          <SiteContainer>
-            <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr] lg:items-end lg:gap-20">
-              <Reveal onMount y={16} duration={0.7}>
-                <SectionHeading
-                  bare
-                  size="display"
-                  align="start"
-                  eyebrow={
-                    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs">
-                      <span>@tale/ui</span>
-                      <span aria-hidden className="text-fg-subtle/60">
-                        /
-                      </span>
-                      <span>@tale/marketing-ui</span>
-                    </span>
-                  }
-                  title={t('heroTitle')}
-                  className="max-w-170"
-                />
-              </Reveal>
-              <Reveal
-                onMount
-                y={12}
-                delay={0.1}
-                duration={0.7}
-                className="flex max-w-130 flex-col items-start gap-7 lg:pb-1"
-              >
-                <p className="text-fg-muted text-base leading-relaxed tracking-[-0.015em] sm:text-lg">
-                  {t('heroDescription')}
-                </p>
-                <CtaPair
-                  align="start"
-                  primary={{ label: t('heroPrimary'), to: docsHref }}
-                  secondary={{ label: t('heroSecondary'), href: TALE_REPO_URL }}
-                />
-                <p className="text-fg-subtle max-w-100 text-xs leading-relaxed">
-                  {t('heroMeta', { count: guideCount })}
-                </p>
-              </Reveal>
+        <FeatureHero
+          layout="split"
+          visualTreatment="plain"
+          eyebrow={t('heroEyebrow')}
+          title={t('heroTitle')}
+          description={t('heroDescription')}
+          actions={
+            <CtaPair
+              align="start"
+              primary={{
+                label: t('heroPrimary'),
+                to: docPath('getting-started/installation'),
+              }}
+              secondary={{
+                label: t('heroSecondary'),
+                to: docPath('components/button'),
+              }}
+            />
+          }
+          proof={
+            <div className="flex flex-col gap-3">
+              <span className="text-fg-base flex items-center gap-2 font-mono text-xs">
+                <Code2 aria-hidden className="text-brand-base size-4" />
+                React · TypeScript · Tailwind CSS
+              </span>
+              <p className="text-fg-muted text-xs leading-relaxed">
+                {t('heroMeta', { count: guideCount })}
+              </p>
             </div>
-          </SiteContainer>
-        </section>
-
-        <section>
-          <SiteContainer>
-            <div className="border-border-base grid gap-4 border-t pt-6 pb-7 md:grid-cols-[1fr_1fr] md:items-end md:gap-16 md:pt-8 md:pb-9">
-              <SectionHeading
-                size="subsection"
-                align="start"
-                title={t('showcaseTitle')}
-              />
-              <Reveal>
-                <p className="text-fg-muted max-w-120 text-sm leading-relaxed md:ml-auto">
-                  {t('showcaseDescription')}
-                </p>
-              </Reveal>
-            </div>
-          </SiteContainer>
-          <HomeShowcase />
-        </section>
+          }
+          visual={<HomeShowcase />}
+        />
 
         <PageSection surface="site" pad="lg" border="b">
-          <div className="mb-9 grid gap-5 md:mb-12 md:grid-cols-[1fr_1fr] md:items-end md:gap-16">
+          <div className="mb-8 grid gap-5 md:grid-cols-[1fr_1fr] md:items-end md:gap-16">
             <SectionHeading
-              size="subsection"
+              size="section"
+              align="start"
+              title={t('packagesTitle')}
+            />
+            <p className="text-fg-muted max-w-120 text-base leading-relaxed md:ml-auto">
+              {t('packagesDescription')}
+            </p>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            <MarketingCard
+              surface="featured"
+              title={t('appPackageTitle')}
+              description={t('appPackageDescription')}
+              to={docPath('components/button')}
+              showArrow
+              className="flex flex-col"
+            >
+              <div
+                aria-hidden
+                className="border-border-base bg-surface-site-raised my-6 grid min-h-36 grid-cols-[1fr_auto] items-center gap-x-6 gap-y-4 rounded-xl border p-5 font-mono text-xs"
+              >
+                <span className="text-fg-muted">Input</span>
+                <span className="border-border-base bg-surface-site-inset text-fg-base w-28 rounded-md border px-3 py-2">
+                  Aa
+                </span>
+                <span className="text-fg-muted">Switch</span>
+                <span className="bg-brand-base justify-self-end rounded-full p-1 pl-6">
+                  <span className="bg-brand-fg block size-3 rounded-full" />
+                </span>
+                <span className="text-fg-muted">Badge</span>
+                <span className="bg-demo-mint-soft text-demo-mint flex items-center gap-1.5 justify-self-end rounded-md px-2 py-1">
+                  <Check className="size-3" />
+                  {t('appPackageSpecimen')}
+                </span>
+              </div>
+              <code className="text-fg-muted mt-auto block text-xs">
+                @tale/ui
+              </code>
+              <span className="text-fg-base mt-3 block text-sm font-medium">
+                {t('appPackageLink')}
+              </span>
+            </MarketingCard>
+            <MarketingCard
+              surface="quiet"
+              title={t('marketingPackageTitle')}
+              description={t('marketingPackageDescription')}
+              to={docPath('marketing-ui/overview')}
+              showArrow
+              className="flex flex-col"
+            >
+              <div
+                aria-hidden
+                className="border-border-base bg-surface-site-raised my-6 flex min-h-36 flex-col items-start justify-center gap-3 rounded-xl border p-5"
+              >
+                <Megaphone
+                  aria-hidden
+                  className="text-brand-base size-5"
+                  strokeWidth={1.5}
+                />
+                <span className="max-w-60 text-2xl leading-tight font-medium tracking-[-0.04em]">
+                  {t('marketingPackageSpecimen')}
+                </span>
+                <span className="bg-accent-base text-accent-fg flex items-center gap-4 rounded-lg px-3 py-2 text-[10px]">
+                  {t('marketingPackageSpecimenAction')}
+                  <ArrowRight className="size-3" />
+                </span>
+              </div>
+              <code className="text-fg-muted mt-auto block text-xs">
+                @tale/marketing-ui
+              </code>
+              <span className="text-fg-base mt-3 block text-sm font-medium">
+                {t('marketingPackageLink')}
+              </span>
+            </MarketingCard>
+          </div>
+        </PageSection>
+
+        <PageSection surface="site" pad="lg" border="b">
+          <div className="grid gap-9 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+            <SectionHeading
+              size="section"
               align="start"
               title={t('sectionsTitle')}
+              description={t('sectionsDescription')}
             />
-            <Reveal>
-              <p className="text-fg-muted max-w-120 text-base leading-relaxed md:ml-auto">
-                {t('sectionsDescription')}
-              </p>
-            </Reveal>
-          </div>
-          <Reveal>
-            <MarketingPanel className="bg-border-base grid grid-cols-1 gap-px sm:grid-cols-2 lg:grid-cols-3">
-              {SECTION_CARDS.map((card, index) => (
-                <MarketingCard
-                  key={card.slug}
-                  reveal={false}
-                  to={docPath(card.slug)}
-                  icon={card.icon}
-                  title={tNav(`groups.${card.labelKey}`)}
-                  description={t(card.descriptionKey)}
-                  className={cn(
-                    'bg-surface-site-raised flex min-w-0 flex-col',
-                    index === 0 &&
-                      'bg-surface-site-inset sm:col-span-2 lg:col-span-1 lg:row-span-2',
-                  )}
-                >
-                  {index === 0 ? (
-                    <div
+            <div className="border-border-base border-t">
+              {SECTIONS.map(
+                ({ slug, labelKey, descriptionKey, icon: Icon }) => (
+                  <MarketingLink
+                    key={slug}
+                    to={docPath(slug)}
+                    tone="plain"
+                    className="group border-border-base hover:bg-surface-site-inset focus-visible:outline-fg-base flex items-start gap-4 border-b px-2 py-5 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 motion-reduce:transition-none sm:gap-5 sm:px-3"
+                  >
+                    <Icon
                       aria-hidden
-                      className="my-8 hidden flex-1 flex-col justify-center gap-4 font-mono text-xs sm:flex lg:my-12"
-                    >
-                      <span className="text-fg-muted flex items-center gap-3">
-                        <span className="border-border-base w-5 border-t" />
-                        @tale/ui
+                      className="text-fg-muted mt-1 size-5 shrink-0"
+                      strokeWidth={1.5}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                        <span className="text-base font-medium">
+                          {tNav(`groups.${labelKey}`)}
+                        </span>
+                        <span className="text-fg-muted font-mono text-[11px]">
+                          {t('guideCount', {
+                            count: navGroupPageCount(labelKey),
+                          })}
+                        </span>
                       </span>
-                      <span className="border-border-base text-fg-muted ml-5 border-l py-2 pl-5">
-                        @tale/marketing-ui
+                      <span className="text-fg-muted mt-1.5 block text-sm leading-relaxed">
+                        {t(descriptionKey)}
                       </span>
-                      <span className="text-fg-muted flex items-center gap-3">
-                        <span className="border-border-base w-5 border-t" />
-                        {tNav('groups.patterns')}
-                      </span>
-                    </div>
-                  ) : null}
-                  <span className="text-fg-subtle mt-auto block pt-6 font-mono text-xs">
-                    {t('guideCount', {
-                      count: navGroupPageCount(card.labelKey),
-                    })}
-                  </span>
-                </MarketingCard>
-              ))}
-            </MarketingPanel>
-          </Reveal>
+                    </span>
+                    <ArrowRight
+                      aria-hidden
+                      className="text-fg-muted mt-1 size-4 shrink-0 transition-transform motion-safe:group-hover:translate-x-1 motion-safe:group-focus-visible:translate-x-1 motion-reduce:transition-none"
+                    />
+                  </MarketingLink>
+                ),
+              )}
+            </div>
+          </div>
         </PageSection>
 
         <PageSection surface="wash" pad="lg" border="b">
-          <div className="grid gap-9 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-20">
-            <div className="flex min-w-0 flex-col items-start gap-7">
+          <div className="grid gap-9 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:gap-20">
+            <div className="flex min-w-0 flex-col items-start gap-6">
               <SectionHeading
-                size="subsection"
+                size="section"
                 align="start"
                 title={t('installTitle')}
                 description={t('installDescription')}
               />
-              <Reveal>
-                <MarketingLink
-                  to={docPath('getting-started/installation')}
-                  tone="subtle"
-                >
-                  {t('installDocsLink')}
-                </MarketingLink>
-              </Reveal>
-            </div>
-            <Reveal className="min-w-0">
-              <CodeBlock
-                label={t('installCodeLabel')}
-                copyValue={INSTALL_SNIPPET}
-                copyLabel={t('installCodeLabel')}
-                className="shadow-demo w-full"
+              <MarketingLink
+                to={docPath('getting-started/installation')}
+                tone="subtle"
               >
-                {INSTALL_SNIPPET}
-              </CodeBlock>
-            </Reveal>
+                {t('installDocsLink')}
+              </MarketingLink>
+            </div>
+            <div className="min-w-0">
+              <Tabs
+                defaultValue="app"
+                listAriaLabel={t('installPackagesLabel')}
+                triggerClassName="min-h-11 sm:min-h-10"
+                items={[
+                  {
+                    value: 'app',
+                    label: '@tale/ui',
+                    content: (
+                      <CodeBlock
+                        label={t('installCodeLabel')}
+                        copyValue={INSTALL_APP}
+                        copyLabel={t('installAppCopyLabel')}
+                        className="shadow-demo [&>p]:text-fg-muted w-full"
+                      >
+                        {INSTALL_APP}
+                      </CodeBlock>
+                    ),
+                  },
+                  {
+                    value: 'marketing',
+                    label: '@tale/marketing-ui',
+                    content: (
+                      <CodeBlock
+                        label={t('installCodeLabel')}
+                        copyValue={INSTALL_MARKETING}
+                        copyLabel={t('installMarketingCopyLabel')}
+                        className="shadow-demo [&>p]:text-fg-muted w-full"
+                      >
+                        {INSTALL_MARKETING}
+                      </CodeBlock>
+                    ),
+                  },
+                ]}
+              />
+              <p className="text-fg-muted mt-4 max-w-140 text-xs leading-relaxed">
+                {t('installSetupNote')}
+              </p>
+            </div>
           </div>
         </PageSection>
 
-        <PageSection
-          surface="plain"
-          pad="xl"
-          border="none"
-          className="bg-gradient-site-cta relative overflow-hidden"
-        >
-          <Reveal className="grid items-end gap-10 lg:grid-cols-[1fr_auto] lg:gap-16">
-            <div className="flex max-w-170 flex-col items-start gap-7">
-              <Command
-                aria-hidden
-                className="text-fg-muted size-8"
-                strokeWidth={1.25}
-              />
-              <SectionHeading
-                bare
-                size="section"
-                align="start"
-                title={t('closingTitle')}
-                description={t('closingDescription')}
-              />
+        <PageSection surface="contrast" pad="compact" border="none">
+          <Reveal className="flex flex-col items-start justify-between gap-7 md:flex-row md:items-center">
+            <div className="max-w-140">
+              <h2 className="text-2xl font-medium tracking-tight sm:text-3xl">
+                {t('closingTitle')}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed opacity-80">
+                {t('closingDescription')}
+              </p>
             </div>
-            <CtaPair
-              align="start"
-              className="lg:mb-1 lg:flex-col lg:items-stretch"
-              primary={{ label: t('closingPrimary'), to: docsHref }}
-              secondary={{
-                label: t('closingSecondary'),
-                to: docPath('components/button'),
-              }}
-            />
+            <MarketingLink
+              to={docPath('getting-started/introduction')}
+              tone="plain"
+              className="inline-flex shrink-0 items-center gap-6 rounded-xl border border-current/30 px-5 py-3 text-sm font-medium hover:bg-current/5 focus-visible:outline-2 focus-visible:outline-offset-4"
+            >
+              {t('closingPrimary')}
+              <ArrowRight aria-hidden className="size-4" />
+            </MarketingLink>
           </Reveal>
         </PageSection>
       </main>

@@ -140,6 +140,13 @@ interface RoomWaiter {
   workingSetBytes: number;
 }
 
+/** A sweep's idle decision, checked again atomically by runnerd before it
+ * freezes the incarnation. New work must win over this health snapshot. */
+interface IdleReclaim {
+  health: RunnerdHealth;
+  beforeMs: number;
+}
+
 /** Run `work` over `items`, at most `limit` at a time. */
 async function forEachLimited<T>(
   items: readonly T[],
@@ -757,10 +764,14 @@ export class SessionRoutes {
   }
 
   /** runnerd's atomic claim closes the health-probe→stop race across replicas.
-   * Unknown/old daemons refuse, as do busy, pinned and unreleased sessions.
+   * Busy and pinned sessions refuse; pressure also requires explicit release,
+   * while expiry requires the negotiated atomic idle-clock cutoff.
    * A failed stop keeps its claim frozen and counted until a later retry.
    * Never rejects: a waiter sharing the stop sees `false`, not a 500. */
-  private reclaimIdle(session: RegistrySession): Promise<boolean> {
+  private reclaimIdle(
+    session: RegistrySession,
+    idle?: IdleReclaim,
+  ): Promise<boolean> {
     const pending = this.stopping.get(session.sessionId);
     if (pending !== undefined) return pending;
     if (
@@ -770,14 +781,17 @@ export class SessionRoutes {
     ) {
       return Promise.resolve(false);
     }
-    const reclaim = this.stopClaimedIdle(session).finally(() => {
+    const reclaim = this.stopClaimedIdle(session, idle).finally(() => {
       this.stopping.delete(session.sessionId);
     });
     this.stopping.set(session.sessionId, reclaim);
     return reclaim;
   }
 
-  private async stopClaimedIdle(session: RegistrySession): Promise<boolean> {
+  private async stopClaimedIdle(
+    session: RegistrySession,
+    idle?: IdleReclaim,
+  ): Promise<boolean> {
     const sessionId = session.sessionId;
     const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
     const held = this.reclaimClaims.get(sessionId);
@@ -788,17 +802,28 @@ export class SessionRoutes {
     }
     try {
       if (!this.reclaimClaims.has(sessionId)) {
-        const health = await runnerdHealth(opts);
+        const health = idle?.health ?? (await runnerdHealth(opts));
         this.noteReclaimable(sessionId, reclaimable(health));
         const activity = health.activity;
-        if (activity === undefined || !reclaimable(health)) return false;
+        if (
+          activity === undefined ||
+          (idle === undefined
+            ? !reclaimable(health)
+            : activity.idleReclaim !== true ||
+              activity.pinned ||
+              health.liveExecs > 0 ||
+              activity.activeOperations > 0)
+        ) {
+          return false;
+        }
         const claimId = crypto.randomUUID();
         const result = await runnerdActivity(opts, 'reclaim', {
           claimId,
           generation: activity.generation,
+          ...(idle !== undefined ? { idleBeforeMs: idle.beforeMs } : {}),
         });
         if (result.claimed !== true) {
-          // Acquired between the probe and the claim: held by a turn now.
+          // Acquired or touched between the probe and the claim: keep it.
           this.noteReclaimable(sessionId, false);
           return false;
         }
@@ -893,6 +918,7 @@ export class SessionRoutes {
    * resumable state whose correct answer is 404 (the platform resumes it).
    */
   async adoptExisting(): Promise<void> {
+    if (this.isDraining()) return;
     let sessions: BackendSession[];
     try {
       sessions = await this.backend.listSessions();
@@ -900,22 +926,42 @@ export class SessionRoutes {
       console.warn('[sandbox.session] adoptExisting list failed:', err);
       return;
     }
-    const adopted: BackendSession[] = [];
+    if (this.isDraining()) return;
+    const candidates: BackendSession[] = [];
     const ended: BackendSession[] = [];
+    const seen = new Set<string>();
     for (const s of sessions) {
       // A create in flight on this replica registers itself when it completes;
       // adopting it early would race that registration.
-      if (this.registry.has(s.sessionId) || this.creating.has(s.sessionId)) {
+      if (
+        this.registry.has(s.sessionId) ||
+        this.creating.has(s.sessionId) ||
+        seen.has(s.sessionId)
+      ) {
         continue;
       }
       if (s.ended === true) {
+        seen.add(s.sessionId);
         ended.push(s);
         continue;
       }
       if (s.state !== 'ready') continue;
-      const registered = await this.adoptSession(s);
-      if (registered !== undefined) adopted.push(s);
+      seen.add(s.sessionId);
+      candidates.push(s);
     }
+    // Each Kubernetes endpoint requires an API read. Resolve a bounded set
+    // together so recovery waits for waves of calls, never their whole sum;
+    // deduplicate before awaiting so a duplicate cannot take another lane.
+    const adoptedIds = new Set<string>();
+    await forEachLimited(candidates, SWEEP_CONCURRENCY, async (s) => {
+      if ((await this.adoptSession(s)) !== undefined) {
+        adoptedIds.add(s.sessionId);
+      }
+    });
+    // A drain that began during resolution ends this old spawner's adoption:
+    // replacement-owned compute and build helpers stay with its successor.
+    if (this.isDraining()) return;
+    const adopted = candidates.filter((s) => adoptedIds.has(s.sessionId));
     // The removal runs beside the API: after a host reboot every session
     // container has ended, and removing each takes up to seconds (with its
     // inner image volume). A pass still under way covers what it listed; the
@@ -1076,6 +1122,11 @@ export class SessionRoutes {
   private async adoptSession(
     s: BackendSession,
   ): Promise<RegistrySession | undefined> {
+    // A queued adoption or a route miss may reach this after draining began.
+    // Only sessions already registered belong to the lingering spawner.
+    const registered = this.registry.get(s.sessionId);
+    if (registered !== undefined) return registered;
+    if (this.isDraining() || this.creating.has(s.sessionId)) return undefined;
     let endpoint: string;
     try {
       endpoint = await this.backend.resolveEndpoint(s.sessionId);
@@ -1090,6 +1141,9 @@ export class SessionRoutes {
     // never overwrite a live entry (it may already track in-flight execs).
     const raced = this.registry.get(s.sessionId);
     if (raced !== undefined) return raced;
+    // A create that is still awaiting its backend has not registered yet.
+    // It owns the id too: never adopt an older listing over its pending work.
+    if (this.isDraining() || this.creating.has(s.sessionId)) return undefined;
     const entry: RegistrySession = {
       sessionId: s.sessionId,
       organizationId: s.organizationId,
@@ -1281,6 +1335,16 @@ export class SessionRoutes {
       }
       const idleForMs = nowMs - health.lastActivityAtMs;
       if (!expired) expired = idleForMs > s.idleTimeoutMs;
+      if (expired && health.activity?.idleReclaim === true) {
+        // An acquire changes the generation; a completed operation changes
+        // the daemon's clock. Either wins over the sweep's stale snapshot.
+        // TTL still expires a held but idle session, while a touch at or
+        // after the sweep start defers that stop to the next pass.
+        return this.reclaimIdle(s, {
+          health,
+          beforeMs: reason === 'lifetime' ? nowMs - 1 : nowMs - s.idleTimeoutMs,
+        });
+      }
       // Released by the platform (its turn or run settled, nothing holds it):
       // a few idle minutes are enough. The stop goes through runnerd's
       // claim, so a turn that acquires the session meanwhile keeps it.
@@ -1967,7 +2031,7 @@ export class SessionRoutes {
     // accumulation (no unbounded growth for a never-exiting exec) and tell
     // runnerd the cap is unlimited (0) so its output is never silently cut off.
     const collect = execReq.collectOutput ?? true;
-    return sseResponse(async ({ send }) => {
+    return sseResponse(async ({ send, signal }) => {
       // Terminal-state accumulation so the SSE `result` event matches the
       // one-shot ExecuteResponse contract (the runnerd `exit` carries
       // truncation/timeout; stdout/stderr are summed here for the buffers).
@@ -2055,7 +2119,7 @@ export class SessionRoutes {
             stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
           },
           onEvent,
-          ac.signal,
+          AbortSignal.any([ac.signal, signal]),
         );
         if (result) {
           send('result', result);
@@ -2081,7 +2145,7 @@ export class SessionRoutes {
       } catch (err) {
         // The caller hung up (the platform ends its stream at every drain
         // window): nobody reads an error, and the backend is not suspect.
-        if (req.signal.aborted) return;
+        if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });
@@ -2226,19 +2290,19 @@ export class SessionRoutes {
     const sinceSeq =
       Number(new URL(req.url).searchParams.get('sinceSeq') ?? '0') || 0;
     const token = this.tokenFor(sessionId);
-    return sseResponse(async ({ send }) => {
+    return sseResponse(async ({ send, signal }) => {
       try {
         const found = await runnerdAttach(
           { baseUrl: session.endpoint, token },
           execId,
           (e) => forwardExecEvent(e, send),
-          ac.signal,
+          AbortSignal.any([ac.signal, signal]),
           sinceSeq,
         );
         if (!found) send('error', { message: `exec ${execId} not found` });
       } catch (err) {
         // The caller hung up: see handleExec.
-        if (req.signal.aborted) return;
+        if (req.signal.aborted || signal.aborted) return;
         send('error', {
           message: err instanceof Error ? err.message : String(err),
         });

@@ -51,7 +51,8 @@ export function DemoTourSection({
           {heading ? (
             <SectionHeading
               align="start"
-              className="border-border-base max-w-200 border-b pt-20 pb-12 sm:pt-28 sm:pb-16"
+              layout="editorial"
+              className="border-border-base border-b pt-14 pb-9 sm:pt-20 sm:pb-12"
               title={heading}
               description={description}
             />

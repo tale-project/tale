@@ -45,7 +45,7 @@ export function DemoTourRow({
   return (
     <Reveal
       className={cn(
-        'grid min-w-0 grid-cols-1 items-center gap-8 py-14 sm:gap-10 sm:py-20 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)] lg:gap-14 lg:py-24',
+        'grid min-w-0 grid-cols-1 items-center gap-8 py-12 sm:gap-10 sm:py-16 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)] lg:gap-14 lg:py-20',
         reverse && 'lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)]',
         !isLast && 'border-border-base border-b',
       )}

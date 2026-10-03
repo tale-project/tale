@@ -1,11 +1,14 @@
-import { useSkipEntrance } from '@tale/marketing-ui/entrance';
-import { MARKETING_EASE } from '@tale/marketing-ui/reveal';
-import { SectionHeading } from '@tale/marketing-ui/section-heading';
-import { motion } from 'framer-motion';
-import { Scale, Server, ShieldCheck, type LucideIcon } from 'lucide-react';
+import { Scale, Server, ShieldCheck } from 'lucide-react';
 
-import { SiteContainer } from '@/app/components/layout/site-container';
+import {
+  CtaPair,
+  PageSection,
+  Reveal,
+  SectionHeading,
+} from '@/app/components/marketing';
+import { getSelfHostedQuickstartUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 const PILLARS = [
   { key: 'selfHosted', Icon: Server },
@@ -15,97 +18,55 @@ const PILLARS = [
 
 export function Tagline() {
   const { t } = useT('home');
-  const skipEntrance = useSkipEntrance();
+  const { t: tNav } = useT('nav');
+  const locale = useCurrentLocale();
 
   return (
-    <section className="border-border-base bg-surface-site border-b py-24 md:py-32">
-      <SiteContainer>
-        <SectionHeading
-          align="start"
-          className="max-w-180"
-          title={t('tagline.title')}
-          description={t('tagline.subtitle')}
-        />
-      </SiteContainer>
-
-      <div className="mx-auto mt-12 w-full max-w-7xl md:px-20">
-        {/* Stagger stays opacity-only so pillar cards don't shift layout. */}
-        <motion.div
-          initial={skipEntrance ? false : 'hidden'}
-          whileInView={skipEntrance ? undefined : 'visible'}
-          viewport={{ once: true, margin: '-10%' }}
-          variants={{
-            hidden: {},
-            visible: {
-              transition: { staggerChildren: 0.08, delayChildren: 0.1 },
-            },
-          }}
-          className="mx-auto grid max-w-280 grid-cols-1 md:grid-cols-3"
-        >
-          {PILLARS.map((pillar, index) => (
-            <PillarCard
-              key={pillar.key}
-              pillarKey={pillar.key}
-              Icon={pillar.Icon}
-              showLeftBorder={index > 0}
-              skipEntrance={skipEntrance}
-            />
+    <PageSection surface="contrast" pad="xl" border="none">
+      <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-24">
+        <Reveal className="flex flex-col gap-8 lg:sticky lg:top-28">
+          <SectionHeading
+            bare
+            align="start"
+            eyebrow={t('tagline.eyebrow')}
+            title={t('tagline.title')}
+            description={t('tagline.subtitle')}
+          />
+          <CtaPair
+            align="start"
+            primary={{
+              label: t('hero.ctaSecondary'),
+              href: getSelfHostedQuickstartUrl(locale),
+            }}
+            secondary={{ label: tNav('pricing'), to: '/pricing' }}
+          />
+        </Reveal>
+        <div>
+          {PILLARS.map(({ key, Icon }, index) => (
+            <Reveal
+              key={key}
+              className="border-border-base border-t py-7 first:pt-7"
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <Icon
+                  aria-hidden
+                  className="text-fg-base size-6"
+                  strokeWidth={1.5}
+                />
+                <span aria-hidden className="text-fg-subtle font-mono text-xs">
+                  0{index + 1}
+                </span>
+              </div>
+              <h3 className="text-fg-base text-xl font-medium tracking-tight">
+                {t(`tagline.pillars.${key}.title`)}
+              </h3>
+              <p className="text-fg-muted mt-3 text-[15px] leading-relaxed">
+                {t(`tagline.pillars.${key}.description`)}
+              </p>
+            </Reveal>
           ))}
-        </motion.div>
+        </div>
       </div>
-    </section>
-  );
-}
-
-interface PillarCardProps {
-  pillarKey: (typeof PILLARS)[number]['key'];
-  Icon: LucideIcon;
-  showLeftBorder: boolean;
-  skipEntrance: boolean;
-}
-
-const pillarVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: 0.5, ease: MARKETING_EASE },
-  },
-};
-
-function PillarCard({
-  pillarKey,
-  Icon,
-  showLeftBorder,
-  skipEntrance,
-}: PillarCardProps) {
-  const { t } = useT('home');
-  return (
-    <motion.div
-      variants={skipEntrance ? undefined : pillarVariants}
-      className={`flex flex-col ${
-        showLeftBorder
-          ? 'border-border-base border-t md:border-t-0 md:border-l'
-          : ''
-      }`}
-    >
-      <div
-        aria-hidden
-        className="bg-surface-wash shadow-site-inset relative flex h-40 items-center justify-center overflow-hidden md:h-48"
-      >
-        <span className="border-border-base bg-surface-site-raised/80 shadow-site-card absolute size-14 -translate-x-5 translate-y-3 -rotate-6 rounded-xl border" />
-        <span className="border-border-base bg-surface-site-raised/80 shadow-site-card absolute size-14 translate-x-6 -translate-y-3 rotate-6 rounded-xl border" />
-        <span className="border-border-base bg-surface-site-raised shadow-site-card relative flex size-14 items-center justify-center rounded-xl border">
-          <Icon className="text-fg-base size-6" strokeWidth={1.5} />
-        </span>
-      </div>
-      <div className="flex flex-col gap-3 px-6 py-8 md:px-10">
-        <h3 className="text-fg-base text-xl font-normal tracking-[-0.02em]">
-          {t(`tagline.pillars.${pillarKey}.title`)}
-        </h3>
-        <p className="text-fg-muted text-base" style={{ lineHeight: 1.55 }}>
-          {t(`tagline.pillars.${pillarKey}.description`)}
-        </p>
-      </div>
-    </motion.div>
+    </PageSection>
   );
 }

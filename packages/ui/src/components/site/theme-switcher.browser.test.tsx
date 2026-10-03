@@ -63,8 +63,8 @@ describe('ThemeSwitcher selection surface (real layout)', () => {
     expect(screen.getByRole('radio', { name: 'Dark' })).toHaveFocus();
   });
 
-  it.each([44, 52])(
-    'keeps the selected surface on the selected %ipx touch target',
+  it.each([32, 44, 52])(
+    'keeps the selected surface on the selected %ipx target',
     async (size) => {
       render(
         <ThemeProvider>

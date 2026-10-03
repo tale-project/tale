@@ -53,6 +53,7 @@ import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
 import {
+  isDestroyPendingRefusal,
   queuedWakeAfterMs,
   sandboxCapacityRefusal,
 } from '../node_only/sandbox/capacity_refusal';
@@ -1471,21 +1472,25 @@ export async function startTaskAgentTurnImpl(
       // spent, or the sandbox host is at capacity or short of memory. Park
       // the run and let the next slot release (or the watchdog backstop,
       // every two minutes) restart it — or, when the host keeps a line and
-      // said when the run's place comes up, a wake at that moment. Everything
-      // else settles as a failure with the REAL reason.
+      // said when the run's place comes up, a wake at that moment. A
+      // workspace an administrator is destroying parks the run too: the
+      // Destroy's settle is a release edge, and the run starts afresh after
+      // it. Everything else settles as a failure with the REAL reason.
       const noRoom = sandboxCapacityRefusal(err);
-      if (noRoom !== null) {
+      if (noRoom !== null || isDestroyPendingRefusal(err)) {
         console.warn(
-          `[task-agent] no ${noRoom.scope === 'host' ? 'sandbox host capacity' : 'session slot'} for ${args.execId} — parking the run until one frees`,
+          noRoom === null
+            ? `[task-agent] the sandbox workspace for ${args.execId} is being destroyed — parking the run until the Destroy settles`
+            : `[task-agent] no ${noRoom.scope === 'host' ? 'sandbox host capacity' : 'session slot'} for ${args.execId} — parking the run until one frees`,
         );
+        const wakeAfterMs =
+          noRoom !== null ? queuedWakeAfterMs(noRoom) : undefined;
         await ctx.runMutation(
           internal.tasks.agent_runs.parkTaskAgentRunForCapacity,
           {
             runId: args.runId,
             execId: args.execId,
-            ...(queuedWakeAfterMs(noRoom) !== undefined
-              ? { wakeAfterMs: queuedWakeAfterMs(noRoom) }
-              : {}),
+            ...(wakeAfterMs !== undefined ? { wakeAfterMs } : {}),
           },
         );
         return null;

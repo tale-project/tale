@@ -16,10 +16,6 @@ import JSZip from 'jszip';
 
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
 const actionPath = '.github/actions/setup-cli/action.yml';
-const excludedLinks = new Set([
-  'services/platform/tests/e2e/fixtures/config/default/connectors',
-  'services/platform/tests/e2e/fixtures/config/default/token-sources',
-]);
 const roots: string[] = [];
 
 afterEach(async () => {
@@ -67,7 +63,7 @@ function trackedFiles() {
     });
 }
 
-test('the real source ZIP excludes only dangling fixture links and retains the setup action', async () => {
+test('the real source ZIP carries every tracked file and retains the setup action', async () => {
   const root = await temporaryDirectory();
   const archivePath = join(root, 'source.zip');
   // This tests uncommitted attribute corrections without writing the active
@@ -90,20 +86,15 @@ test('the real source ZIP excludes only dangling fixture links and retains the s
     .map((entry) => entry.name)
     .sort();
   const tracked = trackedFiles();
-  expect(paths).toEqual(
-    tracked
-      .map((entry) => entry.path)
-      .filter((path) => !excludedLinks.has(path))
-      .sort(),
-  );
+  expect(paths).toEqual(tracked.map((entry) => entry.path).sort());
   expect(await archive.file(actionPath)!.async('nodebuffer')).toEqual(
     git(['show', `HEAD:${actionPath}`]),
   );
 
-  // An archive reader may follow directory symlinks while copying an action.
-  // Every retained link must resolve inside this complete source snapshot.
+  // An archive reader may follow directory symlinks while copying an action,
+  // and the runner aborts on a dangling one before setup-cli can run. Every
+  // link must resolve inside this complete source snapshot.
   for (const entry of tracked.filter((file) => file.mode === '120000')) {
-    if (excludedLinks.has(entry.path)) continue;
     const link = archive.file(entry.path)!;
     expect(Number(link.unixPermissions) & 0o170000).toBe(0o120000);
     const target = await link.async('string');

@@ -61,6 +61,11 @@ when required by the repository or CI:
 bun run verify
 ```
 
+For performance or memory work, run `bun run test:performance` and read the
+[measurement and coverage guide](../scripts/performance/README.md). It reports
+representative hot paths and explicit gaps; it does not replace integration or
+browser tests, and timing results are never cached or used as CI thresholds.
+
 Browser changes also need the relevant Playwright or manual flow. Database
 changes need the real-Postgres integration check described by the
 [migration skill](../.agents/skills/create-migration/SKILL.md). Passing unit tests

@@ -1,5 +1,9 @@
 import { existsSync } from 'node:fs';
 
+import marketingUiPackage from './packages/marketing-ui/package.json';
+import sharedPackage from './packages/shared/package.json';
+import uiPackage from './packages/ui/package.json';
+
 export default {
   // `uvx` (the uv tool runner) is invoked by the root `format`/`format:check`
   // scripts to run pinned `ruff` for Python — it's a system binary provided by
@@ -46,6 +50,10 @@ export default {
   // types nothing references at all.
   ignoreExportsUsedInFile: { interface: true, type: true },
   workspaces: {
+    '.': {
+      // The performance runner launches this worker by path in a fresh process.
+      entry: ['scripts/performance/worker.ts'],
+    },
     'services/platform': {
       vite: { config: ['vite.config.ts'] },
       entry: [
@@ -199,6 +207,12 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    // Source-only packages expose these paths to consumers. Derive explicit
+    // relative entries from their manifests: Knip's automatic absolute-path
+    // discovery can miss them in worktrees. Keep internal files in the sweep.
+    'packages/shared': {
+      entry: Object.values(sharedPackage.exports),
+    },
     'packages/ui': {
       storybook: {
         config: ['.storybook/main.ts'],
@@ -207,8 +221,13 @@ export default {
           '**/*.stories.{ts,tsx}',
         ],
       },
-      entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
-      project: ['**/*.{ts,tsx}'],
+      entry: [
+        ...Object.values(uiPackage.exports),
+        ...Object.values(uiPackage.bin),
+        'src/**/*.stories.{ts,tsx}',
+      ],
+      // Tailwind's CSS compiler must see public stylesheet imports too.
+      project: ['**/*.{ts,tsx,css}'],
       ignoreDependencies: [
         // Type-only import in src/{pwa,seo/runtime}/vite-plugin.ts. Declared
         // as an optional peer so consumers without a vite-driven service
@@ -231,8 +250,11 @@ export default {
           '**/*.stories.{ts,tsx}',
         ],
       },
-      entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
-      project: ['**/*.{ts,tsx}'],
+      entry: [
+        ...Object.values(marketingUiPackage.exports),
+        'src/**/*.stories.{ts,tsx}',
+      ],
+      project: ['**/*.{ts,tsx,css}'],
     },
     'tools/cli': {
       project: ['**/*.ts'],

@@ -6,7 +6,7 @@ import type { ComponentProps, ReactNode } from 'react';
 type ButtonProps = ComponentProps<typeof Button>;
 
 const marketingButtonVariants = cva(
-  'site-action focus-visible:outline-fg-base rounded-xl border-transparent font-medium tracking-[-0.01em] focus-visible:outline-2 focus-visible:outline-offset-4',
+  'site-action focus-visible:outline-fg-base rounded-lg border-transparent font-medium tracking-[-0.01em] focus-visible:outline-2 focus-visible:outline-offset-4',
   {
     variants: {
       tone: {
@@ -17,7 +17,7 @@ const marketingButtonVariants = cva(
       },
       size: {
         default: 'h-11 px-4 text-sm sm:h-9',
-        lg: 'h-auto min-h-11 max-w-full px-5 py-3 text-sm whitespace-normal',
+        lg: 'h-auto min-h-12 max-w-full px-5 py-3 text-sm whitespace-normal sm:px-6',
       },
     },
     defaultVariants: {

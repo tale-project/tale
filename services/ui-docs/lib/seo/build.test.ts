@@ -1,15 +1,55 @@
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { compileToMemory } from '@tale/ui/seo';
 import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 
+import enMessages from '../../messages/en.yml';
 import * as content from '../../scripts/walk-content';
-import { buildUiDocsCompileParams, uiDocsOptionalPages } from './build';
+import {
+  buildUiDocsCompileParams,
+  uiDocsOptionalPages,
+  UI_DOCS_SITE_DESCRIPTION,
+  UI_DOCS_SITE_TITLE,
+} from './build';
 
 describe('UI documentation discovery', () => {
+  it('keeps artifact and pre-JavaScript metadata aligned with the homepage catalog', async () => {
+    const title = enMessages.seo.siteTitle;
+    const description = enMessages.home.heroDescription;
+    expect(UI_DOCS_SITE_TITLE).toBe(title);
+    expect(UI_DOCS_SITE_DESCRIPTION).toBe(description);
+
+    const dom = new JSDOM(
+      await readFile(new URL('../../index.html', import.meta.url), 'utf8'),
+    );
+    try {
+      const { document } = dom.window;
+      expect(document.title).toBe(title);
+      for (const selector of [
+        'meta[name="description"]',
+        'meta[property="og:description"]',
+        'meta[name="twitter:description"]',
+      ]) {
+        expect(
+          document.head.querySelector(selector)?.getAttribute('content'),
+        ).toBe(description);
+      }
+    } finally {
+      dom.window.close();
+    }
+  });
+
   it('keeps the sitemap unchanged when a checkout changes only file timestamps', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tale-ui-docs-sitemap-'));
     const path = join(dir, 'components', 'button.md');

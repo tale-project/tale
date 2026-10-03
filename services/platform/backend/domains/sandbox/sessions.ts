@@ -10,6 +10,8 @@ import {
   type SessionBudget,
 } from '../../core/sandbox/quota_policy.ts';
 import {
+  SANDBOX_DESTROY_PENDING_MESSAGE,
+  SANDBOX_DESTROY_PENDING_REASON,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
@@ -55,10 +57,14 @@ import {
 
 export class SandboxQuotaError extends Error {
   readonly code = 'QUOTA_EXCEEDED';
+  /** Set when the refusal is no want of room: the session's Destroy is
+   * pending ({@link SandboxDestroyPendingError}). The shims carry it on. */
+  readonly reason: typeof SANDBOX_DESTROY_PENDING_REASON | undefined;
 
-  constructor(message: string) {
+  constructor(message: string, reason?: typeof SANDBOX_DESTROY_PENDING_REASON) {
     super(message);
     this.name = 'SandboxQuotaError';
+    this.reason = reason;
   }
 }
 
@@ -67,17 +73,19 @@ export class SandboxQuotaError extends Error {
  * its live row is queued, retrying or running (`destroy-schedule.ts`). A
  * turn let in now would work in files the next attempt deletes, and lose
  * its tokens and gateway keys with them, so the admission verbs refuse it
- * before it starts. A quota refusal on purpose: a task's run parks on it as
- * on a full budget and is woken when the Destroy settles
+ * before it starts. A quota refusal on purpose, marked
+ * {@link SANDBOX_DESTROY_PENDING_REASON} so no lane reads it as a full
+ * budget: a task's run parks on it and is woken when the Destroy settles
  * (`markSessionDestroyed` is a release edge) or by the watchdog's next
  * tick, then starts in a fresh workspace, or in this one once every attempt
- * has failed; an automation step fails with this reason instead.
+ * has failed; an automation step fails with this reason instead, at once
+ * and without a retry, since a later start of it would continue its run in
+ * a fresh, empty workspace without what its earlier steps left
+ * (`classifyWorkflowStartFailure`).
  */
 class SandboxDestroyPendingError extends SandboxQuotaError {
   constructor() {
-    super(
-      'An administrator is deleting this sandbox workspace. No new work starts in it until the deletion has finished.',
-    );
+    super(SANDBOX_DESTROY_PENDING_MESSAGE, SANDBOX_DESTROY_PENDING_REASON);
     this.name = 'SandboxDestroyPendingError';
   }
 }

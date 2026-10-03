@@ -13,6 +13,7 @@ import {
   setSystemTime,
   test,
 } from 'bun:test';
+import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import type {
@@ -84,6 +85,12 @@ const fakeHealth = {
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
+let legacyIdleReclaim = false;
+// Work arriving after a sweep's health snapshot, before runnerd checks its
+// claim: the race a sibling spawner or completed operation used to lose.
+let beforeReclaim: ((token: string, activity: ActivityGate) => void) | null =
+  null;
+const reclaimRequests: Array<{ idleBeforeMs?: number }> = [];
 // Daemons (by session token) that answer nothing usable any more — a
 // container whose runnerd died — and how often each daemon's /healthz was
 // probed, for the probe back-off assertions.
@@ -96,6 +103,24 @@ function ndjson(lines: object[]): string {
   return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
 }
 
+/** A quiet live exec: one event, then it waits for its reader to detach. */
+function hangingExecResponse(): Response {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            ndjson([
+              { t: 'stdout', b64: Buffer.from('live').toString('base64') },
+            ]),
+          ),
+        );
+      },
+    }),
+    { headers: { 'content-type': 'application/x-ndjson' } },
+  );
+}
+
 beforeAll(() => {
   fakeServer = Bun.serve({
     port: 0,
@@ -104,7 +129,13 @@ beforeAll(() => {
       const token = req.headers.get('x-tale-runnerd-token') ?? '';
       let activity = fakeActivities.get(token);
       if (activity === undefined) {
-        activity = new ActivityGate(() => fakeHealth.liveExecs);
+        activity = new ActivityGate(
+          () => fakeHealth.liveExecs,
+          legacyIdleReclaim
+            ? undefined
+            : () =>
+                daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
+        );
         fakeActivities.set(token, activity);
       }
       if (deadDaemons.has(token)) {
@@ -148,13 +179,21 @@ beforeAll(() => {
           return Response.json({
             released: activity.release(String(body.generation)),
           });
-        if (url.pathname === '/reclaim')
+        if (url.pathname === '/reclaim') {
+          const idleBeforeMs =
+            typeof body.idleBeforeMs === 'number'
+              ? body.idleBeforeMs
+              : undefined;
+          reclaimRequests.push({ idleBeforeMs });
+          beforeReclaim?.(token, activity);
           return Response.json({
             claimed: activity.claim(
               String(body.claimId),
               String(body.generation),
+              idleBeforeMs,
             ),
           });
+        }
         const applied = activity.setPinned(body.pinned === true);
         return Response.json({ ok: applied }, { status: applied ? 200 : 503 });
       }
@@ -170,6 +209,7 @@ beforeAll(() => {
           stderrMaxBytes?: number;
         };
         execRequests.push(body);
+        if (body.execId?.startsWith('hang-')) return hangingExecResponse();
         // Echo-style script: a start, one stdout chunk, then exit 0.
         const text: string =
           body.command?.slice(1).join(' ') ?? body.shell ?? '';
@@ -250,24 +290,7 @@ beforeAll(() => {
       }
       if (url.pathname.endsWith('/attach')) {
         if (url.pathname.includes('/hang-')) {
-          // A live exec whose output is quiet: the attach stays open.
-          return new Response(
-            new ReadableStream({
-              start(controller) {
-                controller.enqueue(
-                  new TextEncoder().encode(
-                    ndjson([
-                      {
-                        t: 'stdout',
-                        b64: Buffer.from('live').toString('base64'),
-                      },
-                    ]),
-                  ),
-                );
-              },
-            }),
-            { headers: { 'content-type': 'application/x-ndjson' } },
-          );
+          return hangingExecResponse();
         }
         return new Response(
           ndjson([
@@ -403,6 +426,9 @@ beforeEach(() => {
   fakeHealth.liveExecs = 0;
   fakeActivities.clear();
   legacyDaemon = false;
+  legacyIdleReclaim = false;
+  beforeReclaim = null;
+  reclaimRequests.length = 0;
   deadDaemons.clear();
   healthProbes.clear();
   daemonLastActivity.clear();
@@ -1353,6 +1379,230 @@ describe('SessionRoutes (fake runnerd)', () => {
       // Idempotent: a second adoption doesn't duplicate or disturb the entry.
       await routes.adoptExisting();
       expect((await routes.handleGet('adopt1')).status).toBe(200);
+    });
+
+    test('adoptExisting resolves endpoints eight at a time and retries only the failed session', async () => {
+      const listed = Array.from({ length: 18 }, (_, index) =>
+        mkBackendSession(`parallel-adopt-${index}`, 'org_adopt'),
+      );
+      const release = Promise.withResolvers<void>();
+      const firstWave = Promise.withResolvers<void>();
+      const calls = new Map<string, number>();
+      let resolving = 0;
+      let peak = 0;
+      let failOne = true;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async listSessions() {
+          // A duplicate row must never occupy a second resolution lane.
+          return [...listed, listed[0]!, listed[9]!];
+        },
+        async resolveEndpoint(id) {
+          calls.set(id, (calls.get(id) ?? 0) + 1);
+          resolving += 1;
+          peak = Math.max(peak, resolving);
+          if (resolving === 8) firstWave.resolve();
+          try {
+            await release.promise;
+            if (id === 'parallel-adopt-9' && failOne) {
+              throw new Error('pod endpoint temporarily unavailable');
+            }
+            return fakeBaseUrl;
+          } finally {
+            resolving -= 1;
+          }
+        },
+      });
+      const adoption = routes.adoptExisting();
+      try {
+        expect(await settlesWithin(firstWave.promise, 1_000)).toBe(true);
+        expect(calls.size).toBe(8);
+        expect(resolving).toBe(8);
+      } finally {
+        release.resolve();
+        await adoption;
+      }
+      expect(peak).toBe(8);
+      expect(routes.sessionCount()).toBe(17);
+      expect(routes.holds('parallel-adopt-9')).toBe(false);
+      expect([...calls.values()]).toEqual(Array.from({ length: 18 }, () => 1));
+      failOne = false;
+      await routes.adoptExisting();
+      expect(routes.sessionCount()).toBe(18);
+      expect(calls.get('parallel-adopt-9')).toBe(2);
+      expect(calls.get('parallel-adopt-0')).toBe(1);
+    });
+
+    test('a drain during adoption skips waiting candidates and cannot claim resolved peer sessions', async () => {
+      const listed = Array.from({ length: 18 }, (_, index) =>
+        mkBackendSession(`drain-peer-${index}`, 'org_peer'),
+      );
+      const firstWave = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const resolved: string[] = [];
+      let draining = false;
+      const routes = new SessionRoutes(
+        cfg,
+        {
+          ...fakeBackend,
+          async listSessions() {
+            return listed;
+          },
+          async resolveEndpoint(id) {
+            if (id === 'drain-owned') return fakeBaseUrl;
+            resolved.push(id);
+            if (resolved.length === 8) firstWave.resolve();
+            await release.promise;
+            return fakeBaseUrl;
+          },
+        },
+        () => draining,
+      );
+      expect(
+        (
+          await routes.handleCreate(
+            JSON.stringify({
+              sessionId: 'drain-owned',
+              organizationId: 'org_owned',
+            }),
+          )
+        ).status,
+      ).toBe(201);
+      const adoption = routes.adoptExisting();
+      try {
+        expect(await settlesWithin(firstWave.promise, 1_000)).toBe(true);
+        draining = true;
+      } finally {
+        release.resolve();
+        await adoption;
+      }
+      expect(resolved).toHaveLength(8);
+      expect(routes.sessionIds()).toEqual(['drain-owned']);
+      expect((await routes.handleGet('drain-owned')).status).toBe(200);
+      expect(await routes.stopAllSessions()).toBe(1);
+      expect([...stopped]).toEqual(['drain-owned']);
+    });
+
+    test.each(['get', 'pin'])(
+      'a %s miss whose endpoint resolves after drain begins cannot adopt a peer',
+      async (action) => {
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        let draining = false;
+        const routes = new SessionRoutes(
+          cfg,
+          {
+            ...fakeBackend,
+            async listSessions() {
+              return [mkBackendSession('drain-route-peer', 'org_peer')];
+            },
+            async resolveEndpoint() {
+              started.resolve();
+              await release.promise;
+              return fakeBaseUrl;
+            },
+          },
+          () => draining,
+        );
+        const request =
+          action === 'get'
+            ? routes.handleGet('drain-route-peer')
+            : routes.handleSetPinned('drain-route-peer', '{"pinned":true}');
+        await started.promise;
+        draining = true;
+        release.resolve();
+        expect((await request).status).toBe(404);
+        expect(routes.sessionIds()).toEqual([]);
+        expect(backendPins.has('drain-route-peer')).toBe(false);
+        expect(await routes.stopAllSessions()).toBe(0);
+        expect(stopped.has('drain-route-peer')).toBe(false);
+      },
+    );
+
+    test('an adoption resolution cannot overwrite a session created while it awaited', async () => {
+      const started = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      let first = true;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async listSessions() {
+          return [mkBackendSession('adopt-created-race', 'org_adopt')];
+        },
+        async resolveEndpoint() {
+          if (first) {
+            first = false;
+            started.resolve();
+            await release.promise;
+          }
+          return fakeBaseUrl;
+        },
+      });
+      const adoption = routes.adoptExisting();
+      await started.promise;
+      try {
+        expect(
+          (
+            await routes.handleCreate(
+              JSON.stringify({
+                sessionId: 'adopt-created-race',
+                organizationId: 'org_create',
+              }),
+            )
+          ).status,
+        ).toBe(201);
+      } finally {
+        release.resolve();
+        await adoption;
+      }
+      expect(routes.sessionCount()).toBe(1);
+      expect(
+        await (await routes.handleGet('adopt-created-race')).json(),
+      ).toMatchObject({ session: { organizationId: 'org_create' } });
+    });
+
+    test('an adoption resolution leaves an id to a create still in flight', async () => {
+      const resolveStarted = Promise.withResolvers<void>();
+      const releaseResolve = Promise.withResolvers<void>();
+      const createStarted = Promise.withResolvers<void>();
+      const releaseCreate = Promise.withResolvers<void>();
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async listSessions() {
+          return [mkBackendSession('adopt-pending-race', 'org_adopt')];
+        },
+        async resolveEndpoint() {
+          resolveStarted.resolve();
+          await releaseResolve.promise;
+          return fakeBaseUrl;
+        },
+        async createSession(spec) {
+          createStarted.resolve();
+          await releaseCreate.promise;
+          return fakeBackend.createSession(spec);
+        },
+      });
+      const adoption = routes.adoptExisting();
+      await resolveStarted.promise;
+      const creating = routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'adopt-pending-race',
+          organizationId: 'org_create',
+        }),
+      );
+      await createStarted.promise;
+      try {
+        releaseResolve.resolve();
+        await adoption;
+        expect(routes.sessionCount()).toBe(0);
+        expect(routes.holds('adopt-pending-race')).toBe(true);
+      } finally {
+        releaseCreate.resolve();
+        await creating;
+      }
+      expect(routes.sessionCount()).toBe(1);
+      expect(
+        await (await routes.handleGet('adopt-pending-race')).json(),
+      ).toMatchObject({ session: { organizationId: 'org_create' } });
     });
 
     test('adoptExisting: reconciles the shared build cache for the running orgs', async () => {
@@ -2557,6 +2807,59 @@ describe('sweep and adoption hygiene', () => {
     expect(await routes.sweepExpired(now)).toBe(0);
   });
 
+  test.each([
+    ['idle', 'acquire'],
+    ['idle', 'touch'],
+    ['lifetime', 'acquire'],
+    ['lifetime', 'touch'],
+  ])(
+    '%s expiry yields to a %s after its health snapshot',
+    async (expiry, work) => {
+      const routes = new SessionRoutes(
+        expiry === 'lifetime'
+          ? { ...cfg, session: { ...cfg.session, maxLifetimeMs: 1 } }
+          : cfg,
+        fakeBackend,
+      );
+      const id = `expiry-${expiry}-${work}`;
+      await create(routes, id);
+      const now = Date.now() + 10_000;
+      beforeReclaim = (token, activity) => {
+        if (work === 'acquire') activity.acquire();
+        else {
+          const finish = activity.enter();
+          daemonLastActivity.set(token, now);
+          finish?.();
+        }
+      };
+      expect(await routes.sweepExpired(now)).toBe(0);
+      expect(stopped.has(id)).toBe(false);
+      expect(routes.holds(id)).toBe(true);
+      expect(reclaimRequests).toEqual([
+        {
+          idleBeforeMs:
+            expiry === 'lifetime' ? now - 1 : now - cfg.session.maxIdleMs,
+        },
+      ]);
+      beforeReclaim = null;
+      const later =
+        expiry === 'lifetime' ? now + 1 : now + cfg.session.maxIdleMs + 1;
+      expect(await routes.sweepExpired(later)).toBe(1);
+      expect(stopped.has(id)).toBe(true);
+      expect(destroyed.has(id)).toBe(false);
+    },
+  );
+
+  test('a daemon without idle-claim capability keeps legacy expiry without a force claim', async () => {
+    legacyIdleReclaim = true;
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'legacy-idle');
+    expect(await routes.sweepExpired()).toBe(1);
+    expect(stopped.has('legacy-idle')).toBe(true);
+    expect(destroyed.has('legacy-idle')).toBe(false);
+    expect(reclaimRequests).toEqual([]);
+  });
+
   test('a released Docker-in-sandbox agent session keeps the full idle window', async () => {
     const routes = new SessionRoutes(
       { ...cfg, dockerInContainer: true },
@@ -2685,6 +2988,54 @@ describe('sweep and adoption hygiene', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(existsChecks).toBe(0);
   });
+
+  test.each(['exec', 'attach'])(
+    'cancelling the %s response detaches its upstream read and releases the request listener',
+    async (lane) => {
+      const cancelsBefore = cancelRequests.length;
+      let existsChecks = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async sessionExists(sessionId: string) {
+          existsChecks += 1;
+          return fakeBackend.sessionExists(sessionId);
+        },
+      });
+      await create(routes, `cancel-${lane}`);
+      existsChecks = 0;
+      const request = new Request('http://spawner/exec', { method: 'POST' });
+      const response =
+        lane === 'exec'
+          ? await routes.handleExec(
+              request,
+              `cancel-${lane}`,
+              JSON.stringify({
+                execId: 'hang-cancel',
+                command: ['echo', 'live'],
+              }),
+            )
+          : await routes.handleExecAttach(
+              request,
+              `cancel-${lane}`,
+              'hang-cancel',
+            );
+      const reader = response.body?.getReader();
+      await reader?.read();
+      expect(getEventListeners(request.signal, 'abort')).toHaveLength(1);
+      await reader?.cancel();
+      const deadline = Date.now() + 1000;
+      while (
+        getEventListeners(request.signal, 'abort').length > 0 &&
+        Date.now() < deadline
+      ) {
+        await Bun.sleep(10);
+      }
+      expect(getEventListeners(request.signal, 'abort')).toHaveLength(0);
+      expect(request.signal.aborted).toBe(false);
+      expect(existsChecks).toBe(0);
+      expect(cancelRequests).toHaveLength(cancelsBefore);
+    },
+  );
 });
 
 describe('the first-come line for host room', () => {
