@@ -26,6 +26,7 @@
         "$TURBO_ROOT$/services/sandbox-runtime/Dockerfile",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
+        "$TURBO_ROOT$/services/sandbox-runtime/playwright-mcp-args.json",
         "$TURBO_ROOT$/services/sandbox/src/config.ts"
       ]
     },

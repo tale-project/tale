@@ -488,10 +488,16 @@ COPY services/sandbox-runtime/tale-plan-gate /usr/local/bin/tale-plan-gate
 # via the session entrypoint; baked here so it exists read-only.
 COPY services/sandbox-runtime/tale-git-credential /usr/local/bin/tale-git-credential
 
-# Playwright MCP launcher shim: appends --proxy-server/--proxy-bypass from the
-# container's HTTPS_PROXY/NO_PROXY (Chromium ignores the env vars) and execs
-# mcp-server-playwright. The agent adapters use this as the MCP command.
+# Playwright MCP launcher: appends --proxy-server/--proxy-bypass from the
+# container's HTTPS_PROXY/NO_PROXY (Chromium ignores the env vars), and answers
+# the start of an agent turn (initialize, tools/list) from manifests of the
+# real server's answers, recorded below for the argument sets the platform
+# passes (playwright-mcp-args.json, held to exec-builder.ts by its test): the
+# server, a Node process holding ~100 MB, starts only once the turn first uses
+# the browser. The agent adapters use this as the MCP command.
 COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright-mcp
+COPY services/sandbox-runtime/playwright-mcp-args.json /opt/tale/playwright-mcp/args.json
+RUN python3 -Es /usr/local/bin/tale-playwright-mcp --write-manifests /opt/tale/playwright-mcp/args.json
 
 # Connector-dispatch MCP bridge: a dependency-free stdio MCP server the agent
 # adapters wire in via --mcp-config. Relays connector({slug,operation,args})
