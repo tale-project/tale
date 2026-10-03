@@ -1,7 +1,6 @@
 import {
   type CtaAction,
   CtaPair,
-  MarketingStack,
   PageSection,
   SectionHeading,
 } from '../marketing';
@@ -24,15 +23,22 @@ export function FeatureCta({
 }: FeatureCtaProps) {
   return (
     <PageSection surface="soft" pad="lg" border="none">
-      <MarketingStack max="sm" gap="md">
+      <div className="flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center lg:gap-16">
         <SectionHeading
           size="subsection"
           as="h2"
+          align="start"
+          className="max-w-2xl"
           title={title}
           description={description}
         />
-        <CtaPair primary={primary} secondary={secondary} />
-      </MarketingStack>
+        <CtaPair
+          align="start"
+          primary={primary}
+          secondary={secondary}
+          className="shrink-0"
+        />
+      </div>
     </PageSection>
   );
 }

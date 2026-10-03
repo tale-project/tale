@@ -5,10 +5,18 @@ competitor: "Devin"
 slug: "tale-vs-devin"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Si tes tâches de développement sont déjà dans un outil de suivi, Devin permet d’y déléguer leur réalisation. Tale propose un espace projet partagé pour affecter et vérifier différents travaux de l’entreprise avec des agents. Les deux reposent sur la délégation. Compare l’endroit où ton équipe veut définir le travail, intervenir et valider le résultat.
+
+## Comparaison en bref
+
+| Critère | Tale | Devin |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | Travail d’ingénierie relié à un outil de suivi existant comme Linear |
+| Travaux couverts | Logiciels, recherche, documents et autres livrables collectifs | Corrections, tests, migrations et outils internes avec sessions parallèles |
+| Identifiants | Identifiants compatibles via les environnements documentés ; vérifier la configuration choisie | Forfaits ChatGPT admissibles pour les usages GPT pris en charge, avec restrictions de compte et modèle |
 
 ## Pars du travail à déléguer
 

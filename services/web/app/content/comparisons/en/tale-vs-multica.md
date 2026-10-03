@@ -5,10 +5,18 @@ competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Both products deserve a place on your shortlist when teammates need to assign work to AI agents and follow the result. The useful decision is how your team coordinates an entire project, including the work around a code change.
+
+## Compare at a glance
+
+| Criterion | Tale | Multica |
+| --- | --- | --- |
+| Shared work | Projects with human and agent tasks, instructions and shared files. | A shared human-and-agent task system with progress updates and reusable skills. |
+| Example focus | Campaign briefs, research reports and page changes on one project board. | Coding agents handle issues and return work for review; broader work needs evaluation. |
+| Execution setup | Explicit task starts; equipped manager agents can delegate ready work within project limits. | Connected local or cloud runtimes; check license conditions for your deployment. |
 
 ## Compare the daily work
 

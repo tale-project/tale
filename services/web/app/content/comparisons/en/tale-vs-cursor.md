@@ -5,10 +5,18 @@ competitor: "Cursor"
 slug: "tale-vs-cursor"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Cursor is a relevant choice when your team wants to write, test and review software with agents. Tale is worth evaluating when the same team needs to coordinate agent work across software, research, marketing and documents. The decision is about the work surface your team needs, and the two products can coexist.
+
+## Compare at a glance
+
+| Criterion | Tale | Cursor |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Coding editor, shared team workflows, and cloud agents |
+| Coordination | Separate agent tasks and reviewers for code, research, and documents | Shared runs require repository access; follow-ups can be enabled by an administrator |
+| Execution | Cursor CLI runtime uses direct credentials, without Tale's MCP channel; follow-ups use a new process | Cloud agents use isolated development environments and can run in parallel |
 
 ## Compare the product and the runtime
 

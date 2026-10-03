@@ -5,7 +5,7 @@ competitor: "Langflow"
 slug: "tale-vs-langflow"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Baust du einen Flow oder koordinierst du seine Nutzer?
@@ -13,6 +13,14 @@ draft: true
 Eine visuelle Arbeitsfläche hilft Entwicklern, den Ablauf einer KI-Anwendung auszudrücken. Ein Projekt-Workspace hilft einem Team zu entscheiden, was zu tun ist, und die Arbeit nachzuverfolgen. Kläre zuerst, wer das Produkt unmittelbar nutzt: die Person, die eine Anwendung baut, oder die Person, die für ein Ergebnis verantwortlich ist.
 
 [Langflow](https://www.langflow.org/) bietet visuelle Flows, wiederverwendbare Komponenten, Anpassungen mit Python und Agententools für KI-Anwendungen. Es beschreibt auch die Bereitstellung per API sowie Eigenbetrieb und Cloud-Betrieb. Der Builder ist eine Option für die Anwendungsentwicklung. Ihn als einfache Chat-Demo zu behandeln, würde diesem Umfang nicht gerecht.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Langflow |
+| --- | --- | --- |
+| Ergebnis | Ein bestehender Arbeitsbereich für zugewiesene und geprüfte Projektarbeit | KI-Anwendungen aus visuellen Abläufen und wiederverwendbaren Komponenten bauen |
+| Steuerung | Projektkontext, Aufgabenzuweisung, Agentenausführung und Prüfung | Python-Anpassungen und Agenten-Tools im Ablauf-Builder |
+| Einführung | Teamablauf in der bestehenden Projektanwendung konfigurieren | Bereitstellung über APIs mit Eigenbetrieb oder Cloud-Optionen |
 
 ## Entscheide, was bereits vorhanden sein soll
 

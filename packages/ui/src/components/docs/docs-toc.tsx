@@ -104,7 +104,7 @@ function TocRow({
         aria-current={active ? 'true' : undefined}
         className={cn(
           SUB_PANEL_ROW_CLASS,
-          'h-auto min-h-8 py-1.5 leading-snug',
+          'h-auto min-h-11 py-2 leading-snug [overflow-wrap:anywhere] motion-reduce:transition-none md:min-h-8 md:py-1.5',
           entry.level === 3 && 'pl-5',
           treatment.className,
         )}
@@ -150,7 +150,10 @@ function TocList({ entries }: DocsTocProps) {
  * vocabulary so it reads as the mirror of the navigation rail. Renders from
  * `xl` up; narrower viewports get {@link DocsTocOutline} above the article.
  */
-export function DocsToc({ entries }: DocsTocProps) {
+export function DocsToc({
+  entries,
+  className,
+}: DocsTocProps & { className?: string }) {
   const { t } = useT('docs');
   const isRail = useMediaQuery(TOC_RAIL_QUERY);
   if (entries.length === 0) return null;
@@ -162,7 +165,10 @@ export function DocsToc({ entries }: DocsTocProps) {
       // carries it at any width; mark the copy the stylesheet hides so only
       // one reaches the accessibility tree — the `AdaptiveHeader` contract.
       aria-hidden={!isRail || undefined}
-      className="sticky top-13 hidden h-[calc(100vh-3.25rem)] w-56 shrink-0 flex-col gap-1 overflow-y-auto py-8 pr-4 xl:flex print:hidden"
+      className={cn(
+        'sticky top-13 hidden max-h-[calc(100dvh-3.25rem)] w-52 shrink-0 flex-col gap-2 overflow-y-auto overscroll-contain pt-1 pb-8 xl:flex print:hidden',
+        className,
+      )}
     >
       <SubPanelSectionHeader label={t('onThisPage')} />
       <TocList entries={entries} />
@@ -184,9 +190,12 @@ export function DocsTocOutline({ entries }: DocsTocProps) {
     <nav
       aria-label={t('onThisPage')}
       aria-hidden={isRail || undefined}
-      className="border-border mb-8 border-b pb-4 xl:hidden print:hidden"
+      className="border-border/70 mb-8 border-b pb-3 xl:hidden print:hidden"
     >
-      <CollapsibleDetails summary={t('onThisPage')}>
+      <CollapsibleDetails
+        summary={t('onThisPage')}
+        className="[&>summary]:focus-visible:outline-ring [&>summary]:min-h-11 [&>summary]:items-center [&>summary]:gap-2 [&>summary]:rounded-md [&>summary]:focus-visible:outline-2 [&>summary]:focus-visible:outline-offset-4"
+      >
         <div className="mt-2">
           <TocList entries={entries} />
         </div>

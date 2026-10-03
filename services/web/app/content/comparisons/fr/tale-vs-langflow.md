@@ -5,7 +5,7 @@ competitor: "Langflow"
 slug: "tale-vs-langflow"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Assembles-tu un flux ou coordonnes-tu ses utilisateurs ?
@@ -13,6 +13,14 @@ draft: true
 Un canevas visuel aide à exprimer le fonctionnement d’une application IA. Un espace projet aide une équipe à décider du travail à faire et à en suivre le résultat. Avant de choisir, identifie l’utilisateur immédiat : la personne qui construit l’application ou le collègue responsable d’un livrable.
 
 [Langflow](https://www.langflow.org/) propose des flux visuels, des composants réutilisables, la personnalisation en Python et des outils pour agents. Il décrit aussi l’exposition par API et le déploiement autonome ou cloud. C’est une option de développement d’applications à part entière ; le présenter comme une simple démonstration de chat serait réducteur.
+
+## Comparaison en bref
+
+| Critère | Tale | Langflow |
+| --- | --- | --- |
+| Livrables | Un espace existant pour le travail de projet attribué et vérifié | Créer des applications IA avec des processus visuels et composants réutilisables |
+| Mode de contrôle | Contexte de projet, attribution des tâches, exécution d’agents et vérification | Personnalisation Python et outils d’agents dans l’outil de création |
+| Adoption | Configurer le processus collectif dans l’application de projet existante | Mise à disposition par API, avec déploiement autogéré ou cloud |
 
 ## Décide ce qui doit être déjà disponible
 

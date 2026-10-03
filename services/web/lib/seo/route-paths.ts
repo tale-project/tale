@@ -38,6 +38,8 @@ export const ROUTE_PATHS = {
     en: '/platform/governance',
     prefixed: '/$lang/platform/governance',
   },
+  '/compare': { en: '/compare', prefixed: '/$lang/compare' },
+  '/use-cases': { en: '/use-cases', prefixed: '/$lang/use-cases' },
   '/changelog': { en: '/changelog', prefixed: '/$lang/changelog' },
 } as const;
 

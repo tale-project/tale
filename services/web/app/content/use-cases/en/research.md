@@ -3,7 +3,7 @@ title: Collaborative AI research for teams | Tale
 description: Organize research questions, sources, agent tasks, and review in one Tale project. Turn parallel investigations into findings your team can examine.
 slug: research
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 A useful research result connects a question to evidence and a decision. Tale helps your team organize that process: agree on the brief, assign investigations to agents, and review the findings in a shared project.

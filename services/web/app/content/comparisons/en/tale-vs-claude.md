@@ -5,7 +5,7 @@ competitor: "Claude Enterprise"
 slug: "tale-vs-claude"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Compare the whole work environment
@@ -13,6 +13,14 @@ draft: true
 Claude Enterprise is a relevant alternative when a company wants AI to contribute to research, documents, coding, and recurring work. The useful buying question is how your team will coordinate those contributions, including the moment another person needs to challenge or take over a result.
 
 [Claude Enterprise](https://claude.com/solutions/enterprise) includes Chat, Claude Code, and Cowork. Anthropic describes Cowork as handling delegated work and documents connectors to company tools, plus organization controls. Evaluate that current scope rather than reducing the offering to conversational assistance.
+
+## Compare at a glance
+
+| Criterion | Tale | Claude Enterprise |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Claude Enterprise combines Chat, Claude Code, and Cowork |
+| Coordination | Execution results and review are tied to assigned project tasks | Cowork handles delegated work with connectors to company tools |
+| Setup choices | Self-hosted or managed operation with supported runtime choices | Connected work experiences with organization controls |
 
 ## Decide where responsibility lives
 

@@ -5,7 +5,7 @@ competitor: "StackAI"
 slug: "tale-vs-stackai"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Entwickelst du einen Agenten oder führst du ein Projekt?
@@ -13,6 +13,14 @@ draft: true
 Ein internes KI-Vorhaben kann zwei unterschiedliche Ergebnisse haben: eine wiederverwendbare Anwendung, die Kollegen aufrufen, oder eine abgeschlossene Arbeit, zu der mehrere Menschen und Agenten beitragen. Beginne mit dem Ergebnis, für das dein Team verantwortlich ist. Diese Unterscheidung hilft mehr als die Anzahl der erwähnten Agentenfunktionen.
 
 Der [Überblick von StackAI](https://docs.stackai.com/welcome-to-stackai/overview) beschreibt einen visuellen Builder mit Verbindungen zu Wissensdatenbanken, Tools und Geschäftssystemen. Agenten lassen sich als Chat, Formular, API oder für interne Teams bereitstellen. Governance, Zugriffskontrollen und Beobachtbarkeit gehören ebenfalls dazu. Der dokumentierte Schwerpunkt liegt auf Entwicklung, Bereitstellung und Betrieb von Unternehmensagenten.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | StackAI |
+| --- | --- | --- |
+| Ausgangspunkt | Projektaufgaben mit ausgestatteten Agenten und geprüften Ergebnissen. | Ein visueller Builder, der Wissen, Tools und Geschäftssysteme verbindet. |
+| Bereitstellung für das Team | Aufgabendiskussionen und gemeinsame Dateien verbinden Recherche, Entwürfe und Prüfung. | Stellt Agentenanwendungen über Chat, Formulare und APIs für interne Teams bereit. |
+| Betriebliche Einrichtung | Runtime-Zugriff, Anweisungen, Tools und eine verantwortliche Person für die Prüfung vorbereiten. | Dokumentiert Governance, Zugriffskontrollen und Observability für bereitgestellte Systeme. |
 
 ## Ordne das Produkt der Verantwortung zu
 

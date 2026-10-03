@@ -5,10 +5,18 @@ competitor: "OpenAI Symphony"
 slug: "tale-vs-symphony"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Symphony and Tale meet at the task-to-agent boundary, but they are different kinds of choice. Your decision is whether to adopt a shared project application or operate an orchestration service around your existing engineering process.
+
+## Compare at a glance
+
+| Criterion | Tale | OpenAI Symphony |
+| --- | --- | --- |
+| Product layer | An existing project application for shared tasks, agents and review. | An OpenAI specification and experimental reference implementation for tracked engineering work. |
+| Coordination | Equipped manager agents can delegate eligible work within delegation and capacity limits; results return for review. | Turns tracked work into isolated agent runs; the example uses Linear, CI and review feedback. |
+| Evaluation boundary | Test configured tools and credentials across code, research and document handoffs. | An engineering preview intended for trusted environments. |
 
 ## Keep the product layer in view
 

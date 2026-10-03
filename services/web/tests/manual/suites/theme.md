@@ -72,8 +72,10 @@ DevTools / the browser context.
 - [ ] `THEME-A1` · **Radiogroup** → The control is `role="radiogroup"`
   aria-labelled **Switch theme**; each option is `role="radio"` with
   `aria-checked` and a text-resolvable name.
-- [ ] `THEME-A2` · **Keyboard** → The radios are reachable by Tab and
-  switchable by keyboard; focus ring visible in **both** themes.
+- [ ] `THEME-A2` · **Keyboard** → Tab enters the selected radio once; Left/Right
+  selects adjacent options and wraps; Tab exits the group. Focus ring is
+  visible in **both** themes. Each target is at least 44px, and the selected
+  surface stays directly behind its icon at mobile and desktop widths.
 - [ ] `THEME-A3` · **No content loss** → Toggling theme changes no
   layout/content — only colours; text remains readable during the flip
   (transitions suppressed by the provider)

@@ -3,7 +3,7 @@ title: AI document work with team review | Tale
 description: Coordinate reports, presentations, spreadsheets, and document revisions with AI agents. Keep the brief, files, feedback, and review together in Tale.
 slug: document-work
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Reports, presentations, and spreadsheets usually pass through several people before they are ready. Tale gives the team a shared place to define the assignment, delegate file work to an agent, and review the deliverables.

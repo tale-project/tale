@@ -1,6 +1,6 @@
 # @tale/web
 
-The public marketing site, including product pages, pricing, contact forms, and the changelog.
+The public marketing site, including product pages, comparisons, use cases, pricing, contact forms, and the changelog.
 Run these commands from the repository root after installing dependencies:
 
 ```bash
@@ -101,6 +101,19 @@ bun run --filter @tale/web test:e2e
 
 Use the [manual test guide](tests/manual/readme.md) for layout, keyboard, responsive, and degraded
 mode checks. A successful build does not verify that production contact forms can deliver a message.
+
+## Comparison and use-case guides
+
+Localized Markdown lives in `app/content/comparisons/{en,de,fr}` and
+`app/content/use-cases/{en,de,fr}`. The shared content registry validates frontmatter, pairs locales,
+and feeds route discovery, prerendering, canonicals, language alternates, sitemap and LLM artifacts.
+A page appears publicly only when all three locale variants are published.
+
+New content starts with `draft: true`. Set the build-time variable
+`VITE_MARKETING_CONTENT_PREVIEW=true` when running `dev` to inspect drafts with noindex metadata;
+production builds ignore this preview flag. Follow the
+[content contract](app/content/comparisons/README.md) before publishing. Bodies load individually
+as Markdown assets, while navigation and related cards use metadata only.
 
 ## Optional aggregate analytics
 

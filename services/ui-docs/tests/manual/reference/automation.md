@@ -46,9 +46,14 @@ a spec failure and belongs in the gate, not in a round.
 | Header strip and rail logo row end on one line, with the page actions in the strip                                                                                                                                                    | `tests/e2e/specs/smoke.spec.ts` › documentation page + `packages/ui/src/components/docs/docs-layout.browser.test.tsx` | the look of the line in both themes (`DOCS-2`)                                                                        |
 | Footer indexes, theme control and repository link; Back to top follows reduced motion                                                                                                                                                 | `packages/ui/src/components/docs/docs-footer.test.tsx`, `scroll-to-top.test.tsx`                                      | placement and clearance (`DOCS-15`, `DOCS-17`)                                                                        |
 | Print                                                                                                                                                                                                                                 | —                                                                                                                     | **manual-only** — the frame hides its chrome in print (`DOCS-16`)                                                     |
+| Mobile homepage navigation keeps inline theme choices keyboard reachable, changes theme without closing the drawer, and closes on Escape with focus returned | `app/pages/home-page.test.tsx` › HomePage | 44px touch targets, theme persistence and drawer placement (`HOME-9`) |
 
 Legend: a named spec owns the row end to end · a named spec **plus** a manual
 scope is partial · `—` is manual-only.
+
+The shared frame's 320px and 768px article/footer containment, untruncated neighbour
+titles and 44px phone menu/search/drawer targets are covered by
+`packages/ui/src/components/docs/docs-layout.browser.test.tsx`.
 
 ## Seams
 

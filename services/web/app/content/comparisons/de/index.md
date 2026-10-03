@@ -3,7 +3,7 @@ title: KI-Agenten-Plattformen und Alternativen vergleichen | Tale
 description: Vergleiche Tale mit Projektarbeitsbereichen, KI-Assistenten, Workflow-Plattformen und Agentenframeworks. Finde den passenden Ablauf für Delegation und Review.
 slug: compare
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Ein hilfreicher Vergleich beginnt mit der Arbeit, die dein Team koordinieren möchte. Tale ist ein Open-Source-Projektarbeitsbereich, in dem Menschen Aufgaben an Agenten vergeben, Hinweise geben und Ergebnisse gemeinsam prüfen.

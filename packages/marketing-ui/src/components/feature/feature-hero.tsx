@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { DemoStage } from '../demos/demo-stage';
-import { MarketingStack, PageSection, SectionHeading } from '../marketing';
+import { PageSection, Reveal, SectionHeading } from '../marketing';
 
 interface FeatureHeroProps {
   eyebrow?: string;
@@ -16,7 +16,7 @@ interface FeatureHeroProps {
 /**
  * Feature-page lead — answer-shaped H1 + optional CTAs + product stage with
  * a DemoShell inside. The stage stays inside SiteContainer, so it uses the
- * inset `section` DemoStage (rounded border) — not the full-bleed `hero`
+ * inset `section` DemoStage (rounded border), with quieter spacing than `hero`
  * band. Transparent over the root hero wash (do not re-paint
  * `bg-gradient-site-hero`).
  */
@@ -29,16 +29,23 @@ export function FeatureHero({
 }: FeatureHeroProps) {
   return (
     <PageSection pad="xl" border="b" className="relative overflow-hidden">
-      <MarketingStack max="lg" gap="lg" className="relative">
+      <div className="relative grid min-w-0 items-end gap-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:gap-16">
         <SectionHeading
           size="display"
+          align="start"
           eyebrow={eyebrow}
           title={title}
-          description={description}
-          descriptionClassName="max-w-2xl"
         />
-        {actions}
-      </MarketingStack>
+        <Reveal
+          delay={0.1}
+          className="flex max-w-lg min-w-0 flex-col gap-7 lg:pb-2"
+        >
+          <p className="text-fg-muted text-[17px] leading-relaxed text-pretty lg:text-lg">
+            {description}
+          </p>
+          {actions}
+        </Reveal>
+      </div>
       {visual ? (
         <div className="relative mt-14 md:mt-20">
           <DemoStage variant="section">{visual}</DemoStage>

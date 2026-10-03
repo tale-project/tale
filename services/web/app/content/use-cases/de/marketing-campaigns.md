@@ -3,7 +3,7 @@ title: KI-Agenten für Marketingteams | Tale
 description: Koordiniere Kampagnenrecherche, Entwürfe und Reviews mit deinem Team und KI-Agenten. Aus einem Briefing werden in Tale gemeinsame Aufgaben und Ergebnisse.
 slug: marketing-campaigns
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Eine Kampagne braucht mehr als einen ersten Entwurf. Das Team muss sich auf die Zielgruppe einigen, Belege sammeln, die Botschaft abstimmen und entscheiden, was veröffentlicht werden kann. In Tale organisierst du diese Arbeit mit deinem Marketingteam und KI-Agenten in einem gemeinsamen Projekt.

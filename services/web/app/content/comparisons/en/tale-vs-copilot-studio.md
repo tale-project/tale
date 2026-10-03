@@ -5,7 +5,7 @@ competitor: "Microsoft Copilot Studio"
 slug: "tale-vs-copilot-studio"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Do you need an agent channel or a project workspace?
@@ -13,6 +13,14 @@ draft: true
 A team already working in Microsoft applications may want agents to appear inside those familiar tools. Another initiative may need a shared project environment that brings people and agent tasks together. Begin with where colleagues should encounter the work and who will maintain that experience.
 
 [Microsoft Copilot Studio](https://www.microsoft.com/en-us/copilot/products/copilot-studio) supports creating, testing, and publishing agents through natural language or a graphical interface. Microsoft describes standalone agents, publication to Copilot, and use in channels such as Teams and SharePoint. It also describes autonomous business processes, so the comparison extends beyond building a question-answering bot.
+
+## Compare at a glance
+
+| Criterion | Tale | Microsoft Copilot Studio |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Create, test, and publish agents using natural language or a graphical builder |
+| Delivery | Coordinate work and inspect results through project tasks | Publish agents to Copilot and channels such as Teams and SharePoint |
+| Setup choices | Self-hosted or managed operation with supported runtime choices | Evaluate the target channel, identity, data access, and administration |
 
 ## Follow the deployment decision
 

@@ -5,10 +5,18 @@ competitor: "AutoGPT"
 slug: "tale-vs-autogpt"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 The name AutoGPT covers a current agent platform, not only the early autonomous-agent experiment. When comparing it with Tale, start with the work you want to make repeatable and the work your team needs to coordinate as a project.
+
+## Compare at a glance
+
+| Criterion | Tale | AutoGPT |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | Agent platform with AutoPilot, a builder, and a marketplace |
+| Recurring work | Project tasks alongside separately configured, versioned automations | Agents run on demand, on schedules, or from triggers |
+| Adoption | Coordinate owners, agents, and review decisions within a project | Build or adopt reusable agents; managed and self-hosted paths are documented |
 
 ## Reusable agents and shared project work
 

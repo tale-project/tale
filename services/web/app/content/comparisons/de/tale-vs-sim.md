@@ -5,10 +5,18 @@ competitor: "Sim"
 slug: "tale-vs-sim"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Ein gemeinsamer KI-Arbeitsbereich kann der Ort sein, an dem Agentensysteme entstehen, oder der Ort, an dem ein Team deren Arbeit organisiert. Sim und Tale decken mehrere Teile davon ab. Vergleiche, welche tägliche Tätigkeit für die meisten Beteiligten im Mittelpunkt steht.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Sim |
+| --- | --- | --- |
+| Arbeitsbereich | Ein Projektboard für zugewiesene Aufgaben, Agentenanweisungen und Prüfung. | Ein KI-Arbeitsbereich zum visuellen, dialogbasierten oder codebasierten Agentenbau. |
+| Gemeinsamer Kontext | Projektbriefings, Diskussionen und Arbeitsdateien unterstützen zugewiesene Agenten. | Wissen, Dateien, strukturierte Tabellen, Logs und zentrale Kontrollen. |
+| Wiederholbare Arbeit | Versionierte Automationen übernehmen wiederkehrende Schritte neben verantworteten Projektaufgaben. | Wiederverwendbare Agenten und Workflows mit Bereitstellung in der eigenen Cloud. |
 
 ## Systeme erstellen und Arbeit koordinieren
 

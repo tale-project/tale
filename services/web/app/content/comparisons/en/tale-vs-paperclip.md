@@ -5,10 +5,18 @@ competitor: "Paperclip"
 slug: "tale-vs-paperclip"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Choose the structure you want people to manage every morning. Are they coordinating a project with colleagues, or operating an organization of agents against business goals? Tale and Paperclip overlap strongly, but this starting point helps you evaluate their fit.
+
+## Compare at a glance
+
+| Criterion | Tale | Paperclip |
+| --- | --- | --- |
+| Organizing structure | Shared projects with tasks, acceptance criteria and human or agent participants. | Agent organizations with company goals, reporting relationships and task coordination. |
+| Human involvement | People brief agents, steer tasks and review deliverables. | Agent teams for people at work, with documented approvals and budgets. |
+| Pilot focus | Track changed requirements, task ownership, evidence and review decisions. | Test goal and reporting structures, handoffs and the exact scope of budget controls. |
 
 ## Projects and an agent organization
 

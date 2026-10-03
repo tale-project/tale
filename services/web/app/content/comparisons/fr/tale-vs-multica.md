@@ -5,10 +5,18 @@ competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Les deux produits méritent d’être évalués si ton équipe veut attribuer du travail à des agents IA et suivre les résultats. La décision porte sur la coordination d’un projet entier, y compris le travail qui entoure une modification de code.
+
+## Comparaison en bref
+
+| Critère | Tale | Multica |
+| --- | --- | --- |
+| Travail partagé | Projets avec tâches pour humains et agents, consignes et fichiers partagés. | Un système de tâches pour humains et agents avec suivi d’avancement et compétences réutilisables. |
+| Orientation des exemples | Briefs de campagne, rapports de recherche et modifications de pages sur un même tableau. | Des agents de code traitent des tickets et soumettent le résultat à validation ; évaluer les autres usages. |
+| Configuration de l’exécution | Démarrage explicite des tâches ; les agents de coordination équipés peuvent déléguer le travail prêt dans les limites du projet. | Runtimes locaux ou cloud connectés ; vérifier les conditions de licence pour ton déploiement. |
 
 ## Comparer le travail quotidien
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { render } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
-import { CompareTable } from './compare-table';
+import { CompareTable, LabelWithInfo } from './compare-table';
 
 const tiers = [
   { key: 'small' as const, name: 'Quality node', cta: null },
@@ -10,6 +10,23 @@ const tiers = [
 ];
 
 describe('CompareTable', () => {
+  it('lets a reader open comparison help with a tap and dismiss it with Escape', async () => {
+    const { user } = render(
+      <LabelWithInfo
+        label="Memory"
+        info="Memory is shared between running models."
+      />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Memory' });
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Memory' })).toHaveTextContent(
+      'Memory is shared between running models.',
+    );
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it('scrolls its card sideways on a phone instead of clipping a spec', () => {
     const { container } = render(
       <CompareTable

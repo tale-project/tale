@@ -3,7 +3,7 @@ title: Coordonner les opérations avec des agents IA | Tale
 description: Organise demandes internes, analyses et tâches récurrentes avec ton équipe et des agents IA. Suis responsabilités, livrables et revues dans des projets Tale.
 slug: operations
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Le travail opérationnel mêle procédures prévisibles et demandes qui exigent de l’analyse et du jugement. Tale donne à ton équipe un tableau de projet pour les deux : les personnes définissent le travail, les agents prennent les tâches adaptées et les responsables de revue vérifient le résultat.

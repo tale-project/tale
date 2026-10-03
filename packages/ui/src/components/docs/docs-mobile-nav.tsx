@@ -65,11 +65,12 @@ export function DocsMobileNav({
   return (
     <>
       <MobileAppHeader
-        className="print:hidden"
+        className="border-border/70 print:hidden"
         start={
           <IconButton
             ref={triggerRef}
             icon={Menu}
+            className="size-11"
             aria-label={t('openMenu')}
             aria-expanded={open}
             onClick={() => setOpen(true)}
@@ -78,6 +79,7 @@ export function DocsMobileNav({
         end={
           <IconButton
             icon={Search}
+            className="size-11"
             aria-label={t('openSearch')}
             onClick={onOpenSearch}
           />
@@ -98,9 +100,9 @@ export function DocsMobileNav({
         side="left"
         title={navLabel}
         hideClose
-        className="flex w-[min(100vw,20rem)] flex-col gap-0 p-0 md:hidden"
+        className="bg-background flex w-[min(100vw,20rem)] flex-col gap-0 p-0 md:hidden"
       >
-        <div className="border-border flex h-13 shrink-0 items-center justify-between gap-2 border-b px-3 pt-(--safe-top)">
+        <div className="border-border/70 flex min-h-13 shrink-0 items-center justify-between gap-2 border-b px-4 pt-(--safe-top)">
           <Link
             to={homeHref}
             activeOptions={{ exact: true }}
@@ -117,18 +119,19 @@ export function DocsMobileNav({
           <Button
             variant="ghost"
             size="icon"
+            className="size-11"
             icon={X}
             iconClassName="text-muted-foreground"
             aria-label={t('closeMenu')}
             onClick={close}
           />
         </div>
-        <div className="shrink-0 px-3 pt-3">
+        <div className="shrink-0 px-4 pt-4">
           <DocsSearchTrigger onClick={openSearchFromDrawer} />
         </div>
         <nav
           aria-label={navLabel}
-          className="min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-(--safe-bottom)"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 pb-[max(1.25rem,var(--safe-bottom))]"
         >
           <DocsNavTree
             sections={sections}

@@ -5,10 +5,18 @@ competitor: "Dust"
 slug: "tale-vs-dust"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Tale und Dust bringen Menschen und Agenten bei der Arbeit zusammen, auch über zugewiesene Aufgaben. Vergleiche, wie Aufgabenablauf, Laufzeitwahl und Betriebsmodell zu deinem Team passen. Ein Projektboard allein unterscheidet die Produkte nicht.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Dust |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Pods verbinden Gespräche, Dateien und Aufgaben für Menschen und Agenten |
+| Gemeinsamer Kontext | Projektaufträge, Dateien, Gespräche und geprüfte Ergebnisse | Gemeinsame Agenten mit Zugriff auf Unternehmensquellen und Tools |
+| Ausführung | Persistente Sandbox-Arbeitsbereiche; Parallelität hängt von der konfigurierten Kapazität ab | Aufgabenbezogene Gespräche helfen dem Team, Arbeit zu verfolgen und umzulenken |
 
 ## Zwei Ansätze für gemeinsame KI-Arbeit
 

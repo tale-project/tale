@@ -3,7 +3,7 @@ title: AI software delivery for collaborative teams | Tale
 description: Turn software ideas into tasks for people and AI agents. Coordinate implementation, tests, review, and documentation in a shared Tale project workspace.
 slug: software-development
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Describe the website, app, or internal tool your team needs, then organize the work from the brief through implementation, testing, review, and release preparation. Tale lets technical and nontechnical teammates work with agents through project tasks and discussions.

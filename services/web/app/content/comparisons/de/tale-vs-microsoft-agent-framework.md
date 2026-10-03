@@ -5,7 +5,7 @@ competitor: "Microsoft Agent Framework"
 slug: "tale-vs-microsoft-agent-framework"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Wer liefert die Anwendung rund um die Agenten?
@@ -13,6 +13,14 @@ draft: true
 Ein Unternehmen mit Plattformteam möchte seine Agentenarchitektur möglicherweise selbst gestalten. Ein anderes Team braucht ein Produkt, in dem Menschen Aufgaben zuweisen und Ergebnisse prüfen können. Entscheidend sind die Anwendung, die du betreiben willst, und das Team, das sie bereitstellt.
 
 [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) unterstützt Multi-Agenten-Workflows in Python und .NET sowie über ein separates Go-SDK. Das Repository beschreibt sequenzielle und parallele Abläufe, Übergaben, Gruppenarbeit, Checkpoints und menschliche Eingriffe. Es ist ein Anwendungsframework und unterscheidet sich damit von Microsofts fertigen Assistenzprodukten sowie von Tales Team-Workspace.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Microsoft Agent Framework |
+| --- | --- | --- |
+| Produktebene | Eine gemeinsame Anwendung für Projektaufgaben, Agenten und Prüfung. | Ein Agenten-Framework für Python und .NET mit separatem Go-SDK. |
+| Koordination | Konfigurierte Manager-Agenten können bereite Aufgaben innerhalb der Ausführungs- und Prüfregeln delegieren. | Sequenzielle, parallele, Übergabe- und Gruppenmuster mit Checkpoints und menschlichen Eingriffen. |
+| Verantwortung für die Einrichtung | Runtime-Zugriff, Tools und die Bereitstellung für das Team vorbereiten. | Anwendungsoberfläche, Identität und Hosting entwickeln und betreiben. |
 
 ## Wähle deine Implementierungsverantwortung
 

@@ -5,7 +5,7 @@ competitor: "CrewAI"
 slug: "tale-vs-crewai"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Décide ce que ton équipe veut construire
@@ -13,6 +13,14 @@ draft: true
 Une équipe peut coordonner ses agents en adoptant un espace projet ou en développant le système qui exécute son propre processus. Tale et CrewAI abordent ce choix par des points de départ différents. Ta capacité et ton envie de maintenir l’application autour des agents doivent orienter la sélection.
 
 [CrewAI](https://crewai.com/) propose une plateforme d’entreprise pour créer et exécuter des agents, en plus de son offre open source. Son produit actuel décrit la création visuelle et par code, des agents par rôle, le traçage et l’intervention humaine. Ce comparatif couvre donc un framework et une plateforme de développement, sans réduire CrewAI à une bibliothèque.
+
+## Comparaison en bref
+
+| Critère | Tale | CrewAI |
+| --- | --- | --- |
+| Adoption | Configurer les agents dans un espace projet existant | Framework open source et plateforme entreprise de création et d’exécution d’agents |
+| Mode de contrôle | Consignes de tâche, outils, résultats et vérification structurent l’exécution | Création visuelle ou par code, agents par rôle et traçage |
+| Vérification | Les tâches attribuées produisent rapports et fichiers à examiner | L’intervention humaine fait partie des capacités documentées |
 
 ## Choisis la couche que tu veux prendre en charge
 

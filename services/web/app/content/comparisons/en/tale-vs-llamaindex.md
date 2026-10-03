@@ -5,7 +5,7 @@ competitor: "LlamaIndex"
 slug: "tale-vs-llamaindex"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Is the deliverable a document system or a team decision?
@@ -13,6 +13,14 @@ draft: true
 Document work includes several separate problems: extracting information, making it available to agents, and deciding what the team should do with it. A strong extraction pipeline and a clear project process solve different parts of that job. Identify the part you need to own before choosing a product.
 
 [LlamaIndex](https://www.llamaindex.ai/) currently emphasizes document intelligence, including LlamaParse, structured extraction, retrieval, and tooling for document agents. Its offering spans developer infrastructure and managed products. This comparison treats it as a foundation for document systems, rather than assuming the whole offering is a single framework package.
+
+## Compare at a glance
+
+| Criterion | Tale | LlamaIndex |
+| --- | --- | --- |
+| Starting point | A project workspace for assigned agent work and reviewed deliverables. | Document intelligence, retrieval and document-agent tools. |
+| Document work | Agents use configured tools to analyse files and prepare project outputs. | LlamaParse, structured extraction and retrieval are central capabilities. |
+| Setup to assess | Confirm the required runtime, document tools and review process. | Choose the relevant developer infrastructure or managed product. |
 
 ## Compare the complete outcome
 

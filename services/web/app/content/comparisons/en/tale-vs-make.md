@@ -5,7 +5,7 @@ competitor: "Make"
 slug: "tale-vs-make"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Where should the work live?
@@ -13,6 +13,14 @@ draft: true
 Choose the starting point before comparing automation features. Is your team maintaining a recurring process across applications, or coordinating a project whose next tasks change as people review the work? Both can involve agents, but the people responsible for operating them may be different.
 
 [Make](https://www.make.com/en) presents a visual automation platform for building and managing workflows and AI agents through a visual editor, code, or prompts. Connecting business applications is central to its product. That makes it a relevant candidate when the process between systems is what you need to design.
+
+## Compare at a glance
+
+| Criterion | Tale | Make |
+| --- | --- | --- |
+| Work surface | A project board for owned tasks that evolve through discussion and review. | Visual automation workflows and AI agents built with editor, code or prompts. |
+| Repeatable processes | Versioned automations support repeatable steps alongside project tasks. | Connecting business applications and operating workflows are central. |
+| Pilot focus | Test task ownership, agent instructions and review when requirements change. | Test connector access, failed updates and exceptions in the workflow. |
 
 ## Choose around the operating workflow
 

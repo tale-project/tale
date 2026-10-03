@@ -1,0 +1,76 @@
+import type { PlatformPageId } from './platform-pages';
+
+export const USE_CASE_SLUGS = [
+  'marketing-campaigns',
+  'software-development',
+  'research',
+  'document-work',
+  'operations',
+] as const;
+export type UseCaseSlug = (typeof USE_CASE_SLUGS)[number];
+
+/** Editorial next steps: the type of work being evaluated, not a winner rating. */
+export const COMPARISON_USE_CASES: Record<string, UseCaseSlug> = {
+  'tale-vs-cursor': 'software-development',
+  'tale-vs-devin': 'software-development',
+  'tale-vs-replit': 'software-development',
+  'tale-vs-lovable': 'software-development',
+  'tale-vs-bolt': 'software-development',
+  'tale-vs-v0': 'software-development',
+  'tale-vs-multica': 'software-development',
+  'tale-vs-paperclip': 'operations',
+  'tale-vs-conductor': 'software-development',
+  'tale-vs-vibe-kanban': 'software-development',
+  'tale-vs-symphony': 'software-development',
+  'tale-vs-mission-control': 'operations',
+  'tale-vs-autensa': 'software-development',
+  'tale-vs-claw-empire': 'operations',
+  'tale-vs-clawtrol': 'operations',
+  'tale-vs-openhands': 'software-development',
+  'tale-vs-agent-zero': 'software-development',
+  'tale-vs-autogpt': 'operations',
+  'tale-vs-openclaw': 'operations',
+  'tale-vs-dust': 'marketing-campaigns',
+  'tale-vs-onyx': 'research',
+  'tale-vs-glean': 'research',
+  'tale-vs-open-webui': 'research',
+  'tale-vs-librechat': 'research',
+  'tale-vs-anythingllm': 'document-work',
+  'tale-vs-chatgpt': 'document-work',
+  'tale-vs-claude': 'document-work',
+  'tale-vs-google-workspace': 'document-work',
+  'tale-vs-manus': 'research',
+  'tale-vs-vellum': 'operations',
+  'tale-vs-sim': 'operations',
+  'tale-vs-relevance-ai': 'operations',
+  'tale-vs-lindy': 'operations',
+  'tale-vs-gumloop': 'marketing-campaigns',
+  'tale-vs-n8n': 'operations',
+  'tale-vs-dify': 'software-development',
+  'tale-vs-flowise': 'software-development',
+  'tale-vs-taskade': 'marketing-campaigns',
+  'tale-vs-zapier-agents': 'operations',
+  'tale-vs-make': 'operations',
+  'tale-vs-stackai': 'operations',
+  'tale-vs-copilot-studio': 'operations',
+  'tale-vs-crewai': 'software-development',
+  'tale-vs-langgraph': 'software-development',
+  'tale-vs-langflow': 'software-development',
+  'tale-vs-haystack': 'research',
+  'tale-vs-mastra': 'software-development',
+  'tale-vs-llamaindex': 'document-work',
+  'tale-vs-microsoft-agent-framework': 'software-development',
+};
+
+export const PLATFORM_USE_CASES: Record<
+  PlatformPageId,
+  readonly UseCaseSlug[]
+> = {
+  hub: ['marketing-campaigns', 'software-development', 'operations'],
+  projects: ['marketing-campaigns', 'research', 'document-work'],
+  agents: ['software-development', 'marketing-campaigns', 'research'],
+  chat: ['research', 'document-work'],
+  automations: ['operations', 'marketing-campaigns'],
+  knowledge: ['research', 'document-work'],
+  governance: ['operations'],
+};

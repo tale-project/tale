@@ -9,6 +9,7 @@ import {
   RELEASES,
   RELEASES_FETCHED_AT,
 } from './app/generated/releases-manifest';
+import { marketingContentImports } from './lib/content/vite';
 import { createReleaseFeed } from './lib/releases/feed';
 import { handleReleasesRequest, RELEASES_ROUTES } from './lib/releases/route';
 import { createMarketingArtifactsServer } from './lib/seo/artifacts-server';
@@ -112,6 +113,7 @@ export default defineConfig({
     ],
   },
   plugins: [
+    marketingContentImports(),
     yamlImports(),
     tanstackRouter({ autoCodeSplitting: true }),
     viteReact(),

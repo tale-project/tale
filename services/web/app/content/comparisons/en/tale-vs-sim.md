@@ -5,10 +5,18 @@ competitor: "Sim"
 slug: "tale-vs-sim"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 A shared AI workspace can mean a place to build agent systems or a place to manage the work those agents do with teammates. Sim and Tale both cover several parts of that picture. Compare the daily activity you expect most people to perform.
+
+## Compare at a glance
+
+| Criterion | Tale | Sim |
+| --- | --- | --- |
+| Work surface | A project board for assigned tasks, agent instructions and review. | An AI workspace for building agents visually, conversationally or with code. |
+| Shared context | Project briefs, discussions and working files support assigned agents. | Knowledge, files, structured tables, logs and centralized controls. |
+| Repeatable work | Versioned automations handle recurring steps alongside owned project tasks. | Reusable agents and workflows, with an own-cloud deployment option. |
 
 ## Building a system and coordinating its work
 

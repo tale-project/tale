@@ -58,6 +58,7 @@ export function NavMenu({
   columns = 2,
 }: NavMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buttonId = useId();
@@ -108,7 +109,10 @@ export function NavMenu({
       if (!rootRef.current?.contains(event.target as Node)) close();
     };
     const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+      if (event.key !== 'Escape') return;
+      const restoreFocus = rootRef.current?.contains(document.activeElement);
+      close();
+      if (restoreFocus) triggerRef.current?.focus();
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -151,6 +155,7 @@ export function NavMenu({
       onMouseLeave={scheduleClose}
     >
       <button
+        ref={triggerRef}
         type="button"
         id={buttonId}
         aria-expanded={open}

@@ -66,7 +66,7 @@ export function SegmentedRadio<T extends string | number>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className="bg-surface-site-inset flex w-fit items-center gap-1 rounded-md p-0.5"
+      className="bg-surface-site-inset flex w-fit max-w-full flex-wrap items-center gap-1 rounded-xl p-1"
     >
       {options.map((option, index) => {
         const isActive = value === option;
@@ -82,7 +82,7 @@ export function SegmentedRadio<T extends string | number>({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(option)}
             onKeyDown={(e) => handleKeyDown(e, index)}
-            className={`focus-visible:ring-fg-base focus-visible:ring-offset-bg-elevated rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+            className={`focus-visible:ring-fg-base focus-visible:ring-offset-bg-elevated min-h-11 min-w-0 flex-1 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none sm:min-h-9 ${
               isActive
                 ? 'bg-surface-site-active text-fg-base shadow-sm'
                 : 'text-fg-muted hover:text-fg-base cursor-pointer'

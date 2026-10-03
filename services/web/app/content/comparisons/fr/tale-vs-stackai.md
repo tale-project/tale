@@ -5,7 +5,7 @@ competitor: "StackAI"
 slug: "tale-vs-stackai"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Publies-tu un agent ou réalises-tu un projet ?
@@ -13,6 +13,14 @@ draft: true
 Une initiative IA interne peut viser deux résultats différents : une application réutilisable que tes collègues consultent, ou un travail achevé auquel contribuent plusieurs personnes et agents. Pars du résultat dont ton équipe est responsable. Cette distinction aide davantage que le nombre de fonctions portant le mot « agent ».
 
 La [présentation de StackAI](https://docs.stackai.com/welcome-to-stackai/overview) décrit un éditeur visuel connecté aux bases de connaissances, aux outils et aux systèmes métier. Les agents peuvent être déployés sous forme de chat, de formulaire, d’API ou auprès d’équipes internes, avec gouvernance, contrôle d’accès et observabilité. Le produit met l’accent sur la création et l’exploitation d’agents d’entreprise.
+
+## Comparaison en bref
+
+| Critère | Tale | StackAI |
+| --- | --- | --- |
+| Point de départ | Tâches de projet avec agents équipés et livrables à valider. | Un éditeur visuel reliant connaissances, outils et systèmes métier. |
+| Mise à disposition pour l’équipe | Discussions de tâches et fichiers partagés relient recherche, brouillons et validation. | Déploie des expériences d’agents par chat, formulaires et API pour les équipes internes. |
+| Configuration d’exploitation | Préparer accès aux runtimes, consignes, outils et responsable de validation. | Documente gouvernance, contrôles d’accès et observabilité des systèmes déployés. |
 
 ## Relie le choix à la responsabilité
 

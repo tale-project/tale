@@ -47,11 +47,11 @@ export function DemoTourSection({
       className="bg-surface-site scroll-mt-16"
     >
       <SiteContainer>
-        <div className="mx-auto max-w-280">
+        <div className="mx-auto">
           {heading ? (
             <SectionHeading
               align="start"
-              className="max-w-180 pt-32 pb-16 md:pt-40 md:pb-24"
+              className="border-border-base max-w-200 border-b pt-20 pb-12 sm:pt-28 sm:pb-16"
               title={heading}
               description={description}
             />
@@ -67,6 +67,7 @@ export function DemoTourSection({
               description={stage.description}
               link={stage.link}
               isLast={index === stages.length - 1}
+              reverse={index % 2 === 1}
             >
               {stage.demo}
             </DemoTourRow>

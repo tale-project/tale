@@ -5,10 +5,18 @@ competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Beide Produkte gehören auf die Auswahlliste, wenn dein Team Aufgaben an KI-Agenten vergeben und Ergebnisse verfolgen möchte. Entscheidend ist, wie ihr ein ganzes Projekt koordiniert – einschließlich der Arbeit rund um eine Code-Änderung.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Multica |
+| --- | --- | --- |
+| Gemeinsame Arbeit | Projekte mit Aufgaben für Menschen und Agenten, Anweisungen und gemeinsamen Dateien. | Ein gemeinsames Aufgabensystem für Menschen und Agenten mit Statusmeldungen und wiederverwendbaren Skills. |
+| Schwerpunkt der Beispiele | Kampagnenbriefings, Rechercheberichte und Seitenänderungen auf einem Projektboard. | Coding-Agenten bearbeiten Issues und geben Ergebnisse zur Prüfung zurück; weitere Arbeit im Test bewerten. |
+| Ausführung einrichten | Explizite Aufgabenstarts; ausgestattete Manager-Agenten können bereite Arbeit innerhalb der Projektgrenzen delegieren. | Angebundene lokale oder Cloud-Runtimes; Lizenzbedingungen für deine Bereitstellung prüfen. |
 
 ## Den Arbeitsalltag vergleichen
 

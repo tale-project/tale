@@ -3,7 +3,7 @@ title: Documents avec agents IA et revue d'équipe | Tale
 description: Coordonne rapports, présentations, tableurs et révisions avec des agents IA. Garde le brief, les fichiers, les retours et la revue ensemble dans Tale.
 slug: document-work
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Rapports, présentations et tableurs passent souvent entre plusieurs mains avant d’être prêts. Tale donne à l’équipe un espace partagé pour définir la demande, déléguer le travail sur les fichiers à un agent et examiner les livrables.

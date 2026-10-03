@@ -3,7 +3,7 @@ title: Des agents IA pour le marketing | Tale
 description: Coordonne recherches, brouillons et revues avec ton équipe et des agents IA. Transforme un brief marketing en tâches partagées et livrables dans Tale.
 slug: marketing-campaigns
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Une campagne demande plus qu’un premier brouillon. Il faut choisir une audience, réunir des preuves, harmoniser le message et décider ce qui peut être publié. Tale réunit ton équipe marketing et des agents IA dans un même projet pour organiser ce travail.

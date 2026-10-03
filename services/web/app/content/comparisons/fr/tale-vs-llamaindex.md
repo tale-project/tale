@@ -5,7 +5,7 @@ competitor: "LlamaIndex"
 slug: "tale-vs-llamaindex"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Le livrable est-il un système documentaire ou une décision ?
@@ -13,6 +13,14 @@ draft: true
 Le travail documentaire recouvre plusieurs problèmes : extraire les informations, les rendre accessibles aux agents et décider de ce que l’équipe doit en faire. Une bonne chaîne d’extraction et un processus projet clair répondent à des parties différentes du besoin. Identifie celle que tu dois prendre en charge avant de choisir.
 
 [LlamaIndex](https://www.llamaindex.ai/) met actuellement l’accent sur l’intelligence documentaire : LlamaParse, extraction structurée, recherche et outils pour agents documentaires. L’offre comprend infrastructure de développement et produits gérés. Le comparatif la considère comme une base pour des systèmes documentaires, sans réduire l’ensemble à un seul framework.
+
+## Comparaison en bref
+
+| Critère | Tale | LlamaIndex |
+| --- | --- | --- |
+| Point de départ | Un espace de projet pour le travail attribué aux agents et les livrables à valider. | Traitement documentaire, recherche et outils pour agents documentaires. |
+| Travail documentaire | Les agents utilisent des outils configurés pour analyser les fichiers et préparer les livrables. | LlamaParse, l’extraction structurée et la recherche sont des fonctions centrales. |
+| Configuration à évaluer | Vérifier le runtime, les outils documentaires et le processus de validation nécessaires. | Choisir l’infrastructure de développement ou le produit géré adapté. |
 
 ## Compare le résultat complet
 

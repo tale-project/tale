@@ -1,12 +1,83 @@
 import { TALE_DOCS_LLMS_TXT } from '@tale/ui/seo/globals';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as contentRegistry from '../content/server';
 import {
   WEB_LLMS_PAGES_INTRO,
   buildWebSections,
   legalDisallowPaths,
   webOptionalPages,
+  makeWebLoadBody,
 } from './build';
+
+afterEach(() => vi.restoreAllMocks());
+
+describe('localized marketing content discovery', () => {
+  it('serializes shared-i18n SSR across locales and continues after a failed render', async () => {
+    let currentUrl = '';
+    const render = vi.fn(async (url: string) => {
+      currentUrl = url;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (url === '/contact') throw new Error('fixture render failed');
+      return { html: `<main><p>${currentUrl}</p></main>` };
+    });
+    const load = makeWebLoadBody({ render });
+    const results = await Promise.allSettled(
+      ['/', '/de', '/contact', '/fr'].map(async (url) =>
+        (await load(url))?.trim(),
+      ),
+    );
+    expect(results).toEqual([
+      { status: 'fulfilled', value: '/' },
+      { status: 'fulfilled', value: '/de' },
+      { status: 'rejected', reason: new Error('fixture render failed') },
+      { status: 'fulfilled', value: '/fr' },
+    ]);
+  });
+
+  it('uses each published translation metadata with one complete alternate cluster', () => {
+    const pages = contentRegistry
+      .readMarketingContent()
+      .filter((page) => page.slug === 'tale-vs-multica');
+    for (const page of pages) page.frontmatter.draft = false;
+    vi.spyOn(contentRegistry, 'publishedMarketingContent').mockReturnValue(
+      pages,
+    );
+    const sections = buildWebSections([]);
+    for (const page of pages) {
+      const route = sections
+        .flatMap((section) => section.routes)
+        .find((entry) => entry.url === page.url);
+      expect(route?.title).toBe(page.frontmatter.title);
+      expect(route?.description).toBe(page.frontmatter.description);
+      expect(route?.alternates).toEqual({
+        en: 'https://tale.dev/compare/tale-vs-multica',
+        de: 'https://tale.dev/de/compare/tale-vs-multica',
+        fr: 'https://tale.dev/fr/compare/tale-vs-multica',
+        'x-default': 'https://tale.dev/compare/tale-vs-multica',
+      });
+    }
+    const llmsUrls = sections
+      .filter((section) => !section.hideFromIndex)
+      .flatMap((section) => section.routes.map((route) => route.url));
+    expect(llmsUrls).toContain('/compare/tale-vs-multica');
+    expect(llmsUrls).not.toContain('/de/compare/tale-vs-multica');
+  });
+
+  it('never serves a draft body through SEO artifact discovery', async () => {
+    vi.spyOn(contentRegistry, 'publishedMarketingContent').mockReturnValue([]);
+    const render = vi.fn();
+    expect(
+      await makeWebLoadBody({ render })('/compare/tale-vs-multica'),
+    ).toBeNull();
+    expect(render).not.toHaveBeenCalled();
+    expect(
+      buildWebSections([])
+        .flatMap((section) => section.routes)
+        .some((route) => route.url.startsWith('/compare')),
+    ).toBe(false);
+  });
+});
 
 describe('llms.txt product facts', () => {
   it('exposes a factual Pages intro for AIO/LLMO crawlers', () => {

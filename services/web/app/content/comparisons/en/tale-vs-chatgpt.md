@@ -5,7 +5,7 @@ competitor: "ChatGPT Business and Enterprise"
 slug: "tale-vs-chatgpt"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Start with the work your team shares
@@ -13,6 +13,14 @@ draft: true
 For teams evaluating ChatGPT Business or Enterprise, the question is where shared work should be planned, delegated, and reviewed. Compare the workspace your colleagues will use and the controls you need around it, alongside the quality of a model's answer.
 
 [OpenAI's ChatGPT Work documentation](https://learn.chatgpt.com/docs/enterprise/chatgpt-work-overview) describes multistep tasks using authorized files, apps, and tools, with local or cloud execution depending on configuration. Availability and controls vary by plan, workspace settings, and rollout. This is a broader alternative than a chat window, so your pilot should include the actual work capabilities enabled for your organization.
+
+## Compare at a glance
+
+| Criterion | Tale | ChatGPT Business and Enterprise |
+| --- | --- | --- |
+| Working surface | Shared projects with assigned tasks, files, and review | ChatGPT environment with authorized files, apps, and tools |
+| Execution | Project agents use configured runtimes, tools, and permissions | Multistep work runs locally or in the cloud, depending on configuration |
+| Setup choices | Self-hosted or managed operation with supported runtime choices | Capabilities depend on plan, workspace settings, and rollout |
 
 ## Compare operating models, not just answers
 

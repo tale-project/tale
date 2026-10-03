@@ -5,7 +5,7 @@ competitor: "Vellum"
 slug: "tale-vs-vellum"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Is the unit of work a person or a shared project?
@@ -13,6 +13,14 @@ draft: true
 A capable personal assistant can help one person keep commitments and complete recurring work. A shared project also needs responsibility to remain understandable when someone else takes over. Start by deciding whether you are buying assistance for an individual or a working structure for a team.
 
 [Vellum's current product](https://www.vellum.ai/) is positioned as a personal AI assistant. It describes persistent memory, recurring tasks, connected tools, and local or cloud operation. This page compares that current offering, rather than carrying forward the enterprise workflow-builder positioning found in older comparisons. Personal assistance can include business work; the distinction is the organizing model.
+
+## Compare at a glance
+
+| Criterion | Tale | Vellum |
+| --- | --- | --- |
+| Starting point | A shared project workspace with tasks, owners and review. | A personal AI assistant with persistent memory and recurring tasks. |
+| Working context | Project files and conversations support work that teammates can hand over. | Connected tools and personal assistant memory; not the same concept as project context. |
+| Pilot focus | Ask a colleague to take over the recurring update and review the next result. | Test the local or cloud assistant workflow and the context it retains. |
 
 ## Evaluate continuity and ownership
 

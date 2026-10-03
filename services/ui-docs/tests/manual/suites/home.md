@@ -47,7 +47,8 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
   and its sentence sit **above** the product window with no empty band between
   them, and the stage's own rules open and close the picture; the window shows
   **Workspace settings** with the General tab (a name field, a Data region
-  select, a Weekly digest switch) and an inert Members tab.
+  select, a Weekly digest switch), an inert Members tab, and a member table
+  beside the form on desktop; a small component strip sits beneath the window.
 - [ ] `HOME-4` · **Switch the theme to Dark from the header, then to Light** →
   the product window follows each switch (its fields, its tab strip and its
   chrome re-skin with the page — it reads the same tokens), and the switch
@@ -60,8 +61,9 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
   their section's first page (`introduction`, `colors`, `button`, `list-page`,
   `overview`) in the app chrome.
 - [ ] `HOME-12` · **Read the five cards without activating them** → the panel
-  has no empty cell at any width, and each card's guide count matches the
-  number of rows its section holds in the documentation rail.
+  features Getting started beside a two-by-two reference grid on desktop,
+  then above it on tablet; no empty cell appears at any width, and each card's
+  guide count matches the number of rows its section holds in the documentation rail.
 - [ ] `HOME-7` · **Copy the package.json snippet from the install band** → the
   copy button announces success, the clipboard holds the exact block including
   `"@tale/ui": "github:tale-project/tale#dist/ui"`, and **Read the installation
@@ -70,9 +72,12 @@ in light mode, `prefers-reduced-motion` **off** unless a box says otherwise.
   every section is visible immediately with no fade; without the emulation each
   section fades in once as it scrolls into view and never fades out again.
 - [ ] `HOME-9` · **Resize to 393 px wide** → the header collapses to the logo,
-  the theme control and **Open navigation menu**; the menu lists Docs,
-  Components and GitHub; the hero, the window and the cards stack in one column
+  **Open navigation menu**; the menu lists Docs, Components and GitHub, plus
+  **Switch theme** with three inline 44 px options; the hero, the window and the cards stack in one column
   with no horizontal scrollbar.
 - [ ] `HOME-10` · **Read the footer** → the copyright line names the current
   year and Ruler GmbH, the licence line is present, and **llms.txt** opens the
   plain-text index while **GitHub** opens the repository.
+
+- [ ] `HOME-13` · **Resize `/` through 320, 360, 768, 1024 and 1440 px, then rotate a phone** → the headline, calls to action, cards and footer stay inside the viewport; the illustration presents the form alone below desktop width without a clipped member table; the package snippet scrolls inside its own frame and the page never scrolls sideways.
+- [ ] `HOME-14` · **Reload with normal motion and scroll to the sample workspace, then scroll away and back** → the fields, member table and component strip assemble once in order without moving the surrounding page or replaying; repeat with reduced motion enabled and the complete illustration is already visible without motion.

@@ -5,10 +5,18 @@ competitor: "Onyx"
 slug: "tale-vs-onyx"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 When useful information lives across many applications, finding context and coordinating the resulting work are related but separate buying decisions. Compare Onyx and Tale against both parts of the job before choosing your team's workspace.
+
+## Compare at a glance
+
+| Criterion | Tale | Onyx |
+| --- | --- | --- |
+| Starting point | Owned project tasks with briefs, files, discussions and reviewed outputs. | A company context layer with permission-aware indexing across applications. |
+| Agent work | Agents prepare reports, documents or software in persistent workspaces. | Custom agents, deep research, MCP actions and sandbox execution producing artifacts. |
+| Pilot focus | Test ownership and handoff from source material to an accepted project result. | Test source retrieval and permission handling alongside execution and handoff. |
 
 ## Context and execution both matter
 

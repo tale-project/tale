@@ -110,6 +110,12 @@ nav:
       label: Governance
       description: Approvals, audit trail, and spend controls.
   resource:
+    compare:
+      label: Comparisons
+      description: Compare workspaces, workflows, and agent runtimes.
+    useCases:
+      label: Use cases
+      description: Real work for your team and AI agents.
     hardware:
       label: Hardware
       description: On-prem appliances sized for your agent workload.
@@ -159,7 +165,7 @@ address:
   country: Switzerland
 home:
   hero:
-    title: One project board for your team and AI agents
+    title: One workspace for your team and AI agents
     subtitle: Plan work with your teammates, delegate tasks to AI agents, and review
       the results together. From software delivery to marketing campaigns,
       Tale keeps your agent fleet, discussions, and deliverables in one shared
@@ -315,15 +321,13 @@ home:
       members3: '5'
       members4: '11'
     tasks:
-      windowTitle: Tasks
-      colTodo: To do
-      colInProgress: In progress
-      colInReview: In review
-      colDone: Done
+      windowTitle: "Tasks"
+      colTodo: "To do"
+      colInProgress: "In progress"
+      colInReview: "In review"
+      colDone: "Done"
       working: Working
-      label: "Animated demo: a shared project board with To do, In progress, In
-        review, and Done columns. People and agents own tasks, and an agent is
-        working on one card."
+      label: "Animated demo: a shared project board with To do, In progress, In review, and Done columns. People and agents own tasks, and an agent is working on one card."
       id1: TEAM-14
       title1: Plan the campaign brief
       assignee1: Unassigned
@@ -2073,8 +2077,7 @@ platformProjects:
       budgetValue: CHF 120 / 400
     tasks:
       label:
-        "Animated demo: the Website relaunch board. Relaunch Agent works on
-        WEB-12 in In progress while WEB-11 waits in In review."
+        "Animated demo: the Website relaunch board. Relaunch Agent works on WEB-12 in In progress while WEB-11 waits in In review."
       id1: WEB-14
       title1: Finish /docs redirect map
       assignee1: Unassigned
@@ -2313,3 +2316,12 @@ changelogPage:
   viewOnGithub: View on GitHub
   emptyBody: No release notes for this version.
   fetchedAt: Last updated {date}.
+contentPages:
+  tableScrollHint: Scroll sideways to compare
+  breadcrumb: Page path
+  reviewed: 'Reviewed {date}'
+  relatedTitle: Work you can try with your team
+  relatedDescription: Start with a clear brief, defined deliverables, and a review process.
+  nextTitle: Try it with your own project
+  nextDescription: Bring a real task and the tools your team already uses.
+  allUseCases: All use cases

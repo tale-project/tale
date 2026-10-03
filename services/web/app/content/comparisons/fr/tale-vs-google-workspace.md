@@ -5,7 +5,7 @@ competitor: "Google Workspace with Gemini"
 slug: "tale-vs-google-workspace"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## L’IA doit-elle suivre tes applications ou ton tableau de projet ?
@@ -13,6 +13,14 @@ draft: true
 Pour une entreprise déjà équipée de Google Workspace, le premier achat IA peut prolonger les documents, e-mails et réunions habituels. Un espace projet supplémentaire doit avoir un rôle clair : coordonner un travail auquel plusieurs personnes et agents contribuent dans la durée. Pars de cette décision de fonctionnement plutôt que d’une liste de fonctions IA.
 
 [Google Workspace avec Gemini](https://workspace.google.com/solutions/ai/) intègre l’IA dans des applications comme Gmail, Docs, Sheets et Meet. L’offre actuelle décrit aussi Workspace Studio pour créer des workflows entre applications Workspace. La suite concerne donc l’assistance quotidienne et l’automatisation, au-delà de la rédaction de documents.
+
+## Comparaison en bref
+
+| Critère | Tale | Google Workspace with Gemini |
+| --- | --- | --- |
+| Espace de travail | Projets partagés avec tâches attribuées, fichiers et vérification | IA dans Gmail, Docs, Sheets et Meet |
+| Coordination | Personnes et agents configurés partagent tâches, fichiers et conversations | Collaboration dans les applications et l’édition utilisées par ton équipe |
+| Processus | Structure de projet pour délégation, vérification et tâches de suivi | Workspace Studio crée des processus entre les applications Workspace |
 
 ## Évalue les lieux de travail existants
 

@@ -5,7 +5,7 @@ competitor: "Vellum"
 slug: "tale-vs-vellum"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Steht eine Person oder ein gemeinsames Projekt im Mittelpunkt?
@@ -13,6 +13,14 @@ draft: true
 Ein leistungsfähiger persönlicher Assistent kann einer Person helfen, Verpflichtungen einzuhalten und wiederkehrende Arbeit zu erledigen. Ein gemeinsames Projekt braucht außerdem nachvollziehbare Verantwortung, wenn jemand anderes übernimmt. Kläre zuerst, ob du Unterstützung für Einzelpersonen oder eine Arbeitsstruktur für ein Team suchst.
 
 [Vellums aktuelles Produkt](https://www.vellum.ai/) wird als persönlicher KI-Assistent positioniert. Es beschreibt dauerhaftes Gedächtnis, wiederkehrende Aufgaben, verbundene Tools sowie lokalen oder Cloud-Betrieb. Diese Seite vergleicht das aktuelle Angebot und übernimmt nicht die ältere Positionierung als Enterprise-Workflow-Builder. Persönliche Assistenz kann Geschäftsarbeit einschließen; der Unterschied liegt im Organisationsmodell.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Vellum |
+| --- | --- | --- |
+| Ausgangspunkt | Ein gemeinsamer Projektarbeitsbereich mit Aufgaben, Verantwortlichen und Prüfung. | Ein persönlicher KI-Assistent mit dauerhaftem Gedächtnis und wiederkehrenden Aufgaben. |
+| Arbeitskontext | Projektdateien und Gespräche unterstützen Arbeit, die Teammitglieder übergeben können. | Angebundene Tools und persönliches Assistentengedächtnis; ein anderer Begriff als Projektkontext. |
+| Fokus des Tests | Eine Kollegin oder einen Kollegen das regelmäßige Update übernehmen und das nächste Ergebnis prüfen lassen. | Den lokalen oder Cloud-Assistentenablauf und den erhaltenen Kontext testen. |
 
 ## Prüfe Kontinuität und Zuständigkeit
 

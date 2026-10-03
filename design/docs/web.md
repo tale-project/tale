@@ -61,7 +61,7 @@ Semantic utilities only, **never a raw hex in a class**. On top of the canonical
 [`packages/marketing-ui/src/globals.css`](../../packages/marketing-ui/src/globals.css) (it imports
 `@tale/ui/globals.css` and layers the marketing `@theme` on top; the site's own
 [`app/globals.css`](../../services/web/app/globals.css) is that one import plus the html/body rules) —
-cool stone paper in light, soft charcoal (not espresso brown) in dark. Ink, borders, and accent are
+porcelain in light and soft charcoal in dark. Ink, borders, and accent are
 overridden here so chrome matches the paper, not the app's true-neutral black:
 
 | Utility                                                     | Use                                              |
@@ -84,15 +84,21 @@ overridden here so chrome matches the paper, not the app's true-neutral black:
 | `shadow-site-card` / `shadow-site-card-hover`               | quiet elevation on cards and logo tiles          |
 | `shadow-site-inset`                                         | recessed icon wells / pillar panels              |
 | `bg-demo-traffic-*`                                         | browser chrome traffic lights (demo only)        |
-| `bg-demo-stage-*`                                           | `DemoStage` bloom / vignette / grid layers       |
+| `demo-{mint,coral,violet,gold,sky}` + `-soft`               | domain illustration ink and surfaces, theme-aware |
 
 New marketing surface values go into that `@theme` block (plus its `.dark` overrides), never inline.
-Light marketing surfaces are cool stone paper (`#f4f4f4`), with raised cards at `#ffffff` and a quiet
-wash (`#dddddd`) under product windows. Atmosphere blooms use cool gray
-(`--color-atmosphere-warm` / `--color-atmosphere-deep`), never brand blue and never amber/umber.
+Light marketing surfaces use porcelain (`#fafafa`), raised cards at `#ffffff`, and a quiet
+wash (`#f0f1f3`) for neutral section rhythm. Page atmosphere uses cool gray
+(`--color-atmosphere-warm` / `--color-atmosphere-deep`). Illustrations use intentional domain palettes:
+mint for projects and governance, coral for agent workspaces, violet for chat, gold for automations,
+and sky for knowledge. Pair color with recognizable content and structure; a tinted copy of the
+same card grid is not an individual illustration. These colors describe the story, not product
+status: success, warning, and error states retain their established meanings.
 Promo chips are muted stone, not sand. Primary marketing CTAs use the ink `accent-*` tokens
-(pill shape, weight 400); brand blue is for _product life_ inside demos — connectors, step markers,
-live rings, send buttons — never for body text or large fills.
+(rounded-xl shape, weight 500); secondary actions use a raised surface and a fine outline. Brand
+blue remains available for real product details. Do not add a decorative blue hairline above
+illustrations. `DemoShell domain` defaults to its navigation domain, with explicit overrides for
+agent workspaces and governance. `DemoStage` reads that marker to coordinate its palette and texture.
 
 ## Animated product demos — the doctrine
 
@@ -117,7 +123,7 @@ One contract:
 - **Framed by `DemoShell` — a 1:1 depiction of the app.** The frame reproduces the product's real
   anatomy: browser chrome (marketing-only), icon nav rail matching
   `use-navigation-items.ts` (Home → Knowledge → Automations; Settings,
-  Bell + avatar at bottom; `bg-muted` / `surface-site-inset` active, no left bar), and the
+  Bell + avatar at bottom; a soft domain tint for the active item, no left bar), and the
   **correct page header for the active nav** — chat demos use `chat-header.tsx`
   (`MessagesSquare`, `Search`, Share **with label** — `demo.chrome.share`, the package's own catalog
   key — `Ellipsis`, no thread title); list demos
@@ -125,13 +131,16 @@ One contract:
   only). Pass `title` for list pages. Reference captures in
   `services/docs/public/images/platform/`. The frame is a labelled `role="img"` window (localized
   one-sentence `aria-label`; decorative DOM under `aria-hidden` + `inert`; `data-nosnippet` so
-  crawlers don't lift demo copy into snippets) with a **fixed aspect ratio**
-  (CLS 0). Elevation uses `shadow-demo` / `shadow-demo-hero`. Demos sit on `DemoStage`
+  crawlers don't lift demo copy into snippets) with a **reserved aspect ratio and minimum height**
+  so playback does not resize the page. Elevation uses `shadow-demo` / `shadow-demo-hero`. Demos sit on `DemoStage`
   (atmospheric wash — never a photo). Demo _content_ must match product idioms (chat bubbles,
   RoutingStepRow, SourceCards, composer toolbar, Agents/Documents tables, workflow-step cards,
   Executions table, automation-run approval cards, project task boards, sandbox Files /
   Live panes) — not fictional hub diagrams. Give mobile a taller
-  ratio than desktop; size wells against **German**.
+  ratio and enough minimum height for the final **German and French** states. `DemoStage` owns
+  the named `demo` query container: use `@lg/demo:` and other container variants inside scenes,
+  because desktop tour columns can be narrower than the viewport. A list, workflow, or task board
+  must recompose at its actual available width; never shrink its text to fit.
 - **Text primitives, not the markdown engine.** `DemoTypingText` / `DemoStreamText` (from the
   package) reuse the `@tale/ui/globals.css` `.stream-reveal`/`.animate-cursor-blink` primitives.
   Never pull `IncrementalMarkdown`
@@ -167,11 +176,11 @@ of hand-rolling motion, CTAs, links, or section chrome. Variants use `class-vari
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Reveal`                | Entrance wrapper. Scroll reveals are **opacity-only** (no `y`) so they never fight scroll.                                                                                                                            |
 | `SectionHeading`        | Title + optional eyebrow/description at `display` / `section` / `subsection` type scale. Outline: `display`→h1, else h2 (pass `as` to nest).                                                                          |
-| `MarketingButton`       | Ink primary / inset secondary pills (`tone` + `size` via cva).                                                                                                                                                        |
+| `MarketingButton`       | Ink primary / outlined secondary with rounded-xl corners (`tone` + `size` via cva).                                                                                                                                                        |
 | `MarketingLink`         | Internal link (through the host's router seam — locale-aware in web) with tones: `nav` / `navMobile` / `footer` / `inline` / `subtle` / `plain`.                                                                      |
 | `MarketingExternalLink` | Outbound link with the same tone scale.                                                                                                                                                                               |
 | `CtaGroup` / `CtaPair`  | Horizontal CTA row; two-action pair (`to` or `href` per side).                                                                                                                                                        |
-| `PageSection`           | Band chrome: `surface` (`site` / `wash` / `soft` / `plain` / `transparent`) / `pad` (`md`/`lg`/`xl`) / `border` + optional `SiteContainer`. Default `lg` (`py-24 md:py-32`); `xl` for heroes/CTAs (`py-28 md:py-40`). |
+| `PageSection`           | Band chrome: `surface` (`site` / `wash` / `soft` / `plain` / `transparent`) / `pad` (`md`/`lg`/`xl`) / `border` + optional `SiteContainer`. Default `lg` (`py-16 sm:py-20 lg:py-24`); `xl` for heroes/CTAs (`py-20 sm:py-24 lg:py-32`). |
 | `MarketingStack`        | Vertical content column (`gap` / `align` / `max`).                                                                                                                                                                    |
 | `MarketingCard`         | Related-module / hub tile (optional `to`, optional `icon`). Default surface is `plain` (panel cell); use `raised` only for standalone tiles.                                                                          |
 | `MarketingPanel`        | Framed surface for divider grids (`gap-px` hairlines). Matches ComplianceTrust's single-panel language.                                                                                                               |
@@ -192,7 +201,9 @@ Also reuse:
 - `app/content/platform-pages.ts` — nav dropdown, footer Platform column, related pages.
 - `app/content/nav-menus.ts` — Resources header menu (desktop + mobile); Platform rows live in `platform-pages.ts`.
 - `app/content/site-ctas.ts` — header primary CTA (Get started → docs) + footer company CTAs; Request a demo stays footer/page-only.
-- Header menus: click + Esc + fine-pointer hover intent; mobile drawer is a flat list (no nested disclosures).
+- Header menus: click + Esc + fine-pointer hover intent. Mobile navigation is a focus-managed
+  modal Sheet with a flat list, safe-area padding, Escape/focus return, and breakpoint cleanup.
+  Crossing 1024px unmounts the Sheet so an interrupted exit cannot leave the page inaccessible.
 
 Motion rules:
 
@@ -201,7 +212,12 @@ Motion rules:
 - Hero mount only may use a small `y` with `Reveal onMount` — never `whileInView` + `y` on
   long pages (that was the homepage scroll jitter).
 - No infinite `translateY` / float on product windows.
-- Demo chat threads grow **down** (`justify-start`) inside a fixed `aspect-*` shell — never
+- DemoStage itself stays still; motion belongs to the scene and its story. CTAs use short
+  (160–180ms) color/press feedback,
+  and linked arrows move only under `motion-safe`. Reduced motion disables these movements
+  while preserving all information and controls. Comparison help opens on tap or click through
+  the shared Popover; it never depends on hover.
+- Demo chat threads grow **down** (`justify-start`) inside a reserved `aspect-*` shell with a scene-specific minimum height — never
   `justify-end` (that pushed prior bubbles up and registered as CLS).
 - Sticky `SiteHeader` is transparent with a light bottom border at the top of the page;
   scrolled adds the tinted blur surface + full border. The marketing root shell paints
@@ -246,9 +262,16 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
 
 - **Theme follows the system** (light + dark), via the same `@tale/ui` `ThemeProvider` + `.dark`
   class. Verify every change in both themes; product docs also support light and dark.
-- **Page language** — editorial-technical: weight-400 display with tight tracking, product-first
-  hero (demo on a full-bleed wash stage, no photo backdrop), ink pill CTAs, hairline borders,
-  minimal chrome on cool stone paper. Brand blue stays inside product demos.
+- **Page language** — editorial: weight-500 display with tight tracking, a split headline and
+  supporting-copy hero, inset product stages, alternating desktop tour rows, fine borders, and
+  rounded ink CTAs on porcelain. Each section carries a clear idea; avoid repeating a centered
+  heading and identical card grid down the whole page. Topic-specific illustrations add purposeful
+  color and detailed native diagrams while page chrome stays quiet.
+- **Fluid geometry** — `SiteContainer` is at most 1360px wide with 20px phone, 32px tablet, and
+  48px desktop gutters. `SectionHeading` uses fluid display (44–92px), section (32–60px), and
+  subsection (28–44px) scales. Phone layouts stack in reading order; desktop feature tours split
+  at 1024px and their scenes respond to the narrower container. Test at 320, 390, 768, 1024, and
+  1440px in both themes and all locales, including the complete final demo content.
 - The site is **server-rendered + prerendered** (`vite build` + `--ssr` + `scripts/prerender.ts`)
   for SEO and first-paint. Keep pages static-friendly: the prerendered HTML must carry the real
   content (the demo end states included) — the client mounts with `createRoot` and replays

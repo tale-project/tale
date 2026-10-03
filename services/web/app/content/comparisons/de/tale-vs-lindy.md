@@ -5,10 +5,18 @@ competitor: "Lindy"
 slug: "tale-vs-lindy"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Wo soll aus einer Anfrage gemeinsame Arbeit werden: in den Kanälen, die dein Team schon nutzt, oder auf einem Projektboard, das den Auftrag bis zum Ergebnis verfolgt? Tale und Lindy richten sich beide an Zusammenarbeit. Entscheidend sind eure Arbeitsgewohnheiten.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Lindy |
+| --- | --- | --- |
+| Arbeitsbereich | Gemeinsame Projekte mit zugewiesenen Aufgaben, Diskussionen und Dateien. | KI-Teammitglied in Slack und Unternehmenstools, auch in gemeinsamen Kanälen. |
+| Wiederkehrende Arbeit | Konfigurierte Agenten und Automationen unterstützen die Projektarbeit. | Wiederkehrende Aufgaben und wiederverwendbare Skills unterstützen die laufende Arbeit. |
+| Externe Aktionen | Schreibzugriffe über Konnektoren laufen in Automationen mit konfigurierten Freigaberegeln. | Dokumentiert Freigabekontrollen für Aktionen in externen Tools. |
 
 ## Den Ort der Zusammenarbeit vergleichen
 

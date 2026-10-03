@@ -5,7 +5,7 @@ competitor: "Google Workspace with Gemini"
 slug: "tale-vs-google-workspace"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Folgt KI deinen Apps oder deinem Projektboard?
@@ -13,6 +13,14 @@ draft: true
 Wenn ein Unternehmen bereits Google Workspace nutzt, kann die erste KI-Einführung eine Erweiterung vertrauter Dokumente, E-Mails und Meetings sein. Ein zusätzlicher Projekt-Workspace braucht einen klaren Zweck: Arbeit koordinieren, zu der Menschen und Agenten über längere Zeit beitragen. Beginne mit dieser Betriebsentscheidung statt mit einer Liste von KI-Funktionen.
 
 [Google Workspace mit Gemini](https://workspace.google.com/solutions/ai/) integriert KI in Anwendungen wie Gmail, Docs, Sheets und Meet. Das aktuelle Angebot beschreibt außerdem Workspace Studio für Workflows über Workspace-Apps hinweg. Die Suite ist damit sowohl für alltägliche Unterstützung als auch für Automatisierung relevant, nicht nur für Dokumentenentwürfe.
+
+## Vergleich auf einen Blick
+
+| Kriterium | Tale | Google Workspace with Gemini |
+| --- | --- | --- |
+| Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | KI in Gmail, Docs, Sheets und Meet |
+| Koordination | Menschen und konfigurierte Agenten teilen Aufgaben, Dateien und Gespräche | Zusammenarbeit in den Produktivitätsanwendungen und der Edition deines Teams |
+| Abläufe | Projektstruktur für Delegation, Prüfung und Folgeaufgaben | Workspace Studio erstellt Abläufe über Workspace-Anwendungen hinweg |
 
 ## Prüfe, wo Kollegen bereits arbeiten
 
