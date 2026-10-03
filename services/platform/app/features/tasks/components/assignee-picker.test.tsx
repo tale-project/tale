@@ -51,7 +51,12 @@ vi.mock('../hooks/use-actor-directory', () => ({
     assignableMembers: [
       { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
     ],
-    assignableAgents: projectId === undefined ? [] : mockDirectoryAgents,
+    assignableAgents:
+      projectId === undefined
+        ? []
+        : mockStandardAgentAvailable
+          ? mockDirectoryAgents
+          : mockDirectoryAgents.filter((agent) => agent.managed !== true),
     agentsLoading: mockAgentsLoading,
     currentUserId: 'user-1',
     resolveActor: () => ({
