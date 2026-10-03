@@ -26,7 +26,11 @@ import {
   s3HeadObject,
 } from '../../lib/object-store.ts';
 import { ensureDefaultObjectStore } from '../object_storage/bootstrap.ts';
-import { firstForeignUpload, ownsUploadedBlob } from './upload-intents.ts';
+import {
+  consumeUploadIntent,
+  firstForeignUpload,
+  ownsUploadedBlob,
+} from './upload-intents.ts';
 
 interface Actor {
   cookie: string;
@@ -304,6 +308,44 @@ export async function checkRejectedUploadReclaim(
       heldAnswers.every((answer) => answer === 'false') &&
         heldKept.every(Boolean),
       `document file_ref=${heldAnswers[0]}/kept=${heldKept[0]}, document history_files=${heldAnswers[1]}/kept=${heldKept[1]}, task outputs=${heldAnswers[2]}/kept=${heldKept[2]} (want false/true each)`,
+    );
+
+    // Each claim condition on its own (#4111), which the exact-SQL unit
+    // assertions alone pinned: a file row holds the bytes while the intent
+    // is still open and unstamped (no bind touched it), and a consumed
+    // intent is never the caller's to reclaim, whatever holds the blob —
+    // here nothing does.
+    const rowOnly = await upload('held-file-row-only');
+    await sql`
+      INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
+                                     content_type, size, uploaded_by,
+                                     created_at_ms)
+      VALUES (${orgId}, ${rowOnly}, 'row-only.txt', 'text/plain', 24,
+              ${owner.userId}, ${Date.now()})
+    `;
+    const rowOnlyIntent = await intentState(rowOnly);
+    const rowOnlyAnswer = await reject(owner, rowOnly);
+    const rowOnlyKept = await present(rowOnly);
+    const consumedOnly = await upload('consumed-no-holder');
+    const consumed = await consumeUploadIntent(sql, {
+      organizationId: orgId,
+      userId: owner.userId,
+      storageRef: consumedOnly,
+      purpose: 'file',
+    });
+    const consumedIntent = await intentState(consumedOnly);
+    const consumedAnswer = await reject(owner, consumedOnly);
+    const consumedKept = await present(consumedOnly);
+    record(
+      'reject-blob refuses a ref only a file row holds, and a consumed intent nothing holds (#4111)',
+      rowOnlyIntent === 'bound=false,consumed=false' &&
+        rowOnlyAnswer === 'false' &&
+        rowOnlyKept &&
+        consumed &&
+        consumedIntent === 'bound=false,consumed=true' &&
+        consumedAnswer === 'false' &&
+        consumedKept,
+      `file row only: intent ${rowOnlyIntent} (want bound=false,consumed=false), reject=${rowOnlyAnswer}/kept=${rowOnlyKept} (want false/true); consumed, no holder: consume=${consumed} (want true), intent ${consumedIntent} (want bound=false,consumed=true), reject=${consumedAnswer}/kept=${consumedKept} (want false/true)`,
     );
 
     // A non-consuming proof that leaves no row of its own — the outbound
