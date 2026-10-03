@@ -5,7 +5,7 @@ competitor: "n8n"
 slug: "tale-vs-n8n"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Manche Arbeit lässt sich als wiederholbarer Ablauf zwischen Systemen beschreiben. Andere beginnt mit einem Auftrag, den Menschen und Agenten gemeinsam schärfen. Tale und n8n können beide automatisieren. Vergleiche deshalb das Arbeitsmodell, das dein Team am häufigsten braucht.

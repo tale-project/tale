@@ -5,7 +5,7 @@ competitor: "Onyx"
 slug: "tale-vs-onyx"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Quand les informations sont réparties entre plusieurs applications, retrouver le contexte et organiser le travail qui en découle sont deux besoins liés. Compare Onyx et Tale sur ces deux dimensions avant de choisir l'espace de travail de ton équipe.

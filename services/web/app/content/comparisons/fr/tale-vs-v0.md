@@ -5,7 +5,7 @@ competitor: "v0"
 slug: "tale-vs-v0"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Améliorer un tableau de bord client exige de définir le changement, de le réaliser et de coordonner le travail associé. v0 et Tale couvrent des parties communes de ce parcours. Compare le développement de l’application avec la façon dont ton équipe souhaite attribuer les tâches et examiner les résultats.

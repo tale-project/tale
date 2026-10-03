@@ -5,7 +5,7 @@ competitor: "Open WebUI"
 slug: "tale-vs-open-webui"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 A shared interface for models and a shared place to manage agent work solve different parts of AI adoption. Compare Tale and Open WebUI by the work your teammates need to return to after the conversation ends.

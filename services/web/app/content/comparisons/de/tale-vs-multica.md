@@ -5,7 +5,7 @@ competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Beide Produkte gehören auf die Auswahlliste, wenn dein Team Aufgaben an KI-Agenten vergeben und Ergebnisse verfolgen möchte. Entscheidend ist, wie ihr ein ganzes Projekt koordiniert – einschließlich der Arbeit rund um eine Code-Änderung.

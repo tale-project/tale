@@ -5,7 +5,7 @@ competitor: "Microsoft Agent Framework"
 slug: "tale-vs-microsoft-agent-framework"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Wer liefert die Anwendung rund um die Agenten?

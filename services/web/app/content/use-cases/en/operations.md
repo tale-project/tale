@@ -3,7 +3,7 @@ title: Coordinate operations with AI agents | Tale
 description: Organize operational requests, investigations, and recurring work with people and AI agents. Track ownership, deliverables, and review in shared projects.
 slug: operations
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Operational work mixes predictable steps with requests that need investigation and judgment. Tale gives your team a project board for both: people define the work, agents take suitable tasks, and reviewers check the result.

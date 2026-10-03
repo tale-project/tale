@@ -5,7 +5,7 @@ competitor: "Flowise"
 slug: "tale-vs-flowise"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 For an existing Flowise user, this is now a continuity and migration decision. Before comparing interfaces, inventory what your deployment actually does and decide which parts are applications you must preserve and which are team work you could organize differently.

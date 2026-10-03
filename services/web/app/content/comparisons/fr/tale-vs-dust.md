@@ -5,7 +5,7 @@ competitor: "Dust"
 slug: "tale-vs-dust"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Tale et Dust réunissent personnes et agents autour du travail, y compris des tâches attribuées. Compare surtout le cycle des tâches, les environnements compatibles et le modèle de déploiement. Un tableau de projet ne suffit pas à distinguer les deux produits.

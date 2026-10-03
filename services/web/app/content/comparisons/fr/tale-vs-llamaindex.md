@@ -5,7 +5,7 @@ competitor: "LlamaIndex"
 slug: "tale-vs-llamaindex"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Le livrable est-il un système documentaire ou une décision ?

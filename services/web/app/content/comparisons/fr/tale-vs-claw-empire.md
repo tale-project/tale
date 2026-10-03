@@ -5,7 +5,7 @@ competitor: "Claw Empire"
 slug: "tale-vs-claw-empire"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 L’interface utilisée pour diriger les agents influence la manière dont tu suis leur progression et prends des décisions. Claw Empire et Tale coordonnent tous deux ce travail, avec des modèles d’organisation différents. Teste celui qui reste compréhensible lorsqu’un collègue prend le relais.

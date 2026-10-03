@@ -5,7 +5,7 @@ competitor: "Mastra"
 slug: "tale-vs-mastra"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Te faut-il un espace interne ou une fonction applicative ?

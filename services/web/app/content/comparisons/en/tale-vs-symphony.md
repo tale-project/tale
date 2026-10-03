@@ -5,7 +5,7 @@ competitor: "OpenAI Symphony"
 slug: "tale-vs-symphony"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Symphony and Tale meet at the task-to-agent boundary, but they are different kinds of choice. Your decision is whether to adopt a shared project application or operate an orchestration service around your existing engineering process.

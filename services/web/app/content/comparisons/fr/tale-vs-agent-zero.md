@@ -5,7 +5,7 @@ competitor: "Agent Zero"
 slug: "tale-vs-agent-zero"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Si ton besoin principal est un agent capable d’utiliser un ordinateur, Agent Zero mérite un essai. Si plusieurs personnes doivent planifier, déléguer et vérifier ce travail ensemble, teste aussi le processus de projet qui l’entoure. L’accès à un ordinateur ne suffit pas à trancher.

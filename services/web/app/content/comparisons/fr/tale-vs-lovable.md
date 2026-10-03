@@ -5,7 +5,7 @@ competitor: "Lovable"
 slug: "tale-vs-lovable"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Pour créer un portail de demandes, une équipe opérationnelle doit obtenir une application fonctionnelle et organiser le travail de chacun. Lovable et Tale peuvent contribuer à ce projet. Le choix dépend de l’endroit où ton équipe souhaite construire la solution, coordonner les tâches et assurer la suite.

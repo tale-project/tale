@@ -79,7 +79,7 @@ function NavRow({
         onClick={context.onNavigate}
         className={cn(
           SUB_PANEL_ROW_CLASS,
-          'h-auto min-h-8 py-1.5 leading-snug',
+          'h-auto min-h-11 py-2 leading-snug [overflow-wrap:anywhere] motion-reduce:transition-none md:min-h-8 md:py-1.5',
           depthClass(depth),
           treatment.className,
         )}
@@ -122,13 +122,13 @@ function NavDisclosure({
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
           SUB_PANEL_ROW_CLASS,
-          'w-full justify-between text-left',
+          'h-auto min-h-11 w-full justify-between py-2 text-left leading-snug motion-reduce:transition-none md:min-h-8 md:py-1.5',
           depthClass(depth),
           treatment.className,
         )}
         {...(treatment.style !== undefined ? { style: treatment.style } : {})}
       >
-        <span className="min-w-0 truncate">{group.label}</span>
+        <span className="min-w-0 [overflow-wrap:anywhere]">{group.label}</span>
         <ChevronRight
           aria-hidden
           className={cn(
@@ -191,7 +191,7 @@ export function DocsNavTree({
   const context: BranchContext = { activeHref, activeRef, onNavigate };
 
   return (
-    <Stack gap={6}>
+    <Stack gap={8}>
       {sections.map((section, i) => (
         <Stack key={`${section.label}-${i}`} gap={1}>
           <SubPanelSectionHeader label={section.label} />

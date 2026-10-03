@@ -5,7 +5,7 @@ competitor: "Relevance AI"
 slug: "tale-vs-relevance-ai"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 An agent workforce needs more than a set of prompts. Your team needs to decide who defines the work, how it is operated, and where people intervene. Tale and Relevance AI are candidates for different ways of organizing that responsibility.

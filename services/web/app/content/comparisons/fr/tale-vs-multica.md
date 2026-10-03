@@ -5,7 +5,7 @@ competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Les deux produits méritent d’être évalués si ton équipe veut attribuer du travail à des agents IA et suivre les résultats. La décision porte sur la coordination d’un projet entier, y compris le travail qui entoure une modification de code.

@@ -5,7 +5,7 @@ competitor: "Onyx"
 slug: "tale-vs-onyx"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 When useful information lives across many applications, finding context and coordinating the resulting work are related but separate buying decisions. Compare Onyx and Tale against both parts of the job before choosing your team's workspace.

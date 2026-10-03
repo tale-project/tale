@@ -5,7 +5,7 @@ competitor: "StackAI"
 slug: "tale-vs-stackai"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Entwickelst du einen Agenten oder führst du ein Projekt?

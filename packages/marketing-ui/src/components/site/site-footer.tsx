@@ -100,7 +100,7 @@ export function SiteFooter({
   const llmLinkClass =
     'text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm px-2 py-1 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none';
   const switcherRow = (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2 [&_button]:min-h-11 [&_button]:min-w-11 sm:[&_button]:min-h-9 sm:[&_button]:min-w-9">
       {llmsTxtUrl ? (
         <a href={llmsTxtUrl} className={llmLinkClass}>
           {llmsTxtLabel}
@@ -127,7 +127,7 @@ export function SiteFooter({
         : 'grid-cols-2 sm:grid-cols-4';
 
   return (
-    <footer className="border-border-base bg-bg-base dark:bg-bg-elevated border-t print:hidden">
+    <footer className="border-border-base bg-surface-site border-t print:hidden">
       {compact ? (
         <SiteContainer className={containerClassName}>
           <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:py-6">
@@ -146,7 +146,7 @@ export function SiteFooter({
       ) : (
         <>
           <SiteContainer className={containerClassName}>
-            <div className="flex flex-col gap-6 py-6 sm:gap-8 sm:py-8">
+            <div className="flex flex-col gap-10 py-12 sm:gap-12 sm:py-16">
               {(logo || brandTrailing) && (
                 <div className="flex items-center justify-between gap-3">
                   {logo}
@@ -155,13 +155,16 @@ export function SiteFooter({
               )}
 
               <div
-                className={cn('grid gap-x-5 gap-y-6 sm:gap-y-8', linkGridClass)}
+                className={cn(
+                  'grid gap-x-6 gap-y-8 sm:gap-y-10',
+                  linkGridClass,
+                )}
               >
                 {columns.map((col) => (
                   <nav
                     key={col.heading}
                     aria-label={col.heading}
-                    className={cn('flex flex-col gap-2.5', col.className)}
+                    className={cn('flex min-w-0 flex-col gap-4', col.className)}
                   >
                     <h3
                       className="text-fg-base text-sm font-medium"
@@ -177,7 +180,7 @@ export function SiteFooter({
                       // running off the screen.
                       <ul
                         role="list"
-                        className="flex flex-col gap-1.5 break-words hyphens-auto"
+                        className="flex flex-col gap-2 break-words hyphens-auto"
                       >
                         {col.links.map((link, i) => (
                           // oxlint-disable-next-line react/no-array-index-key -- link order is stable

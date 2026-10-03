@@ -5,7 +5,7 @@ competitor: "Haystack"
 slug: "tale-vs-haystack"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Is your hardest problem retrieval or coordination?

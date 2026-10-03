@@ -5,7 +5,7 @@ competitor: "v0"
 slug: "tale-vs-v0"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Ein Team, das ein Kunden-Dashboard verbessert, muss die Änderung abstimmen, umsetzen und die begleitende Arbeit koordinieren. v0 und Tale unterstützen überlappende Teile dieses Ablaufs. Vergleiche die App-Entwicklung und die Art, wie dein Team Aufgaben zuweisen und Ergebnisse prüfen möchte.

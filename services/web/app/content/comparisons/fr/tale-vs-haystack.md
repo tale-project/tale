@@ -5,7 +5,7 @@ competitor: "Haystack"
 slug: "tale-vs-haystack"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Le problème principal est-il la recherche ou la coordination ?

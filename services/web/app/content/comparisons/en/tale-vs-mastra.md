@@ -5,7 +5,7 @@ competitor: "Mastra"
 slug: "tale-vs-mastra"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Do you need an internal workspace or an application feature?

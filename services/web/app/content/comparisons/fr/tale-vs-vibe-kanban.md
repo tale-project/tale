@@ -5,7 +5,7 @@ competitor: "Vibe Kanban"
 slug: "tale-vs-vibe-kanban"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 La planification et la vérification comptent dans Tale comme dans Vibe Kanban. Le choix dépend des livrables que ton équipe gère et du modèle de maintenance qu’elle peut prendre en charge. Clarifie ces points avant de comparer l’apparence des tableaux.

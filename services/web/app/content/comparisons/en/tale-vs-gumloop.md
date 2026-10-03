@@ -5,7 +5,7 @@ competitor: "Gumloop"
 slug: "tale-vs-gumloop"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Shared agents, background work, and team controls are not exclusive to one platform. Tale and Gumloop overlap directly. The useful comparison is how your team organizes assignments and operates the resulting agent work every day.

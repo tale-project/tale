@@ -5,7 +5,7 @@ competitor: "Autensa"
 slug: "tale-vs-autensa"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 If you want agents to improve a software product continuously, Autensa is a relevant alternative. If the work also includes research, marketing, documents and human-owned tasks, compare how that broader project is represented and reviewed in each product.

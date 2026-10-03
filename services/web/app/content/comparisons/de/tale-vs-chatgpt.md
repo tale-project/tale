@@ -5,7 +5,7 @@ competitor: "ChatGPT Business and Enterprise"
 slug: "tale-vs-chatgpt"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Beginne mit der gemeinsamen Arbeit

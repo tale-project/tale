@@ -5,7 +5,7 @@ competitor: "Lindy"
 slug: "tale-vs-lindy"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Where should a request become shared work: in the channels your team already uses, or on a project board that tracks the assignment through delivery? Tale and Lindy both address collaboration, so the answer depends on your team's working habits.

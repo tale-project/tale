@@ -3,7 +3,7 @@ title: KI-Agenten für die Arbeit im Team | Tale
 description: So koordinieren Teams mit Tale KI-Agenten für Marketing, Softwareentwicklung, Recherche, Dokumente und operative Arbeit in gemeinsamen Projektaufgaben.
 slug: use-cases
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Starte mit einem Problem, das dein Team lösen möchte. In Tale organisiert ihr die Arbeit in Projekten, delegiert geeignete Aufgaben an KI-Agenten und prüft die Ergebnisse gemeinsam. Dieses Modell der Zusammenarbeit passt zu unterschiedlichen Aufgabenfeldern.

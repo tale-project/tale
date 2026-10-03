@@ -5,7 +5,7 @@ competitor: "Zapier Agents"
 slug: "tale-vs-zapier-agents"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Si le travail d'un agent traverse plusieurs applications métier, les intégrations peuvent déterminer l'achat. S'il faut aussi planifier, réviser et accepter un livrable conséquent, le suivi de projet compte autant. Compare Tale et Zapier Agents sur ces deux aspects.

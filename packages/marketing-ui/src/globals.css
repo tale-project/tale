@@ -5,35 +5,39 @@
    node_modules. The path is relative to this file. */
 @source '../src/**/*.{ts,tsx}';
 
-/* Marketing colour system — cool stone paper (light) / soft charcoal (dark).
+/* Marketing colour system — porcelain (light) / soft charcoal (dark).
    Surfaces, ink, borders, and atmosphere live here. Brand blue stays for
    product-life accents inside demos only — never page fills. */
 @theme {
+  --text-site-display: clamp(2.75rem, 6.5vw, 5.75rem);
+  --text-site-section: clamp(2rem, 4.2vw, 3.75rem);
+  --text-site-subsection: clamp(1.75rem, 3.2vw, 2.75rem);
+  --ease-site: cubic-bezier(0.22, 1, 0.36, 1);
   /* —— Surfaces (light → dark step: site → raised → deep → inset → wash) —— */
-  --color-surface-site: #f4f4f4;
+  --color-surface-site: #fafafa;
   --color-surface-site-raised: #ffffff;
-  --color-surface-site-inset: #e8e8e8;
-  --color-surface-site-deep: #ededed;
+  --color-surface-site-inset: #f0f1f3;
+  --color-surface-site-deep: #f5f5f6;
   --color-surface-site-active: #ffffff;
-  --color-surface-wash: #dddddd;
+  --color-surface-wash: #f0f1f3;
   /* Promo chip — muted gray, not sand/amber. */
-  --color-surface-promo: #c4c4c4;
+  --color-surface-promo: #e4e5e7;
   --color-fg-promo: #2a2a2a;
   /* Brand accent (design/docs/branding.md: #056CFF) — product life only. */
   --color-brand-base: #056cff;
   --color-brand-strong: #0356d6;
   --color-brand-fg: #ffffff;
   /* Atmosphere blooms — cool gray, never brand blue. */
-  --color-atmosphere-warm: #a0a0a0;
-  --color-atmosphere-deep: #636363;
+  --color-atmosphere-warm: #d4d7dd;
+  --color-atmosphere-deep: #8e939e;
   /* Ink / borders — near-neutral on this surface. */
-  --color-fg-base: #141414;
-  --color-fg-muted: #555555;
-  --color-fg-subtle: #6a6a6a;
+  --color-fg-base: #18191b;
+  --color-fg-muted: #55585f;
+  --color-fg-subtle: #656970;
   --color-fg-inverse: #ffffff;
-  --color-border-base: #d0d0d0;
-  --color-border-strong: #b8b8b8;
-  --color-accent-base: #141414;
+  --color-border-base: #e1e2e5;
+  --color-border-strong: #bfc2c8;
+  --color-accent-base: #202124;
   --color-accent-fg: #ffffff;
   /* Ink terminal — always dark; never flips with theme. */
   --color-ink-terminal: #141414;
@@ -42,6 +46,9 @@
   --color-demo-traffic-close: #ff5f57;
   --color-demo-traffic-min: #febc2e;
   --color-demo-traffic-max: #28c840;
+  --shadow-site-button:
+    inset 0 1px 0 color-mix(in oklab, var(--color-accent-fg) 14%, transparent),
+    0 1px 2px color-mix(in oklab, var(--color-fg-base) 14%, transparent);
   /* Demo window elevation — soft, layered, never a hard drop. */
   --shadow-demo:
     0 0 0 1px color-mix(in oklab, var(--color-fg-base) 6%, transparent),
@@ -73,12 +80,12 @@
 
 .dark {
   /* Soft charcoal ladder — near-neutral, softer than app true-black. */
-  --color-surface-site: #101010;
-  --color-surface-site-raised: #181818;
-  --color-surface-site-inset: #242424;
-  --color-surface-site-deep: #0a0a0a;
+  --color-surface-site: #101112;
+  --color-surface-site-raised: #18191b;
+  --color-surface-site-inset: #232426;
+  --color-surface-site-deep: #151618;
   --color-surface-site-active: #2e2e2e;
-  --color-surface-wash: #141414;
+  --color-surface-wash: #151618;
   --color-surface-promo: #a0a0a0;
   --color-fg-promo: #141414;
   --color-brand-base: #3b82f6;
@@ -90,8 +97,8 @@
   --color-fg-muted: #bdbdbd;
   --color-fg-subtle: #949494;
   --color-fg-inverse: #101010;
-  --color-border-base: #383838;
-  --color-border-strong: #4c4c4c;
+  --color-border-base: #2e3033;
+  --color-border-strong: #505359;
   --color-accent-base: #f4f4f4;
   --color-accent-fg: #101010;
   --shadow-demo:
@@ -297,15 +304,15 @@
     color-mix(in oklab, var(--color-surface-wash) 70%, var(--color-fg-base))
       100%
   );
-  opacity: 0.48;
+  opacity: 0.08;
 }
 
 .dark .bg-demo-stage-vignette {
-  opacity: 0.72;
+  opacity: 0.16;
 }
 
 .bg-demo-stage-grid {
-  opacity: 0.4;
+  opacity: 0.5;
   background-image:
     linear-gradient(
       color-mix(in oklab, var(--color-fg-base) 9%, transparent) 1px,
@@ -328,11 +335,30 @@
 }
 
 .bg-demo-stage-grid-hero {
-  background-size: 48px 48px;
+  background-size: 64px 64px;
 }
 
 .bg-demo-stage-grid-section {
-  background-size: 40px 40px;
+  background-size: 48px 48px;
+}
+
+/* Short, interruptible control feedback. All moving affordances keep their
+   layout box; scrolling and touch never depend on an animation finishing. */
+.site-action {
+  transition:
+    background-color 160ms ease,
+    box-shadow 180ms ease,
+    transform 180ms var(--ease-site);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .site-action:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+.site-action:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 /* Marquee track. The track contains the logos rendered twice; translating
@@ -350,6 +376,10 @@
    translateY fought compositor scroll and jittered the homepage. */
 
 @media (prefers-reduced-motion: reduce) {
+  .site-action {
+    transition: none;
+    transform: none !important;
+  }
   .marquee-track {
     animation: none !important;
   }

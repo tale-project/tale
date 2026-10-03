@@ -3,7 +3,7 @@ title: Des agents IA au travail avec ton équipe | Tale
 description: Coordonne des agents IA dans Tale pour le marketing, le développement, la recherche, les documents et les opérations grâce aux tâches de projet partagées.
 slug: use-cases
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Commence par un problème que ton équipe veut résoudre. Dans Tale, vous organisez le travail en projets, confiez les tâches adaptées aux agents IA et examinez les résultats ensemble. Ce modèle de collaboration s’applique à différents domaines.

@@ -5,7 +5,7 @@ competitor: "Claude Enterprise"
 slug: "tale-vs-claude"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Vergleiche die gesamte Arbeitsumgebung

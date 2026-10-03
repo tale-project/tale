@@ -5,7 +5,7 @@ competitor: "Open WebUI"
 slug: "tale-vs-open-webui"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Eine gemeinsame Oberfläche für Modelle und ein gemeinsamer Ort für Agentenarbeit lösen unterschiedliche Teile der KI-Einführung. Vergleiche Tale und Open WebUI daran, welche Arbeit dein Team nach dem Gespräch weiterverfolgen muss.

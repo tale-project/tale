@@ -5,7 +5,7 @@ competitor: "Lindy"
 slug: "tale-vs-lindy"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Wo soll aus einer Anfrage gemeinsame Arbeit werden: in den Kanälen, die dein Team schon nutzt, oder auf einem Projektboard, das den Auftrag bis zum Ergebnis verfolgt? Tale und Lindy richten sich beide an Zusammenarbeit. Entscheidend sind eure Arbeitsgewohnheiten.

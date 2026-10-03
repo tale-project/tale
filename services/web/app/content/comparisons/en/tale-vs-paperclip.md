@@ -5,7 +5,7 @@ competitor: "Paperclip"
 slug: "tale-vs-paperclip"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Choose the structure you want people to manage every morning. Are they coordinating a project with colleagues, or operating an organization of agents against business goals? Tale and Paperclip overlap strongly, but this starting point helps you evaluate their fit.

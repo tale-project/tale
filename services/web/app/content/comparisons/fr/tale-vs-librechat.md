@@ -5,7 +5,7 @@ competitor: "LibreChat"
 slug: "tale-vs-librechat"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Ton équipe peut avoir besoin d'un espace de conversation avec l'IA, d'un espace pour gérer le travail délégué, ou des deux. Tale et LibreChat ont des capacités communes. Compare donc le processus autour du résultat plutôt que le nombre de fonctions de chat.

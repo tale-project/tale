@@ -3,7 +3,7 @@ title: La recherche avec des agents IA en équipe | Tale
 description: Organise questions, sources, tâches d'agents et revues dans un projet Tale. Transforme des recherches parallèles en conclusions que ton équipe peut examiner.
 slug: research
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Une recherche utile relie une question à des preuves et à une décision. Tale aide ton équipe à organiser ce travail : préciser le brief, confier des investigations aux agents et examiner les conclusions dans un projet partagé.

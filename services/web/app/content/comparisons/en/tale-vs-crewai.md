@@ -5,7 +5,7 @@ competitor: "CrewAI"
 slug: "tale-vs-crewai"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Decide what your team wants to build

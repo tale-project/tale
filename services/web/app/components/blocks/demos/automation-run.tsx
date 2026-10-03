@@ -61,19 +61,19 @@ export function AutomationRun({
         label={scene.label}
         title={t('demos.automation.windowTitle')}
         activeNav="automations"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
+        className="mx-auto min-h-216 max-w-4xl @xs/demo:min-h-192 @sm/demo:min-h-184 @4xl/demo:aspect-[16/9] @4xl/demo:min-h-136"
       >
-        <div className="bg-surface-site flex h-full flex-col gap-3 p-3 md:gap-4 md:p-4">
+        <div className="bg-surface-site flex h-full flex-col gap-3 p-3 @4xl/demo:gap-4 @4xl/demo:p-4">
           {/* Canvas — dotted surface like xyflow Background. */}
           <div
-            className="border-border-base bg-surface-site-raised shadow-site-card relative flex flex-1 flex-col justify-center overflow-hidden rounded-xl border p-3 md:px-4 md:py-5"
+            className="border-border-base bg-surface-site-raised shadow-site-card relative flex flex-1 flex-col justify-center overflow-hidden rounded-xl border p-3 @4xl/demo:px-4 @4xl/demo:py-5"
             style={{
               backgroundImage:
                 'radial-gradient(color-mix(in oklab, var(--color-border-strong) 40%, transparent) 1px, transparent 1px)',
               backgroundSize: '14px 14px',
             }}
           >
-            <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center md:justify-center md:gap-2">
+            <div className="flex flex-col items-stretch gap-2 @4xl/demo:flex-row @4xl/demo:items-center @4xl/demo:justify-center @4xl/demo:gap-2">
               <StepNode
                 icon={Zap}
                 kind={t('demos.automation.kindTrigger')}
@@ -122,10 +122,10 @@ export function AutomationRun({
 
           {/* Executions table idiom — not a freeform log panel. */}
           <div className="border-border-base bg-surface-site-raised shadow-site-card mt-auto shrink-0 overflow-hidden rounded-xl border">
-            <p className="text-fg-base border-border-base border-b px-3 py-2.5 text-xs font-medium md:px-4">
+            <p className="text-fg-base border-border-base border-b px-3 py-2.5 text-xs font-medium @4xl/demo:px-4">
               {t('demos.automation.logTitle')}
             </p>
-            <div className="text-fg-subtle border-border-base/70 grid grid-cols-[1fr_1.4fr_0.8fr] gap-2 border-b px-3 py-1.5 text-[10px] font-medium tracking-wide uppercase md:px-4">
+            <div className="text-fg-subtle border-border-base/70 grid grid-cols-[1fr_1.4fr_0.8fr] gap-2 border-b px-3 py-1.5 text-[10px] font-medium tracking-wide uppercase @4xl/demo:px-4">
               <span>{t('demos.automation.logColRun')}</span>
               <span>{t('demos.automation.logColStatus')}</span>
               <span className="text-right">
@@ -204,7 +204,7 @@ function StepNode({
   return (
     <div
       className={cn(
-        'border-border-base bg-surface-site-raised relative flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-lg border border-l-4 py-2.5 pr-2.5 pl-2 shadow-sm transition-all duration-300 md:min-w-[9.5rem] md:flex-initial',
+        'border-border-base bg-surface-site-raised relative flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-l-4 py-2.5 pr-2.5 pl-2 shadow-sm motion-safe:transition-all motion-safe:duration-300 @4xl/demo:w-40 @4xl/demo:flex-initial',
         ACCENT_BAR[accent],
         state === 'active' && 'ring-fg-base/15 ring-2',
         state === 'dimmed' && 'opacity-40',
@@ -223,7 +223,7 @@ function StepNode({
         <span className="text-fg-subtle block text-[10px] font-medium tracking-wide">
           {kind}
         </span>
-        <span className="text-fg-base block truncate text-xs font-medium">
+        <span className="text-fg-base block text-xs font-medium wrap-anywhere">
           {label}
         </span>
       </span>
@@ -242,13 +242,13 @@ function Connector({ filled, pill }: { filled: boolean; pill?: string }) {
   return (
     <div
       aria-hidden
-      className="relative mx-auto flex shrink-0 items-center justify-center md:mx-0"
+      className="relative mx-auto flex shrink-0 items-center justify-center @4xl/demo:mx-0"
     >
-      <div className="bg-border-base relative h-4 w-px overflow-hidden md:h-px md:w-5">
+      <div className="bg-border-base relative h-4 w-px overflow-hidden @4xl/demo:h-px @4xl/demo:w-5">
         <div
           className={cn(
-            'bg-brand-base absolute inset-0 origin-top scale-y-0 transition-transform duration-500 md:origin-left md:scale-x-0 md:scale-y-100',
-            filled && 'scale-y-100 md:scale-x-100',
+            'bg-brand-base absolute inset-0 origin-top scale-y-0 motion-safe:transition-transform motion-safe:duration-500 @4xl/demo:origin-left @4xl/demo:scale-x-0 @4xl/demo:scale-y-100',
+            filled && 'scale-y-100 @4xl/demo:scale-x-100',
           )}
         />
       </div>
@@ -279,7 +279,7 @@ function ExecRow({
       initial={reduceMotion ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: easeOut }}
-      className="text-fg-muted border-border-base/60 grid grid-cols-[1fr_1.4fr_0.8fr] items-center gap-2 border-b px-3 py-2 text-xs last:border-b-0 md:px-4"
+      className="text-fg-muted border-border-base/60 grid grid-cols-[1fr_1.4fr_0.8fr] items-center gap-2 border-b px-3 py-2 text-xs last:border-b-0 @4xl/demo:px-4"
     >
       <span className="text-fg-base font-medium tabular-nums">{run}</span>
       <span className="flex items-center gap-1.5">

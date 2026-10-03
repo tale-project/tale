@@ -5,7 +5,7 @@ competitor: "Taskade"
 slug: "tale-vs-taskade"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Taskade et Tale relient tous deux les projets au travail des agents. C'est une comparaison directe, plutôt qu'une opposition entre outil de projet et outil d'IA. Observe surtout comment ton équipe souhaite configurer les agents et participer à leur travail.

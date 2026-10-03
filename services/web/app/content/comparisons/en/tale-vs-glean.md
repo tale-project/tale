@@ -5,7 +5,7 @@ competitor: "Glean"
 slug: "tale-vs-glean"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 A company-wide AI rollout and a team's next project can require different starting points. Glean and Tale overlap in agent-assisted work, but your evaluation should start with the scope you need to standardize across the organization.

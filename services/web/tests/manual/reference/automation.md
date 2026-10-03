@@ -29,6 +29,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [locale](../suites/locale.md) | — | ✅ automated | vitest `lib/i18n/messages.test.ts` (locale files stay key-compatible) |
 | [locale](../suites/locale.md) | `LOC-F1`, `LOC-F4`–`LOC-F8`, `LOC-B1`–`LOC-B2` | ⛔ manual-only | — |
 | [navigation](../suites/navigation.md) | `NAV-F1` | 🔶 partial | `smoke.spec.ts` (home renders; Platform / Resources triggers + Pricing link; Platform menu opens and lists **Chat**) |
+| [navigation](../suites/navigation.md) | Desktop Platform/Resources keyboard open, Tab into a link, Escape focus return, and preservation of focus outside the disclosure | ✅ automated | `smoke.spec.ts` (desktop disclosure Escape regressions) |
 | [navigation](../suites/navigation.md) | Hero self-hosting CTA stays in EN/DE/FR at desktop and phone widths | ✅ | `smoke.spec.ts` (localized label, destination, and heading) |
 | [navigation](../suites/navigation.md) | `NAV-F2` | 🔶 partial | `smoke.spec.ts` (header **Get started** visible; no header **Request a demo** — no click-through) |
 | [navigation](../suites/navigation.md) | `NAV-F9` | 🔶 partial | `smoke.spec.ts` (`/pricing` renders + heading-order check — no control interaction) |
@@ -43,8 +44,11 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [platform-pages](../suites/platform-pages.md) | `PAGE-A1` | 🔶 partial | `smoke.spec.ts` (single `h1` / no skipped levels — `/platform` and `/pricing` only) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-A2` | 🔶 partial | `home-demos.spec.ts` (every demo located by `role="img"` accessible name) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F3`, `PAGE-F10`, `PAGE-F12`, `PAGE-B1`–`PAGE-B2`, `PAGE-A3`, `PAGE-P1`–`PAGE-P2` | ⛔ manual-only | — |
+| [responsive](../suites/responsive.md) | Workflow, governance, task board and sandbox text fits every clipping ancestor in EN/DE/FR at 320, 390, 768, 1024 and 1440px; task cards remain at least 140px wide without overlapping; mobile GitHub target is at least 44px high | ✅ automated | `demo-responsive.spec.ts` |
 | [responsive](../suites/responsive.md) | `RESP-F1`–`RESP-F5`, `RESP-B1`–`RESP-B2`, `RESP-A1`–`RESP-A2`, `RESP-P1` | ⛔ manual-only | — (`smoke.spec.ts` runs desktop-viewport only) |
 | [seo](../suites/seo.md) | Per-route h1 / lang / canonical | ✅ | `tests/prerender/seo.test.ts` (`bun run --filter @tale/web test:prerender`, dependsOn build) |
+| [seo](../suites/seo.md) | Guide locale identity, validated metadata, publication clusters, draft exclusion, internal links and related use cases | ✅ automated | `lib/content/*.test.ts` |
+| [responsive](../suites/responsive.md) | Guide hubs and articles in EN/DE/FR at 320/1440px; single H1, canonical/alternates, table readability, localized links, related navigation and unknown slug recovery | ✅ automated | `marketing-content.spec.ts` |
 | [seo](../suites/seo.md) | Registry bijection | ✅ | `lib/seo/marketing-routes.test.ts` |
 | [seo](../suites/seo.md) | Image budgets | ✅ | `tests/images.test.ts` |
 | [seo](../suites/seo.md) | Build-time release snapshot keeps the newest 40 complete releases without mutating the fetched list | ✅ | `lib/releases/write-manifest.test.ts` |

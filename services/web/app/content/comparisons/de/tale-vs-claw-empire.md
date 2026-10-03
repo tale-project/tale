@@ -5,7 +5,7 @@ competitor: "Claw Empire"
 slug: "tale-vs-claw-empire"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Die Oberfläche zur Steuerung von Agenten beeinflusst, wie du Fortschritt erkennst und Entscheidungen triffst. Claw Empire und Tale koordinieren beide Agentenarbeit, verwenden aber unterschiedliche Ordnungsmodelle. Prüfe, welches bei einer Übergabe an ein anderes Teammitglied verständlich bleibt.

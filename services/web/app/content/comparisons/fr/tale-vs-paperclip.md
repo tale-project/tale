@@ -5,7 +5,7 @@ competitor: "Paperclip"
 slug: "tale-vs-paperclip"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Choisis la structure que ton équipe doit gérer chaque matin : un projet avec des collègues ou une organisation d’agents guidée par des objectifs métier. Tale et Paperclip se recoupent largement, mais ce point de départ aide à évaluer leur adéquation.

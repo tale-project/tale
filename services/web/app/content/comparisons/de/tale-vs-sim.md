@@ -5,7 +5,7 @@ competitor: "Sim"
 slug: "tale-vs-sim"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Ein gemeinsamer KI-Arbeitsbereich kann der Ort sein, an dem Agentensysteme entstehen, oder der Ort, an dem ein Team deren Arbeit organisiert. Sim und Tale decken mehrere Teile davon ab. Vergleiche, welche tägliche Tätigkeit für die meisten Beteiligten im Mittelpunkt steht.

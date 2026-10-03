@@ -5,7 +5,7 @@ competitor: "Open WebUI"
 slug: "tale-vs-open-webui"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Un accès commun aux modèles et un espace commun pour organiser le travail des agents répondent à deux aspects de l'adoption de l'IA. Compare Tale et Open WebUI sur le travail que ton équipe doit reprendre une fois la conversation terminée.

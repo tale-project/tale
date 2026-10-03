@@ -5,7 +5,7 @@ competitor: "Google Workspace with Gemini"
 slug: "tale-vs-google-workspace"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## L’IA doit-elle suivre tes applications ou ton tableau de projet ?

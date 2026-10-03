@@ -108,6 +108,12 @@ nav:
       label: Governance
       description: Freigaben, Audit-Trail und Ausgabenkontrolle.
   resource:
+    compare:
+      label: Vergleiche
+      description: Vergleiche Arbeitsräume, Workflows und Agent-Laufzeiten.
+    useCases:
+      label: Anwendungsfälle
+      description: Konkrete Arbeit für dein Team und KI-Agenten.
     hardware:
       label: Hardware
       description: On-Prem-Appliances, dimensioniert für deine Agent-Last.
@@ -323,20 +329,18 @@ home:
       members3: '5'
       members4: '11'
     tasks:
-      windowTitle: Aufgaben
-      colTodo: Zu erledigen
-      colInProgress: In Bearbeitung
-      colInReview: In Prüfung
-      colDone: Erledigt
+      windowTitle: "Aufgaben"
+      colTodo: "Zu erledigen"
+      colInProgress: "In Bearbeitung"
+      colInReview: "In Prüfung"
+      colDone: "Erledigt"
       working: Arbeitet
       id1: TEAM-14
       id2: TEAM-15
       id3: TEAM-12
       id4: TEAM-11
       id5: TEAM-9
-      label: "Animierte Demo: Ein gemeinsames Projektboard mit Zu erledigen, In
-        Bearbeitung, In Prüfung und Erledigt. Personen und Agenten übernehmen
-        Aufgaben; ein Agent bearbeitet eine Karte."
+      label: "Animierte Demo: Ein gemeinsames Projektboard mit Zu erledigen, In Bearbeitung, In Prüfung und Erledigt. Personen und Agenten übernehmen Aufgaben; ein Agent bearbeitet eine Karte."
       title1: Kampagnenbriefing planen
       assignee1: Nicht zugewiesen
       title2: Kundenfeedback prüfen
@@ -2337,9 +2341,7 @@ platformProjects:
       budgetValue: CHF 120 / 400
     tasks:
       label:
-        "Animierte Demo: Das Website-Relaunch-Board. Der Relaunch-Agent
-        arbeitet an WEB-12 in In Bearbeitung, während WEB-11 in In Prüfung
-        wartet."
+        "Animierte Demo: Das Website-Relaunch-Board. Der Relaunch-Agent arbeitet an WEB-12 in In Bearbeitung, während WEB-11 in In Prüfung wartet."
       id1: WEB-14
       title1: /docs-Redirect-Map fertigstellen
       assignee1: Nicht zugewiesen
@@ -2386,3 +2388,11 @@ changelogPage:
   viewOnGithub: Auf GitHub ansehen
   emptyBody: Keine Release Notes für diese Version.
   fetchedAt: Zuletzt aktualisiert am {date}.
+contentPages:
+  breadcrumb: Seitenpfad
+  reviewed: 'Geprüft am {date}'
+  relatedTitle: Aufgaben für dein Team
+  relatedDescription: Beginne mit einem klaren Briefing, definierten Ergebnissen und einem Prüfprozess.
+  nextTitle: Probiere es mit deinem eigenen Projekt aus
+  nextDescription: Bring eine konkrete Aufgabe und die Werkzeuge mit, die dein Team bereits nutzt.
+  allUseCases: Alle Anwendungsfälle

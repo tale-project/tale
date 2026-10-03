@@ -5,7 +5,7 @@ competitor: "Dify"
 slug: "tale-vs-dify"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Une application IA que d'autres utilisent et un espace où une équipe réalise son travail sont deux livrables différents. Dify et Tale se recoupent sur les agents et les workflows. Commence par choisir le résultat dont ton équipe doit être responsable.

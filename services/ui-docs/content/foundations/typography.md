@@ -68,4 +68,4 @@ Monospace uses the system stack: `ui-monospace`, SFMono-Regular, Menlo, Monaco, 
 
 ## Use the marketing scale on public pages
 
-`@tale/marketing-ui/section-heading` uses the same typeface with larger, normal-weight display styles. Its display size defaults to `h1`; section and subsection sizes default to `h2`. Choose the semantic `as` level explicitly when nesting it. See [Marketing UI](/docs/marketing-ui/overview) for the surrounding layout.
+`@tale/marketing-ui/section-heading` uses the same typeface with larger, medium-weight display styles. Its display size defaults to `h1`; section and subsection sizes default to `h2`. Choose the semantic `as` level explicitly when nesting it. See [Marketing UI](/docs/marketing-ui/overview) for the surrounding layout.

@@ -5,7 +5,7 @@ competitor: "Conductor"
 slug: "tale-vs-conductor"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Wenn dein Team Tale und Conductor vergleicht, sollte es prüfen, wie weit die gemeinsame Arbeit über ein Repository hinausgeht. Beide organisieren Agentenarbeit. Gemeinsamer Zugriff und vorhandene Abos sind keine Alleinstellungsmerkmale von Tale.

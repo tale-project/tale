@@ -5,7 +5,7 @@ competitor: "Lovable"
 slug: "tale-vs-lovable"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 An operations team planning a request portal needs a working application and a way to organize the people and work around it. Lovable and Tale can support parts of that effort. The decision is where your team wants to build, coordinate, and maintain the result.

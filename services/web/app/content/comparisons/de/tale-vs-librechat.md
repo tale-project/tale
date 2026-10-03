@@ -5,7 +5,7 @@ competitor: "LibreChat"
 slug: "tale-vs-librechat"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Dein Team braucht vielleicht einen flexiblen Ort für KI-Gespräche, einen Ort für delegierte Arbeit oder beides. Tale und LibreChat überschneiden sich bei Modellen und Agentenfunktionen. Vergleiche deshalb den Ablauf rund um die Ergebnisse, statt nur Chat-Funktionen zu zählen.

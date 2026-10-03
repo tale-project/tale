@@ -5,7 +5,7 @@ competitor: "Mastra"
 slug: "tale-vs-mastra"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Brauchst du einen Workspace oder eine Anwendungsfunktion?

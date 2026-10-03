@@ -5,7 +5,7 @@ competitor: "Dust"
 slug: "tale-vs-dust"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Tale and Dust both put people and agents in shared work, including assigned tasks. The useful comparison is how the task lifecycle, runtime choices, and deployment model fit your team. A project board alone does not separate these products.

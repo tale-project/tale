@@ -5,7 +5,7 @@ competitor: "Replit"
 slug: "tale-vs-replit"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 An operations team that needs an internal app may evaluate both Replit and Tale. Replit brings creation and publishing into its product. Tale organizes the wider project through tasks, agent assignments and review. Start with the outcome: a running application, or a coordinated body of work whose outputs may also include research and documents.

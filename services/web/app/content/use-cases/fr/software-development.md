@@ -3,7 +3,7 @@ title: Livrer des logiciels avec des agents IA | Tale
 description: Transforme les idées logicielles en tâches pour ton équipe et des agents IA. Coordonne développement, tests, revue et documentation dans un projet Tale.
 slug: software-development
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Décris le site, l’application ou l’outil interne dont ton équipe a besoin, puis organise le travail du brief à la préparation de la mise en production, en passant par le développement, les tests et la revue. Dans Tale, collègues techniques et non techniques collaborent avec les agents au moyen de tâches et de discussions.

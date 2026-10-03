@@ -5,7 +5,7 @@ competitor: "AnythingLLM"
 slug: "tale-vs-anythingllm"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Start by deciding whether the unit of adoption is one person's assistant or a shared project. AnythingLLM and Tale can both work with documents and agents, but your pilot should include the team handoff you expect to happen in practice.

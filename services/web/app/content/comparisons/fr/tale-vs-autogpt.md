@@ -5,7 +5,7 @@ competitor: "AutoGPT"
 slug: "tale-vs-autogpt"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 AutoGPT désigne aujourd’hui une plateforme d’agents, et pas seulement l’expérience initiale d’agent autonome. Pour le comparer à Tale, commence par distinguer le travail à rendre répétable de celui que ton équipe doit coordonner dans un projet.

@@ -48,31 +48,31 @@ export function GovernGate({
         label={scene.label}
         title={t('demos.automation.windowTitle')}
         activeNav="automations"
-        className="mx-auto aspect-[7/10] max-w-4xl sm:aspect-[16/9]"
+        className="mx-auto min-h-176 max-w-4xl @sm/demo:min-h-136 @lg/demo:aspect-[16/9]"
       >
-        <div className="flex h-full flex-col gap-4 p-4 md:gap-5 md:p-6">
+        <div className="flex h-full flex-col gap-4 p-4 @2xl/demo:gap-5 @2xl/demo:p-6">
           {beat >= BEAT.card ? (
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: easeOut }}
-              className="border-border-base bg-surface-site-raised shadow-site-card mx-auto w-full max-w-md rounded-2xl border p-4 md:p-5"
+              className="border-border-base bg-surface-site-raised shadow-site-card mx-auto w-full max-w-md rounded-2xl border p-4 @2xl/demo:p-5"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex flex-col items-start gap-3 @xs/demo:flex-row">
                 <span className="bg-surface-site-inset text-fg-muted flex size-9 shrink-0 items-center justify-center rounded-lg">
                   <Workflow aria-hidden className="size-4" strokeWidth={1.75} />
                 </span>
                 <div className="min-w-0">
-                  <p className="text-fg-base text-sm leading-snug font-medium">
+                  <p className="text-fg-base text-sm leading-snug font-medium wrap-anywhere">
                     {scene.approvalTitle}
                   </p>
-                  <p className="text-fg-subtle mt-1 text-xs">
+                  <p className="text-fg-subtle mt-1 text-xs wrap-anywhere">
                     {scene.requester}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 {beat >= BEAT.approved ? (
                   <motion.span
                     initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
@@ -132,7 +132,7 @@ export function GovernGate({
           ) : null}
 
           <div className="border-border-base bg-surface-site-raised mt-auto rounded-xl border p-4">
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-fg-subtle text-xs font-medium">
                 {t('demos.govern.budgetLabel')}
               </p>
@@ -143,7 +143,7 @@ export function GovernGate({
             <div className="bg-surface-site-inset mt-2 h-1.5 overflow-hidden rounded-full">
               <div
                 className={cn(
-                  'bg-brand-base h-full origin-left rounded-full transition-transform duration-700 ease-out',
+                  'bg-brand-base h-full origin-left rounded-full motion-safe:transition-transform motion-safe:duration-700 motion-safe:ease-out',
                   beat >= BEAT.approved ? 'scale-x-100' : 'scale-x-0',
                 )}
                 style={{ width: `${BUDGET_PERCENT}%` }}

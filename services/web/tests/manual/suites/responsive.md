@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 10 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 11 boxes
 
 Verify the marketing site adapts across viewports — the mobile hamburger
 drawer (the desktop nav is `hidden lg:flex`, so the split is the Tailwind
@@ -32,23 +32,23 @@ Bring the site up per [SETUP.md](../setup.md) — any mode; everything here is
 read-only (no form submits needed).
 
 > **Agent note**: set the viewport **before** the first `goto`. The hamburger
-> is the header button **Open menu** (`nav.openMenu`), `aria-expanded` +
-> `aria-controls="mobile-nav"`; open, it becomes **Close menu**
-> (`nav.closeMenu`) and the body scroll locks (`document.body.style.overflow
-> ===
-'hidden'`). To prove "no horizontal overflow", assert
+> is the header button **Open menu** (`nav.openMenu`), with `aria-expanded`.
+> Opening it shows a named modal containing `#mobile-nav` and its own **Close
+> menu** (`nav.closeMenu`) control; the body scroll locks
+> (`getComputedStyle(document.body).overflow === 'hidden'`). To prove "no horizontal overflow", assert
 > `document.documentElement.scrollWidth === clientWidth`.
 
 ## Functional tests
 
 - [ ] `RESP-F1` · **Hamburger drawer** — At 390 px on `/`, click **Open menu**
-  (`nav.openMenu`) → The button flips to **Close menu** with
-  `aria-expanded="true"`; the drawer (`#mobile-nav`) shows Platform +
+  (`nav.openMenu`) → A modal sheet opens with its **Close menu** button
+  focused; the drawer (`#mobile-nav`) shows Platform +
   Resources as flat lists (not collapsed disclosures), Pricing, and **Get
   started**; body scroll locks; the desktop inline nav is hidden (`lg:` only)
 - [ ] `RESP-F2` · **Drawer navigation** — In the open drawer, tap **Pricing**
   → URL commits `/pricing`, the drawer **closes itself**, scroll unlocks
-  (`document.body.style.overflow` restored); **Esc** also closes it.
+  (computed body overflow restored); **Esc** also closes it and returns
+  keyboard focus to **Open menu**.
 - [ ] `RESP-F3` · **No overflow** — At 390 px, on each scoped route, read
   `document.documentElement.scrollWidth` → `scrollWidth === clientWidth (390)`
   on every page — no horizontal scrollbar, nothing off-canvas.
@@ -57,9 +57,10 @@ read-only (no form submits needed).
   table is horizontally scrollable **inside its own container** (the page
   itself doesn't overflow — RESP-F3 still holds); segmented controls wrap or
   shrink without clipping.
-- [ ] `RESP-F5` · **Forms at 390 px** — `/contact`: focus each field, open the
+- [ ] `RESP-F5` · **Forms at 390 px** — `/contact` and `/request-demo`: focus each field, open the
   keyboard-sized viewport → Fields stack one column, labels visible, the
-  submit button full-width and reachable; no field is clipped.
+  submit button full-width and reachable; inputs, checkbox label rows and
+  submit controls are at least 44 px tall; no field is clipped.
 
 ## Boundary & error tests
 
@@ -68,19 +69,24 @@ read-only (no form submits needed).
   px** the inline nav + header CTAs appear and the hamburger disappears —
   clean swap.
 - [ ] `RESP-B2` · **Resize with drawer** — Open the drawer at 390 px, resize
-  to 1280 px → No stuck scroll-lock: the page scrolls again and the desktop
-  header renders normally (record if the lock persists — that's a finding).
-  While closed the drawer `<nav id="mobile-nav">` carries `aria-hidden="true"`
-  **and** `inert` (its links are unfocusable); both toggle off when open.
+  to 1280 px → The sheet closes, the page scrolls again and the desktop
+  header renders normally; focus moves to the visible logo link. Resize back
+  to 390 px → The drawer stays closed and its links are absent from the Tab order.
 
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `RESP-A1` · **Touch targets** → The hamburger is ≥ 44×44 CSS px
-  (rendered `h-11 w-11`); drawer links and footer controls are comfortably
-  tappable (≥ 44 px height)
+  (rendered `size-11`); drawer links and footer controls are comfortably
+  tappable (≥ 44 px height). On `/pricing` and `/hardware-pricing`, tap a
+  comparison help icon → Its 44×44 px target opens readable information
+  without hover, and tapping outside dismisses it.
 - [ ] `RESP-A2` · **Reflow** → At **320 px** width content reflows to one
   column with no loss of information or function (WCAG 1.4.10); `scrollWidth
   === clientWidth`
+- [ ] `RESP-A3` · **Menu focus and safe areas** — Open the menu at phone width;
+  Tab and Shift+Tab through every link, then scroll its contents on a short
+  landscape viewport → Focus remains inside the sheet, the close control and
+  final CTA remain reachable, and no control sits beneath a notch or home indicator.
 
 ## Performance
 

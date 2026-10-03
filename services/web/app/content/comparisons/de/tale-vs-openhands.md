@@ -5,7 +5,7 @@ competitor: "OpenHands"
 slug: "tale-vs-openhands"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Ein Agentenarbeitsbereich kann mehrere Coding-Sitzungen koordinieren; ein Projektarbeitsbereich verbindet diese Arbeit mit dem restlichen Team. OpenHands und Tale überschneiden sich bei Ausführung und Koordination. Prüfe, wo euer gesamtes Projektgespräch und die Prüfentscheidungen stattfinden sollen.

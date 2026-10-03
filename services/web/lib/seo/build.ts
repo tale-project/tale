@@ -40,7 +40,7 @@ import {
   type LegalRoute,
 } from '../../scripts/legal-routes';
 import { localizedPath, SUPPORTED_LOCALES } from '../i18n/locales';
-import { MARKETING_ROUTES } from './marketing-routes';
+import { marketingRoutesForLocale } from './marketing-routes';
 
 /** URL-bearing marketing locales — must mirror scripts/prerender.ts. */
 const MARKETING_LOCALES = SUPPORTED_LOCALES;
@@ -96,12 +96,14 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
     alternatesBySlug.set(slug, withXDefault(alts));
   }
 
-  const marketingRoutes: ArtifactRoute[] = MARKETING_ROUTES.map((r) => ({
-    url: r.url,
-    title: r.title,
-    description: r.description,
-    alternates: marketingAlternates(r.url),
-  }));
+  const marketingRoutes: ArtifactRoute[] = marketingRoutesForLocale('en').map(
+    (r) => ({
+      url: r.url,
+      title: r.title,
+      description: r.description,
+      alternates: marketingAlternates(r.path),
+    }),
+  );
 
   // The prerendered /de and /fr variants belong in the sitemap (each with
   // the same alternates cluster) while llms.txt stays an English index —
@@ -109,11 +111,11 @@ export function buildWebSections(legal: LegalRoute[]): ArtifactSection[] {
   const localizedMarketingRoutes: ArtifactRoute[] = MARKETING_LOCALES.filter(
     (locale) => locale !== 'en',
   ).flatMap((locale) =>
-    MARKETING_ROUTES.map((r) => ({
-      url: localizedPath(locale, r.url),
+    marketingRoutesForLocale(locale).map((r) => ({
+      url: r.url,
       title: r.title,
       description: r.description,
-      alternates: marketingAlternates(r.url),
+      alternates: marketingAlternates(r.path),
     })),
   );
 
@@ -180,9 +182,22 @@ export function webOptionalPages(): OptionalPage[] {
 export function makeWebLoadBody(
   ssr: SsrRenderer,
 ): (url: string) => Promise<string | null> {
+  // Artifact compilation requests bodies concurrently, but this site's SSR
+  // renderer owns one i18n instance. Keep locale changes and React rendering
+  // together; a rejected render must not poison the following request.
+  let renderQueue: Promise<void> = Promise.resolve();
   return async (url) => {
-    if (MARKETING_ROUTES.some((r) => r.url === url)) {
-      const { html } = await ssr.render(url);
+    if (
+      MARKETING_LOCALES.some((locale) =>
+        marketingRoutesForLocale(locale).some((route) => route.url === url),
+      )
+    ) {
+      const rendering = renderQueue.then(() => ssr.render(url));
+      renderQueue = rendering.then(
+        () => undefined,
+        () => undefined,
+      );
+      const { html } = await rendering;
       return htmlToMarkdown(html);
     }
     const legal = await enumerateLegalRoutes();

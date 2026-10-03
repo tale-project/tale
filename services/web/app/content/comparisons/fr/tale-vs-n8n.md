@@ -5,7 +5,7 @@ competitor: "n8n"
 slug: "tale-vs-n8n"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Certains travaux suivent un processus répétable entre systèmes. D'autres partent de consignes que personnes et agents précisent ensemble. Tale et n8n permettent tous deux d'automatiser : compare le mode d'organisation dont ton équipe a le plus souvent besoin.

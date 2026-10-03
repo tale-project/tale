@@ -5,7 +5,7 @@ competitor: "Mission Control (Builderz Labs)"
 slug: "tale-vs-mission-control"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 When agent activity spreads across several runtimes, an operator dashboard can become as important as the task board. Tale and Builderz Labs Mission Control both address this coordination problem. Evaluate them with the people doing the work and the people keeping it running.

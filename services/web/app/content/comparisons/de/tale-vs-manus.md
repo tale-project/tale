@@ -5,7 +5,7 @@ competitor: "Manus"
 slug: "tale-vs-manus"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Beauftragst du ein Ergebnis oder koordinierst du die Umsetzung?

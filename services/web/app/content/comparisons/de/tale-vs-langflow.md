@@ -5,7 +5,7 @@ competitor: "Langflow"
 slug: "tale-vs-langflow"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Baust du einen Flow oder koordinierst du seine Nutzer?

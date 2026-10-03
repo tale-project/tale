@@ -5,7 +5,7 @@ competitor: "Agent Zero"
 slug: "tale-vs-agent-zero"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Wenn du vor allem einen Agenten suchst, der einen Computer bedienen kann, solltest du Agent Zero prüfen. Müssen mehrere Menschen diese Arbeit gemeinsam planen, delegieren und abnehmen, teste auch den Projektablauf darum herum. Computerzugriff allein entscheidet den Vergleich nicht.

@@ -5,7 +5,7 @@ competitor: "AutoGPT"
 slug: "tale-vs-autogpt"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Der Name AutoGPT steht heute für eine Agentenplattform, nicht nur für das frühe Experiment mit autonomen Agenten. Beginne den Vergleich mit Tale bei der Arbeit, die wiederholbar werden soll, und der Arbeit, die dein Team als Projekt koordinieren muss.

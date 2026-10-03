@@ -5,7 +5,7 @@ competitor: "Cursor"
 slug: "tale-vs-cursor"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Cursor est pertinent si ton équipe veut écrire, tester et vérifier du logiciel avec des agents. Tale mérite une évaluation si elle souhaite aussi coordonner des recherches, du marketing et des documents. Le choix dépend de l’espace de travail dont ton équipe a besoin. Les deux produits peuvent coexister.

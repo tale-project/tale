@@ -165,7 +165,11 @@ function HeaderActions({
   return (
     <>
       {/* Slot `asChild` must wrap the link directly so button classes merge onto it. */}
-      <MarketingButton asChild fullWidth={isMobile}>
+      <MarketingButton
+        asChild
+        fullWidth={isMobile}
+        size={isMobile ? 'lg' : 'default'}
+      >
         <MarketingExternalLink
           href={HEADER_PRIMARY_CTA.href}
           tone="plain"

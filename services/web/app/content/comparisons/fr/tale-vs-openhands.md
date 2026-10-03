@@ -5,7 +5,7 @@ competitor: "OpenHands"
 slug: "tale-vs-openhands"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Un espace d’agents peut coordonner plusieurs sessions de programmation, tandis qu’un espace de projet relie ce travail au reste de l’équipe. OpenHands et Tale se recoupent dans l’exécution et la coordination. Évalue où les échanges du projet et les décisions de vérification doivent se dérouler.

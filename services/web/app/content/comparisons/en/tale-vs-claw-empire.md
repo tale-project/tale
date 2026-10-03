@@ -5,7 +5,7 @@ competitor: "Claw Empire"
 slug: "tale-vs-claw-empire"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 The interface you use to direct agents shapes how you notice progress and make decisions. Claw Empire and Tale both coordinate agent work, but their organizing metaphors differ. Test which one remains understandable when another teammate takes over.

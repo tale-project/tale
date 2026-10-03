@@ -5,7 +5,7 @@ competitor: "Devin"
 slug: "tale-vs-devin"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 If your backlog already lives in an engineering tracker, Devin offers a way to delegate implementation inside that workflow. Tale offers a shared project workspace for assigning and reviewing varied company work with agents. Both involve delegation; compare where your team wants to define work, intervene and accept the result.

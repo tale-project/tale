@@ -5,7 +5,7 @@ competitor: "v0"
 slug: "tale-vs-v0"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 A team improving a customer dashboard needs to agree on the change, build it, and coordinate the surrounding work. v0 and Tale address overlapping parts of this process. Compare the application development workflow with the way your team wants to assign and review work.

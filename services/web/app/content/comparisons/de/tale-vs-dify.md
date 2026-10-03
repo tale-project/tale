@@ -5,7 +5,7 @@ competitor: "Dify"
 slug: "tale-vs-dify"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Eine KI-Anwendung für andere Nutzer und ein Arbeitsbereich, in dem ein Team Aufgaben erledigt, sind unterschiedliche Ergebnisse. Dify und Tale überschneiden sich bei Agenten und Workflows. Kläre zuerst, welches dieser Ergebnisse dein Team verantworten soll.

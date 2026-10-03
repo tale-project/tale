@@ -5,7 +5,7 @@ competitor: "Sim"
 slug: "tale-vs-sim"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Un espace IA partagé peut servir à construire des systèmes d’agents ou à organiser le travail que ces agents réalisent avec des collègues. Sim et Tale couvrent plusieurs aspects de cet ensemble. Compare l’activité quotidienne attendue de la majorité des participants.

@@ -5,7 +5,7 @@ competitor: "Multica"
 slug: "tale-vs-multica"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Both products deserve a place on your shortlist when teammates need to assign work to AI agents and follow the result. The useful decision is how your team coordinates an entire project, including the work around a code change.

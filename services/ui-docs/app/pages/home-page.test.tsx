@@ -1,5 +1,7 @@
+import { ThemeProvider } from '@tale/ui/theme';
 import { TooltipProvider } from '@tale/ui/tooltip';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import navJson from '@/content/nav.json';
@@ -14,9 +16,11 @@ const { HomePage } = await import('./home-page');
 
 function renderPage() {
   return render(
-    <TooltipProvider>
-      <HomePage />
-    </TooltipProvider>,
+    <ThemeProvider>
+      <TooltipProvider>
+        <HomePage />
+      </TooltipProvider>
+    </ThemeProvider>,
   );
 }
 
@@ -102,6 +106,34 @@ describe('HomePage', () => {
         within(card).getByText(count === 1 ? '1 guide' : `${count} guides`),
       ).toBeInTheDocument();
     }
+  });
+
+  it('selects a mobile theme inline by keyboard before Escape closes navigation', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(
+      screen.getByRole('button', { name: 'Open navigation menu' }),
+    );
+    const dialog = screen.getByRole('dialog');
+    const menu = within(dialog);
+    const themes = within(
+      menu.getByRole('radiogroup', { name: 'Switch theme' }),
+    );
+    const dark = themes.getByRole('radio', { name: 'Dark' });
+    // The close control receives initial focus; all links and theme options
+    // remain inside the drawer's single keyboard path.
+    for (let step = 0; step < 6; step += 1) await user.tab();
+    expect(dark).toHaveFocus();
+    await user.keyboard(' ');
+    expect(dark).toHaveAttribute('aria-checked', 'true');
+    expect(dialog).toBeVisible();
+    expect(menu.queryByRole('menu')).not.toBeInTheDocument();
+    await user.click(themes.getByRole('radio', { name: 'System' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Open navigation menu' }),
+    ).toHaveFocus();
   });
 
   it('has no accessibility violations', async () => {

@@ -5,7 +5,7 @@ competitor: "OpenHands"
 slug: "tale-vs-openhands"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 An agent workspace can coordinate several coding sessions while a project workspace connects that work to the rest of the team. OpenHands and Tale overlap in execution and coordination. Evaluate where your team wants the wider project conversation and review decisions to happen.

@@ -5,7 +5,7 @@ competitor: "LangGraph"
 slug: "tale-vs-langgraph"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Ist Orchestrierung dein Produkt oder dein Arbeitsmittel?

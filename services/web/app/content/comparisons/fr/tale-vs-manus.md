@@ -5,7 +5,7 @@ competitor: "Manus"
 slug: "tale-vs-manus"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Commandes-tu un livrable ou coordonnes-tu sa réalisation ?

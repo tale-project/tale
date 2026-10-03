@@ -3,7 +3,7 @@ title: KI-Recherche gemeinsam im Team | Tale
 description: Organisiere Recherchefragen, Quellen, Agentenaufgaben und Reviews in einem Tale-Projekt. Aus parallelen Untersuchungen werden nachvollziehbare Ergebnisse.
 slug: research
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Eine hilfreiche Recherche verbindet eine Frage mit Belegen und einer Entscheidung. Tale unterstützt dein Team dabei: Ihr stimmt das Briefing ab, weist Agenten Untersuchungen zu und prüft die Ergebnisse in einem gemeinsamen Projekt.

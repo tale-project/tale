@@ -2,10 +2,19 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ALL_LOCALES } from '@tale/ui/i18n/locales';
+import { resolveFullTitle } from '@tale/ui/seo/document-meta';
+import { TALE_SITE_URL } from '@tale/ui/seo/globals';
 import { extractInlineScriptHashes } from '@tale/ui/server';
+import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 
 import { RELEASES } from '../../app/generated/releases-manifest';
+import {
+  publishedMarketingContent,
+  readMarketingContent,
+} from '../../lib/content/server';
+import { localizedPath, SUPPORTED_LOCALES } from '../../lib/i18n/locales';
 import {
   prerenderedBodyCount,
   RELEASE_DISPLAY_LIMIT,
@@ -14,6 +23,7 @@ import { MARKETING_ROUTE_URLS } from '../../lib/seo/marketing-routes';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const DIST = join(ROOT, 'dist');
+const SEO_DIST = join(ROOT, 'dist-seo');
 
 function distIndex(url: string): string {
   if (url === '/') return join(DIST, 'index.html');
@@ -27,6 +37,111 @@ function readHtml(url: string): string | null {
 }
 
 describe('prerender SEO suite', () => {
+  describe('published Markdown content in every locale', () => {
+    const published = publishedMarketingContent();
+    const sourceByUrl = new Map(
+      readMarketingContent().map((page) => [page.url, page]),
+    );
+
+    for (const page of published) {
+      it(`${page.url} renders its exact metadata, body and search artifacts`, () => {
+        const html = readHtml(page.url);
+        expect(html, `missing ${distIndex(page.url)}`).not.toBeNull();
+        const dom = new JSDOM(html ?? '');
+        try {
+          const document = dom.window.document;
+          expect(document.querySelectorAll('h1')).toHaveLength(1);
+          expect(document.querySelector('h1')?.textContent).toBe(
+            page.frontmatter.title,
+          );
+          expect(document.title).toBe(resolveFullTitle(page.frontmatter.title));
+          expect(
+            document
+              .querySelector('meta[name="description"]')
+              ?.getAttribute('content'),
+          ).toBe(page.frontmatter.description);
+          expect(document.documentElement.lang).toBe(page.locale);
+          expect(
+            document
+              .querySelector('link[rel="canonical"]')
+              ?.getAttribute('href'),
+          ).toBe(`${TALE_SITE_URL}${page.url}`);
+          expect(
+            document
+              .querySelector('meta[name="robots"]')
+              ?.getAttribute('content') ?? '',
+          ).not.toContain('noindex');
+          const alternates = Object.fromEntries(
+            [
+              ...document.querySelectorAll('link[rel="alternate"][hreflang]'),
+            ].map((link) => [
+              link.getAttribute('hreflang'),
+              link.getAttribute('href'),
+            ]),
+          );
+          const baseAlternates = Object.fromEntries(
+            SUPPORTED_LOCALES.map((locale) => [
+              locale,
+              `${TALE_SITE_URL}${localizedPath(locale, page.path)}`,
+            ]),
+          );
+          expect(alternates).toEqual({
+            // Shared head tags also advertise regional aliases (de-CH uses
+            // the German URL); regional variants do not create extra routes.
+            ...Object.fromEntries(
+              ALL_LOCALES.map((locale) => [
+                locale,
+                baseAlternates[locale] ?? baseAlternates[locale.split('-')[0]],
+              ]),
+            ),
+            'x-default': `${TALE_SITE_URL}${page.path}`,
+          });
+          const schema = [
+            ...document.querySelectorAll('script[type="application/ld+json"]'),
+          ]
+            .map((script) => script.textContent)
+            .join('\n');
+          expect(schema).toContain('"@type":"WebPage"');
+          expect(schema).toContain('"@type":"BreadcrumbList"');
+          expect(schema).not.toMatch(
+            /"@type":"(?:Review|AggregateRating|Rating)"/,
+          );
+          expect(schema).not.toMatch(
+            /"(?:reviewRating|aggregateRating|ratingValue)"\s*:/,
+          );
+          const heading = sourceByUrl
+            .get(page.url)
+            ?.content.match(/^## (.+)$/m)?.[1];
+          expect(heading).toBeTruthy();
+          expect(document.querySelector('article')?.textContent).toContain(
+            heading,
+          );
+          const markdown = readFileSync(
+            join(SEO_DIST, `${page.url.slice(1)}.md`),
+            'utf8',
+          );
+          // The HTML-to-Markdown converter normalizes French nonbreaking
+          // spaces; compare semantic heading text while keeping HTML exact.
+          expect(markdown.replace(/\s+/g, ' ')).toContain(
+            heading?.replace(/\s+/g, ' '),
+          );
+          expect(markdown).toContain(page.frontmatter.title);
+          const sitemap = readFileSync(join(SEO_DIST, 'sitemap.xml'), 'utf8');
+          expect(sitemap).toContain(`<loc>${TALE_SITE_URL}${page.url}</loc>`);
+          const llms = readFileSync(join(SEO_DIST, 'llms.txt'), 'utf8');
+          if (page.locale === 'en')
+            expect(llms).toContain(`(${TALE_SITE_URL}${page.url}.md)`);
+          else expect(llms).not.toContain(`(${TALE_SITE_URL}${page.url}.md)`);
+          expect(
+            readFileSync(join(SEO_DIST, 'llms-full.txt'), 'utf8'),
+          ).toContain(`${TALE_SITE_URL}${page.url}`);
+        } finally {
+          dom.window.close();
+        }
+      });
+    }
+  });
+
   it('has a built dist/ (run web build first)', () => {
     expect(existsSync(DIST)).toBe(true);
   });
@@ -72,7 +187,7 @@ describe('prerender SEO suite', () => {
     });
   }
 
-  it('keeps JS asset gzip budget under 2MB total for hashed assets', () => {
+  it('keeps uncompressed hashed JavaScript under 2.5MB total', () => {
     const assets = join(DIST, 'assets');
     if (!existsSync(assets)) return;
     let total = 0;
@@ -142,8 +257,8 @@ describe('prerender SEO suite', () => {
   // budget are prerendered, the rest mount on hydration from the manifest
   // the JS bundle already ships.
   describe('changelog page weight', () => {
-    // The shared display limit caps both the page and bundled snapshot; the
-    // body cut is the byte budget applied to this build's fetched manifest.
+    // The shared stream bound and body budget apply to the manifest fetched
+    // (`bun run build` refreshes it before prerendering).
     const PRERENDERED_BODIES = prerenderedBodyCount(
       RELEASES.slice(0, RELEASE_DISPLAY_LIMIT),
     );

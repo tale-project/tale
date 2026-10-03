@@ -5,7 +5,7 @@ competitor: "OpenAI Symphony"
 slug: "tale-vs-symphony"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Symphony und Tale treffen sich bei der Übergabe von Aufgaben an Agenten, sind aber unterschiedliche Arten von Lösung. Du entscheidest zwischen einer gemeinsamen Projektanwendung und einem Orchestrierungsdienst rund um euren bestehenden Entwicklungsprozess.

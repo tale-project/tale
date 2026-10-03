@@ -3,7 +3,7 @@ title: Put AI agents to work with your team | Tale
 description: Explore how teams use Tale to coordinate AI agents for marketing, software delivery, research, documents, and operations through shared project tasks.
 slug: use-cases
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 Start with a problem your team needs to solve. In Tale, people organize the work in projects, delegate suitable tasks to AI agents, and review the results together. The same collaboration model applies across different kinds of work.

@@ -5,7 +5,7 @@ competitor: "Vibe Kanban"
 slug: "tale-vs-vibe-kanban"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Planning and review matter in both Tale and Vibe Kanban. The choice depends on the outputs your team manages and the maintenance arrangement you can support. Start with that decision before comparing the appearance of their boards.

@@ -5,7 +5,7 @@ competitor: "Haystack"
 slug: "tale-vs-haystack"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Liegt die Schwierigkeit bei der Suche oder Koordination?

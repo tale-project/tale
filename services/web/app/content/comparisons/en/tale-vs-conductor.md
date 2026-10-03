@@ -5,7 +5,7 @@ competitor: "Conductor"
 slug: "tale-vs-conductor"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 A team choosing between Tale and Conductor should test how far its work extends beyond a repository. Both address shared agent work; multiplayer access and existing subscriptions are not exclusive reasons to choose Tale.

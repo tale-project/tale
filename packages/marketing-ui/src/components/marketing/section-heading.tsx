@@ -4,27 +4,27 @@ import type { CSSProperties, ElementType, ReactNode } from 'react';
 
 import { Reveal } from './reveal';
 
-const sectionHeadingTitleVariants = cva('text-fg-base font-normal', {
-  variants: {
-    size: {
-      display:
-        'text-[44px] tracking-[-0.045em] md:text-[80px] md:tracking-[-0.05em]',
-      section:
-        'text-4xl tracking-[-0.045em] md:text-[64px] md:tracking-[-0.05em]',
-      subsection:
-        'text-3xl tracking-[-0.04em] md:text-[48px] md:tracking-[-0.045em]',
+const sectionHeadingTitleVariants = cva(
+  'text-fg-base max-w-full font-medium text-balance [overflow-wrap:anywhere]',
+  {
+    variants: {
+      size: {
+        display: 'text-site-display tracking-[-0.055em]',
+        section: 'text-site-section tracking-[-0.045em]',
+        subsection: 'text-site-subsection tracking-[-0.04em]',
+      },
+    },
+    defaultVariants: {
+      size: 'section',
     },
   },
-  defaultVariants: {
-    size: 'section',
-  },
-});
+);
 
 const sectionHeadingDescriptionVariants = cva('text-fg-muted', {
   variants: {
     size: {
-      display: 'max-w-155 text-[17px] text-balance md:text-xl',
-      section: 'max-w-140 text-[17px] md:text-xl',
+      display: 'max-w-155 text-[17px] text-pretty md:text-xl',
+      section: 'max-w-140 text-[17px] text-pretty md:text-lg',
       subsection: 'max-w-125 text-base md:text-lg',
     },
   },
@@ -49,9 +49,9 @@ const TITLE_LH: Record<
   NonNullable<VariantProps<typeof sectionHeadingTitleVariants>['size']>,
   number
 > = {
-  display: 1.02,
-  section: 1.02,
-  subsection: 1.05,
+  display: 1.04,
+  section: 1.08,
+  subsection: 1.1,
 };
 
 interface SectionHeadingProps extends VariantProps<
@@ -98,7 +98,7 @@ export function SectionHeading({
   const body = (
     <div className={cn(sectionHeadingAlignVariants({ align }), className)}>
       {eyebrow ? (
-        <p className="text-fg-subtle text-[13px] font-normal tracking-[0.02em]">
+        <p className="text-fg-muted flex items-center gap-3 text-xs font-medium tracking-[0.08em] before:h-px before:w-6 before:bg-current">
           {eyebrow}
         </p>
       ) : null}

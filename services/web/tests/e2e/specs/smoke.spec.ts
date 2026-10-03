@@ -60,6 +60,34 @@ test.describe('web marketing smoke', () => {
     expect(errors).toEqual([]);
   });
 
+  for (const menuKey of ['platform', 'resources'] as const) {
+    test(`desktop ${menuKey} disclosure restores only its own focus on Escape`, async ({
+      page,
+    }) => {
+      await page.goto('/');
+      const trigger = page.getByRole('button', { name: t(`nav.${menuKey}`) });
+      const panel = page.getByRole('region', { name: t(`nav.${menuKey}`) });
+      await trigger.focus();
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeVisible();
+      await page.keyboard.press('Tab');
+      await expect(panel.getByRole('link').first()).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(panel).not.toBeVisible();
+      await expect(trigger).toBeFocused();
+
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeVisible();
+      const pricing = page
+        .getByRole('link', { name: t('nav.pricing') })
+        .first();
+      await pricing.focus();
+      await page.keyboard.press('Escape');
+      await expect(panel).not.toBeVisible();
+      await expect(pricing).toBeFocused();
+    });
+  }
+
   for (const path of MARKETING_PATHS) {
     if (path === '/') continue;
     test(`${path} renders`, async ({ page }) => {

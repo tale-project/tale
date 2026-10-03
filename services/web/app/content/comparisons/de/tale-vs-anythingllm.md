@@ -5,7 +5,7 @@ competitor: "AnythingLLM"
 slug: "tale-vs-anythingllm"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Kläre zuerst, ob du einen Assistenten für einzelne Personen oder einen gemeinsamen Projektablauf einführen willst. AnythingLLM und Tale arbeiten beide mit Dokumenten und Agenten. Dein Test sollte deshalb die Übergabe im Team enthalten, die später tatsächlich gebraucht wird.

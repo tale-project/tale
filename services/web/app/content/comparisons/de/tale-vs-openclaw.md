@@ -5,14 +5,14 @@ competitor: "OpenClaw"
 slug: "tale-vs-openclaw"
 relationship: "runtime"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Tale und OpenClaw sind nicht immer Alternativen. Tale führt OpenClaw als unterstützte Agentenlaufzeit. Entscheidend ist, ob dein Team das eigene Interaktionsmodell des Assistenten, eine gemeinsame Projektebene um seine Arbeit oder beides braucht.
 
 ## Unterschiedliche Ebenen vergleichen
 
-OpenClaw stellt einen Assistenten über Nachrichtenkanäle mit Browser-, Datei- und Shell-Aktionen bereit. Die aktuelle Website beschreibt auch gemeinsame Gateway-Sitzungen, die Teammitglieder öffnen und steuern können. Eine Darstellung als ausschließlich persönlicher Assistent ohne Zusammenarbeit wäre zu eng. [OpenClaw-Website](https://openclaw.ai/).
+OpenClaw stellt einen Assistenten über Nachrichtenkanäle mit Browser-, Datei- und Shell-Aktionen bereit. Die aktuelle Dokumentation beschreibt auch gemeinsame Gateway-Sitzungen, die Teammitglieder öffnen und steuern können. Eine Darstellung als ausschließlich persönlicher Assistent ohne Zusammenarbeit wäre zu eng. Siehe die [OpenClaw-Website](https://openclaw.ai/), den [Mehrbenutzermodus](https://docs.openclaw.ai/concepts/multi-user) und die [Dokumentation zum gemeinsamen Chat](https://docs.openclaw.ai/web/control-ui/chat).
 
 Tale liefert Projekte, Aufgabenzuweisung, Agentenkonfiguration und die Prüfung von Berichten und Ergebnissen. Eine in Tale konfigurierte OpenClaw-Laufzeit folgt Tales unterstütztem Harness-Verhalten. Dadurch erscheinen nicht automatisch sämtliche OpenClaw-Kanäle oder Gateway-Funktionen in der Projektoberfläche. Prüfe Zugangsdaten, Tools und Sandbox-Verhalten für den geplanten Betrieb.
 

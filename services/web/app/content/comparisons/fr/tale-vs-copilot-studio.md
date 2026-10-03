@@ -5,7 +5,7 @@ competitor: "Microsoft Copilot Studio"
 slug: "tale-vs-copilot-studio"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Te faut-il un canal d’agents ou un espace projet ?

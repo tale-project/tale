@@ -5,7 +5,7 @@ competitor: "Vellum"
 slug: "tale-vs-vellum"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Is the unit of work a person or a shared project?

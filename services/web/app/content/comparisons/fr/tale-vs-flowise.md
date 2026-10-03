@@ -5,7 +5,7 @@ competitor: "Flowise"
 slug: "tale-vs-flowise"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Pour une équipe utilisant Flowise, il s'agit désormais de continuité et de migration. Avant de comparer les interfaces, inventorie le fonctionnement réel du déploiement. Distingue les applications à préserver du travail d'équipe que tu pourrais organiser autrement.

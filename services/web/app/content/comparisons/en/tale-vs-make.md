@@ -5,7 +5,7 @@ competitor: "Make"
 slug: "tale-vs-make"
 relationship: "adjacent"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Where should the work live?

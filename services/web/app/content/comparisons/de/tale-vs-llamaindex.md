@@ -5,7 +5,7 @@ competitor: "LlamaIndex"
 slug: "tale-vs-llamaindex"
 relationship: "framework"
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 ## Ist das Ergebnis ein Dokumentensystem oder eine Teamentscheidung?

@@ -3,7 +3,7 @@ title: AI agents for marketing teams | Tale
 description: Coordinate campaign research, content drafts, and reviews with your team and AI agents. Turn a marketing brief into shared tasks and deliverables in Tale.
 slug: marketing-campaigns
 reviewed: '2026-10-03'
-draft: true
+draft: false
 ---
 
 A campaign needs more than a first draft. Someone has to agree on the audience, gather evidence, keep the message consistent, and decide what is ready to publish. Tale gives your marketing team and AI agents one project in which to organize that work.

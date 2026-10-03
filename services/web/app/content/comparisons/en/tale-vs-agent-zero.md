@@ -5,7 +5,7 @@ competitor: "Agent Zero"
 slug: "tale-vs-agent-zero"
 relationship: "framework"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 If your main requirement is an agent that can use a computer, Agent Zero deserves an evaluation. If several people must plan, delegate and review that work together, also test the surrounding project workflow. Computer access alone does not settle the choice.

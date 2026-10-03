@@ -5,7 +5,7 @@ competitor: "Sim"
 slug: "tale-vs-sim"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 A shared AI workspace can mean a place to build agent systems or a place to manage the work those agents do with teammates. Sim and Tale both cover several parts of that picture. Compare the daily activity you expect most people to perform.

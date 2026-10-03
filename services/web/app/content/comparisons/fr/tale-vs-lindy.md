@@ -5,7 +5,7 @@ competitor: "Lindy"
 slug: "tale-vs-lindy"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Où une demande doit-elle devenir du travail partagé : dans les canaux que ton équipe utilise déjà, ou sur un tableau qui suit la tâche jusqu'au résultat ? Tale et Lindy visent tous deux la collaboration. Le choix dépend de vos habitudes de travail.

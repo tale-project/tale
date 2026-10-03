@@ -5,7 +5,7 @@ competitor: "Relevance AI"
 slug: "tale-vs-relevance-ai"
 relationship: "direct"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Une équipe d'agents a besoin de plus que d'une collection de prompts. Il faut définir qui organise le travail, qui exploite les processus et où les personnes interviennent. Tale et Relevance AI proposent des approches différentes pour répartir cette responsabilité.

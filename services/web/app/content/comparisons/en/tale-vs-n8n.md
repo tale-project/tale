@@ -5,7 +5,7 @@ competitor: "n8n"
 slug: "tale-vs-n8n"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Some work is best described as a repeatable flow between systems. Other work starts as a brief that people and agents refine together. Tale and n8n can both automate work; compare the operating model your team needs most often.

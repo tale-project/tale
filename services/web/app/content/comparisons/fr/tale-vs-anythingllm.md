@@ -5,7 +5,7 @@ competitor: "AnythingLLM"
 slug: "tale-vs-anythingllm"
 relationship: "adjacent"
 reviewed: "2026-10-03"
-draft: true
+draft: false
 ---
 
 Détermine d'abord si tu veux équiper une personne d'un assistant ou organiser un projet partagé. AnythingLLM et Tale travaillent tous deux avec des documents et des agents. Ton essai doit donc inclure la transmission entre collègues que tu prévois au quotidien.
