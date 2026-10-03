@@ -155,6 +155,7 @@ import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import type { TaskIdentifier } from './jobs/tasks.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -58361,21 +58362,37 @@ async function main(): Promise<void> {
     triggerSchedules.length === 1 && triggerSchedules[0]?.cron === '* * * * *',
     `schedules=${triggerSchedules.length}, cron=${triggerSchedules[0]?.cron}`,
   );
-  // The delivery lanes drive the real scan explicitly, including overlapping
-  // workers and fleets across pages. A wall-clock tick competing with those
-  // calls makes their per-scan counts depend on the host's minute boundary.
-  // Disable only that recurring clock, before starting any worker; any tick
+  // Lanes drive the work of these recurring jobs explicitly, and a wall-clock
+  // tick competing with those calls makes their outcome depend on the host's
+  // minute boundary:
+  //
+  //  - `automation.trigger_scan`: the delivery lanes drive the real scan,
+  //    including overlapping workers and fleets across pages, and count what
+  //    each scan fired;
+  //  - `watchdog.rag_indexing`: the RAG watchdog lanes drive the real sweep,
+  //    whose candidate read is global and led by their rows. A tick in its
+  //    slot (2-59/5) settled those rows too: it queued behind the row the
+  //    lock lane holds and failed it as soon as the lane let go, before the
+  //    lane read back the row its own tick had deferred (#4113).
+  //
+  // Disable only those recurring clocks, before starting any worker; any tick
   // queued during schedule registration is cancelled as well.
-  await boss.unschedule('automation.trigger_scan');
-  const queuedScans = await sql<{ id: string }[]>`
-    SELECT id FROM pgboss.job WHERE name = 'automation.trigger_scan'
-      AND state IN ('created', 'retry')
-  `;
-  if (queuedScans.length > 0) {
-    await boss.cancel(
-      'automation.trigger_scan',
-      queuedScans.map((job) => job.id),
-    );
+  const laneDrivenSchedules: readonly TaskIdentifier[] = [
+    'automation.trigger_scan',
+    'watchdog.rag_indexing',
+  ];
+  for (const name of laneDrivenSchedules) {
+    await boss.unschedule(name);
+    const queued = await sql<{ id: string }[]>`
+      SELECT id FROM pgboss.job WHERE name = ${name}
+        AND state IN ('created', 'retry')
+    `;
+    if (queued.length > 0) {
+      await boss.cancel(
+        name,
+        queued.map((job) => job.id),
+      );
+    }
   }
   setEnqueueBoss(boss);
   // No itest job may ever open a real IMAP/SMTP connection.
