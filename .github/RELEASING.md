@@ -24,8 +24,9 @@ Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout yo
 Only select a candidate containing that reviewed file. The existing candidate gate checks CI
 and source identity; it does not check the prose. Release Prepare runs the same validator before
 any image builds. It rejects a missing file, a missing, repeated or misordered section, and a
-section that holds only comments or markup or contains TODO or TBD. It cannot recognise leftover
-template prose or a wrong claim; the review must. Content-only `sites_only` builds are exempt.
+section that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers. It cannot
+recognise leftover template prose or a wrong claim; the review must. Content-only `sites_only`
+builds are exempt.
 
 ## 1. Choose the candidate
 
