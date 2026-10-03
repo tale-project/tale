@@ -5,7 +5,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
 import { deleteRejectedUploadBlob } from './service.ts';
-import { claimRejectedUpload } from './upload-intents.ts';
+import {
+  claimRejectedUpload,
+  releaseReclaimedIntent,
+} from './upload-intents.ts';
 
 /**
  * The rejected-upload reclaim decides nothing of its own: the claim on the
@@ -18,6 +21,7 @@ import { claimRejectedUpload } from './upload-intents.ts';
 vi.mock(import('./upload-intents.ts'), async (importOriginal) => ({
   ...(await importOriginal()),
   claimRejectedUpload: vi.fn(),
+  releaseReclaimedIntent: vi.fn(),
 }));
 vi.mock(import('../../lib/object-store.ts'), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -69,4 +73,37 @@ it('deletes the org-scoped key once the claim succeeds', async () => {
 
   expect(outcome).toEqual({ deleted: true });
   expect(s3DeleteObject).toHaveBeenCalledWith(store, 'blobs/acme/aaa');
+  // The claim's tombstone goes only once the store confirmed the delete.
+  expect(releaseReclaimedIntent).toHaveBeenCalledWith(expect.anything(), {
+    organizationId: 'org_1',
+    storageRef: 's3:blobs/acme/aaa',
+  });
+  expect(
+    vi.mocked(s3DeleteObject).mock.invocationCallOrder[0] ?? 0,
+  ).toBeLessThan(
+    vi.mocked(releaseReclaimedIntent).mock.invocationCallOrder[0] ?? 0,
+  );
+});
+
+it('keeps the tombstone for the sweep when the store refuses the delete (#4111)', async () => {
+  vi.mocked(claimRejectedUpload).mockResolvedValue(true);
+  vi.mocked(resolveObjectStore).mockResolvedValue({ bucket: 'blobs' } as never);
+  vi.mocked(s3DeleteObject).mockRejectedValue(new Error('store down'));
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  const outcome = await deleteRejectedUploadBlob(
+    vi.fn() as unknown as Sql,
+    scope,
+    's3:blobs/acme/aaa',
+  );
+
+  // The upload is the caller's no more either way; its bytes are the
+  // sweep's now, which finds the tombstone on the org's next mint.
+  expect(outcome).toEqual({ deleted: true });
+  expect(releaseReclaimedIntent).not.toHaveBeenCalled();
+  expect(warn).toHaveBeenCalledWith(
+    expect.stringContaining('the abandoned-upload sweep retries it'),
+    expect.any(Error),
+  );
+  warn.mockRestore();
 });
