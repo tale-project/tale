@@ -108,8 +108,60 @@ function endsClassExpression(node: ts.Node): boolean {
   );
 }
 
-/** True when the class list at `literal` is applied only behind a
- * reduced-motion check, or its class expression also stops the motion. */
+function unparenthesized(node: ts.Expression): ts.Expression {
+  let inner = node;
+  while (ts.isParenthesizedExpression(inner)) inner = inner.expression;
+  return inner;
+}
+
+/** The operands of an `a && b && c` chain. */
+function conjuncts(node: ts.Expression): ts.Expression[] {
+  const inner = unparenthesized(node);
+  return ts.isBinaryExpression(inner) &&
+    inner.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+    ? [...conjuncts(inner.left), ...conjuncts(inner.right)]
+    : [inner];
+}
+
+function isNegation(node: ts.Expression): boolean {
+  const inner = unparenthesized(node);
+  return (
+    ts.isPrefixUnaryExpression(inner) &&
+    inner.operator === ts.SyntaxKind.ExclamationToken
+  );
+}
+
+/** True when `branch`, a child of `node`, is reached only without the
+ * reduced-motion preference: `!reducedMotion && branch`,
+ * `reducedMotion ? … : branch` or `!reducedMotion ? branch : …`. */
+function onlyWithoutReducedMotion(
+  node: ts.Node,
+  branch: ts.Node,
+  sourceFile: ts.SourceFile,
+): boolean {
+  if (
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
+    branch === node.right
+  ) {
+    return conjuncts(node.left).some(
+      (operand) =>
+        isNegation(operand) &&
+        REDUCED_MOTION_CHECK.test(operand.getText(sourceFile)),
+    );
+  }
+  if (
+    ts.isConditionalExpression(node) &&
+    branch !== node.condition &&
+    REDUCED_MOTION_CHECK.test(node.condition.getText(sourceFile))
+  ) {
+    return isNegation(node.condition) === (branch === node.whenTrue);
+  }
+  return false;
+}
+
+/** True when the class list at `literal` is applied only without the
+ * reduced-motion preference, or its class expression also stops the motion. */
 function optsOut(literal: ts.Node, sourceFile: ts.SourceFile): boolean {
   let expression: ts.Node = literal;
   for (
@@ -117,15 +169,7 @@ function optsOut(literal: ts.Node, sourceFile: ts.SourceFile): boolean {
     !endsClassExpression(node);
     node = node.parent
   ) {
-    if (
-      (ts.isConditionalExpression(node) &&
-        REDUCED_MOTION_CHECK.test(node.condition.getText(sourceFile))) ||
-      (ts.isBinaryExpression(node) &&
-        node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
-        REDUCED_MOTION_CHECK.test(node.left.getText(sourceFile)))
-    ) {
-      return true;
-    }
+    if (onlyWithoutReducedMotion(node, expression, sourceFile)) return true;
     expression = node;
   }
   let stops = false;
@@ -238,6 +282,9 @@ describe('reduced-motion pulse guard', () => {
     'const dot = <span className={`size-2 ${tone} animate-pulse`} />;',
     // The opt-out of a sibling property does not cover this one.
     "cva('dot', { variants: { a: 'animate-pulse', b: 'motion-reduce:animate-none' } });",
+    // A check the wrong way round pulses only for those who asked for less.
+    "<div className={prefersReducedMotion ? 'animate-pulse' : 'opacity-70'} />",
+    "<div className={cn('size-5', prefersReducedMotion && 'animate-pulse')} />",
   ])('catches %j', (sample) => {
     expect(violations('sample.tsx', sample)).not.toEqual([]);
   });
@@ -247,6 +294,8 @@ describe('reduced-motion pulse guard', () => {
     '<div className="rounded-full motion-safe:animate-pulse" />',
     "<div className={cn('size-5', !prefersReducedMotion && 'animate-pulse')} />",
     "<div className={reducedMotion ? 'opacity-70' : 'animate-pulse'} />",
+    "<div className={!reducedMotion ? 'animate-pulse' : 'opacity-70'} />",
+    "<div className={cn(live && !prefersReducedMotion && 'animate-pulse')} />",
     "<div className={cn('size-2', live && 'animate-pulse', 'motion-reduce:animate-none')} />",
     "pulse && 'animate-pulse motion-reduce:animate-none';",
     "<div className={cn('block h-1.5 rounded-full', SKELETON_PULSE)} />",
