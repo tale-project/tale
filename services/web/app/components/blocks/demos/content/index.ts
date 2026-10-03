@@ -26,15 +26,7 @@ export {
   GovernanceTourAutomationsDemo,
   GovernanceTourKnowledgeDemo,
 } from './governance-demos';
-export {
-  HomeArenaDemo,
-  HomeAutomationDemo,
-  HomeConnectDemo,
-  HomeGovernDemo,
-  HomeHeroDemo,
-  HomeKnowledgeDemo,
-  HomeProjectsDemo,
-} from './home-demos';
+export { HomeGovernDemo, HomeHeroDemo, HomeProjectsDemo } from './home-demos';
 export {
   HubHeroDemo,
   HubTourAgentsDemo,

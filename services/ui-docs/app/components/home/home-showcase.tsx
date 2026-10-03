@@ -1,234 +1,156 @@
-import { DemoShell } from '@tale/marketing-ui/demo-shell';
-import { DemoStage } from '@tale/marketing-ui/demo-stage';
-import { useReducedMotion } from '@tale/marketing-ui/entrance';
-import { MARKETING_EASE } from '@tale/marketing-ui/reveal';
-import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
+import { MarketingButton } from '@tale/marketing-ui/button';
+import { MarketingLink } from '@tale/marketing-ui/link';
 import { Badge } from '@tale/ui/badge';
-import { Card } from '@tale/ui/card';
-import { DataTable } from '@tale/ui/data-table/data-table';
+import { Button } from '@tale/ui/button';
 import { Input } from '@tale/ui/input';
-import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 import { Tabs } from '@tale/ui/tabs';
-import type { ColumnDef } from '@tanstack/react-table';
-import { motion, useInView } from 'framer-motion';
-import { Check, Code2 } from 'lucide-react';
-import { useMemo, useRef } from 'react';
+import { ArrowUpRight, Blocks, Code2, Layers, RotateCcw } from 'lucide-react';
+import { useId, useState } from 'react';
 
+import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 
-interface Member {
-  id: string;
-  name: string;
-  role: string;
-  status: 'active' | 'invited';
-}
-
-const SHOWCASE_BEATS = [0, 180, 380, 620] as const;
-const COMPONENT_NAMES = [
-  'Input',
-  'Select',
-  'Switch',
-  'Tabs',
-  'DataTable',
-  'Badge',
-] as const;
-
 /**
- * A single assembly sequence reveals the shipped controls without moving the
- * surrounding page. The shared timeline owns reduced motion, SSR and revisit
- * behavior. DemoShell keeps every control inert and the illustration labelled.
+ * A working specimen of the shipped controls, not an inert product mockup.
+ * State lives above the tabs so switching packages never resets an edit.
+ * The initial application panel is complete in the server-rendered HTML.
  */
 export function HomeShowcase() {
   const { t } = useT('home');
-  const stageRef = useRef<HTMLDivElement>(null);
-  const inView = useInView(stageRef, { once: true, amount: 0.25 });
-  const reducedMotion = useReducedMotion();
-  const beat = useDemoTimeline({ beats: SHOWCASE_BEATS, start: inView });
-  const transition = {
-    duration: reducedMotion ? 0 : 0.5,
-    ease: MARKETING_EASE,
-  };
+  const titleId = useId();
+  const [name, setName] = useState(() => t('showcaseNameValue'));
+  const [digest, setDigest] = useState(true);
+  const [preview, setPreview] = useState('app');
 
-  const members = useMemo<Member[]>(
-    () => [
-      {
-        id: '1',
-        name: 'Ada Okafor',
-        role: t('showcaseRoleAdmin'),
-        status: 'active',
-      },
-      {
-        id: '2',
-        name: 'Jonas Meier',
-        role: t('showcaseRoleEditor'),
-        status: 'active',
-      },
-      {
-        id: '3',
-        name: 'Lena Fischer',
-        role: t('showcaseRoleMember'),
-        status: 'invited',
-      },
-    ],
-    [t],
-  );
-
-  const columns = useMemo<ColumnDef<Member>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: t('showcaseColumnName'),
-        meta: { flex: true },
-        size: 150,
-        cell: ({ row }) => (
-          <span className="font-medium">{row.original.name}</span>
-        ),
-      },
-      {
-        accessorKey: 'role',
-        header: t('showcaseColumnRole'),
-        size: 80,
-      },
-      {
-        accessorKey: 'status',
-        header: t('showcaseColumnStatus'),
-        size: 100,
-        cell: ({ row }) => (
-          <Badge
-            dot
-            variant={row.original.status === 'active' ? 'green' : 'slate'}
-          >
-            {row.original.status === 'active'
-              ? t('showcaseStatusActive')
-              : t('showcaseStatusInvited')}
-          </Badge>
-        ),
-      },
-    ],
-    [t],
-  );
-
-  const membersPanel = (
-    <DataTable
-      columns={columns}
-      data={members}
-      caption={t('showcaseTableCaption')}
-    />
-  );
-
-  const generalPanel = (
-    <div className="grid gap-6 py-5 sm:py-7 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10">
-      <motion.div
-        initial={false}
-        animate={{ opacity: beat >= 1 ? 1 : 0 }}
-        transition={transition}
-        className="flex min-w-0 flex-col gap-5"
-      >
-        <Input
-          label={t('showcaseNameLabel')}
-          defaultValue={t('showcaseNameValue')}
-          variant="default"
-          readOnly
-          wideControl
-        />
-        <Select
-          label={t('showcaseRegionLabel')}
-          value="ch"
-          options={[
-            { value: 'ch', label: t('showcaseRegionSwitzerland') },
-            { value: 'de', label: t('showcaseRegionGermany') },
-            { value: 'ie', label: t('showcaseRegionIreland') },
-          ]}
-        />
-        <Switch
-          checked
-          label={t('showcaseDigestLabel')}
-          description={t('showcaseDigestDescription')}
-        />
-      </motion.div>
-      <motion.div
-        initial={false}
-        animate={{ opacity: beat >= 2 ? 1 : 0 }}
-        transition={transition}
-        className="hidden min-w-0 lg:block"
-      >
-        <Card
-          padding="none"
-          radius="xl"
-          className="bg-surface-site-raised overflow-hidden"
-        >
-          <div className="border-border-base flex items-center justify-between gap-4 border-b px-4 py-3">
-            <span className="text-sm font-medium">
-              {t('showcaseTabMembers')}
-            </span>
-            <span className="text-fg-subtle font-mono text-xs">
-              {String(members.length).padStart(2, '0')}
-            </span>
-          </div>
-          {membersPanel}
-        </Card>
-      </motion.div>
-    </div>
-  );
+  function resetPreview() {
+    setName(t('showcaseNameValue'));
+    setDigest(true);
+  }
 
   return (
-    <div ref={stageRef}>
-      <DemoStage variant="hero" className="py-8 sm:py-12 md:py-16">
-        <DemoShell
-          label={t('showcaseTitle')}
-          title={t('showcaseWindowTitle')}
-          activeNav="settings"
-          elevation="hero"
+    <div
+      role="region"
+      aria-labelledby={titleId}
+      className="border-border-base bg-surface-site-raised shadow-demo-hero min-w-0 rounded-2xl border p-4 sm:p-6"
+    >
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h2
+          id={titleId}
+          className="flex items-center gap-2 text-sm font-medium"
         >
-          <div className="px-3 pt-5 sm:px-6 sm:pt-6 lg:px-9 lg:pt-8">
-            <Tabs
-              variant="underline"
-              defaultValue="general"
-              listAriaLabel={t('showcaseFormLegend')}
-              items={[
-                {
-                  value: 'general',
-                  label: t('showcaseTabGeneral'),
-                  content: generalPanel,
-                },
-                {
-                  value: 'members',
-                  label: t('showcaseTabMembers'),
-                  content: membersPanel,
-                },
-              ]}
-            />
-          </div>
-          <motion.div
-            initial={false}
-            animate={{ opacity: beat >= 3 ? 1 : 0 }}
-            transition={transition}
-            className="border-border-base bg-surface-site-inset/60 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3 border-t px-3 py-4 sm:px-6 lg:px-9"
-          >
-            <span className="text-fg-muted flex items-center gap-2 font-mono text-[11px]">
-              <Code2 aria-hidden className="size-3.5" />
-              @tale/ui
-            </span>
-            <span className="hidden flex-1 sm:block" />
-            <div className="flex flex-wrap gap-x-3 gap-y-2">
-              {COMPONENT_NAMES.map((name) => (
-                <span
-                  key={name}
-                  className="text-fg-muted flex items-center gap-1 font-mono text-[10px]"
-                >
-                  <Check
-                    aria-hidden
-                    className="text-brand-base size-3"
-                    strokeWidth={1.75}
+          <Code2 aria-hidden className="text-brand-base size-4" />
+          {t('showcaseTitle')}
+        </h2>
+        <span className="text-fg-muted flex items-center gap-1.5 text-xs">
+          <span aria-hidden className="bg-brand-base size-1.5 rounded-full" />
+          {t('showcaseLive')}
+        </span>
+      </div>
+      <Tabs
+        value={preview}
+        onValueChange={setPreview}
+        listAriaLabel={t('showcasePackagesLabel')}
+        listClassName="w-full"
+        triggerClassName="min-h-11 flex-1 px-2 text-xs sm:min-h-10 sm:text-sm"
+        items={[
+          {
+            value: 'app',
+            label: t('showcaseAppTab'),
+            content: (
+              <div className="flex min-h-91 flex-col gap-5">
+                <div className="border-border-base bg-surface-site-inset flex items-start gap-3 rounded-xl border p-4">
+                  <span className="bg-brand-base text-brand-fg flex size-10 shrink-0 items-center justify-center rounded-xl">
+                    <Layers aria-hidden className="size-5" strokeWidth={1.5} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-fg-muted mb-1 font-mono text-[11px]">
+                      @tale/ui
+                    </p>
+                    <h3 className="text-base font-medium tracking-tight wrap-anywhere">
+                      {name.trim() || t('showcaseNamePlaceholder')}
+                    </h3>
+                  </div>
+                </div>
+                <Input
+                  label={t('showcaseNameLabel')}
+                  value={name}
+                  maxLength={64}
+                  onChange={(event) => setName(event.target.value)}
+                  variant="default"
+                  wideControl
+                />
+                <div className="border-border-base border-y py-4">
+                  <Switch
+                    checked={digest}
+                    onCheckedChange={setDigest}
+                    label={t('showcaseDigestLabel')}
+                    description={t('showcaseDigestDescription')}
                   />
-                  {name}
-                </span>
-              ))}
-            </div>
-          </motion.div>
-        </DemoShell>
-      </DemoStage>
+                </div>
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
+                  <Badge dot variant={digest ? 'blue' : 'slate'}>
+                    {digest ? t('showcaseDigestOn') : t('showcaseDigestOff')}
+                  </Badge>
+                  <Button variant="secondary" size="sm" onClick={resetPreview}>
+                    <RotateCcw aria-hidden className="size-3.5" />
+                    {t('showcaseReset')}
+                  </Button>
+                </div>
+              </div>
+            ),
+          },
+          {
+            value: 'marketing',
+            label: t('showcaseMarketingTab'),
+            content: (
+              <div className="bg-surface-site-inset border-border-base flex min-h-91 flex-col rounded-xl border p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <Blocks aria-hidden className="text-brand-base size-4" />
+                    {t('showcaseSiteName')}
+                  </span>
+                  <span className="text-fg-muted font-mono text-[10px]">
+                    @tale/marketing-ui
+                  </span>
+                </div>
+                <div className="flex flex-1 flex-col items-start justify-center gap-4 py-7">
+                  <span className="text-fg-base text-xs font-medium">
+                    {t('showcaseSiteEyebrow')}
+                  </span>
+                  <h3 className="max-w-72 text-3xl leading-[1.08] font-medium tracking-[-0.045em] sm:text-4xl">
+                    {t('showcaseSiteTitle')}
+                  </h3>
+                  <p className="text-fg-muted max-w-72 text-sm leading-relaxed">
+                    {t('showcaseSiteDescription')}
+                  </p>
+                  <MarketingButton asChild>
+                    <MarketingLink
+                      to={docPath('marketing-ui/overview')}
+                      tone="plain"
+                    >
+                      {t('showcaseSiteAction')}
+                      <ArrowUpRight aria-hidden className="size-4" />
+                    </MarketingLink>
+                  </MarketingButton>
+                </div>
+                <div className="border-border-base text-fg-muted flex flex-wrap gap-x-4 gap-y-2 border-t pt-4 font-mono text-[10px]">
+                  <span>SiteHeader</span>
+                  <span>SectionHeading</span>
+                  <span>MarketingButton</span>
+                </div>
+              </div>
+            ),
+          },
+        ]}
+      />
+      <p className="text-fg-muted mt-5 text-xs leading-relaxed">
+        {t(
+          preview === 'app'
+            ? 'showcaseDescription'
+            : 'showcaseMarketingDescription',
+        )}
+      </p>
     </div>
   );
 }

@@ -19,9 +19,12 @@ Page copy, routes, calls to action, product registries, and demo scenarios stay 
 `app/routes/__root.tsx` mounts `MarketingRouterProvider`; `lib/i18n/i18n.ts` merges both package
 catalogs beneath the service’s labels. Reuse those components when changing a page.
 
-The homepage links to localized use-case guides through `RelatedUseCases`, using the same
-editorial selections as the platform overview. Connector names remain visible in a static grid.
-Marketing entrances and demo timelines respond to reduced-motion preference changes without a reload.
+The homepage pairs its introduction with a task board, then presents three product chapters:
+planning, agent sandbox work, and review. Compact cards link to knowledge, automations, and
+chat; a contrasting deployment section explains hosting, security, and the MIT license.
+`RelatedUseCases` uses the same localized editorial selections as the platform overview.
+Agent and connector names remain visible without an animated marquee. Marketing entrances
+and demo timelines respond to reduced-motion preference changes without a reload.
 
 Legal pages are excluded from the sitemap and emit `noindex,nofollow`. Keep them crawlable in
 `robots.txt` so search engines can read that instruction; API and search endpoints remain blocked.

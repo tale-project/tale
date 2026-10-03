@@ -58,11 +58,12 @@ Everything else (`Button`, `Card`, `Heading`, `Text`, `Badge`, `Accordion`, mark
 
 Semantic utilities only, **never a raw hex in a class**. On top of the canonical `@tale/ui` tokens,
 `@tale/marketing-ui` defines a marketing-surface family in
-[`packages/marketing-ui/src/globals.css`](../../packages/marketing-ui/src/globals.css) (it imports
-`@tale/ui/globals.css` and layers the marketing `@theme` on top; the site's own
-[`app/globals.css`](../../services/web/app/globals.css) is that one import plus the html/body rules) —
+[`packages/marketing-ui/src/landing.css`](../../packages/marketing-ui/src/landing.css).
+The full-site [`globals.css`](../../packages/marketing-ui/src/globals.css) imports
+`@tale/ui/globals.css`, the marketing tokens, and global marketing palette aliases; the site's own
+[`app/globals.css`](../../services/web/app/globals.css) is that one import plus the html/body rules —
 porcelain in light and soft charcoal in dark. Ink, borders, and accent are
-overridden here so chrome matches the paper, not the app's true-neutral black:
+overridden so chrome matches the paper, not the app's true-neutral black:
 
 | Utility                                                     | Use                                              |
 | ----------------------------------------------------------- | ------------------------------------------------ |
@@ -86,7 +87,11 @@ overridden here so chrome matches the paper, not the app's true-neutral black:
 | `bg-demo-traffic-*`                                         | browser chrome traffic lights (demo only)        |
 | `demo-{mint,coral,violet,gold,sky}` + `-soft`               | domain illustration ink and surfaces, theme-aware |
 
-New marketing surface values go into that `@theme` block (plus its `.dark` overrides), never inline.
+New marketing surface values go into the `landing.css` `@theme` block (plus its `.dark` overrides), never inline.
+Mixed documentation sites import `landing.css` beside their application stylesheet and wrap only
+the front page in `marketing-surface`. The wrapper scopes the canonical foreground, border, and
+action aliases; article routes keep the application theme. `PageSection surface="contrast"`
+creates a local ink band with its own readable foreground and action palette.
 Light marketing surfaces use porcelain (`#fafafa`), raised cards at `#ffffff`, and a quiet
 wash (`#f0f1f3`) for neutral section rhythm. Page atmosphere uses cool gray
 (`--color-atmosphere-warm` / `--color-atmosphere-deep`). Illustrations use intentional domain palettes:
@@ -95,7 +100,7 @@ and sky for knowledge. Pair color with recognizable content and structure; a tin
 same card grid is not an individual illustration. These colors describe the story, not product
 status: success, warning, and error states retain their established meanings.
 Promo chips are muted stone, not sand. Primary marketing CTAs use the ink `accent-*` tokens
-(rounded-xl shape, weight 500); secondary actions use a raised surface and a fine outline. Brand
+(rounded-lg shape, weight 500); secondary actions use a raised surface and a fine outline. Brand
 blue remains available for real product details. Do not add a decorative blue hairline above
 illustrations. `DemoShell domain` defaults to its navigation domain, with explicit overrides for
 agent workspaces and governance. `DemoStage` reads that marker to coordinate its palette and texture.
@@ -175,14 +180,14 @@ of hand-rolling motion, CTAs, links, or section chrome. Variants use `class-vari
 | Primitive               | Use                                                                                                                                                                                                                   |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Reveal`                | Entrance wrapper. Scroll reveals are **opacity-only** (no `y`) so they never fight scroll.                                                                                                                            |
-| `SectionHeading`        | Title + optional eyebrow/description at `display` / `section` / `subsection` type scale. Outline: `display`→h1, else h2 (pass `as` to nest).                                                                          |
-| `MarketingButton`       | Ink primary / outlined secondary with rounded-xl corners (`tone` + `size` via cva).                                                                                                                                                        |
+| `SectionHeading`        | Title + optional eyebrow/description at `display` / `section` / `subsection` type scale. `layout="editorial"` puts the description beside the title on desktop. Outline: `display`→h1, else h2 (pass `as` to nest).                                                                          |
+| `MarketingButton`       | Ink primary / outlined secondary with rounded-lg corners (`tone` + `size` via cva).                                                                                                                                                        |
 | `MarketingLink`         | Internal link (through the host's router seam — locale-aware in web) with tones: `nav` / `navMobile` / `footer` / `inline` / `subtle` / `plain`.                                                                      |
 | `MarketingExternalLink` | Outbound link with the same tone scale.                                                                                                                                                                               |
 | `CtaGroup` / `CtaPair`  | Horizontal CTA row; two-action pair (`to` or `href` per side).                                                                                                                                                        |
-| `PageSection`           | Band chrome: `surface` (`site` / `wash` / `soft` / `plain` / `transparent`) / `pad` (`md`/`lg`/`xl`) / `border` + optional `SiteContainer`. Default `lg` (`py-16 sm:py-20 lg:py-24`); `xl` for heroes/CTAs (`py-20 sm:py-24 lg:py-32`). |
+| `PageSection`           | Band chrome: `surface` (`site` / `wash` / `soft` / `plain` / `transparent` / `contrast`) / `pad` (`compact`/`md`/`lg`/`xl`) / `border` + optional `SiteContainer`. Default `lg` (`py-14 sm:py-16 lg:py-20`); `compact` for short strips; `xl` for heroes/CTAs (`py-16 sm:py-20 lg:py-24`). |
 | `MarketingStack`        | Vertical content column (`gap` / `align` / `max`).                                                                                                                                                                    |
-| `MarketingCard`         | Related-module / hub tile (optional `to`, optional `icon`). Default surface is `plain` (panel cell); use `raised` only for standalone tiles.                                                                          |
+| `MarketingCard`         | Related-module / hub tile on the shared `Card` substrate (optional `to`, optional `icon`). Default `plain` is a panel cell; `raised` is standalone, `featured` gives the main destination more weight, and `quiet` suits supporting lists.                                                                          |
 | `MarketingPanel`        | Framed surface for divider grids (`gap-px` hairlines). Matches ComplianceTrust's single-panel language.                                                                                                               |
 
 Also reuse:
@@ -207,6 +212,8 @@ Also reuse:
 - Header menus: click + Esc + fine-pointer hover intent. Mobile navigation is a focus-managed
   modal Sheet with a flat list, safe-area padding, Escape/focus return, and breakpoint cleanup.
   Crossing 1024px unmounts the Sheet so an interrupted exit cannot leave the page inaccessible.
+  Place search in the `mobileActions` slot beside the menu button, so it opens directly from the
+  page without stacking two modal surfaces.
 
 Motion rules:
 
@@ -233,7 +240,7 @@ Motion rules:
 
 | Template        | When                                                         | Section order                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Homepage        | `/`                                                          | Hero + demo → orchestration tour → tagline → agents → connectors → compliance → use cases → FAQ → CTA                                                                                       |
+| Homepage        | `tale.dev/`                                                  | Split hero + task board → compact agents → three editorial chapters (projects, agent workspace, review) → knowledge/automation/chat destinations → contrast deployment/control band → compact connectors → trust → use cases → FAQ → CTA |
 | Feature         | `/platform/*`                                                | `FeaturePageLayout`: hero (+ demo) → product tour (copy + DemoShell rows, same as homepage) → capabilities (≥5 docs-traceable) → mini-FAQ → related → docs links → CTA |
 | Platform hub    | `/platform`                                                  | Hero (+ demo) → product tour (6 DemoShell rows) → module grid → CTA                                                                                                    |
 | Pricing / forms | `/pricing`, `/hardware-pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
@@ -241,6 +248,14 @@ Motion rules:
 | Company         | `/about`                                                     | Hero (display heading + CTA pair) → facts panel → story/mission (+ legal-entity address) → product panel → values (`FeatureCapability`) → CTA                          |
 
 New routes register in `lib/seo/route-paths.ts` **and** `lib/seo/marketing-routes.ts` (bijection test), plus paired `app/routes/` + `app/routes/$lang/` files and en/de/fr messages in the same change.
+
+The documentation front pages share this language while keeping distinct reader tasks:
+`docs.tale.dev` leads with search and task-based guide choices; `ui.tale.dev` leads with an
+interactive component showcase and installation. Their article routes retain the shared
+`@tale/ui/docs` frame. A front page can use `FeatureHero layout="split"` with host-supplied
+`actions`, `proof`, and `visualTreatment="plain"` when its illustration owns the frame. The
+default `layout="stacked"` keeps feature-page headings above their staged visuals. Plain demo
+visuals supply their own `@container/demo` so scene breakpoints follow available width.
 
 ## SEO is a design constraint
 
@@ -271,8 +286,8 @@ card (`public/og.png`, 1200×630) all derive from it. On top of that:
   heading and identical card grid down the whole page. Topic-specific illustrations add purposeful
   color and detailed native diagrams while page chrome stays quiet.
 - **Fluid geometry** — `SiteContainer` is at most 1360px wide with 20px phone, 32px tablet, and
-  48px desktop gutters. `SectionHeading` uses fluid display (44–92px), section (32–60px), and
-  subsection (28–44px) scales. Phone layouts stack in reading order; desktop feature tours split
+  48px desktop gutters. `SectionHeading` uses fluid display (44–84px), section (32–52px), and
+  subsection (24–36px) scales; split heroes cap their display at 72px. Phone layouts stack in reading order; desktop feature tours split
   at 1024px and their scenes respond to the narrower container. Test at 320, 390, 768, 1024, and
   1440px in both themes and all locales, including the complete final demo content.
 - The site is **server-rendered + prerendered** (`vite build` + `--ssr` + `scripts/prerender.ts`)

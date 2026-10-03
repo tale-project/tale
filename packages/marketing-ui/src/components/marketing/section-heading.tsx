@@ -9,9 +9,9 @@ const sectionHeadingTitleVariants = cva(
   {
     variants: {
       size: {
-        display: 'text-site-display tracking-[-0.055em]',
-        section: 'text-site-section tracking-[-0.045em]',
-        subsection: 'text-site-subsection tracking-[-0.04em]',
+        display: 'text-site-display tracking-[-0.05em]',
+        section: 'text-site-section tracking-[-0.04em]',
+        subsection: 'text-site-subsection tracking-[-0.035em]',
       },
     },
     defaultVariants: {
@@ -73,6 +73,8 @@ interface SectionHeadingProps extends VariantProps<
   descriptionClassName?: string;
   /** Skip the shared Reveal wrapper (caller owns motion). */
   bare?: boolean;
+  /** Put the description beside the heading on wide screens. */
+  layout?: 'stack' | 'editorial';
 }
 
 /**
@@ -89,6 +91,7 @@ export function SectionHeading({
   className,
   descriptionClassName,
   bare = false,
+  layout = 'stack',
 }: SectionHeadingProps) {
   // subsection is a type scale, not an outline level — default to h2 so
   // pages that lead with a display h1 don't skip a level.
@@ -96,25 +99,41 @@ export function SectionHeading({
   const resolvedSize = size ?? 'section';
 
   const body = (
-    <div className={cn(sectionHeadingAlignVariants({ align }), className)}>
-      {eyebrow ? (
-        <p className="text-fg-muted flex items-center gap-3 text-xs font-medium tracking-[0.08em] before:h-px before:w-6 before:bg-current">
-          {eyebrow}
-        </p>
-      ) : null}
-      <HeadingTag
-        className={sectionHeadingTitleVariants({ size: resolvedSize })}
-        style={{ lineHeight: TITLE_LH[resolvedSize] } satisfies CSSProperties}
+    <div
+      className={cn(
+        sectionHeadingAlignVariants({ align }),
+        layout === 'editorial' &&
+          'w-full items-start text-left lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-end lg:gap-16',
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          'flex min-w-0 flex-col gap-4',
+          align === 'center' && layout !== 'editorial'
+            ? 'items-center'
+            : 'items-start',
+        )}
       >
-        {title}
-      </HeadingTag>
+        {eyebrow ? (
+          <p className="text-fg-muted flex items-center gap-3 text-xs font-semibold tracking-[0.07em] before:h-px before:w-5 before:bg-current">
+            {eyebrow}
+          </p>
+        ) : null}
+        <HeadingTag
+          className={sectionHeadingTitleVariants({ size: resolvedSize })}
+          style={{ lineHeight: TITLE_LH[resolvedSize] } satisfies CSSProperties}
+        >
+          {title}
+        </HeadingTag>
+      </div>
       {description ? (
         <p
           className={cn(
             sectionHeadingDescriptionVariants({ size: resolvedSize }),
             descriptionClassName,
           )}
-          style={{ letterSpacing: '-0.015em', lineHeight: 1.5 }}
+          style={{ letterSpacing: '-0.01em', lineHeight: 1.6 }}
         >
           {description}
         </p>

@@ -37,7 +37,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [navigation](../suites/navigation.md) | `NAV-B1` | 🔶 partial | `smoke.spec.ts` (`/nope-not-a-route` shows the not-found heading + **Back to the homepage** — SPA nav, not the HTTP status) |
 | [navigation](../suites/navigation.md) | `NAV-F3`–`NAV-F8`, `NAV-F10`–`NAV-F11` | ⛔ manual-only | — |
 | [navigation](../suites/navigation.md) | `NAV-B2`–`NAV-B4` | ⛔ manual-only | — |
-| [platform-pages](../suites/platform-pages.md) | `PAGE-F1`–`PAGE-F2` | 🔶 partial | `home-demos.spec.ts` (hub samples each module story; tour stages deep-link) + `smoke.spec.ts` (renders) |
+| [platform-pages](../suites/platform-pages.md) | `PAGE-F1`–`PAGE-F2` | 🔶 partial | `home-demos.spec.ts` (three main chapters and three supporting capability cards link to every module) + `smoke.spec.ts` (renders) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F4` | 🔶 partial | `smoke.spec.ts` (each module page renders; heading order on `/platform`) — section stack not asserted |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F5`–`PAGE-F9` | 🔶 partial | `home-demos.spec.ts` (per-page demo stories under reduced motion, distinct from the homepage scenarios) |
 | [platform-pages](../suites/platform-pages.md) | `PAGE-F11` | 🔶 partial | `changelog.spec.ts` (sticky timeline reachability + `aria-current` on click) |
@@ -87,3 +87,5 @@ and checks runtime configuration, envelope redaction and the disabled default.
 `packages/ui/src/server/monitoring.integration.test.ts` starts the real Bun
 server and a local receiver; it checks escaped runtime HTML, strict CSP, HTTP
 error receipt and zero report traffic when disabled.
+
+| [navigation](../suites/navigation.md) | Homepage has a split task-board hero, three chapters and three capability cards; every module destination works; connector names remain readable; motion preference changes complete mounted demos without replay | ✅ automated | `home-demos.spec.ts`, `motion-and-connectors.spec.ts` |

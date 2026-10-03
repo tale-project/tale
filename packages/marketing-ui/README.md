@@ -37,6 +37,12 @@ Import the package stylesheet once from the site’s stylesheet:
 It includes `@tale/ui/globals.css`, the marketing tokens, and Tailwind source paths for this
 package. Use these tokens for surfaces, text, borders, and motion examples.
 
+For a marketing front page inside an application or documentation site, keep the application
+stylesheet and add `@import '@tale/marketing-ui/landing.css';`. Wrap only that front page in
+`<div className="marketing-surface">`. This supplies the same marketing typography and surfaces,
+but scopes its foreground, border, and action palette to the wrapper. Article routes retain
+their application theme. Use `globals.css` for sites whose entire surface is marketing.
+
 Internal links use TanStack Router by default. A host with typed or localized routes mounts
 `MarketingRouterProvider` with its link adapter. The adapter receives a site-relative `to`
 path and anchor props; it owns locale prefixes and route validation. Tale’s implementation is
@@ -104,6 +110,18 @@ content fits before playback starts. Keep the complete story visible at 320px an
 `SiteContainer` grows from 20px phone gutters to 32px on tablets and 48px on desktop, within a
 1360px frame. `SectionHeading` uses fluid type sizes. Let these shared components own the page
 rhythm; avoid adding fixed desktop padding or duplicate heading scales in the host.
+
+`FeatureHero` keeps the existing heading pair and visual below by default (`layout="stacked"`).
+Use `layout="split"` to place the title, description, actions, and optional `proof` beside the
+visual on desktop; phones read the introduction before the visual. `visualTreatment="plain"`
+lets a visual own its frame, while the default `"stage"` wraps it in `DemoStage`. A plain visual
+that uses demo container variants must provide its own `@container/demo` ancestor.
+
+For section introductions, `SectionHeading layout="editorial"` places the description beside
+the title at desktop widths. `PageSection pad="compact"` suits short proof strips and navigation
+bands. Its `surface="contrast"` supplies a local ink palette without changing neighboring
+sections. Give one main destination `MarketingCard surface="featured"`, with `surface="quiet"`
+for supporting destinations; both retain the host router and shared `Card` surface primitive.
 
 ## Verify a change
 

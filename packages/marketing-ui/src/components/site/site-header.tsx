@@ -86,6 +86,8 @@ interface SiteHeaderProps {
   desktopNav?: ReactNode;
   /** Trailing slot on desktop (CTAs, search button, etc.). */
   desktopActions?: ReactNode;
+  /** Actions beside the mobile menu button, such as documentation search. */
+  mobileActions?: ReactNode;
   /** Body of the mobile navigation sheet. */
   mobileNav?: ReactNode;
   /** Localized label for the burger button when the drawer is closed. */
@@ -130,6 +132,7 @@ export function SiteHeader({
   logo,
   desktopNav,
   desktopActions,
+  mobileActions,
   mobileNav,
   openMenuLabel,
   closeMenuLabel,
@@ -193,7 +196,7 @@ export function SiteHeader({
           </div>
 
           {desktopNav ? (
-            <nav className="hidden items-center gap-6 lg:flex lg:justify-self-center">
+            <nav className="hidden items-center gap-1 lg:flex lg:justify-self-center">
               {desktopNav}
             </nav>
           ) : (
@@ -204,6 +207,11 @@ export function SiteHeader({
             {desktopActions ? (
               <div className="hidden items-center gap-3 lg:flex">
                 {desktopActions}
+              </div>
+            ) : null}
+            {mobileActions ? (
+              <div className="flex items-center gap-2 lg:hidden">
+                {mobileActions}
               </div>
             ) : null}
             {hasMobileNav && !isDesktop ? (

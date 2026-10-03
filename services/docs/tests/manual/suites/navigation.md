@@ -16,7 +16,7 @@ guide ([search.md](search.md)).
 
 | Surface        | Route                                                                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Landing        | `{base}/`                                                                                                                                 |
+| Landing        | `{base}/` — discovery page; see [home](home.md)                                                                                                                                 |
 | Content page   | any slug, e.g. `{base}/self-hosted/install/quickstart`                                                                                    |
 | Nested group   | `{base}/platform/chat/…` (sub-groups inside **Platform**)                                                                                 |
 | Unknown URL    | `{base}/nope-not-a-page` → styled 404                                                                                                     |
@@ -48,7 +48,7 @@ this guide focuses on **behaviour**, not link rot.
 
 ## Functional tests
 
-- [ ] `NAV-F1` · **Rail tree** — On `{base}/`, read the rail → The six top
+- [ ] `NAV-F1` · **Rail tree** — On `{base}/self-hosted/install/quickstart`, read the rail → The six top
   groups render in `nav.json` order as uppercase section labels: **Start
   here**, **Cloud**, **Self-hosted**, **Platform**, **Tutorials**,
   **Development** (`nav.groups.*`); clicking a page row commits its slug URL
@@ -65,8 +65,8 @@ this guide focuses on **behaviour**, not link rot.
   aria-label>` = **Breadcrumbs** (`docs.breadcrumbs`) in the header strip →
   Trail = **Home** (`docs.home`, links to `{base}/`) → group labels → current
   page (marked `aria-current="page"`, not a link, and **not** a heading — the
-  page's only `<h1>` is the article title below); on the landing page the trail
-  is **Home** alone, as its own current leaf; clicking a crumb navigates there.
+  page's only `<h1>` is the article title below); clicking a crumb navigates there.
+  The locale-root discovery page has its own marketing header, without an article trail.
   Below 1024 px only the immediate parent precedes the current page; at any
   width a long trail truncates its crumbs with an ellipsis (Home keeps its
   width) and never runs past the strip or pushes the page actions away.

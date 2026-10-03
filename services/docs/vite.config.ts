@@ -126,6 +126,7 @@ export default defineConfig({
   },
   ssr: {
     noExternal: [
+      '@tale/marketing-ui',
       '@tale/ui',
       '@tanstack/react-router',
       'framer-motion',

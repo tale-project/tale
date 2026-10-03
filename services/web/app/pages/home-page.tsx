@@ -60,13 +60,13 @@ export function HomePage() {
   return (
     <>
       <HeroHeadline />
+      <AgentsBar />
 
       <section id="features" aria-label={tFooter('features')}>
         <OrchestrationTour />
       </section>
 
       <Tagline />
-      <AgentsBar />
       <ConnectorsBar />
       <ComplianceTrust />
       <RelatedUseCases pageId="hub" />

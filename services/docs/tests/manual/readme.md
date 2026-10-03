@@ -29,13 +29,14 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-112 boxes across 6 suites. Every suite declares the ID prefix its
+115 boxes across 7 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
 | Suite | Prefix | Area | Boxes |
 |---|---|---|---|
 | [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep (theme, image zoom, video player, PWA banner) | 15 |
+| [home](suites/home.md) | `HOME-` | discovery page hierarchy, responsive layout, shared search and article transition | 3 |
 | [content](suites/content.md) | `CONT-` | code blocks + copy buttons, heading deep links, markdown components, images + zoom, videos, page actions | 30 |
 | [locale](suites/locale.md) | `LOC-` | `/de` + `/fr` trees, `de-CH` overlay, language switcher, translated chrome | 12 |
 | [navigation](suites/navigation.md) | `NAV-` | rail integrity, breadcrumbs, prev/next, outline scroll-spy, phone drawer, 404s, moved-page, retired-locale and guessed-address redirects, PWA offline/update | 28 |

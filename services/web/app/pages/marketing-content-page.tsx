@@ -15,6 +15,7 @@ import { useMemo } from 'react';
 import { RelatedUseCases } from '@/app/components/blocks/related-use-cases';
 import { UseCaseIllustration } from '@/app/components/blocks/use-case-illustration';
 import { MarketingProse } from '@/app/components/marketing/marketing-prose';
+import { marketingContentHeading } from '@/lib/content/model';
 import type { MarketingContentDocument } from '@/lib/content/model';
 import { MARKETING_CONTENT_PATHS } from '@/lib/content/model';
 import { useT } from '@/lib/i18n/client';
@@ -128,7 +129,7 @@ export function MarketingContentPage({
               size="section"
               align="start"
               className="max-w-5xl"
-              title={frontmatter.title.replace(/ \| Tale$/, '')}
+              title={marketingContentHeading(frontmatter.title)}
               description={frontmatter.description}
               descriptionClassName="max-w-3xl"
             />

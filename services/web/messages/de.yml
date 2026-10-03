@@ -163,15 +163,14 @@ address:
   country: Schweiz
 home:
   hero:
-    title: Ein Arbeitsbereich für dein Team und KI-Agenten
+    title: Dein Team und deine Agenten. Gemeinsam am Werk.
     subtitle:
       Plane Projekte, delegiere Aufgaben an KI-Agenten und prüfe die
-      Ergebnisse gemeinsam mit deinem Team. Vom Softwareprojekt bis zur
-      Marketingkampagne bleiben Aufgabenbeschreibung, Dateien und Gespräche
-      zusammen.
+      Ergebnisse mit deinem Team. Aufgabenbeschreibung, Dateien und Gespräche
+      bleiben bei der Arbeit.
     ctaPrimary: Demo anfragen
     ctaSecondary: Tale selbst hosten
-    eyebrow: Gemeinsame Projektarbeit mit KI-Agenten
+    eyebrow: Open-Source-Arbeitsbereich für Projekte
     proof: Gemeinsame Aufgaben · Aufgaben delegieren · Parallele
       Sandbox-Arbeit · MIT-Lizenz
   demos:
@@ -371,12 +370,20 @@ home:
       file3: tests/preview.spec.ts
       file4: README.md
       activeFile: index.html
-      code1: '<main>'
-      code2: '  <h1>Northwind</h1>'
-      code3: '  <p>Project preview</p>'
-      code4: '</main>'
+      code1: "<main><h1>Northwind</h1><p>Kundenportal</p>"
+      code2: "<section><h2>Auftrag</h2><p>Umfang und Ziele</p></section>"
+      code3: "<section><h2>Dateien</h2><p>Quellcode und Tests</p></section>"
+      code4: "<section><h2>Prüfung</h2><p>Bereit für Feedback</p></section></main>"
       browserUrl: http://127.0.0.1:5173
       browserTitle: Projektvorschau · localhost
+      previewTitle: "Northwind"
+      previewDescription: "Kundenportal"
+      previewItem1: "Auftrag"
+      previewDetail1: "Umfang und Ziele"
+      previewItem2: "Dateien"
+      previewDetail2: "Quellcode und Tests"
+      previewItem3: "Prüfung"
+      previewDetail3: "Bereit für Feedback"
   tour:
     title: Von der gemeinsamen Aufgabe zum geprüften Ergebnis
     subtitle: Weise Aufgaben zu, gib Agenten den nötigen Kontext und arbeite mit
@@ -436,6 +443,7 @@ home:
         verfolge den Fortschritt auf dem Board.
     explore: '{module} entdecken'
   tagline:
+    eyebrow: Dein Arbeitsbereich, deine Entscheidung
     title: Deine Infrastruktur. Deine Daten. Deine Regeln.
     subtitle: Wähle, wo dein Arbeitsbereich läuft und welche Modelle deine Agenten
       nutzen.
@@ -462,10 +470,8 @@ home:
     subtitle: Verbinde die Dienste, die deine Projekte brauchen. Richte Zugangsdaten
       ein und gib Agenten und Workflows den nötigen Zugriff für ihre Aufgaben.
   agents:
-    title: Wähle die Laufzeit für jeden Agenten
-    subtitle: Nutze Claude Code, Codex, Hermes, OpenClaw und weitere unterstützte
-      Laufzeiten. Mit eigenen Zugangsdaten kannst du ein unterstütztes
-      Agentenabo verwenden oder Modelle per API abrechnen lassen.
+    title: Deine Agenten, deine Wahl
+    subtitle: Nutze deine bevorzugte Laufzeit mit eigenen Zugangsdaten oder per API abgerechneten Modellen.
   compliance:
     eyebrow: SICHERHEIT
     title: Unterstützung für deinen Betrieb
@@ -1186,11 +1192,12 @@ platformAgents:
       label:
         'Animierte Demo: Hermes bearbeitet install_offline.py im Files-Bereich,
         dann zeigt der Live-Browser die Air-Gap-Install-Checkliste.'
-      prompt: Fixe das Offline-Install-Skript und zeig mir die Checkliste im
-        Live-Browser.
+      prompt: Korrigiere das Offline-Installationsskript und zeige mir die
+        Checkliste im Live-Browser.
       agent: Hermes
       model: Claude Sonnet
-      reply: Registry-Pfad gefixt — Files hat den Diff; Live ist auf der Checkliste.
+      reply: Registry-Pfad korrigiert. Prüfe die Änderungen unter Files und
+        die Checkliste unter Live.
       file1: install_offline.py
       file2: registry.json
       file3: docs/checklist.md
@@ -1202,6 +1209,14 @@ platformAgents:
       code4: '        raise SystemExit("missing registry")'
       browserUrl: http://127.0.0.1:8787/checklist
       browserTitle: Air-Gap-Install-Checkliste
+      previewTitle: "Offline-Installation"
+      previewDescription: "Checkliste zur Vorbereitung"
+      previewItem1: "Lokale Registry"
+      previewDetail1: "Registry-Pfad prüfen"
+      previewItem2: "Abhängigkeiten"
+      previewDetail2: "Benötigte Pakete sammeln"
+      previewItem3: "Installation"
+      previewDetail3: "Ohne Netzwerkzugriff starten"
 platformAutomations:
   eyebrow: Automations
   title: Was sind Automations in Tale?

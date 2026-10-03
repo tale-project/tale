@@ -1,6 +1,7 @@
 import { DemoShell } from '@tale/marketing-ui/demo-shell';
 import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { useDemoTimeline } from '@tale/marketing-ui/use-demo-timeline';
+import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import { motion, useInView } from 'framer-motion';
 import {
@@ -204,7 +205,11 @@ export function SandboxWorkspace({
                         {...pop()}
                         className="flex min-h-0 min-w-0 flex-1 flex-col p-2 @2xl/demo:p-2.5"
                       >
-                        <div className="border-border-base bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+                        <Card
+                          padding="none"
+                          radius="lg"
+                          className="bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden"
+                        >
                           <div className="border-border-base flex items-center gap-1.5 border-b px-2 py-1.5">
                             <Globe
                               aria-hidden
@@ -215,20 +220,51 @@ export function SandboxWorkspace({
                               {scene.browserUrl}
                             </span>
                           </div>
-                          <div className="from-demo-coral-soft to-surface-site-raised relative flex min-h-0 flex-1 flex-col items-center justify-center bg-gradient-to-b px-3">
-                            <MonitorPlay
-                              aria-hidden
-                              className="text-demo-coral mb-2 size-6 @2xl/demo:size-7"
-                              strokeWidth={1.5}
-                            />
-                            <p className="text-fg-base text-center text-[11px] font-medium @2xl/demo:text-xs">
-                              {scene.browserTitle}
-                            </p>
-                            <p className="text-fg-subtle mt-1 text-center text-[10px]">
-                              {t('demos.sandbox.liveHint')}
-                            </p>
+                          <div className="demo-surface flex min-h-0 flex-1 flex-col gap-3 p-3 @2xl/demo:p-4">
+                            <div className="flex items-center gap-2.5">
+                              <span className="demo-accent demo-soft flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold">
+                                {scene.previewTitle.slice(0, 1)}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-fg-base text-sm leading-snug font-semibold @2xl/demo:text-base">
+                                  {scene.previewTitle}
+                                </p>
+                                <p className="text-fg-muted mt-0.5 text-[10px] leading-snug @2xl/demo:text-[11px]">
+                                  {scene.previewDescription}
+                                </p>
+                              </div>
+                            </div>
+                            <ol className="flex flex-col gap-2">
+                              {scene.previewItems.map((item, index) => (
+                                <Card
+                                  asChild
+                                  padding="none"
+                                  key={item.title}
+                                  className="bg-surface-site-raised flex items-start gap-2.5 px-2.5 py-2"
+                                >
+                                  <li>
+                                    <span className="demo-accent pt-0.5 font-mono text-[10px]">
+                                      {String(index + 1).padStart(2, '0')}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-fg-base text-[11px] leading-snug font-medium">
+                                        {item.title}
+                                      </p>
+                                      <p className="text-fg-muted mt-0.5 text-[10px] leading-snug">
+                                        {item.detail}
+                                      </p>
+                                    </div>
+                                  </li>
+                                </Card>
+                              ))}
+                            </ol>
                           </div>
-                        </div>
+                        </Card>
+                        <p className="text-fg-subtle mt-1.5 text-[9px] leading-snug">
+                          <span>{scene.browserTitle}</span>
+                          {' · '}
+                          <span>{t('demos.sandbox.liveHint')}</span>
+                        </p>
                       </motion.div>
                     ) : null}
                   </div>

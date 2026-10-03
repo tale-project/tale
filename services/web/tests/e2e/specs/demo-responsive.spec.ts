@@ -76,6 +76,14 @@ const demoFields = {
     'file3',
     'file4',
     'browserTitle',
+    'previewTitle',
+    'previewDescription',
+    'previewItem1',
+    'previewDetail1',
+    'previewItem2',
+    'previewDetail2',
+    'previewItem3',
+    'previewDetail3',
   ],
 } as const;
 
@@ -152,7 +160,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         {
           path: '/',
           namespace: 'home',
-          demos: ['tasks', 'automation', 'govern'],
+          demos: ['tasks', 'sandbox', 'govern'],
         },
         {
           path: '/platform/projects',

@@ -27,7 +27,7 @@ export const UI_DOCS_SITE_TITLE = 'Tale UI: React component library';
 // Config-loading tools execute this module before Vite's YAML plugin is active.
 // build.test.ts holds these defaults and index.html to the English catalog.
 export const UI_DOCS_SITE_DESCRIPTION =
-  "Use Tale's MIT-licensed components for forms, tables, navigation, and product pages. Explore live examples, shared themes, and composition guides.";
+  'Build apps and websites with MIT-licensed React components from Tale. Try the controls, explore the guides, and compose your own interface.';
 
 /** Site-relative URL for a slug. The home page is the only route outside
  *  `/docs`, and it carries no markdown body. */

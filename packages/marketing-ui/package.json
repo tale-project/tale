@@ -27,6 +27,7 @@
     "./feature-steps": "./src/components/feature/feature-steps.tsx",
     "./globals.css": "./src/globals.css",
     "./i18n/messages": "./src/i18n/messages.ts",
+    "./landing.css": "./src/landing.css",
     "./link": "./src/components/marketing/link.tsx",
     "./logo-cloud-section": "./src/components/blocks/logo-cloud-section.tsx",
     "./marketing": "./src/components/marketing/index.ts",

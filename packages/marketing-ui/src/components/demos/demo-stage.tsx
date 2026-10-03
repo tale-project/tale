@@ -28,8 +28,8 @@ export function DemoStage({
       className={cn(
         'demo-stage border-border-base @container/demo relative isolate overflow-hidden border',
         isHero
-          ? 'rounded-2xl px-2.5 py-8 sm:rounded-3xl sm:px-8 sm:py-12 lg:px-14 lg:py-16'
-          : 'rounded-2xl p-2.5 sm:p-5 lg:p-7',
+          ? 'rounded-2xl px-2.5 py-6 sm:rounded-3xl sm:px-7 sm:py-9 lg:px-10 lg:py-12'
+          : 'rounded-2xl p-2 sm:p-3 lg:p-4',
         className,
       )}
     >
