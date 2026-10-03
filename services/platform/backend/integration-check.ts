@@ -55250,6 +55250,8 @@ async function checkWatchdogs(
   // session whose run the retention purge deleted (reclaimed), a LIVE run's
   // active AND hibernated sessions (both survive — a resume is coming), and
   // an ended run whose session the spawner reports busy (waits a tick).
+  // An unrelated lane's old orphan is also reclaimable: the scripted
+  // spawner must leave it alone, even when a full run exceeds the grace.
   const wdRun = async (
     name: string,
     status: 'success' | 'running' | 'cancelled',
@@ -55288,6 +55290,9 @@ async function checkWatchdogs(
        ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-reclaim-busy', 'stopped', 'workflow_run',
        ${`${busyRunId}:@workflow`}, 'itest:wd', ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-unrelated-reclaim', 'stopped', 'workflow_run',
+       'itest-wd-unrelated-run:@workflow', 'itest:wd', ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000})
   `;
   const probed: string[] = [];
@@ -55304,9 +55309,9 @@ async function checkWatchdogs(
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
       destroyAsked.push(sessionId);
       return Promise.resolve(
-        sessionId === 'wd-reclaim-busy'
-          ? { destroyed: false, busy: true }
-          : { destroyed: true, busy: false },
+        sessionId === 'wd-reclaim-ended' || sessionId === 'wd-reclaim-purged'
+          ? { destroyed: true, busy: false }
+          : { destroyed: false, busy: true },
       );
     },
   };
@@ -55331,6 +55336,7 @@ async function checkWatchdogs(
   const reclaimRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id LIKE 'wd-reclaim-%'
+      OR session_id = 'wd-unrelated-reclaim'
   `;
   const statusOf = (sessionId: string): string | undefined =>
     reclaimRows.find((r) => r.sessionId === sessionId)?.status;
@@ -55357,6 +55363,9 @@ async function checkWatchdogs(
       // …and the busy one was asked, refused, and left for a later tick.
       destroyAskedSet.has('wd-reclaim-busy') &&
       statusOf('wd-reclaim-busy') === 'stopped' &&
+      // Other lanes' reclaimable fixtures must not affect these counters.
+      destroyAskedSet.has('wd-unrelated-reclaim') &&
+      statusOf('wd-unrelated-reclaim') === 'stopped' &&
       tick1.reclaimed === 2 &&
       tick2.reclaimed === 0,
     `fair(tick1=${probedTick1.join(',')} all=${[...probedFair].join(',')} stamped=${fairRows.filter((r) => r.lastReconciledAt !== null).length}/3) reclaim(${reclaimRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} asked=${[...destroyAskedSet].join(',')} reclaimed=${tick1.reclaimed}/${tick2.reclaimed})`,
