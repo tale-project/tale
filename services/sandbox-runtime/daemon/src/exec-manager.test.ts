@@ -1051,6 +1051,61 @@ describe('ExecManager', () => {
     }
   }, 30_000);
 
+  test('the primary consumer detaches without stopping the exec or its other subscribers', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    const primary = collect();
+    const controller = new AbortController();
+    const done = mgr.run(
+      {
+        ...base,
+        execId: 'primary-drop',
+        command: ['cat'],
+        cwd: ROOT,
+        stdinMode: 'hold',
+      },
+      primary.emit,
+      controller.signal,
+    );
+    const follower = collect();
+    const attached = mgr.attach('primary-drop', follower.emit);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(1);
+    controller.abort();
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    const before = primary.events.length;
+    expect(mgr.status('primary-drop')?.state).toBe('running');
+    expect(
+      mgr.writeStdin('primary-drop', {
+        b64: Buffer.from('{"after":"disconnect"}\n').toString('base64'),
+        eof: true,
+      }),
+    ).toEqual({ ok: true });
+    await done;
+    await attached;
+    expect(primary.events).toHaveLength(before);
+    expect(decode(follower.events, 'stdout')).toBe('{"after":"disconnect"}\n');
+    expect(follower.events.at(-1)?.t).toBe('exit');
+    const replay = collect();
+    await mgr.attach('primary-drop', replay.emit);
+    // The journal's catch-up marker records a different boundary for an
+    // attach during execution versus one after exit. Recorded events match.
+    expect(replay.events.filter((event) => event.seq !== undefined)).toEqual(
+      follower.events.filter((event) => event.seq !== undefined),
+    );
+  });
+
+  test('primary consumer abort listeners are removed on exit and spawn failure', async () => {
+    using mgr = new ExecManager(new EnvStore(), () => {});
+    for (const command of [['true'], [`${ROOT}/missing-command`]]) {
+      const controller = new AbortController();
+      await mgr.run(
+        { ...base, execId: 'primary-cleanup', command, cwd: ROOT },
+        () => {},
+        controller.signal,
+      );
+      expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    }
+  });
+
   test('a consumer that goes away stops following and settles its attach at once', async () => {
     using mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();

@@ -9,7 +9,12 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { request, type Server, type ServerResponse } from 'node:http';
+import {
+  request,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
 import { tmpdir } from 'node:os';
 
 import { InnerDockerHealth } from './inner-docker-health.ts';
@@ -290,8 +295,12 @@ describe('runnerd HTTP service', () => {
       const execId = `stalled-${mode}`;
       const path = mode === 'exec' ? '/execs' : `/execs/${execId}/attach`;
       let stalled: ServerResponse | undefined;
-      const observe = (req: { url?: string }, res: ServerResponse) => {
-        if (req.url === path) stalled = res;
+      let intake: IncomingMessage | undefined;
+      const observe = (req: IncomingMessage, res: ServerResponse) => {
+        if (req.url === path) {
+          stalled = res;
+          intake = req;
+        }
       };
       server.on('request', observe);
       const body = JSON.stringify({
@@ -333,8 +342,13 @@ describe('runnerd HTTP service', () => {
           await received.promise;
         }
         expect(stalled).toBeDefined();
+        // A running response must not keep the parsed upload buffered in
+        // IncomingMessage listeners; detach also releases its abort hook.
+        expect(intake?.listenerCount('data')).toBe(0);
         writeFileSync(`${workspace}/${execId}.emit`, 'go');
         await waitUntil(() => stalled?.destroyed === true);
+        expect(intake?.listenerCount('aborted')).toBe(0);
+        expect(stalled?.listenerCount('drain')).toBe(0);
         expect(
           await (await fetch(`${baseUrl}/execs/${execId}`, { headers })).json(),
         ).toMatchObject({ state: 'running' });

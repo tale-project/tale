@@ -33,7 +33,7 @@ Pick a named model when you need consistent comparisons or know which model the 
 
 </Frame>
 
-If no models are available, ask an admin to check active provider credentials and model access. [Models](/platform/models) explains how the catalog is built.
+If no models are available, ask an admin to check active provider credentials and model access. Chat offers only models that an API key or environment-variable credential serves: a subscription runs only in tasks and automations, and the model list names any it leaves out. [Models](/platform/models) explains how the catalog is built.
 
 ## Give the assistant the right sources
 

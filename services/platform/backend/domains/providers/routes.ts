@@ -323,14 +323,25 @@ export function createProviderSettingRoutes(deps: {
         const candidate = model as {
           id?: unknown;
           credential?: { authMethod?: unknown };
+          toolCallingApi?: unknown;
         };
-        return typeof candidate.id === 'string' &&
-          (candidate.credential?.authMethod === 'api-key' ||
-            candidate.credential?.authMethod === 'env')
-          ? { id: candidate.id }
-          : null;
+        if (
+          typeof candidate.id !== 'string' ||
+          (candidate.credential?.authMethod !== 'api-key' &&
+            candidate.credential?.authMethod !== 'env')
+        ) {
+          return null;
+        }
+        // A model whose tools need the Responses API counts only for a
+        // harness that speaks it.
+        return candidate.toolCallingApi === 'responses'
+          ? { id: candidate.id, toolCallingApi: 'responses' as const }
+          : { id: candidate.id };
       })
-      .filter((entry): entry is { id: string } => entry !== null);
+      .filter(
+        (entry): entry is { id: string; toolCallingApi?: 'responses' } =>
+          entry !== null,
+      );
     const credentials = await listCredentials(deps.sql, {
       organizationId,
       userId: c.get('sessionBundle').user.id,

@@ -116,7 +116,10 @@ export interface LibContract {
       label: string;
       managed:
         | { modelCount: number; available: true; defaultModelId: string }
-        | { reason: 'no-direct-credential'; available: false };
+        | {
+            reason: 'no-direct-credential' | 'no-compatible-model';
+            available: false;
+          };
     }>;
   };
   'lib/providers/vision_actions:getResolvedVisionModel': {
