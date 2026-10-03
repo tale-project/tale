@@ -520,7 +520,7 @@ home:
     byoModels:
       q: Muss ich eigene KI-Modelle mitbringen?
       a: Nein. Du kannst eigene Modelle mitbringen, musst es aber nicht. Tale
-        unterstützt die meisten großen AI-Anbieter ohne Aufschlag —
+        unterstützt die meisten großen KI-Anbieter ohne Aufschlag —
         Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet und
         ist nicht in den Plänen enthalten.
     aiProviders:
