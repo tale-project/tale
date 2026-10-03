@@ -19,6 +19,12 @@ sequence number and the retained 256 KiB output ring. Session idle and TTL
 cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
 
+Process cleanup indexes each process-table snapshot once by execution, parent,
+group and PID. A session retaining many executions' background processes reuses
+those indexes throughout the cleanup pass instead of rescanning the complete
+table for every execution. The indexes expire with the pass; later passes
+still check process identity and ownership from a fresh snapshot.
+
 Headless Chromium and Playwright are available on demand for automation,
 rendering and screenshots. The runtime starts no display server, managed
 browser or viewing tunnel. Configured transparent egress redirects external

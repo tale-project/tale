@@ -97,6 +97,14 @@ the read. A cancel that comes before the shim has named the command's group
 waits for it — the shim does so as soon as it has forked — so the group still
 gets its signal as a whole.
 
+Each cleanup round indexes its process snapshot once by execution tag, parent,
+group and PID. All retained executions use that index, and ancestry walks
+visit their descendants without shifting the remaining queue on every step.
+This keeps unrelated executions from multiplying the matching work as a
+session accumulates background processes. The indexes live only for that
+round; later rounds still take fresh snapshots and verify recorded PIDs with
+their start times before treating a reused group as owned.
+
 **A rotation keeps what the turn started.** A steer's restart cancels a
 running turn and continues the conversation in a new exec over the same
 workspace, so the platform sends that cancel as a rotation:
@@ -176,6 +184,9 @@ exec continues under its existing deadline; reconnect through
 `/execs/:id/attach?sinceSeq=<last-seen-seq>` to replay the retained output from
 the 256 KiB ring. Other readers continue receiving output. A dropped consumer
 does not cancel the command or keep an idle session busy after the command ends.
+The spawner also detaches its runnerd response reader if its parser or output
+consumer fails, before a retry can open another attachment. Malformed JSON
+lines are skipped, but an exception from the output consumer ends the stream.
 
 The build-cache upkeep — the reconcile for the organizations whose agent
 sessions adoption just registered, the retirement of legacy helpers and the
