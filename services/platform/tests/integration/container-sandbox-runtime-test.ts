@@ -734,6 +734,118 @@ console.log('--- runnerd boots under the daemon entrypoint ---');
 }
 
 console.log('');
+console.log('--- runnerd runs every exec under its subreaper shim ---');
+// What an exec leaves running ends with it, even a process that moved to a
+// session of its own and dropped the exec's tag from its environment: the
+// shim it runs under keeps every process it starts a descendant
+// (daemon/exec-shim/tale-exec-shim.c), and runnerd walks down from it.
+{
+  const cid = await stdoutOf([
+    'docker',
+    'run',
+    '-d',
+    '--user',
+    '10001',
+    '--tmpfs',
+    '/agent:uid=10001,gid=10001',
+    IMAGE,
+    'daemon',
+  ]);
+  const inSession = (cmd: string, stdin?: string) =>
+    capture(
+      [
+        'docker',
+        'exec',
+        ...(stdin === undefined ? [] : ['-i']),
+        cid,
+        'sh',
+        '-c',
+        cmd,
+      ],
+      stdin === undefined ? {} : { stdin },
+    );
+  try {
+    let ready = false;
+    for (let i = 0; i < 20; i++) {
+      if (
+        (await inSession('curl -fsS http://127.0.0.1:8200/readyz')).exitCode ===
+        0
+      ) {
+        ready = true;
+        break;
+      }
+      await sleep(500);
+    }
+    if (!ready) {
+      fail('runnerd did not become ready for the exec shim check');
+    } else {
+      const { combined: logs } = await capture(['docker', 'logs', cid]);
+      if (logs.includes('execShim=/usr/local/bin/tale-exec-shim')) {
+        pass('runnerd runs execs under /usr/local/bin/tale-exec-shim');
+      } else {
+        fail(`runnerd does not use the exec shim (got: ${logs.slice(0, 300)})`);
+      }
+      // Double-forked, in a session and group of its own, its environment
+      // wiped: only the subreaper still knows it is the exec's.
+      const escapee =
+        '(setsid env -i /bin/sleep 421 >/dev/null 2>&1 </dev/null &); for _ in $(seq 100); do pid=$(pgrep -n -f "^/bin/sleep 421$") && break; sleep 0.02; done; echo "$pid"';
+      const { stdout } = await inSession(
+        "curl -sS -N --max-time 60 -H 'content-type: application/json' --data-binary @- http://127.0.0.1:8200/execs",
+        JSON.stringify({
+          execId: 'shim-escapee',
+          shell: escapee,
+          cwd: '/agent/workspace',
+          env: {},
+          stdinMode: 'close',
+          timeoutMs: 60_000,
+          stdoutMaxBytes: 1_000_000,
+          stderrMaxBytes: 1_000_000,
+        }),
+      );
+      let printed = '';
+      for (const line of stdout.trim().split('\n')) {
+        try {
+          const event: unknown = JSON.parse(line);
+          if (
+            typeof event === 'object' &&
+            event !== null &&
+            't' in event &&
+            event.t === 'stdout' &&
+            'b64' in event &&
+            typeof event.b64 === 'string'
+          ) {
+            printed += Buffer.from(event.b64, 'base64').toString('utf8');
+          }
+        } catch (err) {
+          console.warn(
+            `  runnerd answered a line that is not JSON: ${line}`,
+            err,
+          );
+        }
+      }
+      const pid = Number(printed.trim());
+      if (!(pid > 1)) {
+        fail(`the escapee exec printed no pid (got: ${stdout.slice(0, 300)})`);
+      } else {
+        let gone = false;
+        for (let i = 0; i < 25 && !gone; i++) {
+          gone = (await inSession(`test ! -e /proc/${pid}`)).exitCode === 0;
+          if (!gone) await sleep(200);
+        }
+        if (gone) {
+          pass('a process that left its session and tag ends with its exec');
+        } else {
+          fail(`process ${pid} outlived the exec that started it`);
+          await inSession(`kill -KILL ${pid}`);
+        }
+      }
+    }
+  } finally {
+    if (cid) await ok(['docker', 'rm', '-f', cid]);
+  }
+}
+
+console.log('');
 console.log(
   '--- session exec temp lands on the workspace, not the /tmp tmpfs ---',
 );
