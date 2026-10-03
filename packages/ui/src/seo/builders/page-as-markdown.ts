@@ -5,6 +5,7 @@
  * optionally re-emits a frontmatter block with canonical fields.
  */
 
+import { absoluteSitePath } from '../urls';
 import { normalizeMarkdownLinks } from './markdown-links';
 
 interface RenderParams {
@@ -12,7 +13,7 @@ interface RenderParams {
   frontmatter: Record<string, string | boolean | number> | null;
   /** Markdown body — no leading frontmatter. */
   body: string;
-  /** Origin used to absolutise relative links (e.g. `https://tale.dev`). */
+  /** Site base, including any mount path, used for slash-root destinations. */
   siteUrl: string;
   /** Canonical HTML URL for page-relative links and fragments. */
   pageUrl?: string;
@@ -57,8 +58,9 @@ export function pageAsMarkdown({
   pageUrl,
 }: RenderParams): string {
   const head = frontmatter ? emitFrontmatter(frontmatter) : '';
+  const sourceUrl = pageUrl ?? absoluteSitePath(siteUrl, '/');
   return (
-    `${head}${normalizeMarkdownLinks(body, pageUrl ?? siteUrl)}`.trimEnd() +
+    `${head}${normalizeMarkdownLinks(body, sourceUrl, siteUrl)}`.trimEnd() +
     '\n'
   );
 }

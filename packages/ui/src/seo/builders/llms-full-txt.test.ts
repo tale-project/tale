@@ -79,4 +79,36 @@ describe('buildLlmsFullTxt', () => {
       '[section](https://ui.example.test/docs/components/button#examples)',
     );
   });
+
+  it('keeps site-relative destinations under the configured aggregate mount', () => {
+    const out = buildLlmsFullTxt(
+      [
+        {
+          title: 'Setup',
+          url: 'https://docs.example.test/guides/de/start/install',
+          body: [
+            '[setup](/setup) [next](../next) [section](#limits) [query](?view=all)',
+            '[cdn](//cdn.example.test/asset.svg)',
+            '',
+            '<Card href="/setup"><img src="/images/flow.svg"></Card>',
+            '<Video src="/videos/demo.webm" poster="/images/poster.png" captions="/videos/demo.vtt" />',
+          ].join('\n'),
+        },
+      ],
+      'https://docs.example.test/guides/',
+    );
+    expect(out).toBe(
+      [
+        '# Setup',
+        'Source: https://docs.example.test/guides/de/start/install',
+        '',
+        '[setup](https://docs.example.test/guides/setup) [next](https://docs.example.test/guides/de/next) [section](https://docs.example.test/guides/de/start/install#limits) [query](https://docs.example.test/guides/de/start/install?view=all)',
+        '[cdn](https://cdn.example.test/asset.svg)',
+        '',
+        '<Card href="https://docs.example.test/guides/setup"><img src="https://docs.example.test/guides/images/flow.svg"></Card>',
+        '<Video src="https://docs.example.test/guides/videos/demo.webm" poster="https://docs.example.test/guides/images/poster.png" captions="https://docs.example.test/guides/videos/demo.vtt" />',
+        '',
+      ].join('\n'),
+    );
+  });
 });

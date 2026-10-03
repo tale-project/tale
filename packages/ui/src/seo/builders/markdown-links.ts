@@ -2,6 +2,8 @@ import { parse, postprocess, preprocess } from 'micromark';
 import { decodeString } from 'micromark-util-decode-string';
 import { type DefaultTreeAdapterMap, parseFragment } from 'parse5';
 
+import { absoluteSitePath } from '../urls';
+
 interface Range {
   start: number;
   end: number;
@@ -26,13 +28,24 @@ const LITERAL_ELEMENTS = new Set([
 ]);
 const URL_ATTRIBUTES = new Set(['href', 'src', 'poster']);
 
-function resolveDestination(value: string, pageUrl: string): string | null {
+function resolveDestination(
+  value: string,
+  pageUrl: string,
+  siteUrl?: string,
+): string | null {
   // Keep explicit schemes exactly as authored (including mailto and data).
   // Fragments and query-only references still name the source HTML page,
   // even when several pages are combined into one exported document.
   if (!value || /^[a-z][a-z\d+.-]*:/i.test(value)) return null;
   try {
-    return new URL(value, pageUrl).href;
+    // Authored slash-root links follow the site's configured mount, as the
+    // docs router and media components do. Network-path references still
+    // name their own host, while other references use the source page.
+    const destination =
+      siteUrl && value.startsWith('/') && !value.startsWith('//')
+        ? absoluteSitePath(siteUrl, value)
+        : value;
+    return new URL(destination, pageUrl).href;
   } catch {
     // A malformed authored destination must not make an entire export fail.
     return null;
@@ -43,6 +56,7 @@ function htmlEdits(
   body: string,
   ranges: readonly Range[],
   pageUrl: string,
+  siteUrl?: string,
 ): { edits: Edit[]; literals: Range[] } {
   const edits: Edit[] = [];
   const literals: Range[] = [];
@@ -78,7 +92,7 @@ function htmlEdits(
       )
         continue;
       const span = location?.attrs?.[attribute.name];
-      const absolute = resolveDestination(attribute.value, pageUrl);
+      const absolute = resolveDestination(attribute.value, pageUrl, siteUrl);
       if (!span || absolute === null) continue;
       // parse5 identifies the real attribute and decodes entities. Locate
       // only its value inside that bounded source span; do not reserialize
@@ -110,7 +124,11 @@ function htmlEdits(
  * token ranges preserve labels, titles, whitespace and literal examples; a
  * shared path serves per-page downloads, clipboard copies and llms-full.txt.
  */
-export function normalizeMarkdownLinks(body: string, pageUrl: string): string {
+export function normalizeMarkdownLinks(
+  body: string,
+  pageUrl: string,
+  siteUrl?: string,
+): string {
   const destinations: Range[] = [];
   const html: Range[] = [];
   const events = postprocess(
@@ -129,7 +147,7 @@ export function normalizeMarkdownLinks(body: string, pageUrl: string): string {
     else if (token.type === 'htmlFlowData' || token.type === 'htmlTextData')
       html.push(range);
   }
-  const { edits, literals } = htmlEdits(body, html, pageUrl);
+  const { edits, literals } = htmlEdits(body, html, pageUrl, siteUrl);
   for (const range of destinations) {
     if (
       literals.some(
@@ -140,6 +158,7 @@ export function normalizeMarkdownLinks(body: string, pageUrl: string): string {
     const absolute = resolveDestination(
       decodeString(body.slice(range.start, range.end)),
       pageUrl,
+      siteUrl,
     );
     if (absolute === null) continue;
     edits.push({

@@ -120,6 +120,8 @@ Per-page downloads, page copies and `llms-full.txt` resolve Markdown links and H
 attributes against each source page's URL, so navigation still works outside the site. Code
 examples remain literal. Pass the canonical `pageUrl` to `pageAsMarkdown` when the body contains
 page-relative destinations or section links; `siteUrl` remains the fallback for existing callers.
+Root-relative destinations retain the configured `siteUrl` mount, such as `/docs`. When calling
+`buildLlmsFullTxt` directly, pass that site URL as its optional second argument for mounted sites.
 `PageActions` accepts a `markdown` callback as well as a string. Use the callback to prepare an
 export only when the reader clicks **Copy page**, keeping parsing out of page rendering.
 

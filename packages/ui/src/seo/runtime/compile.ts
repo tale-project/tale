@@ -142,6 +142,7 @@ export function compileArtifacts(
           url: `${siteUrl}${r.url}`,
           body: r.body,
         })),
+        siteUrl,
       ),
     );
   }

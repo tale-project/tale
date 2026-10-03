@@ -27,14 +27,18 @@ export interface LlmsFullTxtPage {
   body: string;
 }
 
-export function buildLlmsFullTxt(pages: readonly LlmsFullTxtPage[]): string {
+export function buildLlmsFullTxt(
+  pages: readonly LlmsFullTxtPage[],
+  /** Configured site mount for slash-root destinations; otherwise each page uses its origin. */
+  siteUrl?: string,
+): string {
   return pages
     .map((page) =>
       [
         `# ${page.title}`,
         `Source: ${page.url}`,
         '',
-        normalizeMarkdownLinks(page.body, page.url).trim(),
+        normalizeMarkdownLinks(page.body, page.url, siteUrl).trim(),
         '',
       ].join('\n'),
     )

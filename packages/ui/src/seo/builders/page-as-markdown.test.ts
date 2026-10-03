@@ -242,4 +242,48 @@ describe('pageAsMarkdown', () => {
       '<b href="https://tale.dev/a"><i href="https://tale.dev/b"></b>outside</i>\n',
     );
   });
+
+  it.each([
+    'https://docs.example.test/guides',
+    'https://docs.example.test/guides/',
+  ])(
+    'keeps site-relative destinations under the mounted site %s',
+    (siteUrl) => {
+      const out = pageAsMarkdown({
+        frontmatter: null,
+        siteUrl,
+        pageUrl: 'https://docs.example.test/guides/de/start/install',
+        body: [
+          '[setup](/setup) [next](../next) [section](#limits) [query](?view=all)',
+          '[cdn](//cdn.example.test/asset.svg)',
+          '',
+          '<Card href="/setup"><img src="/images/flow.svg"></Card>',
+          '<Video src="/videos/demo.webm" poster="/images/poster.png" captions="/videos/demo.vtt" />',
+          '',
+          '`[literal](/setup)`',
+        ].join('\n'),
+      });
+      expect(out).toBe(
+        [
+          '[setup](https://docs.example.test/guides/setup) [next](https://docs.example.test/guides/de/next) [section](https://docs.example.test/guides/de/start/install#limits) [query](https://docs.example.test/guides/de/start/install?view=all)',
+          '[cdn](https://cdn.example.test/asset.svg)',
+          '',
+          '<Card href="https://docs.example.test/guides/setup"><img src="https://docs.example.test/guides/images/flow.svg"></Card>',
+          '<Video src="https://docs.example.test/guides/videos/demo.webm" poster="https://docs.example.test/guides/images/poster.png" captions="https://docs.example.test/guides/videos/demo.vtt" />',
+          '',
+          '`[literal](/setup)`',
+          '',
+        ].join('\n'),
+      );
+      expect(
+        pageAsMarkdown({
+          frontmatter: null,
+          body: '[setup](/setup) [next](./next) [section](#limits) [query](?view=all)',
+          siteUrl,
+        }),
+      ).toBe(
+        '[setup](https://docs.example.test/guides/setup) [next](https://docs.example.test/guides/next) [section](https://docs.example.test/guides/#limits) [query](https://docs.example.test/guides/?view=all)\n',
+      );
+    },
+  );
 });

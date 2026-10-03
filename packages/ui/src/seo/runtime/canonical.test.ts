@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { normalizeCanonicalUrl } from './canonical-url';
 import {
+  compileArtifacts,
   compileToDisk,
   compileToMemory,
   type CompileArtifactsParams,
@@ -25,7 +26,11 @@ const params: CompileArtifactsParams = {
       heading: 'Pages',
       routes: [
         { url: '/', title: 'Home', body: '# Home\n' },
-        { url: '/de/setup', title: 'Setup', body: '# Setup\n' },
+        {
+          url: '/de/setup',
+          title: 'Setup',
+          body: '# Setup\n\n[setup](/setup) [next](./next)\n',
+        },
         { url: '/fr/caf%C3%A9', title: 'Café', body: '# Café\n' },
       ],
     },
@@ -57,6 +62,7 @@ function onDemand(plugins?: readonly ArtifactPlugin[]) {
 describe('per-page Markdown canonical HTTP headers', () => {
   it('preserves canonical identity through compilation, caching and conditional requests', async () => {
     const { manifest } = await compileToDisk({ ...params, outDir: dir });
+    const legacy = compileArtifacts(params);
     const servers = [onDemand(), await createPrecompiledServer({ dir })];
 
     for (const [path, canonicalUrl] of expectedCanonicals) {
@@ -104,7 +110,25 @@ describe('per-page Markdown canonical HTTP headers', () => {
         );
       }
       expect(bodies[0]).toBe(bodies[1]);
+      expect(bodies[0]).toBe(legacy.files.get(path.slice(1)));
       expect(etags[0]).toBe(etags[1]);
+      if (path === '/de/setup.md') {
+        expect(bodies[0]).toContain(
+          '[setup](https://docs.example.com/guides/setup)',
+        );
+        expect(bodies[0]).toContain(
+          '[next](https://docs.example.com/guides/de/next)',
+        );
+      }
+    }
+    for (const server of servers) {
+      const response = await server.handle(
+        new Request('https://preview.invalid/llms-full.txt'),
+      );
+      const body = await response!.text();
+      expect(body).toBe(legacy.files.get('llms-full.txt'));
+      expect(body).toContain('[setup](https://docs.example.com/guides/setup)');
+      expect(body).toContain('[next](https://docs.example.com/guides/de/next)');
     }
   });
 
