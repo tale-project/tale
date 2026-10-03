@@ -272,6 +272,52 @@ describe('standard agent settings', () => {
     expect(screen.getByRole('switch', { name: TOGGLE })).toBeEnabled();
   });
 
+  it('repairs a malformed policy by choosing Automatic and saving, then shows real availability', async () => {
+    state.policyError = toBackendError(
+      new BackendApiError(400, 'invalid', 'GOVERNANCE_POLICY_INVALID'),
+    );
+    state.availability = {
+      enabled: true,
+      available: false,
+      refusal: 'unreadable',
+    };
+    saved.mockImplementation(async ({ config }) => {
+      state.config = config;
+      state.policyError = undefined;
+      state.availability = {
+        enabled: true,
+        available: false,
+        refusal: 'no-model',
+      };
+      return null;
+    });
+    const { user } = await renderEditor();
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: MODEL }));
+    screen.getByRole('option', { name: 'Automatic' }).focus();
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(saved).toHaveBeenCalledWith({
+        organizationId: 'org-standard',
+        policyType: 'standard_agent',
+        config: { enabled: true },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'No model you can use can run the standard agent.',
+      ),
+    );
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      'The saved standard agent settings are invalid.',
+    );
+  });
+
   it('explains what switching it off means while it is off', async () => {
     state.config = { enabled: false };
     await renderEditor();
