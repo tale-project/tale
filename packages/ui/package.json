@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "Shared Tale React component library — primitives, theming, i18n + the markdown rendering pipeline (components, plugins, streaming).",
+  "homepage": "https://ui.tale.dev",
+  "bugs": {
+    "url": "https://github.com/tale-project/tale/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tale-project/tale.git",
+    "directory": "packages/ui"
+  },
   "bin": {
     "tale-seo-compile": "./bin/seo-compile.ts"
   },
@@ -434,8 +444,10 @@
     "micromark": "4.0.2",
     "micromark-core-commonmark": "2.0.3",
     "micromark-util-classify-character": "2.0.1",
+    "micromark-util-decode-string": "2.0.1",
     "micromark-util-types": "2.0.2",
     "minisearch": "7.2.0",
+    "parse5": "7.3.0",
     "react-datepicker": "9.1.0",
     "react-day-picker": "9.14.0",
     "react-file-icon": "1.6.0",

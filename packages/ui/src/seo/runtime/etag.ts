@@ -9,6 +9,8 @@
 
 import { createHash } from 'node:crypto';
 
+import { normalizeCanonicalUrl } from './canonical-url';
+
 /** Strong validator: quoted lowercase hex prefix of `sha256(content)`. */
 export function etagOf(content: string): string {
   return `"${createHash('sha256').update(content).digest('hex').slice(0, 16)}"`;
@@ -19,6 +21,7 @@ export interface CachedEntry {
   etag: string;
   contentType: string;
   cacheControl: string;
+  canonicalUrl?: string;
 }
 
 /**
@@ -62,20 +65,24 @@ export function respondWithEtag(
   request: Request,
   entry: CachedEntry,
 ): Response {
+  const headers = new Headers({
+    etag: entry.etag,
+    'cache-control': entry.cacheControl,
+  });
+  if (entry.canonicalUrl !== undefined) {
+    headers.set(
+      'link',
+      `<${normalizeCanonicalUrl(entry.canonicalUrl)}>; rel="canonical"`,
+    );
+  }
   if (matchesIfNoneMatch(request.headers.get('if-none-match'), entry.etag)) {
     return new Response(null, {
       status: 304,
-      headers: {
-        etag: entry.etag,
-        'cache-control': entry.cacheControl,
-      },
+      headers,
     });
   }
+  headers.set('content-type', entry.contentType);
   return new Response(entry.body, {
-    headers: {
-      'content-type': entry.contentType,
-      etag: entry.etag,
-      'cache-control': entry.cacheControl,
-    },
+    headers,
   });
 }

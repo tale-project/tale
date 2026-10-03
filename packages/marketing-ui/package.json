@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "Tale marketing design language — site chrome, marketing primitives and product-demo frames",
+  "homepage": "https://ui.tale.dev",
+  "bugs": {
+    "url": "https://github.com/tale-project/tale/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tale-project/tale.git",
+    "directory": "packages/marketing-ui"
+  },
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

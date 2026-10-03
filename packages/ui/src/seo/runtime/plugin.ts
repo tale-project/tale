@@ -39,6 +39,8 @@ export interface ArtifactResponse {
   body: string;
   contentType: string;
   cacheControl: string;
+  /** Absolute HTML counterpart, only for an equivalent per-page artifact. */
+  canonicalUrl?: string;
 }
 
 export interface ArtifactPlugin {

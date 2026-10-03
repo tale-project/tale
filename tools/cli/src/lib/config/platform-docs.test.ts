@@ -46,6 +46,17 @@ const PARITY_FILES = [
   'services/sandbox-egress/Dockerfile',
 ];
 
+/** Inputs to the real local package publication in publish-package.test.ts. */
+const PACKAGE_PUBLICATION_FILES = [
+  'scripts/publish-package.ts',
+  'LICENSE',
+  'packages/ui/package.json',
+  'packages/ui/README.md',
+  'packages/marketing-ui/package.json',
+  'packages/marketing-ui/README.md',
+  '.github/workflows/publish-packages.yml',
+];
+
 /** The slice of `turbo run --dry=json` this suite reads. */
 const dryRunSchema = z.object({
   tasks: z.array(
@@ -158,6 +169,7 @@ test('turbo re-runs the suites when an install page or another outside file they
         'scripts/install-cli.sh',
         'scripts/install-cli.ps1',
         ...PARITY_FILES,
+        ...PACKAGE_PUBLICATION_FILES,
         ...REPOSITORY_RUNTIME_SOURCE,
       ]),
     ].map((path) => resolve(REPO_ROOT, path)),

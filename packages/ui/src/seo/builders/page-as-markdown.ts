@@ -5,13 +5,18 @@
  * optionally re-emits a frontmatter block with canonical fields.
  */
 
+import { absoluteSitePath } from '../urls';
+import { normalizeMarkdownLinks } from './markdown-links';
+
 interface RenderParams {
   /** Frontmatter pairs to emit at the top. Pass `null` to skip. */
   frontmatter: Record<string, string | boolean | number> | null;
   /** Markdown body — no leading frontmatter. */
   body: string;
-  /** Origin used to absolutise relative links (e.g. `https://tale.dev`). */
+  /** Site base, including any mount path, used for slash-root destinations. */
   siteUrl: string;
+  /** Canonical HTML URL for page-relative links and fragments. */
+  pageUrl?: string;
 }
 
 /**
@@ -46,25 +51,16 @@ function emitFrontmatter(
   return lines.join('\n');
 }
 
-/**
- * Rewrites `[text](/path)` to `[text](https://site/path)`. Leaves
- * `http(s)://...` and `mailto:` links untouched. The path capture
- * accepts backslash-escaped characters so URLs containing escaped `)`
- * (e.g. `[file](/docs/whitepaper\\(v2\\).pdf)`) match in full instead
- * of stopping at the first inner paren.
- */
-function rewriteLinks(body: string, siteUrl: string): string {
-  return body.replace(
-    /\]\((\/(?:[^)\\]|\\.)*)\)/g,
-    (_, path: string) => `](${siteUrl}${path})`,
-  );
-}
-
 export function pageAsMarkdown({
   frontmatter,
   body,
   siteUrl,
+  pageUrl,
 }: RenderParams): string {
   const head = frontmatter ? emitFrontmatter(frontmatter) : '';
-  return `${head}${rewriteLinks(body, siteUrl)}`.trimEnd() + '\n';
+  const sourceUrl = pageUrl ?? absoluteSitePath(siteUrl, '/');
+  return (
+    `${head}${normalizeMarkdownLinks(body, sourceUrl, siteUrl)}`.trimEnd() +
+    '\n'
+  );
 }
