@@ -9,7 +9,7 @@ import {
   it,
   vi,
 } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 
 import { cleanup, render, screen } from '@/tests/utils/render';
 
@@ -50,6 +50,9 @@ const PARAGRAPH =
 /** The saved position seeded for the restore test — mid-thread, so the
  * thread-open hold visibly pins the view away from the bottom. */
 const RESTORED_TOP = 120;
+/** A saved position deep in a long thread's history — among the rows that
+ * mount dormant. */
+const LONG_RESTORED_TOP = 4000;
 
 /** Alternating user/assistant turns, several viewports tall. */
 function conversation(turns: number): ChatMessageView[] {
@@ -188,7 +191,10 @@ beforeAll(() => {
   // once per module instance.
   window.sessionStorage.setItem(
     'tale_chat_scroll_positions',
-    JSON.stringify({ 'thread-restore': RESTORED_TOP }),
+    JSON.stringify({
+      'thread-restore': RESTORED_TOP,
+      'thread-long-restore': LONG_RESTORED_TOP,
+    }),
   );
 });
 
@@ -464,5 +470,166 @@ describe('MessageThread scroll-to-bottom while streaming', () => {
     await expect
       .poll(() => gapToBottom(log), { timeout: 1500, interval: 50 })
       .toBeLessThanOrEqual(1);
+  });
+});
+
+/** The first frame after the commit, before any IntersectionObserver report
+ * of it: what the user sees first. */
+const firstFrame = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+
+const rowsOf = (log: HTMLElement) =>
+  Array.from(
+    log.querySelectorAll<HTMLElement>('li[data-testid="chat-message"]'),
+  );
+const isDormant = (row: HTMLElement) => row.hasAttribute('data-dormant');
+
+/** The rows the log shows, wholly or partly. */
+function rowsInView(log: HTMLElement): HTMLElement[] {
+  const view = log.getBoundingClientRect();
+  return rowsOf(log).filter((row) => {
+    const rect = row.getBoundingClientRect();
+    return rect.bottom > view.top && rect.top < view.bottom;
+  });
+}
+
+describe('MessageThread long thread', () => {
+  it('opens on its last turn in full, the history dormant', async () => {
+    const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
+    render(
+      <Harness
+        items={toSettledItems(conversation(40))}
+        threadId="thread-long-open"
+        intentRef={intentRef}
+        isGenerating={false}
+      />,
+    );
+    const log = scroller();
+    await firstFrame();
+
+    const inView = rowsInView(log);
+    expect(inView.length).toBeGreaterThan(0);
+    expect(inView.some(isDormant)).toBe(false);
+    expect(isDormant(rowsOf(log)[0]!)).toBe(true);
+  });
+
+  it('wakes the rows a restored position shows before the first paint', async () => {
+    const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
+    render(
+      <Harness
+        items={toSettledItems(conversation(40))}
+        threadId="thread-long-restore"
+        intentRef={intentRef}
+        isGenerating={false}
+      />,
+    );
+    const log = scroller();
+    await firstFrame();
+
+    expect(Math.round(log.scrollTop)).toBe(LONG_RESTORED_TOP);
+    const inView = rowsInView(log);
+    expect(inView.length).toBeGreaterThan(0);
+    // History rows, mounted dormant, in full by the first frame.
+    expect(inView.every((row) => row.getAttribute('aria-live') === 'off')).toBe(
+      true,
+    );
+    expect(inView.some(isDormant)).toBe(false);
+  });
+
+  it('wakes the rows the user scrolls toward, and only those', async () => {
+    const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
+    render(
+      <Harness
+        items={toSettledItems(conversation(40))}
+        threadId="thread-long-scroll"
+        intentRef={intentRef}
+        isGenerating={false}
+      />,
+    );
+    const log = scroller();
+    await nextFrame();
+    const first = rowsOf(log)[0]!;
+    expect(isDormant(first)).toBe(true);
+
+    log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
+    log.scrollTop = 0;
+
+    await expect
+      .poll(() => isDormant(first), { timeout: 2000, interval: 50 })
+      .toBe(false);
+    // Rows far from the view on either side stay dormant.
+    const view = log.getBoundingClientRect();
+    const far = rowsOf(log).filter(
+      (row) => row.getBoundingClientRect().top > view.bottom + 4 * view.height,
+    );
+    expect(far.some(isDormant)).toBe(true);
+  });
+
+  it('lets the keyboard walk up into the history', async () => {
+    // Dormant rows hold no controls: the rows ahead of the focus must wake
+    // before Shift+Tab reaches them, or focus would leave the transcript.
+    const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
+    render(
+      <Harness
+        items={toSettledItems(conversation(40))}
+        threadId="thread-long-keys"
+        intentRef={intentRef}
+        isGenerating={false}
+      />,
+    );
+    await nextFrame();
+    const bornDormant = (row: HTMLElement | null | undefined) =>
+      row?.getAttribute('aria-live') === 'off';
+    const focusedRow = () =>
+      document.activeElement?.closest<HTMLElement>(
+        'li[data-testid="chat-message"]',
+      );
+    const copies = screen.getAllByRole('button', { name: 'Copy' });
+    copies.at(-1)!.focus();
+
+    for (let press = 0; press < 300 && !bornDormant(focusedRow()); press += 1) {
+      await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+      await nextFrame();
+    }
+
+    const row = focusedRow();
+    expect(bornDormant(row)).toBe(true);
+    expect(isDormant(row!)).toBe(false);
+  });
+
+  it('never jumps the rows in view while the history above them renders', async () => {
+    const intentRef: MutableRefObject<boolean | 'smooth'> = { current: false };
+    render(
+      <Harness
+        items={toSettledItems(conversation(40))}
+        threadId="thread-long-anchor"
+        intentRef={intentRef}
+        isGenerating={false}
+      />,
+    );
+    const log = scroller();
+    await nextFrame();
+    log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
+
+    const step = Math.round(log.clientHeight / 2);
+    while (log.scrollTop > step) {
+      const view = log.getBoundingClientRect();
+      const anchor = rowsInView(log).find(
+        (row) => row.getBoundingClientRect().top >= view.top,
+      )!;
+      const before = anchor.getBoundingClientRect().top;
+      log.scrollTop -= step;
+      await nextFrame();
+      await nextFrame();
+      // The row moved by the scroll and nothing else.
+      expect(
+        Math.abs(anchor.getBoundingClientRect().top - before - step),
+      ).toBeLessThanOrEqual(1);
+    }
+    expect(rowsOf(log).filter(isDormant).length).toBeLessThan(
+      rowsOf(log).length / 2,
+    );
   });
 });

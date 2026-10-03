@@ -36,6 +36,7 @@ import { isStoppedReason } from '@/lib/shared/chat-errors';
 
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
 import { useReportPerceivedWait } from '../hooks/use-report-perceived-wait';
+import { useRowWake } from '../hooks/use-row-wake';
 import {
   messageThinkingAnchor,
   toSeconds,
@@ -128,13 +129,74 @@ interface MessageItemProps {
   voicePillForced?: boolean;
   /** The message arrived live during this mount (not with the history). */
   isFreshSinceMount?: boolean;
+  /** An older row of a long transcript: it mounts dormant — its words only —
+   * and renders in full once it nears the viewport (see use-row-wake). */
+  deferred?: boolean;
 }
 
-function MessageItemComponent({
+function MessageItemComponent({ deferred, ...props }: MessageItemProps) {
+  const { message, region, rootRef } = props;
+  const isUser = message.role === 'user';
+  const { awake, mountedDormant, ref: wakeRef } = useRowWake(deferred === true);
+
+  return (
+    <li
+      ref={awake ? rootRef : wakeRef}
+      data-testid="chat-message"
+      data-message-role={message.role}
+      data-message-key={message.key}
+      {...(awake ? {} : { 'data-dormant': '' })}
+      // The row wakes inside the live log: swapping its words for the full
+      // rendering is no new entry to announce.
+      aria-live={mountedDormant ? 'off' : undefined}
+      className={cn(
+        'group/message flex min-w-0 flex-col',
+        isUser ? 'items-end' : 'items-start',
+        ROW_INTRINSIC_SIZE,
+        region === 'history' && HISTORY_CONTENT_VISIBILITY,
+        region === 'response' && RESPONSE_NO_ANCHOR,
+        rootRef !== undefined && 'scroll-mt-6',
+      )}
+    >
+      {awake ? (
+        <MessageBody {...props} />
+      ) : (
+        <DormantMessage message={message} />
+      )}
+    </li>
+  );
+}
+
+/** A dormant row's stand-in: the message's words as plain text, in the
+ * shape of its bubble — what find-in-page and a screen reader need, at a
+ * fraction of the full row's cost. */
+function DormantMessage({ message }: { message: ChatMessageItem }) {
+  if (message.role === 'user') {
+    return (
+      <div className={CHAT_USER_MESSAGE_CLASS}>
+        <div
+          className={cn(
+            CHAT_USER_BUBBLE_CLASS,
+            'max-h-96 overflow-hidden text-sm whitespace-pre-line',
+          )}
+        >
+          {message.text}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="w-full min-w-0 text-sm break-words whitespace-pre-line">
+      {message.text}
+    </div>
+  );
+}
+
+/** A row's full rendering: the bubble or the answer with its chrome, and
+ * the turn's terminal notices. */
+function MessageBody({
   message,
   isLast,
-  region,
-  rootRef,
   organizationId,
   threadId,
   feedbackRating,
@@ -146,7 +208,7 @@ function MessageItemComponent({
   speakAvailable,
   voicePillForced,
   isFreshSinceMount,
-}: MessageItemProps) {
+}: Omit<MessageItemProps, 'deferred' | 'region' | 'rootRef'>) {
   const { t } = useT('chat');
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
@@ -180,20 +242,7 @@ function MessageItemComponent({
   const errorInBody = isAssistant && !blockedSubstitutes;
 
   return (
-    <li
-      ref={rootRef}
-      data-testid="chat-message"
-      data-message-role={message.role}
-      data-message-key={message.key}
-      className={cn(
-        'group/message flex min-w-0 flex-col',
-        isUser ? 'items-end' : 'items-start',
-        ROW_INTRINSIC_SIZE,
-        region === 'history' && HISTORY_CONTENT_VISIBILITY,
-        region === 'response' && RESPONSE_NO_ANCHOR,
-        rootRef !== undefined && 'scroll-mt-6',
-      )}
-    >
+    <>
       {isUser ? (
         <UserBubble
           message={message}
@@ -231,7 +280,7 @@ function MessageItemComponent({
         !stopped &&
         !blockedSubstitutes && <BlockedNotice />}
       {!errorInBody && errorNode}
-    </li>
+    </>
   );
 }
 
@@ -241,10 +290,15 @@ function MessageItemComponent({
  * row on a streamed tick. The remaining props are scalars or
  * identity-stabilized by the surface; `forkGroup` compares by identity
  * because its map rebuilds only on branch changes, never mid-stream.
+ * `deferred` only matters when it clears (a dormant row the tail reaches
+ * again wakes): a row leaving the tail on a send is already awake and stays
+ * so, and must not re-render for it.
  */
 export const MessageItem = memo(
   MessageItemComponent,
   (prevProps, nextProps) =>
+    (prevProps.deferred === nextProps.deferred ||
+      nextProps.deferred === true) &&
     prevProps.message === nextProps.message &&
     prevProps.isLast === nextProps.isLast &&
     prevProps.region === nextProps.region &&
@@ -405,8 +459,14 @@ function AssistantBody({
   // in the clause-hold until drain; dropping the shell on text.length
   // left a blank aria-busy div. Keep the shell until that paint (or an
   // incomplete empty settle). History rows never watched the reveal, so
-  // they skip the shell even before the latch.
-  const [firstPainted, setFirstPainted] = useState(false);
+  // they skip the shell even before the latch — and a row that mounts
+  // settled with an answer starts latched: it paints that answer whole in
+  // its first frame, and latching from the reveal's report instead cost
+  // every history row a second render, toolbar and all (#4121).
+  const [firstPainted, setFirstPainted] = useState(
+    () =>
+      !message.isStreaming && !message.isFinalReveal && message.text.length > 0,
+  );
   const handleFirstReveal = useCallback(() => {
     setFirstPainted(true);
   }, []);

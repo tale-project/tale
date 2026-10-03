@@ -66,6 +66,21 @@ describe('messageThinkingAnchor', () => {
       reanchorKey: 'm42',
     });
   });
+
+  it('maps the server start with the offset known when the timer reads it', () => {
+    // The clock's conversions keep one identity while the offset is learned,
+    // so the row's memoized anchor is never rebuilt: a row that mounted
+    // before the first server-clock sample must still convert with it.
+    let offsetMs = 0;
+    const anchor = messageThinkingAnchor(
+      { key: 'm43', createdAt: 1_700_000_005_000 },
+      (serverMs) => serverMs - offsetMs,
+    );
+
+    offsetMs = 2_000;
+
+    expect(anchor.serverStartClientMs).toBe(1_700_000_003_000);
+  });
 });
 
 // `renderToStaticMarkup` renders WITHOUT running effects, so it captures the

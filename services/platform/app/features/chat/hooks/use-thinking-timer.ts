@@ -67,8 +67,13 @@ export function messageThinkingAnchor(
     // The pre-adoption shell's `createdAt` is already client-frame, so it
     // must never pass through the conversion — the client anchor covers that
     // row, and the fallback only ever sees real rows' server epochs.
-    serverStartClientMs:
-      clientStartMs !== null ? null : toClientEpoch(message.createdAt),
+    // Converted when read: the clock's conversions keep their identity while
+    // the offset is learned, so a row's memoized anchor is never rebuilt,
+    // and the timer's first read — the one it latches — must see the offset
+    // known by then.
+    get serverStartClientMs() {
+      return clientStartMs !== null ? null : toClientEpoch(message.createdAt);
+    },
     reanchorKey: message.key,
   };
 }
