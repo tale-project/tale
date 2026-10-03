@@ -57,7 +57,9 @@ import {
  * durable op-row upserts, the trusted task writers, and the session slot
  * verbs. Quota throws are re-shaped into the `AppError QUOTA_EXCEEDED`
  * the host's park branch matches on — that mapping is what makes
- * capacity parking work at all.
+ * capacity parking work at all. A refusal for a pending Destroy keeps its
+ * `reason` in the payload: no want of room, it fails an automation step
+ * where a full budget only holds it (`classifyWorkflowStartFailure`).
  *
  * The STEER lane is answered here too (`getOpSteerState`,
  * `rotateTaskAgentRunExec`, `kickMentionRunAfterSteerMiss`) — see the
@@ -66,7 +68,11 @@ import {
 
 function quotaAsAppError(error: unknown): never {
   if (error instanceof SandboxQuotaError) {
-    throw new AppError({ code: 'QUOTA_EXCEEDED', message: error.message });
+    throw new AppError({
+      code: 'QUOTA_EXCEEDED',
+      message: error.message,
+      ...(error.reason !== undefined ? { reason: error.reason } : {}),
+    });
   }
   throw error;
 }

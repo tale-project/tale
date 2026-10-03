@@ -547,3 +547,13 @@ describe('sandboxRoomRetryAtMs', () => {
     expect(at(3, 1, 0)).toBe(0);
   });
 });
+
+describe('isWorkflowAgentRetryable', () => {
+  it('never retries a start refused because the run’s workspace is being destroyed', () => {
+    // A retry that lands after the Destroy would continue the run in a
+    // fresh, empty workspace (#4122); a wait for room is retried, for free.
+    expect(isWorkflowAgentRetryable('sandbox_destroying')).toBe(false);
+    expect(isWorkflowAgentRetryable('sandbox_capacity')).toBe(true);
+    expect(isWorkflowAgentRetryable('start_failed')).toBe(true);
+  });
+});

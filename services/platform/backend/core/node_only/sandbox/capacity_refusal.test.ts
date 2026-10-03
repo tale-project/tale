@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
-import { queuedWakeAfterMs, sandboxCapacityRefusal } from './capacity_refusal';
+import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../../sandbox/session_constants';
+import {
+  isDestroyPendingRefusal,
+  queuedWakeAfterMs,
+  sandboxCapacityRefusal,
+} from './capacity_refusal';
 import { SpawnerBusyError } from './helpers/session_client';
 
 describe('sandboxCapacityRefusal', () => {
@@ -56,7 +61,39 @@ describe('sandboxCapacityRefusal', () => {
         scope: 'organization',
         retryAfterMs: 15_000,
       });
+      expect(isDestroyPendingRefusal(shape)).toBe(false);
     }
+  });
+
+  it('reads a pending Destroy as no want of room, in every shape it arrives in', () => {
+    // The admission verbs refuse a session an administrator's Destroy is
+    // removing with a `QUOTA_EXCEEDED` of their own: read as a spent budget,
+    // an automation step waited up to two hours, then started over in the
+    // fresh, empty workspace the Destroy left (#4122).
+    const shapes = [
+      new AppError({
+        code: 'QUOTA_EXCEEDED',
+        message: SANDBOX_DESTROY_PENDING_MESSAGE,
+        reason: 'destroy_pending',
+      }),
+      Object.assign(new Error(SANDBOX_DESTROY_PENDING_MESSAGE), {
+        code: 'QUOTA_EXCEEDED',
+        reason: 'destroy_pending',
+      }),
+      new Error(
+        `{"code":"QUOTA_EXCEEDED","message":"${SANDBOX_DESTROY_PENDING_MESSAGE}","reason":"destroy_pending"}`,
+      ),
+    ];
+    for (const shape of shapes) {
+      expect(sandboxCapacityRefusal(shape)).toBeNull();
+      expect(isDestroyPendingRefusal(shape)).toBe(true);
+    }
+    expect(isDestroyPendingRefusal(new SpawnerBusyError(15_000))).toBe(false);
+    expect(
+      isDestroyPendingRefusal(
+        new AppError({ code: 'NOT_FOUND', reason: 'destroy_pending' }),
+      ),
+    ).toBe(false);
   });
 
   it('is null for every other failure', () => {

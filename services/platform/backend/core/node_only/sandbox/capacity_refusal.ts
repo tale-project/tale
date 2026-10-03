@@ -6,9 +6,15 @@
  * the task lane parks the run, the automation lane re-kicks the node once
  * the refusal's retry hint has passed, the crawler polls for a slot —
  * because the room frees as soon as other work settles.
+ *
+ * A start refused because an administrator's Destroy of its session is
+ * pending is a `QUOTA_EXCEEDED` too, marked `reason: 'destroy_pending'`
+ * ({@link isDestroyPendingRefusal}), but no want of room: what frees is a
+ * fresh, empty workspace, so each lane decides about it on its own.
  */
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import { SANDBOX_DESTROY_PENDING_REASON } from '../../sandbox/session_constants';
 import {
   SpawnerBusyError,
   type SpawnerQueuePlace,
@@ -43,7 +49,8 @@ export function queuedWakeAfterMs(
     : undefined;
 }
 
-/** The capacity refusal `err` is, or null when it is anything else. */
+/** The capacity refusal `err` is, or null when it is anything else — a
+ * refusal for a pending Destroy included. */
 export function sandboxCapacityRefusal(err: unknown): CapacityRefusal | null {
   if (err instanceof SpawnerBusyError) {
     return {
@@ -52,28 +59,48 @@ export function sandboxCapacityRefusal(err: unknown): CapacityRefusal | null {
       ...(err.queue !== undefined ? { queue: err.queue } : {}),
     };
   }
-  if (isQuotaExceeded(err)) {
+  if (quotaRefusal(err) === 'budget') {
     return { scope: 'organization', retryAfterMs: DEFAULT_CAPACITY_RETRY_MS };
   }
   return null;
 }
 
-/** The `QUOTA_EXCEEDED` shape thrown by the slot reserve and the cap-checked
- * resume: an AppError whose data names the code, the sessions domain's
+/** Whether `err` refused a start because an administrator's Destroy of its
+ * session is queued, retrying or running (the sessions domain's
+ * `SandboxDestroyPendingError`), in any shape a quota refusal arrives in. */
+export function isDestroyPendingRefusal(err: unknown): boolean {
+  return quotaRefusal(err) === 'destroy_pending';
+}
+
+/** Which `QUOTA_EXCEEDED` refusal `err` is, or null for any other failure:
+ * the shape thrown by the slot reserve and the cap-checked resume — an
+ * AppError whose data names the code, the sessions domain's
  * `SandboxQuotaError` (its own `code`), or either wrapped by a sub-mutation
- * into a plain Error whose message carries the payload. */
-function isQuotaExceeded(err: unknown): boolean {
+ * into a plain Error whose message carries the payload — marked
+ * `destroy_pending` when the session's Destroy is pending, else `budget`. */
+function quotaRefusal(err: unknown): 'budget' | 'destroy_pending' | null {
   if (err instanceof AppError) {
     const data: unknown = err.data;
-    return (
-      typeof data === 'object' &&
-      data !== null &&
-      'code' in data &&
-      data.code === 'QUOTA_EXCEEDED'
-    );
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      !('code' in data) ||
+      data.code !== 'QUOTA_EXCEEDED'
+    ) {
+      return null;
+    }
+    return 'reason' in data && data.reason === SANDBOX_DESTROY_PENDING_REASON
+      ? 'destroy_pending'
+      : 'budget';
   }
-  if (err instanceof Error && 'code' in err && err.code === 'QUOTA_EXCEEDED') {
-    return true;
+  if (!(err instanceof Error)) return null;
+  if ('code' in err && err.code === 'QUOTA_EXCEEDED') {
+    return 'reason' in err && err.reason === SANDBOX_DESTROY_PENDING_REASON
+      ? 'destroy_pending'
+      : 'budget';
   }
-  return err instanceof Error && err.message.includes('QUOTA_EXCEEDED');
+  if (!err.message.includes('QUOTA_EXCEEDED')) return null;
+  return err.message.includes(`"reason":"${SANDBOX_DESTROY_PENDING_REASON}"`)
+    ? 'destroy_pending'
+    : 'budget';
 }

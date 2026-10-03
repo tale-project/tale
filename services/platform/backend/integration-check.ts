@@ -38485,6 +38485,466 @@ async function checkAutomationAgentNode(
 }
 
 /**
+ * An automation step whose run's workspace an administrator is destroying
+ * fails with the reason at once, #4122. While the Destroy of a workflow
+ * run's session is queued, retrying or running, its admission refuses the
+ * run's next start (#4095). That refusal was read as a spent budget: the
+ * step waited up to two hours for room, and once the Destroy had settled it
+ * started over in a fresh, empty workspace, without what the run's earlier
+ * steps left there. A real two-step run on a fake spawner: the first step's
+ * turn is held while the run's session is destroyed through the Sandboxes
+ * page's route, the spawner refusing the delete so the Destroy stays
+ * pending between attempts; then the turn ends. The second step's start
+ * must fail the run with the Destroy's reason while the Destroy is still
+ * pending, and once it has settled nothing may start in the run again.
+ */
+async function checkAutomationStepDestroyPending(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { sessionIdForWorkflowExecution } =
+    await import('./core/sandbox/session_naming.ts');
+  const { SANDBOX_DESTROY_PENDING_MESSAGE } =
+    await import('./core/sandbox/session_constants.ts');
+  const sessions = await import('./domains/sandbox/sessions.ts');
+
+  // The steps run on `itestagent`: the provider the turn-drive lane left in
+  // the suite org, or one of this lane's own when it runs alone.
+  const [orgRow] = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const orgSlug = orgRow?.slug ?? '';
+  const providerSeeded = await stat(
+    path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'providers',
+      'itestagent.yml',
+    ),
+  ).then(
+    () => true,
+    () => false,
+  );
+  const agentProvider = providerSeeded
+    ? null
+    : await seedItestAgentProvider({
+        base,
+        cookie,
+        orgId,
+        orgSlug,
+        displayName: 'Itest Agent Destroy',
+        credentialName: 'Agent destroy key',
+        secret: 'sk-itest-agent-destroy',
+      });
+
+  // The spawner: every create and exec counted; the first exec (the first
+  // step's turn) held until the lane lets it end; a delete refused while
+  // `failDeletes` holds.
+  const spawned = { creates: 0, execs: 0, deletes: 0 };
+  let failDeletes = false;
+  let firstExecStarted = (): void => {};
+  const firstExec = new Promise<void>((resolve) => {
+    firstExecStarted = resolve;
+  });
+  let releaseFirstExec = (): void => {};
+  const firstExecGate = new Promise<void>((resolve) => {
+    releaseFirstExec = resolve;
+  });
+  const writeExecStream = (res: ServerResponse): void => {
+    res.setHeader('content-type', 'text/event-stream');
+    const lines = [
+      { type: 'system', subtype: 'init', session_id: 'wfconv-destroy' },
+      {
+        type: 'assistant',
+        message: {
+          id: 'wd1',
+          model: 'itest-agent-model',
+          content: [{ type: 'text', text: 'Drafted the notes.' }],
+          usage: { input_tokens: 40, output_tokens: 10 },
+        },
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        session_id: 'wfconv-destroy',
+        result: 'Drafted the notes into the workspace.',
+        duration_ms: 200,
+      },
+    ];
+    lines.forEach((line, index) => {
+      res.write(
+        `event: stdout\ndata: ${JSON.stringify({ text: `${JSON.stringify(line)}\n`, seq: index + 1 })}\n\n`,
+      );
+    });
+    res.write(
+      `event: result\ndata: ${JSON.stringify({ exitCode: 0, stdoutBase64: '', stderrBase64: '' })}\n\n`,
+    );
+    res.end();
+  };
+  const spawner = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = new URL(req.url ?? '', 'http://x');
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (method === 'POST' && url.pathname === '/v1/sessions') {
+        spawned.creates += 1;
+        const parsed = z
+          .object({ sessionId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        res.end(
+          JSON.stringify({
+            session: {
+              sessionId: parsed.success ? parsed.data.sessionId : '',
+              organizationId: orgId,
+              profile: 'agent',
+              state: 'ready',
+              backend: 'itest',
+              createdAtMs: Date.now(),
+              expiresAtMs: Date.now() + 3_600_000,
+              idleTimeoutMs: 600_000,
+            },
+          }),
+        );
+        return;
+      }
+      if (method === 'POST' && url.pathname.endsWith('/exec')) {
+        spawned.execs += 1;
+        if (spawned.execs === 1) {
+          firstExecStarted();
+          void firstExecGate.then(() => writeExecStream(res));
+          return;
+        }
+        writeExecStream(res);
+        return;
+      }
+      if (url.pathname.endsWith('/files/stage')) {
+        res.end(JSON.stringify({ staged: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/delete')) {
+        res.end(JSON.stringify({ deleted: [], skipped: [] }));
+        return;
+      }
+      if (/\/v1\/sessions\/[^/]+\/files$/.test(url.pathname)) {
+        res.end(JSON.stringify({ entries: [] }));
+        return;
+      }
+      if (/\/exec\/[^/]+\/cancel$/.test(url.pathname)) {
+        res.end('{"cancelled":true}');
+        return;
+      }
+      if (method === 'PATCH' && url.pathname.endsWith('/pin')) {
+        res.end('{"pinned":false}');
+        return;
+      }
+      if (method === 'GET' && /^\/v1\/sessions\/[^/]+$/.test(url.pathname)) {
+        res.end('{"session":{"state":"ready"}}');
+        return;
+      }
+      if (method === 'DELETE') {
+        spawned.deletes += 1;
+        if (failDeletes) {
+          res.statusCode = 500;
+          res.end('{"error":"itest delete failure"}');
+          return;
+        }
+        res.end('{"destroyed":true}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const spawnerAddress = spawner.address();
+  const spawnerPort =
+    spawnerAddress !== null && typeof spawnerAddress === 'object'
+      ? spawnerAddress.port
+      : 0;
+  // The gateway: the provider keys the platform syncs, each turn's key
+  // minted and revoked, nothing spent.
+  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
+  const gateway = createServer((req, res) => {
+    let gatewayBody = '';
+    req.on('data', (chunk: unknown) => {
+      gatewayBody += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (url === '/api/config') {
+        res.end(JSON.stringify({ client_config: {} }));
+        return;
+      }
+      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
+      if (keysMatch) {
+        const provider = decodeURIComponent(keysMatch[1] ?? '');
+        const list = providerKeys.get(provider) ?? [];
+        if (method !== 'GET') {
+          const parsed = z
+            .looseObject({ name: z.string() })
+            .safeParse(JSON.parse(gatewayBody || '{}'));
+          if (
+            parsed.success &&
+            !list.some((k) => k.name === parsed.data.name)
+          ) {
+            list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
+          }
+          providerKeys.set(provider, list);
+          res.end('{}');
+          return;
+        }
+        res.end(JSON.stringify({ keys: list }));
+        return;
+      }
+      if (url.startsWith('/api/governance/pricing-overrides')) {
+        res.end(
+          method === 'GET'
+            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
+            : '{}',
+        );
+        return;
+      }
+      if (url === '/api/governance/virtual-keys' && method === 'POST') {
+        const id = `vk-destroy-${randomUUID()}`;
+        res.end(
+          JSON.stringify({
+            virtual_key: {
+              id,
+              value: `sk-bf-${id}`,
+              budgets: [{ id: `budget-${id}`, max_limit: 5, current_usage: 0 }],
+            },
+          }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/governance/virtual-keys/')) {
+        res.end(
+          method === 'DELETE'
+            ? '{}'
+            : JSON.stringify({
+                virtual_key: { budgets: [{ current_usage: 0 }] },
+              }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/providers')) {
+        res.end('{}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const gatewayAddress = gateway.address();
+  const gatewayPort =
+    gatewayAddress !== null && typeof gatewayAddress === 'object'
+      ? gatewayAddress.port
+      : 0;
+  const restoreEnv = overrideEnv({
+    SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
+    SANDBOX_TOKEN: 'itest-destroy-spawner',
+    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
+    TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
+  });
+
+  let sessionId = '';
+  try {
+    const post = (route: string, payload?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+      });
+    const name = `ops/destroy-pending-${randomUUID().slice(0, 8)}`;
+    const saved = z.object({ version: z.number() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/save?orgId=${orgId}`, {
+          document: {
+            version: 1,
+            name,
+            nodes: [
+              {
+                id: 'draft',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Draft notes on {{ input.subject }} into the workspace.',
+              },
+              {
+                id: 'publish',
+                type: 'agent',
+                model: 'itest-agent-model',
+                prompt:
+                  'Publish the notes you drafted: {{ nodes.draft.output.text }}',
+              },
+            ],
+            output: '{{ nodes.publish.output }}',
+          },
+        })
+      ).json(),
+    );
+    const deployed = await post(
+      `/api/app/automations/${name}/deploy?orgId=${orgId}`,
+      { version: saved.success ? saved.data.version : 0 },
+    );
+    const started = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/${name}/start?orgId=${orgId}`, {
+          input: { subject: 'the quarter' },
+          mode: 'live',
+        })
+      ).json(),
+    );
+    const runId = started.success ? started.data.runId : '';
+    sessionId = sessionIdForWorkflowExecution(runId);
+    const runRow = async () =>
+      (
+        await sql<
+          {
+            status: string;
+            detail: string | null;
+            failureCode: string | null;
+          }[]
+        >`
+          SELECT status, detail, failure_code AS "failureCode"
+          FROM app.automation_runs WHERE id = ${runId}
+        `
+      )[0];
+    const destroyJobStates = async () =>
+      (
+        await sql<{ state: string }[]>`
+          SELECT state::text AS state FROM pgboss.job
+          WHERE name = 'sandbox.destroy_session'
+            AND data ->> 'organizationId' = ${orgId}
+            AND data ->> 'sessionId' = ${sessionId}
+          ORDER BY created_on
+        `
+      ).map((job) => job.state);
+
+    // The first step's turn runs in the run's workspace...
+    const firstStepRunning = await Promise.race([
+      firstExec.then(() => true),
+      sleep(30_000).then(() => false),
+    ]);
+    // ...when an administrator destroys it. The spawner refuses the delete,
+    // so the Destroy waits for its next attempt: pending.
+    failDeletes = true;
+    const destroyRes = await post(
+      `/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+    );
+    const destroyPending = await waitFor(
+      async () => (await destroyJobStates()).includes('retry'),
+      15_000,
+    );
+    // The first step's turn ends; the run moves on to the second step.
+    const releasedAt = Date.now();
+    releaseFirstExec();
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        (['success', 'failed', 'cancelled'].includes(row.status) ||
+          row.detail === 'room:publish')
+      );
+    }, 30_000);
+    const atRefusal = await runRow();
+    const refusedAfterMs = Date.now() - releasedAt;
+    const destroyStillPending = (await destroyJobStates()).includes('retry');
+
+    // The Destroy settles: the spawner deletes, the retry runs now.
+    failDeletes = false;
+    await sql`
+      UPDATE pgboss.job SET start_after = now()
+      WHERE name = 'sandbox.destroy_session'
+        AND data ->> 'organizationId' = ${orgId}
+        AND data ->> 'sessionId' = ${sessionId} AND state = 'retry'
+    `;
+    const destroySettled = await waitFor(
+      async () =>
+        (await destroyJobStates()).every((state) => state === 'completed') &&
+        (await sessions.getSessionBySessionId(sql, orgId, sessionId))
+          ?.status === 'destroyed',
+      15_000,
+    );
+    // Whatever was still waiting comes back within its backoff, at most
+    // half a minute after a first refusal: give it that long to show.
+    await waitFor(async () => {
+      const row = await runRow();
+      return (
+        row !== undefined &&
+        ['success', 'failed', 'cancelled'].includes(row.status)
+      );
+    }, 40_000);
+    const afterwards = await runRow();
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE org_id = ${orgId} AND session_id = ${sessionId}
+      ORDER BY created_at_ms
+    `;
+    record(
+      'automation step: a pending Destroy of the run’s workspace fails the next step with its reason, never a wait for room or a fresh, empty workspace',
+      saved.success &&
+        deployed.status === 200 &&
+        firstStepRunning &&
+        destroyRes.status === 202 &&
+        destroyPending &&
+        atRefusal?.status === 'failed' &&
+        atRefusal.failureCode === 'start_failed' &&
+        (atRefusal.detail ?? '').startsWith('publish: ') &&
+        (atRefusal.detail ?? '').includes(SANDBOX_DESTROY_PENDING_MESSAGE) &&
+        !(atRefusal.detail ?? '').includes('sandbox room') &&
+        destroyStillPending &&
+        destroySettled &&
+        afterwards?.status === 'failed' &&
+        rows.length === 1 &&
+        rows[0]?.status === 'destroyed' &&
+        spawned.creates === 1 &&
+        spawned.execs === 1,
+      `deploy=${deployed.status}, first step running=${firstStepRunning}, destroy=${destroyRes.status}, pending=${destroyPending}; ${refusedAfterMs} ms after the first step ended: run=${atRefusal?.status ?? 'missing'}/${atRefusal?.failureCode ?? '-'} (want failed/start_failed) "${(atRefusal?.detail ?? '').slice(0, 160)}", Destroy still pending then=${destroyStillPending}; Destroy settled=${destroySettled}, then run=${afterwards?.status ?? 'missing'} (want failed), session rows=${rows.map((row) => row.status).join(',')} (want destroyed: no fresh incarnation), spawner creates=${spawned.creates} execs=${spawned.execs} (want 1/1: the second step never ran)`,
+    );
+  } finally {
+    releaseFirstExec();
+    failDeletes = false;
+    restoreEnv();
+    if (sessionId !== '') {
+      // Hand back the workflow budget whatever happened above.
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'sessionId' = ${sessionId}
+          AND state::text IN ('created', 'retry')
+      `;
+      await sessions.markSessionDestroyed(sql, {
+        organizationId: orgId,
+        sessionId,
+      });
+    }
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+    await agentProvider?.cleanup();
+  }
+}
+
+/**
  * Sandbox session substrate: per-owner and per-budget caps, the slot a
  * hibernated session frees, hibernate/resume slot accounting, and the
  * hash-only token lifecycle (minted → looked up by hash → revoked by the
@@ -59278,6 +59738,10 @@ async function main(): Promise<void> {
         'checkAutomationAgentNode',
         () =>
           checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkAutomationStepDestroyPending',
+        () => checkAutomationStepDestroyPending(sql, baseUrl, authCtx),
       ],
       ['checkAskAnswer', () => checkAskAnswer(sql, baseUrl, authCtx)],
       [

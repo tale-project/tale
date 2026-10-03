@@ -90,3 +90,14 @@ export const SANDBOX_IMAGE_CALL_STALE_MS = 10 * 60 * 1000;
  * settles its op row with: no harness turn ran, so — like one parked on a
  * question — the external-turn metrics count it as no outcome at all. */
 export const AWAITING_ROOM_RESULT_STATUS = 'awaiting_room';
+
+/** The `reason` a `QUOTA_EXCEEDED` refusal carries when it is no want of
+ * room: an administrator's Destroy of the session is queued, retrying or
+ * running, and its workspace is going. The shims carry it on as the
+ * AppError's `data.reason`, so a lane tells it from a full budget
+ * (`isDestroyPendingRefusal`). */
+export const SANDBOX_DESTROY_PENDING_REASON = 'destroy_pending';
+
+/** What a start refused for a pending Destroy says. */
+export const SANDBOX_DESTROY_PENDING_MESSAGE =
+  'An administrator is deleting this sandbox workspace. No new work starts in it until the deletion has finished.';
